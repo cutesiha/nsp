@@ -14,23 +14,7 @@
 [ext_resource type="Script" uid="uid://diipjx4p8kag3" path="res://scripts/ui/Phone.cs" id="14_phone"]
 [ext_resource type="Script" uid="uid://dtturpi1hcmiu" path="res://scripts/ui/CallBubble.cs" id="15_call"]
 [ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="16_ring"]
-[ext_resource type="Script" path="res://scripts/ui/FloatingPopupLayer.cs" id="17_floatpopup"]
-
-[sub_resource type="StyleBoxFlat" id="CardStyle"]
-content_margin_left = 12.0
-content_margin_top = 10.0
-content_margin_right = 12.0
-content_margin_bottom = 10.0
-bg_color = Color(0.99, 0.98, 0.94, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.15, 0.15, 0.15, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[ext_resource type="Script" uid="uid://c7tfsvc0kxtsb" path="res://scripts/ui/FloatingPopupLayer.cs" id="17_floatpopup"]
 
 [sub_resource type="StyleBoxFlat" id="InsetStyle"]
 content_margin_left = 8.0
@@ -47,6 +31,22 @@ corner_radius_top_left = 3
 corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="CardStyle"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.99, 0.98, 0.94, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.15, 0.15, 0.15, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="MainScene" type="Node2D" unique_id=1008652525]
 script = ExtResource("1_main")
@@ -75,6 +75,7 @@ offset_left = -260.0
 offset_top = 4.0
 offset_right = 260.0
 offset_bottom = 36.0
+grow_horizontal = 2
 script = ExtResource("5_hud")
 
 [node name="Background" type="ColorRect" parent="UILayer/CoreProgressHud" unique_id=476154333]
@@ -98,9 +99,8 @@ horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="ClipBox" type="Control" parent="UILayer/CoreProgressHud" unique_id=1900000001]
-layout_mode = 0
 clip_contents = true
-offset_right = 0.0
+anchors_preset = 0
 offset_bottom = 32.0
 
 [node name="LabelBlack" type="Label" parent="UILayer/CoreProgressHud/ClipBox" unique_id=1900000002]
@@ -169,70 +169,70 @@ color = Color(0.99, 0.98, 0.96, 1)
 
 [node name="MapContent" type="Node2D" parent="UILayer/Monitor01_Map" unique_id=757761331]
 
-[node name="Corridor_CoreToCentral" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_CoreToCentral" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1680341655]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_CoreRoom")
 RoomBNodePath = NodePath("../Room_CentralOffice")
 
-[node name="Corridor_CentralToPower" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_CentralToPower" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=485412050]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_CentralOffice")
 RoomBNodePath = NodePath("../Room_PowerRoom")
 
-[node name="Corridor_CentralToMaintenance" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_CentralToMaintenance" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1914146915]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_CentralOffice")
 RoomBNodePath = NodePath("../Room_MaintenanceRoom")
 
-[node name="Corridor_CentralToMedical" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_CentralToMedical" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=2111198844]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_CentralOffice")
 RoomBNodePath = NodePath("../Room_MedicalRoom")
 
-[node name="Corridor_GuardToPower" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_GuardToPower" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1938588962]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_GuardRoom")
 RoomBNodePath = NodePath("../Room_PowerRoom")
 
-[node name="Corridor_StorageToMaintenance" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_StorageToMaintenance" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1071454977]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_StorageRoom")
 RoomBNodePath = NodePath("../Room_MaintenanceRoom")
 
-[node name="Corridor_PowerToVent" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_PowerToVent" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1733953442]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_PowerRoom")
 RoomBNodePath = NodePath("../Room_VentRoom")
 
-[node name="Corridor_VentToMedical" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_VentToMedical" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1950107660]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_VentRoom")
 RoomBNodePath = NodePath("../Room_MedicalRoom")
 
-[node name="Corridor_MedicalToIsolation" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_MedicalToIsolation" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=213580316]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
 RoomANodePath = NodePath("../Room_MedicalRoom")
 RoomBNodePath = NodePath("../Room_IsolationRoom")
 
-[node name="Corridor_CoreToGuard" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_CoreToGuard" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1760673294]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
@@ -240,7 +240,7 @@ RoomANodePath = NodePath("../Room_CoreRoom")
 RoomBNodePath = NodePath("../Room_GuardRoom")
 UseElbow = true
 
-[node name="Corridor_CoreToStorage" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_CoreToStorage" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1351123982]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
@@ -248,7 +248,7 @@ RoomANodePath = NodePath("../Room_CoreRoom")
 RoomBNodePath = NodePath("../Room_StorageRoom")
 UseElbow = true
 
-[node name="Corridor_MaintenanceToMedical" type="Line2D" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Corridor_MaintenanceToMedical" type="Line2D" parent="UILayer/Monitor01_Map/MapContent" unique_id=1611409931]
 width = 3.0
 default_color = Color(0.55, 0.55, 0.58, 1)
 script = ExtResource("4_line")
@@ -256,7 +256,7 @@ RoomANodePath = NodePath("../Room_MaintenanceRoom")
 RoomBNodePath = NodePath("../Room_MedicalRoom")
 UseElbow = true
 
-[node name="Room_CoreRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_CoreRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=2075609479]
 offset_left = 261.0
 offset_top = 25.0
 offset_right = 391.0
@@ -265,7 +265,7 @@ color = Color(0.32, 0.15, 0.14, 1)
 script = ExtResource("2_room")
 RoomId = "core_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom" unique_id=1039612245]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 0.62
@@ -276,7 +276,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="CoreBadge" type="PanelContainer" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom"]
+[node name="CoreBadge" type="PanelContainer" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom" unique_id=1345346181]
 layout_mode = 0
 anchor_left = 0.12
 anchor_top = 0.66
@@ -284,7 +284,7 @@ anchor_right = 0.88
 anchor_bottom = 0.94
 theme_override_styles/panel = SubResource("InsetStyle")
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom/CoreBadge"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom/CoreBadge" unique_id=1981147483]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.15, 0.15, 0.15, 1)
 theme_override_font_sizes/font_size = 10
@@ -292,7 +292,7 @@ text = "봉쇄 코어"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Room_CentralOffice" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_CentralOffice" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1452170448]
 offset_left = 266.0
 offset_top = 218.0
 offset_right = 386.0
@@ -301,7 +301,7 @@ color = Color(0.15, 0.17, 0.22, 1)
 script = ExtResource("2_room")
 RoomId = "central_office"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CentralOffice"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CentralOffice" unique_id=1739013337]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -312,7 +312,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_GuardRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_GuardRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=948895732]
 offset_left = 55.0
 offset_top = 125.0
 offset_right = 165.0
@@ -321,7 +321,7 @@ color = Color(0.16, 0.16, 0.2, 1)
 script = ExtResource("2_room")
 RoomId = "guard_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_GuardRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_GuardRoom" unique_id=1019289202]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -332,7 +332,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_StorageRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_StorageRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1818918452]
 offset_left = 487.0
 offset_top = 125.0
 offset_right = 597.0
@@ -341,7 +341,7 @@ color = Color(0.17, 0.19, 0.15, 1)
 script = ExtResource("2_room")
 RoomId = "storage_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_StorageRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_StorageRoom" unique_id=1996765622]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -352,7 +352,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_PowerRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_PowerRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=951900774]
 offset_left = 55.0
 offset_top = 220.0
 offset_right = 165.0
@@ -361,7 +361,7 @@ color = Color(0.22, 0.17, 0.12, 1)
 script = ExtResource("2_room")
 RoomId = "power_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_PowerRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_PowerRoom" unique_id=1020005046]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -372,7 +372,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_MaintenanceRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_MaintenanceRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1145359799]
 offset_left = 487.0
 offset_top = 220.0
 offset_right = 597.0
@@ -381,7 +381,7 @@ color = Color(0.2, 0.19, 0.12, 1)
 script = ExtResource("2_room")
 RoomId = "maintenance_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_MaintenanceRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_MaintenanceRoom" unique_id=1104700798]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -392,7 +392,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_VentRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_VentRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1240584331]
 offset_left = 55.0
 offset_top = 315.0
 offset_right = 165.0
@@ -401,7 +401,7 @@ color = Color(0.12, 0.2, 0.2, 1)
 script = ExtResource("2_room")
 RoomId = "vent_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_VentRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_VentRoom" unique_id=987089259]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -412,7 +412,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_MedicalRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_MedicalRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=399763163]
 offset_left = 271.0
 offset_top = 315.0
 offset_right = 381.0
@@ -421,7 +421,7 @@ color = Color(0.15, 0.19, 0.22, 1)
 script = ExtResource("2_room")
 RoomId = "medical_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_MedicalRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_MedicalRoom" unique_id=1414089375]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -432,7 +432,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
-[node name="Room_IsolationRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="Room_IsolationRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=2044314406]
 offset_left = 271.0
 offset_top = 405.0
 offset_right = 381.0
@@ -441,7 +441,7 @@ color = Color(0.2, 0.14, 0.18, 1)
 script = ExtResource("2_room")
 RoomId = "isolation_room"
 
-[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_IsolationRoom"]
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_IsolationRoom" unique_id=1999841929]
 layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -544,7 +544,9 @@ theme_override_font_sizes/font_size = 11
 text = "고양이"
 horizontal_alignment = 1
 
-[node name="FloatingPopupLayer" type="Control" parent="UILayer/Monitor01_Map/MapContent"]
+[node name="FloatingPopupLayer" type="Control" parent="UILayer/Monitor01_Map/MapContent" unique_id=1829970773]
+layout_mode = 3
+anchors_preset = 0
 script = ExtResource("17_floatpopup")
 
 [node name="Monitor02_Bezel" type="ColorRect" parent="UILayer" unique_id=1008696180]
@@ -890,6 +892,8 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("13_taskpop")
 
 [node name="Dim" type="ColorRect" parent="UILayer/TaskPriorityPopup" unique_id=2131007624]
@@ -934,6 +938,8 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("15_call")
 
@@ -965,8 +971,7 @@ theme_override_styles/panel = SubResource("CardStyle")
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LogToggleButton" type="Button" parent="UILayer"]
-anchors_preset = 0
+[node name="LogToggleButton" type="Button" parent="UILayer" unique_id=169523342]
 offset_left = 12.0
 offset_top = 4.0
 offset_right = 112.0
