@@ -31,7 +31,7 @@ public partial class ConfigData : Resource
     [Export] public float SaboteurWanderChance = 0.15f;
     [Export] public float SaboteurSabotageChance = 0.35f;
     [Export] public float KillAttemptChance = 0.3f;
-    [Export] public float SabotageCoreProgressLoss = 4f;
+    [Export] public float SabotageTaskGaugeLoss = 5f;
     [Export] public float SurveillanceSaboteurChanceMultiplier = 0.5f;
 
     [Export] public int MaterialsCap = 100;

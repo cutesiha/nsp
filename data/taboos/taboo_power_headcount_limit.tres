@@ -4,13 +4,15 @@
 
 [resource]
 script = ExtResource("1_taboo")
-TabooId = "taboo_power_solo"
-Description = "근무 시작 120초 이후 발전실에 혼자 있지 말 것"
-ConditionType = 1
+TabooId = "taboo_power_headcount_limit"
+Description = "발전실에 동시에 2명 이상의 직원을 배치하지 마십시오."
+ConditionType = 0
 ConditionParams = {
 "room_id": "power_room",
-"min": 2,
-"after_seconds": 120.0
+"max": 1,
+"hold_seconds": 15.0
 }
-ConsequenceType = 0
-ConsequenceParams = {}
+ConsequenceType = 5
+ConsequenceParams = {
+"amount": 2.0
+}

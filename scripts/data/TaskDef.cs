@@ -19,4 +19,5 @@ public partial class TaskDef : Resource
     [Export] public bool HasNeglectConsequence = false;
     [Export] public float NeglectThresholdSeconds = 30f;
     [Export] public TabooConsequenceType NeglectConsequenceType = TabooConsequenceType.PowerOutage;
+    [Export] public float NeglectConsequenceAmount = 10f;
 }

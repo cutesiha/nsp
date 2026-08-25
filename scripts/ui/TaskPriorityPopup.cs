@@ -137,7 +137,7 @@ public partial class TaskPriorityPopup : Control
         NSP.Data.TaskEffectType.AddCoreProgress => $"완료 시 코어 진행도 +{task.EffectAmount:0}%, 자재 소모",
         NSP.Data.TaskEffectType.AddMaterials => $"완료 시 공용 자재 +{task.EffectAmount:0}",
         NSP.Data.TaskEffectType.ReduceStress => $"완료 시 이 방 인원 스트레스 -{task.EffectAmount:0}",
-        NSP.Data.TaskEffectType.BoostPowerCapacity => $"완료 시 전력 예산 +{task.EffectAmount:0}",
+        NSP.Data.TaskEffectType.BoostPowerCapacity => "완료 시 발전 사고 상태라면 최대 전력 정상 복구",
         _ => "",
     };
 }

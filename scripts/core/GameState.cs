@@ -16,7 +16,11 @@ public partial class GameState : Node
 
     public float CoreProgress { get; private set; } = 0f;
     public int Materials { get; private set; } = 0;
-    public int PowerCapacityBonus { get; private set; } = 0;
+
+    // 발전기 사고(TABOO-01/FAIL-01)로 인한 임시 최대 전력 감소. 누적되지 않는 단일 상태값 —
+    // 사고가 이미 진행 중이면 새 사고가 더 깎지 않고, 발전기 점검을 한 번 완료하면 정상으로
+    // 완전히 복구된다(부분 회복 없음). 날짜가 바뀌면 이월되지 않고 초기화된다.
+    public int PowerAccidentPenalty { get; private set; } = 0;
     public GameResult Result { get; private set; } = GameResult.None;
 
     public string SaboteurEmployeeId { get; private set; } = "";
@@ -53,12 +57,20 @@ public partial class GameState : Node
         Materials = Mathf.Clamp(Materials + delta, 0, Config.Instance.Data.MaterialsCap);
     }
 
-    public void AddPowerCapacityBonus(int delta)
+    public void TriggerPowerAccident(int penaltyAmount)
     {
-        PowerCapacityBonus = Math.Max(0, PowerCapacityBonus + delta);
+        if (PowerAccidentPenalty > 0) return; // 이미 사고 상태 — 중첩으로 더 깎지 않는다
+        PowerAccidentPenalty = Math.Max(0, penaltyAmount);
     }
 
-    private int GetEffectivePowerBudget() => Config.Instance.Data.PowerBudgetTotal + PowerCapacityBonus;
+    public void RepairPowerAccident()
+    {
+        PowerAccidentPenalty = 0;
+    }
+
+    public bool IsPowerAccidentActive() => PowerAccidentPenalty > 0;
+
+    private int GetEffectivePowerBudget() => Math.Max(0, Config.Instance.Data.PowerBudgetTotal - PowerAccidentPenalty);
 
     public bool TrySetPowerAllocation(PowerConsumer consumer, int amount)
     {
@@ -89,6 +101,8 @@ public partial class GameState : Node
 
     public int GetPowerRemaining() => GetEffectivePowerBudget() - GetPowerUsed();
 
+    public bool IsPowerOverBudget() => GetPowerUsed() > GetEffectivePowerBudget();
+
     public void SetResult(GameResult result)
     {
         Result = result;
@@ -112,5 +126,6 @@ public partial class GameState : Node
         CurrentDay += 1;
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;
+        PowerAccidentPenalty = 0;
     }
 }

@@ -72,15 +72,19 @@ public partial class TabooRuleSystem : Node
 
         foreach (var taboo in GetActiveTaboos())
         {
-            switch (taboo.ConditionType)
-            {
-                case TabooConditionType.MaxHeadcountInRoom:
-                    CheckMaxHeadcount(taboo, room);
-                    break;
-                case TabooConditionType.MinHeadcountInRoomAfterHour:
-                    CheckMinHeadcountAfterHour(taboo, room);
-                    break;
-            }
+            if (taboo.ConditionType == TabooConditionType.MinHeadcountInRoomAfterHour)
+                CheckMinHeadcountAfterHour(taboo, room);
+        }
+    }
+
+    // 시간 기반 조건(예: 정원 초과가 일정 시간 이상 지속)은 매 프레임 검사해야 하므로
+    // 방 입장/퇴장 이벤트가 아니라 FacilitySimulation.Tick()에서 매 프레임 호출된다.
+    public void Tick(float delta)
+    {
+        foreach (var taboo in GetActiveTaboos())
+        {
+            if (taboo.ConditionType == TabooConditionType.MaxHeadcountInRoom)
+                TickMaxHeadcount(taboo, delta);
         }
     }
 
@@ -90,15 +94,35 @@ public partial class TabooRuleSystem : Node
         return targetRoomId == actualRoomId;
     }
 
-    private void CheckMaxHeadcount(TabooDef taboo, RoomState room)
+    private void TickMaxHeadcount(TabooDef taboo, float delta)
     {
-        if (!RoomMatches(taboo, room.RoomId)) return;
+        string roomId = taboo.ConditionParams.GetValueOrDefault("room_id", "").AsString();
+        var room = FacilitySimulation.Instance.GetRoomState(roomId);
+        if (room == null) return;
+
         int max = taboo.ConditionParams.GetValueOrDefault("max", 999).AsInt32();
-        if (room.OccupantEmployeeIds.Count > max)
+        float holdSeconds = taboo.ConditionParams.GetValueOrDefault("hold_seconds", 0f).AsSingle();
+
+        if (room.OccupantEmployeeIds.Count <= max)
         {
-            Violate(taboo, "", room.RoomId,
-                $"{room.RoomId}에 {room.OccupantEmployeeIds.Count}명 동시 배치 (금기: 최대 {max}명)");
+            // 인원이 정상으로 돌아옴 = 이번 위반 상태 종료. 다음 위반을 위해 완전히 초기화한다.
+            room.TabooHoldTimers[taboo.TabooId] = 0f;
+            return;
         }
+
+        float timer = room.TabooHoldTimers.GetValueOrDefault(taboo.TabooId, 0f);
+        if (timer < 0f) return; // 이미 이번 위반 상태에서 발동함(잠금) — 위 조건대로 정상화되기 전까지 재발동 안 함
+
+        timer += delta;
+        if (timer >= holdSeconds)
+        {
+            var roomDef = FacilitySimulation.Instance.GetRoomDef(roomId);
+            Violate(taboo, "", roomId,
+                $"{roomDef?.DisplayName ?? roomId}에 {room.OccupantEmployeeIds.Count}명이 {holdSeconds:0}초 이상 함께 있었다 (금기: 최대 {max}명). " +
+                "조명이 점멸하고 발전 설비가 과부하로 전력 여유가 줄었다.");
+            timer = -1f; // 발동 완료(잠금) 표시
+        }
+        room.TabooHoldTimers[taboo.TabooId] = timer;
     }
 
     private void CheckMinHeadcountAfterHour(TabooDef taboo, RoomState room)
@@ -132,7 +156,7 @@ public partial class TabooRuleSystem : Node
     private void Violate(TabooDef taboo, string actorEmployeeId, string roomId, string description)
     {
         EventLog.Instance?.LogEvent(LogEventType.TabooViolation, actorEmployeeId, roomId,
-            $"[금기 위반: {taboo.TabooId}] {description}");
+            $"⚠ 금기 위반 — {description}");
         ApplyConsequence(taboo, roomId);
     }
 
@@ -145,18 +169,20 @@ public partial class TabooRuleSystem : Node
     public void ApplyRoomConsequence(TabooConsequenceType type, string roomId, float stressAmount = 10f)
     {
         var room = FacilitySimulation.Instance.GetRoomState(roomId);
+        string roomName = FacilitySimulation.Instance.GetRoomDef(roomId)?.DisplayName ?? roomId;
         switch (type)
         {
             case TabooConsequenceType.PowerOutage:
                 if (room != null) room.PowerOn = false;
-                EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId, $"{roomId} 정전 발생");
+                EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId, $"⚠ {roomName} 정전 발생");
                 break;
             case TabooConsequenceType.CctvDisconnect:
                 if (room != null) room.CctvDisconnected = true;
-                EventLog.Instance?.LogEvent(LogEventType.CctvDisconnect, "", roomId, $"{roomId} CCTV 단절");
+                EventLog.Instance?.LogEvent(LogEventType.CctvDisconnect, "", roomId, $"⚠ {roomName} CCTV 단절");
                 break;
             case TabooConsequenceType.CorridorLock:
                 if (room != null) room.Locked = true;
+                EventLog.Instance?.LogEvent(LogEventType.Relocation, "", roomId, $"⚠ {roomName} 통로 봉쇄");
                 break;
             case TabooConsequenceType.ObservationCorruption:
                 if (room != null) room.InfoDistorted = true;
@@ -168,6 +194,11 @@ public partial class TabooRuleSystem : Node
                     if (emp != null)
                         emp.Stress = Mathf.Clamp(emp.Stress + stressAmount, 0f, Config.Instance.Data.StressMax);
                 }
+                break;
+            case TabooConsequenceType.PowerCapacityLoss:
+                GameState.Instance.TriggerPowerAccident(Mathf.RoundToInt(stressAmount));
+                EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId,
+                    $"⚠ {roomName} 발전 설비 과부하 — 최대 사용 가능 전력 감소");
                 break;
         }
     }

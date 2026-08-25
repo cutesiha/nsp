@@ -67,6 +67,7 @@ public enum TabooConsequenceType
     CorridorLock,
     ObservationCorruption,
     StressIncrease,
+    PowerCapacityLoss,
 }
 
 public enum SaboteurActionType
@@ -93,4 +94,5 @@ public enum LogEventType
     Isolation,
     Sabotage,
     Neglect,
+    TaskComplete,
 }

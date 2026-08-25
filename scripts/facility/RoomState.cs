@@ -15,4 +15,5 @@ public class RoomState
     public List<string> TaskPriorityOrder = new();
     public Dictionary<string, float> TaskGauges = new();
     public float NeglectTimer = 0f;
+    public Dictionary<string, float> TabooHoldTimers = new();
 }

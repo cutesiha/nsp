@@ -14,6 +14,7 @@
 [ext_resource type="Script" uid="uid://diipjx4p8kag3" path="res://scripts/ui/Phone.cs" id="14_phone"]
 [ext_resource type="Script" uid="uid://dtturpi1hcmiu" path="res://scripts/ui/CallBubble.cs" id="15_call"]
 [ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="16_ring"]
+[ext_resource type="Script" path="res://scripts/ui/FloatingPopupLayer.cs" id="17_floatpopup"]
 
 [sub_resource type="StyleBoxFlat" id="CardStyle"]
 content_margin_left = 12.0
@@ -543,6 +544,9 @@ theme_override_font_sizes/font_size = 11
 text = "고양이"
 horizontal_alignment = 1
 
+[node name="FloatingPopupLayer" type="Control" parent="UILayer/Monitor01_Map/MapContent"]
+script = ExtResource("17_floatpopup")
+
 [node name="Monitor02_Bezel" type="ColorRect" parent="UILayer" unique_id=1008696180]
 offset_left = 643.0
 offset_top = 135.0
@@ -960,6 +964,15 @@ theme_override_styles/panel = SubResource("CardStyle")
 [node name="VBox" type="VBoxContainer" parent="UILayer/CallLayer/PlayerChoiceBubble" unique_id=2072300939]
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="LogToggleButton" type="Button" parent="UILayer"]
+anchors_preset = 0
+offset_left = 12.0
+offset_top = 4.0
+offset_right = 112.0
+offset_bottom = 36.0
+theme_override_font_sizes/font_size = 13
+text = "사건 로그"
 
 [node name="LogPanel" type="Control" parent="UILayer" unique_id=551766192]
 visible = false

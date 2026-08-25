@@ -9,7 +9,8 @@ namespace NSP.Ui;
 
 public partial class ScheduleScreen : Control
 {
-    private static readonly string[] DailyTabooIds = { "taboo_maintenance_max1", "taboo_power_solo" };
+    // DAY1 권장 최소 구현 세트(NSP_DAY1_EVENTS.md) 검증 범위: TABOO-01만 활성화한다.
+    private static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
 
     private const int StatBarMax = 10;
 
