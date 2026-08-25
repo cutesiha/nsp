@@ -1,0 +1,47 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="NSP"
+run/main_scene="res://scenes/title/TitleScreen.tscn"
+config/features=PackedStringArray("4.7", "C#", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+Config="*res://scripts/core/Config.cs"
+EventLog="*res://scripts/core/EventLog.cs"
+GameState="*res://scripts/core/GameState.cs"
+TabooRuleSystem="*res://scripts/taboo/TabooRuleSystem.cs"
+FacilitySimulation="*res://scripts/facility/FacilitySimulation.cs"
+AIService="*res://scripts/ai/AIService.cs"
+
+[display]
+
+window/size/viewport_height=800
+
+[dotnet]
+
+project/assembly_name="NSP"
+
+[gui]
+
+theme/custom="res://theme/main_theme.tres"
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"

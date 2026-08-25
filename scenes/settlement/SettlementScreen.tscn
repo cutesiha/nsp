@@ -1,0 +1,43 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/SettlementScreen.cs" id="1_settlement"]
+[ext_resource type="FontFile" path="res://assets/fonts/KMU80TTFSungkokSerif.ttf" id="2_font"]
+
+[node name="SettlementScreen" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_settlement")
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.97, 0.97, 0.95, 1)
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -180.0
+offset_right = 260.0
+offset_bottom = 180.0
+theme_override_constants/separation = 20
+
+[node name="TitleLabel" type="Label" parent="Root"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 26
+text = "근무 정산 — DAY 1"
+
+[node name="SummaryLabel" type="Label" parent="Root"]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 18
+text = ""
+
+[node name="ContinueButton" type="Button" parent="Root"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 48)
+text = "휴게 시간으로"

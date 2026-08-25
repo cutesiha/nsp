@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/cat.PNG" id="2_img"]
+[ext_resource type="Texture2D" path="res://assets/characters/cat_face.png" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "cat"
+Codename = "고양이"
+Tech = 1
+Courage = 2
+Observation = 2
+Trait = "독불장군"
+
+PersonalityLine1 = "독립심이 강하고, 내향적이며, 남에게 도움받는 것을 별로 좋아하지 않는다."
+PersonalityLine2 = "츤데레 같은 성격이며, 툭툭 쏘아붙이는 일이 많지만 곤란한 사람을 완전히 외면하지는 못한다."
+PersonalityLine3 = "걱정하거나 신경 쓰고 있어도 그것을 솔직하게 드러내는 것을 싫어한다."
+
+SpeechStyleLine1 = "존댓말은 사용하지만 말이 짧고 퉁명스럽다."
+SpeechStyleLine2 = "상대를 걱정할 때도 직접 표현하기보다 핀잔을 주는 식으로 말한다."
+SpeechStyleLine3 = "당황하거나 감정을 들킨 것 같으면 평소보다 더욱 틱틱거린다."
+
+SpeechExample1 = "됐어요. 이 정도는 혼자 할 수 있으니까요."
+SpeechExample2 = "토끼 씨 좀 쉬게 하세요. 아까부터 상태 안 좋아 보이던데... 아니, 신경 쓰인다는 건 아니고요."
+SpeechExample3 = "그걸 왜 저한테 물어보는데요? 봤으니까 말씀드리는거죠."
+StartRoomId = "medical_room"
+IconColor = Color(0.42, 0.65, 0.88, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

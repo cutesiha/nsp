@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/rabbit.PNG" id="2_img"]
+[ext_resource type="Texture2D" path="res://assets/characters/rabbit_face.png" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "rabbit"
+Codename = "토끼"
+Tech = 2
+Courage = 3
+Observation = 1
+Trait = "과민반응"
+
+PersonalityLine1 = "겁이 많고 소심하지만 다른 사람에게 피해를 주는 것을 싫어한다."
+PersonalityLine2 = "주변의 작은 소리나 변화에도 민감해 남들이 지나치는 이상을 자주 눈치챈다."
+PersonalityLine3 = "불안이 많고, 자신이 본 것조차 확신하지 못해 쉽게 단정하지 않는다."
+
+SpeechStyleLine1 = "항상 존댓말을 사용하며 조심스럽게 말한다."
+SpeechStyleLine2 = "평소에도 가끔 첫 음절을 더듬지만, 긴장하거나 당황하면 더 더듬는다."
+SpeechStyleLine3 = "자신 없는 이야기를 할 때는 말을 잠시 끊거나 말끝을 흐린다."
+
+SpeechExample1 = "아, 그, 그게... 제가 잘못 본 걸 수도 있는데요..."
+SpeechExample2 = "저기... 아까 복도에 누가 있었던 것 같아요."
+SpeechExample3 = "감사합니다... 조금 쉬면 괜찮아질 것 같아요."
+StartRoomId = "maintenance_room"
+IconColor = Color(0.96, 0.7, 0.42, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

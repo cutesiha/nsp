@@ -1,0 +1,44 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/TitleScreen.cs" id="1_title"]
+[ext_resource type="FontFile" path="res://assets/fonts/NalSun-Regular.ttf" id="2_font"]
+
+[node name="TitleScreen" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_title")
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.97, 0.97, 0.95, 1)
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = -160.0
+offset_right = 400.0
+offset_bottom = 160.0
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="Root"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 76
+text = "야간근무지침"
+
+[node name="SubtitleLabel" type="Label" parent="Root"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22
+text = "NSP — DAY 1 PROTOTYPE"
+
+[node name="StartButton" type="Button" parent="Root"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 48)
+text = "근무 시작"

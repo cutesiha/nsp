@@ -1,0 +1,37 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/ResultScreen.cs" id="1_result"]
+[ext_resource type="FontFile" path="res://assets/fonts/KMU80TTFSungkokSerif.ttf" id="2_font"]
+
+[node name="ResultScreen" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_result")
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.97, 0.97, 0.95, 1)
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -180.0
+offset_right = 260.0
+offset_bottom = 180.0
+theme_override_constants/separation = 24
+
+[node name="ResultLabel" type="Label" parent="Root"]
+layout_mode = 2
+horizontal_alignment = 1
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 20
+text = ""
+
+[node name="TitleButton" type="Button" parent="Root"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 48)
+text = "타이틀로 돌아가기"

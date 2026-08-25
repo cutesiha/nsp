@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TaskDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TaskDef.cs" id="1_task"]
+
+[resource]
+script = ExtResource("1_task")
+TaskId = "lockdown_gear_check"
+DisplayName = "봉쇄 장치 점검"
+RoomId = "guard_room"
+RequiredStat = 1
+Priority = 2
+RecommendedHeadcount = 1
+GaugeRequired = 10.0
+EffectType = 0
+EffectAmount = 0.0
+HasNeglectConsequence = true
+NeglectThresholdSeconds = 30.0
+NeglectConsequenceType = 1

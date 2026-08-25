@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_maintenance_max1"
+Description = "정비실에 동시에 2명 이상 있지 말 것"
+ConditionType = 0
+ConditionParams = {
+"room_id": "maintenance_room",
+"max": 1
+}
+ConsequenceType = 1
+ConsequenceParams = {}

@@ -1,0 +1,69 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/RestScreen.cs" id="1_rest"]
+
+[node name="RestScene" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_rest")
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.97, 0.97, 0.95, 1)
+
+[node name="Root" type="VBoxContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+theme_override_constants/separation = 16
+
+[node name="TitleLabel" type="Label" parent="Root"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "휴게 시간"
+
+[node name="EmployeeRow" type="HBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="DialogueBox" type="HBoxContainer" parent="Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="Portrait" type="TextureRect" parent="Root/DialogueBox"]
+custom_minimum_size = Vector2(240, 340)
+layout_mode = 2
+size_flags_vertical = 3
+expand_mode = 1
+stretch_mode = 5
+
+[node name="TextColumn" type="VBoxContainer" parent="Root/DialogueBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="SpeakerLabel" type="Label" parent="Root/DialogueBox/TextColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "(직원을 선택하세요)"
+
+[node name="MessageLabel" type="Label" parent="Root/DialogueBox/TextColumn"]
+layout_mode = 2
+autowrap_mode = 3
+text = ""
+
+[node name="IsolateButton" type="Button" parent="Root/DialogueBox/TextColumn"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+text = "이 직원 격리 (최대 1명)"
+
+[node name="ResultButton" type="Button" parent="Root"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 48)
+text = "근무 종료 -> RESULT 확인"

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TaskDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TaskDef.cs" id="1_task"]
+
+[resource]
+script = ExtResource("1_task")
+TaskId = "equipment_repair"
+DisplayName = "설비 고장 수리"
+RoomId = "maintenance_room"
+RequiredStat = 0
+Priority = 2
+RecommendedHeadcount = 1
+GaugeRequired = 15.0
+EffectType = 0
+EffectAmount = 0.0
+HasNeglectConsequence = true
+NeglectThresholdSeconds = 30.0
+NeglectConsequenceType = 2

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_redlight_codename"
+Description = "적색등 아래에서 코드네임을 부르지 말 것"
+ConditionType = 2
+ConditionParams = {}
+ConsequenceType = 3
+ConsequenceParams = {}

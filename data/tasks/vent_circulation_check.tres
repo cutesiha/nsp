@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="TaskDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TaskDef.cs" id="1_task"]
+
+[resource]
+script = ExtResource("1_task")
+TaskId = "vent_circulation_check"
+DisplayName = "환기 순환 점검"
+RoomId = "vent_room"
+RequiredStat = 0
+Priority = 1
+RecommendedHeadcount = 1
+GaugeRequired = 15.0
+EffectType = 0
+EffectAmount = 0.0
+HasNeglectConsequence = true
+NeglectThresholdSeconds = 25.0
+NeglectConsequenceType = 4

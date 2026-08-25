@@ -1,0 +1,193 @@
+[gd_scene format=3 uid="uid://dmhpn2pt52unn"]
+
+[ext_resource type="Script" uid="uid://dt0dveibby6wh" path="res://scripts/ui/ScheduleScreen.cs" id="1_schedule"]
+[ext_resource type="FontFile" uid="uid://bp21xoo5j2fnb" path="res://assets/fonts/KMU80TTFSungkokSerif.ttf" id="2_font"]
+
+[sub_resource type="StyleBoxFlat" id="PaperStyle"]
+content_margin_left = 20.0
+content_margin_top = 20.0
+content_margin_right = 20.0
+content_margin_bottom = 20.0
+bg_color = Color(0.99, 0.98, 0.94, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.15, 0.15, 0.15, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="ScheduleScene" type="Control" unique_id=1583001215]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_schedule")
+
+[node name="Background" type="ColorRect" parent="." unique_id=361870993]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.97, 0.97, 0.95, 1)
+
+[node name="Root" type="HBoxContainer" parent="." unique_id=1043550985]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+theme_override_constants/separation = 24
+
+[node name="NotebookPanel" type="PanelContainer" parent="Root" unique_id=798455042]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("PaperStyle")
+
+[node name="NotebookStack" type="Control" parent="Root/NotebookPanel" unique_id=1934843929]
+layout_mode = 2
+
+[node name="ManualPage" type="VBoxContainer" parent="Root/NotebookPanel/NotebookStack" unique_id=470018078]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 14
+
+[node name="ManualTitle" type="Label" parent="Root/NotebookPanel/NotebookStack/ManualPage" unique_id=1362604887]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 22
+text = "《메뉴얼》"
+horizontal_alignment = 1
+
+[node name="ManualBody" type="Label" parent="Root/NotebookPanel/NotebookStack/ManualPage" unique_id=133593910]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 14
+text = "제1조. 시설 내 모든 근무자는 지급된 가면과 지정 코드네임만을 사용하십시오. 가면을 벗거나 교환하거나, 타 직원의 코드네임을 대신 사용해서는 안 됩니다.
+
+제2조. 근무 중 타 직원의 실명 및 얼굴을 확인하려 하지 마십시오. 위반으로 발생한 사고에 본 시설은 책임지지 않습니다.
+
+제3조. 근무 중 자신과 동일한 가면을 착용한 직원을 발견한 경우, 해당 직원에게 말을 걸거나 신원을 확인하려 하지 마십시오. 가장 가까운 구역으로 이동한 뒤 문을 잠그고 중앙 관리실에 보고하십시오.
+
+제4조. 근무 종료 방송 이후 자신의 코드네임이 호출되더라도 절대 응답하지 마십시오. 정상적인 근무 종료 방송은 직원의 코드네임을 개별적으로 호출하지 않습니다."
+autowrap_mode = 3
+
+[node name="ManualNextRow" type="HBoxContainer" parent="Root/NotebookPanel/NotebookStack/ManualPage" unique_id=117428491]
+layout_mode = 2
+alignment = 2
+
+[node name="ManualNextButton" type="Button" parent="Root/NotebookPanel/NotebookStack/ManualPage/ManualNextRow" unique_id=1648105065]
+layout_mode = 2
+text = "▶"
+
+[node name="EmployeeCard" type="PanelContainer" parent="Root/NotebookPanel/NotebookStack" unique_id=1462388046]
+visible = false
+layout_mode = 0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -260.0
+offset_bottom = -54.0
+theme_override_styles/panel = SubResource("PaperStyle")
+
+[node name="CardVBox" type="VBoxContainer" parent="Root/NotebookPanel/NotebookStack/EmployeeCard" unique_id=1321120916]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Portrait" type="TextureRect" parent="Root/NotebookPanel/NotebookStack/EmployeeCard/CardVBox" unique_id=1953477044]
+custom_minimum_size = Vector2(84, 84)
+layout_mode = 2
+size_flags_horizontal = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NameLabel" type="Label" parent="Root/NotebookPanel/NotebookStack/EmployeeCard/CardVBox" unique_id=1637408134]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+
+[node name="StatsBox" type="VBoxContainer" parent="Root/NotebookPanel/NotebookStack/EmployeeCard/CardVBox" unique_id=2091274498]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TabooPage" type="VBoxContainer" parent="Root/NotebookPanel/NotebookStack" unique_id=729540537]
+visible = false
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/separation = 14
+
+[node name="TabooTitle" type="Label" parent="Root/NotebookPanel/NotebookStack/TabooPage" unique_id=1917002233]
+layout_mode = 2
+theme_override_fonts/font = ExtResource("2_font")
+theme_override_font_sizes/font_size = 22
+text = "[금기]"
+horizontal_alignment = 1
+
+[node name="TabooListContainer" type="VBoxContainer" parent="Root/NotebookPanel/NotebookStack/TabooPage" unique_id=1745505024]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="TabooPrevRow" type="HBoxContainer" parent="Root/NotebookPanel/NotebookStack/TabooPage" unique_id=711482764]
+layout_mode = 2
+alignment = 2
+
+[node name="TabooPrevButton" type="Button" parent="Root/NotebookPanel/NotebookStack/TabooPage/TabooPrevRow" unique_id=91824608]
+layout_mode = 2
+text = "◀"
+
+[node name="DocumentPanel" type="PanelContainer" parent="Root" unique_id=673235486]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.8
+theme_override_styles/panel = SubResource("PaperStyle")
+
+[node name="DocumentVBox" type="VBoxContainer" parent="Root/DocumentPanel" unique_id=905538968]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="DocumentTitle" type="Label" parent="Root/DocumentPanel/DocumentVBox" unique_id=1115872310]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "금일 근무 배정"
+
+[node name="DocumentScroll" type="ScrollContainer" parent="Root/DocumentPanel/DocumentVBox" unique_id=1244028192]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RoomListContainer" type="VBoxContainer" parent="Root/DocumentPanel/DocumentVBox/DocumentScroll" unique_id=236370742]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="EmployeeRosterLabel" type="Label" parent="Root/DocumentPanel/DocumentVBox" unique_id=857786123]
+layout_mode = 2
+text = "직원 (드래그해서 배정)"
+
+[node name="EmployeeRoster" type="HBoxContainer" parent="Root/DocumentPanel/DocumentVBox" unique_id=1213390381]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="StartButton" type="Button" parent="." unique_id=1769883098]
+visible = false
+layout_mode = 0
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -180.0
+offset_top = -64.0
+offset_right = -24.0
+offset_bottom = -24.0
+text = "근무 시작"
+
+[node name="ConfirmDialog" type="ConfirmationDialog" parent="." unique_id=231799570]
+title = "확인"
+size = Vector2i(420, 160)
+dialog_text = "모든 직원을 배치하지 않았습니다. 정말 이대로 근무를 시작할까요?"

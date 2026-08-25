@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ConfigData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/ConfigData.cs" id="1_cfg"]
+
+[resource]
+script = ExtResource("1_cfg")
+MaxDays = 5
+MaxEmployees = 6
+StressMax = 100.0
+MurderMaxTotal = 2
+MurderMaxPerDay = 1
+ActiveTabooCountPerDay = 2
+ApiTimeoutSeconds = 8.0
+ApiMaxRetries = 1
+AiModelId = "claude-3-5-haiku-20241022"
+AiMaxTokens = 300
+EmployeeMoveSpeed = 80.0
+DayLengthSeconds = 300.0
+PowerBudgetTotal = 7
+PowerCostCctvWatch = 3
+PowerCostVentRepair = 4
+PowerCostLighting = 3
+IsolationCapacity = 1
+SaboteurDecisionIntervalSeconds = 4.0
+SaboteurWanderChance = 0.15
+SaboteurSabotageChance = 0.35
+KillAttemptChance = 0.3
+SabotageCoreProgressLoss = 4.0
+SurveillanceSaboteurChanceMultiplier = 0.5
+MaterialsCap = 100
+MaterialsPerCoreGauge = 5

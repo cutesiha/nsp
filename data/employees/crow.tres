@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/crow.PNG" id="2_img"]
+[ext_resource type="Texture2D" path="res://assets/characters/crow_face.png" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "crow"
+Codename = "까마귀"
+Tech = 2
+Courage = 2
+Observation = 3
+Trait = "묵묵한 목격자"
+
+PersonalityLine1 = "말수가 적고 무뚝뚝하며 다른 사람과 필요 이상으로 가까워지려 하지 않는다."
+PersonalityLine2 = "주변 사람의 행동을 유심히 관찰하고 사소한 변화도 오래 기억한다."
+PersonalityLine3 = "위급한 상황에서도 감정보다 상황 파악과 판단을 우선한다."
+
+SpeechStyleLine1 = "존댓말을 사용하지만 짧고 무미건조하게 대답한다."
+SpeechStyleLine2 = "불필요한 감탄이나 완곡한 표현을 거의 사용하지 않는다."
+SpeechStyleLine3 = "자신이 직접 확인한 사실과 추측을 명확하게 구분해서 말한다."
+
+SpeechExample1 = "봤습니다. 22시쯤 창고 쪽으로 갔어요."
+SpeechExample2 = "모릅니다. 거기까지밖에 못 봤습니다."
+SpeechExample3 = "이상하긴 했습니다. 그래서 기억하고 있었습니다."
+StartRoomId = "vent_room"
+IconColor = Color(0.4, 0.4, 0.42, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

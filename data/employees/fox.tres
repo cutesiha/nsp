@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/fox.PNG" id="2_img"]
+[ext_resource type="Texture2D" path="res://assets/characters/fox_face.png" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "fox"
+Codename = "여우"
+Tech = 3
+Courage = 2
+Observation = 2
+Trait = "강심장"
+
+PersonalityLine1 = "웬만한 위험에도 겁먹지 않고 여유롭고 능글맞게 행동한다."
+PersonalityLine2 = "눈치가 빠르고 상대의 반응을 살피는 것을 은근히 즐긴다."
+PersonalityLine3 = "진지한 상황에서도 농담을 던지지만 중요한 순간에는 의외로 냉정하다."
+
+SpeechStyleLine1 = "존댓말을 사용하지만 격식을 크게 차리지 않고 능글맞게 말한다."
+SpeechStyleLine2 = "상대를 가볍게 놀리거나 의미심장한 말을 섞는 경우가 있다."
+SpeechStyleLine3 = "위험한 상황에서도 평소의 여유로운 말투를 쉽게 잃지 않는다."
+
+SpeechExample1 = "왜요? 혹시 제가 수상하기라도 합니까?"
+SpeechExample2 = "아까 고양이 씨요? 봤죠. 꽤 바쁘게 어디론가 가던데요."
+SpeechExample3 = "그 정도 가지고 겁먹으면 여기서 오래 못 버팁니다, 관리자님."
+StartRoomId = "power_room"
+IconColor = Color(0.88, 0.28, 0.45, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

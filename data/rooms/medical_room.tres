@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="RoomDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/RoomDef.cs" id="1_room"]
+
+[resource]
+script = ExtResource("1_room")
+RoomId = "medical_room"
+DisplayName = "의무실"
+ConnectedRoomIds = Array[String](["central_office", "vent_room", "maintenance_room", "isolation_room"])
+MapPosition = Vector2(480, 220)
+IsCoreRoom = false
+ManagedResource = 4

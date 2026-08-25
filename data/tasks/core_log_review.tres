@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TaskDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TaskDef.cs" id="1_task"]
+
+[resource]
+script = ExtResource("1_task")
+TaskId = "core_log_review"
+DisplayName = "제어반 로그 정리"
+RoomId = "core_room"
+RequiredStat = 2
+Priority = 2
+RecommendedHeadcount = 1
+GaugeRequired = 10.0
+EffectType = 0
+EffectAmount = 0.0
+HasNeglectConsequence = false
