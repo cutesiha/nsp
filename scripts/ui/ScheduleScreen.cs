@@ -108,6 +108,7 @@ public partial class ScheduleScreen : Control
             var label = new Label { Text = $"- {taboo.Description}" };
             label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
             label.AddThemeFontOverride("font", _tabooFont);
+            label.AddThemeFontSizeOverride("font_size", 22);
             _tabooList.AddChild(label);
         }
     }
@@ -136,10 +137,12 @@ public partial class ScheduleScreen : Control
             bool atRisk = TabooRuleSystem.Instance.IsRoomAtTabooRisk(roomId);
 
             var row = new VBoxContainer();
-            row.AddChild(new Label { Text = $"{(atRisk ? "⚠ " : "")}{roomDef.DisplayName}" });
+            var roomNameLabel = new Label { Text = $"{(atRisk ? "⚠ " : "")}{roomDef.DisplayName}" };
+            roomNameLabel.AddThemeFontSizeOverride("font_size", 19);
+            row.AddChild(roomNameLabel);
 
             var slotRow = new HBoxContainer();
-            slotRow.AddThemeConstantOverride("separation", 10);
+            slotRow.AddThemeConstantOverride("separation", 12);
 
             for (int i = 0; i < 2; i++)
             {
@@ -148,7 +151,7 @@ public partial class ScheduleScreen : Control
                 {
                     RoomId = roomId,
                     AssignedEmployeeId = assignedId,
-                    CustomMinimumSize = new Vector2(130f, 44f),
+                    CustomMinimumSize = new Vector2(148f, 52f),
                     Text = assignedId != "" ? sim.GetEmployeeDef(assignedId)?.Codename ?? assignedId : "( 빈 슬롯 )",
                     OnEmployeeDropped = (employeeId, targetRoomId) =>
                     {
@@ -166,15 +169,18 @@ public partial class ScheduleScreen : Control
                         Refresh();
                     };
                 }
+                slot.AddThemeFontSizeOverride("font_size", 16);
                 slotRow.AddChild(slot);
             }
 
-            slotRow.AddChild(new Label
+            var fnLabel = new Label
             {
                 Text = FunctionLabel(roomDef.ManagedResource),
                 SizeFlagsHorizontal = SizeFlags.ExpandFill,
                 VerticalAlignment = VerticalAlignment.Center,
-            });
+            };
+            fnLabel.AddThemeFontSizeOverride("font_size", 16);
+            slotRow.AddChild(fnLabel);
 
             row.AddChild(slotRow);
             _roomList.AddChild(row);
@@ -190,9 +196,10 @@ public partial class ScheduleScreen : Control
             var chip = new EmployeeChip
             {
                 EmployeeId = employeeId,
-                CustomMinimumSize = new Vector2(110f, 44f),
+                CustomMinimumSize = new Vector2(132f, 58f),
                 Text = $"{def.Codename}\n기{def.Tech} 담{def.Courage} 관{def.Observation}",
             };
+            chip.AddThemeFontSizeOverride("font_size", 16);
             chip.Pressed += () => ToggleEmployeeCard(employeeId);
             _employeeRoster.AddChild(chip);
         }
@@ -227,8 +234,10 @@ public partial class ScheduleScreen : Control
     private void AddStatRow(string label, int value)
     {
         var row = new HBoxContainer();
-        row.AddThemeConstantOverride("separation", 6);
-        row.AddChild(new Label { Text = label, CustomMinimumSize = new Vector2(36, 0) });
+        row.AddThemeConstantOverride("separation", 8);
+        var nameLbl = new Label { Text = label, CustomMinimumSize = new Vector2(48, 0) };
+        nameLbl.AddThemeFontSizeOverride("font_size", 16);
+        row.AddChild(nameLbl);
         row.AddChild(new ProgressBar
         {
             MinValue = 0,
@@ -237,9 +246,11 @@ public partial class ScheduleScreen : Control
             ShowPercentage = false,
             SizeFlagsHorizontal = SizeFlags.ExpandFill,
             SizeFlagsVertical = SizeFlags.ShrinkCenter,
-            CustomMinimumSize = new Vector2(0, 14),
+            CustomMinimumSize = new Vector2(0, 18),
         });
-        row.AddChild(new Label { Text = value.ToString(), CustomMinimumSize = new Vector2(16, 0) });
+        var valLbl = new Label { Text = value.ToString(), CustomMinimumSize = new Vector2(22, 0) };
+        valLbl.AddThemeFontSizeOverride("font_size", 16);
+        row.AddChild(valLbl);
         _cardStats.AddChild(row);
     }
 

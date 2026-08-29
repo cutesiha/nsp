@@ -11,13 +11,6 @@ public partial class RoomView : ColorRect
 {
     [Export] public string RoomId = "";
 
-    // SFX 연결용 placeholder — 에셋을 아직 안 넣었으면 null로 두면 된다(재생 시 자동 스킵).
-    // 지금은 방 하나에 채널 하나뿐이라 나중에 실제 사운드가 들어오면 우선순위/채널 분리를
-    // 다시 검토해야 할 수 있다.
-    [Export] public AudioStream WorkingLoopSfx;
-    [Export] public AudioStream WarningSfx;
-    [Export] public AudioStream FailureSfx;
-
     private static readonly Color RelocateHighlight = new(0.85f, 0.25f, 0.25f, 0.9f);
 
     // 고장 시 방 종류별로 다른 파티클(발전실=전기 스파크, 그 외=연기/노이즈 느낌) — 실제
@@ -36,30 +29,39 @@ public partial class RoomView : ColorRect
     private Label _label;
     private Label _statusPopup;
     private Color _normalColor;
-    private AudioStreamPlayer _sfx;
+    private AudioStreamPlayer _workSfx;
     private CpuParticles2D _particles;
     private RoomDangerTier _lastTier = RoomDangerTier.None;
     private bool _wasActive;
+    private bool _workLoop;
 
     public override void _Ready()
     {
         _label = GetNodeOrNull<Label>("Label");
+        if (_label != null)
+            _label.MouseFilter = MouseFilterEnum.Ignore;
         _normalColor = Color;
         MouseFilter = MouseFilterEnum.Stop;
 
-        _sfx = new AudioStreamPlayer();
-        AddChild(_sfx);
+        // 이 방을 CCTV로 보고 있을 때만 도는 수리음(망치 소리) 루프.
+        _workSfx = new AudioStreamPlayer { VolumeDb = -8f };
+        const string repairPath = "res://assets/audio/sfx_repair.wav";
+        if (ResourceLoader.Exists(repairPath))
+            _workSfx.Stream = GD.Load<AudioStream>(repairPath);
+        _workSfx.Finished += () => { if (_workLoop && _workSfx.Stream != null) _workSfx.Play(); };
+        AddChild(_workSfx);
 
         _statusPopup = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center,
-            Position = new Vector2(-30f, -30f),
-            Size = new Vector2(Size.X + 60f, 26f),
+            Position = new Vector2(-60f, -46f),
+            Size = new Vector2(Size.X + 120f, 44f),
+            MouseFilter = MouseFilterEnum.Ignore,
         };
-        _statusPopup.AddThemeFontSizeOverride("font_size", 12);
+        _statusPopup.AddThemeFontSizeOverride("font_size", 16);
         _statusPopup.AddThemeColorOverride("font_color", new Color(1f, 1f, 1f, 1f));
         _statusPopup.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 1f));
-        _statusPopup.AddThemeConstantOverride("outline_size", 5);
+        _statusPopup.AddThemeConstantOverride("outline_size", 6);
         AddChild(_statusPopup);
 
         _particles = BuildFailureParticles();
@@ -106,9 +108,11 @@ public partial class RoomView : ColorRect
         {
             if (IsValidRelocateTarget(sim, relocatingId))
             {
-                sim.ClearAssignment(relocatingId);
+                // ClearAssignment 없이 바로 재배치 — 이동 중이면 향하던 방까지 마저 가고
+                // 이어붙는다(BeginPathTo). 중간에 통로에서 튕겨나가지 않게.
                 sim.AssignToRoom(relocatingId, RoomId);
                 sim.CancelRelocating();
+                NSP.Core.Sfx.Instance?.Play("assign", -6f);
                 EmployeeDetailCard.Instance?.Refresh();
             }
             return;
@@ -117,6 +121,47 @@ public partial class RoomView : ColorRect
         sim.SetSurveillanceTarget(RoomId);
         EmployeeDetailCard.Instance?.HideCard();
         RoomDetailCard.Instance?.Show(RoomId);
+    }
+
+    // --- 직원 아이콘 → 방 드래그 앤 드롭 (이번 리워크의 핵심 조작) -----------------
+    // ScheduleScene 의 EmployeeChip/RoomSlot 과 같은 패턴. 드롭 시 기존 AssignToRoom
+    // (→ BeginPathTo → FindPath) 를 그대로 태워 실제로 이동하게 한다.
+
+    public override bool _CanDropData(Vector2 atPosition, Variant data)
+    {
+        if (data.VariantType != Variant.Type.String) return false;
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return false;
+
+        string employeeId = data.AsString();
+        var emp = sim.GetEmployeeState(employeeId);
+        if (emp == null || !emp.Alive || emp.Isolated) return false;
+        if (emp.AssignedRoomId == RoomId) return false;
+
+        return sim.CanAssignToRoom(RoomId);
+    }
+
+    public override void _DropData(Vector2 atPosition, Variant data)
+    {
+        var sim = FacilitySimulation.Instance;
+        string employeeId = data.AsString();
+
+        // ClearAssignment 생략 — AssignToRoom이 재배치까지 처리하고, 이동 중이면
+        // 향하던 방까지 마저 걸어간 뒤 새 경로를 잇는다.
+        sim.AssignToRoom(employeeId, RoomId);
+        sim.CancelRelocating();
+        NSP.Core.Sfx.Instance?.Play("assign", -6f);
+
+        EmployeeDetailCard.Instance?.Refresh();
+        RoomDetailCard.Instance?.HideCard();
+    }
+
+    private bool IsDragDropTarget()
+    {
+        var vp = GetViewport();
+        if (vp == null || !vp.GuiIsDragging()) return false;
+        var data = vp.GuiGetDragData();
+        return data.VariantType == Variant.Type.String && _CanDropData(Vector2.Zero, data);
     }
 
     public override void _Process(double delta)
@@ -134,10 +179,14 @@ public partial class RoomView : ColorRect
         UpdateBoxColor(state, tier);
         UpdateNameLabel(def, state);
         UpdateStatusPopup(def, tier, activity);
-        UpdateSfx(tier, activity);
+        UpdateWorkLoop(sim, activity);
 
         if (_particles != null)
             _particles.Emitting = tier == RoomDangerTier.Failure;
+
+        // 작업실이 완전히 고장난 순간 — "위잉 위잉" 경고음 2번.
+        if (tier == RoomDangerTier.Failure && _lastTier != RoomDangerTier.Failure)
+            NSP.Core.Sfx.Instance?.PlayScaryWarning(-3f);
 
         _lastTier = tier;
         _wasActive = !string.IsNullOrEmpty(activity);
@@ -146,14 +195,18 @@ public partial class RoomView : ColorRect
     private void UpdateBoxColor(RoomState state, RoomDangerTier tier)
     {
         var sim = FacilitySimulation.Instance;
-        if (!string.IsNullOrEmpty(sim.RelocatingEmployeeId) && IsValidRelocateTarget(sim, sim.RelocatingEmployeeId))
+        bool relocateHighlight = !string.IsNullOrEmpty(sim.RelocatingEmployeeId)
+            && IsValidRelocateTarget(sim, sim.RelocatingEmployeeId);
+
+        if (relocateHighlight || IsDragDropTarget())
         {
             Color = RelocateHighlight;
         }
         else if (tier == RoomDangerTier.Failure)
         {
-            float pulse = 0.6f + 0.4f * Mathf.Sin((float)(Time.GetTicksMsec() / 150.0));
-            Color = new Color(0.5f * pulse, 0.08f, 0.08f);
+            // 강하게 명멸하는 붉은색.
+            float pulse = 0.5f + 0.5f * Mathf.Sin((float)(Time.GetTicksMsec() / 110.0));
+            Color = new Color(0.55f + 0.4f * pulse, 0.04f, 0.05f);
         }
         else
         {
@@ -184,13 +237,7 @@ public partial class RoomView : ColorRect
             return;
         }
 
-        string line = RoomStatusText.GetDangerLine(tier);
-        if (string.IsNullOrEmpty(line))
-        {
-            line = activity;
-            if (string.IsNullOrEmpty(line) && TabooRuleSystem.Instance != null && TabooRuleSystem.Instance.IsRoomAtTabooRisk(RoomId))
-                line = "⚠ 금기 주의";
-        }
+        string line = RoomStatusText.BuildRoomStatusBlock(RoomId);
 
         if (def.IsCoreRoom)
         {
@@ -201,25 +248,23 @@ public partial class RoomView : ColorRect
         _statusPopup.Text = line;
     }
 
-    private void UpdateSfx(RoomDangerTier tier, string activity)
+    // 지금 CCTV로 보고 있는 방에서 실제로 업무가 진행 중일 때만 망치 소리를 반복 재생한다.
+    // (위험/고장 효과음은 FloatingPopupLayer가 사건 로그 기준으로 담당 — 여기서 중복 재생 안 함.)
+    private void UpdateWorkLoop(FacilitySimulation sim, string activity)
     {
-        bool isActive = !string.IsNullOrEmpty(activity);
+        if (_workSfx == null) return;
+        bool working = sim.SurveillanceTargetRoomId == RoomId && !string.IsNullOrEmpty(activity);
 
-        if (tier == RoomDangerTier.Failure && _lastTier != RoomDangerTier.Failure)
-            PlaySfx(FailureSfx);
-        else if (tier is RoomDangerTier.Delayed or RoomDangerTier.Unstable && _lastTier == RoomDangerTier.None)
-            PlaySfx(WarningSfx);
-        else if (isActive && !_wasActive)
-            PlaySfx(WorkingLoopSfx);
-        else if (!isActive && _wasActive)
-            _sfx?.Stop();
-    }
-
-    private void PlaySfx(AudioStream stream)
-    {
-        if (stream == null || _sfx == null) return;
-        _sfx.Stream = stream;
-        _sfx.Play();
+        if (working && !_workLoop)
+        {
+            _workLoop = true;
+            if (_workSfx.Stream != null && !_workSfx.Playing) _workSfx.Play();
+        }
+        else if (!working && _workLoop)
+        {
+            _workLoop = false;
+            _workSfx.Stop();
+        }
     }
 
     private bool IsValidRelocateTarget(FacilitySimulation sim, string relocatingEmployeeId)

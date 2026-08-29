@@ -108,8 +108,8 @@ public partial class CctvView : Control
         }
 
         _recLabel.Visible = true;
-        string dangerLine = RoomStatusText.GetDangerLine(RoomStatusText.GetDangerTier(roomId));
-        _statusLabel.Text = !string.IsNullOrEmpty(dangerLine) ? dangerLine : RoomStatusText.BuildActivityLine(roomId);
+        string block = RoomStatusText.BuildRoomStatusBlock(roomId);
+        _statusLabel.Text = string.IsNullOrEmpty(block) ? "정상 근무 중" : block;
         _floorArea.Visible = true;
 
         bool lit = state == null || !state.RedAlertLighting;

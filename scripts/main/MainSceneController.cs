@@ -15,6 +15,9 @@ public partial class MainSceneController : Node2D
         if (GameState.Instance.CurrentPhase != GamePhase.Live)
             GameState.Instance.SetPhase(GamePhase.Live);
 
+        // 이전 판/스폰 상태가 이월되지 않게 근무 시작 시 스폰·사고 레이어를 초기화한다.
+        FacilitySimulation.Instance.ResetForNewShift();
+
         GetNode<Button>("UILayer/EndShiftButton").Pressed += OnEndShiftPressed;
         GetNode<Button>("UILayer/LogToggleButton").Pressed += () => LogPanel.Instance?.Toggle();
 
@@ -59,8 +62,11 @@ public partial class MainSceneController : Node2D
         if (_logAccumulator >= 2f)
         {
             _logAccumulator = 0f;
-            GD.Print($"[t={GameState.Instance.DayTimeSeconds:0}s] 코어 진행도={GameState.Instance.CoreProgress:0.0}% " +
-                      $"전력사용={GameState.Instance.GetPowerUsed()}/{Config.Instance.Data.PowerBudgetTotal}");
+            var gs = GameState.Instance;
+            string cctv = gs.IsConsumerPowered(PowerConsumer.CctvWatch) ? "ON" : "OFF";
+            string light = gs.IsConsumerPowered(PowerConsumer.Lighting) ? "ON" : "OFF";
+            GD.Print($"[t={gs.DayTimeSeconds:0}s] 코어={gs.CoreProgress:0.0}% " +
+                      $"전력={gs.GetPowerUsed()}/{gs.GetPowerBudgetTotal()} CCTV:{cctv} 조명:{light}");
         }
     }
 

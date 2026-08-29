@@ -23,7 +23,7 @@ public partial class EmployeeDetailCard : PanelContainer
         Instance = this;
         Visible = false;
 
-        _portrait = GetNode<TextureRect>("VBox/InfoRow/Portrait");
+        _portrait = GetNode<TextureRect>("VBox/InfoRow/PortraitFrame/Portrait");
         _nameLabel = GetNode<Label>("VBox/InfoRow/InfoVBox/NameLabel");
         _statsLabel = GetNode<Label>("VBox/InfoRow/InfoVBox/StatsLabel");
         _callButton = GetNode<Button>("VBox/ButtonGrid/CallButton");

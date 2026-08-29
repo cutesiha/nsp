@@ -23,6 +23,8 @@ GameState="*res://scripts/core/GameState.cs"
 TabooRuleSystem="*res://scripts/taboo/TabooRuleSystem.cs"
 FacilitySimulation="*res://scripts/facility/FacilitySimulation.cs"
 AIService="*res://scripts/ai/AIService.cs"
+Sfx="*res://scripts/core/Sfx.cs"
+AmbientOverlay="*res://scripts/ui/AmbientOverlay.cs"
 
 [display]
 

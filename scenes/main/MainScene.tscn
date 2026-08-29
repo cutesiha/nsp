@@ -15,6 +15,9 @@
 [ext_resource type="Script" uid="uid://dtturpi1hcmiu" path="res://scripts/ui/CallBubble.cs" id="15_call"]
 [ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="16_ring"]
 [ext_resource type="Script" uid="uid://c7tfsvc0kxtsb" path="res://scripts/ui/FloatingPopupLayer.cs" id="17_floatpopup"]
+[ext_resource type="Script" uid="uid://dqawpbjgbqyio" path="res://scripts/ui/HorrorDirector.cs" id="18_horror"]
+[ext_resource type="Script" uid="uid://c8luqqhag8ebw" path="res://scripts/ui/AlertBanner.cs" id="19_alert"]
+[ext_resource type="Script" uid="uid://bsque0jothlak" path="res://scripts/ui/RedEventLog.cs" id="20_redlog"]
 
 [sub_resource type="StyleBoxFlat" id="InsetStyle"]
 content_margin_left = 8.0
@@ -48,6 +51,18 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
+[sub_resource type="StyleBoxFlat" id="PortraitFrame"]
+content_margin_left = 3.0
+content_margin_top = 3.0
+content_margin_right = 3.0
+content_margin_bottom = 3.0
+bg_color = Color(0.1, 0.1, 0.1, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0, 0, 0, 1)
+
 [node name="MainScene" type="Node2D" unique_id=1008652525]
 script = ExtResource("1_main")
 
@@ -57,7 +72,7 @@ script = ExtResource("1_main")
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.97, 0.97, 0.95, 1)
+color = Color(0.62006545, 0.6726555, 0.6116266, 1)
 
 [node name="Desk" type="ColorRect" parent="UILayer" unique_id=2069465162]
 offset_left = 4.0
@@ -71,10 +86,10 @@ layout_mode = 3
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -260.0
-offset_top = 4.0
-offset_right = 260.0
-offset_bottom = 36.0
+offset_left = -330.0
+offset_top = 6.0
+offset_right = 330.0
+offset_bottom = 52.0
 grow_horizontal = 2
 script = ExtResource("5_hud")
 
@@ -93,7 +108,7 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 24
 text = "봉쇄 코어 복구율: 0.0%"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -101,14 +116,14 @@ vertical_alignment = 1
 [node name="ClipBox" type="Control" parent="UILayer/CoreProgressHud" unique_id=1900000001]
 clip_contents = true
 anchors_preset = 0
-offset_bottom = 32.0
+offset_bottom = 46.0
 
 [node name="LabelBlack" type="Label" parent="UILayer/CoreProgressHud/ClipBox" unique_id=1900000002]
 layout_mode = 0
-offset_right = 520.0
-offset_bottom = 32.0
+offset_right = 660.0
+offset_bottom = 46.0
 theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 24
 text = "봉쇄 코어 복구율: 0.0%"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -257,10 +272,10 @@ RoomBNodePath = NodePath("../Room_MedicalRoom")
 UseElbow = true
 
 [node name="Room_CoreRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=2075609479]
-offset_left = 261.0
-offset_top = 25.0
-offset_right = 391.0
-offset_bottom = 95.0
+offset_left = 250.0
+offset_top = 46.0
+offset_right = 400.0
+offset_bottom = 110.0
 color = Color(0.32, 0.15, 0.14, 1)
 script = ExtResource("2_room")
 RoomId = "core_room"
@@ -270,7 +285,7 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 0.62
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 17
 text = "코어실"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -287,16 +302,16 @@ theme_override_styles/panel = SubResource("InsetStyle")
 [node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Room_CoreRoom/CoreBadge" unique_id=1981147483]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.15, 0.15, 0.15, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 13
 text = "봉쇄 코어"
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="Room_CentralOffice" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1452170448]
-offset_left = 266.0
-offset_top = 218.0
-offset_right = 386.0
-offset_bottom = 272.0
+offset_left = 250.0
+offset_top = 192.0
+offset_right = 400.0
+offset_bottom = 256.0
 color = Color(0.15, 0.17, 0.22, 1)
 script = ExtResource("2_room")
 RoomId = "central_office"
@@ -306,17 +321,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 16
 text = "중앙 제어실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_GuardRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=948895732]
-offset_left = 55.0
-offset_top = 125.0
-offset_right = 165.0
-offset_bottom = 175.0
+offset_left = 30.0
+offset_top = 104.0
+offset_right = 180.0
+offset_bottom = 168.0
 color = Color(0.16, 0.16, 0.2, 1)
 script = ExtResource("2_room")
 RoomId = "guard_room"
@@ -326,17 +341,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "감시·경비실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_StorageRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1818918452]
-offset_left = 487.0
-offset_top = 125.0
-offset_right = 597.0
-offset_bottom = 175.0
+offset_left = 470.0
+offset_top = 104.0
+offset_right = 620.0
+offset_bottom = 168.0
 color = Color(0.17, 0.19, 0.15, 1)
 script = ExtResource("2_room")
 RoomId = "storage_room"
@@ -346,17 +361,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "저장고"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_PowerRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=951900774]
-offset_left = 55.0
-offset_top = 220.0
-offset_right = 165.0
-offset_bottom = 270.0
+offset_left = 30.0
+offset_top = 192.0
+offset_right = 180.0
+offset_bottom = 256.0
 color = Color(0.22, 0.17, 0.12, 1)
 script = ExtResource("2_room")
 RoomId = "power_room"
@@ -366,17 +381,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "발전실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_MaintenanceRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1145359799]
-offset_left = 487.0
-offset_top = 220.0
-offset_right = 597.0
-offset_bottom = 270.0
+offset_left = 470.0
+offset_top = 192.0
+offset_right = 620.0
+offset_bottom = 256.0
 color = Color(0.2, 0.19, 0.12, 1)
 script = ExtResource("2_room")
 RoomId = "maintenance_room"
@@ -386,17 +401,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "정비실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_VentRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1240584331]
-offset_left = 55.0
-offset_top = 315.0
-offset_right = 165.0
-offset_bottom = 365.0
+offset_left = 30.0
+offset_top = 280.0
+offset_right = 180.0
+offset_bottom = 344.0
 color = Color(0.12, 0.2, 0.2, 1)
 script = ExtResource("2_room")
 RoomId = "vent_room"
@@ -406,17 +421,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "환기실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_MedicalRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=399763163]
-offset_left = 271.0
-offset_top = 315.0
-offset_right = 381.0
-offset_bottom = 365.0
+offset_left = 250.0
+offset_top = 280.0
+offset_right = 400.0
+offset_bottom = 344.0
 color = Color(0.15, 0.19, 0.22, 1)
 script = ExtResource("2_room")
 RoomId = "medical_room"
@@ -426,17 +441,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "의무실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Room_IsolationRoom" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=2044314406]
-offset_left = 271.0
-offset_top = 405.0
-offset_right = 381.0
-offset_bottom = 455.0
+offset_left = 250.0
+offset_top = 372.0
+offset_right = 400.0
+offset_bottom = 436.0
 color = Color(0.2, 0.14, 0.18, 1)
 script = ExtResource("2_room")
 RoomId = "isolation_room"
@@ -446,17 +461,17 @@ layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_colors/font_color = Color(0.95, 0.95, 0.95, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 16
 text = "격리실"
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="Employee_Fox" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1842439345]
-offset_left = 99.0
-offset_top = 234.0
-offset_right = 121.0
-offset_bottom = 256.0
+offset_left = 92.0
+offset_top = 211.0
+offset_right = 118.0
+offset_bottom = 237.0
 color = Color(0.88, 0.28, 0.45, 1)
 script = ExtResource("3_emp")
 EmployeeId = "fox"
@@ -466,20 +481,20 @@ layout_mode = 0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -20.0
+offset_left = -24.0
 offset_top = 2.0
-offset_right = 20.0
-offset_bottom = 18.0
-theme_override_colors/font_color = Color(0.1, 0.1, 0.1, 1)
-theme_override_font_sizes/font_size = 11
+offset_right = 24.0
+offset_bottom = 22.0
+theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_font_sizes/font_size = 15
 text = "여우"
 horizontal_alignment = 1
 
 [node name="Employee_Crow" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=700743627]
-offset_left = 99.0
-offset_top = 329.0
-offset_right = 121.0
-offset_bottom = 351.0
+offset_left = 92.0
+offset_top = 299.0
+offset_right = 118.0
+offset_bottom = 325.0
 color = Color(0.4, 0.4, 0.42, 1)
 script = ExtResource("3_emp")
 EmployeeId = "crow"
@@ -489,20 +504,20 @@ layout_mode = 0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -20.0
+offset_left = -24.0
 offset_top = 2.0
-offset_right = 20.0
-offset_bottom = 18.0
-theme_override_colors/font_color = Color(0.1, 0.1, 0.1, 1)
-theme_override_font_sizes/font_size = 11
+offset_right = 24.0
+offset_bottom = 22.0
+theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_font_sizes/font_size = 15
 text = "까마귀"
 horizontal_alignment = 1
 
 [node name="Employee_Rabbit" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1630721944]
-offset_left = 531.0
-offset_top = 234.0
-offset_right = 553.0
-offset_bottom = 256.0
+offset_left = 532.0
+offset_top = 211.0
+offset_right = 558.0
+offset_bottom = 237.0
 color = Color(0.96, 0.7, 0.42, 1)
 script = ExtResource("3_emp")
 EmployeeId = "rabbit"
@@ -512,20 +527,20 @@ layout_mode = 0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -20.0
+offset_left = -24.0
 offset_top = 2.0
-offset_right = 20.0
-offset_bottom = 18.0
-theme_override_colors/font_color = Color(0.1, 0.1, 0.1, 1)
-theme_override_font_sizes/font_size = 11
+offset_right = 24.0
+offset_bottom = 22.0
+theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_font_sizes/font_size = 15
 text = "토끼"
 horizontal_alignment = 1
 
 [node name="Employee_Cat" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent" unique_id=1851478260]
-offset_left = 315.0
-offset_top = 329.0
-offset_right = 337.0
-offset_bottom = 351.0
+offset_left = 312.0
+offset_top = 299.0
+offset_right = 338.0
+offset_bottom = 325.0
 color = Color(0.42, 0.65, 0.88, 1)
 script = ExtResource("3_emp")
 EmployeeId = "cat"
@@ -535,12 +550,12 @@ layout_mode = 0
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -20.0
+offset_left = -24.0
 offset_top = 2.0
-offset_right = 20.0
-offset_bottom = 18.0
-theme_override_colors/font_color = Color(0.1, 0.1, 0.1, 1)
-theme_override_font_sizes/font_size = 11
+offset_right = 24.0
+offset_bottom = 22.0
+theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_font_sizes/font_size = 15
 text = "고양이"
 horizontal_alignment = 1
 
@@ -598,19 +613,21 @@ color = Color(0.05, 0.05, 0.05, 1)
 
 [node name="RecLabel" type="Label" parent="UILayer/Monitor02_Cctv/CameraFrame/CctvContent" unique_id=720570196]
 layout_mode = 0
-offset_left = 12.0
-offset_top = 8.0
-offset_right = 92.0
-offset_bottom = 32.0
+offset_left = 14.0
+offset_top = 10.0
+offset_right = 120.0
+offset_bottom = 40.0
 theme_override_colors/font_color = Color(0.9, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 20
 text = "● REC"
 
 [node name="RoomNameLabel" type="Label" parent="UILayer/Monitor02_Cctv/CameraFrame/CctvContent" unique_id=129467446]
 layout_mode = 0
 anchor_right = 1.0
-offset_top = 8.0
-offset_right = -12.0
-offset_bottom = 32.0
+offset_top = 10.0
+offset_right = -14.0
+offset_bottom = 42.0
+theme_override_font_sizes/font_size = 24
 horizontal_alignment = 2
 
 [node name="StatusLabel" type="Label" parent="UILayer/Monitor02_Cctv/CameraFrame/CctvContent" unique_id=957487695]
@@ -619,23 +636,27 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -180.0
-offset_top = -12.0
-offset_right = 180.0
-offset_bottom = 12.0
+offset_left = -240.0
+offset_top = -24.0
+offset_right = 240.0
+offset_bottom = 24.0
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 22
 text = "MONITOR 01에서 방을 선택하세요"
 horizontal_alignment = 1
 autowrap_mode = 2
 
 [node name="FloorArea" type="Control" parent="UILayer/Monitor02_Cctv/CameraFrame/CctvContent" unique_id=177871201]
-anchors_preset = 0
+layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 12.0
 offset_top = 40.0
 offset_right = -12.0
 offset_bottom = -12.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="Phone" type="Control" parent="UILayer" unique_id=1556533350]
 layout_mode = 3
@@ -698,11 +719,13 @@ color = Color(0.4, 0.4, 0.43, 1)
 stream = ExtResource("16_ring")
 
 [node name="PowerPanelBackdrop" type="Polygon2D" parent="UILayer" unique_id=780440159]
+visible = false
 position = Vector2(788, 556)
 color = Color(0.55, 0.42, 0.22, 0.92)
 polygon = PackedVector2Array(0, 14, 250, 0, 309, 115, 250, 230, 0, 216)
 
 [node name="PowerPanelOutline" type="Line2D" parent="UILayer" unique_id=1174832390]
+visible = false
 position = Vector2(788, 556)
 points = PackedVector2Array(0, 14, 250, 0, 309, 115, 250, 230, 0, 216)
 closed = true
@@ -710,6 +733,7 @@ width = 3.0
 default_color = Color(0.28, 0.18, 0.06, 1)
 
 [node name="PowerBudgetPanel" type="Control" parent="UILayer" unique_id=1413938648]
+visible = false
 layout_mode = 3
 anchors_preset = 0
 offset_left = 806.0
@@ -774,42 +798,46 @@ text = "잔여 전력: 7 / 7"
 
 [node name="EmployeeDetailCard" type="PanelContainer" parent="UILayer" unique_id=734453218]
 visible = false
-offset_left = 16.0
-offset_top = 566.0
-offset_right = 258.0
-offset_bottom = 790.0
+offset_left = 14.0
+offset_top = 560.0
+offset_right = 266.0
+offset_bottom = 797.0
 theme_override_styles/panel = SubResource("CardStyle")
 script = ExtResource("11_empcard")
 
 [node name="VBox" type="VBoxContainer" parent="UILayer/EmployeeDetailCard" unique_id=681660183]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="InfoRow" type="HBoxContainer" parent="UILayer/EmployeeDetailCard/VBox" unique_id=80694819]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
-[node name="Portrait" type="TextureRect" parent="UILayer/EmployeeDetailCard/VBox/InfoRow" unique_id=859458088]
-custom_minimum_size = Vector2(64, 64)
+[node name="PortraitFrame" type="PanelContainer" parent="UILayer/EmployeeDetailCard/VBox/InfoRow" unique_id=80694820]
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
+theme_override_styles/panel = SubResource("PortraitFrame")
+
+[node name="Portrait" type="TextureRect" parent="UILayer/EmployeeDetailCard/VBox/InfoRow/PortraitFrame" unique_id=859458088]
+custom_minimum_size = Vector2(82, 82)
+layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
 [node name="InfoVBox" type="VBoxContainer" parent="UILayer/EmployeeDetailCard/VBox/InfoRow" unique_id=1350799340]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 2
+theme_override_constants/separation = 3
 
 [node name="NameLabel" type="Label" parent="UILayer/EmployeeDetailCard/VBox/InfoRow/InfoVBox" unique_id=850955204]
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 23
 text = "이름"
 
 [node name="StatsLabel" type="Label" parent="UILayer/EmployeeDetailCard/VBox/InfoRow/InfoVBox" unique_id=46669086]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 15
 text = "기술: 0
 담력: 0
 관찰: 0
@@ -817,46 +845,54 @@ text = "기술: 0
 
 [node name="ButtonGrid" type="GridContainer" parent="UILayer/EmployeeDetailCard/VBox" unique_id=1230371959]
 layout_mode = 2
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
 columns = 2
 
 [node name="CallButton" type="Button" parent="UILayer/EmployeeDetailCard/VBox/ButtonGrid" unique_id=1521194564]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
 text = "통화 연결"
 
 [node name="RelocateButton" type="Button" parent="UILayer/EmployeeDetailCard/VBox/ButtonGrid" unique_id=1046990704]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
 text = "재배치"
 
 [node name="TaskPriorityButton" type="Button" parent="UILayer/EmployeeDetailCard/VBox/ButtonGrid" unique_id=564856126]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "업무 우선순위"
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
+text = "우선순위"
 
 [node name="IsolateButton" type="Button" parent="UILayer/EmployeeDetailCard/VBox/ButtonGrid" unique_id=2043231177]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 15
 text = "격리"
 
 [node name="RoomDetailCard" type="PanelContainer" parent="UILayer" unique_id=61442902]
 visible = false
-offset_left = 16.0
-offset_top = 566.0
-offset_right = 258.0
-offset_bottom = 790.0
+offset_left = 14.0
+offset_top = 560.0
+offset_right = 266.0
+offset_bottom = 797.0
 theme_override_styles/panel = SubResource("CardStyle")
 script = ExtResource("12_roomcard")
 
 [node name="VBox" type="VBoxContainer" parent="UILayer/RoomDetailCard" unique_id=1106965508]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="NameLabel" type="Label" parent="UILayer/RoomDetailCard/VBox" unique_id=297304379]
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 23
 text = "방 이름"
 
 [node name="DescPanel" type="PanelContainer" parent="UILayer/RoomDetailCard/VBox" unique_id=1713558554]
@@ -866,24 +902,26 @@ theme_override_styles/panel = SubResource("InsetStyle")
 
 [node name="DescLabel" type="Label" parent="UILayer/RoomDetailCard/VBox/DescPanel" unique_id=130458306]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 15
 text = "설명"
 autowrap_mode = 3
 
 [node name="ButtonRow" type="HBoxContainer" parent="UILayer/RoomDetailCard/VBox" unique_id=1518865993]
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 8
 
 [node name="TaskListButton" type="Button" parent="UILayer/RoomDetailCard/VBox/ButtonRow" unique_id=49081756]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 15
 text = "업무 목록"
 
 [node name="LockButton" type="Button" parent="UILayer/RoomDetailCard/VBox/ButtonRow" unique_id=161552283]
+custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 15
 text = "구역 봉쇄"
 
 [node name="TaskPriorityPopup" type="Control" parent="UILayer" unique_id=2012099558]
@@ -932,44 +970,9 @@ text = "X"
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="CallLayer" type="Control" parent="UILayer" unique_id=1462386529]
-visible = false
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-script = ExtResource("15_call")
-
-[node name="CharacterBubble" type="PanelContainer" parent="UILayer/CallLayer" unique_id=586933256]
-layout_mode = 0
-offset_left = 100.0
-offset_top = 100.0
-offset_right = 260.0
-offset_bottom = 164.0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("CardStyle")
-
-[node name="Label" type="Label" parent="UILayer/CallLayer/CharacterBubble" unique_id=2051205016]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="PlayerChoiceBubble" type="PanelContainer" parent="UILayer/CallLayer" unique_id=1915097511]
-visible = false
-layout_mode = 0
-offset_left = 412.0
-offset_top = 290.0
-offset_right = 752.0
-offset_bottom = 445.0
-theme_override_styles/panel = SubResource("CardStyle")
-
-[node name="VBox" type="VBoxContainer" parent="UILayer/CallLayer/PlayerChoiceBubble" unique_id=2072300939]
-layout_mode = 2
-theme_override_constants/separation = 8
+[node name="RedEventLog" type="CanvasLayer" parent="UILayer" unique_id=1900500003]
+layer = 110
+script = ExtResource("20_redlog")
 
 [node name="LogToggleButton" type="Button" parent="UILayer" unique_id=169523342]
 offset_left = 12.0
@@ -1013,3 +1016,64 @@ offset_right = -12.0
 offset_bottom = 36.0
 theme_override_font_sizes/font_size = 13
 text = "근무 종료 → 정산"
+
+[node name="AlertBanner" type="Label" parent="UILayer" unique_id=1900500002]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -560.0
+offset_top = 56.0
+offset_right = 560.0
+offset_bottom = 140.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.95, 0.12, 0.12, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 46
+horizontal_alignment = 1
+vertical_alignment = 1
+script = ExtResource("19_alert")
+
+[node name="CallLayer" type="Control" parent="UILayer" unique_id=1462386529]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("15_call")
+
+[node name="CharacterBubble" type="PanelContainer" parent="UILayer/CallLayer" unique_id=586933256]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 90.0
+offset_right = 440.0
+offset_bottom = 214.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("CardStyle")
+
+[node name="Label" type="Label" parent="UILayer/CallLayer/CharacterBubble" unique_id=2051205016]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="PlayerChoiceBubble" type="PanelContainer" parent="UILayer/CallLayer" unique_id=1915097511]
+visible = false
+layout_mode = 0
+offset_left = 382.0
+offset_top = 462.0
+offset_right = 794.0
+offset_bottom = 660.0
+theme_override_styles/panel = SubResource("CardStyle")
+
+[node name="VBox" type="VBoxContainer" parent="UILayer/CallLayer/PlayerChoiceBubble" unique_id=2072300939]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HorrorDirector" type="Node" parent="." unique_id=1900500001]
+script = ExtResource("18_horror")

@@ -19,6 +19,8 @@ public partial class EmployeeMapIcon : ColorRect
     public override void _Ready()
     {
         _label = GetNodeOrNull<Label>("Label");
+        if (_label != null)
+            _label.MouseFilter = MouseFilterEnum.Ignore;
         _normalColor = Color;
 
         var def = FacilitySimulation.Instance?.GetEmployeeDef(EmployeeId);
@@ -29,11 +31,14 @@ public partial class EmployeeMapIcon : ColorRect
         _statusLabel = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center,
-            Position = new Vector2(-40f, Size.Y + 2f),
-            Size = new Vector2(Size.X + 80f, 14f),
+            Position = new Vector2(-60f, Size.Y + 3f),
+            Size = new Vector2(Size.X + 120f, 18f),
+            MouseFilter = MouseFilterEnum.Ignore,
         };
-        _statusLabel.AddThemeFontSizeOverride("font_size", 9);
-        _statusLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.7f, 1f));
+        _statusLabel.AddThemeFontSizeOverride("font_size", 13);
+        _statusLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.95f, 0.75f, 1f));
+        _statusLabel.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 1f));
+        _statusLabel.AddThemeConstantOverride("outline_size", 4);
         AddChild(_statusLabel);
 
         Registry[EmployeeId] = this;
@@ -53,6 +58,27 @@ public partial class EmployeeMapIcon : ColorRect
             RoomDetailCard.Instance?.HideCard();
             EmployeeDetailCard.Instance?.Show(EmployeeId);
         }
+    }
+
+    // 직원 아이콘을 잡아서 필요한 작업실로 옮긴다 — 이번 리워크의 핵심 조작.
+    // 짧게 클릭만 하면 드래그가 시작되지 않아 위 _GuiInput(상세 카드 열기)이 그대로 동작한다.
+    public override Variant _GetDragData(Vector2 atPosition)
+    {
+        var sim = FacilitySimulation.Instance;
+        var state = sim?.GetEmployeeState(EmployeeId);
+        if (state == null || !state.Alive || state.Isolated)
+            return default;
+
+        var preview = new ColorRect { Color = _normalColor, Size = new Vector2(22f, 22f) };
+        preview.AddChild(new Label
+        {
+            Text = sim.GetEmployeeDef(EmployeeId)?.Codename ?? EmployeeId,
+            Position = new Vector2(-9f, 22f),
+        });
+        SetDragPreview(preview);
+
+        EmployeeDetailCard.Instance?.Show(EmployeeId);
+        return EmployeeId;
     }
 
     public override void _Process(double delta)

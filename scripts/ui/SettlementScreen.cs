@@ -18,7 +18,7 @@ public partial class SettlementScreen : Control
         int tabooViolations = EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.TabooViolation);
         int sabotageEvents = EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Sabotage);
         int deaths = EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Death);
-        int neglectEvents = EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Neglect);
+        int neglectEvents = EventLog.Instance.GetAllEntries().Count(e => e.EventType is LogEventType.Neglect or LogEventType.TaskFailed);
 
         var deadCodenames = employeeIds
             .Where(id => !(sim.GetEmployeeState(id)?.Alive ?? true))
