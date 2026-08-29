@@ -8,17 +8,24 @@ using NSP.Facility;
 namespace NSP.Ui;
 
 // 공포 연출 디렉터 — LEVEL 2 / LEVEL 3.
-// 절대 랜덤 점프스케어가 아니다. 실제 게임 상태/사건 로그에만 반응한다.
+// 랜덤 점프스케어 없음. 실제 게임 상태/사건 로그에만 반응한다.
 //
 //  LEVEL 2 (자주): 금기 위반 임박, 발전기/정전/CCTV 단절, 사보타주, 방치 사고
 //    → 화면 흔들림 + 순간 확대 + CCTV 노이즈 폭증 + 밝기 급변 + 스팅어
 //
 //  LEVEL 3 (근무당 1~4회): 실제 금기 위반 또는 사망
-//    → 치직·펑 → 3..2..1 → [쿵] 화면 낙하 → 0.6초 암전
-//      → CCTV 노이즈 → 다가오는 실루엣 → 붉은 섬광 → 사라짐
-//    "OOO 발생" 큰 글씨는 AlertBanner(코어 게이지 아래)가 담당한다.
+//    → 스팅어 → 3..2..1 → 화면 낙하 → 0.6초 암전 → CCTV 노이즈 → 붉은 섬광
+//    귀신/실루엣 형체는 쓰지 않는다. "OOO 발생" 큰 글씨는 AlertBanner가 담당.
 public partial class HorrorDirector : Node
 {
+    public static HorrorDirector Instance { get; private set; }
+
+    // 3D 중앙제어실 레이어가 "공간 표현"(조명/카메라/CRT/손 반응)을 붙이는 신호.
+    // 판정은 여전히 HorrorDirector가 소유 — 3D는 표현만 받는다.
+    [Signal] public delegate void Level2StartedEventHandler();
+    [Signal] public delegate void Level3StartedEventHandler(bool taboo);
+    [Signal] public delegate void ImpactMomentEventHandler();
+
     private const int MaxLevel3PerShift = 4;
     private const double Level3CooldownMsec = 15000.0;
     private const double Level2CooldownMsec = 3500.0;
@@ -28,19 +35,16 @@ public partial class HorrorDirector : Node
     private ColorRect _black;
     private ColorRect _red;
     private TextureRect _noise;
-    private Control _silhouette;
-    private Control _jumpGhost;
     private Label _bigLabel;
 
     private int _level3Count;
     private double _lastLevel3Msec = -1_000_000;
     private double _lastLevel2Msec = -1_000_000;
     private bool _playing;
-    private readonly RandomNumberGenerator _jumpRng = new();
-    private double _nextAmbientJumpscareMsec;
 
     public override void _Ready()
     {
+        Instance = this;
         _uiLayer = GetParent()?.GetNodeOrNull<CanvasLayer>("UILayer");
 
         _overlay = new CanvasLayer { Layer = 128 };
@@ -62,12 +66,6 @@ public partial class HorrorDirector : Node
         _red = FullRect(new Color(0.5f, 0f, 0f, 0f));
         _overlay.AddChild(_red);
 
-        _silhouette = BuildSilhouette();
-        _overlay.AddChild(_silhouette);
-
-        _jumpGhost = BuildJumpGhost();
-        _overlay.AddChild(_jumpGhost);
-
         _bigLabel = new Label
         {
             Text = "",
@@ -85,16 +83,13 @@ public partial class HorrorDirector : Node
 
         if (EventLog.Instance != null)
             EventLog.Instance.EntryLogged += OnEntryLogged;
-
-        // Keep the first free-form scare out of the opening alert, then vary the
-        // cadence so it cannot be memorized.
-        _nextAmbientJumpscareMsec = Time.GetTicksMsec() + _jumpRng.RandfRange(19000f, 27000f);
     }
 
     public override void _ExitTree()
     {
         if (EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnEntryLogged;
+        if (Instance == this) Instance = null;
     }
 
     private static ColorRect FullRect(Color c)
@@ -115,76 +110,6 @@ public partial class HorrorDirector : Node
             img.SetPixel(x, y, new Color(v, v, v));
         }
         return ImageTexture.CreateFromImage(img);
-    }
-
-    // CCTV 화면 뒤쪽(오른쪽 모니터 영역)에 서 있는 머리+어깨 실루엣. 조금씩 다가오도록 스케일한다.
-    private static Control BuildSilhouette()
-    {
-        var root = new Control
-        {
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            Modulate = new Color(1f, 1f, 1f, 0f),
-            PivotOffset = new Vector2(890f, 470f),
-        };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        var dark = new Color(0.01f, 0.01f, 0.02f, 0.98f);
-        root.AddChild(new ColorRect
-        {
-            Color = dark,
-            Position = new Vector2(815f, 300f),
-            Size = new Vector2(150f, 250f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        });
-        root.AddChild(new ColorRect
-        {
-            Color = dark,
-            Position = new Vector2(850f, 232f),
-            Size = new Vector2(78f, 82f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        });
-        return root;
-    }
-
-    private static Control BuildJumpGhost()
-    {
-        var root = new Control
-        {
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            Modulate = new Color(1f, 1f, 1f, 0f),
-            PivotOffset = new Vector2(640f, 400f),
-        };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-
-        var shadow = new Color(0.015f, 0.005f, 0.02f, 0.98f);
-        root.AddChild(new ColorRect
-        {
-            Color = shadow,
-            Position = new Vector2(482f, 206f),
-            Size = new Vector2(316f, 500f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        });
-        root.AddChild(new ColorRect
-        {
-            Color = shadow,
-            Position = new Vector2(525f, 108f),
-            Size = new Vector2(230f, 150f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        });
-        root.AddChild(new ColorRect
-        {
-            Color = new Color(0.95f, 0.04f, 0.04f, 1f),
-            Position = new Vector2(565f, 170f),
-            Size = new Vector2(36f, 18f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        });
-        root.AddChild(new ColorRect
-        {
-            Color = new Color(0.95f, 0.04f, 0.04f, 1f),
-            Position = new Vector2(680f, 170f),
-            Size = new Vector2(36f, 18f),
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        });
-        return root;
     }
 
     // --- 트리거 -------------------------------------------------------------
@@ -215,15 +140,7 @@ public partial class HorrorDirector : Node
     public override void _Process(double delta)
     {
         if (_playing || GameState.Instance?.CurrentPhase != GamePhase.Live) return;
-        double now = Time.GetTicksMsec();
-        if (now >= _nextAmbientJumpscareMsec)
-        {
-            _nextAmbientJumpscareMsec = now + _jumpRng.RandfRange(24000f, 42000f);
-            PlayAmbientJumpscare();
-            return;
-        }
-
-        if (now - _lastLevel2Msec < Level2CooldownMsec) return;
+        if (Time.GetTicksMsec() - _lastLevel2Msec < Level2CooldownMsec) return;
 
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
@@ -255,6 +172,7 @@ public partial class HorrorDirector : Node
         if (_playing) return;
         if (Time.GetTicksMsec() - _lastLevel2Msec < Level2CooldownMsec) return;
         _lastLevel2Msec = Time.GetTicksMsec();
+        EmitSignal(SignalName.Level2Started);
 
         Sfx.Instance?.Play("stinger", -3f);
         AmbientOverlay.Instance?.PulseNoise(0.24f);
@@ -283,45 +201,10 @@ public partial class HorrorDirector : Node
         b.TweenProperty(_black, "color:a", 0.0f, 0.4);
     }
 
-    // Brief, non-interactive apparitions keep pressure up between system events
-    // without covering the UI long enough to interfere with player input.
-    private async void PlayAmbientJumpscare()
-    {
-        if (_playing) return;
-        _playing = true;
-        try
-        {
-            Sfx.Instance?.Play("boom", -2f, 0.88f);
-            Sfx.Instance?.Play("noise", -4f, 0.62f);
-            AmbientOverlay.Instance?.PulseNoise(0.52f);
-            AmbientOverlay.Instance?.Flash(0.85f);
-
-            _jumpGhost.Scale = new Vector2(0.82f, 0.82f);
-            _jumpGhost.Modulate = new Color(1f, 1f, 1f, 0f);
-            var appear = CreateTween();
-            appear.TweenProperty(_jumpGhost, "modulate:a", 1f, 0.035);
-            appear.Parallel().TweenProperty(_jumpGhost, "scale", new Vector2(1.14f, 1.14f), 0.16)
-                .SetTrans(Tween.TransitionType.Quart).SetEase(Tween.EaseType.In);
-
-            var redFlash = CreateTween();
-            redFlash.TweenProperty(_red, "color:a", 0.38f, 0.035);
-            redFlash.TweenProperty(_red, "color:a", 0f, 0.22);
-
-            await Wait(0.16);
-            var vanish = CreateTween();
-            vanish.TweenProperty(_jumpGhost, "modulate:a", 0f, 0.12);
-            await Wait(0.16);
-        }
-        finally
-        {
-            ResetVisuals();
-            _playing = false;
-        }
-    }
-
     private async Task PlayLevel3(bool taboo)
     {
         _playing = true;
+        EmitSignal(SignalName.Level3Started, taboo);
         try
         {
             Sfx.Instance?.Play(taboo ? "taboo_break" : "stinger", 0f);
@@ -338,8 +221,8 @@ public partial class HorrorDirector : Node
             _bigLabel.Modulate = new Color(1f, 1f, 1f, 0f);
             _bigLabel.Text = "";
 
-            // [쿵] — 화면이 아래로 내려앉음
-            Sfx.Instance?.Play("boom", 1f);
+            // 화면이 아래로 내려앉음 (소리 없이 — 점프스케어용 "둥" 제거)
+            EmitSignal(SignalName.ImpactMoment);
             if (_uiLayer != null)
             {
                 var drop = CreateTween();
@@ -358,15 +241,9 @@ public partial class HorrorDirector : Node
             var bk2 = CreateTween();
             bk2.TweenProperty(_black, "color:a", 0.0f, 0.18);
 
-            // CCTV 노이즈 + 다가오는 실루엣
+            // CCTV 노이즈 폭증
             Sfx.Instance?.Play("noise", -1f);
             _noise.Modulate = new Color(1f, 1f, 1f, 0.62f);
-            _silhouette.Scale = Vector2.One;
-            var sil = CreateTween();
-            sil.TweenProperty(_silhouette, "modulate:a", 0.9f, 0.14);
-            sil.Parallel().TweenProperty(_silhouette, "scale", new Vector2(1.45f, 1.45f), 0.8)
-                .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
-            sil.TweenProperty(_silhouette, "modulate:a", 0.0f, 0.25);
 
             var flicker = CreateTween();
             for (int i = 0; i < 5; i++)
@@ -401,10 +278,6 @@ public partial class HorrorDirector : Node
         _black.Color = new Color(0f, 0f, 0f, 0f);
         _red.Color = new Color(0.5f, 0f, 0f, 0f);
         _noise.Modulate = new Color(1f, 1f, 1f, 0f);
-        _silhouette.Modulate = new Color(1f, 1f, 1f, 0f);
-        _silhouette.Scale = Vector2.One;
-        _jumpGhost.Modulate = new Color(1f, 1f, 1f, 0f);
-        _jumpGhost.Scale = Vector2.One;
         _bigLabel.Modulate = new Color(1f, 1f, 1f, 0f);
         _bigLabel.Text = "";
     }

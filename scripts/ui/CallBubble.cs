@@ -195,6 +195,26 @@ public partial class CallBubble : Control
         return FallbackAnswers.GetValueOrDefault(questionKey, "…알겠습니다.");
     }
 
+    // --- 3D PhoneCallHud 재사용용 정적 접근자 (기존 대사 데이터 그대로) --------
+    public static string GreetingFor(string employeeId) => Greeting(employeeId);
+    public static string AnswerFor(string employeeId, string questionKey) => Answer(employeeId, questionKey);
+    public static IReadOnlyList<string> AllQuestionKeys => QuestionKeys;
+    public static string QuestionLabel(string key) => QuestionText.GetValueOrDefault(key, key);
+
+    public static List<string> PickQuestionKeys(int count)
+    {
+        var pool = QuestionKeys.ToList();
+        var picked = new List<string>();
+        var rng = new RandomNumberGenerator();
+        for (int i = 0; i < count && pool.Count > 0; i++)
+        {
+            int idx = rng.RandiRange(0, pool.Count - 1);
+            picked.Add(pool[idx]);
+            pool.RemoveAt(idx);
+        }
+        return picked;
+    }
+
     private async void EndCallSoon()
     {
         await ToSignal(GetTree().CreateTimer(ResponseHoldSeconds), SceneTreeTimer.SignalName.Timeout);

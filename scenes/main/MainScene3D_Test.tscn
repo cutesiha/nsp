@@ -1,0 +1,418 @@
+[gd_scene format=3 uid="uid://uidr25lbp21b"]
+
+[ext_resource type="Script" uid="uid://couu2uj4tlx6l" path="res://scripts/view/SeatedCameraRig.cs" id="1_rig"]
+[ext_resource type="Script" uid="uid://2aqgpu8pm37e" path="res://scripts/view/ControlRoom3DController.cs" id="2_ctl"]
+[ext_resource type="Script" uid="uid://86q0wuc4tfj2" path="res://scripts/view/MonitorScreen3D.cs" id="3_screen"]
+[ext_resource type="Script" uid="uid://b6px2t171vvlt" path="res://scripts/view/PlayerArms.cs" id="4_arms"]
+[ext_resource type="Script" uid="uid://dw1uq4c434chg" path="res://scripts/view/ControlRoomInteraction.cs" id="5_interact"]
+[ext_resource type="Script" uid="uid://bp3nhx2t0kqpx" path="res://scripts/view/ControlRoom3DHorror.cs" id="6_horror"]
+[ext_resource type="Script" uid="uid://b6uyqrnwawl7x" path="res://scripts/view/ControlRoomAtmosphere.cs" id="7_atmos"]
+[ext_resource type="Script" uid="uid://cvbsejm2ube8x" path="res://scripts/view/Phone3D.cs" id="8_phone3d"]
+[ext_resource type="Script" uid="uid://bl1jniaefwvdp" path="res://scripts/view/PhoneCallHud.cs" id="9_phonehud"]
+[ext_resource type="Script" uid="uid://dqawpbjgbqyio" path="res://scripts/ui/HorrorDirector.cs" id="10_horrordir"]
+[ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="11_ring"]
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 1
+background_color = Color(0.015, 0.015, 0.02, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.34, 0.36, 0.44, 1)
+ambient_light_energy = 0.24
+tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.04, 0.04, 0.06, 1)
+fog_density = 0.018
+
+[sub_resource type="BoxMesh" id="Box"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_Floor"]
+albedo_color = Color(0.11, 0.11, 0.12, 1)
+metallic = 0.05
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_Concrete"]
+albedo_color = Color(0.16, 0.16, 0.19, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="Mat_Desk"]
+albedo_color = Color(0.2, 0.19, 0.17, 1)
+metallic = 0.35
+roughness = 0.55
+
+[sub_resource type="StandardMaterial3D" id="Mat_Metal"]
+albedo_color = Color(0.24, 0.24, 0.27, 1)
+metallic = 0.6
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_DarkPlastic"]
+albedo_color = Color(0.07, 0.07, 0.08, 1)
+roughness = 0.45
+
+[sub_resource type="QuadMesh" id="Quad"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_LedAmber"]
+albedo_color = Color(0.2, 0.13, 0.03, 1)
+emission_enabled = true
+emission = Color(0.95, 0.6, 0.1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxShape3D" id="PhoneShape"]
+size = Vector3(0.32, 0.18179688, 0.36)
+
+[sub_resource type="CylinderMesh" id="Cyl"]
+height = 1.0
+radial_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="Mat_LedGreen"]
+albedo_color = Color(0.05, 0.2, 0.08, 1)
+emission_enabled = true
+emission = Color(0.1, 0.9, 0.2, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_GlassDark"]
+albedo_color = Color(0.03, 0.03, 0.04, 1)
+metallic = 0.5
+roughness = 0.1
+
+[sub_resource type="StandardMaterial3D" id="Mat_LampWhite"]
+albedo_color = Color(0.9, 0.9, 0.85, 1)
+emission_enabled = true
+emission = Color(0.85, 0.85, 0.75, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="StandardMaterial3D" id="Mat_EmergencyRed"]
+albedo_color = Color(0.2, 0.02, 0.02, 1)
+emission_enabled = true
+emission = Color(0.9, 0.05, 0.05, 1)
+
+[node name="MainScene3D_Test" type="Node3D" unique_id=68669416]
+script = ExtResource("2_ctl")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1759857036]
+environment = SubResource("Env")
+
+[node name="ControlRoom" type="Node3D" parent="." unique_id=1811790660]
+
+[node name="Floor" type="MeshInstance3D" parent="ControlRoom" unique_id=1252295084]
+transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, 0, -0.05, -0.9)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Floor")
+
+[node name="Ceiling" type="MeshInstance3D" parent="ControlRoom" unique_id=542355652]
+transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, 0, 2.7, -0.9)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Concrete")
+
+[node name="Wall_Back" type="MeshInstance3D" parent="ControlRoom" unique_id=625328912]
+transform = Transform3D(4.4, 0, 0, 0, 2.7, 0, 0, 0, 0.1, 0, 1.35, -2.6)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Concrete")
+
+[node name="Wall_Left" type="MeshInstance3D" parent="ControlRoom" unique_id=1917158785]
+transform = Transform3D(0.1, 0, 0, 0, 2.7, 0, 0, 0, 3.4, -2.2, 1.35, -0.9)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Concrete")
+
+[node name="Wall_Right" type="MeshInstance3D" parent="ControlRoom" unique_id=604918919]
+transform = Transform3D(0.1, 0, 0, 0, 2.7, 0, 0, 0, 3.4, 2.2, 1.35, -0.9)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Concrete")
+
+[node name="Wall_Front" type="MeshInstance3D" parent="ControlRoom" unique_id=1954758357]
+transform = Transform3D(4.4, 0, 0, 0, 2.7, 0, 0, 0, 0.1, 0, 1.35, 0.8)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Concrete")
+
+[node name="Desk" type="Node3D" parent="ControlRoom" unique_id=1358865284]
+
+[node name="Desk_Top" type="MeshInstance3D" parent="ControlRoom/Desk" unique_id=619515418]
+transform = Transform3D(1.95, 0, 0, 0, 0.05, 0, 0, 0, 0.8, 0, 0.73, -0.62)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Desk")
+
+[node name="Desk_Front" type="MeshInstance3D" parent="ControlRoom/Desk" unique_id=855702225]
+transform = Transform3D(1.95, 0, 0, 0, 0.66, 0, 0, 0, 0.04, 0, 0.4, -0.24)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Desk")
+
+[node name="Desk_LegL" type="MeshInstance3D" parent="ControlRoom/Desk" unique_id=2130987818]
+transform = Transform3D(0.06, 0, 0, 0, 0.72, 0, 0, 0, 0.72, -0.93, 0.36, -0.62)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="Desk_LegR" type="MeshInstance3D" parent="ControlRoom/Desk" unique_id=498103079]
+transform = Transform3D(0.06, 0, 0, 0, 0.72, 0, 0, 0, 0.72, 0.93, 0.36, -0.62)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="Chair" type="Node3D" parent="ControlRoom" unique_id=1298125254]
+
+[node name="Chair_Seat" type="MeshInstance3D" parent="ControlRoom/Chair" unique_id=1818561783]
+transform = Transform3D(0.5, 0, 0, 0, 0.07, 0, 0, 0, 0.48, 0, 0.47, 0.18)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Chair_Back" type="MeshInstance3D" parent="ControlRoom/Chair" unique_id=199147018]
+transform = Transform3D(0.5, 0, 0, 0, 0.55, 0, 0, 0, 0.06, 0, 0.78, 0.42)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Monitor01" type="Node3D" parent="ControlRoom" unique_id=1705781172]
+transform = Transform3D(0.97, 0, 0.242, 0, 1, 0, -0.242, 0, 0.97, -0.47, 0, -0.75)
+
+[node name="M01_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1587461643]
+transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="M01_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=749959280]
+transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
+mesh = SubResource("Quad")
+script = ExtResource("3_screen")
+
+[node name="M01_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=2095575080]
+transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="M01_Base" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1829738365]
+transform = Transform3D(0.36, 0, 0, 0, 0.035, 0, 0, 0, 0.26, 0, 0.775, -0.02)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="M01_BezelLabel" type="Label3D" parent="ControlRoom/Monitor01" unique_id=438671256]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
+pixel_size = 0.0007
+modulate = Color(0.7, 0.7, 0.72, 1)
+text = "MONITOR 01  —  FACILITY"
+font_size = 26
+outline_size = 0
+
+[node name="M01_Glow" type="OmniLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.13, 0.25)
+light_color = Color(0.5, 0.8, 1, 1)
+light_energy = 0.6
+omni_range = 1.7
+
+[node name="Monitor02" type="Node3D" parent="ControlRoom" unique_id=1106093213]
+transform = Transform3D(0.97, 0, -0.242, 0, 1, 0, 0.242, 0, 0.97, 0.47, 0, -0.75)
+
+[node name="M02_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=668823157]
+transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="M02_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=2035591087]
+transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
+mesh = SubResource("Quad")
+script = ExtResource("3_screen")
+
+[node name="M02_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1492429967]
+transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="M02_Base" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1079536581]
+transform = Transform3D(0.36, 0, 0, 0, 0.035, 0, 0, 0, 0.26, 0, 0.775, -0.02)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="M02_BezelLabel" type="Label3D" parent="ControlRoom/Monitor02" unique_id=2105423420]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
+pixel_size = 0.0007
+modulate = Color(0.7, 0.7, 0.72, 1)
+text = "MONITOR 02  —  CCTV"
+font_size = 26
+outline_size = 0
+
+[node name="M02_Glow" type="OmniLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.13, 0.25)
+light_color = Color(0.5, 0.8, 1, 1)
+light_energy = 0.6
+omni_range = 1.7
+
+[node name="Keyboard" type="MeshInstance3D" parent="ControlRoom" unique_id=1690353115]
+transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0, 0.762, -0.42)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Telephone" type="Node3D" parent="ControlRoom" unique_id=98564310]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.5)
+script = ExtResource("8_phone3d")
+HudPath = NodePath("../../PhoneCallHud")
+
+[node name="Phone_Base" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=334600948]
+transform = Transform3D(0.2, 0, 0, 0, 0.05, 0, 0, 0, 0.25, 0, 0, 0)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Handset" type="Node3D" parent="ControlRoom/Telephone" unique_id=311821714]
+
+[node name="Phone_Bar" type="MeshInstance3D" parent="ControlRoom/Telephone/Handset" unique_id=1178599931]
+transform = Transform3D(0.18, 0, 0, 0, 0.035, 0, 0, 0, 0.055, 0, 0.045, -0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Phone_HandsetL" type="MeshInstance3D" parent="ControlRoom/Telephone/Handset" unique_id=152689161]
+transform = Transform3D(0.045, 0, 0, 0, 0.05, 0, 0, 0, 0.06, -0.09, 0.04, -0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Phone_HandsetR" type="MeshInstance3D" parent="ControlRoom/Telephone/Handset" unique_id=304525502]
+transform = Transform3D(0.045, 0, 0, 0, 0.05, 0, 0, 0, 0.06, 0.09, 0.04, -0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Phone_Lamp" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=1606570188]
+transform = Transform3D(0.025, 0, 0, 0, 0.012, 0, 0, 0, 0.02, 0.07, 0.028, 0.09)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_LedAmber")
+
+[node name="RingPlayer" type="AudioStreamPlayer3D" parent="ControlRoom/Telephone" unique_id=827924924]
+stream = ExtResource("11_ring")
+unit_size = 3.0
+max_distance = 12.0
+
+[node name="ClickArea" type="Area3D" parent="ControlRoom/Telephone" unique_id=504852170]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ControlRoom/Telephone/ClickArea" unique_id=1212810129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0391016, -0.01999998)
+shape = SubResource("PhoneShape")
+
+[node name="ControlPanel" type="Node3D" parent="ControlRoom" unique_id=1471960168]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0.76, -0.5)
+
+[node name="Panel_Body" type="MeshInstance3D" parent="ControlRoom/ControlPanel" unique_id=286125886]
+transform = Transform3D(0.34, 0, 0, 0, 0.09, 0, 0, 0, 0.24, 0, 0, 0)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Panel_Btn1" type="MeshInstance3D" parent="ControlRoom/ControlPanel" unique_id=311191269]
+transform = Transform3D(0.03, 0, 0, 0, 0.02, 0, 0, 0, 0.03, -0.09, 0.055, 0.04)
+mesh = SubResource("Cyl")
+surface_material_override/0 = SubResource("Mat_LedGreen")
+
+[node name="Panel_Btn2" type="MeshInstance3D" parent="ControlRoom/ControlPanel" unique_id=1184988260]
+transform = Transform3D(0.03, 0, 0, 0, 0.02, 0, 0, 0, 0.03, 0, 0.055, 0.04)
+mesh = SubResource("Cyl")
+surface_material_override/0 = SubResource("Mat_LedAmber")
+
+[node name="Panel_Btn3" type="MeshInstance3D" parent="ControlRoom/ControlPanel" unique_id=785380577]
+transform = Transform3D(0.03, 0, 0, 0, 0.02, 0, 0, 0, 0.03, 0.09, 0.055, 0.04)
+mesh = SubResource("Cyl")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Panel_Lamp" type="SpotLight3D" parent="ControlRoom/ControlPanel" unique_id=572600137]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.55, 0.05)
+light_color = Color(1, 0.85, 0.6, 1)
+light_energy = 0.9
+spot_range = 2.0
+spot_angle = 38.0
+
+[node name="Vent" type="Node3D" parent="ControlRoom" unique_id=521371302]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1.75, -2.54)
+
+[node name="Vent_Frame" type="MeshInstance3D" parent="ControlRoom/Vent" unique_id=989116673]
+transform = Transform3D(0.72, 0, 0, 0, 0.52, 0, 0, 0, 0.04, 0, 0, 0)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="Vent_Slat1" type="MeshInstance3D" parent="ControlRoom/Vent" unique_id=1813577648]
+transform = Transform3D(0.66, 0, 0, 0, 0.035, 0, 0, 0, 0.07, 0, 0.15, 0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Vent_Slat2" type="MeshInstance3D" parent="ControlRoom/Vent" unique_id=2079451996]
+transform = Transform3D(0.66, 0, 0, 0, 0.035, 0, 0, 0, 0.07, 0, 0.05, 0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Vent_Slat3" type="MeshInstance3D" parent="ControlRoom/Vent" unique_id=56235217]
+transform = Transform3D(0.66, 0, 0, 0, 0.035, 0, 0, 0, 0.07, 0, -0.05, 0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Vent_Slat4" type="MeshInstance3D" parent="ControlRoom/Vent" unique_id=1400330897]
+transform = Transform3D(0.66, 0, 0, 0, 0.035, 0, 0, 0, 0.07, 0, -0.15, 0.03)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="Pipe" type="MeshInstance3D" parent="ControlRoom" unique_id=1977092692]
+transform = Transform3D(0, 3, 0, 0.06, 0, 0, 0, 0, -0.06, 0.7, 2.35, -2.53)
+mesh = SubResource("Cyl")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="Door" type="Node3D" parent="ControlRoom" unique_id=532174712]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 0, -2.55)
+
+[node name="Door_Panel" type="MeshInstance3D" parent="ControlRoom/Door" unique_id=1178734571]
+transform = Transform3D(0.9, 0, 0, 0, 2, 0, 0, 0, 0.05, 0, 1, 0)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="Door_Window" type="MeshInstance3D" parent="ControlRoom/Door" unique_id=1889463332]
+transform = Transform3D(0.32, 0, 0, 0, 0.32, 0, 0, 0, 0.06, 0, 1.55, 0.01)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_GlassDark")
+
+[node name="Lights" type="Node3D" parent="ControlRoom" unique_id=1001626452]
+
+[node name="CeilingFixture" type="MeshInstance3D" parent="ControlRoom/Lights" unique_id=1530102759]
+transform = Transform3D(1.3, 0, 0, 0, 0.06, 0, 0, 0, 0.3, 0, 2.63, -0.8)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_LampWhite")
+
+[node name="CeilingLight" type="OmniLight3D" parent="ControlRoom/Lights" unique_id=1843582105]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.45, -0.85)
+light_color = Color(0.75, 0.8, 0.95, 1)
+light_energy = 1.1
+shadow_enabled = true
+omni_range = 6.5
+
+[node name="FillLight" type="OmniLight3D" parent="ControlRoom/Lights" unique_id=1277598336]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 0.2)
+light_color = Color(0.6, 0.62, 0.72, 1)
+light_energy = 0.4
+omni_range = 5.5
+
+[node name="EmergencyLight_Mesh" type="MeshInstance3D" parent="ControlRoom/Lights" unique_id=1757223563]
+transform = Transform3D(0.14, 0, 0, 0, 0.09, 0, 0, 0, 0.08, 1.9, 1.95, -2.55)
+mesh = SubResource("Box")
+surface_material_override/0 = SubResource("Mat_EmergencyRed")
+
+[node name="EmergencyLight" type="OmniLight3D" parent="ControlRoom/Lights" unique_id=445922533]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 1.9, -2.4)
+visible = false
+light_color = Color(0.95, 0.1, 0.1, 1)
+light_energy = 0.0
+omni_range = 4.0
+
+[node name="HorrorProps" type="Node3D" parent="." unique_id=1861570663]
+
+[node name="PlayerSeatRig" type="Node3D" parent="." unique_id=290693494]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.3)
+script = ExtResource("1_rig")
+
+[node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
+transform = Transform3D(1, 0, 0, 0, 0.9925, 0.1219, 0, -0.1219, 0.9925, 0, 1.16, 0)
+current = true
+fov = 64.0
+
+[node name="PlayerArms" type="Node3D" parent="PlayerSeatRig/Camera3D" unique_id=168926417]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, -0.05)
+script = ExtResource("4_arms")
+
+[node name="Interaction" type="Node" parent="." unique_id=206784725]
+script = ExtResource("5_interact")
+
+[node name="Atmosphere" type="Node3D" parent="." unique_id=1535371437]
+script = ExtResource("7_atmos")
+
+[node name="ControlRoom3DHorror" type="Node" parent="." unique_id=1495453124]
+script = ExtResource("6_horror")
+
+[node name="HorrorDirector" type="Node" parent="." unique_id=1186864440]
+script = ExtResource("10_horrordir")
+
+[node name="PhoneCallHud" type="CanvasLayer" parent="." unique_id=2122163466]
+script = ExtResource("9_phonehud")

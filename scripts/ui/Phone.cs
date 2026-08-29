@@ -9,6 +9,10 @@ public partial class Phone : Control
     [Signal]
     public delegate void RingFinishedEventHandler();
 
+    // 3D 중앙제어실 레이어가 전화기 램프 점멸 / 팔 뻗기 연출을 시작하는 신호.
+    [Signal]
+    public delegate void RingStartedEventHandler();
+
     private AudioStreamPlayer _player;
     private Vector2 _restPosition;
 
@@ -22,6 +26,7 @@ public partial class Phone : Control
     public void Ring()
     {
         Position = _restPosition;
+        EmitSignal(SignalName.RingStarted);
         _player.Play();
 
         var rng = new RandomNumberGenerator();

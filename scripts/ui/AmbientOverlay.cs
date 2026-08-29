@@ -26,8 +26,13 @@ public partial class AmbientOverlay : CanvasLayer
     private float _extraNoise;
     private float _nextFlicker;
     private float _clock;
+    private float _sceneIntensity = 1f;
 
     public override void _EnterTree() => Instance = this;
+
+    // 3D 씬처럼 자체 노이즈/CRT 효과가 이미 있는 화면에서 전역 오버레이를 줄인다.
+    // 2D 씬은 1.0 그대로. 씬이 바뀌면 그 씬에서 다시 설정한다.
+    public void SetSceneIntensity(float mult) => _sceneIntensity = Mathf.Clamp(mult, 0f, 1f);
 
     public override void _Ready()
     {
@@ -83,7 +88,8 @@ public partial class AmbientOverlay : CanvasLayer
         }
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
-        _noiseRect.Modulate = new Color(1f, 1f, 1f, BaseNoiseAlpha + _extraNoise);
+        _noiseRect.Modulate = new Color(1f, 1f, 1f, (BaseNoiseAlpha + _extraNoise) * _sceneIntensity);
+        _vignetteRect.Modulate = new Color(1f, 1f, 1f, 0.85f * Mathf.Lerp(0.5f, 1f, _sceneIntensity));
 
         // 가끔 반짝
         _nextFlicker -= d;

@@ -8,7 +8,8 @@ namespace NSP.Ui;
 
 public partial class CctvView : Control
 {
-    private static readonly Dictionary<string, (Rect2 Rect, Color Color)[]> RoomFurniture = new()
+    // 3D CCTVMonitorView 도 이 방별 가구 배치를 placeholder 배경으로 재사용한다.
+    public static readonly Dictionary<string, (Rect2 Rect, Color Color)[]> RoomFurniture = new()
     {
         ["power_room"] = new[]
         {
