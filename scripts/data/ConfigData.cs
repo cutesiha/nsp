@@ -36,4 +36,7 @@ public partial class ConfigData : Resource
 
     [Export] public int MaterialsCap = 100;
     [Export] public int MaterialsPerCoreGauge = 5;
+
+    // 발생 업무가 완료/실패한 뒤 방 카드에 결과 배지를 몇 초 더 보여줄지.
+    [Export] public float ResolvedTaskDisplaySeconds = 2.5f;
 }

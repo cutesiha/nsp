@@ -95,4 +95,9 @@ public enum LogEventType
     Sabotage,
     Neglect,
     TaskComplete,
+    // 새 업무/문제가 작업실에 발생함. TaskStart(직원이 실제로 업무 수행을 시작함)와 의미가 다르다.
+    TaskSpawned,
+    // 발생한 업무를 제한시간 안에 처리하지 못해 사고로 이어짐(큰 붉은 배너 + 공포 연출 대상).
+    // Neglect(미완료 상태로 자리 이탈 — 조용한 추리 단서)와 구분한다.
+    TaskFailed,
 }

@@ -11,6 +11,7 @@ RequiredStat = 2
 Priority = 2
 RecommendedHeadcount = 1
 GaugeRequired = 10.0
+TimeLimitSeconds = 20.0
 EffectType = 0
 EffectAmount = 0.0
 HasNeglectConsequence = false

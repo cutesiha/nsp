@@ -31,13 +31,15 @@ public static class RoomStatusText
         [RoomResourceType.Storage] = "📦",
     };
 
+    public static string WorkIcon(RoomResourceType type) => WorkIcons.GetValueOrDefault(type, "🔧");
+
     public static string BuildActivityLine(string roomId)
     {
         var sim = FacilitySimulation.Instance;
         var roomDef = sim?.GetRoomDef(roomId);
         var state = sim?.GetRoomState(roomId);
-        var task = sim?.GetActiveTaskForRoom(roomId);
-        if (sim == null || roomDef == null || state == null || task == null)
+        var st = sim?.GetPrimarySpawnedTask(roomId);
+        if (sim == null || roomDef == null || state == null || st == null || st.Status != SpawnedTaskStatus.Active)
             return "";
 
         if (state.OccupantEmployeeIds.Count == 0)
@@ -46,8 +48,62 @@ public static class RoomStatusText
         if (sim.IsRoomBlockedByMaterials(roomId))
             return "📦 자재 부족 — 대기 중";
 
-        string icon = WorkIcons.GetValueOrDefault(roomDef.ManagedResource, "🔧");
-        return $"{icon} {task.DisplayName} 중{AnimatedDots()}";
+        var task = sim.GetTaskDef(st.TaskId);
+        return $"{WorkIcon(roomDef.ManagedResource)} {task?.DisplayName ?? st.TaskId} 중{AnimatedDots()}";
+    }
+
+    // 방 지도 박스 / CCTV 화면에 함께 쓰는 발생 업무 상태 블록.
+    //   🔧 발전기 점검  ⏱0:12
+    //   ███░░░ 62%          (담당자 없으면 "⌛ 담당자 없음", 완료/실패면 배지)
+    public static string BuildRoomStatusBlock(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var roomDef = sim?.GetRoomDef(roomId);
+        if (sim == null || roomDef == null || roomDef.IsRestricted) return "";
+
+        var st = sim.GetPrimarySpawnedTask(roomId);
+        if (st != null)
+        {
+            var task = sim.GetTaskDef(st.TaskId);
+            string name = task?.DisplayName ?? st.TaskId;
+
+            if (st.Status == SpawnedTaskStatus.Completed) return $"✓ {name} 완료";
+            if (st.Status == SpawnedTaskStatus.Failed) return $"🚨 {name} 처리 실패";
+
+            string icon = WorkIcon(roomDef.ManagedResource);
+            string head = st.Recurring ? $"{icon} {name}" : $"{icon} {name}  ⏱{Clock(st.Remaining)}";
+
+            string body;
+            if (sim.IsRoomBlockedByMaterials(roomId))
+                body = "📦 자재 부족 — 대기";
+            else if ((sim.GetRoomState(roomId)?.OccupantEmployeeIds.Count ?? 0) > 0)
+            {
+                float pct = Mathf.Clamp(st.Ratio, 0f, 1f) * 100f;
+                body = $"{Bar(st.Ratio)} {pct:0}%";
+            }
+            else
+                body = "⌛ 담당자 없음";
+
+            return $"{head}\n{body}";
+        }
+
+        string dangerLine = GetDangerLine(GetDangerTier(roomId));
+        if (!string.IsNullOrEmpty(dangerLine)) return dangerLine;
+        if (TabooRuleSystem.Instance != null && TabooRuleSystem.Instance.IsRoomAtTabooRisk(roomId))
+            return "⚠ 금기 주의";
+        return "";
+    }
+
+    private static string Clock(float seconds)
+    {
+        int s = Mathf.CeilToInt(Mathf.Max(0f, seconds));
+        return $"{s / 60:0}:{s % 60:00}";
+    }
+
+    public static string Bar(float ratio)
+    {
+        int filled = Mathf.Clamp(Mathf.RoundToInt(Mathf.Clamp(ratio, 0f, 1f) * 6f), 0, 6);
+        return new string('█', filled) + new string('░', 6 - filled);
     }
 
     // "중..."의 점 개수가 1→2→3→2→1... 순서로 계속 순환하게 만드는 시각 효과 전용 헬퍼.
@@ -71,11 +127,11 @@ public static class RoomStatusText
             || (sim.GetRoomDef(roomId)?.ManagedResource == RoomResourceType.Power && GameState.Instance.IsPowerAccidentActive());
         if (activeFailure) return RoomDangerTier.Failure;
 
-        float ratio = 0f;
+        var prim = sim.GetPrimarySpawnedTask(roomId);
+        if (prim is { Status: SpawnedTaskStatus.Failed }) return RoomDangerTier.Failure;
 
-        var task = sim.GetActiveTaskForRoom(roomId);
-        if (task != null && task.HasNeglectConsequence && state.NeglectTimer > 0f)
-            ratio = Mathf.Max(ratio, state.NeglectTimer / task.NeglectThresholdSeconds);
+        // 발생 업무의 제한시간이 얼마나 임박했는가(0~1).
+        float ratio = sim.GetRoomUrgencyRatio(roomId);
 
         foreach (var kv in state.TabooHoldTimers)
         {

@@ -50,62 +50,46 @@ public partial class TaskPriorityPopup : Control
 
         var sim = FacilitySimulation.Instance;
         var roomDef = sim.GetRoomDef(_roomId);
-        _titleLabel.Text = $"{roomDef?.DisplayName ?? _roomId} — 업무 우선순위";
+        _titleLabel.Text = $"{roomDef?.DisplayName ?? _roomId} — 발생 업무";
 
         foreach (Node child in _list.GetChildren())
             child.QueueFree();
 
-        var tasks = sim.GetRoomTasksInPriorityOrder(_roomId);
-        for (int i = 0; i < tasks.Count; i++)
+        var tasks = sim.GetActiveTasksForRoom(_roomId);
+        if (tasks.Count == 0)
         {
-            var task = tasks[i];
-            bool isActive = i == 0;
-            float gauge = sim.GetTaskGauge(_roomId, task.TaskId);
+            _list.AddChild(new Label { Text = "현재 이 구역에 발생한 업무가 없습니다." });
+            return;
+        }
 
-            var row = new TaskRow { TaskId = task.TaskId };
+        foreach (var st in tasks)
+        {
+            var task = sim.GetTaskDef(st.TaskId);
+
+            var row = new PanelContainer();
             row.AddThemeStyleboxOverride("panel", RowStyle());
-            row.OnDroppedOnto = (droppedId, targetId) =>
-            {
-                int targetIndex = sim.GetRoomTasksInPriorityOrder(_roomId).FindIndex(t => t.TaskId == targetId);
-                if (targetIndex >= 0)
-                    sim.MoveTaskToIndex(_roomId, droppedId, targetIndex);
-                Rebuild();
-            };
 
             var rowBox = new VBoxContainer();
             rowBox.AddThemeConstantOverride("separation", 2);
 
             var topRow = new HBoxContainer();
             topRow.AddThemeConstantOverride("separation", 8);
-            topRow.AddChild(new Label { Text = "≡", CustomMinimumSize = new Vector2(16, 0) });
             topRow.AddChild(new Label
             {
-                Text = task.DisplayName,
+                Text = task?.DisplayName ?? st.TaskId,
                 SizeFlagsHorizontal = SizeFlags.ExpandFill,
             });
-            if (isActive)
-                topRow.AddChild(new Label { Text = $"작업중 {gauge / task.GaugeRequired * 100f:0}%" });
-
-            var upButton = new Button { Text = "▲", Disabled = i == 0, CustomMinimumSize = new Vector2(28, 0) };
-            string capturedId = task.TaskId;
-            upButton.Pressed += () => { sim.ReorderRoomTask(_roomId, capturedId, true); Rebuild(); };
-            topRow.AddChild(upButton);
-
-            var downButton = new Button { Text = "▼", Disabled = i == tasks.Count - 1, CustomMinimumSize = new Vector2(28, 0) };
-            downButton.Pressed += () => { sim.ReorderRoomTask(_roomId, capturedId, false); Rebuild(); };
-            topRow.AddChild(downButton);
-
+            topRow.AddChild(new Label { Text = StatusText(st) });
             rowBox.AddChild(topRow);
 
-            var gaugeBar = new ProgressBar
+            rowBox.AddChild(new ProgressBar
             {
                 MinValue = 0,
-                MaxValue = task.GaugeRequired,
-                Value = gauge,
+                MaxValue = st.GaugeRequired <= 0f ? 1f : st.GaugeRequired,
+                Value = st.Gauge,
                 ShowPercentage = false,
                 CustomMinimumSize = new Vector2(0, 14),
-            };
-            rowBox.AddChild(gaugeBar);
+            });
 
             string effect = EffectDescription(task);
             if (!string.IsNullOrEmpty(effect))
@@ -120,6 +104,13 @@ public partial class TaskPriorityPopup : Control
         }
     }
 
+    private static string StatusText(SpawnedTask st) => st.Status switch
+    {
+        SpawnedTaskStatus.Completed => "✓ 완료",
+        SpawnedTaskStatus.Failed => "🚨 실패",
+        _ => st.Recurring ? "상시" : $"⏱ {Mathf.CeilToInt(st.Remaining)}초",
+    };
+
     private static StyleBoxFlat RowStyle()
     {
         return new StyleBoxFlat
@@ -132,7 +123,7 @@ public partial class TaskPriorityPopup : Control
         };
     }
 
-    private static string EffectDescription(NSP.Data.TaskDef task) => task.EffectType switch
+    private static string EffectDescription(NSP.Data.TaskDef task) => task == null ? "" : task.EffectType switch
     {
         NSP.Data.TaskEffectType.AddCoreProgress => $"완료 시 코어 진행도 +{task.EffectAmount:0}%, 자재 소모",
         NSP.Data.TaskEffectType.AddMaterials => $"완료 시 공용 자재 +{task.EffectAmount:0}",

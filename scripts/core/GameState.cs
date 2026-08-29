@@ -25,21 +25,58 @@ public partial class GameState : Node
 
     public string SaboteurEmployeeId { get; private set; } = "";
 
-    private readonly Dictionary<PowerConsumer, int> _powerAllocated = new();
     private readonly Random _rng = new();
+
+    // DAY1 프로토타입: 플레이어가 전력을 직접 배분하지 않는다. 필요한 시설 전력은 근무 시작 시
+    // 자동으로 정상 배분된 상태이며(용량이 충분하면 CCTV·조명·환기 전부 ON), 발전 사고로 최대
+    // 용량이 줄어 현재 소비량을 감당 못 하면 아래 우선순위로 자동 차단한다.
+    //   index 0 = 가장 먼저 차단(CCTV)  →  마지막까지 유지(환기)
+    private static readonly PowerConsumer[] LoadShedOrder =
+    {
+        PowerConsumer.CctvWatch,
+        PowerConsumer.Lighting,
+        PowerConsumer.VentRepair,
+    };
 
     public override void _EnterTree()
     {
         Instance = this;
-        foreach (PowerConsumer consumer in System.Enum.GetValues(typeof(PowerConsumer)))
+    }
+
+    private int CostOf(PowerConsumer consumer) => consumer switch
+    {
+        PowerConsumer.CctvWatch => Config.Instance.Data.PowerCostCctvWatch,
+        PowerConsumer.VentRepair => Config.Instance.Data.PowerCostVentRepair,
+        PowerConsumer.Lighting => Config.Instance.Data.PowerCostLighting,
+        _ => 0,
+    };
+
+    // 현재 최대 용량 안에서, 가장 보호되는 소비처(환기)부터 채워 넣었을 때 이 소비처가 전력을
+    // 받는가. 발전기 사고 등으로 용량이 줄면 CCTV → 조명 순으로 자동으로 떨어져 나간다.
+    public bool IsConsumerPowered(PowerConsumer consumer)
+    {
+        int capacity = GetEffectivePowerBudget();
+        int used = 0;
+        for (int i = LoadShedOrder.Length - 1; i >= 0; i--)
         {
-            _powerAllocated[consumer] = 0;
+            var c = LoadShedOrder[i];
+            bool canPower = used + CostOf(c) <= capacity;
+            if (canPower) used += CostOf(c);
+            if (c == consumer) return canPower;
         }
+        return false;
     }
 
     public void AdvanceDayTime(float deltaSeconds)
     {
         DayTimeSeconds += deltaSeconds;
+    }
+
+    // 근무 시작 시 하루 시계를 0으로. 고정 스폰 스케줄이 매 근무 같은 흐름으로 흐르게 한다.
+    // (CoreProgress/Materials/saboteur 등 나머지 세션 상태의 리셋은 별개 이슈로 남아있음.)
+    public void ResetDayClock()
+    {
+        DayTimeSeconds = 0f;
     }
 
     public void SetPhase(GamePhase phase)
@@ -57,10 +94,11 @@ public partial class GameState : Node
         Materials = Mathf.Clamp(Materials + delta, 0, Config.Instance.Data.MaterialsCap);
     }
 
+    // 발전 사고 시 최대 전력 감소량. 서로 다른 원인(발전기 방치=3, TABOO-01=2 등)이 겹치면
+    // 더 깊은 쪽으로 맞춘다. 발전기 점검을 한 번 완료하면 RepairPowerAccident 로 완전히 복구된다.
     public void TriggerPowerAccident(int penaltyAmount)
     {
-        if (PowerAccidentPenalty > 0) return; // 이미 사고 상태 — 중첩으로 더 깎지 않는다
-        PowerAccidentPenalty = Math.Max(0, penaltyAmount);
+        PowerAccidentPenalty = Math.Max(PowerAccidentPenalty, Math.Max(0, penaltyAmount));
     }
 
     public void RepairPowerAccident()
@@ -72,28 +110,14 @@ public partial class GameState : Node
 
     private int GetEffectivePowerBudget() => Math.Max(0, Config.Instance.Data.PowerBudgetTotal - PowerAccidentPenalty);
 
-    public bool TrySetPowerAllocation(PowerConsumer consumer, int amount)
-    {
-        int budget = GetEffectivePowerBudget();
-        int otherUsage = 0;
-        foreach (var kv in _powerAllocated)
-        {
-            if (kv.Key != consumer)
-                otherUsage += kv.Value;
-        }
-        if (otherUsage + amount > budget)
-            return false;
-
-        _powerAllocated[consumer] = amount;
-        return true;
-    }
-
-    public int GetPowerAllocated(PowerConsumer consumer) => _powerAllocated.GetValueOrDefault(consumer, 0);
+    // 자동 배분 모델에서 각 소비처의 실제 사용량 = 전력을 받으면 비용, 못 받으면 0.
+    public int GetPowerAllocated(PowerConsumer consumer) => IsConsumerPowered(consumer) ? CostOf(consumer) : 0;
 
     public int GetPowerUsed()
     {
         int total = 0;
-        foreach (var v in _powerAllocated.Values) total += v;
+        foreach (PowerConsumer c in System.Enum.GetValues(typeof(PowerConsumer)))
+            total += GetPowerAllocated(c);
         return total;
     }
 
@@ -101,7 +125,11 @@ public partial class GameState : Node
 
     public int GetPowerRemaining() => GetEffectivePowerBudget() - GetPowerUsed();
 
-    public bool IsPowerOverBudget() => GetPowerUsed() > GetEffectivePowerBudget();
+    // 자동 배분이라 항상 예산 내로 유지된다 — 예전 수동 배분 시절 호출부 호환용으로만 남긴다.
+    public bool IsPowerOverBudget() => false;
+
+    // 수동 전력 배분은 DAY1 프로토타입에서 제거됨(전력은 배치 실패의 연쇄 결과로만 사용).
+    public bool TrySetPowerAllocation(PowerConsumer consumer, int amount) => false;
 
     public void SetResult(GameResult result)
     {

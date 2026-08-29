@@ -43,7 +43,7 @@ offset_bottom = -24.0
 theme_override_constants/separation = 24
 
 [node name="NotebookPanel" type="PanelContainer" parent="Root" unique_id=798455042]
-custom_minimum_size = Vector2(380, 0)
+custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("PaperStyle")
 
@@ -59,7 +59,7 @@ theme_override_constants/separation = 14
 [node name="ManualTitle" type="Label" parent="Root/NotebookPanel/NotebookStack/ManualPage" unique_id=1362604887]
 layout_mode = 2
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 34
 text = "《메뉴얼》"
 horizontal_alignment = 1
 
@@ -67,7 +67,7 @@ horizontal_alignment = 1
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 21
 text = "제1조. 시설 내 모든 근무자는 지급된 가면과 지정 코드네임만을 사용하십시오. 가면을 벗거나 교환하거나, 타 직원의 코드네임을 대신 사용해서는 안 됩니다.
 
 제2조. 근무 중 타 직원의 실명 및 얼굴을 확인하려 하지 마십시오. 위반으로 발생한 사고에 본 시설은 책임지지 않습니다.
@@ -82,7 +82,9 @@ layout_mode = 2
 alignment = 2
 
 [node name="ManualNextButton" type="Button" parent="Root/NotebookPanel/NotebookStack/ManualPage/ManualNextRow" unique_id=1648105065]
+custom_minimum_size = Vector2(56, 44)
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "▶"
 
 [node name="EmployeeCard" type="PanelContainer" parent="Root/NotebookPanel/NotebookStack" unique_id=1462388046]
@@ -108,7 +110,7 @@ stretch_mode = 5
 
 [node name="NameLabel" type="Label" parent="Root/NotebookPanel/NotebookStack/EmployeeCard/CardVBox" unique_id=1637408134]
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 24
 horizontal_alignment = 1
 
 [node name="StatsBox" type="VBoxContainer" parent="Root/NotebookPanel/NotebookStack/EmployeeCard/CardVBox" unique_id=2091274498]
@@ -125,7 +127,7 @@ theme_override_constants/separation = 14
 [node name="TabooTitle" type="Label" parent="Root/NotebookPanel/NotebookStack/TabooPage" unique_id=1917002233]
 layout_mode = 2
 theme_override_fonts/font = ExtResource("2_font")
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 34
 text = "[금기]"
 horizontal_alignment = 1
 
@@ -139,7 +141,9 @@ layout_mode = 2
 alignment = 2
 
 [node name="TabooPrevButton" type="Button" parent="Root/NotebookPanel/NotebookStack/TabooPage/TabooPrevRow" unique_id=91824608]
+custom_minimum_size = Vector2(56, 44)
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "◀"
 
 [node name="DocumentPanel" type="PanelContainer" parent="Root" unique_id=673235486]
@@ -154,7 +158,7 @@ theme_override_constants/separation = 12
 
 [node name="DocumentTitle" type="Label" parent="Root/DocumentPanel/DocumentVBox" unique_id=1115872310]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 27
 text = "금일 근무 배정"
 
 [node name="DocumentScroll" type="ScrollContainer" parent="Root/DocumentPanel/DocumentVBox" unique_id=1244028192]
@@ -168,6 +172,7 @@ theme_override_constants/separation = 6
 
 [node name="EmployeeRosterLabel" type="Label" parent="Root/DocumentPanel/DocumentVBox" unique_id=857786123]
 layout_mode = 2
+theme_override_font_sizes/font_size = 19
 text = "직원 (드래그해서 배정)"
 
 [node name="EmployeeRoster" type="HBoxContainer" parent="Root/DocumentPanel/DocumentVBox" unique_id=1213390381]

@@ -30,6 +30,12 @@ public partial class FacilitySimulation : Node
     private readonly Random _rng = new();
     private float _saboteurDecisionTimer = 0f;
     private int _killsToday = 0;
+    private bool _openingIncidentTriggered;
+
+    // DAY1 고정 스케줄(data/spawns/*.tres, SpawnAtSeconds 순) + 실제로 발생한 업무 인스턴스들.
+    private readonly List<TaskSpawnDef> _schedule = new();
+    private readonly List<SpawnedTask> _activeTasks = new();
+    private int _scheduleCursor = 0;
 
     public string SurveillanceTargetRoomId { get; private set; } = "";
 
@@ -43,6 +49,7 @@ public partial class FacilitySimulation : Node
         LoadDefinitions("res://data/employees/", _employeeDefs, d => d.EmployeeId);
         LoadDefinitions("res://data/rooms/", _roomDefs, d => d.RoomId);
         LoadDefinitions("res://data/tasks/", _taskDefs, d => d.TaskId);
+        LoadSchedule("res://data/spawns/");
 
         foreach (var def in _employeeDefs.Values)
         {
@@ -74,6 +81,26 @@ public partial class FacilitySimulation : Node
             if (_roomStates.TryGetValue(kv.Value.CurrentRoomId, out var room))
                 room.OccupantEmployeeIds.Add(kv.Key);
         }
+    }
+
+    private void LoadSchedule(string folder)
+    {
+        using var dir = DirAccess.Open(folder);
+        if (dir == null)
+        {
+            GD.PushWarning($"FacilitySimulation: spawn schedule folder not found: {folder}");
+            return;
+        }
+        dir.ListDirBegin();
+        for (string fileName = dir.GetNext(); fileName != ""; fileName = dir.GetNext())
+        {
+            if (!fileName.EndsWith(".tres")) continue;
+            var res = GD.Load<TaskSpawnDef>(folder + fileName);
+            if (res != null)
+                _schedule.Add(res);
+        }
+        dir.ListDirEnd();
+        _schedule.Sort((a, b) => a.SpawnAtSeconds.CompareTo(b.SpawnAtSeconds));
     }
 
     private void LoadDefinitions<T>(string folder, Dictionary<string, T> target, System.Func<T, string> idSelector) where T : Resource
@@ -160,27 +187,64 @@ public partial class FacilitySimulation : Node
     public bool IsRoomUnderActiveCctv(string roomId)
     {
         return SurveillanceTargetRoomId == roomId
-            && GameState.Instance.GetPowerAllocated(PowerConsumer.CctvWatch) > 0
-            && !GameState.Instance.IsPowerOverBudget();
+            && GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
     }
 
-    // --- Room task priority queue ---------------------------------------
+    // --- Spawned task instances ----------------------------------------
 
+    // 이 방에 발생해 있는 모든 업무 인스턴스(진행 중 + 방금 완료/실패해 잔여 표시 중).
+    public IReadOnlyList<SpawnedTask> GetActiveTasksForRoom(string roomId) =>
+        _activeTasks.Where(t => t.RoomId == roomId).ToList();
+
+    // 이 방에서 지금 "대표로 보여줄" 업무. 긴급(제한시간 있는) 진행 중 업무 > 상시 업무 >
+    // 방금 완료/실패한 업무 순. 없으면 null.
+    public SpawnedTask GetPrimarySpawnedTask(string roomId)
+    {
+        SpawnedTask best = null;
+        foreach (var t in _activeTasks)
+        {
+            if (t.RoomId != roomId) continue;
+            if (t.Status == SpawnedTaskStatus.Active && !t.Recurring)
+            {
+                if (best is not { Status: SpawnedTaskStatus.Active, Recurring: false } || t.Remaining < best.Remaining)
+                    best = t;
+            }
+        }
+        if (best != null) return best;
+
+        return _activeTasks.FirstOrDefault(t => t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active && t.Recurring)
+            ?? _activeTasks.FirstOrDefault(t => t.RoomId == roomId && t.Status != SpawnedTaskStatus.Active);
+    }
+
+    // 방의 긴급 업무 중 제한시간 소진 비율(0~1)의 최댓값 — 위험 표시/공포 연출 트리거용.
+    public float GetRoomUrgencyRatio(string roomId)
+    {
+        float r = 0f;
+        foreach (var t in _activeTasks)
+            if (t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active && !t.Recurring && t.TimeLimitSeconds > 0f)
+                r = Mathf.Max(r, t.Elapsed / t.TimeLimitSeconds);
+        return r;
+    }
+
+    // --- Room task list (표시용, 정적) ---------------------------------
+
+    // 방이 원래 담당하는 업무 목록(우선도 순). RoomDetailCard 의 "요구 능력" 표시 등에 쓰인다.
     public List<TaskDef> GetRoomTasksInPriorityOrder(string roomId)
     {
         if (!_roomStates.TryGetValue(roomId, out var room)) return new List<TaskDef>();
         return room.TaskPriorityOrder.Select(id => _taskDefs.GetValueOrDefault(id)).Where(t => t != null).ToList();
     }
 
+    // 이 방에서 지금 진행 중인 업무의 TaskDef(없으면 null). 사보타주·NPC 대화 컨텍스트·상태 표시가 참조.
     public TaskDef GetActiveTaskForRoom(string roomId)
     {
-        if (!_roomStates.TryGetValue(roomId, out var room) || room.TaskPriorityOrder.Count == 0) return null;
-        return _taskDefs.GetValueOrDefault(room.TaskPriorityOrder[0]);
+        var st = GetPrimarySpawnedTask(roomId);
+        return st == null ? null : _taskDefs.GetValueOrDefault(st.TaskId);
     }
 
     public float GetTaskGauge(string roomId, string taskId)
     {
-        return _roomStates.GetValueOrDefault(roomId)?.TaskGauges.GetValueOrDefault(taskId, 0f) ?? 0f;
+        return _activeTasks.FirstOrDefault(t => t.RoomId == roomId && t.TaskId == taskId)?.Gauge ?? 0f;
     }
 
     public void ReorderRoomTask(string roomId, string taskId, bool moveUp)
@@ -218,7 +282,9 @@ public partial class FacilitySimulation : Node
             return false;
 
         emp.AssignedRoomId = roomId;
-        EventLog.Instance?.LogEvent(LogEventType.TaskStart, employeeId, roomId, $"{Codename(employeeId)} - {RoomName(roomId)} 배정");
+        // 배정/재배치는 "직원을 그 방으로 보낸다"는 관리자 행동. 실제 업무 수행 시작(TaskStart)은
+        // 직원이 방에 도착해 발생 업무의 게이지를 채우기 시작할 때 따로 기록된다.
+        EventLog.Instance?.LogEvent(LogEventType.Relocation, employeeId, roomId, $"{Codename(employeeId)} → {RoomName(roomId)} 배치");
         return true;
     }
 
@@ -247,7 +313,7 @@ public partial class FacilitySimulation : Node
 
     private bool BeginPathTo(EmployeeState emp, string destinationRoomId)
     {
-        if (emp.CurrentRoomId == destinationRoomId)
+        if (emp.CurrentRoomId == destinationRoomId && !emp.IsMoving)
         {
             emp.PathQueue.Clear();
             emp.TargetRoomId = destinationRoomId;
@@ -255,11 +321,21 @@ public partial class FacilitySimulation : Node
             return true;
         }
 
-        var path = FindPath(emp.CurrentRoomId, destinationRoomId);
+        // 이동 중이면 지금 향하던 방까지는 마저 걸어간 뒤 거기서부터 새 경로를 잇는다 —
+        // 통로 한복판에서 갑자기 방향을 꺾지 않게 한다.
+        string start = emp.IsMoving && !string.IsNullOrEmpty(emp.TargetRoomId) ? emp.TargetRoomId : emp.CurrentRoomId;
+        if (start == destinationRoomId)
+        {
+            emp.PathQueue.Clear();
+            return true;
+        }
+
+        var path = FindPath(start, destinationRoomId);
         if (path.Count == 0) return false;
 
         emp.PathQueue = path;
-        AdvanceToNextWaypoint(emp);
+        if (!emp.IsMoving)
+            AdvanceToNextWaypoint(emp);
         return true;
     }
 
@@ -279,17 +355,20 @@ public partial class FacilitySimulation : Node
         emp.ElbowWaypoint = emp.IsMoving ? ComputeElbowWaypoint(emp.CurrentRoomId, next) : null;
     }
 
-    // CorridorLine.cs가 그리는 통로는 두 방이 같은 행/열에 있지 않으면 직각으로 한 번 꺾인다
-    // (a → (a.X, b.Y) → b). 예전에는 이동이 항상 방 중심끼리 직선으로만 이었어서 꺾인 통로
-    // 구간에서 직원이 통로를 벗어나 대각선으로 가로질렀다 — 같은 꺾임 공식을 재사용해 고침.
-    // 두 방이 이미 같은 행이나 열이면 이 점은 출발점/도착점과 겹쳐 자동으로 직선이 된다.
+    // 통로는 두 방이 같은 행/열이 아니면 직각으로 한 번 꺾인다. 꺾임 지점은 **이동 방향과
+    // 무관하게 항상 같은 모서리**여야 CorridorLine.cs가 그리는 회색 선과 정확히 겹친다.
+    // 규칙: 세로 구간은 더 위쪽(작은 Y) 방의 X에, 가로 구간은 더 아래쪽 방의 Y에 둔다.
+    // (CorridorLine.cs의 ComputeElbow와 동일 규칙 — 한쪽만 바꾸면 안 됨.)
     private Vector2? ComputeElbowWaypoint(string fromRoomId, string toRoomId)
     {
         Vector2 from = GetRoomPosition(fromRoomId);
         Vector2 to = GetRoomPosition(toRoomId);
         if (Mathf.IsEqualApprox(from.X, to.X) || Mathf.IsEqualApprox(from.Y, to.Y))
             return null;
-        return new Vector2(from.X, to.Y);
+
+        Vector2 upper = from.Y <= to.Y ? from : to;
+        Vector2 lower = from.Y <= to.Y ? to : from;
+        return new Vector2(upper.X, lower.Y);
     }
 
     private List<string> FindPath(string fromRoomId, string toRoomId)
@@ -429,24 +508,112 @@ public partial class FacilitySimulation : Node
         return true;
     }
 
+    // 근무 시작 시 호출 — 이전 판/스폰 상태가 이월되지 않게 한다.
+    // (직원 위치/생존/코어 진행도 등 GameState 전체 리셋은 기존 미구현 이슈로 별도.)
+    public void ResetForNewShift()
+    {
+        _activeTasks.Clear();
+        _scheduleCursor = 0;
+        _saboteurDecisionTimer = 0f;
+        _killsToday = 0;
+        _openingIncidentTriggered = false;
+        foreach (var room in _roomStates.Values)
+        {
+            room.NeglectTimer = 0f;
+            room.TabooHoldTimers.Clear();
+            room.TaskGauges.Clear();
+            room.CctvDisconnected = false;
+            room.InfoDistorted = false;
+            room.PowerOn = true;
+            room.Locked = false;
+        }
+        GameState.Instance.RepairPowerAccident();
+        GameState.Instance.ResetDayClock();
+    }
+
     public void Tick(double delta)
     {
         float d = (float)delta;
+        TickSchedule();
+        TickOpeningIncident();
         foreach (var emp in _employeeStates.Values)
         {
             if (!emp.Alive) continue;
             TickMovement(emp, d);
         }
-        TickTaskProgress(d);
+        TickActiveTasks(d);
         TickLighting();
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
     }
 
+    // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
+    private void TickSchedule()
+    {
+        float now = GameState.Instance.DayTimeSeconds;
+        while (_scheduleCursor < _schedule.Count && now >= _schedule[_scheduleCursor].SpawnAtSeconds)
+        {
+            SpawnFromDef(_schedule[_scheduleCursor]);
+            _scheduleCursor++;
+        }
+    }
+
+    // The opening needs to establish danger quickly. This is a real power-budget
+    // failure, so the player has an actionable anomaly within ten seconds of
+    // entering the main scene.
+    private void TickOpeningIncident()
+    {
+        if (_openingIncidentTriggered || GameState.Instance.DayTimeSeconds < 10f)
+            return;
+
+        _openingIncidentTriggered = true;
+        const string roomId = "power_room";
+        GameState.Instance.TriggerPowerAccident(3);
+        EventLog.Instance?.LogEvent(
+            LogEventType.PowerOutage,
+            "",
+            roomId,
+            $"!! {RoomName(roomId)} power output is fluctuating. Emergency capacity reduced.");
+    }
+
+    private void SpawnFromDef(TaskSpawnDef def)
+    {
+        var taskDef = _taskDefs.GetValueOrDefault(def.TaskId);
+        if (taskDef == null)
+        {
+            GD.PushWarning($"FacilitySimulation: spawn references unknown task '{def.TaskId}'");
+            return;
+        }
+        string roomId = !string.IsNullOrEmpty(def.RoomId) ? def.RoomId : taskDef.RoomId;
+
+        // 같은 방에 같은 업무가 이미 진행 중이면 중복 발생시키지 않는다.
+        if (_activeTasks.Any(t => t.TaskId == taskDef.TaskId && t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active))
+            return;
+
+        _activeTasks.Add(new SpawnedTask
+        {
+            TaskId = taskDef.TaskId,
+            RoomId = roomId,
+            Recurring = def.Recurring,
+            TimeLimitSeconds = taskDef.TimeLimitSeconds,
+            GaugeRequired = taskDef.GaugeRequired,
+        });
+
+        string desc = def.Recurring
+            ? $"⚙ {RoomName(roomId)} · '{taskDef.DisplayName}' 상시 업무 시작"
+            : $"⚠ {RoomName(roomId)}에 '{taskDef.DisplayName}' 업무 발생 (제한 {FormatClock(taskDef.TimeLimitSeconds)})";
+        EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", roomId, desc);
+    }
+
+    private static string FormatClock(float seconds)
+    {
+        int s = Mathf.CeilToInt(Mathf.Max(0f, seconds));
+        return $"{s / 60:0}:{s % 60:00}";
+    }
+
     private void TickLighting()
     {
-        bool lightingOk = GameState.Instance.GetPowerAllocated(PowerConsumer.Lighting) >= Config.Instance.Data.PowerCostLighting
-            && !GameState.Instance.IsPowerOverBudget();
+        bool lightingOk = GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting);
         foreach (var room in _roomStates.Values)
             room.RedAlertLighting = !lightingOk;
     }
@@ -536,12 +703,9 @@ public partial class FacilitySimulation : Node
         }
         else
         {
-            var room = _roomStates.GetValueOrDefault(roomId);
-            if (room != null)
-            {
-                float gauge = room.TaskGauges.GetValueOrDefault(activeTask.TaskId, 0f);
-                room.TaskGauges[activeTask.TaskId] = Mathf.Max(0f, gauge - Config.Instance.Data.SabotageTaskGaugeLoss);
-            }
+            var st = _activeTasks.FirstOrDefault(t => t.RoomId == roomId && t.TaskId == activeTask.TaskId && t.Status == SpawnedTaskStatus.Active);
+            if (st != null)
+                st.Gauge = Mathf.Max(0f, st.Gauge - Config.Instance.Data.SabotageTaskGaugeLoss);
             EventLog.Instance?.LogEvent(LogEventType.Sabotage, actorEmployeeId, roomId,
                 $"⚠ {roomDef?.DisplayName ?? roomId} — '{activeTask.DisplayName}' 진행 기록에 원인 불명의 지연이 있었다.", witnesses);
         }
@@ -605,14 +769,13 @@ public partial class FacilitySimulation : Node
         var room = _roomStates.GetValueOrDefault(roomId);
         if (room == null || room.OccupantEmployeeIds.Count > 0) return;
 
-        var activeTask = GetActiveTaskForRoom(roomId);
-        if (activeTask == null) return;
+        var st = GetPrimarySpawnedTask(roomId);
+        if (st == null || st.Status != SpawnedTaskStatus.Active || st.Recurring) return;
+        if (st.Gauge >= st.GaugeRequired) return;
 
-        float gauge = room.TaskGauges.GetValueOrDefault(activeTask.TaskId, 0f);
-        if (gauge >= activeTask.GaugeRequired) return;
-
+        string taskName = _taskDefs.GetValueOrDefault(st.TaskId)?.DisplayName ?? st.TaskId;
         EventLog.Instance?.LogEvent(LogEventType.Neglect, departingEmployeeId, roomId,
-            $"⚠ {Codename(departingEmployeeId)} - {RoomName(roomId)} '{activeTask.DisplayName}' 미완료 상태로 이탈");
+            $"⚠ {Codename(departingEmployeeId)} - {RoomName(roomId)} '{taskName}' 미완료 상태로 이탈");
     }
 
     private void RemoveOccupant(string roomId, string employeeId)
@@ -627,68 +790,93 @@ public partial class FacilitySimulation : Node
         return room.OccupantEmployeeIds.Where(id => id != excludeEmployeeId).ToList();
     }
 
-    // --- Room task gauges / neglect / effects ------------------------------
+    // --- Spawned task progress / resolution / effects --------------------
 
     // 코어실 수리는 자재 풀이 비면 게이지가 멈춘다(NSP_REALTIME_OPS §3) — UI 상태 표시도
     // 같은 조건을 읽어야 해서 재사용 가능하게 public으로 뺐다. 판정 로직은 그대로 하나뿐.
     public bool IsRoomBlockedByMaterials(string roomId)
     {
-        var task = GetActiveTaskForRoom(roomId);
+        var st = GetPrimarySpawnedTask(roomId);
+        if (st == null || st.Status != SpawnedTaskStatus.Active) return false;
+        var task = _taskDefs.GetValueOrDefault(st.TaskId);
         return task != null && task.EffectType == TaskEffectType.AddCoreProgress
             && GameState.Instance.Materials < Config.Instance.Data.MaterialsPerCoreGauge;
     }
 
-    private void TickTaskProgress(float delta)
+    private void TickActiveTasks(float delta)
     {
-        foreach (var room in _roomStates.Values)
+        for (int i = _activeTasks.Count - 1; i >= 0; i--)
         {
-            var activeTask = GetActiveTaskForRoom(room.RoomId);
-            if (activeTask == null)
+            var st = _activeTasks[i];
+            var taskDef = _taskDefs.GetValueOrDefault(st.TaskId);
+            if (taskDef == null) { _activeTasks.RemoveAt(i); continue; }
+
+            // 완료/실패한 업무는 잔여 표시 시간이 끝나면 리스트에서 제거한다.
+            if (st.Status != SpawnedTaskStatus.Active)
             {
-                room.NeglectTimer = 0f;
+                st.ResolveDisplayTimer -= delta;
+                if (st.ResolveDisplayTimer <= 0f)
+                    _activeTasks.RemoveAt(i);
                 continue;
             }
 
-            bool blockedByMaterials = IsRoomBlockedByMaterials(room.RoomId);
+            st.Elapsed += delta;
 
-            var workers = room.OccupantEmployeeIds
+            var room = _roomStates.GetValueOrDefault(st.RoomId);
+            var workers = room == null ? new List<EmployeeState>() : room.OccupantEmployeeIds
                 .Select(id => _employeeStates.GetValueOrDefault(id))
                 .Where(e => e != null && e.Alive && !e.Isolated)
                 .ToList();
 
-            if (workers.Count > 0 && blockedByMaterials)
-            {
-                room.NeglectTimer = 0f;
-                continue;
-            }
+            bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress
+                && GameState.Instance.Materials < Config.Instance.Data.MaterialsPerCoreGauge;
 
-            if (workers.Count == 0)
+            if (workers.Count > 0 && !blockedByMaterials)
             {
-                // NeglectTimer < 0 = 이번 방치 상태에서 이미 한 번 발동함(잠금). 방이 다시
-                // 채워져 위반 상태가 끝나야(아래 "room.NeglectTimer = 0f") 재발동 가능해진다.
-                if (activeTask.HasNeglectConsequence && room.NeglectTimer >= 0f)
+                // 직원이 실제로 이 방에서 발생 업무를 수행하기 시작함 = TaskStart (1인 1회).
+                foreach (var w in workers)
                 {
-                    room.NeglectTimer += delta;
-                    if (room.NeglectTimer >= activeTask.NeglectThresholdSeconds)
-                    {
-                        ApplyNeglectConsequence(activeTask, room.RoomId);
-                        room.NeglectTimer = -1f;
-                    }
+                    if (!st.StartedWorkerIds.Add(w.EmployeeId)) continue;
+                    EventLog.Instance?.LogEvent(LogEventType.TaskStart, w.EmployeeId, st.RoomId,
+                        $"{Codename(w.EmployeeId)} {RoomName(st.RoomId)} 도착 / {taskDef.DisplayName} 시작",
+                        workers.Where(x => x.EmployeeId != w.EmployeeId).Select(x => x.EmployeeId));
                 }
-                continue;
+
+                int statSum = workers.Sum(w => _employeeDefs[w.EmployeeId].GetStat(taskDef.RequiredStat));
+                st.Gauge += statSum * delta;
             }
 
-            room.NeglectTimer = 0f;
-            int statSum = workers.Sum(w => _employeeDefs[w.EmployeeId].GetStat(activeTask.RequiredStat));
-            float gauge = room.TaskGauges.GetValueOrDefault(activeTask.TaskId, 0f) + statSum * delta;
-
-            if (gauge >= activeTask.GaugeRequired)
-            {
-                gauge -= activeTask.GaugeRequired;
-                ApplyTaskEffect(activeTask, room.RoomId);
-            }
-            room.TaskGauges[activeTask.TaskId] = gauge;
+            if (st.Gauge >= st.GaugeRequired)
+                ResolveTask(st, taskDef, true);
+            else if (!st.Recurring && st.Elapsed >= st.TimeLimitSeconds)
+                ResolveTask(st, taskDef, false);
         }
+    }
+
+    private void ResolveTask(SpawnedTask st, TaskDef taskDef, bool completed)
+    {
+        if (completed && st.Recurring)
+        {
+            // 상시 업무: 효과 적용 후 게이지만 되돌리고 계속 순환 (제거하지 않는다).
+            ApplyTaskEffect(taskDef, st.RoomId);
+            st.Gauge = Mathf.Max(0f, st.Gauge - st.GaugeRequired);
+            return;
+        }
+
+        if (completed)
+        {
+            ApplyTaskEffect(taskDef, st.RoomId); // TaskComplete 배지 로그 포함
+            st.Status = SpawnedTaskStatus.Completed;
+        }
+        else
+        {
+            st.Status = SpawnedTaskStatus.Failed;
+            EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", st.RoomId,
+                $"🚨 {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 처리 실패");
+            if (taskDef.HasNeglectConsequence)
+                TabooRuleSystem.Instance?.ApplyRoomConsequence(taskDef.NeglectConsequenceType, st.RoomId, taskDef.NeglectConsequenceAmount);
+        }
+        st.ResolveDisplayTimer = Config.Instance.Data.ResolvedTaskDisplaySeconds;
     }
 
     private void ApplyTaskEffect(TaskDef task, string roomId)
@@ -721,12 +909,5 @@ public partial class FacilitySimulation : Node
                 break;
         }
         EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", roomId, badge);
-    }
-
-    private void ApplyNeglectConsequence(TaskDef task, string roomId)
-    {
-        EventLog.Instance?.LogEvent(LogEventType.Neglect, "", roomId,
-            $"⚠ {RoomName(roomId)} — '{task.DisplayName}' 장기 방치로 사고 발생");
-        TabooRuleSystem.Instance?.ApplyRoomConsequence(task.NeglectConsequenceType, roomId, task.NeglectConsequenceAmount);
     }
 }
