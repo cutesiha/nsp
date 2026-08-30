@@ -153,8 +153,16 @@ public partial class CCTVMonitorView : Control
         _camLabel.Text = $"CAM · {def?.DisplayName ?? roomId}";
 
         bool powered = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+        bool systemFault = GameState.Instance.CctvSystemOffline;
         bool disconnected = state?.CctvDisconnected == true;
 
+        if (systemFault)
+        {
+            // FAIL-04: 경비실 감시 설비 고장 — 전력을 줘도 수리 전까지 신호 없음.
+            ShowState("SIGNAL FAILURE\nSURVEILLANCE SYSTEM DOWN", darken: 0.92f);
+            _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
+            return;
+        }
         if (disconnected)
         {
             ShowState("── SIGNAL LOST ──", darken: 0.92f);
@@ -163,7 +171,7 @@ public partial class CCTVMonitorView : Control
         }
         if (!powered)
         {
-            ShowState("NO SIGNAL\nPOWER OFFLINE", darken: 0.9f);
+            ShowState("NO SIGNAL\nCCTV POWER OFF", darken: 0.9f);
             _noise.Modulate = new Color(1, 1, 1, 0.16f);
             return;
         }

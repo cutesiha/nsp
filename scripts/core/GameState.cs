@@ -131,6 +131,29 @@ public partial class GameState : Node
 
     public bool IsPowerAccidentActive() => PowerAccidentPenalty > 0;
 
+    // ── 시설 설비 고장(전력과 별개) ────────────────────────────────────
+    // 해당 방 사고 업무를 방치해 발생하고, 그 방에서 "수리" 업무를 완료해야 풀린다.
+    // CctvSystemOffline: FAIL-04 — CCTV에 전력을 줘도 수리 전까지 신호가 안 뜬다.
+    // MaterialsProductionHalted: FAIL-03 — 정비실 자재 생산이 멈춘다(기존 자재는 사용 가능).
+    // VentilationDown: FAIL-02 — 환기 정지, 수리 전까지 전 직원 스트레스가 계속 오른다.
+    public bool CctvSystemOffline { get; private set; }
+    public bool MaterialsProductionHalted { get; private set; }
+    public bool VentilationDown { get; private set; }
+
+    public void SetCctvSystemOffline(bool v) => CctvSystemOffline = v;
+    public void SetMaterialsProductionHalted(bool v) => MaterialsProductionHalted = v;
+    public void SetVentilationDown(bool v) => VentilationDown = v;
+
+    public void ResetFacilityFaults()
+    {
+        CctvSystemOffline = false;
+        MaterialsProductionHalted = false;
+        VentilationDown = false;
+    }
+
+    // CCTV를 실제로 볼 수 있는가 = 전력이 있고 + 설비 고장(FAIL-04)이 아니어야 한다.
+    public bool IsCctvOperational() => IsConsumerPowered(PowerConsumer.CctvWatch) && !CctvSystemOffline;
+
     // 각 소비처의 실제 사용량(슬롯 1개 = 1) — 2D 백업 화면 호환용.
     public int GetPowerAllocated(PowerConsumer consumer) => IsConsumerPowered(consumer) ? 1 : 0;
 
@@ -175,5 +198,6 @@ public partial class GameState : Node
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;
         RepairPowerAccident();
+        ResetFacilityFaults();
     }
 }

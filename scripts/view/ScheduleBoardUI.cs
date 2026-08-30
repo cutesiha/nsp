@@ -100,71 +100,55 @@ public partial class ScheduleBoardUI : Control
             })
             .ToList();
 
+        AddLabel(_form, "작업실  ·  직원 카드를 끌어다 놓거나 카드를 고른 뒤 방을 누르세요", new Vector2(DocLeft, 140), 11, InkDim, _body);
+
         float y = 162f;
         foreach (var roomId in rooms)
         {
-            var def = sim.GetRoomDef(roomId);
-
-            var nameBtn = new Button
-            {
-                Text = def.DisplayName,
-                Position = new Vector2(DocLeft, y),
-                Size = new Vector2(122, 30),
-                Flat = true,
-                Alignment = HorizontalAlignment.Left,
-            };
-            StyleDoc(nameBtn, Ink, new Color(0, 0, 0, 0));
-            string capRoom = roomId;
-            nameBtn.Pressed += () => OnRoomClicked(capRoom);
-            nameBtn.MouseEntered += () => OnRoomHover(capRoom, true);
-            nameBtn.MouseExited += () => OnRoomHover(capRoom, false);
-            _form.AddChild(nameBtn);
-
             var here = sim.GetEmployeeIds()
                 .Select(sim.GetEmployeeState)
                 .Where(s => s != null && s.AssignedRoomId == roomId)
                 .Select(s => s.EmployeeId)
                 .ToList();
 
-            for (int slot = 0; slot < 2; slot++)
+            var row = new RoomRow(sim.GetRoomDef(roomId), _serif, _body)
             {
-                string occ = slot < here.Count ? here[slot] : "";
-                var b = SlotButton(occ, sim);
-                b.Position = new Vector2(150 + slot * 156, y);
-                string capturedOcc = occ, capRoom2 = roomId;
-                b.Pressed += () => OnSlot(capRoom2, capturedOcc);
-                b.MouseEntered += () => OnRoomHover(capRoom2, true);
-                b.MouseExited += () => OnRoomHover(capRoom2, false);
-                _form.AddChild(b);
-            }
-            y += 32f;
+                Position = new Vector2(DocLeft, y),
+                Size = new Vector2(DocRight - DocLeft - 8, 30),
+                RoomId = roomId,
+                Occupants = here,
+                CodenameOf = id => sim.GetEmployeeDef(id)?.Codename ?? id,
+                JustWrote = _justWrote,
+                OnNameClick = OnRoomClicked,
+                OnClearOcc = OnClearOccupant,
+                OnHover = OnRoomHover,
+                TryDropAssign = TryDropAssign,
+            };
+            _form.AddChild(row);
+            y += 33f;
         }
 
-        // --- 오른쪽 대기 인원 ---
-        AddLabel(_form, "대기 인원", new Vector2(DockLeft + 12, 22), 13, InkDim, _body);
-        float ey = 46f;
+        // --- 오른쪽 대기 인원(직원 카드) ---
+        AddLabel(_form, "대기 인원", new Vector2(DockLeft + 12, 20), 13, InkDim, _body);
+        float ey = 40f;
         foreach (var empId in sim.GetEmployeeIds())
         {
             var edef = sim.GetEmployeeDef(empId);
             var est = sim.GetEmployeeState(empId);
             if (edef == null || est == null) continue;
 
-            bool assigned = !string.IsNullOrEmpty(est.AssignedRoomId);
-            bool selected = empId == _selectedEmp;
-
-            var b = new Button
+            var card = new EmpCard(edef, _serif, _body)
             {
-                Text = (selected ? "▶ " : "") + edef.Codename + (assigned ? "  ✓" : ""),
-                Position = new Vector2(DockLeft + 12, ey),
-                Size = new Vector2(DockRight - DockLeft - 24, 30),
-                Flat = true,
-                Alignment = HorizontalAlignment.Left,
+                Position = new Vector2(DockLeft + 10, ey),
+                Size = new Vector2(DockRight - DockLeft - 20, 44),
+                EmpId = empId,
+                Selected = empId == _selectedEmp,
+                AssignedRoomName = string.IsNullOrEmpty(est.AssignedRoomId)
+                    ? "" : sim.GetRoomDef(est.AssignedRoomId)?.DisplayName ?? "",
+                OnClick = OnEmployeeClicked,
             };
-            StyleDoc(b, selected ? Ink : (assigned ? InkDim : Ink), selected ? SelectFill : new Color(0, 0, 0, 0));
-            string cap = empId;
-            b.Pressed += () => OnEmployeeClicked(cap);
-            _form.AddChild(b);
-            ey += 32f;
+            _form.AddChild(card);
+            ey += 48f;
         }
 
         // --- 하단 상태/버튼 ---
@@ -290,8 +274,21 @@ public partial class ScheduleBoardUI : Control
 
     // --- interaction --------------------------------------------------
 
+    // 방 이름을 클릭 — 선택된 직원이 있으면 그 방에 배치, 없으면 방 정보만 표시.
     private void OnRoomClicked(string roomId)
     {
+        var sim = FacilitySimulation.Instance;
+        if (sim != null && !string.IsNullOrEmpty(_selectedEmp))
+        {
+            AssignEmp(_selectedEmp, roomId);
+            _selectedEmp = "";
+            _focusRoom = roomId;
+            _focusEmp = "";
+            _hoverRoom = "";
+            RebuildForm();
+            RefreshInfoPanel();
+            return;
+        }
         _focusRoom = roomId;
         _focusEmp = "";
         RefreshInfoPanel();
@@ -314,29 +311,36 @@ public partial class ScheduleBoardUI : Control
         RefreshInfoPanel();
     }
 
-    private void OnSlot(string roomId, string occupantId)
+    private void OnClearOccupant(string occupantId)
     {
-        var sim = FacilitySimulation.Instance;
-        if (sim == null) return;
+        FacilitySimulation.Instance?.ClearAssignment(occupantId);
+        _justWrote = "";
+        RebuildForm();
+        RefreshInfoPanel();
+    }
 
-        if (!string.IsNullOrEmpty(occupantId))
-        {
-            sim.ClearAssignment(occupantId);
-            _justWrote = "";
-        }
-        else if (!string.IsNullOrEmpty(_selectedEmp))
-        {
-            sim.ClearAssignment(_selectedEmp);
-            if (sim.AssignToRoom(_selectedEmp, roomId))
-                _justWrote = _selectedEmp;
-            _selectedEmp = "";
-        }
-
+    // 드래그 앤 드롭으로 직원 카드를 방에 놓음.
+    private bool TryDropAssign(string employeeId, string roomId)
+    {
+        bool ok = AssignEmp(employeeId, roomId);
+        _selectedEmp = "";
         _focusRoom = roomId;
         _focusEmp = "";
         _hoverRoom = "";
         RebuildForm();
         RefreshInfoPanel();
+        return ok;
+    }
+
+    private bool AssignEmp(string employeeId, string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return false;
+        var st = sim.GetEmployeeState(employeeId);
+        if (st != null && st.AssignedRoomId == roomId) return true; // 이미 그 방
+        sim.ClearAssignment(employeeId);
+        if (sim.AssignToRoom(employeeId, roomId)) { _justWrote = employeeId; return true; }
+        return false;
     }
 
     // --- helpers --------------------------------------------------
@@ -374,27 +378,6 @@ public partial class ScheduleBoardUI : Control
         int idx = s.IndexOf(". ", StringComparison.Ordinal);
         string first = idx >= 0 ? s[..idx] : s.TrimEnd('.', ' ');
         return first.EndsWith('.') ? first : first + ".";
-    }
-
-    private Button SlotButton(string occ, FacilitySimulation sim)
-    {
-        bool filled = !string.IsNullOrEmpty(occ);
-        string code = filled ? $"[ {sim.GetEmployeeDef(occ)?.Codename ?? occ} ]" : "[            ]";
-        var b = new Button
-        {
-            Text = code,
-            Size = new Vector2(150, 30),
-            Flat = true,
-        };
-        StyleDoc(b, filled ? Ink : InkDim, SlotFill);
-        b.AddThemeFontSizeOverride("font_size", 13);
-        if (filled && occ == _justWrote)
-        {
-            b.Modulate = new Color(1, 1, 1, 0);
-            var t = b.CreateTween();
-            t.TweenProperty(b, "modulate:a", 1f, 0.28);
-        }
-        return b;
     }
 
     private void StyleDoc(Button b, Color fg, Color bgFill)
@@ -443,6 +426,174 @@ public partial class ScheduleBoardUI : Control
         l.AddThemeColorOverride("font_color", col);
         parent.AddChild(l);
         return l;
+    }
+
+    // --- 직원 카드(드래그 소스) --------------------------------------------
+
+    private partial class EmpCard : Control
+    {
+        public string EmpId = "";
+        public bool Selected;
+        public string AssignedRoomName = "";
+        public Action<string> OnClick;
+
+        private readonly EmployeeDef _def;
+        private readonly Font _serif, _body;
+
+        public EmpCard(EmployeeDef def, Font serif, Font body)
+        {
+            _def = def; _serif = serif; _body = body;
+            MouseFilter = MouseFilterEnum.Stop;
+            MouseDefaultCursorShape = CursorShape.PointingHand;
+        }
+
+        public override void _Draw()
+        {
+            bool assigned = !string.IsNullOrEmpty(AssignedRoomName);
+            var bg = new Color(0.87f, 0.83f, 0.71f, assigned ? 0.55f : 0.96f);
+            if (Selected) bg = new Color(0.78f, 0.64f, 0.34f, 0.95f);
+            DrawRect(new Rect2(Vector2.Zero, Size), bg);
+            DrawRect(new Rect2(Vector2.Zero, Size), new Color(0.35f, 0.27f, 0.16f, 0.7f), false, Selected ? 2.4f : 1.3f);
+
+            var ink = new Color(0.16f, 0.12f, 0.08f);
+            var dim = new Color(0.42f, 0.35f, 0.24f);
+            DrawString(_serif, new Vector2(8, 17), (Selected ? "▶ " : "") + _def.Codename,
+                HorizontalAlignment.Left, -1, 16, ink);
+            if (assigned)
+                DrawString(_body, new Vector2(Size.X - 118, 15), "→ " + AssignedRoomName,
+                    HorizontalAlignment.Right, 110, 11, dim);
+
+            DrawMiniStat("기", _def.Tech, 8, 30, ink);
+            DrawMiniStat("담", _def.Courage, 58, 30, ink);
+            DrawMiniStat("관", _def.Observation, 108, 30, ink);
+            if (!string.IsNullOrEmpty(_def.Trait))
+                DrawString(_body, new Vector2(Size.X - 118, 34), _def.Trait,
+                    HorizontalAlignment.Right, 112, 11, dim);
+        }
+
+        private void DrawMiniStat(string label, int v, float x, float y, Color ink)
+        {
+            DrawString(_body, new Vector2(x, y + 9), label, HorizontalAlignment.Left, -1, 10, ink);
+            for (int i = 0; i < 3; i++)
+            {
+                var r = new Rect2(x + 14 + i * 9, y, 7, 9);
+                DrawRect(r, i < v ? ink : new Color(ink.R, ink.G, ink.B, 0.18f));
+            }
+        }
+
+        public override void _GuiInput(InputEvent e)
+        {
+            if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+                OnClick?.Invoke(EmpId);
+        }
+
+        public override Variant _GetDragData(Vector2 atPosition)
+        {
+            var prev = new Panel { Size = new Vector2(130, 30) };
+            var sb = new StyleBoxFlat
+            {
+                BgColor = new Color(0.9f, 0.82f, 0.6f, 0.96f),
+                BorderColor = new Color(0.3f, 0.22f, 0.12f), BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+            };
+            prev.AddThemeStyleboxOverride("panel", sb);
+            var l = new Label
+            {
+                Text = _def.Codename,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            l.SetAnchorsPreset(LayoutPreset.FullRect);
+            l.AddThemeFontOverride("font", _serif);
+            l.AddThemeFontSizeOverride("font_size", 15);
+            l.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
+            prev.AddChild(l);
+            SetDragPreview(prev);
+            return EmpId;
+        }
+    }
+
+    // --- 작업실 행(클릭 대상 + 드롭 대상) ---------------------------------
+
+    private partial class RoomRow : Control
+    {
+        public string RoomId = "";
+        public List<string> Occupants = new();
+        public string JustWrote = "";
+        public Func<string, string> CodenameOf;
+        public Action<string> OnNameClick;
+        public Action<string> OnClearOcc;
+        public Action<string, bool> OnHover;
+        public Func<string, string, bool> TryDropAssign;
+
+        private readonly RoomDef _def;
+        private readonly Font _serif, _body;
+        private bool _dropHover;
+
+        private const float NameW = 116f, SlotW = 148f, SlotGap = 8f;
+
+        public RoomRow(RoomDef def, Font serif, Font body)
+        {
+            _def = def; _serif = serif; _body = body;
+            MouseFilter = MouseFilterEnum.Stop;
+            MouseEntered += () => OnHover?.Invoke(RoomId, true);
+            MouseExited += () => OnHover?.Invoke(RoomId, false);
+        }
+
+        public override void _Process(double delta)
+        {
+            bool h = GetViewport().GuiIsDragging() && GetGlobalRect().HasPoint(GetGlobalMousePosition());
+            if (h != _dropHover) { _dropHover = h; QueueRedraw(); }
+        }
+
+        public override void _Draw()
+        {
+            var ink = new Color(0.17f, 0.13f, 0.09f);
+            var dim = new Color(0.42f, 0.35f, 0.24f);
+            DrawString(_serif, new Vector2(0, 21), _def.DisplayName, HorizontalAlignment.Left, NameW, 16, ink);
+
+            for (int s = 0; s < 2; s++)
+            {
+                float x = NameW + s * (SlotW + SlotGap);
+                var r = new Rect2(x, 2, SlotW, Size.Y - 4);
+                DrawRect(r, new Color(0.80f, 0.75f, 0.60f, _dropHover ? 0.8f : 0.45f));
+                DrawRect(r, _dropHover ? new Color(0.55f, 0.42f, 0.18f) : new Color(0.4f, 0.32f, 0.2f, 0.55f), false, _dropHover ? 2f : 1.1f);
+
+                string occ = s < Occupants.Count ? Occupants[s] : "";
+                if (!string.IsNullOrEmpty(occ))
+                    DrawString(_body, new Vector2(x + 10, 20), "[ " + (CodenameOf?.Invoke(occ) ?? occ) + " ]",
+                        HorizontalAlignment.Left, SlotW - 16, 13, ink);
+                else
+                    DrawString(_body, new Vector2(x + 10, 20), "[          ]",
+                        HorizontalAlignment.Left, SlotW - 16, 13, dim);
+            }
+        }
+
+        public override void _GuiInput(InputEvent e)
+        {
+            if (e is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb) return;
+            float lx = mb.Position.X;
+            if (lx < NameW) { OnNameClick?.Invoke(RoomId); return; }
+
+            int slot = lx < NameW + SlotW + SlotGap * 0.5f ? 0 : 1;
+            string occ = slot < Occupants.Count ? Occupants[slot] : "";
+            if (!string.IsNullOrEmpty(occ)) OnClearOcc?.Invoke(occ);
+            else OnNameClick?.Invoke(RoomId); // 빈 슬롯 클릭 = 방 클릭(선택 직원 배치)
+        }
+
+        public override bool _CanDropData(Vector2 atPosition, Variant data)
+        {
+            if (data.VariantType != Variant.Type.String) return false;
+            var sim = FacilitySimulation.Instance;
+            if (sim == null) return false;
+            var st = sim.GetEmployeeState(data.AsString());
+            if (st == null) return false;
+            return st.AssignedRoomId == RoomId || sim.CanAssignToRoom(RoomId);
+        }
+
+        public override void _DropData(Vector2 atPosition, Variant data)
+        {
+            TryDropAssign?.Invoke(data.AsString(), RoomId);
+        }
     }
 
     // --- 낡은 문서 질감(고정 시드로 한 번만 그림 — 클릭할 때마다 얼룩이 안 바뀐다) ------

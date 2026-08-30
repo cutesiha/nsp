@@ -4,8 +4,10 @@ using Godot;
 namespace NSP.Core;
 
 // 전역 효과음 재생기(autoload). 씬마다 AudioStreamPlayer를 새로 만들지 않고 여기 한 곳을 쓴다.
-//  - Play(key, db, pitch) : 원샷. assets/audio/sfx_{key}.wav 를 지연 로드해 풀에서 재생.
-//  - Loop(key, db)        : 이름 있는 루프 채널(주변 공포음, 수리음 등). StopLoop로 정지.
+//  - Play(key, db, pitch) : 원샷. assets/audio/sfx/{key}.wav 를 지연 로드해 풀에서 재생.
+//  - Loop(key, db)        : 이름 있는 루프 채널(수리음 등). StopLoop로 정지.
+//  - PlayMusic(name)/StopMusic() : assets/audio/bgm/{name}.wav 를 루프로 재생(전용 채널 1개).
+//    근무화면(실제 메인 근무)에는 BGM을 켜지 않는다 — 거긴 ControlRoomAtmosphere의 환경음.
 //  - 모든 BaseButton 클릭에 자동으로 "click" 효과음을 붙인다(명시 배선 불필요).
 // 파일이 아직 Godot에 임포트되지 않았으면 조용히 스킵한다(에디터를 한 번 열면 임포트됨).
 public partial class Sfx : Node
@@ -17,6 +19,9 @@ public partial class Sfx : Node
     private readonly List<AudioStreamPlayer> _pool = new();
     private readonly Dictionary<string, AudioStreamPlayer> _loops = new();
     private int _next;
+
+    private AudioStreamPlayer _music;
+    private string _musicName = "";
 
     // 대사 타자 효과에 맞춰 나는 캐릭터별 짧은 보이스 블립. 전용 채널 하나만 써서
     // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
@@ -42,15 +47,30 @@ public partial class Sfx : Node
         _voicePlayer = new AudioStreamPlayer { Bus = "Master" };
         AddChild(_voicePlayer);
 
-        // 프로젝트 전역 버튼 클릭음.
-        // This autoload persists across scene transitions, keeping the electrical
-        // background present from the title screen until the game is closed.
-        Loop("electrical_background", -17f);
+        _music = new AudioStreamPlayer { Bus = "Master", VolumeDb = -6f };
+        _music.Finished += () => { if (_musicName != "" && IsInstanceValid(_music)) _music.Play(); };
+        AddChild(_music);
 
         GetTree().NodeAdded += OnNodeAdded;
+    }
 
-        // 항상 깔리는 저음 공포 앰비언스.
-        Loop("ambient", -20f);
+    // --- BGM (bgm/ 폴더, 루프) ---------------------------------------------
+    public void PlayMusic(string name, float volumeDb = -6f)
+    {
+        if (_music == null || _musicName == name) return;
+        string path = $"res://assets/audio/bgm/{name}.wav";
+        if (!ResourceLoader.Exists(path)) { StopMusic(); return; }
+
+        _musicName = name;
+        _music.Stream = GD.Load<AudioStream>(path);
+        _music.VolumeDb = volumeDb;
+        _music.Play();
+    }
+
+    public void StopMusic()
+    {
+        _musicName = "";
+        _music?.Stop();
     }
 
     public override void _ExitTree()
@@ -71,7 +91,7 @@ public partial class Sfx : Node
         if (_cache.TryGetValue(key, out var s)) return s;
         string path = key == "electrical_background"
             ? "res://assets/audio/electrical_noise2_[cut_3sec].mp3"
-            : $"res://assets/audio/sfx_{key}.wav";
+            : $"res://assets/audio/sfx/{key}.wav";
         s = ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;
         _cache[key] = s;
         return s;
@@ -135,7 +155,7 @@ public partial class Sfx : Node
         var list = new List<AudioStream>();
         for (int i = 1; i <= 6; i++)
         {
-            string path = $"res://assets/audio/sfx_voice_{employeeId}_{i:00}.wav";
+            string path = $"res://assets/audio/voice/{employeeId}_{i:00}.wav";
             if (!ResourceLoader.Exists(path)) break;
             var stream = GD.Load<AudioStream>(path);
             if (stream != null) list.Add(stream);
@@ -143,8 +163,9 @@ public partial class Sfx : Node
 
         if (list.Count == 0)
         {
-            var single = Load($"voice_{employeeId}");
-            if (single != null) list.Add(single);
+            string single = $"res://assets/audio/voice/{employeeId}.wav";
+            if (ResourceLoader.Exists(single))
+                list.Add(GD.Load<AudioStream>(single));
         }
 
         _voiceVariantCache[employeeId] = list;

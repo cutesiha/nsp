@@ -30,7 +30,7 @@ public partial class FacilitySimulation : Node
     private readonly Random _rng = new();
     private float _saboteurDecisionTimer = 0f;
     private int _killsToday = 0;
-    private bool _cctvWasPowered = true;
+    private bool _cctvWasOperational = true;
 
     // DAY1 고정 스케줄(data/spawns/*.tres, SpawnAtSeconds 순) + 실제로 발생한 업무 인스턴스들.
     private readonly List<TaskSpawnDef> _schedule = new();
@@ -187,7 +187,7 @@ public partial class FacilitySimulation : Node
     public bool IsRoomUnderActiveCctv(string roomId)
     {
         return SurveillanceTargetRoomId == roomId
-            && GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+            && GameState.Instance.IsCctvOperational();
     }
 
     // --- Spawned task instances ----------------------------------------
@@ -221,7 +221,7 @@ public partial class FacilitySimulation : Node
     {
         float r = 0f;
         foreach (var t in _activeTasks)
-            if (t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active && !t.Recurring && t.TimeLimitSeconds > 0f)
+            if (t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active && !t.Recurring && !t.IsRepair && t.TimeLimitSeconds > 0f)
                 r = Mathf.Max(r, t.Elapsed / t.TimeLimitSeconds);
         return r;
     }
@@ -516,7 +516,8 @@ public partial class FacilitySimulation : Node
         _scheduleCursor = 0;
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
-        _cctvWasPowered = true;
+        _cctvWasOperational = true;
+        GameState.Instance.ResetFacilityFaults();
         foreach (var room in _roomStates.Values)
         {
             room.NeglectTimer = 0f;
@@ -545,6 +546,7 @@ public partial class FacilitySimulation : Node
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
         TickPowerRestoreReveal();
+        TickVentilationFault(d);
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
@@ -661,7 +663,7 @@ public partial class FacilitySimulation : Node
     {
         if (!_employeeStates.TryGetValue(victimId, out var victim)) return;
 
-        bool blackout = !GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+        bool blackout = !GameState.Instance.IsCctvOperational();
 
         victim.Alive = false;
         victim.DiscoveredDead = !blackout;
@@ -681,8 +683,8 @@ public partial class FacilitySimulation : Node
     // 그동안 무슨 일이 있었는지 못 보고 있다가 복구 후에야 알게 되는 것).
     private void TickPowerRestoreReveal()
     {
-        bool poweredNow = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
-        if (poweredNow && !_cctvWasPowered)
+        bool poweredNow = GameState.Instance.IsCctvOperational();
+        if (poweredNow && !_cctvWasOperational)
         {
             foreach (var emp in _employeeStates.Values)
             {
@@ -696,7 +698,19 @@ public partial class FacilitySimulation : Node
                     $"{roomDef?.DisplayName ?? emp.CurrentRoomId}에서 발견, 목격자 없음.");
             }
         }
-        _cctvWasPowered = poweredNow;
+        _cctvWasOperational = poweredNow;
+    }
+
+    // FAIL-02: 환기가 정지된 동안(수리 전까지) 전 직원 스트레스가 계속 오른다.
+    private void TickVentilationFault(float delta)
+    {
+        if (!GameState.Instance.VentilationDown) return;
+        float rise = Config.Instance.Data.VentFaultStressPerSecond * delta;
+        foreach (var emp in _employeeStates.Values)
+        {
+            if (!emp.Alive || emp.Isolated) continue;
+            emp.Stress = Mathf.Clamp(emp.Stress + rise, 0f, Config.Instance.Data.StressMax);
+        }
     }
 
     // SAB-01 감시 사각: 파괴공작자가 CCTV로 감시되지 않는 작업실에 있을 때, 그 방의 업무를
@@ -877,18 +891,40 @@ public partial class FacilitySimulation : Node
             return;
         }
 
-        if (completed)
+        if (completed && st.IsRepair)
+        {
+            // 수리 완료 — 걸려 있던 시설 페널티를 되돌린다.
+            TabooRuleSystem.Instance?.RepairRoomConsequence(taskDef.NeglectConsequenceType, st.RoomId);
+            EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", st.RoomId,
+                $"✓ {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 수리 완료 · 기능 복구");
+            st.Status = SpawnedTaskStatus.Completed;
+        }
+        else if (completed)
         {
             ApplyTaskEffect(taskDef, st.RoomId); // TaskComplete 배지 로그 포함
             st.Status = SpawnedTaskStatus.Completed;
+        }
+        else if (taskDef.HasNeglectConsequence)
+        {
+            // 제한시간 초과 — 고장 발생. 업무는 사라지지 않고 "수리" 업무로 전환되어
+            // 담당 직원이 완료해야 기능이 복구된다.
+            EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", st.RoomId,
+                $"🚨 {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 고장 발생");
+            TabooRuleSystem.Instance?.ApplyRoomConsequence(taskDef.NeglectConsequenceType, st.RoomId, taskDef.NeglectConsequenceAmount);
+
+            st.IsRepair = true;
+            st.Status = SpawnedTaskStatus.Active;
+            st.Gauge = 0f;
+            st.Elapsed = 0f;
+            st.TimeLimitSeconds = float.MaxValue;
+            st.StartedWorkerIds.Clear();
+            return;
         }
         else
         {
             st.Status = SpawnedTaskStatus.Failed;
             EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", st.RoomId,
                 $"🚨 {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 처리 실패");
-            if (taskDef.HasNeglectConsequence)
-                TabooRuleSystem.Instance?.ApplyRoomConsequence(taskDef.NeglectConsequenceType, st.RoomId, taskDef.NeglectConsequenceAmount);
         }
         st.ResolveDisplayTimer = Config.Instance.Data.ResolvedTaskDisplaySeconds;
     }
@@ -899,6 +935,12 @@ public partial class FacilitySimulation : Node
         switch (task.EffectType)
         {
             case TaskEffectType.AddMaterials:
+                // FAIL-03: 정비 설비가 고장 나 있으면 생산이 멈춘다(수리 완료 전까지).
+                if (GameState.Instance.MaterialsProductionHalted)
+                {
+                    badge += " · ⚠ 설비 고장 — 생산 정지";
+                    break;
+                }
                 GameState.Instance.AddMaterials((int)task.EffectAmount);
                 badge += $" · 📦 자재 +{task.EffectAmount:0}";
                 break;

@@ -15,7 +15,7 @@ public partial class ControlRoom3DHorror : Node
     [Export] public NodePath EmergencyLightPath = "../ControlRoom/Lights/EmergencyLight";
     [Export] public NodePath EmergencyMeshPath = "../ControlRoom/Lights/EmergencyLight_Mesh";
     [Export] public NodePath CameraRigPath = "../PlayerSeatRig";
-    [Export] public NodePath ArmsPath = "../PlayerSeatRig/Camera3D/PlayerArms";
+    [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
     [Export] public NodePath AtmospherePath = "../Atmosphere";
 
     private OmniLight3D _ceiling;
@@ -23,7 +23,7 @@ public partial class ControlRoom3DHorror : Node
     private MeshInstance3D _fixture;
     private StandardMaterial3D _fixtureMat;
     private SeatedCameraRig _rig;
-    private PlayerArms _arms;
+    private PlayerCharacter _arms;
     private ControlRoomAtmosphere _atmos;
 
     private float _ceilingBase = 1.1f;
@@ -35,7 +35,7 @@ public partial class ControlRoom3DHorror : Node
         _emergency = GetNodeOrNull<OmniLight3D>(EmergencyLightPath);
         _fixture = GetNodeOrNull<MeshInstance3D>(CeilingFixturePath);
         _rig = GetNodeOrNull<SeatedCameraRig>(CameraRigPath);
-        _arms = GetNodeOrNull<PlayerArms>(ArmsPath);
+        _arms = GetNodeOrNull<PlayerCharacter>(ArmsPath);
         _atmos = GetNodeOrNull<ControlRoomAtmosphere>(AtmospherePath);
 
         if (_ceiling != null) _ceilingBase = _ceiling.LightEnergy;

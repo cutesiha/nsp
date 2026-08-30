@@ -69,6 +69,12 @@ public enum TabooConsequenceType
     ObservationCorruption,
     StressIncrease,
     PowerCapacityLoss,
+    // FAIL-04: CCTV 시스템 전체가 강제 OFFLINE(전력을 줘도 수리 전까지 사용 불가).
+    CctvSystemFault,
+    // FAIL-03: 자재 생산 완전 정지(기존 자재는 사용 가능, 수리 완료 시 재개).
+    MaterialsHalt,
+    // FAIL-02: 환기 정지 → 전 직원 스트레스 수리 전까지 지속 상승.
+    VentilationFault,
 }
 
 public enum SaboteurActionType

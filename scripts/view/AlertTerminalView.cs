@@ -7,12 +7,13 @@ using NSP.Ui;
 
 namespace NSP.View;
 
-// 책상 위 소형 경고 단말기(SENSOR 전용 화면)의 실제 내용. 판정은 전혀 하지 않는다 —
-// AlertSystem이 계산한 목록과 GameState/EventLog를 읽기만 한다.
+// 책상 위 경고 단말기(SENSOR 전용 화면)의 실제 내용. 판정은 전혀 하지 않는다 —
+// AlertSystem이 계산한 목록과 GameState/EventLog를 읽기만 한다. 문구는 전부 한글.
 //   SENSOR ON  : AlertSystem이 계산한 가장 급한 예고를 그대로 보여준다(카운트다운 포함).
-//   SENSOR OFF : 평소엔 "SENSOR OFFLINE"만 보이지만, 실제 사고 로그가 찍히는 순간만은
-//                최소한의 사후 경보를 잠깐 띄운다(정보 없이 억울하게 당하지 않도록).
-// CurrentSeverity/InFailureFlash는 AlertTerminalProp이 경고등 색·점멸 속도를 정하는 데 쓴다.
+//   SENSOR OFF : 평소엔 "센서 전원 차단"만, 실제 사고 로그 순간만 최소 사후 경보를 잠깐 띄운다.
+// CurrentSeverity / InFailureFlash / DeathSeen 는 AlertTerminalProp 의 회전 경광등이 색·속도를 정하는 데 쓴다.
+// [Tool] — 에디터 뷰포트에서도 화면이 보이게 한다(에디터엔 autoload가 없어 "센서 전원 차단").
+[Tool]
 public partial class AlertTerminalView : Control
 {
     private static readonly HashSet<LogEventType> FailureTypes = new()
@@ -24,11 +25,15 @@ public partial class AlertTerminalView : Control
     private Label _line1, _line2, _line3;
     private bool _logWired;
     private double _failureFlashUntil = -1;
+    private string _failureHeadline = "";
     private string _failureRoom = "";
     private double _nextBeepAt;
+    private bool _wasLive;
 
     public AlertSeverity CurrentSeverity { get; private set; } = AlertSeverity.Notice;
     public bool InFailureFlash { get; private set; }
+    // 이번 근무에 사망자가 나왔는가 — 경광등이 검정(소등)으로 바뀐다.
+    public bool DeathSeen { get; private set; }
 
     public override void _Ready()
     {
@@ -40,20 +45,20 @@ public partial class AlertTerminalView : Control
         AddChild(bg);
 
         var font = ViewFont.Default;
-        var head = Lbl("ALERT TERMINAL", 12, new Color(0.35f, 0.55f, 0.42f), font);
-        head.Position = new Vector2(6, 4);
+        var head = Lbl("경고 단말기", 15, new Color(0.4f, 0.6f, 0.46f), font);
+        head.Position = new Vector2(9, 6);
         AddChild(head);
 
-        _line1 = Lbl("SYSTEM NORMAL", 17, new Color(0.4f, 0.95f, 0.5f), font);
-        _line1.Position = new Vector2(6, 26);
+        _line1 = Lbl("정상 가동 중", 24, new Color(0.4f, 0.95f, 0.5f), font);
+        _line1.Position = new Vector2(9, 34);
         AddChild(_line1);
 
-        _line2 = Lbl("NO ACTIVE ALERTS", 13, new Color(0.35f, 0.7f, 0.42f), font);
-        _line2.Position = new Vector2(6, 52);
+        _line2 = Lbl("경고 없음", 18, new Color(0.4f, 0.75f, 0.48f), font);
+        _line2.Position = new Vector2(9, 72);
         AddChild(_line2);
 
-        _line3 = Lbl("", 15, new Color(0.9f, 0.6f, 0.2f), font);
-        _line3.Position = new Vector2(6, 78);
+        _line3 = Lbl("", 20, new Color(0.95f, 0.65f, 0.25f), font);
+        _line3.Position = new Vector2(9, 104);
         AddChild(_line3);
     }
 
@@ -69,13 +74,19 @@ public partial class AlertTerminalView : Control
     public override void _Process(double delta)
     {
         WireLog();
+
+        // 근무가 새로 시작되면 사망 상태를 초기화한다.
+        bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
+        if (live && !_wasLive) DeathSeen = false;
+        _wasLive = live;
+
         double now = Time.GetTicksMsec() / 1000.0;
         InFailureFlash = now < _failureFlashUntil;
 
         if (InFailureFlash)
         {
             CurrentSeverity = AlertSeverity.Critical;
-            Show3("⚠ FACILITY FAILURE", _failureRoom, "", new Color(1f, 0.35f, 0.28f));
+            Show3(_failureHeadline, _failureRoom, "", new Color(1f, 0.35f, 0.28f));
             return;
         }
 
@@ -83,7 +94,7 @@ public partial class AlertTerminalView : Control
         if (!sensorOn)
         {
             CurrentSeverity = AlertSeverity.Notice;
-            Show3("SENSOR OFFLINE", "", "", new Color(0.55f, 0.55f, 0.55f));
+            Show3("센서 전원 차단", "사고 예측 불가", "", new Color(0.55f, 0.55f, 0.55f));
             return;
         }
 
@@ -91,15 +102,14 @@ public partial class AlertTerminalView : Control
         if (alerts.Count == 0)
         {
             CurrentSeverity = AlertSeverity.Notice;
-            Show3("SYSTEM NORMAL", "NO ACTIVE ALERTS", "", new Color(0.4f, 0.95f, 0.5f));
+            Show3("정상 가동 중", "경고 없음", "", new Color(0.4f, 0.95f, 0.5f));
             return;
         }
 
         var a = alerts[0];
         CurrentSeverity = a.Severity;
-        string cd = a.TimeRemaining >= 0f ? Clock(a.TimeRemaining) : "";
         Color col = a.Severity == AlertSeverity.Critical ? new Color(1f, 0.4f, 0.2f) : new Color(0.95f, 0.8f, 0.25f);
-        Show3($"⚠ {a.Headline}", a.Detail, cd, col);
+        Show3($"⚠ {a.Headline}", a.SubLabel, a.Countdown, col);
 
         TickBeep(now, a);
     }
@@ -107,9 +117,9 @@ public partial class AlertTerminalView : Control
     private void TickBeep(double now, Alert a)
     {
         if (now < _nextBeepAt) return;
-        float interval = a.Severity == AlertSeverity.Critical ? 0.9f : 2.4f;
+        float interval = a.Severity == AlertSeverity.Critical ? 0.8f : 2.4f;
         _nextBeepAt = now + interval;
-        Sfx.Instance?.Play("tick", -10f, a.Severity == AlertSeverity.Critical ? 1.15f : 0.95f);
+        Sfx.Instance?.Play("sensor_beep", -9f, a.Severity == AlertSeverity.Critical ? 1.1f : 0.9f);
     }
 
     private void Show3(string l1, string l2, string l3, Color color)
@@ -132,8 +142,11 @@ public partial class AlertTerminalView : Control
         var entries = EventLog.Instance.GetAllEntries();
         if (entries.Count == 0) return;
         var last = entries[^1];
+
+        if (last.EventType == LogEventType.Death) DeathSeen = true;
         if (!FailureTypes.Contains(last.EventType)) return;
 
+        _failureHeadline = last.EventType == LogEventType.Death ? "⚠ 사망자 발생" : "⚠ 시설 고장 발생";
         _failureRoom = FacilitySimulation.Instance?.GetRoomDef(last.RoomId)?.DisplayName ?? "";
         _failureFlashUntil = Time.GetTicksMsec() / 1000.0 + 6.0;
     }
@@ -142,11 +155,5 @@ public partial class AlertTerminalView : Control
     {
         if (_logWired && EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnLog;
-    }
-
-    private static string Clock(float s)
-    {
-        int t = Mathf.CeilToInt(Mathf.Max(0f, s));
-        return $"{t / 60:0}:{t % 60:00}";
     }
 }

@@ -200,6 +200,38 @@ public partial class TabooRuleSystem : Node
                 EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId,
                     $"⚠ {roomName} 발전 설비 과부하 — 최대 사용 가능 전력 감소");
                 break;
+            case TabooConsequenceType.CctvSystemFault:
+                GameState.Instance.SetCctvSystemOffline(true);
+                EventLog.Instance?.LogEvent(LogEventType.CctvDisconnect, "", roomId,
+                    $"⚠ CCTV 시스템 강제 OFFLINE — {roomName} 감시 설비 고장 (수리 필요)");
+                break;
+            case TabooConsequenceType.MaterialsHalt:
+                GameState.Instance.SetMaterialsProductionHalted(true);
+                EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
+                    $"⚠ {roomName} 설비 파손 — 자재 생산 정지 (수리 필요)");
+                break;
+            case TabooConsequenceType.VentilationFault:
+                GameState.Instance.SetVentilationDown(true);
+                EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
+                    $"⚠ {roomName} 환기 정지 — 전 직원 스트레스 지속 상승 (수리 필요)");
+                break;
+        }
+    }
+
+    // 실패한 사고 업무를 "수리" 로 완료했을 때, 걸려 있던 시설 페널티를 되돌린다.
+    public void RepairRoomConsequence(TabooConsequenceType type, string roomId)
+    {
+        var room = FacilitySimulation.Instance.GetRoomState(roomId);
+        switch (type)
+        {
+            case TabooConsequenceType.PowerOutage: if (room != null) room.PowerOn = true; break;
+            case TabooConsequenceType.CctvDisconnect: if (room != null) room.CctvDisconnected = false; break;
+            case TabooConsequenceType.CorridorLock: if (room != null) room.Locked = false; break;
+            case TabooConsequenceType.ObservationCorruption: if (room != null) room.InfoDistorted = false; break;
+            case TabooConsequenceType.PowerCapacityLoss: GameState.Instance.RepairPowerAccident(); break;
+            case TabooConsequenceType.CctvSystemFault: GameState.Instance.SetCctvSystemOffline(false); break;
+            case TabooConsequenceType.MaterialsHalt: GameState.Instance.SetMaterialsProductionHalted(false); break;
+            case TabooConsequenceType.VentilationFault: GameState.Instance.SetVentilationDown(false); break;
         }
     }
 }

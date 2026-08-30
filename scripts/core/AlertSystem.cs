@@ -10,17 +10,18 @@ namespace NSP.Core;
 public enum AlertKind { TaskWarning, TabooRisk, MaterialLow }
 public enum AlertSeverity { Notice, Warning, Critical }
 
-// SENSOR 채널이 보여주는 사고 예고 한 건. 새 위험 판정을 하지 않는다 — 이미 존재하는
-// SpawnedTask.Remaining / TabooRuleSystem 홀드 타이머 / GameState.Materials 를 매 프레임
-// 다시 읽어 "곧 벌어질 일" 목록으로 정리만 한다.
+// ALERT TERMINAL(SENSOR)이 보여주는 사고 예고 한 건. 새 위험 판정을 하지 않는다 —
+// 이미 존재하는 SpawnedTask.Remaining / TabooRuleSystem 홀드 타이머 / GameState.Materials 를
+// 매 프레임 다시 읽어 "곧 벌어질 일" 목록으로 정리만 한다.
 public class Alert
 {
     public string Key = "";
     public AlertKind Kind;
     public string RoomId = "";
-    public string Headline = "";
-    public string Detail = "";
-    public float TimeRemaining = -1f; // -1 = 카운트다운 없음(자재 부족 등)
+    public string Headline = "";       // "GENERATOR OVERHEAT"
+    public string SubLabel = "";       // "POWER ROOM"
+    public string Countdown = "";      // "FAILURE IN 00:20" / "00:08" / ""
+    public float TimeRemaining = -1f;  // 정렬용. -1 = 카운트다운 없음
     public AlertSeverity Severity;
 }
 
@@ -28,20 +29,19 @@ public partial class AlertSystem : Node
 {
     public static AlertSystem Instance { get; private set; }
 
-    private static readonly Dictionary<string, string> RoomTag = new()
+    // 사고 업무별 경고 헤드라인.
+    private static readonly Dictionary<string, string> TaskHeadline = new()
     {
-        ["power_room"] = "GENERATOR",
-        ["vent_room"] = "VENT",
-        ["guard_room"] = "LOCKDOWN",
-        ["maintenance_room"] = "EQUIPMENT",
-        ["medical_room"] = "MEDICAL",
-        ["core_room"] = "CORE",
+        ["power_generator_check"] = "발전기 과열",
+        ["vent_circulation_check"] = "환기 압력 이상",
+        ["equipment_repair"] = "정비 설비 고장",
+        ["lockdown_gear_check"] = "감시 시스템 오류",
     };
 
     public override void _EnterTree() => Instance = this;
 
-    // 심각도(Critical > Warning > Notice) → 남은시간 짧은 순으로 정렬해 반환한다.
-    // 화면 쪽(AlertTerminalView)은 이 목록의 맨 앞(가장 급한 것) 하나만 보여준다.
+    // 심각도(Critical > Warning > Notice) → 남은시간 짧은 순 정렬로 반환한다.
+    // 화면(AlertTerminalView)은 맨 앞(가장 급한 것) 하나만 보여준다.
     public List<Alert> GetActiveAlerts()
     {
         var list = new List<Alert>();
@@ -57,7 +57,7 @@ public partial class AlertSystem : Node
 
             foreach (var st in sim.GetActiveTasksForRoom(roomId))
             {
-                if (st.Status != SpawnedTaskStatus.Active || st.Recurring) continue;
+                if (st.Status != SpawnedTaskStatus.Active || st.Recurring || st.IsRepair) continue;
                 var taskDef = sim.GetTaskDef(st.TaskId);
                 if (taskDef is not { HasNeglectConsequence: true } || st.Remaining > lead) continue;
 
@@ -66,8 +66,9 @@ public partial class AlertSystem : Node
                     Key = $"task:{st.TaskId}:{roomId}",
                     Kind = AlertKind.TaskWarning,
                     RoomId = roomId,
-                    Headline = $"{Tag(roomId)} WARNING",
-                    Detail = $"{roomDef.DisplayName} 고장 예상",
+                    Headline = TaskHeadline.GetValueOrDefault(st.TaskId, "시설 이상"),
+                    SubLabel = RoomLabel(roomId),
+                    Countdown = $"고장까지 {Clock(st.Remaining)}",
                     TimeRemaining = st.Remaining,
                     Severity = st.Remaining <= 8f ? AlertSeverity.Critical : AlertSeverity.Warning,
                 });
@@ -87,8 +88,9 @@ public partial class AlertSystem : Node
                     Key = $"taboo:{kv.Key}:{roomId}",
                     Kind = AlertKind.TabooRisk,
                     RoomId = roomId,
-                    Headline = "PROTOCOL RISK",
-                    Detail = $"{roomDef.DisplayName} 인원 제한 초과",
+                    Headline = "금기 위반 임박",
+                    SubLabel = RoomLabel(roomId),
+                    Countdown = $"위반까지 {Clock(remaining)}",
                     TimeRemaining = remaining,
                     Severity = remaining <= 5f ? AlertSeverity.Critical : AlertSeverity.Warning,
                 });
@@ -103,9 +105,9 @@ public partial class AlertSystem : Node
             {
                 Key = "material_low",
                 Kind = AlertKind.MaterialLow,
-                RoomId = "",
-                Headline = "MATERIAL LOW",
-                Detail = $"CORE MATERIAL · {materials} REMAINING",
+                Headline = "코어 자재 부족",
+                SubLabel = $"남은 자재 {materials}개",
+                Countdown = "",
                 TimeRemaining = -1f,
                 Severity = AlertSeverity.Notice,
             });
@@ -117,5 +119,12 @@ public partial class AlertSystem : Node
             .ToList();
     }
 
-    private static string Tag(string roomId) => RoomTag.GetValueOrDefault(roomId, roomId.ToUpperInvariant());
+    private static string RoomLabel(string roomId) =>
+        FacilitySimulation.Instance?.GetRoomDef(roomId)?.DisplayName ?? roomId;
+
+    private static string Clock(float s)
+    {
+        int t = Mathf.CeilToInt(Mathf.Max(0f, s));
+        return $"{t / 60:00}:{t % 60:00}";
+    }
 }

@@ -35,6 +35,10 @@ public partial class Phone3D : Node3D
     private PhoneCallHud _hud;
     private StandardMaterial3D _lampMat;
 
+    // 다이얼 자리의 원형 발광 링 — 평소 회색, 착신/통화 중 해당 직원 고유색.
+    private StandardMaterial3D _dialMat;
+    private static readonly Color DialIdle = new(0.20f, 0.21f, 0.23f);
+
     private Vector3 _handsetRestPos, _handsetRestRot;
     private float _lampPhase;
     private double _autoPickupAt = -1;
@@ -62,8 +66,48 @@ public partial class Phone3D : Node3D
         }
         SetLamp(0.12f);
 
+        BuildDialLed();
+
         if (_area != null) _area.InputEvent += OnAreaInput;
         if (_hud != null) _hud.Closed += HangUp;
+    }
+
+    // 다이얼 자리의 원형 발광 링 — 형상은 씬(Phone_DialRing)에 있고, 여기서는 색을
+    // 바꿀 수 있게 머티리얼만 복제해서 잡는다. 씬에 노드가 없으면 코드로 만든다(F6 대비).
+    private void BuildDialLed()
+    {
+        var ring = GetNodeOrNull<MeshInstance3D>("Phone_DialRing");
+        if (ring == null)
+        {
+            ring = new MeshInstance3D
+            {
+                Name = "Phone_DialRing",
+                Mesh = new TorusMesh { InnerRadius = 0.018f, OuterRadius = 0.028f, Rings = 24, RingSegments = 10 },
+                Position = new Vector3(0f, 0.031f, 0.02f),
+            };
+            AddChild(ring);
+        }
+
+        _dialMat = ring.GetActiveMaterial(0) is StandardMaterial3D src
+            ? (StandardMaterial3D)src.Duplicate()
+            : new StandardMaterial3D { EmissionEnabled = true };
+        _dialMat.EmissionEnabled = true;
+        _dialMat.Emission = DialIdle;
+        _dialMat.EmissionEnergyMultiplier = 0.6f;
+        ring.MaterialOverride = _dialMat;
+    }
+
+    private Color CallerColor()
+    {
+        var def = FacilitySimulation.Instance?.GetEmployeeDef(_caller);
+        return def?.IconColor ?? new Color(0.7f, 0.7f, 0.75f);
+    }
+
+    private void SetDial(Color color, float energy)
+    {
+        if (_dialMat == null) return;
+        _dialMat.Emission = color;
+        _dialMat.EmissionEnergyMultiplier = energy;
     }
 
     public override void _Process(double delta)
@@ -71,12 +115,19 @@ public partial class Phone3D : Node3D
         if (_state == PhoneState.Ringing)
         {
             _lampPhase += (float)delta * 9f;
-            SetLamp(0.3f + 2.4f * (0.5f + 0.5f * Mathf.Sin(_lampPhase)));
+            float k = 0.5f + 0.5f * Mathf.Sin(_lampPhase);
+            SetLamp(0.3f + 2.4f * k);
+            SetDial(CallerColor(), 0.4f + 3.2f * k); // 해당 직원 고유색으로 점멸
             if (_autoPickupAt > 0 && Time.GetTicksMsec() / 1000.0 >= _autoPickupAt)
             {
                 _autoPickupAt = -1;
                 PickUp();
             }
+        }
+        else if (_state == PhoneState.OnCall)
+        {
+            _lampPhase += (float)delta * 2.4f;
+            SetDial(CallerColor(), 1.6f + 0.9f * (0.5f + 0.5f * Mathf.Sin(_lampPhase))); // 천천히 맥박
         }
     }
 
@@ -89,6 +140,11 @@ public partial class Phone3D : Node3D
 
         if (_state == PhoneState.Idle) StartOutgoing();
         else if (_state == PhoneState.Ringing) PickUp();
+        else if (_state == PhoneState.OnCall)
+        {
+            if (_hud != null) _hud.RequestClose(); // Closed 시그널 → HangUp
+            else HangUp();
+        }
         GetViewport().SetInputAsHandled();
     }
 
@@ -137,6 +193,7 @@ public partial class Phone3D : Node3D
         _state = PhoneState.OnCall;
         _ring?.Stop();
         SetLamp(2.2f);
+        SetDial(CallerColor(), 2.0f);
         LiftHandset(true);
         EmitSignal(SignalName.PickedUp);
         _hud?.Open(_caller);
@@ -147,6 +204,7 @@ public partial class Phone3D : Node3D
         if (_state != PhoneState.OnCall) return;
         _state = PhoneState.Idle;
         SetLamp(0.12f);
+        SetDial(DialIdle, 0.6f);
         LiftHandset(false);
         EmitSignal(SignalName.HungUp);
     }

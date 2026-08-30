@@ -154,4 +154,10 @@ public partial class PhoneCallHud : CanvasLayer
         ClearChoices();
         EmitSignal(SignalName.Closed);
     }
+
+    // 전화기(3D)를 직접 클릭해 통화를 끊을 때 — HUD 쪽도 닫는다.
+    public void RequestClose()
+    {
+        if (Visible) CloseCall();
+    }
 }

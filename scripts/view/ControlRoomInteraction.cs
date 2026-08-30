@@ -10,13 +10,13 @@ namespace NSP.View;
 // 책상 경고등 연출만 한다. Phone3D / EventLog / FacilitySimulation 신호를 구독.
 public partial class ControlRoomInteraction : Node
 {
-    [Export] public NodePath ArmsPath = "PlayerSeatRig/Camera3D/PlayerArms";
-    [Export] public NodePath CameraRigPath = "PlayerSeatRig";
-    [Export] public NodePath PhonePath = "ControlRoom/Telephone";
-    [Export] public NodePath WarnLightPath = "ControlRoom/ControlPanel/Panel_Btn1";
-    [Export] public NodePath ConsoleButtonPath = "ControlRoom/ControlPanel/Panel_Btn2";
+    [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
+    [Export] public NodePath CameraRigPath = "../PlayerSeatRig";
+    [Export] public NodePath PhonePath = "../ControlRoom/Telephone";
+    [Export] public NodePath WarnLightPath = "../ControlRoom/ControlPanel/Panel_Btn1";
+    [Export] public NodePath ConsoleButtonPath = "../ControlRoom/ControlPanel/Panel_Btn2";
 
-    private PlayerArms _arms;
+    private PlayerCharacter _arms;
     private SeatedCameraRig _rig;
     private Node3D _phone;
     private StandardMaterial3D _warnMat;
@@ -31,7 +31,7 @@ public partial class ControlRoomInteraction : Node
 
     public override void _Ready()
     {
-        _arms = GetNodeOrNull<PlayerArms>(ArmsPath);
+        _arms = GetNodeOrNull<PlayerCharacter>(ArmsPath);
         _rig = GetNodeOrNull<SeatedCameraRig>(CameraRigPath);
         _phone = GetNodeOrNull<Node3D>(PhonePath);
         _warnMat = CloneMat(GetNodeOrNull<MeshInstance3D>(WarnLightPath));

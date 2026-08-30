@@ -13,7 +13,7 @@
 [ext_resource type="Script" uid="uid://c3uo4gwgqm30c" path="res://scripts/ui/TaskPriorityPopup.cs" id="13_taskpop"]
 [ext_resource type="Script" uid="uid://diipjx4p8kag3" path="res://scripts/ui/Phone.cs" id="14_phone"]
 [ext_resource type="Script" uid="uid://dtturpi1hcmiu" path="res://scripts/ui/CallBubble.cs" id="15_call"]
-[ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="16_ring"]
+[ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/sfx/call_ring.wav" id="16_ring"]
 [ext_resource type="Script" uid="uid://c7tfsvc0kxtsb" path="res://scripts/ui/FloatingPopupLayer.cs" id="17_floatpopup"]
 [ext_resource type="Script" uid="uid://dqawpbjgbqyio" path="res://scripts/ui/HorrorDirector.cs" id="18_horror"]
 [ext_resource type="Script" uid="uid://c8luqqhag8ebw" path="res://scripts/ui/AlertBanner.cs" id="19_alert"]

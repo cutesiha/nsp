@@ -26,7 +26,7 @@ public partial class ShiftFlowController : Node
     [Export] public NodePath DeskBoardPath = "../ControlRoom/DeskScheduleBoard";
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
     [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
-    [Export] public NodePath ArmsPath = "../PlayerSeatRig/Camera3D/PlayerArms";
+    [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
 
     // 근무 배치 단계에서 책상 위를 치운다(배치표만 남긴다). 근무 시작 시 되돌린다.
     [Export] public NodePath[] DeskClutterPaths =
@@ -88,6 +88,7 @@ public partial class ShiftFlowController : Node
         }
 
         _stage = Stage.Title;
+        Sfx.Instance?.PlayMusic("nsp_mainbgm"); // 시작화면 + 근무배치: 메인 BGM 루프
     }
 
     public override void _Process(double delta)
@@ -126,6 +127,7 @@ public partial class ShiftFlowController : Node
         _title?.FadeOut();
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.DailyTabooIds);
         GameState.Instance?.SetPhase(GamePhase.Schedule);
+        Sfx.Instance?.PlayMusic("nsp_mainbgm"); // 다음 날 배치로 복귀 시에도 메인 BGM
 
         var lt = CreateTween();
         lt.SetParallel(true);
@@ -150,6 +152,7 @@ public partial class ShiftFlowController : Node
     {
         if (_stage != Stage.Schedule) return;
         _stage = Stage.Booting;
+        Sfx.Instance?.StopMusic(); // 근무화면에는 BGM 없음 — ControlRoomAtmosphere 환경음이 대신
 
         _ctl?.SetModalSurface(null);
         _board?.PlayDismiss();
@@ -213,6 +216,7 @@ public partial class ShiftFlowController : Node
         _stage = Stage.Rest;
 
         GameState.Instance?.SetPhase(GamePhase.Rest);
+        Sfx.Instance?.PlayMusic("rest_time"); // 휴게 시간: 휴식 BGM 루프
 
         var lt = CreateTween();
         lt.SetParallel(true);
@@ -250,6 +254,7 @@ public partial class ShiftFlowController : Node
 
     private async void GoToFinalResult()
     {
+        Sfx.Instance?.StopMusic();
         AmbientOverlay.Instance?.SetSceneIntensity(1f);
         _title?.FadeToBlack(0.7f);
         await Wait(0.8);

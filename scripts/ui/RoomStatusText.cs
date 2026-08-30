@@ -70,6 +70,8 @@ public static class RoomStatusText
             if (st.Status == SpawnedTaskStatus.Completed) return $"✓ {name} 완료";
             if (st.Status == SpawnedTaskStatus.Failed) return $"🚨 {name} 처리 실패";
 
+            if (st.IsRepair) return $"🔧 {name} 수리 필요";
+
             string icon = WorkIcon(roomDef.ManagedResource);
             string head = st.Recurring ? $"{icon} {name}" : $"{icon} {name}  ⏱{Clock(st.Remaining)}";
 
@@ -123,12 +125,16 @@ public static class RoomStatusText
 
         // 이미 실제로 벌어진 지속형 이상 상태 — 잠금(구역 봉쇄)은 플레이어의 의도적 조치라
         // "고장"으로 취급하지 않는다.
+        var rdef = sim.GetRoomDef(roomId);
         bool activeFailure = !state.PowerOn || state.CctvDisconnected
-            || (sim.GetRoomDef(roomId)?.ManagedResource == RoomResourceType.Power && GameState.Instance.IsPowerAccidentActive());
+            || (rdef?.ManagedResource == RoomResourceType.Power && GameState.Instance.IsPowerAccidentActive())
+            || (roomId == "guard_room" && GameState.Instance.CctvSystemOffline)
+            || (roomId == "maintenance_room" && GameState.Instance.MaterialsProductionHalted)
+            || (roomId == "vent_room" && GameState.Instance.VentilationDown);
         if (activeFailure) return RoomDangerTier.Failure;
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
-        if (prim is { Status: SpawnedTaskStatus.Failed }) return RoomDangerTier.Failure;
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return RoomDangerTier.Failure;
 
         // 발생 업무의 제한시간이 얼마나 임박했는가(0~1).
         float ratio = sim.GetRoomUrgencyRatio(roomId);

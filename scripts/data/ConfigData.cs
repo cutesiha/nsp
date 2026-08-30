@@ -25,6 +25,8 @@ public partial class ConfigData : Resource
     [Export] public int PowerCapacityMax = 3;
     // SENSOR 예고가 "임박"으로 뜨기 시작하는 남은시간 임계값(초).
     [Export] public float AlertLeadSeconds = 20f;
+    // FAIL-02 환기 정지 중 전 직원에게 매초 누적되는 스트레스.
+    [Export] public float VentFaultStressPerSecond = 1.5f;
 
     // 2D 백업 화면(PowerBudgetPanel)에서만 쓰는 옛 코스트 가중치 값 — 3D 전력 패널은 안 씀.
     [Export] public int PowerBudgetTotal = 7;

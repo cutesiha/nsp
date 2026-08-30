@@ -3,19 +3,19 @@
 [ext_resource type="Script" uid="uid://couu2uj4tlx6l" path="res://scripts/view/SeatedCameraRig.cs" id="1_rig"]
 [ext_resource type="Script" uid="uid://2aqgpu8pm37e" path="res://scripts/view/ControlRoom3DController.cs" id="2_ctl"]
 [ext_resource type="Script" uid="uid://86q0wuc4tfj2" path="res://scripts/view/MonitorScreen3D.cs" id="3_screen"]
-[ext_resource type="Script" uid="uid://b6px2t171vvlt" path="res://scripts/view/PlayerArms.cs" id="4_arms"]
+[ext_resource type="Script" path="res://scripts/view/PlayerCharacter.cs" id="4_arms"]
 [ext_resource type="Script" uid="uid://dw1uq4c434chg" path="res://scripts/view/ControlRoomInteraction.cs" id="5_interact"]
 [ext_resource type="Script" uid="uid://bp3nhx2t0kqpx" path="res://scripts/view/ControlRoom3DHorror.cs" id="6_horror"]
 [ext_resource type="Script" uid="uid://b6uyqrnwawl7x" path="res://scripts/view/ControlRoomAtmosphere.cs" id="7_atmos"]
 [ext_resource type="Script" uid="uid://cvbsejm2ube8x" path="res://scripts/view/Phone3D.cs" id="8_phone3d"]
 [ext_resource type="Script" uid="uid://bl1jniaefwvdp" path="res://scripts/view/PhoneCallHud.cs" id="9_phonehud"]
 [ext_resource type="Script" uid="uid://dqawpbjgbqyio" path="res://scripts/ui/HorrorDirector.cs" id="10_horrordir"]
-[ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="11_ring"]
+[ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/sfx/call_ring.wav" id="11_ring"]
 [ext_resource type="Script" uid="uid://dxmfmoyqs6qad" path="res://scripts/view/TitleOverlay.cs" id="12_title"]
 [ext_resource type="Script" uid="uid://3yuvuaok2mcl" path="res://scripts/view/DeskScheduleBoard.cs" id="13_deskboard"]
 [ext_resource type="Script" uid="uid://brsdpsjofltnw" path="res://scripts/view/ShiftFlowController.cs" id="14_shiftflow"]
-[ext_resource type="Script" path="res://scripts/view/PowerSwitchPanel.cs" id="15_powerpanel"]
-[ext_resource type="Script" path="res://scripts/view/AlertTerminalProp.cs" id="16_alertterm"]
+[ext_resource type="Script" uid="uid://bayorhqgay1ra" path="res://scripts/view/PowerSwitchPanel.cs" id="15_powerpanel"]
+[ext_resource type="Script" uid="uid://bfjjchbdyfmey" path="res://scripts/view/AlertTerminalProp.cs" id="16_alertterm"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -61,6 +61,28 @@ emission_enabled = true
 emission = Color(0.95, 0.6, 0.1, 1)
 emission_energy_multiplier = 2.0
 
+[sub_resource type="CylinderMesh" id="DialDisc"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.004
+radial_segments = 24
+
+[sub_resource type="StandardMaterial3D" id="Mat_DialDisc"]
+albedo_color = Color(0.03, 0.03, 0.035, 1)
+roughness = 0.4
+
+[sub_resource type="TorusMesh" id="DialRing"]
+inner_radius = 0.018
+outer_radius = 0.028
+rings = 24
+ring_segments = 10
+
+[sub_resource type="StandardMaterial3D" id="Mat_DialRing"]
+albedo_color = Color(0.05, 0.05, 0.05, 1)
+emission_enabled = true
+emission = Color(0.2, 0.21, 0.23, 1)
+emission_energy_multiplier = 0.6
+
 [sub_resource type="BoxShape3D" id="PhoneShape"]
 size = Vector3(0.32, 0.18179688, 0.36)
 
@@ -89,6 +111,43 @@ emission_energy_multiplier = 1.5
 albedo_color = Color(0.2, 0.02, 0.02, 1)
 emission_enabled = true
 emission = Color(0.9, 0.05, 0.05, 1)
+
+[sub_resource type="BoxMesh" id="PC_Torso"]
+size = Vector3(0.36, 0.46, 0.2)
+
+[sub_resource type="BoxMesh" id="PC_Neck"]
+size = Vector3(0.11, 0.08, 0.11)
+
+[sub_resource type="SphereMesh" id="PC_Head"]
+radius = 0.062
+height = 0.14
+radial_segments = 8
+rings = 5
+
+[sub_resource type="BoxMesh" id="PC_Thigh"]
+size = Vector3(0.15, 0.13, 0.36)
+
+[sub_resource type="BoxMesh" id="PC_Shin"]
+size = Vector3(0.13, 0.36, 0.13)
+
+[sub_resource type="StandardMaterial3D" id="PC_Shirt"]
+albedo_color = Color(0.34, 0.37, 0.45, 1)
+roughness = 0.85
+cull_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="PC_Skin"]
+albedo_color = Color(0.74, 0.57, 0.48, 1)
+roughness = 0.6
+cull_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="PC_Cuff"]
+albedo_color = Color(0.26, 0.29, 0.37, 1)
+roughness = 0.8
+cull_mode = 2
+
+[sub_resource type="StandardMaterial3D" id="PC_Legs"]
+albedo_color = Color(0.18, 0.19, 0.23, 1)
+roughness = 0.9
 
 [node name="MainScene3D_Test" type="Node3D" unique_id=68669416]
 script = ExtResource("2_ctl")
@@ -161,6 +220,309 @@ surface_material_override/0 = SubResource("Mat_DarkPlastic")
 transform = Transform3D(0.5, 0, 0, 0, 0.55, 0, 0, 0, 0.06, 0, 0.78, 0.42)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
+
+[node name="PlayerCharacter" type="Node3D" parent="ControlRoom"]
+transform = Transform3D(0.92, 0, 0, 0, 0.92, 0, 0, 0, 0.92, 0, 0.52, 0.4)
+script = ExtResource("4_arms")
+ShirtMaterial = SubResource("PC_Shirt")
+SkinMaterial = SubResource("PC_Skin")
+CuffMaterial = SubResource("PC_Cuff")
+
+[node name="Torso" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.28, -0.03)
+mesh = SubResource("PC_Torso")
+surface_material_override/0 = SubResource("PC_Shirt")
+
+[node name="Neck" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, -0.02)
+mesh = SubResource("PC_Neck")
+surface_material_override/0 = SubResource("PC_Skin")
+
+[node name="Head" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.57, 0.02)
+mesh = SubResource("PC_Head")
+surface_material_override/0 = SubResource("PC_Skin")
+
+[node name="ThighL" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 0.02, 0.14)
+mesh = SubResource("PC_Thigh")
+surface_material_override/0 = SubResource("PC_Legs")
+
+[node name="ThighR" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.02, 0.14)
+mesh = SubResource("PC_Thigh")
+surface_material_override/0 = SubResource("PC_Legs")
+
+[node name="ShinL" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, -0.22, 0.3)
+mesh = SubResource("PC_Shin")
+surface_material_override/0 = SubResource("PC_Legs")
+
+[node name="ShinR" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, -0.22, 0.3)
+mesh = SubResource("PC_Shin")
+surface_material_override/0 = SubResource("PC_Legs")
+
+[node name="Rig" type="Skeleton3D" parent="ControlRoom/PlayerCharacter"]
+bones/0/name = "Chest"
+bones/0/parent = -1
+bones/0/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -0.03)
+bones/0/enabled = true
+bones/0/position = Vector3(0, 0.5, -0.03)
+bones/0/rotation = Quaternion(0, 0, 0, 1)
+bones/0/scale = Vector3(1, 1, 1)
+bones/1/name = "Shoulder_L"
+bones/1/parent = 0
+bones/1/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.16, 0.04, 0)
+bones/1/enabled = true
+bones/1/position = Vector3(-0.16, 0.04, 0)
+bones/1/rotation = Quaternion(0, 0, 0, 1)
+bones/1/scale = Vector3(1, 1, 1)
+bones/2/name = "UpperArm_L"
+bones/2/parent = 1
+bones/2/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+bones/2/enabled = true
+bones/2/position = Vector3(0, 0, 0)
+bones/2/rotation = Quaternion(0, 0, 0, 1)
+bones/2/scale = Vector3(1, 1, 1)
+bones/3/name = "Forearm_L"
+bones/3/parent = 2
+bones/3/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.015, -0.27, 0.01)
+bones/3/enabled = true
+bones/3/position = Vector3(-0.015, -0.27, 0.01)
+bones/3/rotation = Quaternion(0, 0, 0, 1)
+bones/3/scale = Vector3(1, 1, 1)
+bones/4/name = "Hand_L"
+bones/4/parent = 3
+bones/4/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, -0.23, -0.02)
+bones/4/enabled = true
+bones/4/position = Vector3(0.02, -0.23, -0.02)
+bones/4/rotation = Quaternion(0, 0, 0, 1)
+bones/4/scale = Vector3(1, 1, 1)
+bones/5/name = "Index_L_1"
+bones/5/parent = 4
+bones/5/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.038, -0.054, 0.006)
+bones/5/enabled = true
+bones/5/position = Vector3(-0.038, -0.054, 0.006)
+bones/5/rotation = Quaternion(0, 0, 0, 1)
+bones/5/scale = Vector3(1, 1, 1)
+bones/6/name = "Index_L_2"
+bones/6/parent = 5
+bones/6/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.034, 0)
+bones/6/enabled = true
+bones/6/position = Vector3(0, -0.034, 0)
+bones/6/rotation = Quaternion(0, 0, 0, 1)
+bones/6/scale = Vector3(1, 1, 1)
+bones/7/name = "Index_L_3"
+bones/7/parent = 6
+bones/7/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.023, 0)
+bones/7/enabled = true
+bones/7/position = Vector3(0, -0.023, 0)
+bones/7/rotation = Quaternion(0, 0, 0, 1)
+bones/7/scale = Vector3(1, 1, 1)
+bones/8/name = "Middle_L_1"
+bones/8/parent = 4
+bones/8/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.016, -0.054, 0.006)
+bones/8/enabled = true
+bones/8/position = Vector3(-0.016, -0.054, 0.006)
+bones/8/rotation = Quaternion(0, 0, 0, 1)
+bones/8/scale = Vector3(1, 1, 1)
+bones/9/name = "Middle_L_2"
+bones/9/parent = 8
+bones/9/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.038, 0)
+bones/9/enabled = true
+bones/9/position = Vector3(0, -0.038, 0)
+bones/9/rotation = Quaternion(0, 0, 0, 1)
+bones/9/scale = Vector3(1, 1, 1)
+bones/10/name = "Middle_L_3"
+bones/10/parent = 9
+bones/10/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.027, 0)
+bones/10/enabled = true
+bones/10/position = Vector3(0, -0.027, 0)
+bones/10/rotation = Quaternion(0, 0, 0, 1)
+bones/10/scale = Vector3(1, 1, 1)
+bones/11/name = "Ring_L_1"
+bones/11/parent = 4
+bones/11/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.006, -0.054, 0.006)
+bones/11/enabled = true
+bones/11/position = Vector3(0.006, -0.054, 0.006)
+bones/11/rotation = Quaternion(0, 0, 0, 1)
+bones/11/scale = Vector3(1, 1, 1)
+bones/12/name = "Ring_L_2"
+bones/12/parent = 11
+bones/12/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.034, 0)
+bones/12/enabled = true
+bones/12/position = Vector3(0, -0.034, 0)
+bones/12/rotation = Quaternion(0, 0, 0, 1)
+bones/12/scale = Vector3(1, 1, 1)
+bones/13/name = "Ring_L_3"
+bones/13/parent = 12
+bones/13/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.025, 0)
+bones/13/enabled = true
+bones/13/position = Vector3(0, -0.025, 0)
+bones/13/rotation = Quaternion(0, 0, 0, 1)
+bones/13/scale = Vector3(1, 1, 1)
+bones/14/name = "Pinky_L_1"
+bones/14/parent = 4
+bones/14/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.027, -0.054, 0.006)
+bones/14/enabled = true
+bones/14/position = Vector3(0.027, -0.054, 0.006)
+bones/14/rotation = Quaternion(0, 0, 0, 1)
+bones/14/scale = Vector3(1, 1, 1)
+bones/15/name = "Pinky_L_2"
+bones/15/parent = 14
+bones/15/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.026, 0)
+bones/15/enabled = true
+bones/15/position = Vector3(0, -0.026, 0)
+bones/15/rotation = Quaternion(0, 0, 0, 1)
+bones/15/scale = Vector3(1, 1, 1)
+bones/16/name = "Pinky_L_3"
+bones/16/parent = 15
+bones/16/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.019, 0)
+bones/16/enabled = true
+bones/16/position = Vector3(0, -0.019, 0)
+bones/16/rotation = Quaternion(0, 0, 0, 1)
+bones/16/scale = Vector3(1, 1, 1)
+bones/17/name = "Thumb_L_1"
+bones/17/parent = 4
+bones/17/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.034, -0.012, 0.006)
+bones/17/enabled = true
+bones/17/position = Vector3(-0.034, -0.012, 0.006)
+bones/17/rotation = Quaternion(0, 0, 0, 1)
+bones/17/scale = Vector3(1, 1, 1)
+bones/18/name = "Thumb_L_2"
+bones/18/parent = 17
+bones/18/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.024, -0.022, -0.006)
+bones/18/enabled = true
+bones/18/position = Vector3(-0.024, -0.022, -0.006)
+bones/18/rotation = Quaternion(0, 0, 0, 1)
+bones/18/scale = Vector3(1, 1, 1)
+bones/19/name = "Shoulder_R"
+bones/19/parent = 0
+bones/19/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.16, 0.04, 0)
+bones/19/enabled = true
+bones/19/position = Vector3(0.16, 0.04, 0)
+bones/19/rotation = Quaternion(0, 0, 0, 1)
+bones/19/scale = Vector3(1, 1, 1)
+bones/20/name = "UpperArm_R"
+bones/20/parent = 19
+bones/20/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+bones/20/enabled = true
+bones/20/position = Vector3(0, 0, 0)
+bones/20/rotation = Quaternion(0, 0, 0, 1)
+bones/20/scale = Vector3(1, 1, 1)
+bones/21/name = "Forearm_R"
+bones/21/parent = 20
+bones/21/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.015, -0.27, 0.01)
+bones/21/enabled = true
+bones/21/position = Vector3(0.015, -0.27, 0.01)
+bones/21/rotation = Quaternion(0, 0, 0, 1)
+bones/21/scale = Vector3(1, 1, 1)
+bones/22/name = "Hand_R"
+bones/22/parent = 21
+bones/22/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, -0.23, -0.02)
+bones/22/enabled = true
+bones/22/position = Vector3(-0.02, -0.23, -0.02)
+bones/22/rotation = Quaternion(0, 0, 0, 1)
+bones/22/scale = Vector3(1, 1, 1)
+bones/23/name = "Index_R_1"
+bones/23/parent = 22
+bones/23/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.038, -0.054, 0.006)
+bones/23/enabled = true
+bones/23/position = Vector3(0.038, -0.054, 0.006)
+bones/23/rotation = Quaternion(0, 0, 0, 1)
+bones/23/scale = Vector3(1, 1, 1)
+bones/24/name = "Index_R_2"
+bones/24/parent = 23
+bones/24/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.034, 0)
+bones/24/enabled = true
+bones/24/position = Vector3(0, -0.034, 0)
+bones/24/rotation = Quaternion(0, 0, 0, 1)
+bones/24/scale = Vector3(1, 1, 1)
+bones/25/name = "Index_R_3"
+bones/25/parent = 24
+bones/25/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.023, 0)
+bones/25/enabled = true
+bones/25/position = Vector3(0, -0.023, 0)
+bones/25/rotation = Quaternion(0, 0, 0, 1)
+bones/25/scale = Vector3(1, 1, 1)
+bones/26/name = "Middle_R_1"
+bones/26/parent = 22
+bones/26/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.016, -0.054, 0.006)
+bones/26/enabled = true
+bones/26/position = Vector3(0.016, -0.054, 0.006)
+bones/26/rotation = Quaternion(0, 0, 0, 1)
+bones/26/scale = Vector3(1, 1, 1)
+bones/27/name = "Middle_R_2"
+bones/27/parent = 26
+bones/27/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.038, 0)
+bones/27/enabled = true
+bones/27/position = Vector3(0, -0.038, 0)
+bones/27/rotation = Quaternion(0, 0, 0, 1)
+bones/27/scale = Vector3(1, 1, 1)
+bones/28/name = "Middle_R_3"
+bones/28/parent = 27
+bones/28/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.027, 0)
+bones/28/enabled = true
+bones/28/position = Vector3(0, -0.027, 0)
+bones/28/rotation = Quaternion(0, 0, 0, 1)
+bones/28/scale = Vector3(1, 1, 1)
+bones/29/name = "Ring_R_1"
+bones/29/parent = 22
+bones/29/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.006, -0.054, 0.006)
+bones/29/enabled = true
+bones/29/position = Vector3(-0.006, -0.054, 0.006)
+bones/29/rotation = Quaternion(0, 0, 0, 1)
+bones/29/scale = Vector3(1, 1, 1)
+bones/30/name = "Ring_R_2"
+bones/30/parent = 29
+bones/30/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.034, 0)
+bones/30/enabled = true
+bones/30/position = Vector3(0, -0.034, 0)
+bones/30/rotation = Quaternion(0, 0, 0, 1)
+bones/30/scale = Vector3(1, 1, 1)
+bones/31/name = "Ring_R_3"
+bones/31/parent = 30
+bones/31/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.025, 0)
+bones/31/enabled = true
+bones/31/position = Vector3(0, -0.025, 0)
+bones/31/rotation = Quaternion(0, 0, 0, 1)
+bones/31/scale = Vector3(1, 1, 1)
+bones/32/name = "Pinky_R_1"
+bones/32/parent = 22
+bones/32/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.027, -0.054, 0.006)
+bones/32/enabled = true
+bones/32/position = Vector3(-0.027, -0.054, 0.006)
+bones/32/rotation = Quaternion(0, 0, 0, 1)
+bones/32/scale = Vector3(1, 1, 1)
+bones/33/name = "Pinky_R_2"
+bones/33/parent = 32
+bones/33/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.026, 0)
+bones/33/enabled = true
+bones/33/position = Vector3(0, -0.026, 0)
+bones/33/rotation = Quaternion(0, 0, 0, 1)
+bones/33/scale = Vector3(1, 1, 1)
+bones/34/name = "Pinky_R_3"
+bones/34/parent = 33
+bones/34/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.019, 0)
+bones/34/enabled = true
+bones/34/position = Vector3(0, -0.019, 0)
+bones/34/rotation = Quaternion(0, 0, 0, 1)
+bones/34/scale = Vector3(1, 1, 1)
+bones/35/name = "Thumb_R_1"
+bones/35/parent = 22
+bones/35/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.034, -0.012, 0.006)
+bones/35/enabled = true
+bones/35/position = Vector3(0.034, -0.012, 0.006)
+bones/35/rotation = Quaternion(0, 0, 0, 1)
+bones/35/scale = Vector3(1, 1, 1)
+bones/36/name = "Thumb_R_2"
+bones/36/parent = 35
+bones/36/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.024, -0.022, -0.006)
+bones/36/enabled = true
+bones/36/position = Vector3(0.024, -0.022, -0.006)
+bones/36/rotation = Quaternion(0, 0, 0, 1)
+bones/36/scale = Vector3(1, 1, 1)
 
 [node name="Monitor01" type="Node3D" parent="ControlRoom" unique_id=1705781172]
 transform = Transform3D(0.97, 0, 0.242, 0, 1, 0, -0.242, 0, 0.97, -0.47, 0, -0.75)
@@ -277,6 +639,16 @@ transform = Transform3D(0.025, 0, 0, 0, 0.012, 0, 0, 0, 0.02, 0.07, 0.028, 0.09)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_LedAmber")
 
+[node name="Phone_DialDisc" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=687069250]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.028, 0.02)
+mesh = SubResource("DialDisc")
+surface_material_override/0 = SubResource("Mat_DialDisc")
+
+[node name="Phone_DialRing" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=1248942310]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.031, 0.02)
+mesh = SubResource("DialRing")
+surface_material_override/0 = SubResource("Mat_DialRing")
+
 [node name="RingPlayer" type="AudioStreamPlayer3D" parent="ControlRoom/Telephone" unique_id=827924924]
 stream = ExtResource("11_ring")
 unit_size = 3.0
@@ -318,11 +690,13 @@ light_energy = 0.9
 spot_range = 2.0
 spot_angle = 38.0
 
-[node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" script=ExtResource("15_powerpanel")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.78, 0.76, -0.52)
+[node name="AlertTerminal" type="Node3D" parent="ControlRoom" unique_id=1048108150]
+transform = Transform3D(0.7398418, 0, 0.35332987, 0, 0.82, 0, -0.35332987, 0, 0.7398418, -0.36562842, 0.762, -0.40949714)
+script = ExtResource("16_alertterm")
 
-[node name="AlertTerminal" type="Node3D" parent="ControlRoom" script=ExtResource("16_alertterm")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.38, 0.76, -0.58)
+[node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
+transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)
+script = ExtResource("15_powerpanel")
 
 [node name="Vent" type="Node3D" parent="ControlRoom" unique_id=521371302]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1.75, -2.54)
@@ -412,10 +786,7 @@ script = ExtResource("1_rig")
 transform = Transform3D(1, 0, 0, 0, 0.9925, 0.1219, 0, -0.1219, 0.9925, 0, 1.16, 0)
 current = true
 fov = 64.0
-
-[node name="PlayerArms" type="Node3D" parent="PlayerSeatRig/Camera3D" unique_id=168926417]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.02, -0.05)
-script = ExtResource("4_arms")
+near = 0.02
 
 [node name="Interaction" type="Node" parent="." unique_id=206784725]
 script = ExtResource("5_interact")

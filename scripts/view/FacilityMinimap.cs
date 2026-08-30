@@ -133,7 +133,13 @@ public partial class FacilityMinimap : Control
         if (st is { Status: SpawnedTaskStatus.Active })
         {
             float y = box.Position.Y + box.Size.Y + 4f;
-            if (!st.Recurring)
+            if (st.IsRepair)
+            {
+                DrawString(_font, new Vector2(box.Position.X, y + 10f),
+                    "🔧 수리 필요", HorizontalAlignment.Center, box.Size.X, 10, new Color(1f, 0.55f, 0.3f));
+                y += 13f;
+            }
+            else if (!st.Recurring)
             {
                 DrawString(_font, new Vector2(box.Position.X, y + 10f),
                     $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, 10,
