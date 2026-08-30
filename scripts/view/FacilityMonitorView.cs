@@ -36,11 +36,12 @@ public partial class FacilityMonitorView : Control
     public static FacilityMonitorView Instance { get; private set; }
     public string SelectedEmployeeId => _selEmp;
     public string SelectedRoomId => _selRoom;
+    public event System.Action EndShiftRequested;
 
     public override void _Ready()
     {
         Instance = this;
-        _font = GetThemeDefaultFont() ?? ThemeDB.FallbackFont;
+        _font = ViewFont.Default;
         SetAnchorsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Stop;
 
@@ -90,10 +91,15 @@ public partial class FacilityMonitorView : Control
         bar.AddChild(title);
 
         _clock = MakeLabel("--:--", 20, Amber);
-        _clock.Position = new Vector2(640, 8);
-        _clock.Size = new Vector2(150, 28);
+        _clock.Position = new Vector2(560, 8);
+        _clock.Size = new Vector2(130, 28);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         bar.AddChild(_clock);
+
+        var endBtn = new Button { Position = new Vector2(698, 7), Size = new Vector2(96, 30), Text = "근무 종료" };
+        endBtn.AddThemeFontSizeOverride("font_size", 14);
+        endBtn.Pressed += OnEndShiftPressed;
+        bar.AddChild(endBtn);
 
         _alertLine = MakeLabel("", 15, Alert);
         _alertLine.Position = new Vector2(12, 46);
@@ -203,6 +209,8 @@ public partial class FacilityMonitorView : Control
         if (!string.IsNullOrEmpty(_selRoom))
             FacilitySimulation.Instance?.SetSurveillanceTarget(_selRoom);
     }
+
+    private void OnEndShiftPressed() => EndShiftRequested?.Invoke();
 
     private void OnIsolatePressed()
     {

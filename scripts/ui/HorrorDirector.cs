@@ -174,7 +174,6 @@ public partial class HorrorDirector : Node
         _lastLevel2Msec = Time.GetTicksMsec();
         EmitSignal(SignalName.Level2Started);
 
-        Sfx.Instance?.Play("stinger", -3f);
         AmbientOverlay.Instance?.PulseNoise(0.24f);
         AmbientOverlay.Instance?.Flash(0.4f);
 
@@ -207,7 +206,7 @@ public partial class HorrorDirector : Node
         EmitSignal(SignalName.Level3Started, taboo);
         try
         {
-            Sfx.Instance?.Play(taboo ? "taboo_break" : "stinger", 0f);
+            if (taboo) Sfx.Instance?.Play("taboo_break", 0f);
             AmbientOverlay.Instance?.PulseNoise(0.35f);
 
             _bigLabel.Modulate = Colors.White;

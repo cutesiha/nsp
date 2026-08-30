@@ -38,7 +38,7 @@ public partial class FacilityMinimap : Control
 
     public override void _Ready()
     {
-        _font = GetThemeDefaultFont() ?? ThemeDB.FallbackFont;
+        _font = ViewFont.Default;
         MouseFilter = MouseFilterEnum.Stop;
         SetProcess(true);
     }

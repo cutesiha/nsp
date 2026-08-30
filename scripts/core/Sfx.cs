@@ -89,7 +89,6 @@ public partial class Sfx : Node
         {
             if (!IsInsideTree()) return;
             Play("alarm", volumeDb - 5f, 1.18f);
-            Play("stinger", volumeDb - 9f, 0.64f);
         };
     }
 

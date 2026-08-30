@@ -84,6 +84,9 @@ public partial class Phone3D : Node3D
     {
         if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
 
+        // 근무 중(Live) 또는 휴게시간(Rest)에만 조작 가능 — 시작 화면 / 근무 배치 단계에서는 무시한다.
+        if (_state == PhoneState.Idle && GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+
         if (_state == PhoneState.Idle) StartOutgoing();
         else if (_state == PhoneState.Ringing) PickUp();
         GetViewport().SetInputAsHandled();
@@ -105,9 +108,16 @@ public partial class Phone3D : Node3D
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
 
-        string target = FacilityMonitorView.Instance?.SelectedEmployeeId ?? "";
-        if (string.IsNullOrEmpty(target) || sim.GetEmployeeState(target) is not { Alive: true, Isolated: false })
+        bool resting = GameState.Instance?.CurrentPhase == GamePhase.Rest;
+        string target = resting
+            ? RestRosterView.Instance?.SelectedEmployeeId ?? ""
+            : FacilityMonitorView.Instance?.SelectedEmployeeId ?? "";
+        bool usable = !string.IsNullOrEmpty(target) && sim.GetEmployeeState(target) is { Alive: true, Isolated: false };
+
+        if (!usable)
         {
+            // 휴게시간에는 대상을 직접 골라야 한다 — 무작위로 아무나 걸지 않는다.
+            if (resting) return;
             target = sim.GetEmployeeIds()
                 .Where(id => sim.GetEmployeeState(id) is { Alive: true, Isolated: false })
                 .OrderBy(_ => GD.Randf())

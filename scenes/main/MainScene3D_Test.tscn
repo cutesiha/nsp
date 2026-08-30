@@ -11,6 +11,9 @@
 [ext_resource type="Script" uid="uid://bl1jniaefwvdp" path="res://scripts/view/PhoneCallHud.cs" id="9_phonehud"]
 [ext_resource type="Script" uid="uid://dqawpbjgbqyio" path="res://scripts/ui/HorrorDirector.cs" id="10_horrordir"]
 [ext_resource type="AudioStream" uid="uid://dhxbv0xxy1ksv" path="res://assets/audio/call_ring.wav" id="11_ring"]
+[ext_resource type="Script" uid="uid://dxmfmoyqs6qad" path="res://scripts/view/TitleOverlay.cs" id="12_title"]
+[ext_resource type="Script" uid="uid://3yuvuaok2mcl" path="res://scripts/view/DeskScheduleBoard.cs" id="13_deskboard"]
+[ext_resource type="Script" uid="uid://brsdpsjofltnw" path="res://scripts/view/ShiftFlowController.cs" id="14_shiftflow"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -236,6 +239,10 @@ transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0, 0.762, -0.42)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
+[node name="DeskScheduleBoard" type="Node3D" parent="ControlRoom" unique_id=1502787614]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.762, -0.42)
+script = ExtResource("13_deskboard")
+
 [node name="Telephone" type="Node3D" parent="ControlRoom" unique_id=98564310]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.5)
 script = ExtResource("8_phone3d")
@@ -416,3 +423,9 @@ script = ExtResource("10_horrordir")
 
 [node name="PhoneCallHud" type="CanvasLayer" parent="." unique_id=2122163466]
 script = ExtResource("9_phonehud")
+
+[node name="TitleOverlay" type="CanvasLayer" parent="." unique_id=1710031935]
+script = ExtResource("12_title")
+
+[node name="ShiftFlowController" type="Node" parent="." unique_id=1640721030]
+script = ExtResource("14_shiftflow")

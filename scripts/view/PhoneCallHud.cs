@@ -28,7 +28,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         Layer = 90;
         Visible = false;
-        _font = ThemeDB.FallbackFont;
+        _font = ViewFont.Default;
 
         _panel = new Panel
         {

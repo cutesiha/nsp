@@ -95,6 +95,9 @@ public partial class ControlRoomInteraction : Node
 
     private void OnEntryLogged()
     {
+        // 근무 배치 단계의 배치 로그에는 반응하지 않는다(타건/경고등/전화벨은 근무 중·휴게시간에만).
+        if (GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+
         var list = EventLog.Instance?.GetAllEntries();
         if (list == null || list.Count == 0) return;
         var last = list[^1];

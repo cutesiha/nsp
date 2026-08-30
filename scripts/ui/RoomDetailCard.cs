@@ -9,7 +9,8 @@ public partial class RoomDetailCard : PanelContainer
 {
     public static RoomDetailCard Instance { get; private set; }
 
-    private static readonly System.Collections.Generic.Dictionary<string, string> Descriptions = new()
+    // 3D 배치표 정보 패널(ScheduleBoardUI)도 이 방별 한 줄 설명을 재사용한다.
+    public static readonly System.Collections.Generic.Dictionary<string, string> Descriptions = new()
     {
         ["power_room"] = "시설 전력망의 주 공급원입니다. 이 방의 업무 처리량이 전체 전력 여유를 좌우합니다.",
         ["vent_room"] = "환기 및 생존 유지 설비를 관리합니다. 방치 시 전 직원 스트레스가 상승합니다.",

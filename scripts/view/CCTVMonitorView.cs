@@ -43,7 +43,7 @@ public partial class CCTVMonitorView : Control
     public override void _Ready()
     {
         Instance = this;
-        _font = GetThemeDefaultFont() ?? ThemeDB.FallbackFont;
+        _font = ViewFont.Default;
         SetAnchorsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Ignore;
 

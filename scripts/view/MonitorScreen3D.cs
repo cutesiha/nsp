@@ -5,7 +5,7 @@ namespace NSP.View;
 // 3D CRT 모니터의 화면(QuadMesh). 자기 전용 SubViewport 하나(FacilityMonitorView 또는
 // CCTVMonitorView)를 CRT 셰이더로 표시하고, 마우스 레이 → 화면 UV → 그 뷰포트의 2D
 // 좌표 변환을 담당한다.
-public partial class MonitorScreen3D : MeshInstance3D
+public partial class MonitorScreen3D : MeshInstance3D, IProjectionSurface
 {
     // QuadMesh UV 세로가 뒤집혀 보이면 에디터에서 켠다.
     [Export] public bool FlipV = false;

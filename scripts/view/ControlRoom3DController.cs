@@ -20,16 +20,22 @@ public partial class ControlRoom3DController : Node3D
     [Export] public float FocusDistance = 0.62f;
 
     [Export] public string[] AutoStaffRooms = { "core_room", "power_room", "vent_room", "maintenance_room" };
-    private static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
+    public static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
 
     private Camera3D _camera;
     private SeatedCameraRig _rig;
     private readonly List<MonitorScreen3D> _screens = new();
-    private SubViewport _facilityVp, _cctvVp;
+    private SubViewport _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp;
+    private float _brightness = 1f, _distortion = 0f, _noise = 0.035f;
 
     private MonitorScreen3D _dragScreen;
     private MonitorScreen3D _focusedScreen;
     private Vector2 _lastCanvasPos;
+
+    // Title/Schedule 단계에서 ShiftFlowController 가 제어실 CRT 입력을 잠그거나(_inputLocked),
+    // 책상 위 배치표 같은 다른 표면으로 입력을 돌린다(_modal).
+    private IProjectionSurface _modal;
+    private bool _inputLocked;
 
     public IReadOnlyList<MonitorScreen3D> Screens => _screens;
     public static ControlRoom3DController Instance { get; private set; }
@@ -43,7 +49,6 @@ public partial class ControlRoom3DController : Node3D
         GetViewport().PhysicsObjectPicking = true;
         AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
         CollectScreens(this);
-        BootShift();
         BuildViewports();
 
         CallDeferred(nameof(AfterReady));
@@ -61,7 +66,9 @@ public partial class ControlRoom3DController : Node3D
         foreach (var c in n.GetChildren()) CollectScreens(c);
     }
 
-    private void BootShift()
+    // 시작 화면 → 근무 배치 → 근무 로 이어지는 흐름은 ShiftFlowController 가 소유한다.
+    // 배치 확정 시점에 이 메서드가 호출되어 시뮬레이션을 실제로 굴리기 시작한다.
+    public void BeginShift()
     {
         TabooRuleSystem.Instance?.ActivateDailyTaboos(DailyTabooIds);
         GameState.Instance?.SetPhase(GamePhase.Live);
@@ -69,7 +76,27 @@ public partial class ControlRoom3DController : Node3D
         EventLog.Instance?.ClearAll();
         if (string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
             GameState.Instance?.AssignRandomSaboteur(FacilitySimulation.Instance?.GetEmployeeIds() ?? System.Array.Empty<string>());
+
+        AutoStaff();
+        SetScreenBrightness(1f);
+        SetScreenNoise(0.035f);
     }
+
+    // ShiftFlowController 훅.
+    public void SetModalSurface(IProjectionSurface surface)
+    {
+        _modal = surface;
+        _focusedScreen = null;
+        _dragScreen = null;
+    }
+
+    public void SetInputLocked(bool locked) => _inputLocked = locked;
+
+    public SubViewport FacilityViewport => _facilityVp;
+    public SubViewport CctvViewport => _cctvVp;
+    public SubViewport ReportViewport => _reportVp;
+    public SubViewport RestRosterViewport => _restRosterVp;
+    public SubViewport InterviewViewport => _interviewVp;
 
     private void BuildViewports()
     {
@@ -78,6 +105,39 @@ public partial class ControlRoom3DController : Node3D
 
         _cctvVp = MakeViewport();
         _cctvVp.AddChild(new CCTVMonitorView());
+
+        _reportVp = MakeViewport();
+        _reportVp.AddChild(new ShiftReportView());
+
+        _restRosterVp = MakeViewport();
+        _restRosterVp.AddChild(new RestRosterView());
+
+        _interviewVp = MakeViewport();
+        _interviewVp.AddChild(new InterviewCCTVView());
+    }
+
+    // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
+    // (왼쪽=시설/배치기록/보고서, 오른쪽=CCTV/인터뷰) — 씬 전환 없이 화면만 바뀐다.
+    public void SetLeftScreen(SubViewport vp) => ConfigureNamed("01", vp);
+    public void SetRightScreen(SubViewport vp) => ConfigureNamed("02", vp);
+
+    private void ConfigureNamed(string token, SubViewport vp)
+    {
+        if (vp == null) return;
+        foreach (var s in _screens)
+            if (s.Name.ToString().Contains(token))
+                s.Configure(vp);
+        ApplyScreenParams();
+    }
+
+    private void ApplyScreenParams()
+    {
+        foreach (var s in _screens)
+        {
+            s.ScreenMaterial?.SetShaderParameter("brightness", _brightness);
+            s.ScreenMaterial?.SetShaderParameter("h_distortion", _distortion);
+            s.ScreenMaterial?.SetShaderParameter("noise_strength", _noise);
+        }
     }
 
     private SubViewport MakeViewport()
@@ -104,8 +164,8 @@ public partial class ControlRoom3DController : Node3D
             s.Configure(isFacility ? _facilityVp : _cctvVp);
         }
 
-        // View 들이 방 좌표를 등록한 뒤에 자동 배치(F6 단독 테스트용).
-        GetTree().CreateTimer(0.15).Timeout += AutoStaff;
+        // 근무 부팅 전까지 CRT 는 꺼진 상태로 둔다(시작 화면 / 배치 단계).
+        SetScreenBrightness(0.02f);
     }
 
     private void AutoStaff()
@@ -113,6 +173,12 @@ public partial class ControlRoom3DController : Node3D
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
         var employees = sim.GetEmployeeIds().ToList();
+
+        // 스케줄 화면을 거쳐 들어온 경우 플레이어 배치를 존중한다.
+        // 아무도 배치돼 있지 않을 때(F6 단독 실행)만 자동 배치한다.
+        if (employees.Any(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId)))
+            return;
+
         for (int i = 0; i < employees.Count && i < AutoStaffRooms.Length; i++)
             sim.AssignToRoom(employees[i], AutoStaffRooms[i]);
     }
@@ -132,6 +198,18 @@ public partial class ControlRoom3DController : Node3D
     {
         if (_camera == null) return;
 
+        if (_modal != null)
+        {
+            switch (@event)
+            {
+                case InputEventMouseButton mb: ForwardModal(mb); break;
+                case InputEventMouseMotion mm: ForwardModal(mm); break;
+            }
+            return;
+        }
+
+        if (_inputLocked) return;
+
         if (@event is InputEventKey { Pressed: true, Keycode: Key.Escape })
         {
             Unfocus();
@@ -143,6 +221,31 @@ public partial class ControlRoom3DController : Node3D
             case InputEventMouseButton mb: HandleMouseButton(mb); break;
             case InputEventMouseMotion mm: HandleMouseMotion(mm); break;
         }
+    }
+
+    private void ForwardModal(InputEventMouseButton mb)
+    {
+        Vector3 origin = _camera.ProjectRayOrigin(mb.Position);
+        Vector3 dir = _camera.ProjectRayNormal(mb.Position);
+        bool hit = _modal.TryProjectRay(origin, dir, clamp: !mb.Pressed, out Vector2 cp);
+        if (!hit && mb.Pressed) return;
+        _lastCanvasPos = cp;
+        _modal.TargetViewport?.PushInput(MakeButton(mb, cp), inLocalCoords: true);
+        GetViewport().SetInputAsHandled();
+    }
+
+    private void ForwardModal(InputEventMouseMotion mm)
+    {
+        Vector3 origin = _camera.ProjectRayOrigin(mm.Position);
+        Vector3 dir = _camera.ProjectRayNormal(mm.Position);
+        if (!_modal.TryProjectRay(origin, dir, clamp: true, out Vector2 cp)) return;
+        var ev = new InputEventMouseMotion
+        {
+            Position = cp, GlobalPosition = cp,
+            Relative = cp - _lastCanvasPos, ButtonMask = mm.ButtonMask,
+        };
+        _lastCanvasPos = cp;
+        _modal.TargetViewport?.PushInput(ev, inLocalCoords: true);
     }
 
     private void HandleMouseButton(InputEventMouseButton mb)
@@ -246,7 +349,7 @@ public partial class ControlRoom3DController : Node3D
 
     // --- PHASE 6 훅 ---------------------------------------------------
 
-    public void SetScreenBrightness(float v) { foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("brightness", v); }
-    public void SetScreenDistortion(float v) { foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("h_distortion", v); }
-    public void SetScreenNoise(float v) { foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("noise_strength", v); }
+    public void SetScreenBrightness(float v) { _brightness = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("brightness", v); }
+    public void SetScreenDistortion(float v) { _distortion = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("h_distortion", v); }
+    public void SetScreenNoise(float v) { _noise = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("noise_strength", v); }
 }
