@@ -218,6 +218,7 @@ public partial class CallBubble : Control
     private async void EndCallSoon()
     {
         await ToSignal(GetTree().CreateTimer(ResponseHoldSeconds), SceneTreeTimer.SignalName.Timeout);
+        Sfx.Instance?.StopVoiceBlip();
         Visible = false;
         _characterBubble.Visible = false;
         _choiceBubble.Visible = false;
@@ -227,6 +228,7 @@ public partial class CallBubble : Control
 
     private void StartTyping(string text, System.Action onDone)
     {
+        Sfx.Instance?.StopVoiceBlip();
         _fullText = text;
         _typedChars = 0;
         _typeTimer = 0;
@@ -249,6 +251,8 @@ public partial class CallBubble : Control
             int shouldShow = Mathf.Min(_fullText.Length, (int)(_typeTimer / SecondsPerChar));
             if (shouldShow != _typedChars)
             {
+                for (int i = _typedChars; i < shouldShow; i++)
+                    Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i]);
                 _typedChars = shouldShow;
                 _characterLabel.Text = _fullText[.._typedChars];
             }

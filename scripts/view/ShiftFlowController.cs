@@ -34,6 +34,7 @@ public partial class ShiftFlowController : Node
         "../ControlRoom/Keyboard",
         "../ControlRoom/Telephone",
         "../ControlRoom/ControlPanel",
+        "../ControlRoom/PowerSwitchPanel",
     };
     [Export] public float BoardFocusDistance = 0.55f;
 

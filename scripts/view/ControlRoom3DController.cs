@@ -19,7 +19,8 @@ public partial class ControlRoom3DController : Node3D
     [Export] public Vector2I MonitorCanvasSize = new(800, 600);
     [Export] public float FocusDistance = 0.62f;
 
-    [Export] public string[] AutoStaffRooms = { "core_room", "power_room", "vent_room", "maintenance_room" };
+    [Export] public string[] AutoStaffRooms =
+        { "core_room", "power_room", "vent_room", "maintenance_room", "guard_room", "medical_room" };
     public static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
 
     private Camera3D _camera;

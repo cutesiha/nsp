@@ -23,6 +23,9 @@ public class EmployeeState
     // null이면 이번 구간은 직선 통로라 바로 방 중심으로 이동한다.
     public Vector2? ElbowWaypoint;
     public bool Alive = true;
+    // 정전(CCTV 미가동) 중 사망은 즉시 발견되지 않는다 — 전력이 복구되는 순간에야 발견된다.
+    // 평소(정전 아닐 때) 사망은 바로 발견되므로 기본값은 true.
+    public bool DiscoveredDead = true;
     public bool Isolated = false;
     public string PreIsolationRoomId = "";
 

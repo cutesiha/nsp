@@ -30,7 +30,7 @@ public partial class FacilitySimulation : Node
     private readonly Random _rng = new();
     private float _saboteurDecisionTimer = 0f;
     private int _killsToday = 0;
-    private bool _openingIncidentTriggered;
+    private bool _cctvWasPowered = true;
 
     // DAY1 고정 스케줄(data/spawns/*.tres, SpawnAtSeconds 순) + 실제로 발생한 업무 인스턴스들.
     private readonly List<TaskSpawnDef> _schedule = new();
@@ -516,7 +516,7 @@ public partial class FacilitySimulation : Node
         _scheduleCursor = 0;
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
-        _openingIncidentTriggered = false;
+        _cctvWasPowered = true;
         foreach (var room in _roomStates.Values)
         {
             room.NeglectTimer = 0f;
@@ -535,7 +535,6 @@ public partial class FacilitySimulation : Node
     {
         float d = (float)delta;
         TickSchedule();
-        TickOpeningIncident();
         foreach (var emp in _employeeStates.Values)
         {
             if (!emp.Alive) continue;
@@ -545,6 +544,7 @@ public partial class FacilitySimulation : Node
         TickLighting();
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
+        TickPowerRestoreReveal();
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
@@ -556,24 +556,6 @@ public partial class FacilitySimulation : Node
             SpawnFromDef(_schedule[_scheduleCursor]);
             _scheduleCursor++;
         }
-    }
-
-    // The opening needs to establish danger quickly. This is a real power-budget
-    // failure, so the player has an actionable anomaly within ten seconds of
-    // entering the main scene.
-    private void TickOpeningIncident()
-    {
-        if (_openingIncidentTriggered || GameState.Instance.DayTimeSeconds < 10f)
-            return;
-
-        _openingIncidentTriggered = true;
-        const string roomId = "power_room";
-        GameState.Instance.TriggerPowerAccident(3);
-        EventLog.Instance?.LogEvent(
-            LogEventType.PowerOutage,
-            "",
-            roomId,
-            $"!! {RoomName(roomId)} power output is fluctuating. Emergency capacity reduced.");
     }
 
     private void SpawnFromDef(TaskSpawnDef def)
@@ -672,17 +654,49 @@ public partial class FacilitySimulation : Node
         }
     }
 
+    // CCTV가 꺼져 있는(정전/전력 미배분) 동안 벌어진 살인은 그 순간 바로 로그에 남기지 않는다
+    // — 관리자는 그 시간 동안 아무것도 볼 수 없었어야 한다. 대신 DiscoveredDead=false 로만
+    // 표시해두고, CCTV 전력이 다시 들어오는 순간 TickPowerRestoreReveal 이 "신호 소실" 로 발견한다.
     private void KillEmployee(string victimId, string roomId)
     {
         if (!_employeeStates.TryGetValue(victimId, out var victim)) return;
 
+        bool blackout = !GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+
         victim.Alive = false;
+        victim.DiscoveredDead = !blackout;
         RemoveOccupant(roomId, victimId);
         _killsToday++;
+
+        if (blackout) return;
 
         var def = _employeeDefs.GetValueOrDefault(victimId);
         EventLog.Instance?.LogEvent(LogEventType.Death, victimId, roomId,
             $"⚠ {def?.Codename ?? victimId} 활동 중단 확인. 발견 당시 목격자 없음.");
+    }
+
+    // CCTV 전력이 꺼졌다가(정전 등) 다시 들어오는 순간, 그동안 아무도 모르게 벌어진 죽음이
+    // 있으면 그제서야 "발견"된다 — 정전 중엔 관리자가 아무것도 볼 수 없었다는 것을 그대로
+    // 반영한다(NSP_DAY1_EVENTS §12: 발전이 수리되어서 죽은 게 아니라, 전력이 끊겨 있어서
+    // 그동안 무슨 일이 있었는지 못 보고 있다가 복구 후에야 알게 되는 것).
+    private void TickPowerRestoreReveal()
+    {
+        bool poweredNow = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+        if (poweredNow && !_cctvWasPowered)
+        {
+            foreach (var emp in _employeeStates.Values)
+            {
+                if (emp.Alive || emp.DiscoveredDead) continue;
+                emp.DiscoveredDead = true;
+
+                var def = _employeeDefs.GetValueOrDefault(emp.EmployeeId);
+                var roomDef = _roomDefs.GetValueOrDefault(emp.CurrentRoomId);
+                EventLog.Instance?.LogEvent(LogEventType.Death, emp.EmployeeId, emp.CurrentRoomId,
+                    $"⚠ LIFE SIGNAL LOST — {def?.Codename ?? emp.EmployeeId} 신호 소실. " +
+                    $"{roomDef?.DisplayName ?? emp.CurrentRoomId}에서 발견, 목격자 없음.");
+            }
+        }
+        _cctvWasPowered = poweredNow;
     }
 
     // SAB-01 감시 사각: 파괴공작자가 CCTV로 감시되지 않는 작업실에 있을 때, 그 방의 업무를

@@ -17,9 +17,9 @@ public partial class GameState : Node
     public float CoreProgress { get; private set; } = 0f;
     public int Materials { get; private set; } = 0;
 
-    // 발전기 사고(TABOO-01/FAIL-01)로 인한 임시 최대 전력 감소. 누적되지 않는 단일 상태값 —
-    // 사고가 이미 진행 중이면 새 사고가 더 깎지 않고, 발전기 점검을 한 번 완료하면 정상으로
-    // 완전히 복구된다(부분 회복 없음). 날짜가 바뀌면 이월되지 않고 초기화된다.
+    // 발전기 사고(TABOO-01/FAIL-01)로 인한 임시 최대 전력 용량 감소. 누적되지 않는 단일
+    // 상태값 — 사고가 이미 진행 중이면 새 사고가 더 깎지 않고, 발전기 점검을 한 번 완료하면
+    // 정상으로 완전히 복구된다(부분 회복 없음). 날짜가 바뀌면 이월되지 않고 초기화된다.
     public int PowerAccidentPenalty { get; private set; } = 0;
     public GameResult Result { get; private set; } = GameResult.None;
 
@@ -27,15 +27,22 @@ public partial class GameState : Node
 
     private readonly Random _rng = new();
 
-    // DAY1 프로토타입: 플레이어가 전력을 직접 배분하지 않는다. 필요한 시설 전력은 근무 시작 시
-    // 자동으로 정상 배분된 상태이며(용량이 충분하면 CCTV·조명·환기 전부 ON), 발전 사고로 최대
-    // 용량이 줄어 현재 소비량을 감당 못 하면 아래 우선순위로 자동 차단한다.
-    //   index 0 = 가장 먼저 차단(CCTV)  →  마지막까지 유지(환기)
-    private static readonly PowerConsumer[] LoadShedOrder =
+    // ── 전력 패널(LIGHTING / CCTV / SENSOR) ────────────────────────────
+    // 3개 채널에 슬롯 1개씩 — "몇 W를 쓰는가"가 아니라 "용량 안에서 몇 개를 동시에 켤 수
+    // 있는가"만 다루는 물리 스위치 모델. On/Off는 플레이어가 3D 전력 패널에서 직접 고른다
+    // (TryTogglePower). 용량이 줄어 이미 켜진 채널 수가 새 용량을 넘으면, 아래 우선순위로
+    // 자동으로 끈다 — index 0 이 가장 먼저 차단(CCTV), 마지막 index(SENSOR)가 가장 오래
+    // 버틴다(기존 자동 전력배분 시절의 우선순위를 그대로 계승).
+    private static readonly PowerConsumer[] SwitchChannels =
+        { PowerConsumer.CctvWatch, PowerConsumer.Lighting, PowerConsumer.Sensor };
+    private static readonly PowerConsumer[] ShedPriority =
+        { PowerConsumer.CctvWatch, PowerConsumer.Lighting, PowerConsumer.Sensor };
+
+    private readonly Dictionary<PowerConsumer, bool> _switchOn = new()
     {
-        PowerConsumer.CctvWatch,
-        PowerConsumer.Lighting,
-        PowerConsumer.VentRepair,
+        [PowerConsumer.CctvWatch] = true,
+        [PowerConsumer.Lighting] = true,
+        [PowerConsumer.Sensor] = true,
     };
 
     public override void _EnterTree()
@@ -43,28 +50,40 @@ public partial class GameState : Node
         Instance = this;
     }
 
-    private int CostOf(PowerConsumer consumer) => consumer switch
-    {
-        PowerConsumer.CctvWatch => Config.Instance.Data.PowerCostCctvWatch,
-        PowerConsumer.VentRepair => Config.Instance.Data.PowerCostVentRepair,
-        PowerConsumer.Lighting => Config.Instance.Data.PowerCostLighting,
-        _ => 0,
-    };
+    // 발전 사고로 깎인 만큼 뺀 실제 용량(0~PowerCapacityMax).
+    public int PowerCapacity => Math.Max(0, Config.Instance.Data.PowerCapacityMax - PowerAccidentPenalty);
 
-    // 현재 최대 용량 안에서, 가장 보호되는 소비처(환기)부터 채워 넣었을 때 이 소비처가 전력을
-    // 받는가. 발전기 사고 등으로 용량이 줄면 CCTV → 조명 순으로 자동으로 떨어져 나간다.
-    public bool IsConsumerPowered(PowerConsumer consumer)
+    private int OnCount() => SwitchChannels.Count(c => _switchOn[c]);
+
+    // VentRepair는 새 전력 패널에 없는 채널(2D 백업 화면 호환용) — 항상 켜진 것으로 취급한다.
+    public bool IsConsumerPowered(PowerConsumer consumer) =>
+        consumer == PowerConsumer.VentRepair || _switchOn.GetValueOrDefault(consumer);
+
+    // 플레이어가 전력 패널 스위치를 누른다. 끄는 것은 항상 성공. 켜는 것은 현재 용량 안에
+    // 여유가 있을 때만 성공 — 초과분은 거부만 하고(다른 채널을 먼저 꺼야 함) 자동으로 다른
+    // 채널을 대신 끄지 않는다(플레이어가 직접 고르게 한다).
+    public bool TryTogglePower(PowerConsumer consumer)
     {
-        int capacity = GetEffectivePowerBudget();
-        int used = 0;
-        for (int i = LoadShedOrder.Length - 1; i >= 0; i--)
+        if (consumer == PowerConsumer.VentRepair) return false;
+
+        if (_switchOn[consumer])
         {
-            var c = LoadShedOrder[i];
-            bool canPower = used + CostOf(c) <= capacity;
-            if (canPower) used += CostOf(c);
-            if (c == consumer) return canPower;
+            _switchOn[consumer] = false;
+            return true;
         }
-        return false;
+        if (OnCount() >= PowerCapacity) return false;
+        _switchOn[consumer] = true;
+        return true;
+    }
+
+    // 용량이 줄어든 뒤에도 여전히 켜진 채널 수가 새 용량을 넘으면 우선순위대로 강제로 끈다.
+    private void ShedToCapacity()
+    {
+        foreach (var c in ShedPriority)
+        {
+            if (OnCount() <= PowerCapacity) break;
+            _switchOn[c] = false;
+        }
     }
 
     public void AdvanceDayTime(float deltaSeconds)
@@ -94,42 +113,43 @@ public partial class GameState : Node
         Materials = Mathf.Clamp(Materials + delta, 0, Config.Instance.Data.MaterialsCap);
     }
 
-    // 발전 사고 시 최대 전력 감소량. 서로 다른 원인(발전기 방치=3, TABOO-01=2 등)이 겹치면
-    // 더 깊은 쪽으로 맞춘다. 발전기 점검을 한 번 완료하면 RepairPowerAccident 로 완전히 복구된다.
+    // 발전 사고 시 최대 전력 용량 감소량. 서로 다른 원인(발전기 방치=3, TABOO-01=2 등)이
+    // 겹치면 더 깊은 쪽으로 맞춘다. 발전기 점검을 한 번 완료하면 RepairPowerAccident 로
+    // 완전히 복구된다. 용량이 줄어 이미 켜진 채널이 넘치면 바로 우선순위대로 강제 차단한다.
     public void TriggerPowerAccident(int penaltyAmount)
     {
         PowerAccidentPenalty = Math.Max(PowerAccidentPenalty, Math.Max(0, penaltyAmount));
+        ShedToCapacity();
     }
 
+    // 부분 복구 없음 — 발전기 점검 완료 시 용량과 세 채널 스위치를 전부 정상(ON)으로 되돌린다.
     public void RepairPowerAccident()
     {
         PowerAccidentPenalty = 0;
+        foreach (var c in SwitchChannels) _switchOn[c] = true;
     }
 
     public bool IsPowerAccidentActive() => PowerAccidentPenalty > 0;
 
-    private int GetEffectivePowerBudget() => Math.Max(0, Config.Instance.Data.PowerBudgetTotal - PowerAccidentPenalty);
+    // 각 소비처의 실제 사용량(슬롯 1개 = 1) — 2D 백업 화면 호환용.
+    public int GetPowerAllocated(PowerConsumer consumer) => IsConsumerPowered(consumer) ? 1 : 0;
 
-    // 자동 배분 모델에서 각 소비처의 실제 사용량 = 전력을 받으면 비용, 못 받으면 0.
-    public int GetPowerAllocated(PowerConsumer consumer) => IsConsumerPowered(consumer) ? CostOf(consumer) : 0;
+    public int GetPowerUsed() => OnCount();
 
-    public int GetPowerUsed()
-    {
-        int total = 0;
-        foreach (PowerConsumer c in System.Enum.GetValues(typeof(PowerConsumer)))
-            total += GetPowerAllocated(c);
-        return total;
-    }
+    public int GetPowerBudgetTotal() => PowerCapacity;
 
-    public int GetPowerBudgetTotal() => GetEffectivePowerBudget();
+    public int GetPowerRemaining() => PowerCapacity - OnCount();
 
-    public int GetPowerRemaining() => GetEffectivePowerBudget() - GetPowerUsed();
-
-    // 자동 배분이라 항상 예산 내로 유지된다 — 예전 수동 배분 시절 호출부 호환용으로만 남긴다.
+    // 스위치가 용량을 넘어서게 켜질 수 없는 구조라 항상 예산 내로 유지된다.
     public bool IsPowerOverBudget() => false;
 
-    // 수동 전력 배분은 DAY1 프로토타입에서 제거됨(전력은 배치 실패의 연쇄 결과로만 사용).
-    public bool TrySetPowerAllocation(PowerConsumer consumer, int amount) => false;
+    // 2D 백업 화면(PowerBudgetPanel) 호환용 — amount>0 이면 켜기 시도, 0이면 끄기로 취급한다.
+    public bool TrySetPowerAllocation(PowerConsumer consumer, int amount)
+    {
+        bool wantOn = amount > 0;
+        if (wantOn == IsConsumerPowered(consumer)) return true;
+        return TryTogglePower(consumer);
+    }
 
     public void SetResult(GameResult result)
     {
@@ -154,6 +174,6 @@ public partial class GameState : Node
         CurrentDay += 1;
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;
-        PowerAccidentPenalty = 0;
+        RepairPowerAccident();
     }
 }

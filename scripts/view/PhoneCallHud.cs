@@ -1,4 +1,5 @@
 using Godot;
+using NSP.Core;
 using NSP.Facility;
 using NSP.Ui;
 
@@ -21,6 +22,7 @@ public partial class PhoneCallHud : CanvasLayer
     private string _employeeId = "";
     private string _fullText = "";
     private double _typeTimer;
+    private int _shownChars;
     private bool _typing;
     private bool _showChoicesAfter;
 
@@ -82,8 +84,10 @@ public partial class PhoneCallHud : CanvasLayer
 
     private void StartTyping(string text, bool showChoicesAfter)
     {
+        Sfx.Instance?.StopVoiceBlip();
         _fullText = text;
         _typeTimer = 0;
+        _shownChars = 0;
         _typing = true;
         _showChoicesAfter = showChoicesAfter;
         _message.Text = "";
@@ -96,6 +100,12 @@ public partial class PhoneCallHud : CanvasLayer
         if (!_typing) return;
         _typeTimer += delta;
         int shown = Mathf.Min(_fullText.Length, (int)(_typeTimer / CharDelay));
+        if (shown != _shownChars)
+        {
+            for (int i = _shownChars; i < shown; i++)
+                Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i]);
+            _shownChars = shown;
+        }
         _message.VisibleCharacters = shown;
         if (shown >= _fullText.Length)
         {
@@ -140,6 +150,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         Visible = false;
         _typing = false;
+        Sfx.Instance?.StopVoiceBlip();
         ClearChoices();
         EmitSignal(SignalName.Closed);
     }

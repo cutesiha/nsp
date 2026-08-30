@@ -13,4 +13,6 @@ public partial class RoomDef : Resource
     [Export] public bool IsCoreRoom = false;
     [Export] public bool IsRestricted = false;
     [Export] public RoomResourceType ManagedResource = RoomResourceType.None;
+    // LIGHTING이 꺼져도(정전 등) 이 방에 있는 직원 위치는 계속 보인다.
+    [Export] public bool HasEmergencyLighting = false;
 }

@@ -10,3 +10,4 @@ ConnectedRoomIds = Array[String](["core_room", "power_room"])
 MapPosition = Vector2(60, 320)
 IsCoreRoom = false
 ManagedResource = 5
+HasEmergencyLighting = true

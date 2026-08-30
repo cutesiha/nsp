@@ -171,9 +171,15 @@ public partial class ScheduleBoardUI : Control
         int total = sim.GetEmployeeIds().Count;
         int placed = sim.GetEmployeeIds().Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
         int missing = total - placed;
-        var status = AddLabel(_form,
-            missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료",
-            new Vector2(DocLeft, CanvasSize.Y - 46), 14, missing > 0 ? InkRed : Ink, _body);
+        // 배치 단계에서는 직원이 아직 방으로 이동하지 않았으므로(시뮬레이션 미가동)
+        // 물리적 점유(OccupantEmployeeIds)가 아니라 배치 지정(AssignedRoomId)으로 판정한다.
+        bool coreStaffed = sim.GetEmployeeIds().Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
+
+        string statusText = !coreStaffed
+            ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
+            : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
+        var status = AddLabel(_form, statusText,
+            new Vector2(DocLeft, CanvasSize.Y - 46), 14, !coreStaffed || missing > 0 ? InkRed : Ink, _body);
         status.Size = new Vector2(360, 26);
 
         var start = new Button
@@ -181,8 +187,10 @@ public partial class ScheduleBoardUI : Control
             Text = "근무 시작 ▶",
             Position = new Vector2(CanvasSize.X - 202, CanvasSize.Y - 52),
             Size = new Vector2(178, 40),
+            Disabled = !coreStaffed,
         };
-        StyleDoc(start, new Color(0.95f, 0.92f, 0.83f), new Color(0.14f, 0.11f, 0.07f));
+        StyleDoc(start, coreStaffed ? new Color(0.95f, 0.92f, 0.83f) : InkDim,
+            coreStaffed ? new Color(0.14f, 0.11f, 0.07f) : new Color(0.5f, 0.46f, 0.36f, 0.4f));
         start.AddThemeFontSizeOverride("font_size", 17);
         start.Pressed += () => StartPressed?.Invoke();
         _form.AddChild(start);

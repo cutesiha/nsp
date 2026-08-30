@@ -165,6 +165,13 @@ public partial class FacilityMinimap : Control
         var def = sim.GetEmployeeDef(id);
         if (st == null || def == null) return;
 
+        // LIGHTING이 꺼지면(정전 등) 비상 조명이 없는 방의 직원 아이콘은 안 보인다 — 직원을
+        // 지우거나 옮기는 게 아니라, 관리자가 위치를 볼 수 없게 되는 것뿐이다(데이터/시뮬레이션은
+        // 그대로 유지).
+        bool lightingOk = NSP.Core.GameState.Instance?.IsConsumerPowered(NSP.Data.PowerConsumer.Lighting) ?? true;
+        if (!lightingOk && !(sim.GetRoomDef(st.CurrentRoomId)?.HasEmergencyLighting ?? false))
+            return;
+
         Vector2 p = st.Position;
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
 

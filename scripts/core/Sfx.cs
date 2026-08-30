@@ -18,6 +18,16 @@ public partial class Sfx : Node
     private readonly Dictionary<string, AudioStreamPlayer> _loops = new();
     private int _next;
 
+    // 대사 타자 효과에 맞춰 나는 캐릭터별 짧은 보이스 블립. 전용 채널 하나만 써서
+    // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
+    // 최소 간격(Rate Limit)으로 너무 촘촘하게 울리지 않게 한다.
+    private AudioStreamPlayer _voicePlayer;
+    private readonly RandomNumberGenerator _voiceRng = new();
+    private readonly Dictionary<string, List<AudioStream>> _voiceVariantCache = new();
+    private double _lastVoiceBlipMsec = -10000;
+    private const double VoiceBlipMinIntervalMsec = 55;
+    private const float VoicePitchVariationSemitones = 1.5f;
+
     public override void _EnterTree() => Instance = this;
 
     public override void _Ready()
@@ -28,6 +38,9 @@ public partial class Sfx : Node
             AddChild(p);
             _pool.Add(p);
         }
+
+        _voicePlayer = new AudioStreamPlayer { Bus = "Master" };
+        AddChild(_voicePlayer);
 
         // 프로젝트 전역 버튼 클릭음.
         // This autoload persists across scene transitions, keeping the electrical
@@ -91,6 +104,55 @@ public partial class Sfx : Node
             Play("alarm", volumeDb - 5f, 1.18f);
         };
     }
+
+    // 대화창에서 글자가 한 글자씩 드러날 때마다 호출한다. 공백/문장부호는 울리지 않고,
+    // employeeId 로 캐릭터별 보이스 블립을 찾아 재생한다(없는 직원은 조용히 스킵 —
+    // 목소리 없는 캐릭터를 추가해도 에러가 나지 않는다).
+    // res://assets/audio/sfx_voice_{employeeId}_01.wav, _02, _03... 처럼 variant가
+    // 여러 개 있으면 매번 그중 하나를 무작위로 골라 같은 글자에도 완전히 같은 소리가
+    // 반복되지 않게 한다(variant가 없는 캐릭터는 voice_{employeeId}.wav 단일 파일로 폴백).
+    public void PlayVoiceBlip(string employeeId, char c)
+    {
+        if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
+
+        double now = Time.GetTicksMsec();
+        if (now - _lastVoiceBlipMsec < VoiceBlipMinIntervalMsec) return;
+
+        var variants = LoadVoiceVariants(employeeId);
+        if (variants.Count == 0) return;
+
+        _lastVoiceBlipMsec = now;
+        _voicePlayer.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
+        float semitones = _voiceRng.RandfRange(-VoicePitchVariationSemitones, VoicePitchVariationSemitones);
+        _voicePlayer.PitchScale = Mathf.Pow(2f, semitones / 12f);
+        _voicePlayer.Play();
+    }
+
+    private List<AudioStream> LoadVoiceVariants(string employeeId)
+    {
+        if (_voiceVariantCache.TryGetValue(employeeId, out var cached)) return cached;
+
+        var list = new List<AudioStream>();
+        for (int i = 1; i <= 6; i++)
+        {
+            string path = $"res://assets/audio/sfx_voice_{employeeId}_{i:00}.wav";
+            if (!ResourceLoader.Exists(path)) break;
+            var stream = GD.Load<AudioStream>(path);
+            if (stream != null) list.Add(stream);
+        }
+
+        if (list.Count == 0)
+        {
+            var single = Load($"voice_{employeeId}");
+            if (single != null) list.Add(single);
+        }
+
+        _voiceVariantCache[employeeId] = list;
+        return list;
+    }
+
+    // 대사 스킵/즉시 완성 시 트레일링 블립을 바로 끊는다.
+    public void StopVoiceBlip() => _voicePlayer?.Stop();
 
     // 이름 있는 루프 채널. 같은 key로 다시 부르면 아무것도 하지 않는다(이미 재생 중).
     public void Loop(string key, float volumeDb = 0f)

@@ -27,8 +27,9 @@ public enum StatType
 public enum PowerConsumer
 {
     CctvWatch,
-    VentRepair,
+    VentRepair, // DAY1 신규 전력 패널(LIGHTING/CCTV/SENSOR)에는 없음 — 2D 백업 화면 호환용으로만 남김.
     Lighting,
+    Sensor,
 }
 
 public enum RoomResourceType

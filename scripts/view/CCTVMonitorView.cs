@@ -163,7 +163,7 @@ public partial class CCTVMonitorView : Control
         }
         if (!powered)
         {
-            ShowState("전력 부족 — CCTV 신호 없음", darken: 0.9f);
+            ShowState("NO SIGNAL\nPOWER OFFLINE", darken: 0.9f);
             _noise.Modulate = new Color(1, 1, 1, 0.16f);
             return;
         }

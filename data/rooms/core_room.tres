@@ -10,3 +10,4 @@ ConnectedRoomIds = Array[String](["central_office", "guard_room", "storage_room"
 MapPosition = Vector2(160, 320)
 IsCoreRoom = true
 ManagedResource = 6
+HasEmergencyLighting = true

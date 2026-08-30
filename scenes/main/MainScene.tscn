@@ -559,6 +559,52 @@ theme_override_font_sizes/font_size = 15
 text = "고양이"
 horizontal_alignment = 1
 
+[node name="Employee_Dog" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+offset_left = 312.0
+offset_top = 211.0
+offset_right = 338.0
+offset_bottom = 237.0
+color = Color(0.72, 0.55, 0.34, 1)
+script = ExtResource("3_emp")
+EmployeeId = "dog"
+
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Employee_Dog"]
+layout_mode = 0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -24.0
+offset_top = 2.0
+offset_right = 24.0
+offset_bottom = 22.0
+theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_font_sizes/font_size = 15
+text = "개"
+horizontal_alignment = 1
+
+[node name="Employee_Deer" type="ColorRect" parent="UILayer/Monitor01_Map/MapContent"]
+offset_left = 532.0
+offset_top = 299.0
+offset_right = 558.0
+offset_bottom = 325.0
+color = Color(0.58, 0.76, 0.62, 1)
+script = ExtResource("3_emp")
+EmployeeId = "deer"
+
+[node name="Label" type="Label" parent="UILayer/Monitor01_Map/MapContent/Employee_Deer"]
+layout_mode = 0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -24.0
+offset_top = 2.0
+offset_right = 24.0
+offset_bottom = 22.0
+theme_override_colors/font_color = Color(0.05, 0.05, 0.05, 1)
+theme_override_font_sizes/font_size = 15
+text = "사슴"
+horizontal_alignment = 1
+
 [node name="FloatingPopupLayer" type="Control" parent="UILayer/Monitor01_Map/MapContent" unique_id=1829970773]
 layout_mode = 3
 anchors_preset = 0

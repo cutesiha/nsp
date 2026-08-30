@@ -20,6 +20,13 @@ public partial class ConfigData : Resource
     [Export] public float EmployeeMoveSpeed = 80f;
     [Export] public float DayLengthSeconds = 300f;
 
+    // LIGHTING/CCTV/SENSOR 전력 패널 — 슬롯 3개, 사고로 발전 용량이 줄면 동시에 켤 수 있는
+    // 개수도 그만큼 줄어든다(코스트 가중치 없음, 채널당 슬롯 1개).
+    [Export] public int PowerCapacityMax = 3;
+    // SENSOR 예고가 "임박"으로 뜨기 시작하는 남은시간 임계값(초).
+    [Export] public float AlertLeadSeconds = 20f;
+
+    // 2D 백업 화면(PowerBudgetPanel)에서만 쓰는 옛 코스트 가중치 값 — 3D 전력 패널은 안 씀.
     [Export] public int PowerBudgetTotal = 7;
     [Export] public int PowerCostCctvWatch = 3;
     [Export] public int PowerCostVentRepair = 4;

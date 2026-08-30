@@ -22,5 +22,5 @@ SpeechStyleLine3 = "복잡하게 돌려 말하기보다 솔직하고 단순하�
 SpeechExample1 = "괜찮습니다. 제가 한번 확인해 보고 오겠습니다."
 SpeechExample2 = "혼자 보내기엔 좀 걱정되는데요. 제가 같이 가면 안 됩니까?"
 SpeechExample3 = "전 그 사람 믿습니다. 적어도 일부러 그런 짓을 할 사람처럼 보이진 않았어요."
-StartRoomId = "security_room"
+StartRoomId = "guard_room"
 IconColor = Color(0.72, 0.55, 0.34, 1)
