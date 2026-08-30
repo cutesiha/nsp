@@ -96,9 +96,9 @@ public partial class FacilityMonitorView : Control
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         bar.AddChild(_clock);
 
-        var endBtn = new Button { Position = new Vector2(698, 7), Size = new Vector2(96, 30), Text = "근무 종료" };
-        endBtn.AddThemeFontSizeOverride("font_size", 14);
-        endBtn.Pressed += OnEndShiftPressed;
+        var endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, 14);
+        endBtn.Position = new Vector2(690, 6);
+        endBtn.Size = new Vector2(104, 32);
         bar.AddChild(endBtn);
 
         _alertLine = MakeLabel("", 15, Alert);

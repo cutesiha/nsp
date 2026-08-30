@@ -8,22 +8,27 @@
 script = ExtResource("1_emp")
 EmployeeId = "cat"
 Codename = "고양이"
-Tech = 1
+Tech = 3
 Courage = 2
 Observation = 2
 Trait = "독불장군"
 
-PersonalityLine1 = "독립심이 강하고, 내향적이며, 남에게 도움받는 것을 별로 좋아하지 않는다."
-PersonalityLine2 = "츤데레 같은 성격이며, 툭툭 쏘아붙이는 일이 많지만 곤란한 사람을 완전히 외면하지는 못한다."
-PersonalityLine3 = "걱정하거나 신경 쓰고 있어도 그것을 솔직하게 드러내는 것을 싫어한다."
+PersonalityLine1 = "효율과 결과를 중시하며, 불필요한 절차나 감정적인 대응 때문에 일이 늦어지는 것을 싫어한다."
+PersonalityLine2 = "예민하고 깔끔한 성격이라 주변의 흐트러진 상태나 비효율을 금방 눈치채고 신경질적으로 반응한다."
+PersonalityLine3 = "까칠하게 말하면서도 동료 상태를 은근히 챙기는 츤데레 기질이 있지만, 해야 할 일이 있으면 감정보다 업무를 우선한다."
 
-SpeechStyleLine1 = "존댓말은 사용하지만 말이 짧고 퉁명스럽다."
-SpeechStyleLine2 = "상대를 걱정할 때도 직접 표현하기보다 핀잔을 주는 식으로 말한다."
-SpeechStyleLine3 = "당황하거나 감정을 들킨 것 같으면 평소보다 더욱 틱틱거린다."
+SpeechStyleLine1 = "존댓말은 사용하지만 짧고 퉁명스럽게 말하며 군더더기가 거의 없다."
+SpeechStyleLine2 = "상황을 설명할 때 감상보다 필요한 정보와 해결 방법부터 말한다."
+SpeechStyleLine3 = "걱정하는 마음을 들키면 핀잔이나 짜증 섞인 말로 얼버무린다."
 
-SpeechExample1 = "됐어요. 이 정도는 혼자 할 수 있으니까요."
-SpeechExample2 = "토끼 씨 좀 쉬게 하세요. 아까부터 상태 안 좋아 보이던데... 아니, 신경 쓰인다는 건 아니고요."
-SpeechExample3 = "그걸 왜 저한테 물어보는데요? 봤으니까 말씀드리는거죠."
+SpeechExample1 = "발전실 쪽 문제죠? 제가 가는 게 제일 빠르겠네요. 이동할까요?"
+SpeechExample2 = "비명은 들었어요. 하지만 여기까지 멈추면 자재 생산도 같이 끊깁니다."
+SpeechExample3 = "토끼 씨 상태부터 확인해 주세요. 아까부터 집중을 못 하던데... 그냥 업무에 방해되니까요."
+
+BehaviorLine1 = "근처에서 비명이나 소란이 나도 자신의 업무가 더 중요하다고 판단하면 쉽게 자리를 뜨지 않고 하던 일을 계속한다."
+BehaviorLine2 = "설비 고장을 발견하면 감정적인 반응보다 손실과 처리 속도를 계산해 가장 효율적인 대응을 관리자에게 짧게 제안한다."
+BehaviorLine3 = "금기와 사고가 동시에 걸리면 규칙 그 자체보다 실제 손실이 적은 선택을 선호하며, 비효율적인 지시에는 노골적으로 불만을 보인다."
+
 StartRoomId = "medical_room"
 IconColor = Color(0.42, 0.65, 0.88, 1)
 StandingImage = ExtResource("2_img")

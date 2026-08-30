@@ -13,17 +13,22 @@ Courage = 2
 Observation = 3
 Trait = "묵묵한 목격자"
 
-PersonalityLine1 = "말수가 적고 무뚝뚝하며 다른 사람과 필요 이상으로 가까워지려 하지 않는다."
-PersonalityLine2 = "주변 사람의 행동을 유심히 관찰하고 사소한 변화도 오래 기억한다."
-PersonalityLine3 = "위급한 상황에서도 감정보다 상황 파악과 판단을 우선한다."
+PersonalityLine1 = "말수가 적고 무뚝뚝하며 감정 기복을 거의 드러내지 않아 큰 체격과 함께 벽 같은 인상을 준다."
+PersonalityLine2 = "상황을 감정적으로 받아들이기보다 차분하게 관찰하고, 다른 사람이 놓친 작은 행동이나 변화까지 오래 기억한다."
+PersonalityLine3 = "사람들과 필요 이상으로 가까워지지는 않지만 냉정하거나 잔인한 것은 아니며, 위급할수록 침착하게 행동한다."
 
-SpeechStyleLine1 = "존댓말을 사용하지만 짧고 무미건조하게 대답한다."
-SpeechStyleLine2 = "불필요한 감탄이나 완곡한 표현을 거의 사용하지 않는다."
-SpeechStyleLine3 = "자신이 직접 확인한 사실과 추측을 명확하게 구분해서 말한다."
+SpeechStyleLine1 = "존댓말을 사용하지만 대답이 짧고 낮으며 불필요한 감탄이나 완곡한 표현이 거의 없다."
+SpeechStyleLine2 = "자신이 직접 본 사실과 추측을 명확히 구분해서 말한다."
+SpeechStyleLine3 = "긴급한 상황에서도 목소리나 문장 길이가 크게 변하지 않아 오히려 차갑게 느껴질 수 있다."
 
-SpeechExample1 = "봤습니다. 22시쯤 창고 쪽으로 갔어요."
-SpeechExample2 = "모릅니다. 거기까지밖에 못 봤습니다."
-SpeechExample3 = "이상하긴 했습니다. 그래서 기억하고 있었습니다."
+SpeechExample1 = "들었습니다. 발전실 쪽입니다."
+SpeechExample2 = "봤습니다. 22시쯤 저장고에서 나왔습니다. 그 이후는 모릅니다."
+SpeechExample3 = "지금 움직이는 건 위험합니다. 기다리겠습니다."
+
+BehaviorLine1 = "근처에서 비명이나 사고가 나도 즉시 동요하지 않고 하던 행동을 멈춘 채 소리의 방향과 주변 상황부터 확인한다."
+BehaviorLine2 = "이상한 행동을 목격하면 그 자리에서 호들갑스럽게 문제 삼기보다 기억해 두었다가 관리자에게 사실 위주로 짧게 보고한다."
+BehaviorLine3 = "금기나 사고 경고가 발생하면 감정에 휘둘리지 않고 현재 위험과 지시를 비교해 가장 침착하게 움직이며, 불필요한 행동을 거의 하지 않는다."
+
 StartRoomId = "vent_room"
 IconColor = Color(0.4, 0.4, 0.42, 1)
 StandingImage = ExtResource("2_img")

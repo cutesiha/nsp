@@ -79,7 +79,7 @@ public partial class FacilityMinimap : Control
     private void DrawCorridors(FacilitySimulation sim)
     {
         var seen = new HashSet<string>();
-        var col = new Color(0.28f, 0.34f, 0.30f);
+        var col = new Color(0.30f, 0.37f, 0.33f);
         foreach (var roomId in Layout.Keys)
         {
             var def = sim.GetRoomDef(roomId);
@@ -89,7 +89,22 @@ public partial class FacilityMinimap : Control
                 if (!Layout.ContainsKey(other)) continue;
                 string key = string.CompareOrdinal(roomId, other) < 0 ? roomId + "|" + other : other + "|" + roomId;
                 if (!seen.Add(key)) continue;
-                DrawLine(CenterOf(roomId), CenterOf(other), col, 2f);
+
+                // 직원 이동은 FacilitySimulation.ComputeElbowWaypoint 규칙으로 한 번 직각으로 꺾인다.
+                // 회색 통로도 같은 규칙(위쪽 방 X, 아래쪽 방 Y)으로 두 마디로 그려 정확히 겹치게 한다.
+                Vector2 pa = CenterOf(roomId), pb = CenterOf(other);
+                if (Mathf.Abs(pa.X - pb.X) < 1f || Mathf.Abs(pa.Y - pb.Y) < 1f)
+                {
+                    DrawLine(pa, pb, col, 3f);
+                }
+                else
+                {
+                    Vector2 upper = pa.Y <= pb.Y ? pa : pb;
+                    Vector2 lower = pa.Y <= pb.Y ? pb : pa;
+                    Vector2 elbow = new(upper.X, lower.Y);
+                    DrawLine(upper, elbow, col, 3f);
+                    DrawLine(elbow, lower, col, 3f);
+                }
             }
         }
     }

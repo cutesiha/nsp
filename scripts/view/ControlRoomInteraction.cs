@@ -70,24 +70,23 @@ public partial class ControlRoomInteraction : Node
         }
     }
 
-    // --- 전화 ---------------------------------------------------------
+    // --- 전화 (손 애니메이션은 Phone3D 가 PlayerCharacter 를 직접 구동) --------
 
     private void OnRingStarted()
     {
-        _arms?.PlayPhoneReach();
         if (_phone != null) _rig?.FocusOn(_phone.GlobalPosition, 0.3f);
     }
 
     private void OnPickedUp()
     {
-        _arms?.PlayPhoneHold();
+        _rig?.PhonePosture(true);       // 고개를 수화기 쪽으로 기울인다
         Sfx.Instance?.Play("phone_pickup", -4f);
     }
 
     private void OnHungUp()
     {
-        _arms?.PlayIdle();
         _rig?.ClearFocus(0.4f);
+        _rig?.PhonePosture(false);
         Sfx.Instance?.Play("phone_hangup", -5f);
     }
 

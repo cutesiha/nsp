@@ -11,19 +11,24 @@ Codename = "토끼"
 Tech = 2
 Courage = 3
 Observation = 1
-Trait = "과민반응"
+Trait = "행동파"
 
-PersonalityLine1 = "겁이 많고 소심하지만 다른 사람에게 피해를 주는 것을 싫어한다."
-PersonalityLine2 = "주변의 작은 소리나 변화에도 민감해 남들이 지나치는 이상을 자주 눈치챈다."
-PersonalityLine3 = "불안이 많고, 자신이 본 것조차 확신하지 못해 쉽게 단정하지 않는다."
+PersonalityLine1 = "적극적이고 활발하며 호기심이 많아 새로운 일이나 이상한 상황을 그냥 지나치지 못한다."
+PersonalityLine2 = "감정이 얼굴과 말투에 그대로 드러나며, 놀라거나 기쁘거나 무서우면 반응부터 크게 튀어나온다."
+PersonalityLine3 = "낙천적이고 즉흥적인 성격이라 깊게 계산하기 전에 먼저 행동하려는 경향이 있지만 악의 없이 분위기를 밝게 만든다."
 
-SpeechStyleLine1 = "항상 존댓말을 사용하며 조심스럽게 말한다."
-SpeechStyleLine2 = "평소에도 가끔 첫 음절을 더듬지만, 긴장하거나 당황하면 더 더듬는다."
-SpeechStyleLine3 = "자신 없는 이야기를 할 때는 말을 잠시 끊거나 말끝을 흐린다."
+SpeechStyleLine1 = "존댓말을 사용하지만 말이 빠르고 감탄사와 질문이 많아 격식은 거의 느껴지지 않는다."
+SpeechStyleLine2 = "당황하면 상황 설명보다 자신의 반응부터 튀어나오고, 생각나는 말을 연달아 쏟아낸다."
+SpeechStyleLine3 = "무언가 궁금하거나 직접 해보고 싶을 때 적극적으로 자신이 가겠다고 제안한다."
 
-SpeechExample1 = "아, 그, 그게... 제가 잘못 본 걸 수도 있는데요..."
-SpeechExample2 = "저기... 아까 복도에 누가 있었던 것 같아요."
-SpeechExample3 = "감사합니다... 조금 쉬면 괜찮아질 것 같아요."
+SpeechExample1 = "어?! 관리자님, 방금 발전실에서 빵 하고 엄청 큰 소리 났는데요?! 저 가볼까요?"
+SpeechExample2 = "잠깐만요, 저거 원래 저렇게 움직이는 거 맞아요? 아니죠? 완전 이상한데요!"
+SpeechExample3 = "제가 한번 해볼게요! 뭐, 잘못되면 그때 다시 생각하면 되죠!"
+
+BehaviorLine1 = "근처에서 사고가 나면 놀라서 크게 반응하고 곧바로 관리자에게 전화해 상황을 쏟아낸 뒤 자신이 확인하러 가겠다고 적극적으로 제안한다."
+BehaviorLine2 = "비명이나 이상현상을 무서워하면서도 호기심이 더 앞서는 경우가 있어, 다른 직원보다 사건에 관심을 많이 보이고 질문을 쏟아낸다."
+BehaviorLine3 = "금기 경고가 떠도 급한 사고가 눈앞에 있으면 순간적으로 '일단 해결하고 보자'는 쪽으로 기울기 쉬워 관리자 지시로 제동을 걸어야 하는 타입이다."
+
 StartRoomId = "maintenance_room"
 IconColor = Color(0.96, 0.7, 0.42, 1)
 StandingImage = ExtResource("2_img")

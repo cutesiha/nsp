@@ -23,7 +23,9 @@ public partial class AlertTerminalProp : Node3D
     {
         if (GetChildCount() > 0) return; // 스크립트 리로드 시 중복 생성 방지
 
-        var caseMat = new StandardMaterial3D { AlbedoColor = new Color(0.42f, 0.40f, 0.33f), Roughness = 0.85f, Metallic = 0.1f };
+        var caseMat = new StandardMaterial3D { AlbedoColor = new Color(0.9f, 0.9f, 0.9f), Roughness = 0.8f, Metallic = 0.1f };
+        if (GD.Load<Texture2D>("res://assets/texture/sencor.png") is { } sencorTex)
+            caseMat.AlbedoTexture = sencorTex;
         var darkMat = new StandardMaterial3D { AlbedoColor = new Color(0.12f, 0.12f, 0.11f), Roughness = 0.7f };
 
         // 본체 — 살짝 뒤로 기운 상자 + 앞쪽 경사 패널. (기존보다 1.4배 정도 큼)

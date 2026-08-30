@@ -67,9 +67,9 @@ public partial class ShiftReportView : Control
         _events.AddThemeColorOverride("default_color", Dim);
         AddChild(_events);
 
-        var btn = new Button { Text = "계속 ▶", Position = new Vector2(608, 546), Size = new Vector2(168, 40) };
-        btn.AddThemeFontSizeOverride("font_size", 17);
-        btn.Pressed += () => ContinueRequested?.Invoke();
+        var btn = MonitorUi.Button("계속 ▶", Ink, _font, () => ContinueRequested?.Invoke(), 17);
+        btn.Position = new Vector2(600, 542);
+        btn.Size = new Vector2(176, 44);
         AddChild(btn);
     }
 

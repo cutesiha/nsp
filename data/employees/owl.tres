@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "owl"
+Codename = "올빼미"
+Tech = 2
+Courage = 3
+Observation = 2
+Trait = "원칙주의"
+
+PersonalityLine1 = "단정하고 책임감이 강하며, 정해진 규칙과 절차를 중요하게 여긴다."
+PersonalityLine2 = "원칙적이지만 타인을 몰아붙이는 성격은 아니며, 곤란한 사람을 보면 먼저 배려하고 차분하게 도와준다."
+PersonalityLine3 = "급박한 상황에서도 독단적으로 움직이기보다 상황을 정리하고 관리자에게 보고한 뒤 책임 있게 행동하려 한다."
+
+SpeechStyleLine1 = "항상 정중한 존댓말을 사용하며 말투가 차분하고 단정하다."
+SpeechStyleLine2 = "상황을 먼저 설명하고, 자신이 취하려는 행동이 괜찮은지 관리자에게 확인하는 편이다."
+SpeechStyleLine3 = "상대를 안심시키는 표현을 자연스럽게 섞지만 규칙에 관한 문제에서는 부드럽게 선을 긋는다."
+
+SpeechExample1 = "관리자님, 정비실 쪽에서 이상한 소리가 들렸습니다. 제가 확인하러 가도 괜찮겠습니까?"
+SpeechExample2 = "괜찮으시면 제가 맡겠습니다. 다른 분까지 위험하게 할 필요는 없을 것 같습니다."
+SpeechExample3 = "급한 상황인 건 알지만, 지침을 어긴 채 움직이는 건 더 위험할 수 있습니다."
+
+BehaviorLine1 = "근처 작업실에서 사고가 나면 먼저 상황을 확인해 관리자에게 차분히 보고하고, 임의로 뛰어들기보다 이동 허가를 요청한다."
+BehaviorLine2 = "비명이나 큰 충격음이 들려도 당황해서 업무를 버리지는 않지만, 동료의 안전이 걱정되면 현재 업무 상태까지 함께 보고하며 지원을 자청한다."
+BehaviorLine3 = "금기 경고가 발생하면 규칙을 최우선으로 지키려 하며, 빠른 해결보다 안전한 절차를 택한다."
+
+StartRoomId = "guard_room"
+IconColor = Color(0.74, 0.62, 0.42, 1)

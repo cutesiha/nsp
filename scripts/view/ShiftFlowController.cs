@@ -35,6 +35,7 @@ public partial class ShiftFlowController : Node
         "../ControlRoom/Telephone",
         "../ControlRoom/ControlPanel",
         "../ControlRoom/PowerSwitchPanel",
+        "../ControlRoom/AlertTerminal",
     };
     [Export] public float BoardFocusDistance = 0.55f;
 
@@ -88,7 +89,7 @@ public partial class ShiftFlowController : Node
         }
 
         _stage = Stage.Title;
-        Sfx.Instance?.PlayMusic("nsp_mainbgm"); // 시작화면 + 근무배치: 메인 BGM 루프
+        Sfx.Instance?.CrossfadeMusic("nsp_mainbgm2", 1.5f, loop: true); // 시작화면 BGM (루프)
     }
 
     public override void _Process(double delta)
@@ -127,7 +128,9 @@ public partial class ShiftFlowController : Node
         _title?.FadeOut();
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.DailyTabooIds);
         GameState.Instance?.SetPhase(GamePhase.Schedule);
-        Sfx.Instance?.PlayMusic("nsp_mainbgm"); // 다음 날 배치로 복귀 시에도 메인 BGM
+        // 시작화면 BGM 페이드아웃 + 근무배치 BGM(rest_time) 페이드인. 다음 날 복귀 때도
+        // 같은 곡을 처음부터 다시 페이드해 씬 전환을 체감시킨다(restartIfSame).
+        Sfx.Instance?.CrossfadeMusic("rest_time", 0.9f, loop: true, restartIfSame: true);
 
         var lt = CreateTween();
         lt.SetParallel(true);
@@ -152,7 +155,7 @@ public partial class ShiftFlowController : Node
     {
         if (_stage != Stage.Schedule) return;
         _stage = Stage.Booting;
-        Sfx.Instance?.StopMusic(); // 근무화면에는 BGM 없음 — ControlRoomAtmosphere 환경음이 대신
+        Sfx.Instance?.FadeOutMusic(0.9f); // 근무배치 BGM 페이드아웃 — 근무화면엔 BGM 없음(환경음이 대신)
 
         _ctl?.SetModalSurface(null);
         _board?.PlayDismiss();
@@ -196,9 +199,10 @@ public partial class ShiftFlowController : Node
     {
         GameState.Instance?.SetPhase(GamePhase.Settlement);
         AmbientOverlay.Instance?.SetSceneIntensity(0.1f);
+        // 근무 정산에는 BGM 없음 — 완료 효과음(띠링!)만.
+        Sfx.Instance?.Play("shift_complete", -3f);
 
         _title?.FlashBanner("SHIFT COMPLETE");
-        Sfx.Instance?.Play("switch", -6f);
 
         await Wait(0.5);
 
@@ -216,7 +220,8 @@ public partial class ShiftFlowController : Node
         _stage = Stage.Rest;
 
         GameState.Instance?.SetPhase(GamePhase.Rest);
-        Sfx.Instance?.PlayMusic("rest_time"); // 휴게 시간: 휴식 BGM 루프
+        // 근무 정산 BGM 페이드아웃 + 휴게시간 BGM(rest_time) 페이드인.
+        Sfx.Instance?.CrossfadeMusic("rest_time", 0.9f, loop: true, restartIfSame: true);
 
         var lt = CreateTween();
         lt.SetParallel(true);
@@ -254,7 +259,7 @@ public partial class ShiftFlowController : Node
 
     private async void GoToFinalResult()
     {
-        Sfx.Instance?.StopMusic();
+        Sfx.Instance?.FadeOutMusic(0.9f);
         AmbientOverlay.Instance?.SetSceneIntensity(1f);
         _title?.FadeToBlack(0.7f);
         await Wait(0.8);
@@ -264,6 +269,7 @@ public partial class ShiftFlowController : Node
     private async void AdvanceToNextDay()
     {
         _title?.FadeToBlack(0.5f);
+        Sfx.Instance?.FadeOutMusic(0.5f); // 휴게시간 BGM 페이드아웃(암전과 함께) — 배치 진입 시 다시 페이드인
         await Wait(0.55);
 
         GameState.Instance?.GoToNextDay();

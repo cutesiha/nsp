@@ -35,6 +35,11 @@ public partial class SeatedCameraRig : Node3D
     private Vector3 _shakeOffset;
     private Tween _shakeTween;
 
+    // 통화 중 고개를 수화기 쪽으로 살짝 기울인다(사람이 전화를 어깨/귀로 가져가듯).
+    [Export] public Vector3 PhoneTiltDegrees = new(2.5f, -1.5f, -2f);
+    private float _phoneTiltWeight;
+    private Tween _phoneTiltTween;
+
     public bool IsZoomed => _zoomed;
 
     public override void _Ready()
@@ -59,7 +64,7 @@ public partial class SeatedCameraRig : Node3D
                                Mathf.Sin(phase * 0.37f) * BreathSwayDegrees * 0.7f, 0f);
         }
 
-        rot += _focusDegrees * _focusWeight + _shakeOffset;
+        rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight;
         Position = pos;
         RotationDegrees = rot;
     }
@@ -139,5 +144,31 @@ public partial class SeatedCameraRig : Node3D
             _shakeTween.TweenMethod(Callable.From<Vector3>(v => _shakeOffset = v), _shakeOffset, to, 0.05);
         }
         _shakeTween.TweenMethod(Callable.From<Vector3>(v => _shakeOffset = v), _shakeOffset, Vector3.Zero, 0.08);
+    }
+
+    // 통화 자세 — 고개를 수화기 쪽으로 기울인다(true) / 되돌린다(false).
+    public void PhonePosture(bool on, float dur = 0.5f)
+    {
+        _phoneTiltTween?.Kill();
+        _phoneTiltTween = CreateTween();
+        _phoneTiltTween.TweenMethod(Callable.From<float>(v => _phoneTiltWeight = v), _phoneTiltWeight, on ? 1f : 0f, dur)
+            .SetTrans(Tween.TransitionType.Sine);
+    }
+
+    // 통화 중 말하는 느낌 — 작게 위아래로 몇 번 끄덕인다(공포 흔들림보다 훨씬 부드럽게).
+    public void Speak(float seconds = 1.1f)
+    {
+        _shakeTween?.Kill();
+        _shakeTween = CreateTween();
+        int nods = Mathf.Max(2, Mathf.RoundToInt(seconds / 0.22f));
+        var rng = new RandomNumberGenerator();
+        for (int i = 0; i < nods; i++)
+        {
+            float amt = rng.RandfRange(0.5f, 1.0f);
+            var down = new Vector3(amt, rng.RandfRange(-0.3f, 0.3f), 0f);
+            _shakeTween.TweenMethod(Callable.From<Vector3>(v => _shakeOffset = v), _shakeOffset, down, 0.11);
+            _shakeTween.TweenMethod(Callable.From<Vector3>(v => _shakeOffset = v), _shakeOffset, down * -0.35f, 0.11);
+        }
+        _shakeTween.TweenMethod(Callable.From<Vector3>(v => _shakeOffset = v), _shakeOffset, Vector3.Zero, 0.12);
     }
 }

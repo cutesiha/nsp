@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "jellyfish"
+Codename = "해파리"
+Tech = 1
+Courage = 1
+Observation = 3
+Trait = "과민반응"
+
+PersonalityLine1 = "소심하고 자기주장이 약하며, 다른 사람의 표정이나 분위기 변화를 빠르게 눈치챈다."
+PersonalityLine2 = "위험한 상황이나 큰 소리에 쉽게 긴장하고, 자신이 잘못 판단했을까 걱정해 확신 있게 말하지 못한다."
+PersonalityLine3 = "겁이 많아 직접 뛰어들지는 못하지만 주변의 작은 이상이나 사람들의 미묘한 변화를 남들보다 빨리 알아차리는 편이다."
+
+SpeechStyleLine1 = "조심스러운 존댓말을 사용하며 긴장하면 말을 더듬거나 말끝이 작아진다."
+SpeechStyleLine2 = "자신이 본 것을 말하면서도 '제가 잘못 본 걸 수도 있는데' 같은 단서를 자주 붙인다."
+SpeechStyleLine3 = "급한 상황에서는 질문이 많아지고 관리자의 지시를 재확인하려 한다."
+
+SpeechExample1 = "저, 저기... 방금 옆쪽에서 비명 같은 게 들린 것 같은데요. 제가 잘못 들은 건 아니겠죠?"
+SpeechExample2 = "그 사람이 아까랑 조금 달라 보였어요. 아, 아니... 그냥 제 착각일 수도 있고요."
+SpeechExample3 = "저 혼자 가야 하나요...? 가, 가라고 하시면 가긴 할게요."
+
+BehaviorLine1 = "근처에서 비명이나 큰 사고음이 들리면 현장으로 달려가지는 못하고, 하던 업무마저 손에 잡히지 않아 잠시 얼어붙거나 떨며 관리자에게 연락한다."
+BehaviorLine2 = "작은 이상 징후를 남들보다 빨리 발견하지만 자신감이 부족해 사실과 추측을 여러 번 구분하며 보고한다."
+BehaviorLine3 = "금기 경고가 뜨면 가장 크게 긴장하고 지시가 올 때까지 섣불리 움직이지 않으려 하며, 잘못된 행동을 할까 계속 확인한다."
+
+StartRoomId = "storage_room"
+IconColor = Color(0.66, 0.74, 0.92, 1)

@@ -45,20 +45,20 @@ public partial class AlertTerminalView : Control
         AddChild(bg);
 
         var font = ViewFont.Default;
-        var head = Lbl("경고 단말기", 15, new Color(0.4f, 0.6f, 0.46f), font);
-        head.Position = new Vector2(9, 6);
+        var head = Lbl("경고 단말기", 17, new Color(0.4f, 0.6f, 0.46f), font);
+        head.Position = new Vector2(12, 22);
         AddChild(head);
 
-        _line1 = Lbl("정상 가동 중", 24, new Color(0.4f, 0.95f, 0.5f), font);
-        _line1.Position = new Vector2(9, 34);
+        _line1 = Lbl("정상 가동 중", 30, new Color(0.4f, 0.95f, 0.5f), font);
+        _line1.Position = new Vector2(12, 56);
         AddChild(_line1);
 
-        _line2 = Lbl("경고 없음", 18, new Color(0.4f, 0.75f, 0.48f), font);
-        _line2.Position = new Vector2(9, 72);
+        _line2 = Lbl("경고 없음", 23, new Color(0.4f, 0.75f, 0.48f), font);
+        _line2.Position = new Vector2(12, 104);
         AddChild(_line2);
 
-        _line3 = Lbl("", 20, new Color(0.95f, 0.65f, 0.25f), font);
-        _line3.Position = new Vector2(9, 104);
+        _line3 = Lbl("", 25, new Color(0.95f, 0.65f, 0.25f), font);
+        _line3.Position = new Vector2(12, 144);
         AddChild(_line3);
     }
 

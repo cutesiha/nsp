@@ -17,8 +17,13 @@ public partial class AmbientOverlay : CanvasLayer
     private const float BaseNoiseAlpha = 0.12f;
 
     private TextureRect _vignetteRect;
+    private TextureRect _centerGlow;
     private TextureRect _noiseRect;
     private ColorRect _flash;
+    private ColorRect _shutdownDim;
+    private Label _shutdownLabel;
+    private bool _shutdown;
+    private float _shutdownT;
     private ImageTexture[] _noiseTex;
 
     private float _noiseSwap;
@@ -43,10 +48,21 @@ public partial class AmbientOverlay : CanvasLayer
             Texture = BuildVignette(),
             StretchMode = TextureRect.StretchModeEnum.Scale,
             MouseFilter = Control.MouseFilterEnum.Ignore,
-            Modulate = new Color(1f, 1f, 1f, 0.85f),
+            Modulate = new Color(1f, 1f, 1f, 0.9f),
         };
         _vignetteRect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_vignetteRect);
+
+        // 가운데는 좀 더 밝게(가산 블렌드).
+        _centerGlow = new TextureRect
+        {
+            Texture = BuildCenterGlow(),
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _centerGlow.Material = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
+        _centerGlow.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_centerGlow);
 
         _noiseTex = new ImageTexture[NoiseFrames];
         for (int i = 0; i < NoiseFrames; i++)
@@ -70,8 +86,32 @@ public partial class AmbientOverlay : CanvasLayer
         _flash.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_flash);
 
+        // SHUT DOWN — 전력 0. 화면이 확 어두워지고 붉은 대형 문구.
+        _shutdownDim = new ColorRect { Color = new Color(0f, 0f, 0f, 0f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        _shutdownDim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_shutdownDim);
+
+        _shutdownLabel = new Label
+        {
+            Text = "SHUT DOWN",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Modulate = new Color(1f, 0.25f, 0.2f, 0f),
+        };
+        _shutdownLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _shutdownLabel.AddThemeFontOverride("font", NSP.View.ViewFont.Default);
+        _shutdownLabel.AddThemeFontSizeOverride("font_size", 84);
+        _shutdownLabel.AddThemeColorOverride("font_color", new Color(1f, 0.22f, 0.16f));
+        _shutdownLabel.AddThemeConstantOverride("outline_size", 8);
+        _shutdownLabel.AddThemeColorOverride("font_outline_color", new Color(0.1f, 0f, 0f));
+        AddChild(_shutdownLabel);
+
         _nextFlicker = (float)GD.RandRange(4.0, 9.0);
     }
+
+    // 전력 0 → SHUT DOWN 표시 on/off.
+    public void SetShutdown(bool on) => _shutdown = on;
 
     public override void _Process(double delta)
     {
@@ -89,7 +129,8 @@ public partial class AmbientOverlay : CanvasLayer
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
         _noiseRect.Modulate = new Color(1f, 1f, 1f, (BaseNoiseAlpha + _extraNoise) * _sceneIntensity);
-        _vignetteRect.Modulate = new Color(1f, 1f, 1f, 0.85f * Mathf.Lerp(0.5f, 1f, _sceneIntensity));
+        _vignetteRect.Modulate = new Color(1f, 1f, 1f, 0.9f * Mathf.Lerp(0.5f, 1f, _sceneIntensity));
+        _centerGlow.Modulate = new Color(1f, 1f, 1f, 0.18f * _sceneIntensity);
 
         // 가끔 반짝
         _nextFlicker -= d;
@@ -98,6 +139,13 @@ public partial class AmbientOverlay : CanvasLayer
             _nextFlicker = (float)GD.RandRange(4.0, 10.0);
             Flash(0.55f);
         }
+
+        // SHUT DOWN 페이드 + 깜빡이는 문구
+        _shutdownT = Mathf.Clamp(_shutdownT + (_shutdown ? d * 2.5f : -d * 3f), 0f, 1f);
+        _shutdownDim.Color = new Color(0f, 0f, 0f, 0.72f * _shutdownT);
+        float blink = _shutdown ? 0.55f + 0.45f * Mathf.Sin(_clock * 6f) : 1f;
+        _shutdownLabel.Modulate = new Color(1f, 1f, 1f, _shutdownT * blink);
+        if (_shutdownT > 0.01f && _shutdown && Mathf.PosMod(_clock, 0.9f) < d) _extraNoise = Mathf.Max(_extraNoise, 0.3f);
     }
 
     // 화면 반짝(전기 불량). strength 0~1.
@@ -143,10 +191,29 @@ public partial class AmbientOverlay : CanvasLayer
             float dx = (x - cx) / maxD;
             float dy = (y - cy) / maxD;
             float d = Mathf.Sqrt(dx * dx + dy * dy);
-            // 중앙은 투명, 바깥으로 갈수록 어둡게
-            float a = Mathf.Clamp((d - 0.55f) / 0.45f, 0f, 1f);
-            a = Mathf.Pow(a, 1.6f) * 0.72f;
+            // 중앙은 투명, 바깥·모서리로 갈수록 부드럽게 짙어짐(블러 느낌).
+            float a = Mathf.Clamp((d - 0.42f) / 0.5f, 0f, 1f);
+            a = Mathf.Pow(a, 1.7f) * 0.9f;
             img.SetPixel(x, y, new Color(0f, 0f, 0f, a));
+        }
+        return ImageTexture.CreateFromImage(img);
+    }
+
+    // 화면 가운데를 살짝 밝히는 부드러운 원형 하이라이트(가산 블렌드로 얹는다).
+    private static ImageTexture BuildCenterGlow()
+    {
+        const int w = 256, h = 160;
+        var img = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
+        float cx = w / 2f, cy = h / 2f;
+        float maxD = Mathf.Sqrt(cx * cx + cy * cy);
+        for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++)
+        {
+            float dx = (x - cx) / maxD, dy = (y - cy) / maxD;
+            float d = Mathf.Sqrt(dx * dx + dy * dy);
+            float a = Mathf.Clamp(1f - d / 0.7f, 0f, 1f);
+            a = Mathf.Pow(a, 2.2f);
+            img.SetPixel(x, y, new Color(0.55f, 0.65f, 0.82f, a)); // 살짝 파란 빛
         }
         return ImageTexture.CreateFromImage(img);
     }

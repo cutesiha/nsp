@@ -1,0 +1,9 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" uid="uid://dg0pkb8tbj1c2" path="res://assets/models/entity.glb" id="1_glb"]
+[ext_resource type="Material" path="res://assets/materials/entity_ghost.tres" id="2_mat"]
+[ext_resource type="Script" path="res://scripts/view/EntityGhost.cs" id="3_script"]
+
+[node name="Entity" instance=ExtResource("1_glb")]
+script = ExtResource("3_script")
+GhostMaterial = ExtResource("2_mat")

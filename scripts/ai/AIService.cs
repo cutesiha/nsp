@@ -141,6 +141,11 @@ public partial class AIService : Node
         sb.AppendLine($"- {def.PersonalityLine1}");
         sb.AppendLine($"- {def.PersonalityLine2}");
         sb.AppendLine($"- {def.PersonalityLine3}");
+
+        AppendIfAny(sb, "말투:", def.SpeechStyleLine1, def.SpeechStyleLine2, def.SpeechStyleLine3);
+        AppendIfAny(sb, "말투 예시:", def.SpeechExample1, def.SpeechExample2, def.SpeechExample3);
+        AppendIfAny(sb, "위기 상황에서의 행동 경향:", def.BehaviorLine1, def.BehaviorLine2, def.BehaviorLine3);
+
         sb.AppendLine($"능력치: 기술 {def.Tech}, 담력 {def.Courage}, 관찰 {def.Observation}");
         sb.AppendLine($"현재 스트레스: {state.Stress}/{Config.Instance.Data.StressMax}");
         string currentTaskName = FacilitySimulation.Instance.GetActiveTaskForRoom(state.CurrentRoomId)?.DisplayName ?? "없음";
@@ -156,6 +161,14 @@ public partial class AIService : Node
         }
 
         return sb.ToString();
+    }
+
+    private static void AppendIfAny(StringBuilder sb, string header, params string[] lines)
+    {
+        var real = lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToArray();
+        if (real.Length == 0) return;
+        sb.AppendLine(header);
+        foreach (var l in real) sb.AppendLine($"- {l}");
     }
 
     private string PickFallback(string employeeId)

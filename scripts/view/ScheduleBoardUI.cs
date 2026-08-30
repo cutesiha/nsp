@@ -40,6 +40,13 @@ public partial class ScheduleBoardUI : Control
     private string _focusEmp = "";      // 마지막으로 클릭해 정보 패널에 띄운 직원
     private string _hoverRoom = "";     // 직원 선택 중 마우스가 올라가 있는 방(비교 표시용)
 
+    // --- 수동 드래그 앤 드롭 (SubViewport 안에서 Godot 기본 DnD가 안 먹어 직접 구현) ---
+    private string _dragEmp = "";
+    private Vector2 _pressPos, _lastDragPos;
+    private bool _dragging;
+    private Control _dragPreview;
+    private readonly List<RoomRow> _rows = new();
+
     public override void _Ready()
     {
         _serif = GD.Load<Font>("res://assets/fonts/KMU80TTFSungkokSerif.ttf") ?? ViewFont.Default;
@@ -59,7 +66,89 @@ public partial class ScheduleBoardUI : Control
         _info.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_info);
 
+        SetProcessInput(true);
         Rebuild();
+    }
+
+    // 카드에서 마우스를 눌러 끌기 시작 → 여기서 추적한다(root._Input 이 이후 모션/떼기를 받는다).
+    private void BeginDrag(string empId, Vector2 canvasPos)
+    {
+        _dragEmp = empId;
+        _pressPos = canvasPos;
+        _lastDragPos = canvasPos;
+        _dragging = false;
+    }
+
+    public override void _Input(InputEvent e)
+    {
+        if (string.IsNullOrEmpty(_dragEmp)) return;
+
+        if (e is InputEventMouseMotion mm)
+        {
+            _lastDragPos = mm.Position;
+            if (!_dragging && mm.Position.DistanceTo(_pressPos) > 6f) StartDragVisual();
+            if (_dragging) UpdateDrag(mm.Position);
+        }
+        else if (e is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left })
+        {
+            if (_dragging) DropAt(_lastDragPos);
+            EndDrag();
+        }
+    }
+
+    private void StartDragVisual()
+    {
+        _dragging = true;
+        var sim = FacilitySimulation.Instance;
+        string name = sim?.GetEmployeeDef(_dragEmp)?.Codename ?? _dragEmp;
+
+        _dragPreview = new Panel { Size = new Vector2(132, 30), MouseFilter = MouseFilterEnum.Ignore, ZIndex = 100 };
+        _dragPreview.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0.92f, 0.84f, 0.6f, 0.97f),
+            BorderColor = new Color(0.3f, 0.22f, 0.12f),
+            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
+        });
+        var l = new Label { Text = name, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        l.SetAnchorsPreset(LayoutPreset.FullRect);
+        l.AddThemeFontOverride("font", _serif);
+        l.AddThemeFontSizeOverride("font_size", 15);
+        l.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
+        _dragPreview.AddChild(l);
+        AddChild(_dragPreview);
+    }
+
+    private void UpdateDrag(Vector2 canvasPos)
+    {
+        if (_dragPreview != null) _dragPreview.Position = canvasPos - _dragPreview.Size * new Vector2(0.5f, 0.5f);
+        var hit = RowAt(canvasPos);
+        foreach (var r in _rows)
+        {
+            bool h = r == hit;
+            if (r.ManualHover != h) { r.ManualHover = h; r.QueueRedraw(); }
+        }
+    }
+
+    private void DropAt(Vector2 canvasPos)
+    {
+        var hit = RowAt(canvasPos);
+        if (hit != null) TryDropAssign(_dragEmp, hit.RoomId);
+    }
+
+    private RoomRow RowAt(Vector2 canvasPos)
+    {
+        foreach (var r in _rows)
+            if (IsInstanceValid(r) && new Rect2(r.Position, r.Size).HasPoint(canvasPos))
+                return r;
+        return null;
+    }
+
+    private void EndDrag()
+    {
+        _dragEmp = "";
+        _dragging = false;
+        if (_dragPreview != null) { _dragPreview.QueueFree(); _dragPreview = null; }
+        foreach (var r in _rows) if (IsInstanceValid(r) && r.ManualHover) { r.ManualHover = false; r.QueueRedraw(); }
     }
 
     public void Rebuild()
@@ -75,6 +164,7 @@ public partial class ScheduleBoardUI : Control
     {
         if (_form == null) return;
         foreach (Node c in _form.GetChildren()) c.QueueFree();
+        _rows.Clear();
 
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
@@ -125,6 +215,7 @@ public partial class ScheduleBoardUI : Control
                 TryDropAssign = TryDropAssign,
             };
             _form.AddChild(row);
+            _rows.Add(row);
             y += 33f;
         }
 
@@ -146,6 +237,7 @@ public partial class ScheduleBoardUI : Control
                 AssignedRoomName = string.IsNullOrEmpty(est.AssignedRoomId)
                     ? "" : sim.GetRoomDef(est.AssignedRoomId)?.DisplayName ?? "",
                 OnClick = OnEmployeeClicked,
+                OnPressStart = BeginDrag,
             };
             _form.AddChild(card);
             ey += 48f;
@@ -436,6 +528,7 @@ public partial class ScheduleBoardUI : Control
         public bool Selected;
         public string AssignedRoomName = "";
         public Action<string> OnClick;
+        public Action<string, Vector2> OnPressStart;
 
         private readonly EmployeeDef _def;
         private readonly Font _serif, _body;
@@ -483,32 +576,11 @@ public partial class ScheduleBoardUI : Control
 
         public override void _GuiInput(InputEvent e)
         {
-            if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+            if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
+            {
+                OnPressStart?.Invoke(EmpId, mb.GlobalPosition);
                 OnClick?.Invoke(EmpId);
-        }
-
-        public override Variant _GetDragData(Vector2 atPosition)
-        {
-            var prev = new Panel { Size = new Vector2(130, 30) };
-            var sb = new StyleBoxFlat
-            {
-                BgColor = new Color(0.9f, 0.82f, 0.6f, 0.96f),
-                BorderColor = new Color(0.3f, 0.22f, 0.12f), BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
-            };
-            prev.AddThemeStyleboxOverride("panel", sb);
-            var l = new Label
-            {
-                Text = _def.Codename,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            l.SetAnchorsPreset(LayoutPreset.FullRect);
-            l.AddThemeFontOverride("font", _serif);
-            l.AddThemeFontSizeOverride("font_size", 15);
-            l.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
-            prev.AddChild(l);
-            SetDragPreview(prev);
-            return EmpId;
+            }
         }
     }
 
@@ -524,10 +596,10 @@ public partial class ScheduleBoardUI : Control
         public Action<string> OnClearOcc;
         public Action<string, bool> OnHover;
         public Func<string, string, bool> TryDropAssign;
+        public bool ManualHover;     // ScheduleBoardUI 의 수동 드래그가 이 행 위에 있을 때
 
         private readonly RoomDef _def;
         private readonly Font _serif, _body;
-        private bool _dropHover;
 
         private const float NameW = 116f, SlotW = 148f, SlotGap = 8f;
 
@@ -539,24 +611,19 @@ public partial class ScheduleBoardUI : Control
             MouseExited += () => OnHover?.Invoke(RoomId, false);
         }
 
-        public override void _Process(double delta)
-        {
-            bool h = GetViewport().GuiIsDragging() && GetGlobalRect().HasPoint(GetGlobalMousePosition());
-            if (h != _dropHover) { _dropHover = h; QueueRedraw(); }
-        }
-
         public override void _Draw()
         {
             var ink = new Color(0.17f, 0.13f, 0.09f);
             var dim = new Color(0.42f, 0.35f, 0.24f);
+            bool dh = ManualHover;
             DrawString(_serif, new Vector2(0, 21), _def.DisplayName, HorizontalAlignment.Left, NameW, 16, ink);
 
             for (int s = 0; s < 2; s++)
             {
                 float x = NameW + s * (SlotW + SlotGap);
                 var r = new Rect2(x, 2, SlotW, Size.Y - 4);
-                DrawRect(r, new Color(0.80f, 0.75f, 0.60f, _dropHover ? 0.8f : 0.45f));
-                DrawRect(r, _dropHover ? new Color(0.55f, 0.42f, 0.18f) : new Color(0.4f, 0.32f, 0.2f, 0.55f), false, _dropHover ? 2f : 1.1f);
+                DrawRect(r, new Color(0.80f, 0.75f, 0.60f, dh ? 0.8f : 0.45f));
+                DrawRect(r, dh ? new Color(0.55f, 0.42f, 0.18f) : new Color(0.4f, 0.32f, 0.2f, 0.55f), false, dh ? 2f : 1.1f);
 
                 string occ = s < Occupants.Count ? Occupants[s] : "";
                 if (!string.IsNullOrEmpty(occ))
@@ -580,20 +647,6 @@ public partial class ScheduleBoardUI : Control
             else OnNameClick?.Invoke(RoomId); // 빈 슬롯 클릭 = 방 클릭(선택 직원 배치)
         }
 
-        public override bool _CanDropData(Vector2 atPosition, Variant data)
-        {
-            if (data.VariantType != Variant.Type.String) return false;
-            var sim = FacilitySimulation.Instance;
-            if (sim == null) return false;
-            var st = sim.GetEmployeeState(data.AsString());
-            if (st == null) return false;
-            return st.AssignedRoomId == RoomId || sim.CanAssignToRoom(RoomId);
-        }
-
-        public override void _DropData(Vector2 atPosition, Variant data)
-        {
-            TryDropAssign?.Invoke(data.AsString(), RoomId);
-        }
     }
 
     // --- 낡은 문서 질감(고정 시드로 한 번만 그림 — 클릭할 때마다 얼룩이 안 바뀐다) ------

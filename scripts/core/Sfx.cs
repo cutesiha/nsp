@@ -6,7 +6,8 @@ namespace NSP.Core;
 // 전역 효과음 재생기(autoload). 씬마다 AudioStreamPlayer를 새로 만들지 않고 여기 한 곳을 쓴다.
 //  - Play(key, db, pitch) : 원샷. assets/audio/sfx/{key}.wav 를 지연 로드해 풀에서 재생.
 //  - Loop(key, db)        : 이름 있는 루프 채널(수리음 등). StopLoop로 정지.
-//  - PlayMusic(name)/StopMusic() : assets/audio/bgm/{name}.wav 를 루프로 재생(전용 채널 1개).
+//  - CrossfadeMusic(name, fade, loop, startSec, targetDb, restartIfSame) : assets/audio/bgm/{name}.wav
+//    를 2채널 핑퐁으로 크로스페이드. FadeOutMusic(fade) / StopMusic()(즉시). PlayMusic 은 호환용 래퍼.
 //    근무화면(실제 메인 근무)에는 BGM을 켜지 않는다 — 거긴 ControlRoomAtmosphere의 환경음.
 //  - 모든 BaseButton 클릭에 자동으로 "click" 효과음을 붙인다(명시 배선 불필요).
 // 파일이 아직 Godot에 임포트되지 않았으면 조용히 스킵한다(에디터를 한 번 열면 임포트됨).
@@ -20,8 +21,13 @@ public partial class Sfx : Node
     private readonly Dictionary<string, AudioStreamPlayer> _loops = new();
     private int _next;
 
-    private AudioStreamPlayer _music;
+    // BGM: 2채널 핑퐁으로 크로스페이드한다. 곡마다 루프/시작오프셋이 달라 채널별로 들고 있음.
+    private readonly AudioStreamPlayer[] _music = new AudioStreamPlayer[2];
+    private readonly bool[] _musicLoop = { true, true };
+    private int _musicActive;
     private string _musicName = "";
+    private Tween _musicFadeIn, _musicFadeOut;
+    private const float MusicSilentDb = -50f;
 
     // 대사 타자 효과에 맞춰 나는 캐릭터별 짧은 보이스 블립. 전용 채널 하나만 써서
     // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
@@ -47,30 +53,88 @@ public partial class Sfx : Node
         _voicePlayer = new AudioStreamPlayer { Bus = "Master" };
         AddChild(_voicePlayer);
 
-        _music = new AudioStreamPlayer { Bus = "Master", VolumeDb = -6f };
-        _music.Finished += () => { if (_musicName != "" && IsInstanceValid(_music)) _music.Play(); };
-        AddChild(_music);
+        for (int i = 0; i < 2; i++)
+        {
+            int idx = i;
+            _music[i] = new AudioStreamPlayer { Bus = "Master", VolumeDb = MusicSilentDb };
+            _music[i].Finished += () => OnMusicFinished(idx);
+            AddChild(_music[i]);
+        }
 
         GetTree().NodeAdded += OnNodeAdded;
     }
 
-    // --- BGM (bgm/ 폴더, 루프) ---------------------------------------------
-    public void PlayMusic(string name, float volumeDb = -6f)
+    private void OnMusicFinished(int idx)
     {
-        if (_music == null || _musicName == name) return;
-        string path = $"res://assets/audio/bgm/{name}.wav";
-        if (!ResourceLoader.Exists(path)) { StopMusic(); return; }
+        // 활성 채널의 루프 곡만 다시 재생(비루프 곡은 그냥 끝난다).
+        if (idx != _musicActive || !_musicLoop[idx]) return;
+        var p = _music[idx];
+        if (IsInstanceValid(p) && p.Stream != null) p.Play();
+    }
 
+    // --- BGM (bgm/ 폴더) — 크로스페이드 ------------------------------------
+    // 기존 호출 호환: 즉시(짧은 페이드) 루프 재생.
+    public void PlayMusic(string name, float volumeDb = -6f) => CrossfadeMusic(name, 0.15f, true, 0f, volumeDb);
+
+    // 현재 곡을 페이드아웃하며 name 을 페이드인한다.
+    //  fadeSeconds  : 페이드 길이(아웃/인 동시 = 크로스페이드)
+    //  loop         : 곡이 끝나면 다시 재생할지
+    //  startSeconds : 이 지점부터 재생 시작
+    //  restartIfSame: 같은 곡이어도 처음부터 다시 페이드(씬 전환 체감용)
+    public void CrossfadeMusic(string name, float fadeSeconds = 0.8f, bool loop = true,
+                               float startSeconds = 0f, float targetDb = -6f, bool restartIfSame = false)
+    {
+        if (name == _musicName && !restartIfSame && _music[_musicActive].Playing) return;
+
+        string path = $"res://assets/audio/bgm/{name}.wav";
+        if (!ResourceLoader.Exists(path)) { FadeOutMusic(fadeSeconds); return; }
+        float fade = Mathf.Max(0.02f, fadeSeconds);
+
+        int inIdx = 1 - _musicActive;
+        var outP = _music[_musicActive];
+        var inP = _music[inIdx];
+
+        _musicFadeOut?.Kill();
+        if (outP.Playing)
+        {
+            _musicFadeOut = CreateTween();
+            _musicFadeOut.TweenProperty(outP, "volume_db", MusicSilentDb, fade).SetTrans(Tween.TransitionType.Sine);
+            _musicFadeOut.TweenCallback(Callable.From(() => { if (IsInstanceValid(outP)) outP.Stop(); }));
+        }
+
+        _musicFadeIn?.Kill();
+        inP.Stream = GD.Load<AudioStream>(path);
+        inP.VolumeDb = MusicSilentDb;
+        inP.Play(startSeconds);
+        _musicLoop[inIdx] = loop;
+        _musicFadeIn = CreateTween();
+        _musicFadeIn.TweenProperty(inP, "volume_db", targetDb, fade).SetTrans(Tween.TransitionType.Sine);
+
+        _musicActive = inIdx;
         _musicName = name;
-        _music.Stream = GD.Load<AudioStream>(path);
-        _music.VolumeDb = volumeDb;
-        _music.Play();
+    }
+
+    public void FadeOutMusic(float fadeSeconds = 0.8f)
+    {
+        _musicName = "";
+        _musicFadeIn?.Kill();
+        _musicFadeOut?.Kill();
+        foreach (var p in _music)
+        {
+            if (!IsInstanceValid(p) || !p.Playing) continue;
+            var pp = p;
+            _musicFadeOut = CreateTween();
+            _musicFadeOut.TweenProperty(pp, "volume_db", MusicSilentDb, Mathf.Max(0.02f, fadeSeconds)).SetTrans(Tween.TransitionType.Sine);
+            _musicFadeOut.TweenCallback(Callable.From(() => { if (IsInstanceValid(pp)) pp.Stop(); }));
+        }
     }
 
     public void StopMusic()
     {
         _musicName = "";
-        _music?.Stop();
+        _musicFadeIn?.Kill();
+        _musicFadeOut?.Kill();
+        foreach (var p in _music) if (IsInstanceValid(p)) p.Stop();
     }
 
     public override void _ExitTree()
