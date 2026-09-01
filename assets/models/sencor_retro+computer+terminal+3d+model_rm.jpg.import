@@ -1,0 +1,44 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://bt7oikwqxpq5g"
+path.s3tc="res://.godot/imported/sencor_retro+computer+terminal+3d+model_rm.jpg-fb9669451d411f94b50c3586c2b3a095.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "af91cffc62243c3281268fe544b80dd6"
+}
+
+[deps]
+
+source_file="res://assets/models/sencor_retro+computer+terminal+3d+model_rm.jpg"
+dest_files=["res://.godot/imported/sencor_retro+computer+terminal+3d+model_rm.jpg-fb9669451d411f94b50c3586c2b3a095.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/uastc_level=0
+compress/rdo_quality_loss=0.0
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/channel_remap/red=0
+process/channel_remap/green=1
+process/channel_remap/blue=2
+process/channel_remap/alpha=3
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0

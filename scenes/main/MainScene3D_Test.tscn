@@ -47,12 +47,6 @@ albedo_texture = ExtResource("17_desktex")
 metallic = 0.1
 roughness = 0.6
 
-[sub_resource type="StandardMaterial3D" id="Mat_Monitor"]
-albedo_color = Color(0.9, 0.9, 0.9, 1)
-albedo_texture = ExtResource("18_montex")
-metallic = 0.1
-roughness = 0.5
-
 [sub_resource type="StandardMaterial3D" id="Mat_Metal"]
 albedo_color = Color(0.24, 0.24, 0.27, 1)
 metallic = 0.6
@@ -286,6 +280,12 @@ radius = 0.011
 height = 0.023
 radial_segments = 6
 rings = 3
+
+[sub_resource type="StandardMaterial3D" id="Mat_Monitor"]
+albedo_color = Color(0.9, 0.9, 0.9, 1)
+albedo_texture = ExtResource("18_montex")
+metallic = 0.1
+roughness = 0.5
 
 [sub_resource type="QuadMesh" id="Quad"]
 
