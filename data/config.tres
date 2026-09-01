@@ -22,7 +22,6 @@ PowerCostVentRepair = 4
 PowerCostLighting = 3
 IsolationCapacity = 1
 SaboteurDecisionIntervalSeconds = 4.0
-SaboteurWanderChance = 0.15
 SaboteurSabotageChance = 0.35
 KillAttemptChance = 0.3
 SabotageTaskGaugeLoss = 5.0

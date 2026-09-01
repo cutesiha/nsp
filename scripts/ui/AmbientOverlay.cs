@@ -6,7 +6,7 @@ namespace NSP.Ui;
 // 모든 씬 위에 항상 깔리는 분위기 오버레이(autoload CanvasLayer).
 //  - 화면 가장자리 비네트(살짝 어둡게)
 //  - 미세한 필름 노이즈(계속 지글거림)
-//  - 아주 가끔 화면이 반짝(전기 불량처럼) + 짧은 지직 소리
+//  - 전역 화면은 비네트/미세 노이즈만 유지한다. 밝은 플래시와 지직 소리는 실제 사건 훅만 사용한다.
 // HorrorDirector가 공포 이벤트 때 Flash() / PulseNoise()로 강하게 끌어올릴 수 있다.
 public partial class AmbientOverlay : CanvasLayer
 {
@@ -29,7 +29,6 @@ public partial class AmbientOverlay : CanvasLayer
     private float _noiseSwap;
     private int _noiseIdx;
     private float _extraNoise;
-    private float _nextFlicker;
     private float _clock;
     private float _sceneIntensity = 1f;
 
@@ -107,7 +106,6 @@ public partial class AmbientOverlay : CanvasLayer
         _shutdownLabel.AddThemeColorOverride("font_outline_color", new Color(0.1f, 0f, 0f));
         AddChild(_shutdownLabel);
 
-        _nextFlicker = (float)GD.RandRange(4.0, 9.0);
     }
 
     // 전력 0 → SHUT DOWN 표시 on/off.
@@ -131,14 +129,6 @@ public partial class AmbientOverlay : CanvasLayer
         _noiseRect.Modulate = new Color(1f, 1f, 1f, (BaseNoiseAlpha + _extraNoise) * _sceneIntensity);
         _vignetteRect.Modulate = new Color(1f, 1f, 1f, 0.9f * Mathf.Lerp(0.5f, 1f, _sceneIntensity));
         _centerGlow.Modulate = new Color(1f, 1f, 1f, 0.18f * _sceneIntensity);
-
-        // 가끔 반짝
-        _nextFlicker -= d;
-        if (_nextFlicker <= 0f)
-        {
-            _nextFlicker = (float)GD.RandRange(4.0, 10.0);
-            Flash(0.55f);
-        }
 
         // SHUT DOWN 페이드 + 깜빡이는 문구
         _shutdownT = Mathf.Clamp(_shutdownT + (_shutdown ? d * 2.5f : -d * 3f), 0f, 1f);

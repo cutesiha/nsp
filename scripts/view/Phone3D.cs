@@ -60,6 +60,9 @@ public partial class Phone3D : Node3D
     private Node _handsetRestParent;
     private Transform3D _handsetRestXform;
     private float _lampPhase;
+    private float _bodyShakePhase;
+    private Vector3 _phoneRestPosition;
+    private Vector3 _phoneRestRotation;
     private double _autoPickupAt = -1;
 
     public bool IsBusy => _state != PhoneState.Idle;
@@ -67,6 +70,8 @@ public partial class Phone3D : Node3D
     public override void _Ready()
     {
         Instance = this;
+        _phoneRestPosition = Position;
+        _phoneRestRotation = RotationDegrees;
         _handset = GetNodeOrNull<Node3D>(HandsetPath);
         _receiverGrip = GetNodeOrNull<Marker3D>(ReceiverGripPath);
         _receiverRest = GetNodeOrNull<Marker3D>(ReceiverRestPath);
@@ -148,6 +153,12 @@ public partial class Phone3D : Node3D
         if (_state == PhoneState.Ringing)
         {
             _lampPhase += (float)delta * 9f;
+            // 수신 중에는 실제 전화기 본체가 좌우로 짧게 흔들린다. HUD 효과가 아니라
+            // 공급된 3D 모델까지 함께 움직여서 책상 위에서 바로 알아볼 수 있게 한다.
+            _bodyShakePhase += (float)delta * 25f;
+            float wobble = Mathf.Sin(_bodyShakePhase) + 0.35f * Mathf.Sin(_bodyShakePhase * 2.2f);
+            Position = _phoneRestPosition + new Vector3(wobble * 0.008f, 0f, 0f);
+            RotationDegrees = _phoneRestRotation + new Vector3(0f, 0f, wobble * 3.8f);
             float k = 0.5f + 0.5f * Mathf.Sin(_lampPhase);
             SetLamp(0.3f + 2.4f * k);
             SetDial(CallerColor(), 0.4f + 3.2f * k); // 해당 직원 고유색으로 점멸
@@ -164,6 +175,11 @@ public partial class Phone3D : Node3D
         {
             _lampPhase += (float)delta * 2.4f;
             SetDial(CallerColor(), 1.6f + 0.9f * (0.5f + 0.5f * Mathf.Sin(_lampPhase)));
+        }
+        else
+        {
+            Position = _phoneRestPosition;
+            RotationDegrees = _phoneRestRotation;
         }
 
         // 수화기가 손 소켓을 따라간다(쥔 순간~내려놓는 순간). 스케일 영향 없이 월드에서 직접 맞춘다.

@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://qu2fky7jnerp"]
+[gd_scene format=3 uid="uid://qu2fky7jnerp"]
 
 [ext_resource type="PackedScene" uid="uid://cuj80gufgiajr" path="res://assets/models/NSP_Quarantine_room.glb" id="1_room"]
 
@@ -17,28 +17,28 @@ adjustment_saturation = 0.9
 
 [sub_resource type="CameraAttributesPractical" id="CamAttr_Quarantine"]
 
-[node name="NSP_Quarantine_room" type="Node3D"]
+[node name="NSP_Quarantine_room" type="Node3D" unique_id=1899769754]
 
-[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1680182874]
 environment = SubResource("Env_Quarantine")
 camera_attributes = SubResource("CamAttr_Quarantine")
 
-[node name="Model" parent="." instance=ExtResource("1_room")]
+[node name="Model" parent="." unique_id=927981823 instance=ExtResource("1_room")]
 
-[node name="KeyLight" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.766044, -0.321394, 0.556670, 0, 0.866025, 0.500000, -0.642788, -0.383022, 0.663414, 0, 3.0, 0)
+[node name="KeyLight" type="DirectionalLight3D" parent="." unique_id=2139429721]
+transform = Transform3D(0.766044, -0.321394, 0.55667, 0, 0.866025, 0.5, -0.642788, -0.383022, 0.663414, 0, 3, 0)
 light_color = Color(0.75, 0.82, 1, 1)
 light_energy = 0.6
 shadow_enabled = true
 
-[node name="CeilingLamp" type="OmniLight3D" parent="."]
+[node name="CeilingLamp" type="OmniLight3D" parent="." unique_id=598265351]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
 light_color = Color(0.85, 0.88, 1, 1)
 light_energy = 1.2
-omni_range = 8.0
 shadow_enabled = true
+omni_range = 8.0
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=2000035975]
 transform = Transform3D(0.9063078, -0.129409, 0.4023443, 0, 0.9516726, 0.30712, -0.4226183, -0.27837, 0.8624249, 3.2, 1.7, 3.2)
 current = true
 fov = 60.0

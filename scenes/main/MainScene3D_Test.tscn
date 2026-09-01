@@ -19,6 +19,10 @@
 [ext_resource type="Texture2D" uid="uid://dg2kjj82q5qw5" path="res://assets/texture/desk.png" id="17_desktex"]
 [ext_resource type="Script" uid="uid://buw3iroa2bwfn" path="res://scripts/view/IncomingCallDirector.cs" id="19_calldir"]
 [ext_resource type="Script" uid="uid://d16ws83ehewso" path="res://scripts/view/PowerRoomTabooEvent.cs" id="20_pwrtaboo"]
+[ext_resource type="PackedScene" uid="uid://cr62hqgeo0u83" path="res://assets/models/rotart_phone.glb" id="21_phone_model"]
+[ext_resource type="PackedScene" uid="uid://d1jsedeqyo42j" path="res://assets/models/sencor.glb" id="22_sensor_model"]
+[ext_resource type="PackedScene" uid="uid://cwl6cjb8156q1" path="res://assets/models/switch.glb" id="23_switch_model"]
+[ext_resource type="Script" uid="uid://p8t7y6q8utae" path="res://scripts/view/PhoneModelSplitter.gd" id="24_phone_splitter"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -185,22 +189,6 @@ rings = 3
 
 [sub_resource type="QuadMesh" id="Quad"]
 
-[sub_resource type="StandardMaterial3D" id="Mat_LedAmber"]
-albedo_color = Color(0.2, 0.13, 0.03, 1)
-emission_enabled = true
-emission = Color(0.95, 0.6, 0.1, 1)
-emission_energy_multiplier = 2.0
-
-[sub_resource type="CylinderMesh" id="DialDisc"]
-top_radius = 0.03
-bottom_radius = 0.03
-height = 0.004
-radial_segments = 24
-
-[sub_resource type="StandardMaterial3D" id="Mat_DialDisc"]
-albedo_color = Color(0.03, 0.03, 0.035, 1)
-roughness = 0.4
-
 [sub_resource type="TorusMesh" id="DialRing"]
 inner_radius = 0.018
 outer_radius = 0.028
@@ -224,6 +212,12 @@ radial_segments = 16
 albedo_color = Color(0.05, 0.2, 0.08, 1)
 emission_enabled = true
 emission = Color(0.1, 0.9, 0.2, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_LedAmber"]
+albedo_color = Color(0.2, 0.13, 0.03, 1)
+emission_enabled = true
+emission = Color(0.95, 0.6, 0.1, 1)
 emission_energy_multiplier = 2.0
 
 [sub_resource type="StandardMaterial3D" id="Mat_GlassDark"]
@@ -251,7 +245,7 @@ environment = SubResource("Env")
 [node name="ControlRoom" type="Node3D" parent="." unique_id=1811790660]
 
 [node name="Floor" type="MeshInstance3D" parent="ControlRoom" unique_id=1252295084]
-transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, -2.0742416e-05, -0.05094992, -0.9028499)
+transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, 0.00049972534, -0.04478227, -0.9093176)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Floor")
 
@@ -1023,45 +1017,21 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.5)
 script = ExtResource("8_phone3d")
 HudPath = NodePath("../../PhoneCallHud")
 
-[node name="Phone_Base" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=334600948]
-transform = Transform3D(0.2, 0, 0, 0, 0.05, 0, 0, 0, 0.25, 0, 0, 0)
-mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_DarkPlastic")
-
 [node name="Handset" type="Node3D" parent="ControlRoom/Telephone" unique_id=311821714]
 
-[node name="Phone_Bar" type="MeshInstance3D" parent="ControlRoom/Telephone/Handset" unique_id=1178599931]
-transform = Transform3D(0.18, 0, 0, 0, 0.035, 0, 0, 0, 0.055, 0, 0.045, -0.03)
-mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_DarkPlastic")
-
-[node name="Phone_HandsetL" type="MeshInstance3D" parent="ControlRoom/Telephone/Handset" unique_id=152689161]
-transform = Transform3D(0.045, 0, 0, 0, 0.05, 0, 0, 0, 0.06, -0.09, 0.04, -0.03)
-mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_DarkPlastic")
-
-[node name="Phone_HandsetR" type="MeshInstance3D" parent="ControlRoom/Telephone/Handset" unique_id=304525502]
-transform = Transform3D(0.045, 0, 0, 0, 0.05, 0, 0, 0, 0.06, 0.09, 0.04, -0.03)
-mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_DarkPlastic")
-
 [node name="ReceiverGripPoint" type="Marker3D" parent="ControlRoom/Telephone/Handset" unique_id=1717000002]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.045, -0.03)
-
-[node name="Phone_Lamp" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=1606570188]
-transform = Transform3D(0.025, 0, 0, 0, 0.012, 0, 0, 0, 0.02, 0.07, 0.028, 0.09)
-mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_LedAmber")
-
-[node name="Phone_DialDisc" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=687069250]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.028, 0.02)
-mesh = SubResource("DialDisc")
-surface_material_override/0 = SubResource("Mat_DialDisc")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
 
 [node name="Phone_DialRing" type="MeshInstance3D" parent="ControlRoom/Telephone" unique_id=1248942310]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.031, 0.02)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0.05)
 mesh = SubResource("DialRing")
 surface_material_override/0 = SubResource("Mat_DialRing")
+
+[node name="PhoneModel" parent="ControlRoom/Telephone" unique_id=1126881769 instance=ExtResource("21_phone_model")]
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0)
+
+[node name="PhoneModelSplitter" type="Node" parent="ControlRoom/Telephone" unique_id=740296021]
+script = ExtResource("24_phone_splitter")
 
 [node name="RingPlayer" type="AudioStreamPlayer3D" parent="ControlRoom/Telephone" unique_id=827924924]
 stream = ExtResource("11_ring")
@@ -1075,6 +1045,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0391016, -0.01999998)
 shape = SubResource("PhoneShape")
 
 [node name="ReceiverRestPoint" type="Marker3D" parent="ControlRoom/Telephone" unique_id=1717000003]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
 
 [node name="ControlPanel" type="Node3D" parent="ControlRoom" unique_id=1471960168]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0.76, -0.5)
@@ -1110,9 +1081,15 @@ spot_angle = 38.0
 transform = Transform3D(0.7398418, 0, 0.35332987, 0, 0.82, 0, -0.35332987, 0, 0.7398418, -0.36562842, 0.762, -0.40949714)
 script = ExtResource("16_alertterm")
 
+[node name="SensorModel" parent="ControlRoom/AlertTerminal" unique_id=1791706101 instance=ExtResource("22_sensor_model")]
+transform = Transform3D(0.22, 0, 0, 0, 0.22, 0, 0, 0, 0.22, 0, 0, 0)
+
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
 transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)
 script = ExtResource("15_powerpanel")
+
+[node name="SwitchModel" parent="ControlRoom/PowerSwitchPanel" unique_id=647797286 instance=ExtResource("23_switch_model")]
+transform = Transform3D(0.24, 0, 0, 0, 0.24, 0, 0, 0, 0.24, 0, 0, 0)
 
 [node name="Vent" type="Node3D" parent="ControlRoom" unique_id=521371302]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1.75, -2.54)

@@ -657,15 +657,9 @@ public partial class FacilitySimulation : Node
             return;
         }
 
-        if (_rng.NextDouble() < Config.Instance.Data.SaboteurWanderChance)
-        {
-            var candidates = _roomDefs.Values.Where(r => !r.IsRestricted && r.RoomId != saboteur.CurrentRoomId).ToList();
-            if (candidates.Count > 0)
-            {
-                var target = candidates[_rng.Next(candidates.Count)];
-                MoveEmployeeTo(saboteur.EmployeeId, target.RoomId);
-            }
-        }
+        // 배치된 직원은 관리자의 재배치 또는 실제 시설 문제(격리/대피) 없이는
+        // 자기 담당 작업실을 떠나지 않는다. 파괴공작자는 현재 작업실에서만
+        // 방해·위장 행동을 하며, 무작위 방 이동으로 근무표를 깨지 않는다.
     }
 
     // CCTV가 꺼져 있는(정전/전력 미배분) 동안 벌어진 살인은 그 순간 바로 로그에 남기지 않는다

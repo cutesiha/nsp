@@ -39,33 +39,17 @@ public partial class PowerSwitchPanel : Node3D
     private int _lastCapacity = -1;
     private double _zapSparkUntil;
     private bool _shutdown;
+    private bool _built;
 
     public override void _Ready()
     {
-        if (GetChildCount() > 0) return; // 스크립트 리로드 시 중복 생성 방지
+        if (_built) return;
+        _built = true;
         if (!Engine.IsEditorHint())
             _arms = GetTree().Root.FindChild("PlayerCharacter", true, false) as PlayerCharacter;
 
-        var bodyMat = new StandardMaterial3D
-        {
-            AlbedoColor = new Color(0.88f, 0.88f, 0.88f), Roughness = 0.8f, Metallic = 0.2f,
-        };
-        if (GD.Load<Texture2D>("res://assets/texture/switch.png") is { } switchTex)
-            bodyMat.AlbedoTexture = switchTex;
-        AddChild(new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(0.32f, 0.06f, 0.14f) },
-            RotationDegrees = new Vector3(-14f, 0f, 0f), MaterialOverride = bodyMat,
-        });
-
-        var faceMat = new StandardMaterial3D { AlbedoColor = new Color(0.09f, 0.09f, 0.09f), Roughness = 0.7f };
-        AddChild(new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(0.30f, 0.012f, 0.125f) },
-            Position = new Vector3(0f, 0.035f, 0f),
-            RotationDegrees = new Vector3(-14f, 0f, 0f), MaterialOverride = faceMat,
-        });
-
+        // 본체는 제공된 switch.glb. 아래의 세 레버/LED만 실제 전력 채널과 연결되는
+        // 조작 부품으로 덧붙인다.
         foreach (var (channel, label, x) in Switches)
             BuildSwitch(channel, label, x);
 

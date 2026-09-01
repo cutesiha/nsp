@@ -39,7 +39,6 @@ public partial class ConfigData : Resource
     [Export] public int IsolationCapacity = 1;
 
     [Export] public float SaboteurDecisionIntervalSeconds = 4f;
-    [Export] public float SaboteurWanderChance = 0.15f;
     [Export] public float SaboteurSabotageChance = 0.35f;
     [Export] public float KillAttemptChance = 0.3f;
     [Export] public float SabotageTaskGaugeLoss = 5f;

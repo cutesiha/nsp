@@ -18,52 +18,46 @@ public partial class AlertTerminalProp : Node3D
     private StandardMaterial3D _beaconDomeMat, _beaconBulbMat;
     private float _blinkPhase;
     private float _beaconAngle;
+    private bool _built;
+    private Node3D _attachmentRoot;
+
+    // sencor.glb 화면 맞춤값 (SensorModel 로컬 = glb 단위). 필요하면 여기만 만진다.
+    [Export] public Vector2 ScreenSize = new(0.64f, 0.50f);
+    [Export] public Vector3 ScreenOffset = new(0.01f, 0.50f, 0.19f);
+    [Export] public float ScreenTiltDeg = -26.6f;
+    [Export] public Vector3 BeaconOffset = new(0.16f, 0.87f, -0.18f);
+    [Export] public Vector3 LedOffset = new(0.44f, 0.6f, 0.04f);
 
     public override void _Ready()
     {
-        if (GetChildCount() > 0) return; // 스크립트 리로드 시 중복 생성 방지
-
-        var caseMat = new StandardMaterial3D { AlbedoColor = new Color(0.9f, 0.9f, 0.9f), Roughness = 0.8f, Metallic = 0.1f };
-        if (GD.Load<Texture2D>("res://assets/texture/sencor.png") is { } sencorTex)
-            caseMat.AlbedoTexture = sencorTex;
-        var darkMat = new StandardMaterial3D { AlbedoColor = new Color(0.12f, 0.12f, 0.11f), Roughness = 0.7f };
-
-        // 본체 — 살짝 뒤로 기운 상자 + 앞쪽 경사 패널. (기존보다 1.4배 정도 큼)
-        var body = new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(0.27f, 0.16f, 0.18f) },
-            Position = new Vector3(0f, 0.08f, -0.01f),
-            MaterialOverride = caseMat,
-        };
-        AddChild(body);
-
-        var facePlate = new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(0.26f, 0.145f, 0.025f) },
-            Position = new Vector3(0f, 0.105f, 0.078f),
-            RotationDegrees = new Vector3(-22f, 0f, 0f),
-            MaterialOverride = darkMat,
-        };
-        AddChild(facePlate);
+        if (_built) return;
+        _built = true;
+        // 센서 본체만 축소된 GLB 인스턴스이므로, 화면/LED/경광등도 반드시 같은
+        // 로컬 좌표계의 자식으로 넣어야 모델 위에 정확히 붙는다.
+        _attachmentRoot = GetNodeOrNull<Node3D>("SensorModel") ?? this;
 
         // 표시창(SubViewport 투사).
         var vp = new SubViewport
         {
-            Size = new Vector2I(320, 220),
+            Size = new Vector2I(384, 300),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             Disable3D = true,
             TransparentBg = false,
         };
-        AddChild(vp);
+        _attachmentRoot.AddChild(vp);
         _ui = new AlertTerminalView();
         vp.AddChild(_ui);
 
         var screen = new MeshInstance3D
         {
-            Mesh = new QuadMesh { Size = new Vector2(0.19f, 0.11f) },
-            Position = new Vector3(-0.022f, 0.115f, 0.093f),
-            RotationDegrees = new Vector3(-22f, 0f, 0f),
+            // sencor.glb의 기울어진 앞면 = 하나의 평면(메시에서 실측: z ≈ -0.043x - 0.5013y + 0.358,
+            // 즉 뒤로 26.6° 젖혀짐). 이 평면 위, CRT 유리 바로 앞에 불투명 경고 화면을 올려
+            // 모델에 구워진 초록 글자를 완전히 덮고 AlertSystem의 현재 경고만 보이게 한다.
+            // 값 조정: SensorModel 로컬 좌표(글b 단위). 프레임(베젤 z≈0.31)이 가장자리를 가려줌.
+            Mesh = new QuadMesh { Size = new Vector2(ScreenSize.X, ScreenSize.Y) },
+            Position = ScreenOffset,
+            RotationDegrees = new Vector3(ScreenTiltDeg, 0f, 0f),
             MaterialOverride = new StandardMaterial3D
             {
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
@@ -71,30 +65,14 @@ public partial class AlertTerminalProp : Node3D
                 TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
             },
         };
-        AddChild(screen);
+        _attachmentRoot.AddChild(screen);
 
-        // 스피커 그릴.
-        var grille = new MeshInstance3D
-        {
-            Mesh = new BoxMesh { Size = new Vector3(0.04f, 0.07f, 0.01f) },
-            Position = new Vector3(0.098f, 0.105f, 0.083f),
-            RotationDegrees = new Vector3(-22f, 0f, 0f),
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.05f, 0.05f, 0.05f), Roughness = 0.9f },
-        };
-        AddChild(grille);
-        for (int i = 0; i < 5; i++)
-            grille.AddChild(new MeshInstance3D
-            {
-                Mesh = new BoxMesh { Size = new Vector3(0.034f, 0.005f, 0.008f) },
-                Position = new Vector3(0f, -0.026f + i * 0.013f, 0.004f),
-                MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.02f, 0.02f, 0.02f) },
-            });
-
-        // 상태 LED 2개(작은 표시등).
+        // GLB에 이미 구워진 경광등 돔/LED 위에 '동작하는' 버전을 겹쳐 올린다.
+        // (돔 실측 중심 x≈0.16, z≈-0.18, 밑동 y≈0.87 / LED 스택 화면 오른쪽 x≈0.42)
         _lamp1Mat = LampMat(new Color(0.2f, 0.9f, 0.3f));
         _lamp2Mat = LampMat(new Color(0.6f, 0.5f, 0.15f));
-        AddChild(Lamp(_lamp1Mat, new Vector3(-0.1f, 0.165f, 0.07f)));
-        AddChild(Lamp(_lamp2Mat, new Vector3(-0.07f, 0.165f, 0.07f)));
+        _attachmentRoot.AddChild(Lamp(_lamp1Mat, LedOffset));
+        _attachmentRoot.AddChild(Lamp(_lamp2Mat, LedOffset + new Vector3(0f, -0.1f, 0f)));
 
         BuildBeacon();
     }
@@ -105,11 +83,11 @@ public partial class AlertTerminalProp : Node3D
         var baseMat = new StandardMaterial3D { AlbedoColor = new Color(0.1f, 0.1f, 0.1f), Roughness = 0.6f };
         var beaconBase = new MeshInstance3D
         {
-            Mesh = new CylinderMesh { TopRadius = 0.028f, BottomRadius = 0.032f, Height = 0.014f, RadialSegments = 16 },
-            Position = new Vector3(-0.045f, 0.175f, -0.01f),
+            Mesh = new CylinderMesh { TopRadius = 0.085f, BottomRadius = 0.1f, Height = 0.045f, RadialSegments = 16 },
+            Position = BeaconOffset,
             MaterialOverride = baseMat,
         };
-        AddChild(beaconBase);
+        _attachmentRoot.AddChild(beaconBase);
 
         _beaconDomeMat = new StandardMaterial3D
         {
@@ -122,13 +100,13 @@ public partial class AlertTerminalProp : Node3D
         };
         var dome = new MeshInstance3D
         {
-            Mesh = new SphereMesh { Radius = 0.026f, Height = 0.044f, RadialSegments = 16, Rings = 8, IsHemisphere = true },
-            Position = new Vector3(0f, 0.007f, 0f),
+            Mesh = new SphereMesh { Radius = 0.085f, Height = 0.14f, RadialSegments = 16, Rings = 8, IsHemisphere = true },
+            Position = new Vector3(0f, 0.022f, 0f),
             MaterialOverride = _beaconDomeMat,
         };
         beaconBase.AddChild(dome);
 
-        _beaconPivot = new Node3D { Position = new Vector3(0f, 0.012f, 0f) };
+        _beaconPivot = new Node3D { Position = new Vector3(0f, 0.04f, 0f) };
         beaconBase.AddChild(_beaconPivot);
 
         _beaconBulbMat = new StandardMaterial3D
@@ -146,7 +124,7 @@ public partial class AlertTerminalProp : Node3D
 
         _beaconLight = new SpotLight3D
         {
-            Position = new Vector3(0.012f, 0f, 0f),
+            Position = new Vector3(0.04f, 0f, 0f),
             RotationDegrees = new Vector3(0f, -90f, 0f), // +X 방향(수평)으로 쏴서 돌 때 벽/천장을 훑는다
             LightColor = new Color(1f, 1f, 1f),
             LightEnergy = 2.0f,
@@ -167,7 +145,7 @@ public partial class AlertTerminalProp : Node3D
 
     private static MeshInstance3D Lamp(StandardMaterial3D mat, Vector3 pos) => new()
     {
-        Mesh = new SphereMesh { Radius = 0.011f, Height = 0.022f, RadialSegments = 8, Rings = 5 },
+        Mesh = new SphereMesh { Radius = 0.035f, Height = 0.07f, RadialSegments = 8, Rings = 5 },
         Position = pos,
         MaterialOverride = mat,
     };
