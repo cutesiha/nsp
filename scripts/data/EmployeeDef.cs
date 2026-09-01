@@ -31,6 +31,10 @@ public partial class EmployeeDef : Resource
     [Export] public string BehaviorLine2 = "";
     [Export] public string BehaviorLine3 = "";
 
+    // 관리자가 전화를 받을 때까지 이 직원이 기다려주는 시간(초). 성격에 따라 다르며
+    // 코드에 하드코딩하지 않고 캐릭터 데이터에서 관리한다.
+    [Export] public float IncomingCallPatienceSeconds = 5f;
+
     [Export] public string StartRoomId = "";
     [Export] public Color IconColor = new Color(0.7f, 0.7f, 0.7f);
     [Export] public Texture2D StandingImage;

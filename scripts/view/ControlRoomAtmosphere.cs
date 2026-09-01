@@ -24,6 +24,12 @@ public partial class ControlRoomAtmosphere : Node3D
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingFixture";
     [Export] public NodePath ChairPath = "../ControlRoom/Chair/Chair_Seat";
     [Export] public NodePath WallPath = "../ControlRoom/Wall_Back";
+    // 신규 환경음 소스 위치.
+    [Export] public NodePath ControlPanelPath = "../ControlRoom/ControlPanel";
+    [Export] public NodePath AlertTerminalPath = "../ControlRoom/AlertTerminal";
+
+    // 플레이어 숨소리 기본 볼륨(dB). 긴장 상태에서 이보다 커진다.
+    [Export] public float BreathBaseDb = -25f;
 
     private enum Amb { Off, Normal, Warning, TabooPrecursor, Blackout }
 
@@ -60,6 +66,16 @@ public partial class ControlRoomAtmosphere : Node3D
     private AudioStreamPlayer3D _chair;
     private AudioStreamPlayer _alarm;
 
+    // Layer 시스템 밖에서 직접 관리하는 신규 상시음.
+    //   _electric  : 배전/케이블 계통의 전기 치치직 (electric_crackle_loop)
+    //   _sensorWhir: 책상 위 센서 단말이 계속 도는 소리 (crt_hum 을 올려 얇은 회전음처럼)
+    //   _breath    : 플레이어 본인의 숨소리 (에셋 없음 — 런타임에 필터드 노이즈로 생성)
+    private AudioStreamPlayer3D _electric;
+    private AudioStreamPlayer3D _sensorWhir;
+    private AudioStreamPlayer _breath;
+    private float _nextSensorPing = 5f;
+    private float _nextElecPop = 3f;
+
     private Amb _amb = Amb.Off;
     private float _stateT;          // 현재 상태 진입 후 경과
     private float _restoreT = 999f; // 정전 → 복구 전환 후 경과
@@ -87,7 +103,82 @@ public partial class ControlRoomAtmosphere : Node3D
 
         _alarm = MakeLoop2D("alarm", Silent);
 
+        _electric = MakeSimpleLoop3D("electric_crackle_loop", NodeAt(ControlPanelPath), 2.4f, 9f);
+        _sensorWhir = MakeSimpleLoop3D("crt_hum", NodeAt(AlertTerminalPath), 1.1f, 3.5f);
+        if (_sensorWhir != null) _sensorWhir.PitchScale = 1.5f;
+        BuildBreath();
+
         _nextOneShot = (float)GD.RandRange(6.0, 14.0);
+    }
+
+    // Layer 목록(_all)에 넣지 않는 단순 3D 루프 — 상태별 볼륨/피치는 _Process 에서 직접 몬다.
+    private AudioStreamPlayer3D MakeSimpleLoop3D(string key, Node3D at, float unit, float maxDist)
+    {
+        var stream = Load(key);
+        if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        var p = new AudioStreamPlayer3D
+        {
+            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = "Master",
+        };
+        (at ?? (Node3D)this).AddChild(p);
+        if (stream != null) p.Play();
+        return p;
+    }
+
+    // 플레이어 숨소리. 녹음 에셋이 없어 런타임에 만든다 — 저역 통과시킨 노이즈에 들숨/날숨
+    // 엔벨로프를 씌운 5.4초 루프. 볼륨은 아주 낮게 깔고(_Process 에서 상태별로 조절), 긴장
+    // 상황(사고 경고 / 금기 전조 / 정전)에서 조금 커지고 빨라진다.
+    private void BuildBreath()
+    {
+        _breath = new AudioStreamPlayer { Bus = "Master", VolumeDb = Silent, Stream = MakeBreathStream() };
+        AddChild(_breath);
+        if (_breath.Stream != null) _breath.Play();
+    }
+
+    private static AudioStream MakeBreathStream()
+    {
+        const int rate = 22050;
+        const float dur = 5.4f;
+        int n = (int)(rate * dur);
+        var pcm = new byte[n * 2];
+        var rng = new RandomNumberGenerator();
+        float lp = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / rate;
+            float env = BreathEnvelope(t);
+            float white = rng.RandfRange(-1f, 1f);
+            // 들숨은 조금 밝게(컷오프 높게), 날숨은 어둡게.
+            float k = t < 2.2f ? 0.055f : 0.03f;
+            lp += k * (white - lp);
+            short v = (short)Mathf.Clamp(lp * env * 26000f, -32767f, 32767f);
+            pcm[i * 2] = (byte)(v & 0xFF);
+            pcm[i * 2 + 1] = (byte)((v >> 8) & 0xFF);
+        }
+        return new AudioStreamWav
+        {
+            Format = AudioStreamWav.FormatEnum.Format16Bits,
+            MixRate = rate,
+            Stereo = false,
+            Data = pcm,
+            LoopMode = AudioStreamWav.LoopModeEnum.Forward,
+            LoopBegin = 0,
+            LoopEnd = n,
+        };
+    }
+
+    // 들숨 0.15~1.5s, 날숨 2.7~4.6s(조금 더 길고 약하게), 나머지는 정적.
+    private static float BreathEnvelope(float t)
+    {
+        float inhale = Bump(t, 0.15f, 1.5f);
+        float exhale = Bump(t, 2.7f, 4.6f) * 0.8f;
+        return Mathf.Clamp(inhale + exhale, 0f, 1f);
+    }
+
+    private static float Bump(float t, float a, float b)
+    {
+        if (t <= a || t >= b) return 0f;
+        return Mathf.Sin((t - a) / (b - a) * Mathf.Pi);
     }
 
     private Node3D NodeAt(NodePath p) => GetNodeOrNull<Node3D>(p);
@@ -150,7 +241,64 @@ public partial class ControlRoomAtmosphere : Node3D
         // 비상 경고음: 정전 중에만.
         _alarm.VolumeDb = Mathf.MoveToward(_alarm.VolumeDb, blackout ? -22f : Silent, d * 20f);
 
+        TickNewAmbience(d, blackout);
         TickOneShots(d);
+    }
+
+    // 배전 치치직 / 센서 회전음 / 숨소리. Layer 시스템(_all) 밖에서 상태별로 직접 몬다.
+    private void TickNewAmbience(float d, bool blackout)
+    {
+        bool live = _amb != Amb.Off;
+        bool tense = _amb is Amb.Warning or Amb.TabooPrecursor;
+
+        // 전기 치치직 — 정전이면 계통이 죽으니 무음. 긴장 상황에서 조금 커진다.
+        if (_electric != null)
+        {
+            float tgt = !live || blackout ? Silent
+                      : _amb == Amb.Warning ? -18f
+                      : _amb == Amb.TabooPrecursor ? -19f : -25f;
+            _electric.VolumeDb = Mathf.MoveToward(_electric.VolumeDb, tgt, d * 14f);
+
+            _nextElecPop -= d;
+            if (_nextElecPop <= 0f && live && !blackout)
+            {
+                _nextElecPop = (float)GD.RandRange(tense ? 1.5 : 3.5, tense ? 5.0 : 10.0);
+                PlayOn(NodeAt(ControlPanelPath), "electric_arc", tense ? -16f : -22f);
+            }
+        }
+
+        // 센서 상시 회전음 — 정전이면 센서도 꺼진다. 금기 전조에는 피치가 살짝 불안정.
+        if (_sensorWhir != null)
+        {
+            float tgt = !live || blackout ? Silent
+                      : _amb == Amb.TabooPrecursor ? -22f : -28f;
+            _sensorWhir.VolumeDb = Mathf.MoveToward(_sensorWhir.VolumeDb, tgt, d * 14f);
+            float pTgt = _amb == Amb.TabooPrecursor ? 1.28f : 1.5f;
+            _sensorWhir.PitchScale = Mathf.Lerp(_sensorWhir.PitchScale, pTgt, d * 2f);
+
+            _nextSensorPing -= d;
+            if (_nextSensorPing <= 0f && live && !blackout)
+            {
+                _nextSensorPing = (float)GD.RandRange(4.5, 8.5);
+                PlayOn(NodeAt(AlertTerminalPath), "sensor_beep", -30f);
+            }
+        }
+
+        // 숨소리 — 근무 중에는 계속. 정전에도 죽지 않고 오히려 또렷해진다(고립감).
+        if (_breath != null)
+        {
+            float tgt = _amb switch
+            {
+                Amb.Off => Silent,
+                Amb.Warning => BreathBaseDb + 5f,
+                Amb.TabooPrecursor => BreathBaseDb + 8f,
+                Amb.Blackout => BreathBaseDb + 7f,
+                _ => BreathBaseDb,
+            };
+            _breath.VolumeDb = Mathf.MoveToward(_breath.VolumeDb, tgt, d * 8f);
+            float pTgt = _amb is Amb.TabooPrecursor or Amb.Blackout ? 1.18f : _amb == Amb.Warning ? 1.08f : 1f;
+            _breath.PitchScale = Mathf.Lerp(_breath.PitchScale, pTgt, d * 1.5f);
+        }
     }
 
     private Amb DetermineState()

@@ -16,8 +16,8 @@
 [ext_resource type="Script" uid="uid://brsdpsjofltnw" path="res://scripts/view/ShiftFlowController.cs" id="14_shiftflow"]
 [ext_resource type="Script" uid="uid://bayorhqgay1ra" path="res://scripts/view/PowerSwitchPanel.cs" id="15_powerpanel"]
 [ext_resource type="Script" uid="uid://bfjjchbdyfmey" path="res://scripts/view/AlertTerminalProp.cs" id="16_alertterm"]
+[ext_resource type="Script" uid="uid://buw3iroa2bwfn" path="res://scripts/view/IncomingCallDirector.cs" id="19_calldir"]
 [ext_resource type="Texture2D" uid="uid://dg2kjj82q5qw5" path="res://assets/texture/desk.png" id="17_desktex"]
-[ext_resource type="Texture2D" uid="uid://bw80cy73ny7sm" path="res://assets/texture/moniter.png" id="18_montex"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -280,12 +280,6 @@ radius = 0.011
 height = 0.023
 radial_segments = 6
 rings = 3
-
-[sub_resource type="StandardMaterial3D" id="Mat_Monitor"]
-albedo_color = Color(0.9, 0.9, 0.9, 1)
-albedo_texture = ExtResource("18_montex")
-metallic = 0.1
-roughness = 0.5
 
 [sub_resource type="QuadMesh" id="Quad"]
 
@@ -1045,7 +1039,7 @@ transform = Transform3D(0.97, 0, 0.242, 0, 1, 0, -0.242, 0, 0.97, -0.47, 0, -0.7
 [node name="M01_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1587461643]
 transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_Monitor")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
 [node name="M01_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=749959280]
 transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
@@ -1082,7 +1076,7 @@ transform = Transform3D(0.97, 0, -0.242, 0, 1, 0, 0.242, 0, 0.97, 0.47, 0, -0.75
 [node name="M02_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=668823157]
 transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_Monitor")
+surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
 [node name="M02_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=2035591087]
 transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
@@ -1328,3 +1322,6 @@ script = ExtResource("12_title")
 
 [node name="ShiftFlowController" type="Node" parent="." unique_id=1640721030]
 script = ExtResource("14_shiftflow")
+
+[node name="IncomingCallDirector" type="Node" parent="." unique_id=771100882]
+script = ExtResource("19_calldir")

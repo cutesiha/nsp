@@ -1,4 +1,3 @@
-using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -119,23 +118,8 @@ public partial class ControlRoomInteraction : Node
             Sfx.Instance?.Play("alarm", -6f, 0.8f);
         }
 
-        // 사고가 나면 근처 직원이 전화로 보고 — 벨이 울린다(40초 쿨타임).
-        if (last.EventType is LogEventType.TaskFailed or LogEventType.Sabotage
-            && Phone3D.Instance is { IsBusy: false }
-            && Time.GetTicksMsec() / 1000.0 - _lastIncomingCall > 40.0)
-        {
-            var sim = FacilitySimulation.Instance;
-            string caller = sim?.GetRoomState(last.RoomId)?.OccupantEmployeeIds
-                .FirstOrDefault(id => sim.GetEmployeeState(id) is { Alive: true, Isolated: false });
-            if (!string.IsNullOrEmpty(caller))
-            {
-                _lastIncomingCall = Time.GetTicksMsec() / 1000.0;
-                Phone3D.Instance.RingIncoming(caller);
-            }
-        }
+        // 사고 → 근처 직원의 수신 전화는 IncomingCallDirector(큐/patience 담당)가 처리한다.
     }
-
-    private double _lastIncomingCall = -100;
 
     // 책상 경고등: 사고 시 붉게 명멸.
     private void TickWarnLight(float delta)

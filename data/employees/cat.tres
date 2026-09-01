@@ -29,6 +29,7 @@ BehaviorLine1 = "근처에서 비명이나 소란이 나도 자신의 업무가 
 BehaviorLine2 = "설비 고장을 발견하면 감정적인 반응보다 손실과 처리 속도를 계산해 가장 효율적인 대응을 관리자에게 짧게 제안한다."
 BehaviorLine3 = "금기와 사고가 동시에 걸리면 규칙 그 자체보다 실제 손실이 적은 선택을 선호하며, 비효율적인 지시에는 노골적으로 불만을 보인다."
 
+IncomingCallPatienceSeconds = 3.0
 StartRoomId = "medical_room"
 IconColor = Color(0.42, 0.65, 0.88, 1)
 StandingImage = ExtResource("2_img")

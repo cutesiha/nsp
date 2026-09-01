@@ -17,6 +17,15 @@ public partial class RestRosterView : Control
 
     public string SelectedEmployeeId { get; private set; } = "";
 
+    // "의심 추궁" 이 켜진 상태로 전화기를 들면 통화가 인터뷰 의심 대사(⑥)로 시작한다.
+    // 꺼져 있으면 일반 통화(⑦). Phone3D.StartOutgoing 이 이 값을 읽는다.
+    public bool InterrogateArmed { get; private set; }
+    public void DisarmInterrogate()
+    {
+        InterrogateArmed = false;
+        if (_interrogateBtn != null) { _interrogateBtn.ButtonPressed = false; _interrogateBtn.Text = "의심하며 캐묻기"; }
+    }
+
     private static readonly Color Bg = new(0.035f, 0.045f, 0.05f);
     private static readonly Color Ink = new(0.75f, 0.82f, 0.9f);
     private static readonly Color Dim = new(0.5f, 0.56f, 0.62f);
@@ -26,6 +35,7 @@ public partial class RestRosterView : Control
     private VBoxContainer _rosterBox;
     private RichTextLabel _detail;
     private Button _isolateBtn;
+    private Button _interrogateBtn;
     private Button _nextBtn;
     private bool _finalDay;
 
@@ -69,7 +79,20 @@ public partial class RestRosterView : Control
         _detail.Text = "[color=#556]왼쪽에서 직원을 선택하세요.[/color]";
         detailPanel.AddChild(_detail);
 
-        _isolateBtn = new Button { Position = new Vector2(12, 398), Size = new Vector2(368, 36), Text = "격리", Visible = false };
+        _interrogateBtn = new Button
+        {
+            Position = new Vector2(12, 398), Size = new Vector2(368, 34),
+            Text = "의심하며 캐묻기", ToggleMode = true, Visible = false,
+        };
+        _interrogateBtn.AddThemeFontSizeOverride("font_size", 14);
+        _interrogateBtn.Toggled += on =>
+        {
+            InterrogateArmed = on;
+            _interrogateBtn.Text = on ? "의심 추궁 ON — 전화기를 드세요" : "의심하며 캐묻기";
+        };
+        detailPanel.AddChild(_interrogateBtn);
+
+        _isolateBtn = new Button { Position = new Vector2(12, 436), Size = new Vector2(368, 36), Text = "격리", Visible = false };
         _isolateBtn.Pressed += OnIsolatePressed;
         detailPanel.AddChild(_isolateBtn);
 
@@ -91,6 +114,8 @@ public partial class RestRosterView : Control
         SelectedEmployeeId = "";
         _detail.Text = "[color=#556]왼쪽에서 직원을 선택하세요.[/color]";
         _isolateBtn.Visible = false;
+        _interrogateBtn.Visible = false;
+        DisarmInterrogate();
         RebuildRoster();
     }
 
@@ -122,6 +147,7 @@ public partial class RestRosterView : Control
 
     private void Select(string employeeId)
     {
+        if (employeeId != SelectedEmployeeId) DisarmInterrogate();
         SelectedEmployeeId = employeeId;
         var sim = FacilitySimulation.Instance;
         var def = sim?.GetEmployeeDef(employeeId);
@@ -132,6 +158,7 @@ public partial class RestRosterView : Control
         {
             _detail.Text = $"[font_size=18]{def.Codename}[/font_size]\n\n[color=#ff6a55](응답 없음)[/color]";
             _isolateBtn.Visible = false;
+            _interrogateBtn.Visible = false;
             return;
         }
 
@@ -144,6 +171,7 @@ public partial class RestRosterView : Control
             "[color=#8899aa]전화기를 들어 대화하세요.[/color]";
         _isolateBtn.Visible = true;
         _isolateBtn.Text = st.Isolated ? "격리 취소" : "격리";
+        _interrogateBtn.Visible = !st.Isolated;
     }
 
     private void OnIsolatePressed()

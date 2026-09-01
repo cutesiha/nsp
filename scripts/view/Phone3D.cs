@@ -2,6 +2,7 @@ using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
+using NSP.Dialogue;
 using NSP.Facility;
 
 namespace NSP.View;
@@ -15,6 +16,8 @@ public partial class Phone3D : Node3D
     [Signal] public delegate void RingStartedEventHandler();
     [Signal] public delegate void PickedUpEventHandler();
     [Signal] public delegate void HungUpEventHandler();
+    // 관리자가 시간 안에 받지 않아 직원이 전화를 끊음. IncomingCallQueue 가 다음 전화를 잇는다.
+    [Signal] public delegate void CallMissedEventHandler(string employeeId, string dialogueEvent);
 
     [Export] public NodePath HandsetPath = "Handset";
     [Export] public NodePath LampPath = "Phone_Lamp";
@@ -34,6 +37,12 @@ public partial class Phone3D : Node3D
     private enum PhoneState { Idle, Ringing, Connecting, OnCall, Disconnecting }
     private PhoneState _state = PhoneState.Idle;
     private string _caller = "";
+    // 이번 통화에 사용할 대사 이벤트(사고/비명/정전/목격/인터뷰/일반). PhoneCallHud 로 넘긴다.
+    private string _dialogueEvent = DialogueRepository.EventGeneralCall;
+    // 수신 전화인지(true) 관리자 발신인지(false). 수신 전화만 patience 타이머가 돈다.
+    private bool _isIncoming;
+    // 수신 전화에서 이 시각(초)을 넘기면 직원이 포기하고 끊는다. -1 = 비활성.
+    private double _patienceUntil = -1;
 
     private Node3D _handset;
     private Marker3D _receiverGrip, _receiverRest;
@@ -88,6 +97,12 @@ public partial class Phone3D : Node3D
 
         if (_area != null) _area.InputEvent += OnAreaInput;
         if (_hud != null) _hud.Closed += HangUp;
+
+        // 구식 전화벨 — "따르릉 따르릉" 이 벨이 울리는 동안 계속 반복되도록 재생이 끝나면 다시 건다.
+        if (_ring != null) _ring.Finished += () =>
+        {
+            if (_state == PhoneState.Ringing) _ring.Play();
+        };
     }
 
     // 다이얼 자리의 원형 발광 링 — 형상은 씬(Phone_DialRing)에 있고, 여기서는 색을
@@ -141,6 +156,9 @@ public partial class Phone3D : Node3D
                 _autoPickupAt = -1;
                 PickUp();
             }
+            // 캐릭터별 대기시간이 지나면 직원이 전화를 포기한다.
+            if (_isIncoming && _patienceUntil > 0 && Time.GetTicksMsec() / 1000.0 >= _patienceUntil)
+                GiveUp();
         }
         else if (_state is PhoneState.OnCall or PhoneState.Connecting or PhoneState.Disconnecting)
         {
@@ -180,15 +198,42 @@ public partial class Phone3D : Node3D
         GetViewport()?.SetInputAsHandled();
     }
 
-    // 게임 이벤트(사고 보고 등)에서 걸려오는 전화.
-    public void RingIncoming(string employeeId)
+    // 게임 이벤트(사고 보고 등)에서 걸려오는 전화. dialogueEvent = DialogueRepository.Event* 중 하나.
+    // IncomingCallDirector 만 호출한다(한 번에 한 통화 보장은 그쪽 큐가 담당).
+    public void RingIncoming(string employeeId, string dialogueEvent = DialogueRepository.EventGeneralCall)
     {
         if (_state != PhoneState.Idle || string.IsNullOrEmpty(employeeId)) return;
         _caller = employeeId;
+        _dialogueEvent = string.IsNullOrEmpty(dialogueEvent) ? DialogueRepository.EventGeneralCall : dialogueEvent;
+        _isIncoming = true;
         _state = PhoneState.Ringing;
         _autoPickupAt = -1;
+
+        float patience = FacilitySimulation.Instance?.GetEmployeeDef(employeeId)?.IncomingCallPatienceSeconds ?? 5f;
+        _patienceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(1f, patience);
+
         _ring?.Play();
+        _hud?.ShowIncoming(CallerColor());
         EmitSignal(SignalName.RingStarted);
+    }
+
+    // 관리자가 시간 안에 받지 않음 → 직원이 끊는다. 벨을 바로 끊고 "뚝" 소리, LED 회색 복귀.
+    private void GiveUp()
+    {
+        if (_state != PhoneState.Ringing) return;
+        _state = PhoneState.Idle;
+        _patienceUntil = -1;
+        _isIncoming = false;
+        _ring?.Stop();
+        Sfx.Instance?.Play("phone_hangup", -3f); // 상대가 끊은 "뚝"
+        SetLamp(0.12f);
+        SetDial(DialIdle, 0.6f);
+        _hud?.HideIncoming();
+
+        string who = _caller;
+        string ev = _dialogueEvent;
+        _caller = "";
+        EmitSignal(SignalName.CallMissed, who, ev);
     }
 
     private void StartOutgoing()
@@ -214,6 +259,12 @@ public partial class Phone3D : Node3D
         if (string.IsNullOrEmpty(target)) return;
 
         _caller = target;
+        // 휴게시간에 "의심 추궁" 이 켜져 있으면 인터뷰 의심 대사(⑥), 아니면 일반 통화(⑦).
+        _dialogueEvent = resting && RestRosterView.Instance?.InterrogateArmed == true
+            ? DialogueRepository.EventInterviewSuspected
+            : DialogueRepository.EventGeneralCall;
+        _isIncoming = false;
+        _patienceUntil = -1;
         _state = PhoneState.Ringing;
         _ring?.Play();
         _autoPickupAt = Time.GetTicksMsec() / 1000.0 + 0.9;
@@ -225,7 +276,9 @@ public partial class Phone3D : Node3D
     {
         if (_state != PhoneState.Ringing) return;
         _state = PhoneState.Connecting;
+        _patienceUntil = -1;
         _ring?.Stop();
+        _hud?.HideIncoming();
         SetLamp(2.2f);
 
         if (_player != null && _handset != null)
@@ -249,8 +302,10 @@ public partial class Phone3D : Node3D
         _handsetFollowsHand = _handset != null && _player?.HandSocket != null;
 
         SetDial(CallerColor(), 2.0f);
+        if (_dialogueEvent == DialogueRepository.EventInterviewSuspected)
+            RestRosterView.Instance?.DisarmInterrogate();
         EmitSignal(SignalName.PickedUp);
-        _hud?.Open(_caller);
+        _hud?.Open(_caller, _dialogueEvent);
     }
 
     private void HangUp()
@@ -274,6 +329,8 @@ public partial class Phone3D : Node3D
     {
         _handsetFollowsHand = false;
         _state = PhoneState.Idle;
+        _isIncoming = false;
+        _patienceUntil = -1;
         SetLamp(0.12f);
         SetDial(DialIdle, 0.6f);
         if (_handset != null)

@@ -29,6 +29,7 @@ BehaviorLine1 = "근처에서 비명이나 사고가 나도 즉시 동요하지 
 BehaviorLine2 = "이상한 행동을 목격하면 그 자리에서 호들갑스럽게 문제 삼기보다 기억해 두었다가 관리자에게 사실 위주로 짧게 보고한다."
 BehaviorLine3 = "금기나 사고 경고가 발생하면 감정에 휘둘리지 않고 현재 위험과 지시를 비교해 가장 침착하게 움직이며, 불필요한 행동을 거의 하지 않는다."
 
+IncomingCallPatienceSeconds = 6.0
 StartRoomId = "vent_room"
 IconColor = Color(0.4, 0.4, 0.42, 1)
 StandingImage = ExtResource("2_img")

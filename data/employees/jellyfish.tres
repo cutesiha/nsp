@@ -27,5 +27,6 @@ BehaviorLine1 = "근처에서 비명이나 큰 사고음이 들리면 현장으�
 BehaviorLine2 = "작은 이상 징후를 남들보다 빨리 발견하지만 자신감이 부족해 사실과 추측을 여러 번 구분하며 보고한다."
 BehaviorLine3 = "금기 경고가 뜨면 가장 크게 긴장하고 지시가 올 때까지 섣불리 움직이지 않으려 하며, 잘못된 행동을 할까 계속 확인한다."
 
+IncomingCallPatienceSeconds = 8.0
 StartRoomId = "storage_room"
 IconColor = Color(0.66, 0.74, 0.92, 1)

@@ -27,5 +27,6 @@ BehaviorLine1 = "근처 작업실에서 사고가 나면 먼저 상황을 확인
 BehaviorLine2 = "비명이나 큰 충격음이 들려도 당황해서 업무를 버리지는 않지만, 동료의 안전이 걱정되면 현재 업무 상태까지 함께 보고하며 지원을 자청한다."
 BehaviorLine3 = "금기 경고가 발생하면 규칙을 최우선으로 지키려 하며, 빠른 해결보다 안전한 절차를 택한다."
 
+IncomingCallPatienceSeconds = 5.0
 StartRoomId = "guard_room"
 IconColor = Color(0.74, 0.62, 0.42, 1)

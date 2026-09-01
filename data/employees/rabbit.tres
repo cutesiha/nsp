@@ -29,6 +29,7 @@ BehaviorLine1 = "근처에서 사고가 나면 놀라서 크게 반응하고 곧
 BehaviorLine2 = "비명이나 이상현상을 무서워하면서도 호기심이 더 앞서는 경우가 있어, 다른 직원보다 사건에 관심을 많이 보이고 질문을 쏟아낸다."
 BehaviorLine3 = "금기 경고가 떠도 급한 사고가 눈앞에 있으면 순간적으로 '일단 해결하고 보자'는 쪽으로 기울기 쉬워 관리자 지시로 제동을 걸어야 하는 타입이다."
 
+IncomingCallPatienceSeconds = 8.0
 StartRoomId = "maintenance_room"
 IconColor = Color(0.96, 0.7, 0.42, 1)
 StandingImage = ExtResource("2_img")
