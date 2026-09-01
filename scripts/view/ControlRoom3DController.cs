@@ -27,6 +27,9 @@ public partial class ControlRoom3DController : Node3D
     private SeatedCameraRig _rig;
     private readonly List<MonitorScreen3D> _screens = new();
     private SubViewport _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp;
+    // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
+    // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
+    private SubViewport _facilityCctvVp;
     private float _brightness = 1f, _distortion = 0f, _noise = 0.035f;
 
     private MonitorScreen3D _dragScreen;
@@ -98,9 +101,25 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport ReportViewport => _reportVp;
     public SubViewport RestRosterViewport => _restRosterVp;
     public SubViewport InterviewViewport => _interviewVp;
+    public SubViewport FacilityCctvViewport => _facilityCctvVp;
 
     private void BuildViewports()
     {
+        // CCTV 3D 월드 — 자체 World3D 로 격리해서 중앙제어실 3D 와 섞이지 않게 한다.
+        _facilityCctvVp = new SubViewport
+        {
+            Size = new Vector2I(640, 480),
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            RenderTargetClearMode = SubViewport.ClearMode.Always,
+            OwnWorld3D = true,
+            Disable3D = false,
+            GuiDisableInput = true,
+            TransparentBg = false,
+        };
+        AddChild(_facilityCctvVp);
+        var cctvWorld = GD.Load<PackedScene>("res://scenes/facility/facility_cctv_world.tscn");
+        if (cctvWorld != null) _facilityCctvVp.AddChild(cctvWorld.Instantiate());
+
         _facilityVp = MakeViewport();
         _facilityVp.AddChild(new FacilityMonitorView());
 

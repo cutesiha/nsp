@@ -1,0 +1,43 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/view/EmployeePlaceholder.cs" id="1_script"]
+
+[sub_resource type="BoxMesh" id="BM_Leg"]
+size = Vector3(0.17, 0.86, 0.19)
+
+[sub_resource type="BoxMesh" id="BM_Torso"]
+size = Vector3(0.52, 0.72, 0.3)
+
+[sub_resource type="BoxMesh" id="BM_Arm"]
+size = Vector3(0.13, 0.62, 0.15)
+
+[sub_resource type="SphereMesh" id="SM_Head"]
+radius = 0.15
+height = 0.32
+
+[node name="EmployeePlaceholder" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="LegL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.14, 0.43, 0)
+mesh = SubResource("BM_Leg")
+
+[node name="LegR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0.43, 0)
+mesh = SubResource("BM_Leg")
+
+[node name="Torso" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.24, 0)
+mesh = SubResource("BM_Torso")
+
+[node name="ArmL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.34, 1.28, 0)
+mesh = SubResource("BM_Arm")
+
+[node name="ArmR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.34, 1.28, 0)
+mesh = SubResource("BM_Arm")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.74, 0)
+mesh = SubResource("SM_Head")

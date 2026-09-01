@@ -136,6 +136,18 @@ public partial class FacilitySimulation : Node
     public EmployeeState GetEmployeeState(string id) => _employeeStates.GetValueOrDefault(id);
     public RoomState GetRoomState(string id) => _roomStates.GetValueOrDefault(id);
 
+    // 스트레스 연동 지점(단일 창구). 지금은 EmployeeState.Stress 필드에 값만 더한다 —
+    // 스트레스가 업무 효율/명령 거부로 이어지는 로직은 아직 없음(TODO).
+    public void AddStress(string employeeId, float amount, string reason = "")
+    {
+        var st = _employeeStates.GetValueOrDefault(employeeId);
+        if (st == null || !st.Alive) return;
+        st.Stress = Mathf.Clamp(st.Stress + amount, 0f, Config.Instance.Data.StressMax);
+        if (!string.IsNullOrEmpty(reason))
+            EventLog.Instance?.LogEvent(LogEventType.Neglect, employeeId, st.CurrentRoomId,
+                $"{Codename(employeeId)} 스트레스 {(amount >= 0 ? "+" : "")}{amount:0} ({reason}) → {st.Stress:0}");
+    }
+
     // 로그 표시용 — 내부 id 대신 플레이어가 보는 코드네임/방 이름으로 남기기 위한 헬퍼.
     private string Codename(string employeeId) => _employeeDefs.GetValueOrDefault(employeeId)?.Codename ?? employeeId;
     private string RoomName(string roomId) => _roomDefs.GetValueOrDefault(roomId)?.DisplayName ?? roomId;
@@ -859,7 +871,7 @@ public partial class FacilitySimulation : Node
             bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress
                 && GameState.Instance.Materials < Config.Instance.Data.MaterialsPerCoreGauge;
 
-            if (workers.Count > 0 && !blockedByMaterials)
+            if (workers.Count > 0)
             {
                 // 직원이 실제로 이 방에서 발생 업무를 수행하기 시작함 = TaskStart (1인 1회).
                 foreach (var w in workers)
@@ -870,8 +882,13 @@ public partial class FacilitySimulation : Node
                         workers.Where(x => x.EmployeeId != w.EmployeeId).Select(x => x.EmployeeId));
                 }
 
-                int statSum = workers.Sum(w => _employeeDefs[w.EmployeeId].GetStat(taskDef.RequiredStat));
-                st.Gauge += statSum * delta;
+                // 최소 필요 인원 미만이면 게이지가 전혀 차지 않는다 — DAY1 발전기 점검(2명 필요)이
+                // DAY1 금기(발전실 2명 금지)와 반드시 충돌하도록 만드는 지점.
+                if (workers.Count >= Mathf.Max(1, taskDef.MinWorkersToProgress) && !blockedByMaterials)
+                {
+                    int statSum = workers.Sum(w => _employeeDefs[w.EmployeeId].GetStat(taskDef.RequiredStat));
+                    st.Gauge += statSum * delta;
+                }
             }
 
             if (st.Gauge >= st.GaugeRequired)

@@ -20,6 +20,9 @@ public partial class HorrorDirector : Node
 {
     public static HorrorDirector Instance { get; private set; }
 
+    // 전용 연출 이벤트(예: PowerRoomTabooEvent)가 화면을 장악하는 동안 일반 L2/L3 자동 발동을 멈춘다.
+    public bool CustomEventActive { get; set; }
+
     // 3D 중앙제어실 레이어가 "공간 표현"(조명/카메라/CRT/손 반응)을 붙이는 신호.
     // 판정은 여전히 HorrorDirector가 소유 — 3D는 표현만 받는다.
     [Signal] public delegate void Level2StartedEventHandler();
@@ -116,13 +119,15 @@ public partial class HorrorDirector : Node
 
     private void OnEntryLogged()
     {
-        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live || CustomEventActive) return;
         var e = EventLog.Instance.GetAllEntries().LastOrDefault();
         if (e == null) return;
 
         switch (e.EventType)
         {
             case LogEventType.TabooViolation:
+                // 전용 연출(PowerRoomTabooEvent 등)이 처리하는 금기는 일반 L3를 건너뛴다.
+                if (IsHandledByDedicatedEvent(e.RoomId)) break;
                 RequestLevel3(taboo: true);
                 break;
             case LogEventType.Death:
@@ -137,9 +142,21 @@ public partial class HorrorDirector : Node
         }
     }
 
+    private static bool IsHandledByDedicatedEvent(string roomId)
+    {
+        var taboos = NSP.Taboo.TabooRuleSystem.Instance?.GetActiveTaboos();
+        if (taboos == null) return false;
+        foreach (var t in taboos)
+        {
+            if (!t.ConditionParams.TryGetValue("defer_consequence", out var defer) || !defer.AsBool()) continue;
+            if (t.ConditionParams.TryGetValue("room_id", out var rid) && rid.AsString() == roomId) return true;
+        }
+        return false;
+    }
+
     public override void _Process(double delta)
     {
-        if (_playing || GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        if (_playing || CustomEventActive || GameState.Instance?.CurrentPhase != GamePhase.Live) return;
         if (Time.GetTicksMsec() - _lastLevel2Msec < Level2CooldownMsec) return;
 
         var sim = FacilitySimulation.Instance;

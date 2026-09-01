@@ -11,6 +11,9 @@ public partial class TaskDef : Resource
     [Export] public StatType RequiredStat = StatType.Tech;
     [Export] public int Priority = 1;
     [Export] public int RecommendedHeadcount = 1;
+    // 이 인원 미만이면 게이지가 전혀 차지 않는다(수리/점검에 최소 N명이 필요한 업무).
+    // 기본 1 = 기존 동작. DAY1 발전기 점검은 2 — 1명으로는 절대 완료할 수 없다.
+    [Export] public int MinWorkersToProgress = 1;
 
     [Export] public float GaugeRequired = 20f;
     [Export] public TaskEffectType EffectType = TaskEffectType.None;

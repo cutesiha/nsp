@@ -83,18 +83,36 @@ public partial class AlertSystem : Node
                 if (hold <= 0f) continue;
                 float remaining = Mathf.Max(0f, hold - kv.Value);
 
+                string headline = taboo?.ConditionParams.GetValueOrDefault("alert_headline", "금기 위반 임박").AsString();
+                string sublabel = taboo?.ConditionParams.GetValueOrDefault("alert_sublabel", "").AsString() ?? "";
+
                 list.Add(new Alert
                 {
                     Key = $"taboo:{kv.Key}:{roomId}",
                     Kind = AlertKind.TabooRisk,
                     RoomId = roomId,
-                    Headline = "금기 위반 임박",
-                    SubLabel = RoomLabel(roomId),
-                    Countdown = $"위반까지 {Clock(remaining)}",
+                    Headline = string.IsNullOrEmpty(headline) ? "금기 위반 임박" : headline,
+                    SubLabel = string.IsNullOrEmpty(sublabel) ? RoomLabel(roomId) : sublabel,
+                    Countdown = Clock(remaining),
                     TimeRemaining = remaining,
                     Severity = remaining <= 5f ? AlertSeverity.Critical : AlertSeverity.Warning,
                 });
             }
+        }
+
+        // 발전 사고로 전력 용량이 깎여 있는 동안 지속 표시.
+        if (GameState.Instance.IsPowerAccidentActive())
+        {
+            list.Add(new Alert
+            {
+                Key = "power_abnormal",
+                Kind = AlertKind.TaskWarning,
+                Headline = "POWER SYSTEM ABNORMALITY",
+                SubLabel = "CAPACITY LIMITED",
+                Countdown = "",
+                TimeRemaining = -1f,
+                Severity = AlertSeverity.Warning,
+            });
         }
 
         int materials = GameState.Instance.Materials;

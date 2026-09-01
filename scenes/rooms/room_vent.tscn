@@ -1,0 +1,63 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+
+[sub_resource type="CylinderMesh" id="CM_Duct"]
+top_radius = 0.55
+bottom_radius = 0.55
+height = 5.6
+
+[sub_resource type="CylinderMesh" id="CM_Fan"]
+top_radius = 0.62
+bottom_radius = 0.62
+height = 0.14
+
+[sub_resource type="BoxMesh" id="BM_Blade"]
+size = Vector3(1.1, 0.5, 0.05)
+
+[sub_resource type="BoxMesh" id="BM_Grille"]
+size = Vector3(1.2, 1.2, 0.1)
+
+[sub_resource type="StandardMaterial3D" id="Mat_Duct"]
+albedo_color = Color(0.3, 0.31, 0.34, 1)
+metallic = 0.65
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="Mat_Dark"]
+albedo_color = Color(0.09, 0.1, 0.11, 1)
+metallic = 0.3
+roughness = 0.6
+
+[node name="VentRoom" type="Node3D"]
+
+[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+
+[node name="Duct" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.4, 2.5, -2.4)
+mesh = SubResource("CM_Duct")
+surface_material_override/0 = SubResource("Mat_Duct")
+
+[node name="FanHousing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.85, 1.7, -0.5)
+mesh = SubResource("CM_Fan")
+surface_material_override/0 = SubResource("Mat_Dark")
+
+[node name="FanHub" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.087, 0, -0.996, 0, 1, 0, 0.996, 0, 0.087, -2.78, 1.7, -0.5)
+mesh = SubResource("BM_Blade")
+surface_material_override/0 = SubResource("Mat_Dark")
+
+[node name="FanBlade2" type="MeshInstance3D" parent="."]
+transform = Transform3D(-0.996, 0, -0.087, 0, 1, 0, 0.087, 0, -0.996, -2.78, 1.7, -0.5)
+mesh = SubResource("BM_Blade")
+surface_material_override/0 = SubResource("Mat_Dark")
+
+[node name="Grille1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 2.3, -2.9)
+mesh = SubResource("BM_Grille")
+surface_material_override/0 = SubResource("Mat_Dark")
+
+[node name="Grille2" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.9, 0.9, 1.6)
+mesh = SubResource("BM_Grille")
+surface_material_override/0 = SubResource("Mat_Dark")

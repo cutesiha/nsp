@@ -1,0 +1,59 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+
+[sub_resource type="CylinderMesh" id="CM_Column"]
+top_radius = 0.45
+bottom_radius = 0.58
+height = 2.7
+
+[sub_resource type="CylinderMesh" id="CM_Ring"]
+top_radius = 1.2
+bottom_radius = 1.2
+height = 0.25
+
+[sub_resource type="TorusMesh" id="TM_Halo"]
+inner_radius = 0.9
+outer_radius = 1.05
+
+[sub_resource type="StandardMaterial3D" id="Mat_CoreGlow"]
+albedo_color = Color(0.1, 0.2, 0.24, 1)
+emission_enabled = true
+emission = Color(0.25, 0.85, 1, 1)
+emission_energy_multiplier = 2.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_Base"]
+albedo_color = Color(0.16, 0.18, 0.22, 1)
+metallic = 0.6
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_Halo"]
+albedo_color = Color(0.1, 0.15, 0.18, 1)
+emission_enabled = true
+emission = Color(0.3, 0.8, 1, 1)
+emission_energy_multiplier = 1.8
+
+[node name="CoreRoom" type="Node3D"]
+
+[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+
+[node name="CoreColumn" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 1.5, -1.3)
+mesh = SubResource("CM_Column")
+surface_material_override/0 = SubResource("Mat_CoreGlow")
+
+[node name="CoreBase" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 0.12, -1.3)
+mesh = SubResource("CM_Ring")
+surface_material_override/0 = SubResource("Mat_Base")
+
+[node name="CoreHalo" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 1.95, -1.3)
+mesh = SubResource("TM_Halo")
+surface_material_override/0 = SubResource("Mat_Halo")
+
+[node name="CoreLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 1.6, -1.3)
+light_color = Color(0.35, 0.8, 1, 1)
+light_energy = 2.4
+omni_range = 7.5

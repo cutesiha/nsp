@@ -157,7 +157,20 @@ public partial class TabooRuleSystem : Node
     {
         EventLog.Instance?.LogEvent(LogEventType.TabooViolation, actorEmployeeId, roomId,
             $"⚠ 금기 위반 — {description}");
+
+        // 일부 금기는 결과 적용을 전용 연출 이벤트(예: PowerRoomTabooEvent)에 맡긴다 —
+        // 위반 로그는 즉시 남기되, 실제 운영 페널티는 연출이 끝나는 타이밍에 적용한다.
+        if (taboo.ConditionParams.GetValueOrDefault("defer_consequence", false).AsBool())
+            return;
+
         ApplyConsequence(taboo, roomId);
+    }
+
+    // 지연된 금기 결과를 나중에 적용한다(defer_consequence 금기 전용).
+    public void ApplyDeferredConsequence(string tabooId, string roomId)
+    {
+        var taboo = _tabooDefs.GetValueOrDefault(tabooId);
+        if (taboo != null) ApplyConsequence(taboo, roomId);
     }
 
     private void ApplyConsequence(TabooDef taboo, string roomId)

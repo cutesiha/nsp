@@ -239,6 +239,91 @@ public partial class Sfx : Node
     // 대사 스킵/즉시 완성 시 트레일링 블립을 바로 끊는다.
     public void StopVoiceBlip() => _voicePlayer?.Stop();
 
+    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 결번자 웃음 -------------
+    private AudioStream _screamStream, _laughStream;
+
+    // 직원 공포 반응. 녹음 에셋이 없어 런타임 생성 — 라이즈-폴 톤 + 빠른 비브라토 + 노이즈 + 클리핑.
+    public void PlayScream(string employeeId = "", float volumeDb = -5f)
+    {
+        _screamStream ??= BuildScream();
+        float pitch = _voiceRng.RandfRange(0.9f, 1.25f);
+        PlayGenerated(_screamStream, volumeDb, pitch);
+    }
+
+    // 결번자 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
+    public void PlayEntityLaugh(float volumeDb = -4f)
+    {
+        _laughStream ??= BuildLaugh();
+        PlayGenerated(_laughStream, volumeDb, _voiceRng.RandfRange(0.94f, 1.03f));
+    }
+
+    private void PlayGenerated(AudioStream s, float db, float pitch)
+    {
+        if (s == null) return;
+        var p = _pool[_next];
+        _next = (_next + 1) % _pool.Count;
+        p.Stream = s;
+        p.VolumeDb = db;
+        p.PitchScale = Mathf.Clamp(pitch, 0.1f, 4f);
+        p.Play();
+    }
+
+    private static AudioStreamWav BuildScream()
+    {
+        const int rate = 22050;
+        int n = (int)(rate * 0.75f);
+        var pcm = new byte[n * 2];
+        var rng = new RandomNumberGenerator();
+        float ph = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / n;                                   // 0..1
+            float freq = Mathf.Lerp(520f, 880f, Mathf.Sin(t * 2.4f)); // 오르내림
+            freq *= 1f + 0.06f * Mathf.Sin(t * 160f);                 // 빠른 비브라토
+            ph += freq / rate * Mathf.Tau;
+            float tone = Mathf.Sin(ph) + 0.4f * Mathf.Sin(ph * 2f);
+            float noise = rng.RandfRange(-1f, 1f) * 0.35f;
+            float env = Mathf.Min(1f, t * 12f) * Mathf.Pow(1f - t, 0.6f);
+            float s = Mathf.Clamp((tone + noise) * 1.6f, -1f, 1f) * env; // 하드 클리핑 = 거친 질감
+            short v = (short)(s * 26000f);
+            pcm[i * 2] = (byte)(v & 0xFF);
+            pcm[i * 2 + 1] = (byte)((v >> 8) & 0xFF);
+        }
+        return new AudioStreamWav
+        {
+            Format = AudioStreamWav.FormatEnum.Format16Bits, MixRate = rate, Stereo = false, Data = pcm,
+        };
+    }
+
+    private static AudioStreamWav BuildLaugh()
+    {
+        const int rate = 22050;
+        int n = (int)(rate * 1.7f);
+        var pcm = new byte[n * 2];
+        var rng = new RandomNumberGenerator();
+        float ph = 0f, phSub = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / n;
+            float baseFreq = Mathf.Lerp(150f, 95f, t);                 // 점점 낮게
+            ph += baseFreq / rate * Mathf.Tau;
+            phSub += baseFreq * 0.5f / rate * Mathf.Tau;
+            // "허 허 허 허" — 8Hz 게이트로 톤을 끊는다.
+            float gate = Mathf.Pow(Mathf.Max(0f, Mathf.Sin(t * n / rate * 8f * Mathf.Pi)), 2.5f);
+            float tone = Mathf.Sin(ph) + 0.6f * Mathf.Sin(phSub) + 0.2f * Mathf.Sin(ph * 3f);
+            float noise = rng.RandfRange(-1f, 1f) * 0.12f;
+            float env = Mathf.Min(1f, t * 8f) * Mathf.Pow(1f - t, 0.4f);
+            float s = Mathf.Clamp((tone * gate + noise) * 1.3f, -1f, 1f) * env;
+            short v = (short)(s * 24000f);
+            pcm[i * 2] = (byte)(v & 0xFF);
+            pcm[i * 2 + 1] = (byte)((v >> 8) & 0xFF);
+        }
+        return new AudioStreamWav
+        {
+            Format = AudioStreamWav.FormatEnum.Format16Bits, MixRate = rate, Stereo = false, Data = pcm,
+        };
+    }
+
     // 이름 있는 루프 채널. 같은 key로 다시 부르면 아무것도 하지 않는다(이미 재생 중).
     public void Loop(string key, float volumeDb = 0f)
     {

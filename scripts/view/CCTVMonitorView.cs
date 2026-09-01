@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -8,24 +7,18 @@ using NSP.Ui;
 namespace NSP.View;
 
 // 오른쪽 CRT 전용. CCTV만. 왼쪽에서 선택한 방(SurveillanceTargetRoomId)을 보여준다.
-// 배경 / 직원 / 이펙트를 각각 다른 Layer로 분리한다 — 나중에 Blender 렌더 이미지를
-// res://assets/cctv/{name}.png 로 넣으면 배경 레이어만 교체된다.
+// 배경은 실제 3D 작업실 월드(FacilityCctvWorld) 의 SubViewport 텍스처를 그대로 깔고,
+// 그 위에 노이즈 / 스캔라인 / REC / 상태(신호 없음·손실·설비 고장) 오버레이만 얹는다.
 public partial class CCTVMonitorView : Control
 {
     public static CCTVMonitorView Instance { get; private set; }
 
     private static readonly Rect2 Frame = new(32, 60, 736, 452);
 
-    private static readonly Dictionary<string, string> TexName = new()
-    {
-        ["power_room"] = "power", ["vent_room"] = "vent", ["maintenance_room"] = "maintenance",
-        ["medical_room"] = "medical", ["guard_room"] = "guard", ["storage_room"] = "storage",
-        ["core_room"] = "core", ["isolation_room"] = "isolation", ["central_office"] = "central",
-    };
-
     private Font _font;
     private TextureRect _bgTex;
     private CctvPlaceholder _bgPlaceholder;
+    private bool _feedBound;
     private Control _employeeLayer;
     private ColorRect _tint;
     private Label _stateLabel;
@@ -38,7 +31,22 @@ public partial class CCTVMonitorView : Control
     private int _noiseIdx;
     private float _recBlink;
     private float _glitch;
-    private string _lastRoom = "?";
+
+    // 금기 이벤트 연출 훅.
+    private double _forceFeedUntil = -1;   // 전력/고장과 무관하게 3D 피드를 강제로 보여줌
+    private double _forceLostUntil = -1;   // SIGNAL LOST 강제
+    private double _shakeUntil = -1;
+    private float _shakeStrength;
+    private readonly RandomNumberGenerator _rng = new();
+
+    // PowerRoomTabooEvent 가 부른다.
+    public void ForceFeed(float seconds) => _forceFeedUntil = Time.GetTicksMsec() / 1000.0 + seconds;
+    public void ForceSignalLost(float seconds) => _forceLostUntil = Time.GetTicksMsec() / 1000.0 + seconds;
+    public void Shake(float strength, float seconds = 0.35f)
+    {
+        _shakeStrength = Mathf.Max(_shakeStrength, strength);
+        _shakeUntil = Time.GetTicksMsec() / 1000.0 + seconds;
+    }
 
     public override void _Ready()
     {
@@ -57,7 +65,7 @@ public partial class CCTVMonitorView : Control
         _bgTex = new TextureRect
         {
             Position = Frame.Position, Size = Frame.Size,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
+            StretchMode = TextureRect.StretchModeEnum.Scale,
             Visible = false, MouseFilter = MouseFilterEnum.Ignore,
         };
         AddChild(_bgTex);
@@ -140,6 +148,21 @@ public partial class CCTVMonitorView : Control
             _noise.Texture = _noiseFrames[_noiseIdx];
         }
 
+        double now = Time.GetTicksMsec() / 1000.0;
+        Position = now < _shakeUntil
+            ? new Vector2(_rng.RandfRange(-1f, 1f), _rng.RandfRange(-1f, 1f)) * _shakeStrength
+            : Vector2.Zero;
+        if (now >= _shakeUntil) _shakeStrength = Mathf.MoveToward(_shakeStrength, 0f, d * 60f);
+
+        // 금기 이벤트: CCTV 강제 차단.
+        if (now < _forceLostUntil)
+        {
+            ShowState("── SIGNAL LOST ──", darken: 0.94f);
+            _noise.Modulate = new Color(1, 1, 1, 0.62f + _glitch * 0.3f);
+            return;
+        }
+        bool forceFeed = now < _forceFeedUntil;
+
         if (string.IsNullOrEmpty(roomId) || sim == null)
         {
             ShowState("MONITOR 01에서 방을 선택하세요", darken: 1f);
@@ -156,30 +179,37 @@ public partial class CCTVMonitorView : Control
         bool systemFault = GameState.Instance.CctvSystemOffline;
         bool disconnected = state?.CctvDisconnected == true;
 
-        if (systemFault)
+        if (!forceFeed && systemFault)
         {
             // FAIL-04: 경비실 감시 설비 고장 — 전력을 줘도 수리 전까지 신호 없음.
             ShowState("SIGNAL FAILURE\nSURVEILLANCE SYSTEM DOWN", darken: 0.92f);
             _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
             return;
         }
-        if (disconnected)
+        if (!forceFeed && disconnected)
         {
             ShowState("── SIGNAL LOST ──", darken: 0.92f);
             _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
             return;
         }
-        if (!powered)
+        if (!forceFeed && !powered)
         {
             ShowState("NO SIGNAL\nCCTV POWER OFF", darken: 0.9f);
             _noise.Modulate = new Color(1, 1, 1, 0.16f);
             return;
         }
 
-        // 정상 피드
+        // 정상 피드 — 실제 3D 작업실 월드 텍스처를 그대로 깐다. 아직 준비 전이면 2D 폴백.
         _stateLabel.Visible = false;
-        UpdateBackground(roomId);
-        _bgPlaceholder.Visible = !_bgTex.Visible;
+        BindFacilityFeed();
+        bool hasFeed = _bgTex.Texture != null;
+        _bgTex.Visible = hasFeed;
+        _bgPlaceholder.Visible = !hasFeed;
+        if (!hasFeed && _bgPlaceholder.RoomId != roomId)
+        {
+            _bgPlaceholder.RoomId = roomId;
+            _bgPlaceholder.QueueRedraw();
+        }
 
         bool red = state?.RedAlertLighting == true;
         _tint.Color = red ? new Color(0.5f, 0.03f, 0.03f, 0.35f) : new Color(0, 0, 0, 0.12f);
@@ -198,49 +228,21 @@ public partial class CCTVMonitorView : Control
         foreach (var c in _employeeLayer.GetChildren()) c.QueueFree();
     }
 
-    private void UpdateBackground(string roomId)
+    // 3D 작업실 월드 SubViewport 텍스처를 배경으로 한 번만 연결한다.
+    private void BindFacilityFeed()
     {
-        if (roomId == _lastRoom) return;
-        _lastRoom = roomId;
-
-        string path = $"res://assets/cctv/{TexName.GetValueOrDefault(roomId, roomId)}.png";
-        if (ResourceLoader.Exists(path))
-        {
-            _bgTex.Texture = GD.Load<Texture2D>(path);
-            _bgTex.Visible = true;
-        }
-        else
-        {
-            _bgTex.Visible = false;
-            _bgPlaceholder.RoomId = roomId;
-            _bgPlaceholder.QueueRedraw();
-        }
+        if (_feedBound) return;
+        var vp = ControlRoom3DController.Instance?.FacilityCctvViewport;
+        var tex = vp?.GetTexture();
+        if (tex == null) return;
+        _bgTex.Texture = tex;
+        _feedBound = true;
     }
 
     private void RebuildEmployees(FacilitySimulation sim, RoomState state)
     {
-        foreach (var c in _employeeLayer.GetChildren()) c.QueueFree();
+        // 직원은 이제 3D 월드(FacilityCctvWorld)에서 실제 플레이스홀더로 보인다 — 여기선 방 상태 텍스트만.
         if (state == null) return;
-
-        int i = 0;
-        foreach (var id in state.OccupantEmployeeIds)
-        {
-            var def = sim.GetEmployeeDef(id);
-            var est = sim.GetEmployeeState(id);
-            if (def == null || est == null || !est.Alive) continue;
-
-            float x = 90 + (i % 3) * 200;
-            float y = 150 + (i / 3) * 150;
-
-            var dot = new ColorRect { Position = new Vector2(x, y), Size = new Vector2(30, 30), Color = def.IconColor, MouseFilter = MouseFilterEnum.Ignore };
-            _employeeLayer.AddChild(dot);
-            var name = Lbl(def.Codename, 15, new Color(0.95f, 0.95f, 0.85f));
-            name.Position = new Vector2(x - 20, y + 32);
-            name.Size = new Vector2(70, 20);
-            name.HorizontalAlignment = HorizontalAlignment.Center;
-            _employeeLayer.AddChild(name);
-            i++;
-        }
 
         var block = RoomStatusText.BuildRoomStatusBlock(state.RoomId);
         // 상태 블록은 프레임 하단 중앙에.

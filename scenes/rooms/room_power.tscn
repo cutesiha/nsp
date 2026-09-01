@@ -1,0 +1,70 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+
+[sub_resource type="BoxMesh" id="BM_Gen"]
+size = Vector3(1.4, 1.5, 1.0)
+
+[sub_resource type="CylinderMesh" id="CM_Pipe"]
+top_radius = 0.12
+bottom_radius = 0.12
+height = 3.0
+
+[sub_resource type="BoxMesh" id="BM_Panel"]
+size = Vector3(1.0, 1.3, 0.25)
+
+[sub_resource type="StandardMaterial3D" id="Mat_Metal"]
+albedo_color = Color(0.26, 0.27, 0.3, 1)
+metallic = 0.7
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_Pipe"]
+albedo_color = Color(0.3, 0.28, 0.24, 1)
+metallic = 0.6
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Mat_Amber"]
+albedo_color = Color(0.25, 0.15, 0.03, 1)
+emission_enabled = true
+emission = Color(1, 0.6, 0.12, 1)
+emission_energy_multiplier = 2.2
+
+[node name="PowerRoom" type="Node3D"]
+
+[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+
+[node name="Generator1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.75, -1.9)
+mesh = SubResource("BM_Gen")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="Generator2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.75, -2.2)
+mesh = SubResource("BM_Gen")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="GenStrip1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.3, 0, 0, 0, 0.12, 0, 0, 0, 0.05, -1.7, 1.2, -1.38)
+mesh = SubResource("BM_Gen")
+surface_material_override/0 = SubResource("Mat_Amber")
+
+[node name="Pipe1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -2.7, 2.7, -1)
+mesh = SubResource("CM_Pipe")
+surface_material_override/0 = SubResource("Mat_Pipe")
+
+[node name="Pipe2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -2.7, 2.4, 0.6)
+mesh = SubResource("CM_Pipe")
+surface_material_override/0 = SubResource("Mat_Pipe")
+
+[node name="BreakerPanel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8, 1.3, 1.2)
+mesh = SubResource("BM_Panel")
+surface_material_override/0 = SubResource("Mat_Metal")
+
+[node name="AccentLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 1.6, -1.2)
+light_color = Color(1, 0.72, 0.4, 1)
+light_energy = 1.0
+omni_range = 5.0

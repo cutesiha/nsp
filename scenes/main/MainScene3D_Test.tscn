@@ -16,8 +16,9 @@
 [ext_resource type="Script" uid="uid://brsdpsjofltnw" path="res://scripts/view/ShiftFlowController.cs" id="14_shiftflow"]
 [ext_resource type="Script" uid="uid://bayorhqgay1ra" path="res://scripts/view/PowerSwitchPanel.cs" id="15_powerpanel"]
 [ext_resource type="Script" uid="uid://bfjjchbdyfmey" path="res://scripts/view/AlertTerminalProp.cs" id="16_alertterm"]
-[ext_resource type="Script" uid="uid://buw3iroa2bwfn" path="res://scripts/view/IncomingCallDirector.cs" id="19_calldir"]
 [ext_resource type="Texture2D" uid="uid://dg2kjj82q5qw5" path="res://assets/texture/desk.png" id="17_desktex"]
+[ext_resource type="Script" uid="uid://buw3iroa2bwfn" path="res://scripts/view/IncomingCallDirector.cs" id="19_calldir"]
+[ext_resource type="Script" uid="uid://d16ws83ehewso" path="res://scripts/view/PowerRoomTabooEvent.cs" id="20_pwrtaboo"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -71,213 +72,114 @@ cull_mode = 2
 albedo_color = Color(0.26, 0.29, 0.37, 1)
 roughness = 0.8
 
-[sub_resource type="CapsuleMesh" id="HM_UpperArm_L"]
-radius = 0.028
-height = 0.2706
-radial_segments = 10
-rings = 4
-
-[sub_resource type="CapsuleMesh" id="HM_Forearm_L"]
-radius = 0.027
-height = 0.2317
-radial_segments = 10
-rings = 4
-
-[sub_resource type="CapsuleMesh" id="HM_Cuff_L"]
-radius = 0.032
-height = 0.085
-radial_segments = 10
-rings = 4
-
-[sub_resource type="BoxMesh" id="HM_Palm_L"]
-size = Vector3(0.088, 0.058, 0.03)
-
-[sub_resource type="CapsuleMesh" id="HM_Index_L_1"]
-radius = 0.0125
-height = 0.034
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Index_L_2"]
-radius = 0.0115
-height = 0.024
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Index_L_3"]
-radius = 0.01
-height = 0.021
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Middle_L_1"]
-radius = 0.0125
-height = 0.038
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Middle_L_2"]
-radius = 0.0115
-height = 0.027
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Middle_L_3"]
-radius = 0.01
-height = 0.021
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Ring_L_1"]
-radius = 0.0125
-height = 0.034
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Ring_L_2"]
-radius = 0.0115
-height = 0.025
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Ring_L_3"]
-radius = 0.01
-height = 0.021
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Pinky_L_1"]
-radius = 0.0125
-height = 0.026
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Pinky_L_2"]
-radius = 0.0115
-height = 0.024
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Pinky_L_3"]
-radius = 0.01
-height = 0.021
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Thumb_L_1"]
-radius = 0.014
-height = 0.0331
-radial_segments = 6
-rings = 3
-
-[sub_resource type="CapsuleMesh" id="HM_Thumb_L_2"]
-radius = 0.011
-height = 0.023
-radial_segments = 6
-rings = 3
-
 [sub_resource type="CapsuleMesh" id="HM_UpperArm_R"]
-radius = 0.028
-height = 0.2706
+radius = 0.03466797
+height = 0.29763046
 radial_segments = 10
 rings = 4
 
 [sub_resource type="CapsuleMesh" id="HM_Forearm_R"]
-radius = 0.027
-height = 0.2317
+radius = 0.034179688
+height = 0.26642108
 radial_segments = 10
 rings = 4
 
 [sub_resource type="CapsuleMesh" id="HM_Cuff_R"]
-radius = 0.032
-height = 0.085
+radius = 0.037109375
+height = 0.085468754
 radial_segments = 10
 rings = 4
 
 [sub_resource type="BoxMesh" id="HM_Palm_R"]
-size = Vector3(0.088, 0.058, 0.03)
+size = Vector3(0.077203125, 0.063572265, 0.020673828)
 
 [sub_resource type="CapsuleMesh" id="HM_Index_R_1"]
-radius = 0.0125
-height = 0.034
+radius = 0.009765625
+height = 0.04658594
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Index_R_2"]
-radius = 0.0115
-height = 0.024
+radius = 0.009277344
+height = 0.03852246
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Index_R_3"]
-radius = 0.01
-height = 0.021
+radius = 0.0078125
+height = 0.031234864
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Middle_R_1"]
-radius = 0.0125
-height = 0.038
+radius = 0.009765625
+height = 0.053211913
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Middle_R_2"]
-radius = 0.0115
-height = 0.027
+radius = 0.009277344
+height = 0.042681642
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Middle_R_3"]
-radius = 0.01
-height = 0.021
+radius = 0.008300781
+height = 0.031066895
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Ring_R_1"]
-radius = 0.0125
-height = 0.034
+radius = 0.0107421875
+height = 0.051712893
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Ring_R_2"]
-radius = 0.0115
-height = 0.025
+radius = 0.009277344
+height = 0.038476564
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Ring_R_3"]
-radius = 0.01
-height = 0.021
+radius = 0.0078125
+height = 0.026978515
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Pinky_R_1"]
-radius = 0.0125
-height = 0.026
+radius = 0.0087890625
+height = 0.043800294
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Pinky_R_2"]
-radius = 0.0115
-height = 0.024
+radius = 0.009765625
+height = 0.03926318
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Pinky_R_3"]
-radius = 0.01
-height = 0.021
+radius = 0.0073242188
+height = 0.02890039
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Thumb_R_1"]
-radius = 0.014
-height = 0.0331
+radius = 0.012207031
+height = 0.04307793
 radial_segments = 6
 rings = 3
 
 [sub_resource type="CapsuleMesh" id="HM_Thumb_R_2"]
-radius = 0.011
-height = 0.023
+radius = 0.0073242188
+height = 0.04570166
+radial_segments = 6
+rings = 3
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_5j8e6"]
+radius = 0.0073242188
+height = 0.04570166
 radial_segments = 6
 rings = 3
 
@@ -349,7 +251,7 @@ environment = SubResource("Env")
 [node name="ControlRoom" type="Node3D" parent="." unique_id=1811790660]
 
 [node name="Floor" type="MeshInstance3D" parent="ControlRoom" unique_id=1252295084]
-transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, 0, -0.05, -0.9)
+transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, -2.0742416e-05, -0.05094992, -0.9028499)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Floor")
 
@@ -686,8 +588,8 @@ bone_name = "UpperArm_L"
 bone_idx = 2
 
 [node name="M_UpperArm_L" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_UpperArm_L" unique_id=99422766]
-transform = Transform3D(-0.99846, -0.05543, 0.00205, 0.05547, -0.99778, 0.0369, 0, 0.03695, 0.99932, -0.0075, -0.135, 0.005)
-mesh = SubResource("HM_UpperArm_L")
+transform = Transform3D(-0.99846005, -0.055430003, 0.00205, 0.05547, -0.99778, 0.0369, 0, 0.03695, 0.99932, -0.008249134, -0.14848524, 0.0054993853)
+mesh = SubResource("HM_UpperArm_R")
 surface_material_override/0 = SubResource("PC_Shirt")
 
 [node name="A_Forearm_L" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1857582158]
@@ -696,13 +598,13 @@ bone_name = "Forearm_L"
 bone_idx = 3
 
 [node name="M_Forearm_L" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Forearm_L" unique_id=871830225]
-transform = Transform3D(-0.99624, 0.08631, 0.00748, -0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, 0.01, -0.115, -0.01)
-mesh = SubResource("HM_Forearm_L")
+transform = Transform3D(-0.99624, 0.08631, 0.0074800006, -0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, 0.008501604, -0.09776944, -0.008501589)
+mesh = SubResource("HM_Forearm_R")
 surface_material_override/0 = SubResource("PC_Shirt")
 
 [node name="M_Cuff_L" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Forearm_L" unique_id=272329248]
-transform = Transform3D(-0.99624, 0.08631, 0.00748, -0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, 0.0172, -0.1978, -0.0172)
-mesh = SubResource("HM_Cuff_L")
+transform = Transform3D(-0.99624, 0.08631, 0.0074800006, -0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, 0.017220244, -0.19803268, -0.017220214)
+mesh = SubResource("HM_Cuff_R")
 surface_material_override/0 = SubResource("PC_Cuff")
 
 [node name="A_Hand_L" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=582420301]
@@ -711,8 +613,8 @@ bone_name = "Hand_L"
 bone_idx = 4
 
 [node name="M_Hand_L" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Hand_L" unique_id=1293476325]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.028, 0.004)
-mesh = SubResource("HM_Palm_L")
+transform = Transform3D(-1.0000002, 0, 0, 0, -1.0000002, 0, 0, 0, 1.0000002, -0.0053984523, -0.030786097, 0.006202154)
+mesh = SubResource("HM_Palm_R")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Index_L_1" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1408612906]
@@ -721,8 +623,8 @@ bone_name = "Index_L_1"
 bone_idx = 5
 
 [node name="M_Index_L_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Index_L_1" unique_id=241800086]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.017, 0)
-mesh = SubResource("HM_Index_L_1")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.016855538, 0)
+mesh = SubResource("HM_Index_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Index_L_2" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=840060705]
@@ -731,8 +633,8 @@ bone_name = "Index_L_2"
 bone_idx = 6
 
 [node name="M_Index_L_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Index_L_2" unique_id=1512181790]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0115, 0)
-mesh = SubResource("HM_Index_L_2")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.010741651, 0)
+mesh = SubResource("HM_Index_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Index_L_3" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1253067840]
@@ -741,8 +643,8 @@ bone_name = "Index_L_3"
 bone_idx = 7
 
 [node name="M_Index_L_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Index_L_3" unique_id=929120473]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
-mesh = SubResource("HM_Index_L_3")
+transform = Transform3D(-1.0148485, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0062375665, 0)
+mesh = SubResource("HM_Index_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Middle_L_1" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=183983291]
@@ -751,8 +653,8 @@ bone_name = "Middle_L_1"
 bone_idx = 8
 
 [node name="M_Middle_L_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Middle_L_1" unique_id=1507568413]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.019, 0)
-mesh = SubResource("HM_Middle_L_1")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.016797334, 0)
+mesh = SubResource("HM_Middle_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Middle_L_2" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=845144022]
@@ -761,8 +663,8 @@ bone_name = "Middle_L_2"
 bone_idx = 9
 
 [node name="M_Middle_L_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Middle_L_2" unique_id=784757926]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0135, 0)
-mesh = SubResource("HM_Middle_L_2")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.015309602, 0)
+mesh = SubResource("HM_Middle_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Middle_L_3" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1891972508]
@@ -771,8 +673,8 @@ bone_name = "Middle_L_3"
 bone_idx = 10
 
 [node name="M_Middle_L_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Middle_L_3" unique_id=1732835984]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
-mesh = SubResource("HM_Middle_L_3")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.010273665, 0)
+mesh = SubResource("HM_Middle_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Ring_L_1" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1315522656]
@@ -781,8 +683,8 @@ bone_name = "Ring_L_1"
 bone_idx = 11
 
 [node name="M_Ring_L_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Ring_L_1" unique_id=929701083]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.017, 0)
-mesh = SubResource("HM_Ring_L_1")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.013071328, 0)
+mesh = SubResource("HM_Ring_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Ring_L_2" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1264499692]
@@ -791,8 +693,8 @@ bone_name = "Ring_L_2"
 bone_idx = 12
 
 [node name="M_Ring_L_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Ring_L_2" unique_id=800682925]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0125, 0)
-mesh = SubResource("HM_Ring_L_2")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.013183594, 0)
+mesh = SubResource("HM_Ring_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Ring_L_3" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=177000357]
@@ -801,8 +703,8 @@ bone_name = "Ring_L_3"
 bone_idx = 13
 
 [node name="M_Ring_L_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Ring_L_3" unique_id=600365846]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
-mesh = SubResource("HM_Ring_L_3")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.010305673, 0)
+mesh = SubResource("HM_Ring_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Pinky_L_1" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=56475319]
@@ -811,8 +713,8 @@ bone_name = "Pinky_L_1"
 bone_idx = 14
 
 [node name="M_Pinky_L_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Pinky_L_1" unique_id=475767234]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.013, 0)
-mesh = SubResource("HM_Pinky_L_1")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.012927562, 0)
+mesh = SubResource("HM_Pinky_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Pinky_L_2" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=913978363]
@@ -821,8 +723,8 @@ bone_name = "Pinky_L_2"
 bone_idx = 15
 
 [node name="M_Pinky_L_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Pinky_L_2" unique_id=408134428]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0095, 0)
-mesh = SubResource("HM_Pinky_L_2")
+transform = Transform3D(-0.831633, 0, 0, 0, -0.831633, 0, 0, 0, 0.831633, 0, -0.012169689, 0)
+mesh = SubResource("HM_Pinky_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Pinky_L_3" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1610399934]
@@ -831,8 +733,8 @@ bone_name = "Pinky_L_3"
 bone_idx = 16
 
 [node name="M_Pinky_L_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Pinky_L_3" unique_id=1557439074]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
-mesh = SubResource("HM_Pinky_L_3")
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.008825362, 0)
+mesh = SubResource("HM_Pinky_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Thumb_L_1" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1915934848]
@@ -841,8 +743,8 @@ bone_name = "Thumb_L_1"
 bone_idx = 17
 
 [node name="M_Thumb_L_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Thumb_L_1" unique_id=378667170]
-transform = Transform3D(-0.67572, -0.72495, -0.1336, 0.73715, -0.66453, -0.12247, 0, -0.18124, 0.98344, -0.012, -0.011, -0.003)
-mesh = SubResource("HM_Thumb_L_1")
+transform = Transform3D(-0.67572004, -0.72495, -0.1336, 0.73715, -0.66453, -0.12247001, 0, -0.18124, 0.98344004, -0.015616745, -0.014315367, -0.0039041862)
+mesh = SubResource("HM_Thumb_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_Thumb_L_2" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=1461835471]
@@ -851,8 +753,8 @@ bone_name = "Thumb_L_2"
 bone_idx = 18
 
 [node name="M_Thumb_L_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Thumb_L_2" unique_id=470357004]
-transform = Transform3D(-0.67572, -0.72495, -0.1336, 0.73715, -0.66453, -0.12247, 0, -0.18124, 0.98344, -0.00797, -0.00731, -0.00199)
-mesh = SubResource("HM_Thumb_L_2")
+transform = Transform3D(-0.81596047, -0.71634346, -0.13330768, 0.8901398, -0.6566407, -0.12220205, 0, -0.17908834, 0.9812884, -0.012078255, -0.0110758245, -0.0030170754)
+mesh = SubResource("HM_Thumb_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="A_UpperArm_R" type="BoneAttachment3D" parent="ControlRoom/PlayerCharacter/Rig" unique_id=479646443]
@@ -861,7 +763,7 @@ bone_name = "UpperArm_R"
 bone_idx = 20
 
 [node name="M_UpperArm_R" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_UpperArm_R" unique_id=329500486]
-transform = Transform3D(-0.99846, 0.05543, -0.00205, -0.05547, -0.99778, 0.0369, 0, 0.03695, 0.99932, 0.0075, -0.135, 0.005)
+transform = Transform3D(-0.99846005, 0.055430003, -0.00205, -0.05547, -0.99778, 0.0369, 0, 0.03695, 0.99932, 0.008249134, -0.14848524, 0.0054993853)
 mesh = SubResource("HM_UpperArm_R")
 surface_material_override/0 = SubResource("PC_Shirt")
 
@@ -871,12 +773,12 @@ bone_name = "Forearm_R"
 bone_idx = 21
 
 [node name="M_Forearm_R" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Forearm_R" unique_id=1954087368]
-transform = Transform3D(-0.99624, -0.08631, -0.00748, 0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, -0.01, -0.115, -0.01)
+transform = Transform3D(-0.99624, -0.08631, -0.0074800006, 0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, -0.008501604, -0.09776944, -0.008501589)
 mesh = SubResource("HM_Forearm_R")
 surface_material_override/0 = SubResource("PC_Shirt")
 
 [node name="M_Cuff_R" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Forearm_R" unique_id=1679147792]
-transform = Transform3D(-0.99624, -0.08631, -0.00748, 0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, -0.0172, -0.1978, -0.0172)
+transform = Transform3D(-0.99624, -0.08631, -0.0074800006, 0.08663, -0.99252, -0.08598, 0, -0.08631, 0.99627, -0.017220244, -0.19803268, -0.017220214)
 mesh = SubResource("HM_Cuff_R")
 surface_material_override/0 = SubResource("PC_Cuff")
 
@@ -886,7 +788,7 @@ bone_name = "Hand_R"
 bone_idx = 22
 
 [node name="M_Hand_R" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Hand_R" unique_id=858745527]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.028, 0.004)
+transform = Transform3D(-1.0000002, 0, 0, 0, -1.0000002, 0, 0, 0, 1.0000002, 0.0053984374, -0.030786097, 0.006460935)
 mesh = SubResource("HM_Palm_R")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -899,7 +801,7 @@ bone_name = "Index_R_1"
 bone_idx = 23
 
 [node name="M_Index_R_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Index_R_1" unique_id=122356042]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.017, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.016855538, 0)
 mesh = SubResource("HM_Index_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -909,7 +811,7 @@ bone_name = "Index_R_2"
 bone_idx = 24
 
 [node name="M_Index_R_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Index_R_2" unique_id=374147873]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0115, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.010741651, 0)
 mesh = SubResource("HM_Index_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -919,7 +821,7 @@ bone_name = "Index_R_3"
 bone_idx = 25
 
 [node name="M_Index_R_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Index_R_3" unique_id=1312152887]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
+transform = Transform3D(-1.0148485, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0062375665, 0)
 mesh = SubResource("HM_Index_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -929,7 +831,7 @@ bone_name = "Middle_R_1"
 bone_idx = 26
 
 [node name="M_Middle_R_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Middle_R_1" unique_id=531971338]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.019, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.016797334, 0)
 mesh = SubResource("HM_Middle_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -939,7 +841,7 @@ bone_name = "Middle_R_2"
 bone_idx = 27
 
 [node name="M_Middle_R_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Middle_R_2" unique_id=769877790]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0135, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.015309602, 0)
 mesh = SubResource("HM_Middle_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -949,7 +851,7 @@ bone_name = "Middle_R_3"
 bone_idx = 28
 
 [node name="M_Middle_R_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Middle_R_3" unique_id=1709429417]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.010273665, 0)
 mesh = SubResource("HM_Middle_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -959,7 +861,7 @@ bone_name = "Ring_R_1"
 bone_idx = 29
 
 [node name="M_Ring_R_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Ring_R_1" unique_id=614067511]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.017, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.013071328, 0)
 mesh = SubResource("HM_Ring_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -969,7 +871,7 @@ bone_name = "Ring_R_2"
 bone_idx = 30
 
 [node name="M_Ring_R_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Ring_R_2" unique_id=1617881778]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0125, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.013183594, 0)
 mesh = SubResource("HM_Ring_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -979,7 +881,7 @@ bone_name = "Ring_R_3"
 bone_idx = 31
 
 [node name="M_Ring_R_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Ring_R_3" unique_id=1223816355]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.010305673, 0)
 mesh = SubResource("HM_Ring_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -989,7 +891,7 @@ bone_name = "Pinky_R_1"
 bone_idx = 32
 
 [node name="M_Pinky_R_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Pinky_R_1" unique_id=1530815561]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.013, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.012927562, 0)
 mesh = SubResource("HM_Pinky_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -999,7 +901,7 @@ bone_name = "Pinky_R_2"
 bone_idx = 33
 
 [node name="M_Pinky_R_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Pinky_R_2" unique_id=471562613]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.0095, 0)
+transform = Transform3D(-0.831633, 0, 0, 0, -0.831633, 0, 0, 0, 0.831633, 0, -0.012169689, 0)
 mesh = SubResource("HM_Pinky_R_2")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -1009,7 +911,7 @@ bone_name = "Pinky_R_3"
 bone_idx = 34
 
 [node name="M_Pinky_R_3" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Pinky_R_3" unique_id=1071061860]
-transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.01, 0)
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, -0.008825362, 0)
 mesh = SubResource("HM_Pinky_R_3")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -1019,7 +921,7 @@ bone_name = "Thumb_R_1"
 bone_idx = 35
 
 [node name="M_Thumb_R_1" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Thumb_R_1" unique_id=1578352849]
-transform = Transform3D(-0.67572, 0.72495, 0.1336, -0.73715, -0.66453, -0.12247, 0, -0.18124, 0.98344, 0.012, -0.011, -0.003)
+transform = Transform3D(-0.67572004, 0.72495, 0.1336, -0.73715, -0.66453, -0.12247001, 0, -0.18124, 0.98344004, 0.015616745, -0.014315367, -0.0039041862)
 mesh = SubResource("HM_Thumb_R_1")
 surface_material_override/0 = SubResource("PC_Skin")
 
@@ -1029,8 +931,8 @@ bone_name = "Thumb_R_2"
 bone_idx = 36
 
 [node name="M_Thumb_R_2" type="MeshInstance3D" parent="ControlRoom/PlayerCharacter/Rig/A_Thumb_R_2" unique_id=570582561]
-transform = Transform3D(-0.67572, 0.72495, 0.1336, -0.73715, -0.66453, -0.12247, 0, -0.18124, 0.98344, 0.00797, -0.00731, -0.00199)
-mesh = SubResource("HM_Thumb_R_2")
+transform = Transform3D(-0.81596047, 0.71634346, 0.13330768, -0.8901398, -0.6566407, -0.12220205, 0, -0.17908834, 0.9812884, 0.012078255, -0.0110758245, -0.0030170754)
+mesh = SubResource("CapsuleMesh_5j8e6")
 surface_material_override/0 = SubResource("PC_Skin")
 
 [node name="Monitor01" type="Node3D" parent="ControlRoom" unique_id=1705781172]
@@ -1325,3 +1227,6 @@ script = ExtResource("14_shiftflow")
 
 [node name="IncomingCallDirector" type="Node" parent="." unique_id=771100882]
 script = ExtResource("19_calldir")
+
+[node name="PowerRoomTabooEvent" type="Node" parent="." unique_id=771100883]
+script = ExtResource("20_pwrtaboo")

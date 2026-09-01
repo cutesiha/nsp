@@ -75,10 +75,15 @@ public static class RoomStatusText
             string icon = WorkIcon(roomDef.ManagedResource);
             string head = st.Recurring ? $"{icon} {name}" : $"{icon} {name}  ⏱{Clock(st.Remaining)}";
 
+            int here = sim.GetRoomState(roomId)?.OccupantEmployeeIds.Count ?? 0;
+            int need = task != null ? Mathf.Max(1, task.MinWorkersToProgress) : 1;
+
             string body;
             if (sim.IsRoomBlockedByMaterials(roomId))
                 body = "📦 자재 부족 — 대기";
-            else if ((sim.GetRoomState(roomId)?.OccupantEmployeeIds.Count ?? 0) > 0)
+            else if (here > 0 && here < need)
+                body = $"⚠ {need}명 필요 (현재 {here}명)";
+            else if (here > 0)
             {
                 float pct = Mathf.Clamp(st.Ratio, 0f, 1f) * 100f;
                 body = $"{Bar(st.Ratio)} {pct:0}%";

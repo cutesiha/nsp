@@ -27,6 +27,8 @@ public partial class ConfigData : Resource
     [Export] public float AlertLeadSeconds = 20f;
     // FAIL-02 환기 정지 중 전 직원에게 매초 누적되는 스트레스.
     [Export] public float VentFaultStressPerSecond = 1.5f;
+    // 발전실 금기 이상현상 시 발전실에 있던 두 직원에게 즉시 더해지는 스트레스.
+    [Export] public float PowerTabooStress = 35f;
 
     // 2D 백업 화면(PowerBudgetPanel)에서만 쓰는 옛 코스트 가중치 값 — 3D 전력 패널은 안 씀.
     [Export] public int PowerBudgetTotal = 7;
