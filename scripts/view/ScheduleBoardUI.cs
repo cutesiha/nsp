@@ -33,6 +33,7 @@ public partial class ScheduleBoardUI : Control
     private Font _serif, _body;
     private Control _form;
     private Control _info;
+    private Control _popup;   // 방을 클릭하면 뜨는 설명·요구능력 팝업 (배경 클릭 / ✕ 로 닫힘)
 
     private string _selectedEmp = "";   // 배치 대상으로 선택된 직원
     private string _justWrote = "";
@@ -66,8 +67,81 @@ public partial class ScheduleBoardUI : Control
         _info.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_info);
 
+        _popup = new Control { MouseFilter = MouseFilterEnum.Ignore, Visible = false };
+        _popup.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_popup);
+
         SetProcessInput(true);
         Rebuild();
+    }
+
+    // --- 방 정보 팝업 -----------------------------------------------------
+
+    private void ShowRoomPopup(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var def = sim?.GetRoomDef(roomId);
+        if (def == null) return;
+
+        foreach (Node c in _popup.GetChildren()) c.QueueFree();
+        _popup.Visible = true;
+        _popup.MouseFilter = MouseFilterEnum.Stop;
+
+        // 배경(눌러서 닫기).
+        var scrim = new ColorRect { Color = new Color(0.10f, 0.08f, 0.05f, 0.45f) };
+        scrim.SetAnchorsPreset(LayoutPreset.FullRect);
+        scrim.GuiInput += e =>
+        {
+            if (e is InputEventMouseButton { Pressed: true }) HideRoomPopup();
+        };
+        _popup.AddChild(scrim);
+
+        // 카드.
+        const float w = 524f, h = 296f, pad = 26f;
+        var card = new Panel
+        {
+            Position = new Vector2((CanvasSize.X - w) / 2f, (CanvasSize.Y - h) / 2f - 8f),
+            Size = new Vector2(w, h),
+        };
+        card.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0.93f, 0.89f, 0.78f, 0.99f),
+            BorderColor = new Color(0.28f, 0.20f, 0.11f),
+            BorderWidthLeft = 3, BorderWidthTop = 3, BorderWidthRight = 3, BorderWidthBottom = 3,
+        });
+        card.GuiInput += _ => { }; // 카드 내부 클릭은 배경으로 전달되지 않게 흡수(Stop)
+        _popup.AddChild(card);
+
+        AddLabel(card, "작업실 안내", new Vector2(pad, pad - 6f), 12, InkDim, _body);
+        AddLabel(card, def.DisplayName, new Vector2(pad, pad + 12f), 26, Ink, _serif);
+
+        var stats = RoomRequiredStats(sim, roomId);
+        string statLine = stats.Count == 0
+            ? "요구 능력 없음"
+            : "요구 능력  ·  " + string.Join("   ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
+        int headcount = sim.GetRoomTasksInPriorityOrder(roomId)
+            .Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
+        AddLabel(card, statLine, new Vector2(pad, pad + 56f), 16, InkRed, _body);
+        AddLabel(card, $"권장 인원  ·  {headcount}명", new Vector2(pad, pad + 84f), 14, InkDim, _body);
+
+        string desc = RoomDetailCard.Descriptions.GetValueOrDefault(roomId, "");
+        var d = AddLabel(card, desc, new Vector2(pad, pad + 120f), 15, Ink, _body);
+        d.Size = new Vector2(w - pad * 2f, h - pad - 160f);
+        d.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+
+        var close = new Button { Text = "닫기", Position = new Vector2(w - pad - 88f, h - pad - 30f), Size = new Vector2(88f, 32f) };
+        StyleDoc(close, new Color(0.15f, 0.11f, 0.07f), new Color(0.88f, 0.83f, 0.7f));
+        close.AddThemeFontSizeOverride("font_size", 14);
+        close.Pressed += HideRoomPopup;
+        card.AddChild(close);
+    }
+
+    private void HideRoomPopup()
+    {
+        if (_popup == null) return;
+        foreach (Node c in _popup.GetChildren()) c.QueueFree();
+        _popup.Visible = false;
+        _popup.MouseFilter = MouseFilterEnum.Ignore;
     }
 
     // 카드에서 마우스를 눌러 끌기 시작 → 여기서 추적한다(root._Input 이 이후 모션/떼기를 받는다).
@@ -82,6 +156,10 @@ public partial class ScheduleBoardUI : Control
     public override void _Input(InputEvent e)
     {
         if (string.IsNullOrEmpty(_dragEmp)) return;
+
+        // 이 뷰는 스케일 프레임(AddScaledView) 안에 있다 → _Input 은 뷰포트(확대) 좌표로 들어온다.
+        // 행/드롭 판정은 논리 좌표(_form 로컬)이므로 여기서 로컬로 변환해 좌표계를 맞춘다.
+        e = MakeInputLocal(e);
 
         if (e is InputEventMouseMotion mm)
         {
@@ -154,6 +232,7 @@ public partial class ScheduleBoardUI : Control
     public void Rebuild()
     {
         _hoverRoom = "";
+        HideRoomPopup();
         RebuildForm();
         RefreshInfoPanel();
     }
@@ -384,6 +463,7 @@ public partial class ScheduleBoardUI : Control
         _focusRoom = roomId;
         _focusEmp = "";
         RefreshInfoPanel();
+        ShowRoomPopup(roomId);   // 방 클릭 → 설명·요구능력 팝업
     }
 
     private void OnEmployeeClicked(string employeeId)
@@ -578,7 +658,8 @@ public partial class ScheduleBoardUI : Control
         {
             if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb)
             {
-                OnPressStart?.Invoke(EmpId, mb.GlobalPosition);
+                // 논리 좌표(_form 로컬)로 넘긴다 — root._Input 은 MakeInputLocal 로 같은 좌표계를 쓴다.
+                OnPressStart?.Invoke(EmpId, Position + mb.Position);
                 OnClick?.Invoke(EmpId);
             }
         }

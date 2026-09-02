@@ -92,7 +92,7 @@ public partial class TitleOverlay : CanvasLayer
         title.AnchorLeft = 0f; title.AnchorRight = 1f;
         title.OffsetTop = 190f; title.OffsetLeft = 0f; title.OffsetRight = 0f;
         title.AddThemeFontOverride("font", serif);
-        title.AddThemeFontSizeOverride("font_size", 68);
+        title.AddThemeFontSizeOverride("font_size", ViewFont.FS(68));
         title.AddThemeColorOverride("font_color", new Color(0.86f, 0.84f, 0.78f));
         title.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.7f));
         title.AddThemeConstantOverride("outline_size", 6);
@@ -107,7 +107,7 @@ public partial class TitleOverlay : CanvasLayer
         sub.AnchorLeft = 0f; sub.AnchorRight = 1f;
         sub.OffsetTop = 276f;
         sub.AddThemeFontOverride("font", body);
-        sub.AddThemeFontSizeOverride("font_size", 18);
+        sub.AddThemeFontSizeOverride("font_size", ViewFont.FS(18));
         sub.AddThemeColorOverride("font_color", new Color(0.55f, 0.58f, 0.62f));
         sub.MouseFilter = Control.MouseFilterEnum.Ignore;
         _root.AddChild(sub);
@@ -134,7 +134,7 @@ public partial class TitleOverlay : CanvasLayer
         };
         _banner.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _banner.AddThemeFontOverride("font", body);
-        _banner.AddThemeFontSizeOverride("font_size", 40);
+        _banner.AddThemeFontSizeOverride("font_size", ViewFont.FS(40));
         _banner.AddThemeColorOverride("font_color", new Color(0.9f, 0.92f, 0.95f));
         _banner.AddThemeColorOverride("font_outline_color", Colors.Black);
         _banner.AddThemeConstantOverride("outline_size", 8);
@@ -155,7 +155,7 @@ public partial class TitleOverlay : CanvasLayer
             Flat = true,
         };
         b.AddThemeFontOverride("font", font);
-        b.AddThemeFontSizeOverride("font_size", 20);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(20));
         b.AddThemeColorOverride("font_color", new Color(0.82f, 0.83f, 0.85f));
         b.AddThemeColorOverride("font_hover_color", new Color(1f, 0.95f, 0.8f));
         b.AddThemeColorOverride("font_disabled_color", new Color(0.4f, 0.4f, 0.44f));

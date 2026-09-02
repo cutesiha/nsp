@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using NSP.Core;
+using NSP.View;
 using NSP.Data;
 using NSP.Facility;
 
@@ -78,7 +79,7 @@ public partial class HorrorDirector : Node
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         _bigLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        _bigLabel.AddThemeFontSizeOverride("font_size", 92);
+        _bigLabel.AddThemeFontSizeOverride("font_size", ViewFont.FS(92));
         _bigLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.1f, 0.1f));
         _bigLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
         _bigLabel.AddThemeConstantOverride("outline_size", 12);

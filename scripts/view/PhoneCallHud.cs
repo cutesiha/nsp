@@ -91,7 +91,7 @@ public partial class PhoneCallHud : CanvasLayer
             OffsetLeft = -120, OffsetRight = 120, OffsetTop = 0, OffsetBottom = 26,
         };
         _incoming.AddThemeFontOverride("font", _font);
-        _incoming.AddThemeFontSizeOverride("font_size", 15);
+        _incoming.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
         _incoming.AddThemeColorOverride("font_outline_color", Colors.Black);
         _incoming.AddThemeConstantOverride("outline_size", 4);
         AddChild(_incoming);
@@ -101,7 +101,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         var l = new Label { Text = t };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
         l.AddThemeColorOverride("font_color", c);
         return l;
     }
@@ -237,7 +237,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         var b = new Button { Text = "  ›  " + text, Alignment = HorizontalAlignment.Left };
         b.AddThemeFontOverride("font", _font);
-        b.AddThemeFontSizeOverride("font_size", 17);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
         b.CustomMinimumSize = new Vector2(0, 36);
         b.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         b.AddThemeColorOverride("font_color", Cyan);

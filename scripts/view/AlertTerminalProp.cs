@@ -36,10 +36,13 @@ public partial class AlertTerminalProp : Node3D
         // 로컬 좌표계의 자식으로 넣어야 모델 위에 정확히 붙는다.
         _attachmentRoot = GetNodeOrNull<Node3D>("SensorModel") ?? this;
 
-        // 표시창(SubViewport 투사).
+        // 표시창(SubViewport 투사). 렌더 해상도 = 논리 캔버스 × UiScale (글자도 같은 배율로 확대).
+        var logical = new Vector2I(384, 300);
         var vp = new SubViewport
         {
-            Size = new Vector2I(384, 300),
+            Size = new Vector2I(
+                Mathf.RoundToInt(logical.X * ControlRoom3DController.UiScale),
+                Mathf.RoundToInt(logical.Y * ControlRoom3DController.UiScale)),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             Disable3D = true,
@@ -47,7 +50,7 @@ public partial class AlertTerminalProp : Node3D
         };
         _attachmentRoot.AddChild(vp);
         _ui = new AlertTerminalView();
-        vp.AddChild(_ui);
+        ControlRoom3DController.AddScaledView(vp, _ui, logical);
 
         var screen = new MeshInstance3D
         {

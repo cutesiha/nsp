@@ -16,8 +16,21 @@ public partial class ControlRoom3DController : Node3D
 {
     [Export] public NodePath CameraPath = "PlayerSeatRig/Camera3D";
     [Export] public NodePath RigPath = "PlayerSeatRig";
+    // CRT 화면 UI를 짜는 논리 캔버스 크기(레이아웃 좌표계). 실제 렌더 해상도는 여기에 UiScale 을 곱한다.
     [Export] public Vector2I MonitorCanvasSize = new(800, 600);
     [Export] public float FocusDistance = 0.62f;
+
+    // 1920x1080 화면에 맞춰 CRT/배치표/단말기의 모든 텍스트·UI를 같은 배율로 키운다.
+    // 레이아웃 코드는 손대지 않고, View 를 이 배율로 스케일한 프레임 안에 넣어 통째로 확대한다.
+    public const float UiScale = 1.3f;
+
+    public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize)
+    {
+        var frame = new Control { Size = logicalSize, MouseFilter = Control.MouseFilterEnum.Ignore };
+        frame.Scale = new Vector2(UiScale, UiScale);
+        vp.AddChild(frame);
+        frame.AddChild(view);
+    }
 
     [Export] public string[] AutoStaffRooms =
         { "core_room", "power_room", "vent_room", "maintenance_room", "guard_room", "medical_room" };
@@ -121,19 +134,19 @@ public partial class ControlRoom3DController : Node3D
         if (cctvWorld != null) _facilityCctvVp.AddChild(cctvWorld.Instantiate());
 
         _facilityVp = MakeViewport();
-        _facilityVp.AddChild(new FacilityMonitorView());
+        AddScaledView(_facilityVp, new FacilityMonitorView(), MonitorCanvasSize);
 
         _cctvVp = MakeViewport();
-        _cctvVp.AddChild(new CCTVMonitorView());
+        AddScaledView(_cctvVp, new CCTVMonitorView(), MonitorCanvasSize);
 
         _reportVp = MakeViewport();
-        _reportVp.AddChild(new ShiftReportView());
+        AddScaledView(_reportVp, new ShiftReportView(), MonitorCanvasSize);
 
         _restRosterVp = MakeViewport();
-        _restRosterVp.AddChild(new RestRosterView());
+        AddScaledView(_restRosterVp, new RestRosterView(), MonitorCanvasSize);
 
         _interviewVp = MakeViewport();
-        _interviewVp.AddChild(new InterviewCCTVView());
+        AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize);
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
@@ -164,7 +177,9 @@ public partial class ControlRoom3DController : Node3D
     {
         var vp = new SubViewport
         {
-            Size = MonitorCanvasSize,
+            Size = new Vector2I(
+                Mathf.RoundToInt(MonitorCanvasSize.X * UiScale),
+                Mathf.RoundToInt(MonitorCanvasSize.Y * UiScale)),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             HandleInputLocally = true,

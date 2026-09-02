@@ -24,7 +24,10 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
     {
         _vp = new SubViewport
         {
-            Size = CanvasSize,
+            // 렌더 해상도는 논리 캔버스 × UiScale — 배치표 글자·UI도 CRT 와 같은 배율로 키운다.
+            Size = new Vector2I(
+                Mathf.RoundToInt(CanvasSize.X * ControlRoom3DController.UiScale),
+                Mathf.RoundToInt(CanvasSize.Y * ControlRoom3DController.UiScale)),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             HandleInputLocally = true,
@@ -36,7 +39,7 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
 
         _ui = new ScheduleBoardUI { CanvasSize = CanvasSize };
         _ui.StartPressed = () => StartRequested?.Invoke();
-        _vp.AddChild(_ui);
+        ControlRoom3DController.AddScaledView(_vp, _ui, CanvasSize);
 
         _surface = new MeshInstance3D
         {
@@ -151,7 +154,8 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
 
         u = Mathf.Clamp(u, 0f, 1f);
         v = Mathf.Clamp(v, 0f, 1f);
-        canvasPos = new Vector2(u * CanvasSize.X, v * CanvasSize.Y);
+        // 입력 좌표는 실제 뷰포트(스케일된) 공간 — 스케일 프레임이 View 로컬로 다시 변환한다.
+        canvasPos = new Vector2(u * _vp.Size.X, v * _vp.Size.Y);
         return inside || clamp;
     }
 }

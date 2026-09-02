@@ -1,5 +1,6 @@
 using Godot;
 using NSP.Core;
+using NSP.View;
 
 namespace NSP.Ui;
 
@@ -100,7 +101,7 @@ public partial class AmbientOverlay : CanvasLayer
         };
         _shutdownLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _shutdownLabel.AddThemeFontOverride("font", NSP.View.ViewFont.Default);
-        _shutdownLabel.AddThemeFontSizeOverride("font_size", 84);
+        _shutdownLabel.AddThemeFontSizeOverride("font_size", ViewFont.FS(84));
         _shutdownLabel.AddThemeColorOverride("font_color", new Color(1f, 0.22f, 0.16f));
         _shutdownLabel.AddThemeConstantOverride("outline_size", 8);
         _shutdownLabel.AddThemeColorOverride("font_outline_color", new Color(0.1f, 0f, 0f));

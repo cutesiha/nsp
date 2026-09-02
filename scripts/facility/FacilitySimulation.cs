@@ -51,6 +51,11 @@ public partial class FacilitySimulation : Node
         LoadDefinitions("res://data/tasks/", _taskDefs, d => d.TaskId);
         LoadSchedule("res://data/spawns/");
 
+        // 데이터가 하나도 안 실리면(특히 내보낸 빌드) 게임이 통째로 비어버리므로 항상 로그를 남긴다.
+        GD.Print($"FacilitySimulation: employees={_employeeDefs.Count} rooms={_roomDefs.Count} tasks={_taskDefs.Count} spawns={_schedule.Count}");
+        if (_roomDefs.Count == 0 || _employeeDefs.Count == 0)
+            GD.PushError("FacilitySimulation: 정의 데이터를 불러오지 못했습니다 (res://data/* 스캔 실패).");
+
         foreach (var def in _employeeDefs.Values)
         {
             var startRoom = _roomDefs.Values.FirstOrDefault(r => r.RoomId == def.StartRoomId) ?? _roomDefs.Values.FirstOrDefault();
@@ -85,45 +90,24 @@ public partial class FacilitySimulation : Node
 
     private void LoadSchedule(string folder)
     {
-        using var dir = DirAccess.Open(folder);
-        if (dir == null)
+        // ResourceDir: 내보낸 빌드의 .tres.remap 접미사까지 처리한다.
+        foreach (string path in ResourceDir.ListFiles(folder, ".tres"))
         {
-            GD.PushWarning($"FacilitySimulation: spawn schedule folder not found: {folder}");
-            return;
-        }
-        dir.ListDirBegin();
-        for (string fileName = dir.GetNext(); fileName != ""; fileName = dir.GetNext())
-        {
-            if (!fileName.EndsWith(".tres")) continue;
-            var res = GD.Load<TaskSpawnDef>(folder + fileName);
+            var res = GD.Load<TaskSpawnDef>(path);
             if (res != null)
                 _schedule.Add(res);
         }
-        dir.ListDirEnd();
         _schedule.Sort((a, b) => a.SpawnAtSeconds.CompareTo(b.SpawnAtSeconds));
     }
 
     private void LoadDefinitions<T>(string folder, Dictionary<string, T> target, System.Func<T, string> idSelector) where T : Resource
     {
-        using var dir = DirAccess.Open(folder);
-        if (dir == null)
+        foreach (string path in ResourceDir.ListFiles(folder, ".tres"))
         {
-            GD.PushWarning($"FacilitySimulation: data folder not found: {folder}");
-            return;
+            var res = GD.Load<T>(path);
+            if (res != null)
+                target[idSelector(res)] = res;
         }
-        dir.ListDirBegin();
-        string fileName = dir.GetNext();
-        while (fileName != "")
-        {
-            if (fileName.EndsWith(".tres"))
-            {
-                var res = GD.Load<T>(folder + fileName);
-                if (res != null)
-                    target[idSelector(res)] = res;
-            }
-            fileName = dir.GetNext();
-        }
-        dir.ListDirEnd();
     }
 
     public IReadOnlyCollection<string> GetEmployeeIds() => _employeeStates.Keys;

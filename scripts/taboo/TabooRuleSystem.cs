@@ -21,25 +21,13 @@ public partial class TabooRuleSystem : Node
 
     public override void _Ready()
     {
-        using var dir = DirAccess.Open("res://data/taboos/");
-        if (dir == null)
+        // ResourceDir: 내보낸 빌드의 .tres.remap 접미사까지 처리한다.
+        foreach (string path in ResourceDir.ListFiles("res://data/taboos/", ".tres"))
         {
-            GD.PushWarning("TabooRuleSystem: res://data/taboos/ not found");
-            return;
+            var res = GD.Load<TabooDef>(path);
+            if (res != null)
+                _tabooDefs[res.TabooId] = res;
         }
-        dir.ListDirBegin();
-        string fileName = dir.GetNext();
-        while (fileName != "")
-        {
-            if (fileName.EndsWith(".tres"))
-            {
-                var res = GD.Load<TabooDef>("res://data/taboos/" + fileName);
-                if (res != null)
-                    _tabooDefs[res.TabooId] = res;
-            }
-            fileName = dir.GetNext();
-        }
-        dir.ListDirEnd();
     }
 
     public IEnumerable<TabooDef> GetAllTaboos() => _tabooDefs.Values;
