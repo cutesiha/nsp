@@ -24,6 +24,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
     public bool IsWindowOpen => _mode != WindowMode.None;
 
     private WindowMode _mode;
+    private Control _root;
     private Control _icons;
     private ColorRect _scrim;
     private Panel _logPanel;
@@ -44,6 +45,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     public override void _Ready()
     {
         Instance = this;
+        ProcessMode = ProcessModeEnum.Always;
+        SetProcessInput(true);
         Layer = 115; // 통화(90) 위, ESC 메뉴(120) 아래
         _body = ViewFont.Default;
         _serif = GD.Load<Font>("res://assets/fonts/KMU80TTFSungkokSerif.ttf") ?? _body;
@@ -63,6 +66,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     public override void _ExitTree()
     {
+        if (GetViewport() != null)
+            GetViewport().SizeChanged -= RefreshRootSize;
         if (EventLog.Instance != null)
         {
             EventLog.Instance.EntryLogged -= OnLogAdded;
@@ -78,8 +83,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     public override void _Process(double delta)
     {
-        bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
-        if (_icons.Visible != live) _icons.Visible = live;
+        bool showIcons = GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Rest;
+        if (_icons.Visible != showIcons) _icons.Visible = showIcons;
 
         // 기록은 DAY1의 근무/정산/휴게시간에만 열람한다. 새 판 타이틀이나 배치표로
         // 돌아가면 남아 있던 오버레이만 닫고 데이터 초기화는 새 게임 시작 지점이 맡는다.
@@ -111,7 +116,6 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     private bool CanOpen()
     {
-        if ((GameState.Instance?.CurrentDay ?? 1) != 1) return false;
         return GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Settlement or GamePhase.Rest;
     }
 
@@ -157,28 +161,39 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     private void BuildUi()
     {
-        var root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
-        root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(root);
+        _root = new Control
+        {
+            Name = "HistoryRoot",
+            Position = Vector2.Zero,
+            Size = GetViewport().GetVisibleRect().Size,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        AddChild(_root);
+        GetViewport().SizeChanged += RefreshRootSize;
 
         _icons = new HBoxContainer
         {
+            Name = "HistoryIcons",
             AnchorLeft = 1f, AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
             OffsetLeft = -260f, OffsetRight = -20f, OffsetTop = -76f, OffsetBottom = -20f,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
+            MouseFilter = Control.MouseFilterEnum.Pass,
         };
         _icons.AddThemeConstantOverride("separation", 10);
         _icons.Visible = false;
-        root.AddChild(_icons);
+        _root.AddChild(_icons);
 
         Button logIcon = MonitorUi.Button("L  로그", Cyan, _body, ToggleLog, 17);
+        logIcon.Name = "LogHistoryButton";
         logIcon.TooltipText = "DAY1 시설 로그";
         logIcon.CustomMinimumSize = new Vector2(100, 52);
+        logIcon.MouseFilter = Control.MouseFilterEnum.Stop;
         _icons.AddChild(logIcon);
 
         Button dialogueIcon = MonitorUi.Button("D  대화 기록", new Color(0.88f, 0.76f, 0.48f), _body, ToggleDialogue, 17);
+        dialogueIcon.Name = "DialogueHistoryButton";
         dialogueIcon.TooltipText = "DAY1 대화 기록";
         dialogueIcon.CustomMinimumSize = new Vector2(110, 52);
+        dialogueIcon.MouseFilter = Control.MouseFilterEnum.Stop;
         _icons.AddChild(dialogueIcon);
 
         _scrim = new ColorRect
@@ -188,10 +203,15 @@ public partial class Day1HistoryOverlay : CanvasLayer
             Visible = false,
         };
         _scrim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        root.AddChild(_scrim);
+        _root.AddChild(_scrim);
 
-        BuildLogPanel(root);
-        BuildDialoguePanel(root);
+        BuildLogPanel(_root);
+        BuildDialoguePanel(_root);
+    }
+
+    private void RefreshRootSize()
+    {
+        if (_root != null) _root.Size = GetViewport().GetVisibleRect().Size;
     }
 
     private void BuildLogPanel(Control root)

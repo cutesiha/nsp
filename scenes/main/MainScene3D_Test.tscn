@@ -25,7 +25,8 @@
 [ext_resource type="Script" uid="uid://ck1yp5nj7527h" path="res://scripts/view/PauseMenu.cs" id="24_pausemenu"]
 [ext_resource type="Script" uid="uid://p8t7y6q8utae" path="res://scripts/view/PhoneModelSplitter.gd" id="24_phone_splitter"]
 [ext_resource type="Script" uid="uid://duvrvmelli86b" path="res://scripts/view/ShiftHud.cs" id="25_shifthud"]
-[ext_resource type="Script" path="res://scripts/view/Day1HistoryOverlay.cs" id="26_history"]
+[ext_resource type="Script" uid="uid://cjb6173nf0v3k" path="res://scripts/view/Day1HistoryOverlay.cs" id="26_history"]
+[ext_resource type="Script" uid="uid://dexaaxs624710" path="res://scripts/view/PlayerViewGuide.cs" id="27_player_guide"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -312,7 +313,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
 [node name="PlayerCharacter" type="Node3D" parent="ControlRoom" unique_id=2057469949]
-transform = Transform3D(1.7, 0, 0, 0, 1.7, 0, 0, 0, 1.7, -0.02, 0.22770248, -0.023089)
+transform = Transform3D(1.85, 0, 0, 0, 1.85, 0, 0, 0, 1.85, -0.02, -0.01, 0.4)
 script = ExtResource("4_arms")
 ShirtMaterial = SubResource("PC_Shirt")
 SkinMaterial = SubResource("PC_Skin")
@@ -1186,6 +1187,10 @@ current = true
 fov = 64.0
 near = 0.02
 
+[node name="EDITOR_PlayerViewGuide" type="Node3D" parent="." unique_id=1925198905]
+editor_description = "편집기 전용 플레이어 얼굴/몸통/눈/메인 카메라 시점 가이드. 런타임에는 숨겨집니다."
+script = ExtResource("27_player_guide")
+
 [node name="Interaction" type="Node" parent="." unique_id=206784725]
 script = ExtResource("5_interact")
 
@@ -1216,7 +1221,7 @@ script = ExtResource("20_pwrtaboo")
 [node name="ShiftHud" type="CanvasLayer" parent="." unique_id=771100884]
 script = ExtResource("25_shifthud")
 
-[node name="Day1HistoryOverlay" type="CanvasLayer" parent="."]
+[node name="Day1HistoryOverlay" type="CanvasLayer" parent="." unique_id=370666383]
 script = ExtResource("26_history")
 
 [node name="PauseMenu" type="CanvasLayer" parent="." unique_id=771100885]

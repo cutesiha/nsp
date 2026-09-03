@@ -431,6 +431,40 @@ public partial class PowerSwitchPanel : Node3D
     private void OnAreaInput(PowerConsumer channel, InputEvent ev)
     {
         if (ev is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
+        BeginToggle(channel);
+    }
+
+    // 확대 상태에서는 메인 카메라 광선을 패널 평면에 직접 투영한다. 작은 Area3D가
+    // 프레임 입력 순서에 밀리더라도 화면에 보이는 레버를 누르면 확실하게 반응한다.
+    public bool TryInteractRay(Vector3 rayOriginWorld, Vector3 rayDirectionWorld)
+    {
+        Transform3D inv = GlobalTransform.AffineInverse();
+        Vector3 origin = inv * rayOriginWorld;
+        Vector3 direction = (inv.Basis * rayDirectionWorld).Normalized();
+        float faceZ = LeverPivotZ * _modelScale + 0.01f;
+        if (Mathf.Abs(direction.Z) < 0.0001f) return false;
+        float distance = (faceZ - origin.Z) / direction.Z;
+        if (distance <= 0f) return false;
+
+        Vector3 hit = origin + direction * distance;
+        float faceY = LeverPivotY * _modelScale;
+        if (Mathf.Abs(hit.Y - faceY) > 0.16f) return false;
+
+        PowerConsumer nearest = Switches[0].Channel;
+        float nearestX = float.MaxValue;
+        foreach (var (candidate, _, modelX) in Switches)
+        {
+            float dx = Mathf.Abs(hit.X - PanelX(modelX));
+            if (dx < nearestX) { nearestX = dx; nearest = candidate; }
+        }
+        if (nearestX > 0.075f) return false;
+
+        BeginToggle(nearest);
+        return true;
+    }
+
+    private void BeginToggle(PowerConsumer channel)
+    {
         if (GameState.Instance == null) return;
         if (GameState.Instance.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
         if (_flipUntil.GetValueOrDefault(channel) > Time.GetTicksMsec() / 1000.0) return; // 연타 방지
@@ -439,11 +473,12 @@ public partial class PowerSwitchPanel : Node3D
         Vector3 tipW = _tips.TryGetValue(channel, out var tip) ? tip.GlobalPosition : GlobalPosition;
         _flipUntil[channel] = Time.GetTicksMsec() / 1000.0 + 1.0;
 
-        // 손 애니메이션은 연출. 실제 토글은 손이 레버에 닿는 타이밍(≈0.45s)에 확실히 실행한다.
-        _arms?.PlaySwitchFlip(turningOn, tipW, default);
-        double delay = _arms != null ? 0.45 : 0.0;
-        var timer = GetTree().CreateTimer(delay);
-        timer.Timeout += () => DoToggle(channel);
+        // 실제 토글을 고정 타이머가 아니라 오른손 검지가 레버에 닿은 프레임에 실행한다.
+        // 팔 리치 시간이 달라져도 손보다 레버가 먼저 움직이는 어색함이 생기지 않는다.
+        if (_arms != null)
+            _arms.PlaySwitchFlip(turningOn, tipW, () => DoToggle(channel));
+        else
+            DoToggle(channel);
     }
 
     // 검지가 레버에 닿는 순간.

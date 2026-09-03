@@ -48,8 +48,10 @@ public partial class PlayerCharacter : Node3D
     [Export] public float CallUpperArmDeg = -18f;          // call 때 상완이 얼굴 쪽(뒤)으로 살짝 스윙
     [Export] public Vector3 ReachShoulderShift = new(0f, -0.01f, -0.05f);
     [Export] public Vector3 SwitchShoulderShift = new(0.02f, -0.01f, -0.04f);
+    // IK의 간이 2관절 계산과 실제 손가락 계층 사이의 오차를 보정해 검지 끝을 레버에 붙인다.
+    [Export] public Vector3 SwitchAimCorrectionWorld = new(-0.025f, 0.040f, 0.001f);
     // call 때 어깨(팔 고정축)를 몸 쪽으로 크게 당긴다 — 수화기를 귀로 가져오는 건 팔+어깨가 같이 후퇴.
-    [Export] public Vector3 CallShoulderShift = new(0f, 0f, 0.06f);
+    [Export] public Vector3 CallShoulderShift = new(0f, -0.015f, 0.04f);
     [Export] public Vector3 ReachWrist = new(-12f, -6f, 0f);
     // 기존 전화 포즈의 손목 각도를 유지한다. 이 방향에서는 오른손의 손바닥이
     // 카메라 쪽을 향하고, 수화기를 쥘 때 손등이 먼저 보이지 않는다.
@@ -432,7 +434,6 @@ public partial class PlayerCharacter : Node3D
         public float AimMaxDeg = 170f;          // 이 스텝에서 팔꿈치가 굽을 수 있는 최대각
         public float UpperGiveDeg = 80f;        // 이 스텝에서 상완이 FK 에서 틀 수 있는 최대각(작게=어깨 더 고정)
         public System.Action OnArrive;          // In 끝나는 순간 1회 (내부 콜백)
-        public Callable? OnArriveCallable;      // In 끝나는 순간 1회 (외부에서 전달)
     }
 
     private List<Step> _seq;
@@ -516,7 +517,6 @@ public partial class PlayerCharacter : Node3D
         {
             _stepArrived = true;
             step.OnArrive?.Invoke();
-            if (step.OnArriveCallable is { } cb && cb.Target != null) cb.Call();
         }
 
         if (_stepArrived && _stepT >= step.In + step.Hold)
@@ -708,9 +708,10 @@ public partial class PlayerCharacter : Node3D
     {
         var c = GetViewport()?.GetCamera3D();
         if (c == null) return (_skel?.GlobalTransform.Origin ?? GlobalTransform.Origin) + new Vector3(0.12f, 0.55f, 0.14f);
-        // 카메라(눈) 기준 상대 위치 — 오른쪽·아래·앞. 손+수화기가 화면 우하단에 오도록.
+        // 카메라(눈) 기준 상대 위치 — 오른쪽·아래·앞. 오른쪽 귀 위치까지 충분히
+        // 벌려 손과 수화기가 화면 중앙을 넘어 왼손처럼 보이지 않게 한다.
         var b = c.GlobalTransform.Basis;
-        return c.GlobalPosition + b.X * 0.045f - b.Y * 0.15f - b.Z * 0.15f;
+        return c.GlobalPosition + b.X * 0.16f - b.Y * 0.17f - b.Z * 0.10f;
     }
 
     // 전화 받기: 뻗기(팔꿈치 폄) → 손가락 순차로 감아 쥐기 → (쥔 순간 신호) → 팔꿈치 접어 귀로.
@@ -746,18 +747,18 @@ public partial class PlayerCharacter : Node3D
     public void PlayPhoneRelease(Vector3 w) => PlayPhoneHangup(w);   // 예전 이름 호환
 
     // 스위치: 가볍게 주먹 + 검지만 편 손을 레버로 → 검지 끝마디로 툭(접촉 순간 onContact) → 복귀.
-    public void PlaySwitchFlip(bool turningOn, Vector3 leverTipWorld, Callable onContact)
+    public void PlaySwitchFlip(bool turningOn, Vector3 leverTipWorld, System.Action onContact)
     {
-        _switchAim = leverTipWorld;
+        _switchAim = leverTipWorld + SwitchAimCorrectionWorld;
         var contact = turningOn ? PoseSwitchOn() : PoseSwitchOff();
         StartSequence(new List<Step>
         {
-            new() { Pose = PoseSwitchReady(turningOn), In = 0.38f, Hold = 0.04f, Stagger = true, UpperGiveDeg = 60f,
-                    Aim = () => _switchAim, AimTip = IndexTipLocal },
-            new() { Pose = contact, In = 0.13f, Hold = 0.05f, UpperGiveDeg = 60f, AimMaxDeg = 50f,
+            new() { Pose = PoseSwitchReady(turningOn), In = 0.34f, Hold = 0.04f, Stagger = true, UpperGiveDeg = 105f,
+                    Aim = () => _switchAim, AimTip = IndexTipLocal, AimMaxDeg = 150f },
+            new() { Pose = contact, In = 0.13f, Hold = 0.05f, UpperGiveDeg = 105f, AimMaxDeg = 150f,
                     Aim = () => _switchAim, AimTip = IndexTipLocal,
-                    OnArriveCallable = onContact },
-            new() { Pose = PoseSwitchReady(turningOn), In = 0.16f, Hold = 0.02f, UpperGiveDeg = 60f,
+                    OnArrive = onContact },
+            new() { Pose = PoseSwitchReady(turningOn), In = 0.16f, Hold = 0.02f, UpperGiveDeg = 105f,
                     Aim = () => _switchAim, AimTip = IndexTipLocal },
             new() { Pose = PoseIdle(), In = 0.40f, Hold = 0f, Stagger = true,
                     OnArrive = () => SetArmVisible(false) },

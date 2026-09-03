@@ -14,6 +14,11 @@ namespace NSP.View;
 //  - 결번자(entity.tscn)는 평소 숨김. HorrorDirector L3 때 잠깐 등장(연출 훅만, 튜닝은 이후).
 public partial class FacilityCctvWorld : Node3D
 {
+    private const float EntityScale = 3.2f;
+    // entity.glb의 실제 Y 범위는 약 -0.499~+0.495m로 원점이 몸 중앙에 있다.
+    // 이 값을 올려야 발이 바닥에 닿고 모델 절반이 지면 아래로 묻히지 않는다.
+    private const float EntityFloorOriginY = 0.499f * EntityScale;
+
     public static FacilityCctvWorld Instance { get; private set; }
 
     [Export] public Vector3 CameraPosition = new(3.5f, 3.05f, 3.5f);
@@ -115,7 +120,9 @@ public partial class FacilityCctvWorld : Node3D
         if (ps == null) return;
         _entity = ps.Instantiate<Node3D>();
         _entity.Visible = false;
-        _entity.Scale = new Vector3(1.85f, 1.85f, 1.85f); // 모델 로컬 높이 ~1m → 사람 키
+        // 모델 원본 높이가 작아 어두운 발전실에서 직원/설비 뒤로 묻혔다. CCTV 공격
+        // 전용 존재는 화면을 확실히 채우도록 사람보다 훨씬 큰 비율을 사용한다.
+        _entity.Scale = Vector3.One * EntityScale;
         AddChild(_entity);
     }
 
@@ -169,9 +176,9 @@ public partial class FacilityCctvWorld : Node3D
         _hauntActive = true;
         if (_entity == null) return;
         _entity.Visible = true;
-        _entity.Position = new Vector3(-2.3f, 0f, -2.3f);
+        _entity.Position = new Vector3(-1.6f, EntityFloorOriginY, -1.7f);
         _entity.LookAt(_entity.GlobalPosition + new Vector3(1f, 0f, 1f), Vector3.Up); // 카메라 반대쪽(방 안쪽)을 봄
-        DimRoomLights(roomId, 0.12f);
+        DimRoomLights(roomId, 0.25f);
     }
 
     // 천천히 CCTV 카메라를 바라본다.
@@ -188,21 +195,53 @@ public partial class FacilityCctvWorld : Node3D
     // 카메라 바로 앞으로 다가온다(화면을 가득 채움).
     public void HauntChargeCamera(float seconds)
     {
-        if (_entity == null) return;
-        Vector3 front = _camera.GlobalPosition + (CameraLookAt - _camera.GlobalPosition).Normalized() * 0.9f;
-        front.Y = 0f;
+        if (_entity == null || _camera == null) return;
+
+        // 카메라가 놓인 바닥 투영점으로 정확히 돌진한다. 이전 구현은 카메라 시선 벡터의
+        // 임의 지점을 로컬 position으로 사용해 옆으로 빗나가 보일 수 있었다.
+        Vector3 cameraFloor = new(_camera.GlobalPosition.X, EntityFloorOriginY, _camera.GlobalPosition.Z);
+        Vector3 away = _entity.GlobalPosition - cameraFloor;
+        away.Y = 0f;
+        if (away.LengthSquared() < 0.001f) away = Vector3.Back;
+        away = away.Normalized();
+        Vector3 near = cameraFloor + away * 1.25f;
+        Vector3 extremelyClose = cameraFloor + away * 0.28f;
+
         var t = CreateTween();
-        t.TweenProperty(_entity, "position", front, seconds).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+        t.TweenProperty(_entity, "global_position", near, seconds * 0.45f)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+        t.TweenProperty(_entity, "global_position", extremelyClose, seconds * 0.55f)
+            .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.In);
+
+        // 원본 GLB에는 AnimationPlayer가 없으므로 접근 중 짧은 좌우 체중 이동을 준다.
+        // 위치 트윈과 다른 축(rotation z)만 건드려 CCTV로 향하는 직선 경로는 유지한다.
+        var run = CreateTween();
+        int strides = Mathf.Max(6, Mathf.CeilToInt(seconds / 0.055f));
+        for (int i = 0; i < strides; i++)
+            run.TweenProperty(_entity, "rotation_degrees:z", i % 2 == 0 ? -11f : 11f, seconds / strides);
+        run.TweenProperty(_entity, "rotation_degrees:z", 0f, 0.05f);
+
+        var distort = CreateTween();
+        int jerks = Mathf.Max(4, Mathf.CeilToInt(seconds / 0.09f));
+        for (int i = 0; i < jerks; i++)
+        {
+            Vector3 scale = Vector3.One * EntityScale;
+            scale.X *= i % 2 == 0 ? 0.88f : 1.08f;
+            scale.Y *= i % 2 == 0 ? 1.10f : 0.94f;
+            distort.TweenProperty(_entity, "scale", scale, seconds / jerks);
+        }
+        distort.TweenProperty(_entity, "scale", Vector3.One * EntityScale, 0.04f);
     }
 
     // 카메라를 내려친다 — 순간 앞으로 확 튀었다 돌아온다 + 카메라 흔들림.
     public void HauntLunge()
     {
         if (_entity == null) return;
-        Vector3 p = _entity.Position;
+        Vector3 p = _entity.GlobalPosition;
+        Vector3 towardCamera = (_camera.GlobalPosition - p).Normalized();
         var t = CreateTween();
-        t.TweenProperty(_entity, "position", p + new Vector3(0.15f, 0.1f, 0.15f), 0.05);
-        t.TweenProperty(_entity, "position", p, 0.12);
+        t.TweenProperty(_entity, "global_position", p + towardCamera * 0.24f, 0.05);
+        t.TweenProperty(_entity, "global_position", p, 0.12);
         ShakeCamera(3.5f, 0.28f);
     }
 
@@ -261,7 +300,7 @@ public partial class FacilityCctvWorld : Node3D
             _entity.Visible = false;
         }
         if (_entity.Visible && !string.IsNullOrEmpty(target) && _rooms.ContainsKey(target))
-            _entity.Position = new Vector3(-2.0f, 0f, -2.0f);
+            _entity.Position = new Vector3(-2.0f, EntityFloorOriginY, -2.0f);
     }
 
     private void WireHorror()
@@ -278,7 +317,7 @@ public partial class FacilityCctvWorld : Node3D
     {
         if (_entity == null) return;
         _entity.Visible = true;
-        _entity.Position = new Vector3(-2.0f, 0f, -2.0f);
+        _entity.Position = new Vector3(-2.0f, EntityFloorOriginY, -2.0f);
         _entityHideAt = Time.GetTicksMsec() / 1000.0 + seconds;
     }
 }

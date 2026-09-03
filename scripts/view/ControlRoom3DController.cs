@@ -332,6 +332,10 @@ public partial class ControlRoom3DController : Node3D
         if (IsFocusedPowerPanel())
         {
             _dragScreen = null;
+            if (mb.Pressed && mb.ButtonIndex == MouseButton.Left
+                && ResolveTarget(GameSettings.ZoomTarget.PowerPanel) is PowerSwitchPanel panel
+                && panel.TryInteractRay(origin, dir))
+                GetViewport().SetInputAsHandled();
             return;
         }
 

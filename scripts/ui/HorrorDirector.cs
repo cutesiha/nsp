@@ -9,7 +9,8 @@ using NSP.Facility;
 namespace NSP.Ui;
 
 // 공포 연출 디렉터 — LEVEL 2 / LEVEL 3.
-// 랜덤 점프스케어 없음. 실제 게임 상태/사건 로그에만 반응한다.
+// 기본 공포 연출은 실제 게임 상태/사건 로그에만 반응한다. 단, 금기 이상현상을 본 뒤에는
+// 그 사건의 후속 효과로 근무 중 무작위 시각에 한 번만 초근접 점프스케어가 발생한다.
 //
 //  LEVEL 2 (자주): 금기 위반 임박, 발전기/정전/CCTV 단절, 사보타주, 방치 사고
 //    → 화면 흔들림 + 순간 확대 + CCTV 노이즈 폭증 + 밝기 급변 + 스팅어
@@ -38,13 +39,24 @@ public partial class HorrorDirector : Node
     private CanvasLayer _overlay;
     private ColorRect _black;
     private ColorRect _red;
+    private ColorRect _deathRed;
     private TextureRect _noise;
     private Label _bigLabel;
+    private Node3D _faceEntity;
+    private OmniLight3D _faceLight;
+    private bool _faceJumpscarePlaying;
+    private int _deathFeedbackSerial;
+    private readonly RandomNumberGenerator _rng = new();
+    private bool _postTabooJumpscareScheduled;
+    private bool _postTabooJumpscarePlayed;
+    private double _postTabooJumpscareAt = -1;
+    private GamePhase _lastPhase = GamePhase.Prep;
 
     private int _level3Count;
     private double _lastLevel3Msec = -1_000_000;
     private double _lastLevel2Msec = -1_000_000;
     private bool _playing;
+    private FacilitySimulation _wiredSimulation;
 
     public override void _Ready()
     {
@@ -70,6 +82,12 @@ public partial class HorrorDirector : Node
         _red = FullRect(new Color(0.5f, 0f, 0f, 0f));
         _overlay.AddChild(_red);
 
+        // 사망 비명용 페이드는 일반 공포 연출의 붉은 섬광과 분리한다.
+        // 따라서 LEVEL 3 트윈이 돌아가도 비명 길이만큼 부드럽게 유지된다.
+        _deathRed = FullRect(new Color(0.62f, 0.015f, 0.01f, 0f));
+        _deathRed.Name = "DeathScreamRedFade";
+        _overlay.AddChild(_deathRed);
+
         _bigLabel = new Label
         {
             Text = "",
@@ -85,6 +103,12 @@ public partial class HorrorDirector : Node
         _bigLabel.AddThemeConstantOverride("outline_size", 12);
         _overlay.AddChild(_bigLabel);
 
+        BuildEntityFaceJumpscare();
+
+        _wiredSimulation = FacilitySimulation.Instance;
+        if (_wiredSimulation != null)
+            _wiredSimulation.EmployeeKilled += OnEmployeeKilled;
+
         if (EventLog.Instance != null)
             EventLog.Instance.EntryLogged += OnEntryLogged;
     }
@@ -93,6 +117,8 @@ public partial class HorrorDirector : Node
     {
         if (EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnEntryLogged;
+        if (_wiredSimulation != null)
+            _wiredSimulation.EmployeeKilled -= OnEmployeeKilled;
         if (Instance == this) Instance = null;
     }
 
@@ -116,13 +142,87 @@ public partial class HorrorDirector : Node
         return ImageTexture.CreateFromImage(img);
     }
 
+    private void BuildEntityFaceJumpscare()
+    {
+        var camera = GetParent()?.GetNodeOrNull<Camera3D>("PlayerSeatRig/Camera3D");
+        var scene = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
+        if (camera == null || scene == null) return;
+
+        _faceEntity = scene.Instantiate<Node3D>();
+        _faceEntity.Name = "EntityFaceJumpscare";
+        _faceEntity.Visible = false;
+        _faceEntity.Position = new Vector3(0f, -0.26f, -0.34f);
+        _faceEntity.RotationDegrees = new Vector3(0f, 180f, 0f);
+        _faceEntity.Scale = Vector3.One * 1.25f;
+        camera.AddChild(_faceEntity);
+
+        _faceLight = new OmniLight3D
+        {
+            Position = new Vector3(0f, 0.24f, 0.24f),
+            LightColor = new Color(1f, 0.18f, 0.14f),
+            LightEnergy = 0f,
+            OmniRange = 1.8f,
+            ShadowEnabled = false,
+        };
+        _faceEntity.AddChild(_faceLight);
+    }
+
+    // 결번자를 카메라 바로 앞에 한 프레임 만에 켠다. 접근 트윈을 쓰지 않아 예고 없이 튀어나오며,
+    // 노출 시간도 약 0.1초로 제한해 형체를 오래 감상하는 연출이 되지 않게 한다.
+    public async void PlayEntityFaceJumpscare()
+    {
+        if (_faceJumpscarePlaying || _faceEntity == null) return;
+        _faceJumpscarePlaying = true;
+
+        _faceEntity.Position = new Vector3(0f, -0.26f, -0.14f);
+        _faceEntity.RotationDegrees = new Vector3(4f, 180f, 9f);
+        _faceEntity.Scale = Vector3.One * 1.72f;
+        _faceEntity.Visible = true;
+        if (_faceLight != null) _faceLight.LightEnergy = 11f;
+
+        Sfx.Instance?.Play("noise", 4f, 0.68f);
+        Sfx.Instance?.PlayJumpscareTone(2f);
+        AmbientOverlay.Instance?.PulseNoise(0.82f);
+        GetParent()?.GetNodeOrNull<SeatedCameraRig>("PlayerSeatRig")?.Shake(4.8f, 0.14f);
+        _noise.Modulate = new Color(1f, 1f, 1f, 1f);
+        _red.Color = new Color(0.72f, 0f, 0f, 0.56f);
+
+        await Wait(0.105);
+        _faceEntity.Visible = false;
+        if (_faceLight != null) _faceLight.LightEnergy = 0f;
+
+        var clear = CreateTween().SetParallel(true);
+        clear.TweenProperty(_noise, "modulate:a", 0f, 0.07);
+        clear.TweenProperty(_red, "color:a", 0f, 0.07);
+        await Wait(0.08);
+        _faceJumpscarePlaying = false;
+    }
+
+    public void SchedulePostTabooJumpscare()
+    {
+        if (_postTabooJumpscareScheduled || _postTabooJumpscarePlayed
+            || GameState.Instance?.CurrentPhase != GamePhase.Live)
+            return;
+
+        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        float elapsed = GameState.Instance?.DayTimeSeconds ?? 0f;
+        float remaining = Mathf.Max(0.4f, shiftLength - elapsed);
+        float maxDelay = Mathf.Clamp(remaining - 0.2f, 0.35f, 18f);
+        float minDelay = Mathf.Min(4f, maxDelay);
+        float delay = _rng.RandfRange(minDelay, maxDelay);
+        _postTabooJumpscareAt = Time.GetTicksMsec() / 1000.0 + delay;
+        _postTabooJumpscareScheduled = true;
+    }
+
     // --- 트리거 -------------------------------------------------------------
 
     private void OnEntryLogged()
     {
-        if (GameState.Instance?.CurrentPhase != GamePhase.Live || CustomEventActive) return;
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
         var e = EventLog.Instance.GetAllEntries().LastOrDefault();
         if (e == null) return;
+
+        if (CustomEventActive) return;
 
         switch (e.EventType)
         {
@@ -143,6 +243,28 @@ public partial class HorrorDirector : Node
         }
     }
 
+    private void OnEmployeeKilled(string employeeId)
+    {
+        if (GameState.Instance?.CurrentPhase == GamePhase.Live)
+            PlayDeathFeedback(employeeId);
+    }
+
+    private async void PlayDeathFeedback(string employeeId)
+    {
+        int serial = ++_deathFeedbackSerial;
+        Sfx.Instance?.PlayScream(employeeId, -1.5f);
+
+        var fadeIn = CreateTween();
+        fadeIn.TweenProperty(_deathRed, "color:a", 0.42f, 0.16)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
+        await Wait(0.68);
+        if (serial != _deathFeedbackSerial || !IsInstanceValid(_deathRed)) return;
+
+        var fadeOut = CreateTween();
+        fadeOut.TweenProperty(_deathRed, "color:a", 0f, 0.32)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+    }
+
     private static bool IsHandledByDedicatedEvent(string roomId)
     {
         var taboos = NSP.Taboo.TabooRuleSystem.Instance?.GetActiveTaboos();
@@ -157,7 +279,25 @@ public partial class HorrorDirector : Node
 
     public override void _Process(double delta)
     {
-        if (_playing || CustomEventActive || GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        var phase = GameState.Instance?.CurrentPhase ?? GamePhase.Prep;
+        if (phase == GamePhase.Live && _lastPhase != GamePhase.Live)
+        {
+            _postTabooJumpscareScheduled = false;
+            _postTabooJumpscarePlayed = false;
+            _postTabooJumpscareAt = -1;
+        }
+        _lastPhase = phase;
+
+        double nowSeconds = Time.GetTicksMsec() / 1000.0;
+        if (phase == GamePhase.Live && _postTabooJumpscareScheduled && !_postTabooJumpscarePlayed
+            && !CustomEventActive && !_playing && nowSeconds >= _postTabooJumpscareAt)
+        {
+            _postTabooJumpscareScheduled = false;
+            _postTabooJumpscarePlayed = true;
+            PlayEntityFaceJumpscare();
+        }
+
+        if (_playing || CustomEventActive || phase != GamePhase.Live) return;
         if (Time.GetTicksMsec() - _lastLevel2Msec < Level2CooldownMsec) return;
 
         var sim = FacilitySimulation.Instance;

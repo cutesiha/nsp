@@ -12,6 +12,9 @@ public partial class FacilitySimulation : Node
 {
     public static FacilitySimulation Instance { get; private set; }
 
+    // 사망 사실이 로그로 발견되는 시점과 무관하게, 실제 사망 순간의 음향/시야 연출에 사용한다.
+    [Signal] public delegate void EmployeeKilledEventHandler(string employeeId);
+
     private const string IsolationRoomId = "isolation_room";
     private const string GuardRoomId = "guard_room";
     private const int RoomSlotCapacity = 2;
@@ -30,13 +33,19 @@ public partial class FacilitySimulation : Node
     private float _saboteurDecisionTimer = 0f;
     private int _killsToday = 0;
     private bool _cctvWasOperational = true;
+    private bool _powerLossMurderTriggeredThisShift;
 
     // DAY1 고정 스케줄(data/spawns/*.tres, SpawnAtSeconds 순) + 실제로 발생한 업무 인스턴스들.
     private readonly List<TaskSpawnDef> _schedule = new();
     private readonly List<SpawnedTask> _activeTasks = new();
     private int _scheduleCursor = 0;
 
-    public string SurveillanceTargetRoomId { get; private set; } = "";
+    private string _surveillanceTargetRoomId = "";
+    private string _forcedSurveillanceRoomId = "";
+    private double _forcedSurveillanceUntil = -1;
+    public string SurveillanceTargetRoomId => IsSurveillanceForced()
+        ? _forcedSurveillanceRoomId
+        : _surveillanceTargetRoomId;
 
     public override void _EnterTree()
     {
@@ -106,7 +115,10 @@ public partial class FacilitySimulation : Node
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
         _cctvWasOperational = true;
-        SurveillanceTargetRoomId = "";
+        _powerLossMurderTriggeredThisShift = false;
+        _surveillanceTargetRoomId = "";
+        _forcedSurveillanceRoomId = "";
+        _forcedSurveillanceUntil = -1;
         _roomVisualCenters.Clear();
         _roomVisualColors.Clear();
         BuildInitialStates();
@@ -201,7 +213,31 @@ public partial class FacilitySimulation : Node
 
     public void SetSurveillanceTarget(string roomId)
     {
-        SurveillanceTargetRoomId = roomId;
+        if (IsSurveillanceForced()) return;
+        _surveillanceTargetRoomId = roomId;
+    }
+
+    public void ForceSurveillanceTarget(string roomId, float seconds)
+    {
+        _forcedSurveillanceRoomId = roomId ?? "";
+        _forcedSurveillanceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(0.1f, seconds);
+        _surveillanceTargetRoomId = _forcedSurveillanceRoomId;
+    }
+
+    public void ReleaseForcedSurveillance(string roomId = "")
+    {
+        if (!string.IsNullOrEmpty(roomId) && _forcedSurveillanceRoomId != roomId) return;
+        _forcedSurveillanceRoomId = "";
+        _forcedSurveillanceUntil = -1;
+    }
+
+    private bool IsSurveillanceForced()
+    {
+        if (string.IsNullOrEmpty(_forcedSurveillanceRoomId)) return false;
+        if (Time.GetTicksMsec() / 1000.0 < _forcedSurveillanceUntil) return true;
+        _forcedSurveillanceRoomId = "";
+        _forcedSurveillanceUntil = -1;
+        return false;
     }
 
     public bool IsRoomUnderActiveCctv(string roomId)
@@ -543,6 +579,7 @@ public partial class FacilitySimulation : Node
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
         _cctvWasOperational = true;
+        _powerLossMurderTriggeredThisShift = false;
         GameState.Instance.ResetFacilityFaults();
         foreach (var room in _roomStates.Values)
         {
@@ -572,6 +609,7 @@ public partial class FacilitySimulation : Node
         }
         TickActiveTasks(d);
         TickLighting();
+        TickPowerLossMurder();
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
         TickPowerRestoreReveal();
@@ -636,6 +674,38 @@ public partial class FacilitySimulation : Node
         return (_roomStates.GetValueOrDefault(GuardRoomId)?.OccupantEmployeeIds.Count ?? 0) > 0;
     }
 
+    // CCTV 또는 미니맵용 조명 전력이 끊기면 그 사각을 이용한 살인이 DAY1 근무당 딱 한 번 발생한다.
+    // 기존 MurderMaxPerDay/_killsToday를 같이 사용하므로 일반 방해자 AI가 추가 살인을 만들지 못한다.
+    private void TickPowerLossMurder()
+    {
+        if (_powerLossMurderTriggeredThisShift
+            || _killsToday >= Config.Instance.Data.MurderMaxPerDay)
+            return;
+
+        bool cctvCut = !GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+        bool mapLightingCut = !GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting);
+        if (!cctvCut && !mapLightingCut) return;
+
+        string saboteurId = GameState.Instance.SaboteurEmployeeId;
+        if (string.IsNullOrEmpty(saboteurId)
+            || !_employeeStates.TryGetValue(saboteurId, out var saboteur)
+            || !saboteur.Alive || saboteur.Isolated)
+            return;
+
+        var candidates = _employeeStates.Values
+            .Where(e => e.EmployeeId != saboteurId && e.Alive && !e.Isolated
+                && !string.IsNullOrEmpty(e.CurrentRoomId) && e.CurrentRoomId != "central_office")
+            .ToList();
+        if (candidates.Count == 0) return;
+
+        // 같은 방의 직원을 우선하되, 배치상 단독 근무 중이어도 전력 사각 사건 자체는 발생시킨다.
+        // 후자의 경우 시체 위치는 희생자의 실제 작업실을 유지해 근무표/인터뷰 기록을 깨지 않는다.
+        var victim = candidates.FirstOrDefault(e => e.CurrentRoomId == saboteur.CurrentRoomId)
+            ?? candidates[_rng.Next(candidates.Count)];
+        _powerLossMurderTriggeredThisShift = true;
+        KillEmployee(victim.EmployeeId, victim.CurrentRoomId);
+    }
+
     private void TickSaboteur(float delta)
     {
         string saboteurId = GameState.Instance.SaboteurEmployeeId;
@@ -692,6 +762,7 @@ public partial class FacilitySimulation : Node
         victim.DiscoveredDead = !blackout;
         RemoveOccupant(roomId, victimId);
         _killsToday++;
+        EmitSignal(SignalName.EmployeeKilled, victimId);
 
         if (blackout) return;
 

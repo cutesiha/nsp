@@ -248,14 +248,20 @@ public partial class Sfx : Node
     public void StopVoiceBlip() => _voicePlayer?.Stop();
 
     // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 결번자 웃음 -------------
-    private AudioStream _screamStream, _laughStream;
+    private readonly Dictionary<string, AudioStream> _employeeScreamStreams = new();
+    private AudioStream _laughStream, _jumpscareToneStream;
 
-    // 직원 공포 반응. 녹음 에셋이 없어 런타임 생성 — 라이즈-폴 톤 + 빠른 비브라토 + 노이즈 + 클리핑.
+    // 기존 보이스 블립의 캐릭터별 높낮이/질감을 따라 만든 짧은 비명.
+    // 한 가지 소리를 무작위 피치로 돌려 쓰지 않고 직원마다 별도 파형을 캐시한다.
     public void PlayScream(string employeeId = "", float volumeDb = -5f)
     {
-        _screamStream ??= BuildScream();
-        float pitch = _voiceRng.RandfRange(0.9f, 1.25f);
-        PlayGenerated(_screamStream, volumeDb, pitch);
+        string id = string.IsNullOrWhiteSpace(employeeId) ? "default" : employeeId.Trim().ToLowerInvariant();
+        if (!_employeeScreamStreams.TryGetValue(id, out var scream))
+        {
+            scream = BuildEmployeeScream(id);
+            _employeeScreamStreams[id] = scream;
+        }
+        PlayGenerated(scream, volumeDb, _voiceRng.RandfRange(0.97f, 1.03f));
     }
 
     // 결번자 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
@@ -263,6 +269,13 @@ public partial class Sfx : Node
     {
         _laughStream ??= BuildLaugh();
         PlayGenerated(_laughStream, volumeDb, _voiceRng.RandfRange(0.94f, 1.03f));
+    }
+
+    // 결번자가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
+    public void PlayJumpscareTone(float volumeDb = -1f)
+    {
+        _jumpscareToneStream ??= BuildJumpscareTone();
+        PlayGenerated(_jumpscareToneStream, volumeDb, 1f);
     }
 
     private void PlayGenerated(AudioStream s, float db, float pitch)
@@ -276,24 +289,78 @@ public partial class Sfx : Node
         p.Play();
     }
 
-    private static AudioStreamWav BuildScream()
+    private static AudioStreamWav BuildJumpscareTone()
     {
         const int rate = 22050;
-        int n = (int)(rate * 0.75f);
+        const float duration = 0.26f;
+        int n = (int)(rate * duration);
         var pcm = new byte[n * 2];
         var rng = new RandomNumberGenerator();
-        float ph = 0f;
+        float phase = 0f;
         for (int i = 0; i < n; i++)
         {
-            float t = (float)i / n;                                   // 0..1
-            float freq = Mathf.Lerp(520f, 880f, Mathf.Sin(t * 2.4f)); // 오르내림
-            freq *= 1f + 0.06f * Mathf.Sin(t * 160f);                 // 빠른 비브라토
+            float t = (float)i / n;
+            float frequency = 1550f + 180f * Mathf.Sin(t * Mathf.Tau * 13f);
+            phase += frequency / rate * Mathf.Tau;
+            float envelope = Mathf.Min(1f, t * 35f) * Mathf.Pow(1f - t, 0.18f);
+            float sample = (Mathf.Sin(phase) * 0.76f + rng.RandfRange(-0.24f, 0.24f)) * envelope;
+            short value = (short)(Mathf.Clamp(sample, -1f, 1f) * 27000f);
+            pcm[i * 2] = (byte)(value & 0xFF);
+            pcm[i * 2 + 1] = (byte)((value >> 8) & 0xFF);
+        }
+        return new AudioStreamWav
+        {
+            Format = AudioStreamWav.FormatEnum.Format16Bits,
+            MixRate = rate,
+            Stereo = false,
+            Data = pcm,
+        };
+    }
+
+    private static AudioStreamWav BuildEmployeeScream(string employeeId)
+    {
+        const int rate = 22050;
+        // 낮고 절제된 올빼미/까마귀, 날카로운 고양이, 떨리는 해파리,
+        // 밝고 높은 토끼, 중간 톤의 여우로 기존 음성 인상을 유지한다.
+        (float startHz, float peakHz, float duration, float rough, float vibrato, float fall) profile = employeeId switch
+        {
+            "owl" => (310f, 610f, 0.86f, 0.18f, 24f, 0.72f),
+            "cat" => (510f, 970f, 0.68f, 0.25f, 38f, 0.60f),
+            "jellyfish" => (560f, 1040f, 0.94f, 0.22f, 46f, 0.78f),
+            "rabbit" => (590f, 1120f, 0.78f, 0.17f, 42f, 0.66f),
+            "crow" => (250f, 540f, 0.82f, 0.34f, 28f, 0.70f),
+            "fox" => (430f, 820f, 0.84f, 0.20f, 32f, 0.68f),
+            _ => (460f, 860f, 0.78f, 0.25f, 36f, 0.66f),
+        };
+
+        int n = (int)(rate * profile.duration);
+        var pcm = new byte[n * 2];
+        var rng = new RandomNumberGenerator();
+        rng.Seed = (ulong)employeeId.GetHashCode() + 0x51CEul;
+        float ph = 0f, breath = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = (float)i / n;
+            // 처음 40%에서 급히 치솟고 끝에서 목이 잠기듯 내려간다.
+            float rise = Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, t / 0.40f));
+            float tail = t < 0.62f ? 1f : Mathf.Lerp(1f, profile.fall, (t - 0.62f) / 0.38f);
+            float freq = Mathf.Lerp(profile.startHz, profile.peakHz, rise) * tail;
+            freq *= 1f + 0.035f * Mathf.Sin(t * profile.vibrato * Mathf.Tau)
+                + 0.012f * Mathf.Sin(t * 91f);
             ph += freq / rate * Mathf.Tau;
-            float tone = Mathf.Sin(ph) + 0.4f * Mathf.Sin(ph * 2f);
-            float noise = rng.RandfRange(-1f, 1f) * 0.35f;
-            float env = Mathf.Min(1f, t * 12f) * Mathf.Pow(1f - t, 0.6f);
-            float s = Mathf.Clamp((tone + noise) * 1.6f, -1f, 1f) * env; // 하드 클리핑 = 거친 질감
-            short v = (short)(s * 26000f);
+
+            // 성대의 비대칭 파형과 배음, 숨소리를 섞어 순수 전자음처럼 들리지 않게 한다.
+            float glottal = Mathf.Sin(ph) + 0.46f * Mathf.Sin(ph * 2.03f)
+                + 0.20f * Mathf.Sin(ph * 3.01f) + 0.08f * Mathf.Sin(ph * 4.97f);
+            breath = Mathf.Lerp(breath, rng.RandfRange(-1f, 1f), 0.34f);
+            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "jellyfish" ? 17f : 11f) * Mathf.Tau);
+            float attack = Mathf.Min(1f, t * 34f);
+            float release = Mathf.Pow(Mathf.Max(0f, 1f - t), 0.42f);
+            float env = attack * release * tremble;
+            float voiced = glottal * (0.54f - profile.rough * 0.18f);
+            float airy = breath * (0.12f + profile.rough * 0.42f);
+            float sample = Mathf.Tanh((voiced + airy) * (1.35f + profile.rough)) * env;
+            short v = (short)(Mathf.Clamp(sample, -1f, 1f) * 28500f);
             pcm[i * 2] = (byte)(v & 0xFF);
             pcm[i * 2 + 1] = (byte)((v >> 8) & 0xFF);
         }

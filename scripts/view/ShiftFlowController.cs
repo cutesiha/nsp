@@ -89,7 +89,9 @@ public partial class ShiftFlowController : Node
         }
 
         _stage = Stage.Title;
-        Sfx.Instance?.CrossfadeMusic("startbgm1", 1.5f, loop: true); // 시작화면 BGM (루프)
+        // 시작 화면·근무 배치·휴게시간은 같은 곡으로 통일한다.
+        // 실시간 근무에 들어갈 때만 페이드아웃되고 ControlRoomAtmosphere의 환경음이 대신한다.
+        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
     }
 
     public override void _Process(double delta)
@@ -134,9 +136,9 @@ public partial class ShiftFlowController : Node
         _title?.FadeOut();
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.DailyTabooIds);
         GameState.Instance?.SetPhase(GamePhase.Schedule);
-        // 시작화면 BGM 페이드아웃 + 근무배치 BGM(rest_time) 페이드인. 다음 날 복귀 때도
-        // 같은 곡을 처음부터 다시 페이드해 씬 전환을 체감시킨다(restartIfSame).
-        Sfx.Instance?.CrossfadeMusic("rest_time", 0.9f, loop: true, restartIfSame: true);
+        // 시작 화면부터 같은 곡을 이어 재생한다. 다음 날 배치 진입 때는 앞 단계에서 곡을
+        // 페이드아웃했으므로 여기서 다시 루프로 시작한다.
+        Sfx.Instance?.CrossfadeMusic("rest_time", 0.9f, loop: true);
 
         var lt = CreateTween();
         lt.SetParallel(true);

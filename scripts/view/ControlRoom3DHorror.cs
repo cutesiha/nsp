@@ -34,6 +34,8 @@ public partial class ControlRoom3DHorror : Node
     private float _ceilingBase = 1.1f;
     private float _fillBase = 0.55f;
     private bool _wired;
+    private bool _eventLogWired;
+    private bool _tabooAlert;
     private bool _lightsOff;         // 조명 스위치 OFF / 정전으로 실내등이 꺼진 상태
     private double _impactBlackUntil; // [쿵] 순간 강제 소등
 
@@ -54,10 +56,16 @@ public partial class ControlRoom3DHorror : Node
             _fixtureMat = (StandardMaterial3D)fm.Duplicate();
             _fixture.MaterialOverride = _fixtureMat;
         }
+
+        if (EventLog.Instance != null)
+        {
+            EventLog.Instance.EntryLogged += OnEventLogged;
+            _eventLogWired = true;
+        }
     }
 
     private static readonly Color LightBlue = new(0.5f, 0.65f, 1f);
-    private static readonly Color LightRed = new(1f, 0.34f, 0.30f);
+    private static readonly Color LightRed = new(1f, 0.055f, 0.025f);
 
     public override void _Process(double delta)
     {
@@ -80,6 +88,7 @@ public partial class ControlRoom3DHorror : Node
         if (_ceiling == null) return;
         var gs = GameState.Instance;
         bool live = gs?.CurrentPhase == GamePhase.Live;
+        if (!live) _tabooAlert = false;
         double now = Time.GetTicksMsec() / 1000.0;
 
         bool blackout = live && gs.PowerCapacity == 0;
@@ -96,29 +105,35 @@ public partial class ControlRoom3DHorror : Node
             ceilTarget = 0f;
             fillTarget = 0f;
             fixTarget = 0.02f;
-            emgTarget = blackout || impactBlack ? 1.3f : 0.7f;
-            colTarget = LightBlue;
+            emgTarget = _tabooAlert ? 2.8f : blackout || impactBlack ? 1.3f : 0.7f;
+            colTarget = _tabooAlert ? LightRed : LightBlue;
         }
         else
         {
-            float mul = 1f;
             int acc = ActiveAccidentCount();
-            colTarget = acc >= 2 ? LightRed : LightBlue;
-            ceilTarget = _ceilingBase * mul;
-            fillTarget = _fillBase * mul;
-            fixTarget = 1.5f;
-            emgTarget = 0f;
+            colTarget = _tabooAlert || acc >= 2 ? LightRed : LightBlue;
+            ceilTarget = _ceilingBase * (_tabooAlert ? 1.18f : 1f);
+            fillTarget = _fillBase * (_tabooAlert ? 1.85f : 1f);
+            fixTarget = _tabooAlert ? 3.2f : 1.5f;
+            emgTarget = _tabooAlert ? 2.35f : 0f;
         }
 
         float k = Mathf.Clamp(delta * (_lightsOff ? 9f : 4f), 0f, 1f);
         _ceiling.LightEnergy = Mathf.Lerp(_ceiling.LightEnergy, ceilTarget, k);
         _ceiling.LightColor = _ceiling.LightColor.Lerp(colTarget, Mathf.Clamp(delta * 1.8f, 0f, 1f));
-        if (_fill != null) _fill.LightEnergy = Mathf.Lerp(_fill.LightEnergy, fillTarget, k);
+        if (_fill != null)
+        {
+            _fill.LightEnergy = Mathf.Lerp(_fill.LightEnergy, fillTarget, k);
+            _fill.LightColor = _fill.LightColor.Lerp(colTarget, Mathf.Clamp(delta * 1.8f, 0f, 1f));
+        }
+        if (_fixtureMat?.EmissionEnabled == true)
+            _fixtureMat.Emission = _fixtureMat.Emission.Lerp(colTarget, Mathf.Clamp(delta * 2.2f, 0f, 1f));
         SetFixtureGlow(Mathf.Lerp(_fixtureMat?.EmissionEnergyMultiplier ?? 1.5f, fixTarget, k));
 
         if (_emergency != null)
         {
             if (emgTarget > 0.01f && !_emergency.Visible) _emergency.Visible = true;
+            _emergency.LightColor = _emergency.LightColor.Lerp(colTarget, Mathf.Clamp(delta * 3f, 0f, 1f));
             _emergency.LightEnergy = Mathf.Lerp(_emergency.LightEnergy, emgTarget, Mathf.Clamp(delta * 4f, 0f, 1f));
             if (emgTarget < 0.01f && _emergency.LightEnergy < 0.03f) _emergency.Visible = false;
         }
@@ -139,12 +154,24 @@ public partial class ControlRoom3DHorror : Node
 
     public override void _ExitTree()
     {
+        if (_eventLogWired && EventLog.Instance != null)
+            EventLog.Instance.EntryLogged -= OnEventLogged;
         if (!_wired || HorrorDirector.Instance == null) return;
         var d = HorrorDirector.Instance;
         d.Level2Started -= OnLevel2;
         d.Level3Started -= OnLevel3;
         d.ImpactMoment -= OnImpact;
     }
+
+    private void OnEventLogged()
+    {
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        var entries = EventLog.Instance?.GetAllEntries();
+        if (entries != null && entries.Count > 0 && entries[^1].EventType == LogEventType.TabooViolation)
+            ActivateTabooAlert();
+    }
+
+    public void ActivateTabooAlert() => _tabooAlert = true;
 
     // --- 핸들러 --------------------------------------------------------
 
@@ -162,6 +189,7 @@ public partial class ControlRoom3DHorror : Node
 
     private void OnLevel3(bool taboo)
     {
+        if (taboo) ActivateTabooAlert();
         _impactBlackUntil = System.Math.Max(_impactBlackUntil, Time.GetTicksMsec() / 1000.0 + 0.5);
     }
 

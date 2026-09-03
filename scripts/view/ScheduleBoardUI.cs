@@ -23,6 +23,8 @@ public partial class ScheduleBoardUI : Control
     private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
     private static readonly Color InkDim = new(0.42f, 0.35f, 0.24f);
     private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
+    private static readonly Color HeadcountBlue = new(0.10f, 0.24f, 0.48f);
+    private static readonly Color HeadcountBrown = new(0.38f, 0.20f, 0.07f);
     private static readonly Color SlotFill = new(0.80f, 0.75f, 0.60f, 0.55f);
     private static readonly Color SelectFill = new(0.72f, 0.58f, 0.28f, 0.55f);
     private static readonly Color DockBg = new(0.79f, 0.76f, 0.66f, 0.9f);
@@ -327,7 +329,10 @@ public partial class ScheduleBoardUI : Control
         string statLine = stats.Count == 0 ? "" : string.Join("  ·  ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
         int headcount = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
         AddLabel(_info, $"요구 능력  {statLine}", new Vector2(px, py + 32), 15, InkRed, _body);
-        AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, py + 56), 14, InkDim, _body);
+        Color headcountColor = headcount >= 2 ? HeadcountBlue : HeadcountBrown;
+        var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, py + 56), 15, headcountColor, _body);
+        headcountLabel.AddThemeColorOverride("font_outline_color", headcountColor.Darkened(0.18f));
+        headcountLabel.AddThemeConstantOverride("outline_size", 1);
 
         string desc = FirstSentence(RoomDetailCard.Descriptions.GetValueOrDefault(roomId, ""));
         var d = AddLabel(_info, desc, new Vector2(px, py + 84), 14, Ink, _body);
