@@ -28,6 +28,7 @@ public partial class FacilityMonitorView : Control
     private RichTextLabel _inspector;
     private Button _isolateBtn;
     private RichTextLabel _log;
+    private Control _endShiftConfirmation;
 
     private string _selRoom = "";
     private string _selEmp = "";
@@ -49,6 +50,7 @@ public partial class FacilityMonitorView : Control
         BuildHeader();
         BuildBody();
         BuildLog();
+        BuildEndShiftConfirmation();
 
         if (EventLog.Instance != null)
             EventLog.Instance.EntryLogged += OnLog;
@@ -210,7 +212,73 @@ public partial class FacilityMonitorView : Control
             FacilitySimulation.Instance?.SetSurveillanceTarget(_selRoom);
     }
 
-    private void OnEndShiftPressed() => EndShiftRequested?.Invoke();
+    private void OnEndShiftPressed()
+    {
+        float limit = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        float elapsed = GameState.Instance?.DayTimeSeconds ?? 0f;
+        if (elapsed < limit)
+        {
+            _endShiftConfirmation.Visible = true;
+            return;
+        }
+
+        EndShiftRequested?.Invoke();
+    }
+
+    // 근무 종료 확인은 전역 UI가 아니라 이 Control(모니터 1의 SubViewport) 안에 그린다.
+    private void BuildEndShiftConfirmation()
+    {
+        _endShiftConfirmation = new Control
+        {
+            MouseFilter = MouseFilterEnum.Stop,
+            Visible = false,
+        };
+        _endShiftConfirmation.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_endShiftConfirmation);
+
+        var shade = new ColorRect
+        {
+            Color = new Color(0f, 0f, 0f, 0.78f),
+            MouseFilter = MouseFilterEnum.Stop,
+        };
+        shade.SetAnchorsPreset(LayoutPreset.FullRect);
+        _endShiftConfirmation.AddChild(shade);
+
+        var panel = new Panel
+        {
+            AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f,
+            OffsetLeft = -300f, OffsetRight = 300f, OffsetTop = -116f, OffsetBottom = 116f,
+        };
+        panel.AddThemeStyleboxOverride("panel", Panelbox(new Color(0.055f, 0.085f, 0.075f)));
+        _endShiftConfirmation.AddChild(panel);
+
+        var title = MakeLabel("근무 종료 확인", 22, Amber);
+        title.Position = new Vector2(24, 18);
+        title.Size = new Vector2(552, 30);
+        title.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.AddChild(title);
+
+        var message = MakeLabel("정말 근무를 종료하시겠습니까?\n근무를 종료하여 발생한 불이익은 책임지지 않습니다.", 17, Ink);
+        message.Position = new Vector2(26, 64);
+        message.Size = new Vector2(548, 62);
+        message.HorizontalAlignment = HorizontalAlignment.Center;
+        message.VerticalAlignment = VerticalAlignment.Center;
+        panel.AddChild(message);
+
+        var no = MonitorUi.Button("아니오", Dim, _font, () => _endShiftConfirmation.Visible = false, 16);
+        no.Position = new Vector2(176, 160);
+        no.Size = new Vector2(110, 40);
+        panel.AddChild(no);
+
+        var yes = MonitorUi.Button("예", Amber, _font, () =>
+        {
+            _endShiftConfirmation.Visible = false;
+            EndShiftRequested?.Invoke();
+        }, 16);
+        yes.Position = new Vector2(314, 160);
+        yes.Size = new Vector2(110, 40);
+        panel.AddChild(yes);
+    }
 
     private void OnIsolatePressed()
     {
@@ -383,7 +451,9 @@ public partial class FacilityMonitorView : Control
 
     private static string ShiftClock(float t)
     {
-        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (480f / 300f));
+        // 현실 3분(설정값) 동안 22:00에서 다음 날 04:00까지 흐른다.
+        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (360f / Mathf.Max(1f, shiftLength)));
         int h = (totalMin / 60) % 24;
         int m = totalMin % 60;
         return $"{h:00}:{m:00}";

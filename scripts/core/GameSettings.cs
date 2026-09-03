@@ -1,8 +1,8 @@
-using Godot;
+﻿using Godot;
 
 namespace NSP.Core;
 
-// 게임 설정(음량 / 전체화면 / 조작키). 시작 화면의 설정 창이 이걸 읽고 쓴다.
+// 게임 설정(음량 / 전체화면 / 그래픽 품질 / 조작키). 시작 화면의 설정 창이 이걸 읽고 쓴다.
 // user://nsp_settings.cfg 에 저장되어 다음 실행에도 유지된다.
 //
 // 오디오는 Master 아래에 BGM / SFX 두 버스를 런타임에 만들어 쓴다(프로젝트에 버스
@@ -14,6 +14,19 @@ public static class GameSettings
     public const string BusSfx = "SFX";
 
     private const string ConfigPath = "user://nsp_settings.cfg";
+
+    // 그래픽 품질 = 3D 렌더 해상도 배율. UI/텍스트는 항상 원해상도로 그려지고
+    // 3D 화면만 낮은 해상도로 렌더한 뒤 확대한다(내장 그래픽에서 가장 효과가 큰 옵션).
+    public enum Quality { High, Medium, Low }
+
+    public static readonly (Quality Q, string Label, float Scale)[] QualityLevels =
+    {
+        // 낮음은 UI를 흐리게 하지 않으면서도 3D 픽셀 수를 약 20%까지 줄인다.
+        // 따라서 GPU 부하가 큰 조명/모델 장면에서도 저사양 노트북용 모드로 작동한다.
+        (Quality.High,   "높음", 1.00f),
+        (Quality.Medium, "보통", 0.70f),
+        (Quality.Low,    "낮음", 0.45f),
+    };
 
     // 숫자키로 확대할 대상들.
     public enum ZoomTarget { Monitor1, Monitor2, Sensor, PowerPanel }
@@ -31,12 +44,15 @@ public static class GameSettings
 
     private static float _master = 0.85f, _bgm = 0.8f, _sfx = 0.9f;
     private static bool _fullscreen;
+    private static Quality _quality = Quality.High;
     private static bool _loaded;
 
     public static float MasterVolume { get => _master; set { _master = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static float BgmVolume { get => _bgm; set { _bgm = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static float SfxVolume { get => _sfx; set { _sfx = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static bool Fullscreen { get => _fullscreen; set { _fullscreen = value; ApplyFullscreen(); } }
+    public static Quality GraphicsQuality { get => _quality; set { _quality = value; ApplyQuality(); } }
+    public static string QualityLabel => QualityLevels[(int)_quality].Label;
 
     public static Key GetKey(ZoomTarget t) => Keys[(int)t];
 
@@ -104,6 +120,13 @@ public static class GameSettings
             "'Disabled' 로 바꾸거나, 내보낸 실행 파일에서 확인하세요.");
     }
 
+    // 3D 렌더 배율만 낮춘다. 창 크기·UI 해상도는 그대로라 글자는 선명하게 유지된다.
+    private static void ApplyQuality()
+    {
+        if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
+            tree.Root.Scaling3DScale = QualityLevels[(int)_quality].Scale;
+    }
+
     // --- 저장 / 불러오기 ---------------------------------------------------
 
     public static void Load()
@@ -118,12 +141,14 @@ public static class GameSettings
             _bgm = (float)cfg.GetValue("audio", "bgm", _bgm);
             _sfx = (float)cfg.GetValue("audio", "sfx", _sfx);
             _fullscreen = (bool)cfg.GetValue("video", "fullscreen", _fullscreen);
+            _quality = (Quality)Mathf.Clamp((int)cfg.GetValue("video", "quality", (int)_quality), 0, QualityLevels.Length - 1);
             for (int i = 0; i < Keys.Length; i++)
                 Keys[i] = (Key)(int)cfg.GetValue("keys", ((ZoomTarget)i).ToString(), (int)DefaultKeys[i]);
         }
 
         ApplyAudio();
         ApplyFullscreen();
+        ApplyQuality();
     }
 
     public static void Save()
@@ -133,6 +158,7 @@ public static class GameSettings
         cfg.SetValue("audio", "bgm", _bgm);
         cfg.SetValue("audio", "sfx", _sfx);
         cfg.SetValue("video", "fullscreen", _fullscreen);
+        cfg.SetValue("video", "quality", (int)_quality);
         for (int i = 0; i < Keys.Length; i++)
             cfg.SetValue("keys", ((ZoomTarget)i).ToString(), (int)Keys[i]);
         cfg.Save(ConfigPath);

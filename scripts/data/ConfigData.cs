@@ -21,7 +21,7 @@ public partial class ConfigData : Resource
     [Export] public float EmployeeMoveSpeed = 80f;
     // 자리를 잡은 뒤(재배치 / 사고 확인 이동 등) 근무 중 이동 속도 — 훨씬 느리다.
     [Export] public float EmployeeMoveSpeedInShift = 42f;
-    [Export] public float DayLengthSeconds = 300f;
+    [Export] public float DayLengthSeconds = 180f;
 
     // --- 업무 수행 속도 : 요구 능력치 대비 배율 -----------------------------
     // 게이지는 인원당 BaseTaskWorkRate × 아래 배율/초 로 찬다. 능력치 2 = 기준(1.0),

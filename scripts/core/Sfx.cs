@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 namespace NSP.Core;
@@ -6,7 +6,7 @@ namespace NSP.Core;
 // 전역 효과음 재생기(autoload). 씬마다 AudioStreamPlayer를 새로 만들지 않고 여기 한 곳을 쓴다.
 //  - Play(key, db, pitch) : 원샷. assets/audio/sfx/{key}.wav 를 지연 로드해 풀에서 재생.
 //  - Loop(key, db)        : 이름 있는 루프 채널(수리음 등). StopLoop로 정지.
-//  - CrossfadeMusic(name, fade, loop, startSec, targetDb, restartIfSame) : assets/audio/bgm/{name}.wav
+//  - CrossfadeMusic(name, fade, loop, startSec, targetDb, restartIfSame) : assets/audio/bgm/{name}.ogg
 //    를 2채널 핑퐁으로 크로스페이드. FadeOutMusic(fade) / StopMusic()(즉시). PlayMusic 은 호환용 래퍼.
 //    근무화면(실제 메인 근무)에는 BGM을 켜지 않는다 — 거긴 ControlRoomAtmosphere의 환경음.
 //  - 모든 BaseButton 클릭에 자동으로 "click" 효과음을 붙인다(명시 배선 불필요).
@@ -92,7 +92,9 @@ public partial class Sfx : Node
     {
         if (name == _musicName && !restartIfSame && _music[_musicActive].Playing) return;
 
-        string path = $"res://assets/audio/bgm/{name}.wav";
+        // BGM은 용량 때문에 .ogg 로 보관한다(.wav 는 이전 자산 호환용 폴백).
+        string path = $"res://assets/audio/bgm/{name}.ogg";
+        if (!ResourceLoader.Exists(path)) path = $"res://assets/audio/bgm/{name}.wav";
         if (!ResourceLoader.Exists(path)) { FadeOutMusic(fadeSeconds); return; }
         float fade = Mathf.Max(0.02f, fadeSeconds);
 

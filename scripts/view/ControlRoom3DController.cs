@@ -311,6 +311,14 @@ public partial class ControlRoom3DController : Node3D
             return;
         }
 
+        // 전력 기기를 확대했을 때에는 뒤쪽 CRT 평면으로 입력을 전달하지 않는다.
+        // 입력을 처리하지 않은 채 반환해야 Area3D의 레버 클릭 판정이 정상적으로 받는다.
+        if (IsFocusedPowerPanel())
+        {
+            _dragScreen = null;
+            return;
+        }
+
         if (mb.Pressed)
         {
             var hit = PickScreen(origin, dir, out Vector2 canvasPos);
@@ -337,6 +345,8 @@ public partial class ControlRoom3DController : Node3D
 
     private void HandleMouseMotion(InputEventMouseMotion mm)
     {
+        if (IsFocusedPowerPanel()) return;
+
         Vector3 origin = _camera.ProjectRayOrigin(mm.Position);
         Vector3 dir = _camera.ProjectRayNormal(mm.Position);
 
@@ -394,6 +404,9 @@ public partial class ControlRoom3DController : Node3D
         GameSettings.ZoomTarget.PowerPanel => GetNodeOrNull<Node3D>(PowerPanelPath),
         _ => null,
     };
+
+    private bool IsFocusedPowerPanel() =>
+        _focusedNode != null && _focusedNode == ResolveTarget(GameSettings.ZoomTarget.PowerPanel);
 
     private void ToggleFocusTarget(GameSettings.ZoomTarget t)
     {

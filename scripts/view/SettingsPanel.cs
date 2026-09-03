@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using NSP.Core;
 
 namespace NSP.View;
@@ -6,7 +6,7 @@ namespace NSP.View;
 // 시작 화면의 설정 창. 근무 배치표와 같은 낡은 서류 톤(누런 아이보리 종이 + 붉은 도장 잉크).
 // 값은 전부 GameSettings 가 들고 있고, 여기서는 읽고 쓰기만 한다.
 //   · 음량 : MASTER(전체) / BGM(배경음악) / SFX(효과음)
-//   · 화면 : 전체화면 켜기·끄기
+//   · 화면 : 전체화면 켜기·끄기 / 그래픽 품질(3D 렌더 배율)
 //   · 조작 : 모니터1 / 모니터2 / 센서 기기 / 전력 기기 확대 숫자키
 public partial class SettingsPanel : CanvasLayer
 {
@@ -86,7 +86,8 @@ public partial class SettingsPanel : CanvasLayer
         var sheet = new Panel
         {
             AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f,
-            OffsetLeft = -430f, OffsetRight = 430f, OffsetTop = -404f, OffsetBottom = 404f,
+            // 900px 높이 기본 창 안에서 하단 버튼까지 모두 포함한다.
+            OffsetLeft = -430f, OffsetRight = 430f, OffsetTop = -440f, OffsetBottom = 440f,
         };
         sheet.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
@@ -102,8 +103,8 @@ public partial class SettingsPanel : CanvasLayer
         var vb = new VBoxContainer();
         vb.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         vb.OffsetLeft = 46; vb.OffsetRight = -46;
-        vb.OffsetTop = 34; vb.OffsetBottom = -30;
-        vb.AddThemeConstantOverride("separation", 10);
+        vb.OffsetTop = 24; vb.OffsetBottom = -24;
+        vb.AddThemeConstantOverride("separation", 8);
         sheet.AddChild(vb);
 
         vb.AddChild(Lbl("DOC NO. NSP-00   FACILITY CONTROL DEPT.", 13, InkDim, _body));
@@ -132,6 +133,20 @@ public partial class SettingsPanel : CanvasLayer
         fsRow.AddChild(fsBtn);
         fsRow.AddChild(Lbl("화면 비율은 그대로 유지된 채 모니터 크기에 맞춰 확대됩니다.", 14, InkDim, _body));
         vb.AddChild(fsRow);
+
+        var qRow = Row();
+        qRow.AddChild(Lbl("그래픽 품질", 21, Ink, _body, 240f));
+        var qBtn = DocButton(GameSettings.QualityLabel, 140f);
+        qBtn.Pressed += () =>
+        {
+            int next = ((int)GameSettings.GraphicsQuality + 1) % GameSettings.QualityLevels.Length;
+            GameSettings.GraphicsQuality = (GameSettings.Quality)next;
+            qBtn.Text = GameSettings.QualityLabel;
+            GameSettings.Save();
+        };
+        qRow.AddChild(qBtn);
+        qRow.AddChild(Lbl("낮출수록 3D 화면만 저해상도로 그립니다. 글자·UI는 항상 선명합니다.", 14, InkDim, _body));
+        vb.AddChild(qRow);
 
         vb.AddChild(Rule());
 
