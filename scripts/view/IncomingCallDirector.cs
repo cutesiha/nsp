@@ -23,9 +23,9 @@ public partial class IncomingCallDirector : Node
 {
     // 같은 상황의 2차 전화까지의 짧은 간격(초).
     [Export] public float GapBetweenCallsSeconds = 2.2f;
-    // 다른 상황의 전화까지의 간격(초). 여러 작업실이 비슷한 시점에 터져도 전화가
-    // 연달아 쏟아지지 않게 한다 — "발전실 2통 + 정비실 2통" 이 한 덩어리로 느껴지던 원인.
-    [Export] public float GapBetweenIncidentsSeconds = 32f;
+    // 다른 상황의 전화까지의 간격(초). DAY1 긴급 사고는 발생 즉시 신고되어야 하므로
+    // 기본값은 0이다. 같은 사고의 후속 통화 간격은 GapBetweenCallsSeconds만 적용한다.
+    [Export] public float GapBetweenIncidentsSeconds = 0f;
     // 큐에서 이만큼 묵은 전화는 걸지 않고 버린다(이미 지난 상황을 뒤늦게 알리지 않는다).
     [Export] public float StaleCallSeconds = 75f;
     [Export] public int MaxQueueLength = 5;
@@ -149,6 +149,13 @@ public partial class IncomingCallDirector : Node
 
             // 시설 사고(방치로 인한 고장 등) → 근처 직원이 "사고 발견"(①).
             case LogEventType.TaskFailed:
+                EnqueueAccident(e.RoomId, "");
+                break;
+
+            // 발전실 금기 이상현상은 연출이 끝난 뒤 PowerOutage 로그로 결과가 확정된다.
+            // 이전에는 이 로그를 전화 시스템이 듣지 않아 다음 별도 사고가 날 때까지 신고가
+            // 늦어질 수 있었다. 발전실 사고 대사를 그대로 사용해 즉시 큐에 넣는다.
+            case LogEventType.PowerOutage:
                 EnqueueAccident(e.RoomId, "");
                 break;
 

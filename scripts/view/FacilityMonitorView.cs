@@ -14,6 +14,9 @@ namespace NSP.View;
 // 배치/격리 명령만 되돌려 보낸다. 방 선택 = SurveillanceTarget 설정 → 오른쪽 CCTV 연동.
 public partial class FacilityMonitorView : Control
 {
+    // ControlRoom3DController.MonitorCanvasSize와 동일한 모니터 1 논리 좌표계.
+    // 확인 창은 이 크기에 직접 배치해 부모 앵커가 아직 계산되지 않은 프레임에도 흔들리지 않는다.
+    private static readonly Vector2 MonitorCanvas = new(800f, 600f);
     private static readonly Color Bg = new(0.035f, 0.05f, 0.045f);
     private static readonly Color Ink = new(0.7f, 0.9f, 0.78f);
     private static readonly Color Dim = new(0.45f, 0.6f, 0.55f);
@@ -53,14 +56,20 @@ public partial class FacilityMonitorView : Control
         BuildEndShiftConfirmation();
 
         if (EventLog.Instance != null)
+        {
             EventLog.Instance.EntryLogged += OnLog;
+            EventLog.Instance.Cleared += OnLog;
+        }
         RebuildLog();
     }
 
     public override void _ExitTree()
     {
         if (EventLog.Instance != null)
+        {
             EventLog.Instance.EntryLogged -= OnLog;
+            EventLog.Instance.Cleared -= OnLog;
+        }
         if (Instance == this) Instance = null;
     }
 
@@ -232,41 +241,44 @@ public partial class FacilityMonitorView : Control
         {
             MouseFilter = MouseFilterEnum.Stop,
             Visible = false,
+            Position = Vector2.Zero,
+            Size = MonitorCanvas,
         };
-        _endShiftConfirmation.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_endShiftConfirmation);
 
         var shade = new ColorRect
         {
             Color = new Color(0f, 0f, 0f, 0.78f),
             MouseFilter = MouseFilterEnum.Stop,
+            Position = Vector2.Zero,
+            Size = MonitorCanvas,
         };
-        shade.SetAnchorsPreset(LayoutPreset.FullRect);
         _endShiftConfirmation.AddChild(shade);
 
         var panel = new Panel
         {
-            AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f,
-            OffsetLeft = -300f, OffsetRight = 300f, OffsetTop = -116f, OffsetBottom = 116f,
+            // 800×600 모니터 화면 가운데의 500×220 패널.
+            Position = new Vector2(150f, 190f),
+            Size = new Vector2(500f, 220f),
         };
         panel.AddThemeStyleboxOverride("panel", Panelbox(new Color(0.055f, 0.085f, 0.075f)));
         _endShiftConfirmation.AddChild(panel);
 
         var title = MakeLabel("근무 종료 확인", 22, Amber);
-        title.Position = new Vector2(24, 18);
-        title.Size = new Vector2(552, 30);
+        title.Position = new Vector2(20, 16);
+        title.Size = new Vector2(460, 30);
         title.HorizontalAlignment = HorizontalAlignment.Center;
         panel.AddChild(title);
 
         var message = MakeLabel("정말 근무를 종료하시겠습니까?\n근무를 종료하여 발생한 불이익은 책임지지 않습니다.", 17, Ink);
-        message.Position = new Vector2(26, 64);
-        message.Size = new Vector2(548, 62);
+        message.Position = new Vector2(20, 56);
+        message.Size = new Vector2(460, 62);
         message.HorizontalAlignment = HorizontalAlignment.Center;
         message.VerticalAlignment = VerticalAlignment.Center;
         panel.AddChild(message);
 
         var no = MonitorUi.Button("아니오", Dim, _font, () => _endShiftConfirmation.Visible = false, 16);
-        no.Position = new Vector2(176, 160);
+        no.Position = new Vector2(125, 158);
         no.Size = new Vector2(110, 40);
         panel.AddChild(no);
 
@@ -275,7 +287,7 @@ public partial class FacilityMonitorView : Control
             _endShiftConfirmation.Visible = false;
             EndShiftRequested?.Invoke();
         }, 16);
-        yes.Position = new Vector2(314, 160);
+        yes.Position = new Vector2(265, 158);
         yes.Size = new Vector2(110, 40);
         panel.AddChild(yes);
     }
@@ -420,13 +432,15 @@ public partial class FacilityMonitorView : Control
     private void OnLog()
     {
         var e = EventLog.Instance?.GetAllEntries();
-        if (e == null || e.Count == 0) return;
-        var last = e[^1];
-        if (last.EventType is LogEventType.TabooViolation or LogEventType.TaskFailed or LogEventType.PowerOutage
-            or LogEventType.CctvDisconnect or LogEventType.Sabotage or LogEventType.Death)
+        if (e is { Count: > 0 })
         {
-            _alertLine.Text = "!! " + last.Description;
-            _alertUntil = Time.GetTicksMsec() / 1000.0 + 6.0;
+            var last = e[^1];
+            if (last.EventType is LogEventType.TabooViolation or LogEventType.TaskFailed or LogEventType.PowerOutage
+                or LogEventType.CctvDisconnect or LogEventType.Sabotage or LogEventType.Death)
+            {
+                _alertLine.Text = "!! " + last.Description;
+                _alertUntil = Time.GetTicksMsec() / 1000.0 + 6.0;
+            }
         }
         RebuildLog();
     }

@@ -15,17 +15,17 @@ public static class GameSettings
 
     private const string ConfigPath = "user://nsp_settings.cfg";
 
-    // 그래픽 품질 = 3D 렌더 해상도 배율. UI/텍스트는 항상 원해상도로 그려지고
-    // 3D 화면만 낮은 해상도로 렌더한 뒤 확대한다(내장 그래픽에서 가장 효과가 큰 옵션).
+    // 그래픽 품질은 Godot 렌더러까지 함께 바꾼다. 렌더러는 실행 중에 교체할 수 없으므로
+    // 선택한 뒤 게임을 재시작해 적용한다. 해상도 배율은 같은 렌더러 안의 보조 절감 옵션이다.
     public enum Quality { High, Medium, Low }
 
-    public static readonly (Quality Q, string Label, float Scale)[] QualityLevels =
+    public static readonly (Quality Q, string Label, string RenderingMethod, string RenderingDriver, float Scale)[] QualityLevels =
     {
-        // 낮음은 UI를 흐리게 하지 않으면서도 3D 픽셀 수를 약 20%까지 줄인다.
-        // 따라서 GPU 부하가 큰 조명/모델 장면에서도 저사양 노트북용 모드로 작동한다.
-        (Quality.High,   "높음", 1.00f),
-        (Quality.Medium, "보통", 0.70f),
-        (Quality.Low,    "낮음", 0.45f),
+        (Quality.High,   "높음", "forward_plus",     "d3d12",   1.00f),
+        (Quality.Medium, "보통", "mobile",           "d3d12",   0.82f),
+        // 0.65는 팔/손가락처럼 작은 스킨 메시가 심하게 뭉개져 전화 모션이 달라 보였다.
+        // 0.72여도 렌더 픽셀 수는 최고 품질의 약 52%라 저사양 모드는 충분히 가볍다.
+        (Quality.Low,    "낮음", "gl_compatibility", "opengl3", 0.72f),
     };
 
     // 숫자키로 확대할 대상들.
@@ -53,6 +53,7 @@ public static class GameSettings
     public static bool Fullscreen { get => _fullscreen; set { _fullscreen = value; ApplyFullscreen(); } }
     public static Quality GraphicsQuality { get => _quality; set { _quality = value; ApplyQuality(); } }
     public static string QualityLabel => QualityLevels[(int)_quality].Label;
+    public static string RenderingMethod => QualityLevels[(int)_quality].RenderingMethod;
 
     public static Key GetKey(ZoomTarget t) => Keys[(int)t];
 
@@ -125,6 +126,26 @@ public static class GameSettings
     {
         if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
             tree.Root.Scaling3DScale = QualityLevels[(int)_quality].Scale;
+    }
+
+    // 렌더러는 초기화 전에만 고를 수 있다. 내보낸 게임에서는 선택 직후 재시작한다.
+    // F5 실행은 Godot 자체가 재시작을 지원하지 않으므로 창을 닫거나 project.godot를
+    // 수정하지 않는다. 이 경우에는 같은 렌더러 안에서 해상도 배율만 즉시 반영된다.
+    public static bool RestartForGraphicsQuality()
+    {
+        var level = QualityLevels[(int)_quality];
+        Save();
+
+        // 에디터에서 F5로 실행 중이면 project.godot를 쓰거나 게임을 종료하지 않는다.
+        if (OS.HasFeature("editor")) return false;
+        if (Engine.GetMainLoop() is not SceneTree tree) return false;
+        OS.SetRestartOnExit(true, new[]
+        {
+            "--rendering-method", level.RenderingMethod,
+            "--rendering-driver", level.RenderingDriver,
+        });
+        tree.Quit();
+        return true;
     }
 
     // --- 저장 / 불러오기 ---------------------------------------------------

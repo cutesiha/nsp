@@ -275,16 +275,19 @@ public partial class Phone3D : Node3D
         if (string.IsNullOrEmpty(target)) return;
 
         _caller = target;
-        // 휴게시간에 "의심 추궁" 이 켜져 있으면 인터뷰 의심 대사(⑥), 아니면 일반 통화(⑦).
-        _dialogueEvent = resting && RestRosterView.Instance?.InterrogateArmed == true
-            ? DialogueRepository.EventInterviewSuspected
+        // 휴게시간의 모든 발신은 실제 로그를 읽는 DAY1 로컬 인터뷰로 연결한다.
+        // 방해자 역할은 여기서 정하지 않고 LocalInterviewDialogue가 GameState의 런타임 값만 읽는다.
+        _dialogueEvent = resting
+            ? LocalInterviewDialogue.EventDay1Interview
             : DialogueRepository.EventGeneralCall;
         _isIncoming = false;
         _patienceUntil = -1;
+
+        // 관리자가 거는 전화는 수신 전화가 아니다. 벨/진동/자동수신 대기 없이
+        // 즉시 수화기를 집는 동작으로 이어진다.
         _state = PhoneState.Ringing;
-        _ring?.Play();
-        _autoPickupAt = Time.GetTicksMsec() / 1000.0 + 0.9;
-        EmitSignal(SignalName.RingStarted);
+        _autoPickupAt = -1;
+        PickUp();
     }
 
     // 클릭 → 손이 뻗어 수화기를 쥐러 간다. HUD·통화 상태는 손이 실제로 쥔 뒤에.

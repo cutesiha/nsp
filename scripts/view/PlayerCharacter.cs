@@ -51,8 +51,10 @@ public partial class PlayerCharacter : Node3D
     // call 때 어깨(팔 고정축)를 몸 쪽으로 크게 당긴다 — 수화기를 귀로 가져오는 건 팔+어깨가 같이 후퇴.
     [Export] public Vector3 CallShoulderShift = new(0f, 0f, 0.06f);
     [Export] public Vector3 ReachWrist = new(-12f, -6f, 0f);
-    [Export] public Vector3 GripWrist = new(-14f, -8f, 6f);
-    [Export] public Vector3 CallWrist = new(8f, 30f, 22f);
+    // 기존 전화 포즈의 손목 각도를 유지한다. 이 방향에서는 오른손의 손바닥이
+    // 카메라 쪽을 향하고, 수화기를 쥘 때 손등이 먼저 보이지 않는다.
+    [Export] public Vector3 GripWrist = new(-24f, 0f, 0f);
+    [Export] public Vector3 CallWrist = new(-46f, 24f, 16f);
     [Export] public float GripCurlIndex = 40f;
     [Export] public float GripCurlMiddle = 66f;
     [Export] public float GripCurlRing = 68f;

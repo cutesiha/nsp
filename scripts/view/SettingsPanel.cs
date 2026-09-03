@@ -96,14 +96,15 @@ public partial class SettingsPanel : CanvasLayer
             BorderWidthLeft = 3, BorderWidthTop = 3, BorderWidthRight = 3, BorderWidthBottom = 3,
         });
         _root.AddChild(sheet);
-        sheet.AddChild(new PaperGrain { MouseFilter = Control.MouseFilterEnum.Ignore });
+        sheet.AddChild(new DocumentPaperTexture { MouseFilter = Control.MouseFilterEnum.Ignore });
 
         // Panel 은 컨테이너가 아니라 스타일박스의 ContentMargin 을 자식에 적용하지 않는다.
         // 여백은 여기서 앵커 오프셋으로 직접 준다.
         var vb = new VBoxContainer();
         vb.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         vb.OffsetLeft = 46; vb.OffsetRight = -46;
-        vb.OffsetTop = 24; vb.OffsetBottom = -24;
+        // 하단 버튼은 VBox 밖에 별도로 고정한다. 위 항목의 글이 바뀌어도 움직이지 않는다.
+        vb.OffsetTop = 24; vb.OffsetBottom = -84;
         vb.AddThemeConstantOverride("separation", 8);
         sheet.AddChild(vb);
 
@@ -142,10 +143,10 @@ public partial class SettingsPanel : CanvasLayer
             int next = ((int)GameSettings.GraphicsQuality + 1) % GameSettings.QualityLevels.Length;
             GameSettings.GraphicsQuality = (GameSettings.Quality)next;
             qBtn.Text = GameSettings.QualityLabel;
-            GameSettings.Save();
+            if (!GameSettings.RestartForGraphicsQuality())
+                qBtn.TooltipText = "F5 실행에서는 창을 닫지 않습니다. 내보낸 게임에서 선택하면 렌더러가 재시작되어 적용됩니다.";
         };
         qRow.AddChild(qBtn);
-        qRow.AddChild(Lbl("낮출수록 3D 화면만 저해상도로 그립니다. 글자·UI는 항상 선명합니다.", 14, InkDim, _body));
         vb.AddChild(qRow);
 
         vb.AddChild(Rule());
@@ -156,10 +157,11 @@ public partial class SettingsPanel : CanvasLayer
         foreach (var (target, label) in GameSettings.ZoomTargets)
             vb.AddChild(KeyRow(target, label));
 
-        vb.AddChild(new Control { CustomMinimumSize = new Vector2(0, 8) });
-
         // ── 하단 버튼 ──
         var bottom = Row();
+        bottom.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
+        bottom.OffsetLeft = 46; bottom.OffsetRight = -46;
+        bottom.OffsetTop = -64; bottom.OffsetBottom = -20;
         var reset = DocButton("조작키 초기화", 200f);
         reset.Pressed += () => { GameSettings.ResetKeysToDefault(); RefreshKeyButtons(); GameSettings.Save(); };
         bottom.AddChild(reset);
@@ -167,7 +169,7 @@ public partial class SettingsPanel : CanvasLayer
         var close = DocButton("닫기", 180f);
         close.Pressed += Close;
         bottom.AddChild(close);
-        vb.AddChild(bottom);
+        sheet.AddChild(bottom);
     }
 
     private HBoxContainer Row()
@@ -280,32 +282,4 @@ public partial class SettingsPanel : CanvasLayer
         return b;
     }
 
-    // 종이 얼룩 — 배치표(ScheduleBoardUI.PaperTexture)와 같은 결.
-    private partial class PaperGrain : Control
-    {
-        public override void _Ready() => SetAnchorsPreset(LayoutPreset.FullRect);
-
-        public override void _Draw()
-        {
-            var rng = new RandomNumberGenerator { Seed = 771144 };
-            for (int i = 0; i < 22; i++)
-            {
-                var p = new Vector2(rng.RandfRange(0, Size.X), rng.RandfRange(0, Size.Y));
-                DrawCircle(p, rng.RandfRange(24f, 84f), new Color(0.42f, 0.33f, 0.18f, rng.RandfRange(0.03f, 0.075f)));
-            }
-            for (int i = 0; i < 420; i++)
-            {
-                var p = new Vector2(rng.RandfRange(0, Size.X), rng.RandfRange(0, Size.Y));
-                bool light = rng.Randf() > 0.5f;
-                DrawRect(new Rect2(p, new Vector2(1.6f, 1.6f)),
-                    light ? new Color(0.96f, 0.92f, 0.79f, 0.07f) : new Color(0.32f, 0.25f, 0.14f, 0.07f));
-            }
-            var edge = new Color(0.28f, 0.21f, 0.11f, 0.20f);
-            const float b = 18f;
-            DrawRect(new Rect2(0, 0, Size.X, b), edge);
-            DrawRect(new Rect2(0, Size.Y - b, Size.X, b), edge);
-            DrawRect(new Rect2(0, 0, b, Size.Y), edge);
-            DrawRect(new Rect2(Size.X - b, 0, b, Size.Y), edge);
-        }
-    }
 }

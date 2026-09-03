@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 Config="*res://scripts/core/Config.cs"
 EventLog="*res://scripts/core/EventLog.cs"
 GameState="*res://scripts/core/GameState.cs"
+DialogueHistory="*res://scripts/core/DialogueHistory.cs"
 TabooRuleSystem="*res://scripts/taboo/TabooRuleSystem.cs"
 FacilitySimulation="*res://scripts/facility/FacilitySimulation.cs"
 AIService="*res://scripts/ai/AIService.cs"
@@ -40,6 +41,19 @@ project/assembly_name="NSP"
 [gui]
 
 theme/custom="res://theme/main_theme.tres"
+
+[input]
+
+toggle_log_history={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":76,"physical_keycode":0,"key_label":0,"unicode":108,"location":0,"echo":false,"script":null)
+]
+}
+toggle_dialogue_history={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":68,"physical_keycode":0,"key_label":0,"unicode":100,"location":0,"echo":false,"script":null)
+]
+}
 
 [physics]
 

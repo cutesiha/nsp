@@ -40,6 +40,7 @@ public partial class EventLog : Node
     public void ClearAll()
     {
         _entries.Clear();
+        EmitSignal(SignalName.Cleared);
     }
 
     public IReadOnlyList<LogEntry> GetAllEntries() => _entries;
@@ -52,4 +53,5 @@ public partial class EventLog : Node
     }
 
     [Signal] public delegate void EntryLoggedEventHandler();
+    [Signal] public delegate void ClearedEventHandler();
 }

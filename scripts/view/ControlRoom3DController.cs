@@ -97,8 +97,19 @@ public partial class ControlRoom3DController : Node3D
         GameState.Instance?.SetPhase(GamePhase.Live);
         FacilitySimulation.Instance?.ResetForNewShift();
         EventLog.Instance?.ClearAll();
+        if ((GameState.Instance?.CurrentDay ?? 1) == 1)
+            DialogueHistory.Instance?.ClearAll();
         if (string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
-            GameState.Instance?.AssignRandomSaboteur(FacilitySimulation.Instance?.GetEmployeeIds() ?? System.Array.Empty<string>());
+        {
+            var sim = FacilitySimulation.Instance;
+            GameState.Instance?.AssignRandomSaboteur(sim?.GetEmployeeIds() ?? System.Array.Empty<string>());
+            string id = GameState.Instance?.SaboteurEmployeeId ?? "";
+            if (!string.IsNullOrEmpty(id))
+            {
+                string name = sim?.GetEmployeeDef(id)?.Codename ?? id;
+                GD.Print($"[방해자가 배정 되었습니다: {name}]");
+            }
+        }
 
         AutoStaff();
         SetScreenBrightness(1f);
@@ -239,6 +250,11 @@ public partial class ControlRoom3DController : Node3D
     public override void _Input(InputEvent @event)
     {
         if (_camera == null) return;
+
+        // CanvasLayer 통화 HUD가 마우스 입력을 받는 동안에는 그 입력을 3D CRT로
+        // 재투사하지 않는다. 그렇지 않으면 "통화를 종료한다" 클릭이 뒤쪽 휴게화면의
+        // 다음 날 배치 버튼까지 동시에 눌릴 수 있다.
+        if (PhoneCallHud.Instance?.IsOpen == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
 
         if (_modal != null)
         {

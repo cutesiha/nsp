@@ -25,6 +25,7 @@
 [ext_resource type="Script" uid="uid://ck1yp5nj7527h" path="res://scripts/view/PauseMenu.cs" id="24_pausemenu"]
 [ext_resource type="Script" uid="uid://p8t7y6q8utae" path="res://scripts/view/PhoneModelSplitter.gd" id="24_phone_splitter"]
 [ext_resource type="Script" uid="uid://duvrvmelli86b" path="res://scripts/view/ShiftHud.cs" id="25_shifthud"]
+[ext_resource type="Script" path="res://scripts/view/Day1HistoryOverlay.cs" id="26_history"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -247,7 +248,7 @@ environment = SubResource("Env")
 [node name="ControlRoom" type="Node3D" parent="." unique_id=1811790660]
 
 [node name="Floor" type="MeshInstance3D" parent="ControlRoom" unique_id=1252295084]
-transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4, 0.00049972534, -0.04478227, -0.9093176)
+transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4000006, 0.00049972534, -0.04478227, -0.9093176)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Floor")
 
@@ -1214,6 +1215,9 @@ script = ExtResource("20_pwrtaboo")
 
 [node name="ShiftHud" type="CanvasLayer" parent="." unique_id=771100884]
 script = ExtResource("25_shifthud")
+
+[node name="Day1HistoryOverlay" type="CanvasLayer" parent="."]
+script = ExtResource("26_history")
 
 [node name="PauseMenu" type="CanvasLayer" parent="." unique_id=771100885]
 script = ExtResource("24_pausemenu")

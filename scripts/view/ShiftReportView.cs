@@ -126,7 +126,8 @@ public partial class ShiftReportView : Control
 
     private static string Clock(float s)
     {
-        int totalMin = 22 * 60 + Mathf.FloorToInt(s * (480f / 300f));
+        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        int totalMin = 22 * 60 + Mathf.FloorToInt(s * (360f / Mathf.Max(1f, shiftLength)));
         int h = (totalMin / 60) % 24;
         int m = totalMin % 60;
         return $"{h:00}:{m:00}";

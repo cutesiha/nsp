@@ -89,7 +89,7 @@ public partial class ShiftFlowController : Node
         }
 
         _stage = Stage.Title;
-        Sfx.Instance?.CrossfadeMusic("nsp_mainbgm2", 1.5f, loop: true); // 시작화면 BGM (루프)
+        Sfx.Instance?.CrossfadeMusic("startbgm1", 1.5f, loop: true); // 시작화면 BGM (루프)
     }
 
     public override void _Process(double delta)
@@ -99,7 +99,7 @@ public partial class ShiftFlowController : Node
         // 근무 시간이 다 되면(시계가 종료 시간 도달) 자동으로 근무를 종료한다.
         if (_stage == Stage.Shift && GameState.Instance != null)
         {
-            float limit = Config.Instance?.Data?.DayLengthSeconds ?? 300f;
+            float limit = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
             if (GameState.Instance.DayTimeSeconds >= limit)
                 RequestEndShift();
         }
@@ -123,6 +123,12 @@ public partial class ShiftFlowController : Node
     private void EnterSchedule()
     {
         if (_stage is not (Stage.Title or Stage.DayTransition)) return;
+
+        // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
+        // 그 값이 남지 않게 모든 런 상태를 비운 뒤 이번 판의 방해자를 새로 뽑는다.
+        if (_stage == Stage.Title)
+            StartNewRun();
+
         _stage = Stage.Schedule;
 
         _title?.FadeOut();
@@ -147,6 +153,25 @@ public partial class ShiftFlowController : Node
 
         if (_board != null)
             _rig?.FocusOnScreen(_board.SurfaceCenterWorld, _board.SurfaceNormalWorld, BoardFocusDistance, 0.7f);
+    }
+
+    private static void StartNewRun()
+    {
+        var state = GameState.Instance;
+        var sim = FacilitySimulation.Instance;
+        if (state == null || sim == null) return;
+
+        state.ResetRun();
+        sim.ResetRun();
+        EventLog.Instance?.ClearAll();
+        DialogueHistory.Instance?.ClearAll();
+
+        state.AssignRandomSaboteur(sim.GetEmployeeIds());
+        string id = state.SaboteurEmployeeId;
+        if (string.IsNullOrEmpty(id)) return;
+
+        string name = sim.GetEmployeeDef(id)?.Codename ?? id;
+        GD.Print($"[방해자가 배정 되었습니다: {name}]");
     }
 
     // --- 배치 → 근무 -----------------------------------------------------

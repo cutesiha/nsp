@@ -14,7 +14,6 @@ public partial class FacilitySimulation : Node
 
     private const string IsolationRoomId = "isolation_room";
     private const string GuardRoomId = "guard_room";
-    private const string CentralOfficeId = "central_office";
     private const int RoomSlotCapacity = 2;
 
     public string RelocatingEmployeeId { get; private set; } = "";
@@ -523,7 +522,13 @@ public partial class FacilitySimulation : Node
 
         bool reassigned = !string.IsNullOrEmpty(returnRoom) && CanAssignToRoom(returnRoom) && AssignToRoom(employeeId, returnRoom);
         if (!reassigned)
-            BeginPathTo(emp, CentralOfficeId);
+        {
+            // 중앙 제어실은 관리자 전용 구역이다. 원래 작업실로 돌아갈 수 없을 때도
+            // 중앙 제어실로 보내지 말고, 인접한 배치 가능 작업실을 새 담당 구역으로 잡는다.
+            string fallback = FindNearestAvailableRoom(string.IsNullOrEmpty(returnRoom) ? emp.CurrentRoomId : returnRoom);
+            if (!string.IsNullOrEmpty(fallback))
+                AssignToRoom(employeeId, fallback);
+        }
 
         EventLog.Instance?.LogEvent(LogEventType.Isolation, employeeId, returnRoom, $"{Codename(employeeId)} - 격리 해제");
         return true;

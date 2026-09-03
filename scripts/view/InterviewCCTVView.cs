@@ -14,8 +14,6 @@ public partial class InterviewCCTVView : Control
     private Font _font;
     private TextureRect _portrait;
     private Label _stateLabel;
-    private Label _nameLabel;
-    private Label _hintLabel;
     private Label _recLabel;
     private Label _clock;
     private TextureRect _noise;
@@ -40,8 +38,10 @@ public partial class InterviewCCTVView : Control
 
         var portraitBox = new Control
         {
-            Position = new Vector2(Frame.Position.X + Frame.Size.X / 2f - 140f, Frame.Position.Y + 14f),
-            Size = new Vector2(280f, 340f),
+            // 스탠딩 원화의 발끝이 CCTV 화면 아래에 붙도록 프레임 전체 높이를 쓴다.
+            // 세로 비율은 KeepAspectCentered가 유지하고, 가로 여백만 남긴다.
+            Position = new Vector2(Frame.Position.X + Frame.Size.X / 2f - 190f, Frame.Position.Y),
+            Size = new Vector2(380f, Frame.Size.Y),
             ClipContents = true,
             MouseFilter = MouseFilterEnum.Ignore,
         };
@@ -62,18 +62,6 @@ public partial class InterviewCCTVView : Control
         _stateLabel.HorizontalAlignment = HorizontalAlignment.Center;
         AddChild(_stateLabel);
 
-        _nameLabel = Lbl("", 20, new Color(0.95f, 0.95f, 0.85f));
-        _nameLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + 366f);
-        _nameLabel.Size = new Vector2(Frame.Size.X, 28f);
-        _nameLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        AddChild(_nameLabel);
-
-        _hintLabel = Lbl("", 15, new Color(0.8f, 0.85f, 0.95f));
-        _hintLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + 398f);
-        _hintLabel.Size = new Vector2(Frame.Size.X, 24f);
-        _hintLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        AddChild(_hintLabel);
-
         _noiseFrames = new ImageTexture[6];
         for (int i = 0; i < 6; i++) _noiseFrames[i] = BuildNoise();
         _noise = new TextureRect
@@ -87,10 +75,6 @@ public partial class InterviewCCTVView : Control
         _recLabel = Lbl("● REC", 18, new Color(0.95f, 0.25f, 0.2f));
         _recLabel.Position = new Vector2(44, 24);
         AddChild(_recLabel);
-
-        var camLabel = Lbl("CAM · BREAK ROOM", 15, new Color(0.75f, 0.85f, 0.8f));
-        camLabel.Position = new Vector2(44, 512);
-        AddChild(camLabel);
 
         _clock = Lbl("--:--", 18, new Color(0.75f, 0.85f, 0.8f));
         _clock.Position = new Vector2(600, 24);
@@ -140,15 +124,11 @@ public partial class InterviewCCTVView : Control
             _portrait.Texture = null;
             _stateLabel.Visible = true;
             _stateLabel.Text = "왼쪽에서 직원을 선택하세요";
-            _nameLabel.Text = "";
-            _hintLabel.Text = "";
             return;
         }
 
         _stateLabel.Visible = false;
         _portrait.Texture = def.StandingImage ?? def.FacePortrait;
-        _nameLabel.Text = def.Codename;
-        _hintLabel.Text = !st.Alive ? "(응답 없음)" : "전화기를 들면 대화가 연결됩니다";
     }
 
     private static ImageTexture BuildNoise()
@@ -166,7 +146,8 @@ public partial class InterviewCCTVView : Control
 
     private static string FacilityClock(float t)
     {
-        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (480f / 300f));
+        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (360f / Mathf.Max(1f, shiftLength)));
         int h = (totalMin / 60) % 24;
         int m = totalMin % 60;
         return $"{h:00}:{m:00}";

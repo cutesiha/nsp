@@ -8,7 +8,8 @@ namespace NSP.View;
 // 전화 통화 자막 UI. 화면 하단의 작은 홀로그램 '창' 으로만 표시한다 — 중앙 대형 팝업 금지.
 //  - 일반 통화(플레이어 발신): 인사 → 질문 → 대답 …
 //  - 이벤트 통화(직원 발신: 사고/비명/정전/목격/인터뷰): 첫 대사 → 2지선다 → 대답 → 종료
-// 대사 데이터는 DialogueRepository(docs/NSP_DIALOGUE_RUNTIME.md) 하나만 사용한다.
+// 일반/이벤트 통화는 DialogueRepository를, DAY1 휴게 인터뷰는 LocalInterviewDialogue
+// (docs/휴게시간_대사목록.md + 실제 이벤트 로그)를 사용한다.
 // CanvasLayer 자체는 항상 켜두고 통화창(_panel)만 여닫는다 — 벨이 울리는 동안 아주 작은
 // "INCOMING CALL" 보조 표시를 띄우기 위함(직원 이름은 받기 전까지 알려주지 않는다).
 public partial class PhoneCallHud : CanvasLayer
@@ -25,10 +26,10 @@ public partial class PhoneCallHud : CanvasLayer
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
     private static readonly Color Amber = new(1f, 0.78f, 0.35f);
 
-    private enum AfterMode { None, GeneralQuestions, EventChoices, EndOnly }
+    private enum AfterMode { None, GeneralQuestions, EventChoices, LocalInterviewQuestions, EndOnly }
 
     private Panel _panel;
-    private HoloFrame _frame;
+    private HologramFrame _frame;
     private Label _speaker;
     private Label _message;
     private VBoxContainer _choices;
@@ -45,6 +46,10 @@ public partial class PhoneCallHud : CanvasLayer
     private AfterMode _after;
     private float _blink;
 
+    // 3D CRT 입력기가 통화창 뒤의 버튼까지 같은 마우스 입력을 전달하지 않도록,
+    // 열려 있는 통화창의 상태를 외부에 명시한다.
+    public bool IsOpen => _panel?.Visible ?? false;
+
     public override void _Ready()
     {
         Instance = this;
@@ -55,7 +60,9 @@ public partial class PhoneCallHud : CanvasLayer
         _panel = new Panel
         {
             AnchorLeft = 0.24f, AnchorRight = 0.76f, AnchorTop = 0.62f, AnchorBottom = 0.95f,
-            MouseFilter = Control.MouseFilterEnum.Pass,
+            // 통화 선택지 클릭은 이 HUD에서 끝나야 한다. Pass이면 같은 클릭이 뒤쪽
+            // 휴게시간 CRT의 "다음 날 근무 배치" 버튼까지 전달될 수 있다.
+            MouseFilter = Control.MouseFilterEnum.Stop,
             Visible = false,
         };
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
@@ -67,7 +74,7 @@ public partial class PhoneCallHud : CanvasLayer
         });
         AddChild(_panel);
 
-        _frame = new HoloFrame { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _frame = new HologramFrame { MouseFilter = Control.MouseFilterEnum.Ignore };
         _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _panel.AddChild(_frame);
 
@@ -141,6 +148,7 @@ public partial class PhoneCallHud : CanvasLayer
         _dialogueEvent = string.IsNullOrEmpty(dialogueEvent) ? DialogueRepository.EventGeneralCall : dialogueEvent;
         HideIncoming();
         _panel.Visible = true;
+        SetInterviewLayout(_dialogueEvent == LocalInterviewDialogue.EventDay1Interview);
 
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
         _speaker.Text = "▶ " + (def?.Codename ?? employeeId);
@@ -154,11 +162,21 @@ public partial class PhoneCallHud : CanvasLayer
 
         ClearChoices();
 
+        if (_dialogueEvent == LocalInterviewDialogue.EventDay1Interview)
+        {
+            // 휴게시간 인터뷰는 Claude/API가 아니라 로컬 로그 기반 대사로 완결한다.
+            string greeting = LocalInterviewDialogue.InterviewGreeting(employeeId);
+            RecordNpc(greeting, DialogueEntryType.NpcLine, DialogueConversationType.Interview);
+            StartTyping("\"" + greeting + "\"", AfterMode.LocalInterviewQuestions);
+            return;
+        }
+
         if (_dialogueEvent != DialogueRepository.EventGeneralCall)
         {
             _event = DialogueRepository.GetEvent(_dialogueEvent, employeeId);
             if (_event != null && !string.IsNullOrEmpty(_event.Opening))
             {
+                RecordNpc(_event.Opening, DialogueEntryType.NpcLine, DialogueConversationType.IncomingCall);
                 StartTyping("\"" + _event.Opening + "\"", AfterMode.EventChoices);
                 return;
             }
@@ -166,7 +184,9 @@ public partial class PhoneCallHud : CanvasLayer
         }
 
         _event = null;
-        StartTyping("\"" + DialogueRepository.Greeting(employeeId) + "\"", AfterMode.GeneralQuestions);
+        string generalGreeting = DialogueRepository.Greeting(employeeId);
+        RecordNpc(generalGreeting, DialogueEntryType.NpcLine, DialogueConversationType.OutgoingCall);
+        StartTyping("\"" + generalGreeting + "\"", AfterMode.GeneralQuestions);
     }
 
     private void StartTyping(string text, AfterMode after)
@@ -205,6 +225,7 @@ public partial class PhoneCallHud : CanvasLayer
             {
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
                 case AfterMode.EventChoices: BuildEventChoices(); break;
+                case AfterMode.LocalInterviewQuestions: BuildLocalInterviewQuestions(); break;
                 case AfterMode.EndOnly: BuildEndOnly(); break;
             }
         }
@@ -226,7 +247,36 @@ public partial class PhoneCallHud : CanvasLayer
     private void OnGeneralQuestion(int idx)
     {
         ClearChoices();
-        StartTyping("\"" + DialogueRepository.GeneralAnswer(_employeeId, idx) + "\"", AfterMode.GeneralQuestions);
+        var questions = DialogueRepository.GeneralQuestions(_employeeId);
+        string question = idx >= 0 && idx < questions.Count ? questions[idx].Question : "";
+        string answer = DialogueRepository.GeneralAnswer(_employeeId, idx);
+        RecordPlayer(question, DialogueConversationType.OutgoingCall);
+        RecordNpc(answer, DialogueEntryType.NpcResponse, DialogueConversationType.OutgoingCall);
+        StartTyping("\"" + answer + "\"", AfterMode.GeneralQuestions);
+    }
+
+    // --- DAY1 휴게시간 인터뷰(플레이어 발신) ----------------------------
+    private void BuildLocalInterviewQuestions()
+    {
+        ClearChoices();
+        foreach (var question in LocalInterviewDialogue.Questions)
+        {
+            string id = question.Id;
+            _choices.AddChild(InterviewChoiceButton(LocalInterviewDialogue.GetQuestionText(_employeeId, id),
+                () => OnLocalInterviewQuestion(id)));
+        }
+        _choices.AddChild(InterviewChoiceButton("통화를 종료한다.", CloseCall));
+    }
+
+    private void OnLocalInterviewQuestion(string questionId)
+    {
+        ClearChoices();
+        string question = LocalInterviewDialogue.GetQuestionText(_employeeId, questionId);
+        string reply = LocalInterviewDialogue.Answer(_employeeId, questionId);
+        LocalInterviewDialogue.RecordTurn(_employeeId, question, reply);
+        RecordPlayer(question, DialogueConversationType.Interview);
+        RecordNpc(reply, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        StartTyping("\"" + reply + "\"", AfterMode.LocalInterviewQuestions);
     }
 
     // --- 이벤트 통화(직원 발신) — 첫 대사 → 2지선다 → 대답 → 종료 --------
@@ -245,8 +295,19 @@ public partial class PhoneCallHud : CanvasLayer
     private void OnEventChoice(DialogueRepository.Choice c, int index)
     {
         ClearChoices();
+        RecordPlayer(c.Text, DialogueConversationType.IncomingCall);
+        RecordNpc(c.Reply, DialogueEntryType.NpcResponse, DialogueConversationType.IncomingCall);
         EmitSignal(SignalName.EventChoiceMade, _employeeId, _dialogueEvent, index);
         StartTyping("\"" + c.Reply + "\"", AfterMode.EndOnly);
+    }
+
+    private void RecordPlayer(string text, DialogueConversationType conversationType) =>
+        DialogueHistory.Instance?.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice, text, conversationType);
+
+    private void RecordNpc(string text, DialogueEntryType entryType, DialogueConversationType conversationType)
+    {
+        var def = FacilitySimulation.Instance?.GetEmployeeDef(_employeeId);
+        DialogueHistory.Instance?.AddEntry(_employeeId, def?.Codename ?? _employeeId, entryType, text, conversationType);
     }
 
     private void BuildEndOnly()
@@ -283,6 +344,34 @@ public partial class PhoneCallHud : CanvasLayer
         return b;
     }
 
+    private Button InterviewChoiceButton(string text, System.Action onPressed)
+    {
+        var b = ChoiceButton(text, onPressed);
+        // 휴게시간 질문은 CRT에서 읽기 쉽도록 일반 선택지보다 한 단계 크게 둔다.
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
+        b.CustomMinimumSize = new Vector2(0, 30);
+        return b;
+    }
+
+    private void SetInterviewLayout(bool interview)
+    {
+        if (interview)
+        {
+            // 질문 5개와 종료 버튼이 들어가는 높이만 쓰되, 휴게시간 화면의 하단에서
+            // 뜨게 한다. CRT를 가리지 않으며 선택지 아래의 큰 빈칸도 만들지 않는다.
+            _panel.AnchorTop = 1f;
+            _panel.AnchorBottom = 1f;
+            _panel.OffsetTop = -410f;
+            _panel.OffsetBottom = -20f;
+            return;
+        }
+
+        _panel.AnchorTop = 0.62f;
+        _panel.AnchorBottom = 0.95f;
+        _panel.OffsetTop = 0f;
+        _panel.OffsetBottom = 0f;
+    }
+
     private void ClearChoices()
     {
         foreach (var c in _choices.GetChildren()) c.QueueFree();
@@ -303,35 +392,4 @@ public partial class PhoneCallHud : CanvasLayer
         if (_panel.Visible) CloseCall();
     }
 
-    // ── 홀로그램 창 프레임(모서리 브래킷 + 헤더바 + 스캔라인) ──────────────
-    private partial class HoloFrame : Control
-    {
-        public Color Accent = Cyan;
-        private float _t;
-
-        public override void _Process(double delta) { _t += (float)delta; QueueRedraw(); }
-
-        public override void _Draw()
-        {
-            var a = Accent;
-            var s = Size;
-            DrawRect(new Rect2(0, 0, s.X, 30), new Color(a.R, a.G, a.B, 0.18f));
-            DrawLine(new Vector2(0, 30), new Vector2(s.X, 30), new Color(a.R, a.G, a.B, 0.6f), 1f);
-            float L = 18f;
-            var c = new Color(a.R, a.G, a.B, 0.9f);
-            void Bracket(Vector2 p, Vector2 dx, Vector2 dy)
-            {
-                DrawLine(p, p + dx * L, c, 2f);
-                DrawLine(p, p + dy * L, c, 2f);
-            }
-            Bracket(new Vector2(2, 2), Vector2.Right, Vector2.Down);
-            Bracket(new Vector2(s.X - 2, 2), Vector2.Left, Vector2.Down);
-            Bracket(new Vector2(2, s.Y - 2), Vector2.Right, Vector2.Up);
-            Bracket(new Vector2(s.X - 2, s.Y - 2), Vector2.Left, Vector2.Up);
-            for (float y = 2; y < s.Y; y += 3f)
-                DrawLine(new Vector2(0, y), new Vector2(s.X, y), new Color(0, 0, 0, 0.10f), 1f);
-            float ly = Mathf.PosMod(_t * 60f, s.Y);
-            DrawLine(new Vector2(0, ly), new Vector2(s.X, ly), new Color(a.R, a.G, a.B, 0.12f), 2f);
-        }
-    }
 }

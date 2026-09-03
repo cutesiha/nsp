@@ -131,9 +131,17 @@ public partial class AIService : Node
         if (def == null || state == null)
             return "당신은 시설 직원입니다.";
 
+        // API를 다시 연결하더라도 Godot 로그가 사실의 유일한 기준이다. 배우/목격을
+        // 구분해 넘겨 모델이 보지 못한 일을 직접 봤다고 말하지 않도록 한다.
         var knownFacts = EventLog.Instance.GetEntriesKnownBy(employeeId)
             .TakeLast(5)
-            .Select(e => "- " + e.Description);
+            .Select(e =>
+            {
+                string source = e.ActorEmployeeId == employeeId
+                    ? "본인 행동 기록"
+                    : e.WitnessEmployeeIds.Contains(employeeId) ? "직접 목격 기록" : "전달된 기록";
+                return $"- [{source}] {e.Description}";
+            });
 
         var sb = new StringBuilder();
         sb.AppendLine($"당신은 야간 근무 시설의 직원 '{def.Codename}'입니다.");
@@ -150,14 +158,14 @@ public partial class AIService : Node
         sb.AppendLine($"현재 스트레스: {state.Stress}/{Config.Instance.Data.StressMax}");
         string currentTaskName = FacilitySimulation.Instance.GetActiveTaskForRoom(state.CurrentRoomId)?.DisplayName ?? "없음";
         sb.AppendLine($"현재 위치/업무: {state.CurrentRoomId} / {currentTaskName}");
-        sb.AppendLine("당신이 직접 목격하거나 전달받은 사실:");
+        sb.AppendLine("Godot가 확인한 사실(이 목록 밖의 사건·목격·동선을 만들어내지 마세요):");
         foreach (var fact in knownFacts)
             sb.AppendLine(fact);
         sb.AppendLine("이 범위를 벗어난 사실은 알지 못하는 것으로 대답하세요. 절대 게임 시스템이나 데이터 구조를 언급하지 마세요.");
 
         if (employeeId == GameState.Instance.SaboteurEmployeeId)
         {
-            sb.AppendLine("당신은 이 시설의 숨은 파괴공작자입니다. 이 사실을 스스로 밝히거나 암시하지 마세요.");
+            sb.AppendLine("당신은 이 시설의 숨은 파괴공작자입니다. 이 사실을 스스로 밝히거나 암시하지 마세요. 본인에게 불리한 사실은 생략·회피할 수 있지만, 로그 밖의 거짓 사건을 만들지는 마세요.");
         }
 
         return sb.ToString();
