@@ -29,4 +29,4 @@ BehaviorLine3 = "금기 경고가 발생하면 규칙을 최우선으로 지키�
 
 IncomingCallPatienceSeconds = 5.0
 StartRoomId = "guard_room"
-IconColor = Color(0.74, 0.62, 0.42, 1)
+IconColor = Color(0.78,0.46,0.16, 1)

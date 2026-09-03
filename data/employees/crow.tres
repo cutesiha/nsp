@@ -31,6 +31,6 @@ BehaviorLine3 = "금기나 사고 경고가 발생하면 감정에 휘둘리지 
 
 IncomingCallPatienceSeconds = 6.0
 StartRoomId = "vent_room"
-IconColor = Color(0.4, 0.4, 0.42, 1)
+IconColor = Color(0.50,0.52,0.56, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")

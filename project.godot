@@ -40,7 +40,7 @@ project/assembly_name="NSP"
 
 theme/custom="res://theme/main_theme.tres"
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+window/stretch/aspect="keep"
 
 [physics]
 

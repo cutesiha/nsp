@@ -98,7 +98,7 @@ public partial class ControlRoomAtmosphere : Node3D
         _drone.P2 = MakeLoop2D("drone_loop", Silent);
         _all.Add(_drone); // MakeLoop3D 로 만든 레이어는 _all 에 자동 추가됨 — drone 만 수동.
 
-        _chair = new AudioStreamPlayer3D { VolumeDb = -8f, UnitSize = 2f, MaxDistance = 6f, Bus = "Master" };
+        _chair = new AudioStreamPlayer3D { VolumeDb = -8f, UnitSize = 2f, MaxDistance = 6f, Bus = NSP.Core.GameSettings.BusSfx };
         (NodeAt(ChairPath) ?? (Node3D)this).AddChild(_chair);
 
         _alarm = MakeLoop2D("alarm", Silent);
@@ -118,7 +118,7 @@ public partial class ControlRoomAtmosphere : Node3D
         if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
         var p = new AudioStreamPlayer3D
         {
-            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = "Master",
+            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = NSP.Core.GameSettings.BusSfx,
         };
         (at ?? (Node3D)this).AddChild(p);
         if (stream != null) p.Play();
@@ -130,7 +130,7 @@ public partial class ControlRoomAtmosphere : Node3D
     // 상황(사고 경고 / 금기 전조 / 정전)에서 조금 커지고 빨라진다.
     private void BuildBreath()
     {
-        _breath = new AudioStreamPlayer { Bus = "Master", VolumeDb = Silent, Stream = MakeBreathStream() };
+        _breath = new AudioStreamPlayer { Bus = NSP.Core.GameSettings.BusSfx, VolumeDb = Silent, Stream = MakeBreathStream() };
         AddChild(_breath);
         if (_breath.Stream != null) _breath.Play();
     }
@@ -189,7 +189,7 @@ public partial class ControlRoomAtmosphere : Node3D
         if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
         var p = new AudioStreamPlayer3D
         {
-            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = "Master",
+            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = NSP.Core.GameSettings.BusSfx,
         };
         (at ?? (Node3D)this).AddChild(p);
         if (stream != null) p.Play();
@@ -202,7 +202,7 @@ public partial class ControlRoomAtmosphere : Node3D
     {
         var stream = Load(key);
         if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
-        var p = new AudioStreamPlayer { Stream = stream, VolumeDb = startDb, Bus = "Master" };
+        var p = new AudioStreamPlayer { Stream = stream, VolumeDb = startDb, Bus = NSP.Core.GameSettings.BusSfx };
         AddChild(p);
         if (stream != null) p.Play();
         return p;
@@ -405,7 +405,7 @@ public partial class ControlRoomAtmosphere : Node3D
             if (s == null) return;
             var p = new AudioStreamPlayer3D
             {
-                Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 16f, Bus = "Master",
+                Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 16f, Bus = NSP.Core.GameSettings.BusSfx,
                 PitchScale = (float)GD.RandRange(0.9, 1.1),
             };
             AddChild(p);
@@ -431,7 +431,7 @@ public partial class ControlRoomAtmosphere : Node3D
     {
         var s = Load(key);
         if (s == null) return;
-        var p = new AudioStreamPlayer3D { Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 14f, Bus = "Master" };
+        var p = new AudioStreamPlayer3D { Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 14f, Bus = NSP.Core.GameSettings.BusSfx };
         (at ?? (Node3D)this).AddChild(p);
         p.Play();
         p.Finished += () => p.QueueFree();

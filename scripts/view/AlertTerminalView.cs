@@ -44,27 +44,42 @@ public partial class AlertTerminalView : Control
         bg.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(bg);
 
+        // 책상 위 작은 단말기라 멀리서도 읽혀야 한다 — 글자를 크게 잡고, 긴 경고문은
+        // 절대좌표 대신 세로 컨테이너로 흘려서 잘리지 않고 다음 줄로 접히게 한다.
         var font = ViewFont.Default;
-        var head = Lbl("경고 단말기", 17, new Color(0.4f, 0.6f, 0.46f), font);
-        head.Position = new Vector2(12, 22);
-        AddChild(head);
+        var pad = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
+        pad.SetAnchorsPreset(LayoutPreset.FullRect);
+        pad.AddThemeConstantOverride("margin_left", 12);
+        pad.AddThemeConstantOverride("margin_right", 12);
+        pad.AddThemeConstantOverride("margin_top", 10);
+        pad.AddThemeConstantOverride("margin_bottom", 8);
+        AddChild(pad);
 
-        _line1 = Lbl("정상 가동 중", 30, new Color(0.4f, 0.95f, 0.5f), font);
-        _line1.Position = new Vector2(12, 56);
-        AddChild(_line1);
+        var vb = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
+        vb.AddThemeConstantOverride("separation", 6);
+        pad.AddChild(vb);
 
-        _line2 = Lbl("경고 없음", 23, new Color(0.4f, 0.75f, 0.48f), font);
-        _line2.Position = new Vector2(12, 104);
-        AddChild(_line2);
+        var head = Lbl("경고 단말기", 21, new Color(0.4f, 0.6f, 0.46f), font);
+        vb.AddChild(head);
 
-        _line3 = Lbl("", 25, new Color(0.95f, 0.65f, 0.25f), font);
-        _line3.Position = new Vector2(12, 144);
-        AddChild(_line3);
+        _line1 = Lbl("정상 가동 중", 46, new Color(0.4f, 0.95f, 0.5f), font);
+        vb.AddChild(_line1);
+
+        _line2 = Lbl("경고 없음", 34, new Color(0.4f, 0.75f, 0.48f), font);
+        vb.AddChild(_line2);
+
+        _line3 = Lbl("", 34, new Color(0.95f, 0.65f, 0.25f), font);
+        vb.AddChild(_line3);
     }
 
     private static Label Lbl(string t, int size, Color c, Font font)
     {
-        var l = new Label { Text = t, MouseFilter = MouseFilterEnum.Ignore };
+        var l = new Label
+        {
+            Text = t,
+            MouseFilter = MouseFilterEnum.Ignore,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
         l.AddThemeFontOverride("font", font);
         l.AddThemeFontSizeOverride("font_size", size);
         l.AddThemeColorOverride("font_color", c);

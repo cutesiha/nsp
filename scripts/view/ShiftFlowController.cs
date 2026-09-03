@@ -37,7 +37,7 @@ public partial class ShiftFlowController : Node
         "../ControlRoom/PowerSwitchPanel",
         "../ControlRoom/AlertTerminal",
     };
-    [Export] public float BoardFocusDistance = 0.55f;
+    [Export] public float BoardFocusDistance = 0.42f;
 
     private enum Stage { Boot, Title, Schedule, Booting, Shift, Ending, Report, Rest, DayTransition, Final }
     private Stage _stage = Stage.Boot;

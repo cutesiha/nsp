@@ -17,7 +17,6 @@ public partial class ControlRoomInteraction : Node
 
     private PlayerCharacter _arms;
     private SeatedCameraRig _rig;
-    private Node3D _phone;
     private StandardMaterial3D _warnMat;
     private StandardMaterial3D _consoleBtnMat;
     private Color _warnBase;
@@ -32,7 +31,6 @@ public partial class ControlRoomInteraction : Node
     {
         _arms = GetNodeOrNull<PlayerCharacter>(ArmsPath);
         _rig = GetNodeOrNull<SeatedCameraRig>(CameraRigPath);
-        _phone = GetNodeOrNull<Node3D>(PhonePath);
         _warnMat = CloneMat(GetNodeOrNull<MeshInstance3D>(WarnLightPath));
         _consoleBtnMat = CloneMat(GetNodeOrNull<MeshInstance3D>(ConsoleButtonPath));
         if (_warnMat != null) _warnBase = _warnMat.Emission;
@@ -73,7 +71,7 @@ public partial class ControlRoomInteraction : Node
 
     private void OnRingStarted()
     {
-        if (_phone != null) _rig?.FocusOn(_phone.GlobalPosition, 0.3f);
+        // 벨이 울릴 때 카메라를 전화기 쪽으로 당기지 않는다 — 플레이어 시점은 그대로 둔다.
     }
 
     private void OnPickedUp()

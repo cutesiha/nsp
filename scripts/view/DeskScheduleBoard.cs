@@ -44,7 +44,7 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
         _surface = new MeshInstance3D
         {
             Mesh = new QuadMesh { Size = Vector2.One },
-            Scale = new Vector3(0.56f, 0.40f, 1f),
+            Scale = new Vector3(0.63f, 0.45f, 1f),
             RotationDegrees = new Vector3(-68f, 0f, 0f),
             Position = new Vector3(0f, 0.10f, 0f),
         };
@@ -107,7 +107,7 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
         {
             if (_surface != null)
             {
-                _surface.Scale = new Vector3(0.56f, 0.40f, 1f);
+                _surface.Scale = new Vector3(0.63f, 0.45f, 1f);
                 _surface.Position = new Vector3(0f, 0.10f, 0f);
                 _surface.RotationDegrees = new Vector3(-68f, 0f, 0f);
             }

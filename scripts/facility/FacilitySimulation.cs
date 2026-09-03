@@ -524,6 +524,9 @@ public partial class FacilitySimulation : Node
             room.PowerOn = true;
             room.Locked = false;
         }
+        // 새 근무의 초기 배치 이동은 다시 원래 속도로 걷는다.
+        foreach (var emp in _employeeStates.Values)
+            emp.InitialDeployDone = false;
         GameState.Instance.RepairPowerAccident();
         GameState.Instance.ResetDayClock();
     }
@@ -737,7 +740,9 @@ public partial class FacilitySimulation : Node
         // 꺾임 지점이 남아있으면 방 중심이 아니라 그 지점을 향해 먼저 이동한다 — 통로를 따라
         // 걷는 것처럼 보이게 하기 위함. 방 도착 판정(ArriveAtRoom)은 꺾임을 다 지난 뒤에만.
         Vector2 stepTarget = emp.ElbowWaypoint ?? GetRoomPosition(emp.TargetRoomId);
-        float speed = Config.Instance.Data.EmployeeMoveSpeed;
+        // 최초 배치 자리로 가는 길은 기존 속도, 자리를 잡은 뒤의 이동은 훨씬 느리게.
+        var cfg = Config.Instance.Data;
+        float speed = emp.InitialDeployDone ? cfg.EmployeeMoveSpeedInShift : cfg.EmployeeMoveSpeed;
         Vector2 toTarget = stepTarget - emp.Position;
         float dist = toTarget.Length();
 
@@ -778,6 +783,10 @@ public partial class FacilitySimulation : Node
 
         EventLog.Instance?.LogEvent(LogEventType.RoomEnter, emp.EmployeeId, emp.CurrentRoomId, $"{Codename(emp.EmployeeId)} - {RoomName(emp.CurrentRoomId)} 입장",
             GetOtherOccupants(emp.CurrentRoomId, emp.EmployeeId));
+
+        // 배치된 자리에 처음 도착 = 초기 배치 완료. 이후 이동은 근무 중 저속으로 걷는다.
+        if (!emp.InitialDeployDone && emp.CurrentRoomId == emp.AssignedRoomId)
+            emp.InitialDeployDone = true;
 
         TabooRuleSystem.Instance?.EvaluateOnRoomChange(emp.EmployeeId, emp.CurrentRoomId);
     }
@@ -864,8 +873,9 @@ public partial class FacilitySimulation : Node
                 // DAY1 금기(발전실 2명 금지)와 반드시 충돌하도록 만드는 지점.
                 if (workers.Count >= Mathf.Max(1, taskDef.MinWorkersToProgress) && !blockedByMaterials)
                 {
-                    int statSum = workers.Sum(w => _employeeDefs[w.EmployeeId].GetStat(taskDef.RequiredStat));
-                    st.Gauge += statSum * delta;
+                    // 요구 능력치가 높으면 '조금' 빨라지고, 낮으면 눈에 띄게 느려진다.
+                    float rate = workers.Sum(w => StatWorkRate(_employeeDefs[w.EmployeeId].GetStat(taskDef.RequiredStat)));
+                    st.Gauge += rate * delta;
                 }
             }
 
@@ -874,6 +884,21 @@ public partial class FacilitySimulation : Node
             else if (!st.Recurring && st.Elapsed >= st.TimeLimitSeconds)
                 ResolveTask(st, taskDef, false);
         }
+    }
+
+    // 직원 1명이 그 업무에 기여하는 초당 게이지량. 능력치 2를 기준(1.0배)으로 두고,
+    // 3은 소폭 가산, 1 이하는 크게 감산해 "적임자가 아니면 확 느려진다"를 만든다.
+    private static float StatWorkRate(int stat)
+    {
+        var cfg = Config.Instance.Data;
+        float mult = stat switch
+        {
+            >= 3 => cfg.StatHighMultiplier,
+            2 => cfg.StatMatchMultiplier,
+            1 => cfg.StatLowMultiplier,
+            _ => cfg.StatVeryLowMultiplier,
+        };
+        return cfg.BaseTaskWorkRate * mult;
     }
 
     private void ResolveTask(SpawnedTask st, TaskDef taskDef, bool completed)

@@ -17,8 +17,20 @@ public partial class ConfigData : Resource
     [Export] public string AiModelId = "claude-3-5-haiku-20241022";
     [Export] public int AiMaxTokens = 300;
 
+    // 근무 시작 직후 배치된 자리로 처음 걸어가는 속도.
     [Export] public float EmployeeMoveSpeed = 80f;
+    // 자리를 잡은 뒤(재배치 / 사고 확인 이동 등) 근무 중 이동 속도 — 훨씬 느리다.
+    [Export] public float EmployeeMoveSpeedInShift = 42f;
     [Export] public float DayLengthSeconds = 300f;
+
+    // --- 업무 수행 속도 : 요구 능력치 대비 배율 -----------------------------
+    // 게이지는 인원당 BaseTaskWorkRate × 아래 배율/초 로 찬다. 능력치 2 = 기준(1.0),
+    // 3 = 약간만 빠르게, 1 이하 = 눈에 띄게 느리게.
+    [Export] public float BaseTaskWorkRate = 2.0f;
+    [Export] public float StatMatchMultiplier = 1.0f;     // 능력치 2
+    [Export] public float StatHighMultiplier = 1.25f;     // 능력치 3 이상
+    [Export] public float StatLowMultiplier = 0.4f;       // 능력치 1
+    [Export] public float StatVeryLowMultiplier = 0.2f;   // 능력치 0
 
     // LIGHTING/CCTV/SENSOR 전력 패널 — 슬롯 3개, 사고로 발전 용량이 줄면 동시에 켤 수 있는
     // 개수도 그만큼 줄어든다(코스트 가중치 없음, 채널당 슬롯 1개).

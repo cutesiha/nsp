@@ -18,6 +18,9 @@ public partial class FacilityMinimap : Control
     public string SelectedRoomId = "";
     public string SelectedEmployeeId = "";
 
+    // 직원 아이콘 반지름. 클릭 판정(EmployeeAt)도 이 값을 따라간다.
+    private const float EmpDotRadius = 10f;
+
     // 방 배치 (미니맵 정규화 좌표). 사용자 스케치의 구조.
     private static readonly Dictionary<string, Vector2> Layout = new()
     {
@@ -32,7 +35,8 @@ public partial class FacilityMinimap : Control
         ["isolation_room"] = new(0.50f, 0.90f),
     };
 
-    private static readonly Vector2 BoxSize = new(76f, 40f);
+    // 방 이름(위) / 직원 아이콘(가운데) / 직원 코드네임(아래)이 서로 안 겹치도록 잡은 크기.
+    private static readonly Vector2 BoxSize = new(92f, 56f);
 
     private Font _font;
 
@@ -134,14 +138,11 @@ public partial class FacilityMinimap : Control
         if (state.Locked)
             DrawRect(box.Grow(3f), new Color(0.9f, 0.5f, 0.2f), false, 1.5f);
 
+        // 방 이름은 상자 위쪽 — 가운데는 직원 아이콘 자리로 비워둔다.
+        // (인원수 "● n" 표기는 아이콘이 곧 인원이라 지웠다. 아이콘과 겹쳐 읽기 힘들었다.)
         string name = def.DisplayName;
-        DrawString(_font, box.Position + new Vector2(0f, 17f), name, HorizontalAlignment.Center,
+        DrawString(_font, box.Position + new Vector2(0f, 14f), name, HorizontalAlignment.Center,
             box.Size.X, 12, new Color(0.85f, 0.92f, 0.88f));
-
-        int n = state.OccupantEmployeeIds.Count(id => sim.GetEmployeeState(id)?.Alive == true);
-        if (n > 0)
-            DrawString(_font, box.Position + new Vector2(0f, 33f), $"● {n}", HorizontalAlignment.Center,
-                box.Size.X, 11, new Color(0.7f, 0.85f, 0.8f));
 
         // 발생 업무: 남은 시간 + 게이지
         var st = sim.GetPrimarySpawnedTask(roomId);
@@ -186,6 +187,10 @@ public partial class FacilityMinimap : Control
         var def = sim.GetEmployeeDef(id);
         if (st == null || def == null) return;
 
+        // 근무 배치에서 빠진 직원은 오늘 근무자가 아니다 — 지도에 띄우지 않는다.
+        // (격리된 직원은 배치가 해제되지만 위치는 계속 보여야 하므로 예외.)
+        if (string.IsNullOrEmpty(st.AssignedRoomId) && !st.Isolated) return;
+
         // LIGHTING이 꺼지면(정전 등) 비상 조명이 없는 방의 직원 아이콘은 안 보인다 — 직원을
         // 지우거나 옮기는 게 아니라, 관리자가 위치를 볼 수 없게 되는 것뿐이다(데이터/시뮬레이션은
         // 그대로 유지).
@@ -196,15 +201,17 @@ public partial class FacilityMinimap : Control
         Vector2 p = st.Position;
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
 
+        // 직원 아이콘은 고유색으로 구분한다 — 작게 그리면 색이 안 읽히므로 넉넉한 크기로.
         if (id == SelectedEmployeeId)
-            DrawCircle(p, 9f, new Color(1f, 1f, 1f, 0.9f), false, 2f);
-        DrawCircle(p, 6f, c);
-        DrawCircle(p, 6f, new Color(0f, 0f, 0f, 0.6f), false, 1f);
+            DrawCircle(p, EmpDotRadius + 4f, new Color(1f, 1f, 1f, 0.9f), false, 2.4f);
+        DrawCircle(p, EmpDotRadius, c);
+        DrawCircle(p, EmpDotRadius, new Color(0f, 0f, 0f, 0.7f), false, 1.6f);
 
-        DrawString(_font, p + new Vector2(-24f, -9f), def.Codename, HorizontalAlignment.Center, 48f, 10,
+        // 코드네임은 아이콘 아래 — 방 이름(상자 위쪽)과 부딪히지 않는다.
+        DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 12f), def.Codename, HorizontalAlignment.Center, 60f, 11,
             new Color(0.95f, 0.95f, 0.8f));
         if (st.Isolated)
-            DrawString(_font, p + new Vector2(-24f, 20f), "[격리]", HorizontalAlignment.Center, 48f, 9,
+            DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 23f), "[격리]", HorizontalAlignment.Center, 60f, 9,
                 new Color(0.9f, 0.5f, 0.9f));
     }
 
@@ -244,7 +251,7 @@ public partial class FacilityMinimap : Control
         foreach (var id in sim.GetEmployeeIds())
         {
             var st = sim.GetEmployeeState(id);
-            if (st != null && st.Position.DistanceTo(pos) <= 12f)
+            if (st != null && st.Position.DistanceTo(pos) <= EmpDotRadius + 5f)
                 return id;
         }
         return null;

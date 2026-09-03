@@ -297,6 +297,11 @@ public partial class FacilityMonitorView : Control
                 .Select(id => sim.GetEmployeeDef(id)?.Codename).Where(c => c != null);
 
             var sb = new StringBuilder($"[color=#ffc040]ROOM[/color]\n[font_size=18]{def.DisplayName}[/font_size]\n\n");
+
+            NSP.Ui.RoomDetailCard.Descriptions.TryGetValue(_selRoom, out string roomDesc);
+            if (!string.IsNullOrEmpty(roomDesc))
+                sb.Append($"[color=#8a99a8]{roomDesc}[/color]\n\n");
+
             if (st != null)
             {
                 var tdef = sim.GetTaskDef(st.TaskId);
@@ -311,11 +316,37 @@ public partial class FacilityMonitorView : Control
             if (state.Locked) sb.Append("  [color=#ff9933][봉쇄][/color]");
             if (TabooRuleSystem.Instance?.IsRoomAtTabooRisk(_selRoom) == true)
                 sb.Append("\n[color=#ffcc33]⚠ 금기 대상 구역[/color]");
+
+            // 설명 아래 — 고장 위험(카운트다운) 또는 이미 고장난 상태. 둘 다 아니면 안 띄운다.
+            sb.Append(BuildRiskBlock(_selRoom, st, tier));
             _inspector.Text = sb.ToString();
             return;
         }
 
         _inspector.Text = "[color=#556]지도에서 방 또는 직원을 선택하세요.[/color]";
+    }
+
+    // 고장 위험 / 고장 상태 블록. 위험도 고장도 없으면 아무것도 붙이지 않는다.
+    private static string BuildRiskBlock(string roomId, SpawnedTask task, RoomDangerTier tier)
+    {
+        if (tier == RoomDangerTier.Failure)
+        {
+            string cause = RoomStatusText.GetFailureCause(roomId);
+            var sb = new StringBuilder("\n\n[color=#ff4444]🚨 고장 발생[/color]");
+            if (!string.IsNullOrEmpty(cause)) sb.Append($"\n[color=#ff8a8a]{cause} — 수리 전까지 복구되지 않습니다.[/color]");
+            if (task is { IsRepair: true })
+                sb.Append($"\n[color=#ff8a8a]수리 진행도 : {Mathf.Clamp(task.Ratio, 0f, 1f) * 100f:0}%[/color]");
+            return sb.ToString();
+        }
+
+        // 아직 고장 전 — 제한시간이 도는 업무가 있으면 남은 시간을 위험 경고로 보여준다.
+        if (task is { Recurring: false, Status: SpawnedTaskStatus.Active } && task.TimeLimitSeconds < float.MaxValue)
+        {
+            string col = tier == RoomDangerTier.Unstable ? "#ff9933" : "#dddd55";
+            string head = tier == RoomDangerTier.Unstable ? "❗ 고장 임박" : "⚠ 고장 위험";
+            return $"\n\n[color={col}]{head} — {Clock(task.Remaining)} 뒤 고장[/color]";
+        }
+        return "";
     }
 
     private void OnLog()

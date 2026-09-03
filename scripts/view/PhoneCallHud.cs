@@ -14,6 +14,12 @@ namespace NSP.View;
 public partial class PhoneCallHud : CanvasLayer
 {
     [Signal] public delegate void ClosedEventHandler();
+    // 이벤트 통화에서 플레이어가 고른 선택지. index 0 = 원본 대사 목록의 첫 선택지
+    // (사고/비명 이벤트에서는 "확인하러 가주세요" 계열). IncomingCallDirector 가 받아
+    // 실제 이동/후속 전화를 처리한다 — HUD 는 판정하지 않는다.
+    [Signal] public delegate void EventChoiceMadeEventHandler(string employeeId, string dialogueEvent, int choiceIndex);
+
+    public static PhoneCallHud Instance { get; private set; }
 
     private const double CharDelay = 0.028;
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
@@ -41,6 +47,7 @@ public partial class PhoneCallHud : CanvasLayer
 
     public override void _Ready()
     {
+        Instance = this;
         Layer = 90;
         Visible = true;
         _font = ViewFont.Default;
@@ -106,7 +113,14 @@ public partial class PhoneCallHud : CanvasLayer
         return l;
     }
 
-    private SeatedCameraRig Rig => GetViewport()?.GetCamera3D()?.GetParent() as SeatedCameraRig;
+    // 어두운 고유색(까마귀의 회색 등)은 통화창의 검은 배경에서 안 보이므로 최소 밝기까지만 올린다.
+    // 색상(hue)은 건드리지 않아 "그 직원의 색"으로 계속 읽힌다.
+    private static Color Readable(Color c)
+    {
+        float lum = c.R * 0.299f + c.G * 0.587f + c.B * 0.114f;
+        const float min = 0.55f;
+        return lum >= min ? c : c.Lerp(Colors.White, (min - lum) / Mathf.Max(0.001f, 1f - lum));
+    }
 
     // 벨이 울리는 동안(통화 연결 전) Phone3D 가 호출 — 아주 작은 보조 표시만.
     public void ShowIncoming(Color accent)
@@ -131,6 +145,13 @@ public partial class PhoneCallHud : CanvasLayer
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
         _speaker.Text = "▶ " + (def?.Codename ?? employeeId);
         _frame.Accent = def?.IconColor ?? Cyan;
+
+        // 이름은 그 직원의 고유색 그대로(어두운 색만 살짝 띄워 가독성 확보),
+        // 대사는 같은 색에 흰색을 많이 섞어 읽기 편한 밝은 톤으로.
+        Color own = def?.IconColor ?? Cyan;
+        _speaker.AddThemeColorOverride("font_color", Readable(own));
+        _message.AddThemeColorOverride("font_color", Readable(own).Lerp(Colors.White, 0.62f));
+
         ClearChoices();
 
         if (_dialogueEvent != DialogueRepository.EventGeneralCall)
@@ -158,8 +179,7 @@ public partial class PhoneCallHud : CanvasLayer
         _after = after;
         _message.Text = text;
         _message.VisibleCharacters = 0;
-        // 상대가 말하는 동안 화면이 살짝 끄덕인다.
-        Rig?.Speak((float)(text.Length * CharDelay) + 0.2f);
+        // 통화 중 카메라는 전혀 움직이지 않는다(예전의 '말하며 끄덕이는' 흔들림 제거).
     }
 
     public override void _Process(double delta)
@@ -214,16 +234,18 @@ public partial class PhoneCallHud : CanvasLayer
     {
         ClearChoices();
         if (_event == null || _event.Choices.Count == 0) { BuildEndOnly(); return; }
-        foreach (var c in _event.Choices)
+        for (int i = 0; i < _event.Choices.Count; i++)
         {
-            var choice = c;
-            _choices.AddChild(ChoiceButton(choice.Text, () => OnEventChoice(choice)));
+            var choice = _event.Choices[i];
+            int idx = i;
+            _choices.AddChild(ChoiceButton(choice.Text, () => OnEventChoice(choice, idx)));
         }
     }
 
-    private void OnEventChoice(DialogueRepository.Choice c)
+    private void OnEventChoice(DialogueRepository.Choice c, int index)
     {
         ClearChoices();
+        EmitSignal(SignalName.EventChoiceMade, _employeeId, _dialogueEvent, index);
         StartTyping("\"" + c.Reply + "\"", AfterMode.EndOnly);
     }
 

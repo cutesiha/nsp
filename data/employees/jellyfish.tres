@@ -29,4 +29,4 @@ BehaviorLine3 = "금기 경고가 뜨면 가장 크게 긴장하고 지시가 �
 
 IncomingCallPatienceSeconds = 8.0
 StartRoomId = "storage_room"
-IconColor = Color(0.66, 0.74, 0.92, 1)
+IconColor = Color(0.16,0.82,0.76, 1)

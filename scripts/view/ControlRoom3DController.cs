@@ -19,6 +19,11 @@ public partial class ControlRoom3DController : Node3D
     // CRT 화면 UI를 짜는 논리 캔버스 크기(레이아웃 좌표계). 실제 렌더 해상도는 여기에 UiScale 을 곱한다.
     [Export] public Vector2I MonitorCanvasSize = new(800, 600);
     [Export] public float FocusDistance = 0.62f;
+    // 책상 위 기기(센서 단말기 / 전력 스위치) 확대용 — 화면보다 더 가까이, 살짝 위에서.
+    [Export] public NodePath SensorPath = "ControlRoom/AlertTerminal";
+    [Export] public NodePath PowerPanelPath = "ControlRoom/PowerSwitchPanel";
+    [Export] public float DeskPropFocusDistance = 0.46f;
+    [Export] public Vector3 DeskPropFocusOffset = new(0f, 0.10f, 0f);
 
     // 1920x1080 화면에 맞춰 CRT/배치표/단말기의 모든 텍스트·UI를 같은 배율로 키운다.
     // 레이아웃 코드는 손대지 않고, View 를 이 배율로 스케일한 프레임 안에 넣어 통째로 확대한다.
@@ -46,7 +51,8 @@ public partial class ControlRoom3DController : Node3D
     private float _brightness = 1f, _distortion = 0f, _noise = 0.035f;
 
     private MonitorScreen3D _dragScreen;
-    private MonitorScreen3D _focusedScreen;
+    private MonitorScreen3D _focusedScreen;   // 확대 중인 대상이 모니터일 때만 채워진다
+    private Node3D _focusedNode;              // 확대 중인 대상(모니터/센서/전력 기기)
     private Vector2 _lastCanvasPos;
 
     // Title/Schedule 단계에서 ShiftFlowController 가 제어실 CRT 입력을 잠그거나(_inputLocked),
@@ -104,6 +110,7 @@ public partial class ControlRoom3DController : Node3D
     {
         _modal = surface;
         _focusedScreen = null;
+        _focusedNode = null;
         _dragScreen = null;
     }
 
@@ -245,10 +252,23 @@ public partial class ControlRoom3DController : Node3D
 
         if (_inputLocked) return;
 
-        if (@event is InputEventKey { Pressed: true, Keycode: Key.Escape })
+        // 화면 확대는 숫자키로만 한다 — 좌클릭은 순수하게 그 기기의 기능 조작에 쓴다.
+        // 어떤 키가 무엇을 확대하는지는 설정(GameSettings)에서 바꿀 수 있다.
+        // 같은 키를 다시 누르거나 ESC = 원래 자리로 복귀.
+        if (@event is InputEventKey { Pressed: true, Echo: false } key)
         {
-            Unfocus();
-            return;
+            if (key.Keycode == Key.Escape)
+            {
+                Unfocus();
+                return;
+            }
+            var target = GameSettings.TargetForKey(NormalizeNumpad(key.Keycode));
+            if (target.HasValue)
+            {
+                ToggleFocusTarget(target.Value);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
         }
 
         switch (@event)
@@ -288,7 +308,7 @@ public partial class ControlRoom3DController : Node3D
         Vector3 origin = _camera.ProjectRayOrigin(mb.Position);
         Vector3 dir = _camera.ProjectRayNormal(mb.Position);
 
-        if (mb.Pressed && mb.ButtonIndex == MouseButton.Right && _focusedScreen != null)
+        if (mb.Pressed && mb.ButtonIndex == MouseButton.Right && _focusedNode != null)
         {
             Unfocus();
             GetViewport().SetInputAsHandled();
@@ -300,9 +320,7 @@ public partial class ControlRoom3DController : Node3D
             var hit = PickScreen(origin, dir, out Vector2 canvasPos);
             if (hit == null) return;
 
-            if (_focusedScreen != hit)
-                Focus(hit);
-
+            // 좌클릭은 확대하지 않는다(숫자키 1/2 담당) — 화면 안 UI 조작만 전달한다.
             _dragScreen = hit;
             _lastCanvasPos = canvasPos;
             Forward(hit, MakeButton(mb, canvasPos));
@@ -367,17 +385,40 @@ public partial class ControlRoom3DController : Node3D
         return bestScreen;
     }
 
-    private void Focus(MonitorScreen3D screen)
+    // 숫자패드 1~9 도 같은 숫자로 취급한다.
+    private static Key NormalizeNumpad(Key k) =>
+        k is >= Key.Kp0 and <= Key.Kp9 ? Key.Key0 + (k - Key.Kp0) : k;
+
+    // 확대 대상(모니터 2개 + 책상 위 기기 2개)을 실제 노드로 찾는다.
+    private Node3D ResolveTarget(GameSettings.ZoomTarget t) => t switch
     {
-        _focusedScreen = screen;
-        Vector3 center = screen.GlobalPosition;
-        Vector3 normal = screen.GlobalTransform.Basis.Z.Normalized();
-        _rig?.FocusOnScreen(center, normal, FocusDistance);
+        GameSettings.ZoomTarget.Monitor1 => _screens.FirstOrDefault(s => s.Name.ToString().Contains("01")),
+        GameSettings.ZoomTarget.Monitor2 => _screens.FirstOrDefault(s => s.Name.ToString().Contains("02")),
+        GameSettings.ZoomTarget.Sensor => GetNodeOrNull<Node3D>(SensorPath),
+        GameSettings.ZoomTarget.PowerPanel => GetNodeOrNull<Node3D>(PowerPanelPath),
+        _ => null,
+    };
+
+    private void ToggleFocusTarget(GameSettings.ZoomTarget t)
+    {
+        var node = ResolveTarget(t);
+        if (node == null) return;
+        if (_focusedNode == node) { Unfocus(); return; }
+
+        _focusedNode = node;
+        _focusedScreen = node as MonitorScreen3D;
+
+        // 모니터는 화면 앞으로, 책상 위 기기는 살짝 위에서 내려다보는 거리로 붙는다.
+        bool isScreen = _focusedScreen != null;
+        Vector3 center = node.GlobalPosition + (isScreen ? Vector3.Zero : DeskPropFocusOffset);
+        Vector3 normal = node.GlobalTransform.Basis.Z.Normalized();
+        _rig?.FocusOnScreen(center, normal, isScreen ? FocusDistance : DeskPropFocusDistance);
     }
 
     private void Unfocus()
     {
-        if (_focusedScreen == null) return;
+        if (_focusedNode == null) return;
+        _focusedNode = null;
         _focusedScreen = null;
         _rig?.ReturnToSeat();
     }

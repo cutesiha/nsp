@@ -31,6 +31,6 @@ BehaviorLine3 = "금기와 사고가 충돌하는 상황에서도 태연하게 �
 
 IncomingCallPatienceSeconds = 4.0
 StartRoomId = "power_room"
-IconColor = Color(0.88, 0.28, 0.45, 1)
+IconColor = Color(0.62,0.34,0.88, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")

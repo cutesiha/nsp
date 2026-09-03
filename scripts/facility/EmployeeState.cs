@@ -28,6 +28,9 @@ public class EmployeeState
     public bool DiscoveredDead = true;
     public bool Isolated = false;
     public string PreIsolationRoomId = "";
+    // 근무 시작 후 배치된 자리에 처음 도착했는지. 도착 전까지는 원래 속도로 걷고,
+    // 도착한 뒤의 모든 이동(재배치·사고 확인 등)은 근무 중 저속으로 걷는다.
+    public bool InitialDeployDone = false;
 
     public List<ConversationTurn> ConversationHistory = new();
 }

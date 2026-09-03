@@ -31,6 +31,6 @@ BehaviorLine3 = "금기 경고가 떠도 급한 사고가 눈앞에 있으면 �
 
 IncomingCallPatienceSeconds = 8.0
 StartRoomId = "maintenance_room"
-IconColor = Color(0.96, 0.7, 0.42, 1)
+IconColor = Color(0.95,0.20,0.58, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")

@@ -15,6 +15,18 @@ public partial class TitleOverlay : CanvasLayer
     private VBoxContainer _menu;
     private Label _banner;
     private ColorRect _fadeRect;
+    private SettingsPanel _settings;
+
+    // 설정 창은 시작 화면 위에 얹는다(같은 트리에 한 번만 만든다).
+    private void OpenSettings()
+    {
+        if (_settings == null || !IsInstanceValid(_settings))
+        {
+            _settings = new SettingsPanel();
+            AddChild(_settings);
+        }
+        _settings.Open();
+    }
 
     public override void _Ready()
     {
@@ -90,9 +102,9 @@ public partial class TitleOverlay : CanvasLayer
         };
         title.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         title.AnchorLeft = 0f; title.AnchorRight = 1f;
-        title.OffsetTop = 190f; title.OffsetLeft = 0f; title.OffsetRight = 0f;
+        title.OffsetTop = 252f; title.OffsetLeft = 0f; title.OffsetRight = 0f;
         title.AddThemeFontOverride("font", serif);
-        title.AddThemeFontSizeOverride("font_size", ViewFont.FS(68));
+        title.AddThemeFontSizeOverride("font_size", ViewFont.FS(92));
         title.AddThemeColorOverride("font_color", new Color(0.86f, 0.84f, 0.78f));
         title.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.7f));
         title.AddThemeConstantOverride("outline_size", 6);
@@ -105,9 +117,9 @@ public partial class TitleOverlay : CanvasLayer
             HorizontalAlignment = HorizontalAlignment.Center,
         };
         sub.AnchorLeft = 0f; sub.AnchorRight = 1f;
-        sub.OffsetTop = 276f;
+        sub.OffsetTop = 368f;
         sub.AddThemeFontOverride("font", body);
-        sub.AddThemeFontSizeOverride("font_size", ViewFont.FS(18));
+        sub.AddThemeFontSizeOverride("font_size", ViewFont.FS(21));
         sub.AddThemeColorOverride("font_color", new Color(0.55f, 0.58f, 0.62f));
         sub.MouseFilter = Control.MouseFilterEnum.Ignore;
         _root.AddChild(sub);
@@ -115,13 +127,13 @@ public partial class TitleOverlay : CanvasLayer
         _menu = new VBoxContainer();
         _menu.AnchorLeft = 0.5f; _menu.AnchorRight = 0.5f;
         _menu.AnchorTop = 0.5f; _menu.AnchorBottom = 0.5f;
-        _menu.OffsetLeft = -130f; _menu.OffsetRight = 130f; _menu.OffsetTop = 20f;
-        _menu.AddThemeConstantOverride("separation", 10);
+        _menu.OffsetLeft = -170f; _menu.OffsetRight = 170f; _menu.OffsetTop = 34f;
+        _menu.AddThemeConstantOverride("separation", 12);
         _root.AddChild(_menu);
 
         _menu.AddChild(MenuButton("근무 시작", body, true, () => EmitSignal(SignalName.StartRequested)));
         _menu.AddChild(MenuButton("이어하기", body, false, null));
-        _menu.AddChild(MenuButton("설정", body, false, null));
+        _menu.AddChild(MenuButton("설정", body, true, OpenSettings));
         _menu.AddChild(MenuButton("종료", body, true, () => EmitSignal(SignalName.QuitRequested)));
 
         _banner = new Label
@@ -151,11 +163,11 @@ public partial class TitleOverlay : CanvasLayer
         {
             Text = text,
             Disabled = !enabled,
-            CustomMinimumSize = new Vector2(260f, 44f),
+            CustomMinimumSize = new Vector2(320f, 54f),
             Flat = true,
         };
         b.AddThemeFontOverride("font", font);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(20));
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(27));
         b.AddThemeColorOverride("font_color", new Color(0.82f, 0.83f, 0.85f));
         b.AddThemeColorOverride("font_hover_color", new Color(1f, 0.95f, 0.8f));
         b.AddThemeColorOverride("font_disabled_color", new Color(0.4f, 0.4f, 0.44f));

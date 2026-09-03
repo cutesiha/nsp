@@ -156,6 +156,27 @@ public static class RoomStatusText
         return ratio < 0.5f ? RoomDangerTier.Delayed : RoomDangerTier.Unstable;
     }
 
+    // 이미 고장난 방이 "무엇을 못 하게 됐는지" 한 줄로. 고장이 아니면 빈 문자열.
+    public static string GetFailureCause(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var state = sim?.GetRoomState(roomId);
+        if (sim == null || state == null) return "";
+
+        var gs = GameState.Instance;
+        var rdef = sim.GetRoomDef(roomId);
+        if (rdef?.ManagedResource == RoomResourceType.Power && gs.IsPowerAccidentActive()) return "전력 용량 저하";
+        if (roomId == "guard_room" && gs.CctvSystemOffline) return "감시 시스템 오프라인";
+        if (roomId == "maintenance_room" && gs.MaterialsProductionHalted) return "자재 생산 정지";
+        if (roomId == "vent_room" && gs.VentilationDown) return "환기 정지";
+        if (!state.PowerOn) return "전력 차단";
+        if (state.CctvDisconnected) return "CCTV 단절";
+
+        var prim = sim.GetPrimarySpawnedTask(roomId);
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return "설비 고장";
+        return "";
+    }
+
     public static string GetDangerLine(RoomDangerTier tier) => tier switch
     {
         RoomDangerTier.Delayed => "⚠ 점검 지연",

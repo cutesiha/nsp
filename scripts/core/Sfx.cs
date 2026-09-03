@@ -39,24 +39,30 @@ public partial class Sfx : Node
     private const double VoiceBlipMinIntervalMsec = 55;
     private const float VoicePitchVariationSemitones = 1.5f;
 
-    public override void _EnterTree() => Instance = this;
+    public override void _EnterTree()
+    {
+        Instance = this;
+        // 오디오 노드가 만들어지기 전에 BGM/SFX 버스를 준비하고 저장된 설정을 적용한다.
+        GameSettings.EnsureBuses();
+        GameSettings.Load();
+    }
 
     public override void _Ready()
     {
         for (int i = 0; i < PoolSize; i++)
         {
-            var p = new AudioStreamPlayer { Bus = "Master" };
+            var p = new AudioStreamPlayer { Bus = GameSettings.BusSfx };
             AddChild(p);
             _pool.Add(p);
         }
 
-        _voicePlayer = new AudioStreamPlayer { Bus = "Master" };
+        _voicePlayer = new AudioStreamPlayer { Bus = GameSettings.BusSfx };
         AddChild(_voicePlayer);
 
         for (int i = 0; i < 2; i++)
         {
             int idx = i;
-            _music[i] = new AudioStreamPlayer { Bus = "Master", VolumeDb = MusicSilentDb };
+            _music[i] = new AudioStreamPlayer { Bus = GameSettings.BusBgm, VolumeDb = MusicSilentDb };
             _music[i].Finished += () => OnMusicFinished(idx);
             AddChild(_music[i]);
         }
@@ -331,7 +337,7 @@ public partial class Sfx : Node
         var stream = Load(key);
         if (stream == null) return;
 
-        var p = new AudioStreamPlayer { Bus = "Master", Stream = stream, VolumeDb = volumeDb };
+        var p = new AudioStreamPlayer { Bus = GameSettings.BusSfx, Stream = stream, VolumeDb = volumeDb };
         AddChild(p);
         p.Finished += () => { if (IsInstanceValid(p)) p.Play(); };
         p.Play();
