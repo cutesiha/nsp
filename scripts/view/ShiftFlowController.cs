@@ -316,7 +316,7 @@ public partial class ShiftFlowController : Node
         swap();
         await Wait(0.05);
         var t = CreateTween();
-        t.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenNoise(v)), 0.5f, 0.035f, 0.3)
+        t.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenNoise(v)), 0.5f, 0.020f, 0.3)
          .SetTrans(Tween.TransitionType.Sine);
     }
 }

@@ -23,7 +23,8 @@ public partial class SettingsPanel : CanvasLayer
 
     public override void _Ready()
     {
-        Layer = 95;
+        // 일시정지 창(120)보다 위 — 거기서 열었을 때 가려지면 클릭조차 안 된다.
+        Layer = 130;
         Visible = false;
         _serif = GD.Load<Font>("res://assets/fonts/KMU80TTFSungkokSerif.ttf") ?? ViewFont.Default;
         _body = ViewFont.Default;
@@ -246,8 +247,8 @@ public partial class SettingsPanel : CanvasLayer
         b.AddThemeFontOverride("font", _body);
         b.AddThemeFontSizeOverride("font_size", 19);
         b.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
-        b.AddThemeColorOverride("font_hover_color", new Color(0.15f, 0.11f, 0.07f));
-        b.AddThemeColorOverride("font_pressed_color", new Color(0.15f, 0.11f, 0.07f));
+        b.AddThemeColorOverride("font_hover_color", new Color(0.99f, 0.96f, 0.88f));
+        b.AddThemeColorOverride("font_pressed_color", new Color(0.99f, 0.96f, 0.88f));
         var normal = new StyleBoxFlat
         {
             BgColor = new Color(0.90f, 0.86f, 0.73f),

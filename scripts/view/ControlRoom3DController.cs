@@ -102,7 +102,7 @@ public partial class ControlRoom3DController : Node3D
 
         AutoStaff();
         SetScreenBrightness(1f);
-        SetScreenNoise(0.035f);
+        SetScreenNoise(0.020f);
     }
 
     // ShiftFlowController 훅.
@@ -257,11 +257,7 @@ public partial class ControlRoom3DController : Node3D
         // 같은 키를 다시 누르거나 ESC = 원래 자리로 복귀.
         if (@event is InputEventKey { Pressed: true, Echo: false } key)
         {
-            if (key.Keycode == Key.Escape)
-            {
-                Unfocus();
-                return;
-            }
+            // ESC 는 PauseMenu 가 먼저 가져간다(확대 중이면 그쪽에서 UnzoomIfFocused 를 부른다).
             var target = GameSettings.TargetForKey(NormalizeNumpad(key.Keycode));
             if (target.HasValue)
             {
@@ -413,6 +409,14 @@ public partial class ControlRoom3DController : Node3D
         Vector3 center = node.GlobalPosition + (isScreen ? Vector3.Zero : DeskPropFocusOffset);
         Vector3 normal = node.GlobalTransform.Basis.Z.Normalized();
         _rig?.FocusOnScreen(center, normal, isScreen ? FocusDistance : DeskPropFocusDistance);
+    }
+
+    // 확대 중이면 풀고 true. PauseMenu 가 ESC 를 받았을 때 "메뉴 열기"보다 먼저 시도한다.
+    public bool UnzoomIfFocused()
+    {
+        if (_focusedNode == null) return false;
+        Unfocus();
+        return true;
     }
 
     private void Unfocus()

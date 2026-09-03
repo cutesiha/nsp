@@ -91,9 +91,17 @@ public static class GameSettings
     // 콘텐츠 비율은 project.godot 의 stretch 설정(canvas_items / keep)이 유지해 준다.
     private static void ApplyFullscreen()
     {
-        DisplayServer.WindowSetMode(_fullscreen
-            ? DisplayServer.WindowMode.Fullscreen
-            : DisplayServer.WindowMode.Windowed);
+        var want = _fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed;
+        DisplayServer.WindowSetMode(want);
+
+        // 에디터에서 F5 로 실행하면 게임 창이 에디터 안에 '임베드' 되는데, 임베드된 창은
+        // 전체화면 전환이 무시된다(엔진 제한). 조용히 아무 일도 안 일어난 것처럼 보이므로
+        // 왜 안 먹었는지 로그로 남긴다.
+        if (DisplayServer.WindowGetMode() == want) return;
+        GD.PushWarning(
+            $"GameSettings: 전체화면 전환이 적용되지 않았습니다(요청={want}, 실제={DisplayServer.WindowGetMode()}). " +
+            "에디터에서 실행 중이라면 에디터 설정 → 실행 → Window Placement → Game Embed Mode 를 " +
+            "'Disabled' 로 바꾸거나, 내보낸 실행 파일에서 확인하세요.");
     }
 
     // --- 저장 / 불러오기 ---------------------------------------------------

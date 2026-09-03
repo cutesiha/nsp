@@ -152,10 +152,10 @@ public partial class ControlRoom3DHorror : Node
     {
         _rig?.Shake(0.8f, 0.22f);
         CCTVMonitorView.Instance?.FlashGlitch(0.5f);
-        ControlRoom3DController.Instance?.SetScreenNoise(0.14f);
+        ControlRoom3DController.Instance?.SetScreenNoise(0.10f);
         var restore = CreateTween();
         restore.TweenInterval(0.5);
-        restore.TweenCallback(Callable.From(() => ControlRoom3DController.Instance?.SetScreenNoise(0.035f)));
+        restore.TweenCallback(Callable.From(() => ControlRoom3DController.Instance?.SetScreenNoise(0.020f)));
         // 짧은 깜빡임 — TickRoomLighting 을 잠깐 흔든다.
         _impactBlackUntil = System.Math.Max(_impactBlackUntil, Time.GetTicksMsec() / 1000.0 + 0.14);
     }

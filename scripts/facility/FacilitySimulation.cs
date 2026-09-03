@@ -56,6 +56,16 @@ public partial class FacilitySimulation : Node
         if (_roomDefs.Count == 0 || _employeeDefs.Count == 0)
             GD.PushError("FacilitySimulation: 정의 데이터를 불러오지 못했습니다 (res://data/* 스캔 실패).");
 
+        BuildInitialStates();
+    }
+
+    // 직원/작업실 상태를 정의 데이터 기준 초기값으로 만든다. 최초 기동과
+    // "처음부터 다시 시작"(ResetRun) 이 같은 코드를 쓴다.
+    private void BuildInitialStates()
+    {
+        _employeeStates.Clear();
+        _roomStates.Clear();
+
         foreach (var def in _employeeDefs.Values)
         {
             var startRoom = _roomDefs.Values.FirstOrDefault(r => r.RoomId == def.StartRoomId) ?? _roomDefs.Values.FirstOrDefault();
@@ -86,6 +96,21 @@ public partial class FacilitySimulation : Node
             if (_roomStates.TryGetValue(kv.Value.CurrentRoomId, out var room))
                 room.OccupantEmployeeIds.Add(kv.Key);
         }
+    }
+
+    // 시작화면으로 돌아가 처음부터 다시 시작. autoload 라 씬을 다시 로드해도 남아 있는
+    // 배치/사망/격리/스트레스/발생 업무를 전부 지우고 DAY 1 초기 상태로 되돌린다.
+    public void ResetRun()
+    {
+        _activeTasks.Clear();
+        _scheduleCursor = 0;
+        _saboteurDecisionTimer = 0f;
+        _killsToday = 0;
+        _cctvWasOperational = true;
+        SurveillanceTargetRoomId = "";
+        _roomVisualCenters.Clear();
+        _roomVisualColors.Clear();
+        BuildInitialStates();
     }
 
     private void LoadSchedule(string folder)

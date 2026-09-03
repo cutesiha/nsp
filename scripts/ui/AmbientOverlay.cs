@@ -128,7 +128,9 @@ public partial class AmbientOverlay : CanvasLayer
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
         _noiseRect.Modulate = new Color(1f, 1f, 1f, (BaseNoiseAlpha + _extraNoise) * _sceneIntensity);
-        _vignetteRect.Modulate = new Color(1f, 1f, 1f, 0.9f * Mathf.Lerp(0.5f, 1f, _sceneIntensity));
+        // 모서리 어둡게(비네트)는 3D 제어실에서도 거의 그대로 유지한다 — 화면 가장자리가
+        // 확실히 죽어야 가운데 책상에 시선이 모인다.
+        _vignetteRect.Modulate = new Color(1f, 1f, 1f, Mathf.Lerp(0.92f, 1f, _sceneIntensity));
         _centerGlow.Modulate = new Color(1f, 1f, 1f, 0.18f * _sceneIntensity);
 
         // SHUT DOWN 페이드 + 깜빡이는 문구
@@ -172,7 +174,8 @@ public partial class AmbientOverlay : CanvasLayer
 
     private static ImageTexture BuildVignette()
     {
-        const int w = 320, h = 200;
+        // 해상도를 키워야 큰 화면에서 띠(밴딩)가 안 생긴다.
+        const int w = 640, h = 400;
         var img = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
         float cx = w / 2f, cy = h / 2f;
         float maxD = Mathf.Sqrt(cx * cx + cy * cy);
@@ -182,9 +185,11 @@ public partial class AmbientOverlay : CanvasLayer
             float dx = (x - cx) / maxD;
             float dy = (y - cy) / maxD;
             float d = Mathf.Sqrt(dx * dx + dy * dy);
-            // 중앙은 투명, 바깥·모서리로 갈수록 부드럽게 짙어짐(블러 느낌).
-            float a = Mathf.Clamp((d - 0.42f) / 0.5f, 0f, 1f);
-            a = Mathf.Pow(a, 1.7f) * 0.9f;
+            // 중앙은 투명, 바깥·모서리로 갈수록 짙어진다. 시작 지점을 안쪽으로 당기고
+            // 곡선을 완만하게 해서, 모서리는 확실히 어둡되 경계는 티 나지 않게.
+            float a = Mathf.Clamp((d - 0.30f) / 0.62f, 0f, 1f);
+            a = a * a * (3f - 2f * a);          // smoothstep — 부드러운 감쇠
+            a = Mathf.Pow(a, 1.25f) * 0.99f;
             img.SetPixel(x, y, new Color(0f, 0f, 0f, a));
         }
         return ImageTexture.CreateFromImage(img);

@@ -44,41 +44,38 @@ public partial class AlertTerminalView : Control
         bg.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(bg);
 
-        // 책상 위 작은 단말기라 멀리서도 읽혀야 한다 — 글자를 크게 잡고, 긴 경고문은
-        // 절대좌표 대신 세로 컨테이너로 흘려서 잘리지 않고 다음 줄로 접히게 한다.
+        // 책상 위 작은 단말기라 멀리서도 읽혀야 한다 — 글자를 크게 잡는다.
+        // 폭은 반드시 명시한다(컨테이너에 맡기면 폭이 0으로 잡혀 한 글자씩 세로로 접힌다).
         var font = ViewFont.Default;
-        var pad = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
-        pad.SetAnchorsPreset(LayoutPreset.FullRect);
-        pad.AddThemeConstantOverride("margin_left", 12);
-        pad.AddThemeConstantOverride("margin_right", 12);
-        pad.AddThemeConstantOverride("margin_top", 10);
-        pad.AddThemeConstantOverride("margin_bottom", 8);
-        AddChild(pad);
+        const float x = 14f, w = CanvasW - x * 2f;
 
-        var vb = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore };
-        vb.AddThemeConstantOverride("separation", 6);
-        pad.AddChild(vb);
+        var head = Lbl("경고 단말기", 21, new Color(0.4f, 0.6f, 0.46f), font, new Vector2(x, 6), w, 26);
+        AddChild(head);
 
-        var head = Lbl("경고 단말기", 21, new Color(0.4f, 0.6f, 0.46f), font);
-        vb.AddChild(head);
+        _line1 = Lbl("정상 가동 중", 46, new Color(0.4f, 0.95f, 0.5f), font, new Vector2(x, 36), w, 112);
+        AddChild(_line1);
 
-        _line1 = Lbl("정상 가동 중", 46, new Color(0.4f, 0.95f, 0.5f), font);
-        vb.AddChild(_line1);
+        _line2 = Lbl("경고 없음", 34, new Color(0.4f, 0.75f, 0.48f), font, new Vector2(x, 152), w, 78);
+        AddChild(_line2);
 
-        _line2 = Lbl("경고 없음", 34, new Color(0.4f, 0.75f, 0.48f), font);
-        vb.AddChild(_line2);
-
-        _line3 = Lbl("", 34, new Color(0.95f, 0.65f, 0.25f), font);
-        vb.AddChild(_line3);
+        _line3 = Lbl("", 34, new Color(0.95f, 0.65f, 0.25f), font, new Vector2(x, 234), w, 60);
+        AddChild(_line3);
     }
 
-    private static Label Lbl(string t, int size, Color c, Font font)
+    // AlertTerminalProp 이 이 뷰를 384x300 논리 캔버스에 올린다.
+    private const float CanvasW = 384f;
+
+    private static Label Lbl(string t, int size, Color c, Font font, Vector2 pos, float w, float h)
     {
         var l = new Label
         {
             Text = t,
+            Position = pos,
+            Size = new Vector2(w, h),
+            CustomMinimumSize = new Vector2(w, 0),
             MouseFilter = MouseFilterEnum.Ignore,
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            ClipText = true,
         };
         l.AddThemeFontOverride("font", font);
         l.AddThemeFontSizeOverride("font_size", size);

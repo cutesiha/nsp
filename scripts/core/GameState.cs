@@ -151,6 +151,21 @@ public partial class GameState : Node
         VentilationDown = false;
     }
 
+    // 처음부터 다시 시작(시작화면으로 돌아가기). autoload 라 씬을 다시 로드해도 살아남는
+    // 진행 상태를 전부 DAY 1 초기값으로 되돌린다.
+    public void ResetRun()
+    {
+        CurrentDay = 1;
+        CurrentPhase = GamePhase.Prep;
+        DayTimeSeconds = 0f;
+        CoreProgress = 0f;
+        Materials = 0;
+        Result = GameResult.None;
+        SaboteurEmployeeId = "";
+        RepairPowerAccident();     // 용량 복구 + 세 채널 ON
+        ResetFacilityFaults();
+    }
+
     // CCTV를 실제로 볼 수 있는가 = 전력이 있고 + 설비 고장(FAIL-04)이 아니어야 한다.
     public bool IsCctvOperational() => IsConsumerPowered(PowerConsumer.CctvWatch) && !CctvSystemOffline;
 

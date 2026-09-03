@@ -22,7 +22,9 @@
 [ext_resource type="PackedScene" uid="uid://cr62hqgeo0u83" path="res://assets/models/rotart_phone.glb" id="21_phone_model"]
 [ext_resource type="PackedScene" uid="uid://d1jsedeqyo42j" path="res://assets/models/sencor.glb" id="22_sensor_model"]
 [ext_resource type="PackedScene" uid="uid://cwl6cjb8156q1" path="res://assets/models/switch.glb" id="23_switch_model"]
+[ext_resource type="Script" uid="uid://ck1yp5nj7527h" path="res://scripts/view/PauseMenu.cs" id="24_pausemenu"]
 [ext_resource type="Script" uid="uid://p8t7y6q8utae" path="res://scripts/view/PhoneModelSplitter.gd" id="24_phone_splitter"]
+[ext_resource type="Script" uid="uid://duvrvmelli86b" path="res://scripts/view/ShiftHud.cs" id="25_shifthud"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -309,7 +311,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
 [node name="PlayerCharacter" type="Node3D" parent="ControlRoom" unique_id=2057469949]
-transform = Transform3D(1.7, 0, 0, 0, 1.7, 0, 0, 0, 1.7, -0.02, -0.02, -0.1)
+transform = Transform3D(1.7, 0, 0, 0, 1.7, 0, 0, 0, 1.7, -0.02, 0.22770248, -0.023089)
 script = ExtResource("4_arms")
 ShirtMaterial = SubResource("PC_Shirt")
 SkinMaterial = SubResource("PC_Skin")
@@ -938,7 +940,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
 [node name="M01_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=749959280]
-transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
+transform = Transform3D(0.73999995, 0, 0, 0, 0.55499995, 0, 1.4901161e-08, 0, 1, -0.00064590573, 1.1299999, 0.04258895)
 mesh = SubResource("Quad")
 script = ExtResource("3_screen")
 
@@ -1082,7 +1084,7 @@ transform = Transform3D(0.7398418, 0, 0.35332987, 0, 0.82, 0, -0.35332987, 0, 0.
 script = ExtResource("16_alertterm")
 
 [node name="SensorModel" parent="ControlRoom/AlertTerminal" unique_id=1791706101 instance=ExtResource("22_sensor_model")]
-transform = Transform3D(0.22, 0, 0, 0, 0.22, 0, 0, 0, 0.22, 0, 0, 0)
+transform = Transform3D(0.22, 0, 0, 0, 0.22, 0, 0, 0, 0.22, 0.00040641427, 0, -0.0004454255)
 
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
 transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)
@@ -1146,15 +1148,17 @@ surface_material_override/0 = SubResource("Mat_LampWhite")
 
 [node name="CeilingLight" type="OmniLight3D" parent="ControlRoom/Lights" unique_id=1843582105]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.45, -0.85)
-light_color = Color(0.5, 0.66, 1, 1)
-light_energy = 1.6
+light_color = Color(0.62, 0.74, 1, 1)
+light_energy = 2.9
+light_specular = 0.6
 shadow_enabled = true
-omni_range = 6.5
+shadow_bias = 0.03
+omni_range = 7.2
 
 [node name="FillLight" type="OmniLight3D" parent="ControlRoom/Lights" unique_id=1277598336]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 0.2)
-light_color = Color(0.52, 0.62, 0.85, 1)
-light_energy = 0.55
+light_color = Color(0.46, 0.58, 0.9, 1)
+light_energy = 0.34
 omni_range = 5.5
 
 [node name="EmergencyLight_Mesh" type="MeshInstance3D" parent="ControlRoom/Lights" unique_id=1757223563]
@@ -1207,3 +1211,9 @@ script = ExtResource("19_calldir")
 
 [node name="PowerRoomTabooEvent" type="Node" parent="." unique_id=771100883]
 script = ExtResource("20_pwrtaboo")
+
+[node name="ShiftHud" type="CanvasLayer" parent="." unique_id=771100884]
+script = ExtResource("25_shifthud")
+
+[node name="PauseMenu" type="CanvasLayer" parent="." unique_id=771100885]
+script = ExtResource("24_pausemenu")
