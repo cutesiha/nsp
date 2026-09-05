@@ -36,6 +36,8 @@ public class SpawnedTask
 
     // TaskStart 로그(직원이 실제로 업무 수행 시작)를 1인당 1회만 남기기 위한 집합.
     public readonly HashSet<string> StartedWorkerIds = new();
+    // 자재가 없어 멈춰 있다고 이미 기록했는가. 상태가 바뀔 때만 한 번씩 로그를 남긴다.
+    public bool MaterialsBlockedLogged;
 
     public float Remaining => System.Math.Max(0f, TimeLimitSeconds - Elapsed);
     public float Ratio => GaugeRequired > 0f ? Gauge / GaugeRequired : 0f;

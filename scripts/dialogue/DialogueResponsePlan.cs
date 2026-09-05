@@ -19,6 +19,20 @@ public enum CoreKind
     IncidentReport,     // 사고 신고(수신 전화 첫 대사)
     DispatchAccept,     // "확인하러 가라" 수락
     DispatchDecline,    // "대기하라" 수용
+
+    // ── 꼬리질문 답변 ────────────────────────────────────────────────
+    PreviousLocation,   // 그 전에 있던 곳
+    NextAction,         // 그 뒤에 한 일
+    WhoWasPresent,      // 당시 같이 있던 사람
+    WitnessAnswer,      // 내 위치를 확인해 줄 사람
+    HeardDetail,        // 어떤 소리였는지
+    SeenConfirm,        // 직접 본 것인지
+    CertaintyAnswer,    // 확신하는지
+    IncidentDetail,     // 상황을 더 자세히
+    SightingPlace,      // 어디서 봤는지
+    ReasonAnswer,       // 그렇게 판단한/움직인 이유
+    OpinionReason,      // 평가 근거·오늘의 차이·의심 여부
+    ChallengeResponse,  // 추궁에 대한 대응
 }
 
 // 정확한 시각은 기본적으로 말하지 않는다. 필요할 때만 Vague/Exact 로 올린다.
@@ -69,5 +83,9 @@ public sealed class DialogueResponsePlan
     public int EvidenceCount;
 
     // StatusReport 세부: ok / blocked / repair / stress / moving / idle
+    // 꼬리질문에서는 답변의 결까지 함께 나른다(honest/evasive, sight/move, reason/today/suspicion …).
     public string StatusNote = "ok";
+    // 꼬리질문 답변에 등장하는 보조 대상(직전 위치, 같이 있던 직원 등).
+    public string DetailRoomId = "";
+    public string DetailName = "";
 }

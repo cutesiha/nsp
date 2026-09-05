@@ -1086,7 +1086,7 @@ transform = Transform3D(0.7398418, 0, 0.35332987, 0, 0.82, 0, -0.35332987, 0, 0.
 script = ExtResource("16_alertterm")
 
 [node name="SensorModel" parent="ControlRoom/AlertTerminal" unique_id=1791706101 instance=ExtResource("22_sensor_model")]
-transform = Transform3D(0.22, 0, 0, 0, 0.22, 0, 0, 0, 0.22, 0.00040641427, 0, -0.0004454255)
+transform = Transform3D(0.29, 0, 0, 0, 0.236, 0, 0, 0, 0.236, 0.00040641427, 0, -0.0004454255)
 
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
 transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)

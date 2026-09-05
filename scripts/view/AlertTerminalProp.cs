@@ -9,7 +9,7 @@ namespace NSP.View;
 // 사망자 발생 시=검정(소등). SpotLight를 계속 Y축 회전시켜 천장을 훑는 삥글삥글 효과.
 // [Tool] — 형상을 코드로 만들지만 에디터 뷰포트에도 보이게 한다.
 [Tool]
-public partial class AlertTerminalProp : Node3D
+public partial class AlertTerminalProp : Node3D, IProjectionSurface
 {
     private AlertTerminalView _ui;
     private SubViewport _screenVp;
@@ -23,11 +23,46 @@ public partial class AlertTerminalProp : Node3D
     private Node3D _attachmentRoot;
 
     // sencor.glb 화면 맞춤값 (SensorModel 로컬 = glb 단위). 필요하면 여기만 만진다.
-    [Export] public Vector2 ScreenSize = new(0.64f, 0.50f);
+    // 화면 비율(560:300)에 맞춘 가로 긴 표시창. SensorModel 의 X 스케일이 커진 만큼
+    // 실제 화면은 더 넓어진다 — 몸체를 키우기보다 화면 면적을 넓히는 쪽을 우선한다.
+    [Export] public Vector2 ScreenSize = new(0.76f, 0.50f);
     [Export] public Vector3 ScreenOffset = new(0.01f, 0.50f, 0.19f);
     [Export] public float ScreenTiltDeg = -26.6f;
     [Export] public Vector3 BeaconOffset = new(0.16f, 0.87f, -0.18f);
     [Export] public Vector3 LedOffset = new(0.44f, 0.6f, 0.04f);
+
+    public SubViewport TargetViewport => _screenVp;
+
+    // 화면 쿼드에 마우스 레이를 쏴서 센서 화면(SubViewport)의 2D 좌표를 구한다.
+    // 화살표 버튼을 실제로 누를 수 있게 하기 위한 것으로, 판정은 화면 안 UI 가 한다.
+    public bool TryProjectRay(Vector3 rayOrigin, Vector3 rayDir, bool clamp, out Vector2 canvasPos)
+    {
+        canvasPos = Vector2.Zero;
+        if (_screen == null || _screenVp == null || !IsVisibleInTree()) return false;
+
+        Transform3D inv = _screen.GlobalTransform.AffineInverse();
+        Vector3 lo = inv * rayOrigin;
+        Vector3 ld = inv.Basis * rayDir;
+        if (Mathf.Abs(ld.Z) < 1e-6f) return false;
+
+        float t = -lo.Z / ld.Z;
+        if (t < 0f) return false;
+
+        Vector3 hit = lo + ld * t;
+        // 쿼드는 로컬 크기가 ScreenSize 이므로 그 크기로 정규화한다.
+        float u = hit.X / ScreenSize.X + 0.5f;
+        float v = 0.5f - hit.Y / ScreenSize.Y;
+
+        bool inside = u is >= 0f and <= 1f && v is >= 0f and <= 1f;
+        if (!inside && !clamp) return false;
+
+        u = Mathf.Clamp(u, 0f, 1f);
+        v = Mathf.Clamp(v, 0f, 1f);
+        canvasPos = new Vector2(u * _screenVp.Size.X, v * _screenVp.Size.Y);
+        return inside || clamp;
+    }
+
+    private MeshInstance3D _screen;
 
     public override void _Ready()
     {
@@ -38,7 +73,7 @@ public partial class AlertTerminalProp : Node3D
         _attachmentRoot = GetNodeOrNull<Node3D>("SensorModel") ?? this;
 
         // 표시창(SubViewport 투사). 렌더 해상도 = 논리 캔버스 × UiScale (글자도 같은 배율로 확대).
-        var logical = new Vector2I(384, 300);
+        var logical = new Vector2I(560, 300);
         var vp = new SubViewport
         {
             Size = ControlRoom3DController.ViewportSize(logical),
@@ -52,7 +87,7 @@ public partial class AlertTerminalProp : Node3D
         _ui = new AlertTerminalView();
         ControlRoom3DController.AddScaledView(vp, _ui, logical);
 
-        var screen = new MeshInstance3D
+        _screen = new MeshInstance3D
         {
             // sencor.glb의 기울어진 앞면 = 하나의 평면(메시에서 실측: z ≈ -0.043x - 0.5013y + 0.358,
             // 즉 뒤로 26.6° 젖혀짐). 이 평면 위, CRT 유리 바로 앞에 불투명 경고 화면을 올려
@@ -68,14 +103,18 @@ public partial class AlertTerminalProp : Node3D
                 TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
             },
         };
-        _attachmentRoot.AddChild(screen);
+        _attachmentRoot.AddChild(_screen);
 
         // GLB에 이미 구워진 경광등 돔/LED 위에 '동작하는' 버전을 겹쳐 올린다.
         // (돔 실측 중심 x≈0.16, z≈-0.18, 밑동 y≈0.87 / LED 스택 화면 오른쪽 x≈0.42)
         _lamp1Mat = LampMat(new Color(0.2f, 0.9f, 0.3f));
         _lamp2Mat = LampMat(new Color(0.6f, 0.5f, 0.15f));
-        _attachmentRoot.AddChild(Lamp(_lamp1Mat, LedOffset));
-        _attachmentRoot.AddChild(Lamp(_lamp2Mat, LedOffset + new Vector3(0f, -0.1f, 0f)));
+        var lamp1 = Lamp(_lamp1Mat, LedOffset);
+        var lamp2 = Lamp(_lamp2Mat, LedOffset + new Vector3(0f, -0.1f, 0f));
+        lamp1.Scale = RoundFix;
+        lamp2.Scale = RoundFix;
+        _attachmentRoot.AddChild(lamp1);
+        _attachmentRoot.AddChild(lamp2);
 
         BuildBeacon();
     }
@@ -88,6 +127,8 @@ public partial class AlertTerminalProp : Node3D
         {
             Mesh = new CylinderMesh { TopRadius = 0.085f, BottomRadius = 0.1f, Height = 0.045f, RadialSegments = 16 },
             Position = BeaconOffset,
+            // 몸체를 가로로 늘렸기 때문에 그대로 두면 경광등이 타원으로 찌그러진다.
+            Scale = RoundFix,
             MaterialOverride = baseMat,
         };
         _attachmentRoot.AddChild(beaconBase);
@@ -136,6 +177,16 @@ public partial class AlertTerminalProp : Node3D
             SpotAngleAttenuation = 1.2f,
         };
         _beaconPivot.AddChild(_beaconLight);
+    }
+
+    // SensorModel 의 비균등 스케일(가로만 확대)을 되돌리는 보정값.
+    private Vector3 RoundFix
+    {
+        get
+        {
+            var s = _attachmentRoot?.Scale ?? Vector3.One;
+            return s.X > 0.001f ? new Vector3(s.Y / s.X, 1f, s.Z / s.X) : Vector3.One;
+        }
     }
 
     private static StandardMaterial3D LampMat(Color c) => new()

@@ -146,15 +146,33 @@ public partial class GameState : Node
     // 완전히 복구된다. 용량이 줄어 이미 켜진 채널이 넘치면 바로 우선순위대로 강제 차단한다.
     public void TriggerPowerAccident(int penaltyAmount)
     {
+        int before = PowerCapacity;
         PowerAccidentPenalty = Math.Max(PowerAccidentPenalty, Math.Max(0, penaltyAmount));
         ShedToCapacity();
+        LogCapacityChange(before);
     }
 
     // 부분 복구 없음 — 발전기 점검 완료 시 용량과 세 채널 스위치를 전부 정상(ON)으로 되돌린다.
     public void RepairPowerAccident()
     {
+        int before = PowerCapacity;
         PowerAccidentPenalty = 0;
         foreach (var c in SwitchChannels) _switchOn[c] = true;
+        LogCapacityChange(before);
+    }
+
+    // 사용 가능한 전력이 실제로 바뀐 순간만 전후 값과 함께 남긴다.
+    // 근무 시작 시의 초기화(ResetForNewShift)는 근무 중이 아니므로 기록되지 않는다.
+    private void LogCapacityChange(int before)
+    {
+        int after = PowerCapacity;
+        if (after == before || CurrentPhase != GamePhase.Live) return;
+        int delta = after - before;
+        EventLog.Instance?.LogEvent(LogEventType.PowerCapacityChanged, "", "",
+            delta < 0 ? $"⚠ 전력 {before} → {after} [{-delta} 감소]"
+                      : $"✓ 전력 {before} → {after} [{delta} 증가]");
+        // 전력 손실은 대개 발전실 사고의 결과다 — 가장 최근 사고에 결과 줄로 붙인다.
+        if (delta < 0) IncidentTracker.AddConsequence("", $"전력 {before} → {after}");
     }
 
     public bool IsPowerAccidentActive() => PowerAccidentPenalty > 0;

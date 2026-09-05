@@ -22,6 +22,9 @@ public sealed class DialogueClaim
 
     public readonly Dictionary<string, int> AskCounts = new();
 
+    // 증가시키지 않고 지금까지 몇 번 물었는지만 본다.
+    public int Asked(string questionId) => AskCounts.GetValueOrDefault(questionId, 0);
+
     public int Ask(string questionId)
     {
         int before = AskCounts.GetValueOrDefault(questionId, 0);
@@ -70,6 +73,7 @@ public static class DialogueClaimState
     {
         _claims.Clear();
         _recent.Clear();
+        PlayerKnownEvidence.ResetAll();
         DialogueContextBuilder.Invalidate();
     }
 }

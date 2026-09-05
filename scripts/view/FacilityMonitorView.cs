@@ -458,14 +458,20 @@ public partial class FacilityMonitorView : Control
                           + $" / 한도 {GameState.Instance?.MaterialsCap ?? 0}"
                           + $" (최대 {Config.Instance?.Data?.MaterialsCapMax ?? 60})[/color]\n");
 
-            // 무인 방치 사고까지 남은 시간 — 근무자가 없을 때만.
-            if ((int)def.AccidentConsequence >= 0 && sim.OnDutyCount(_selRoom) == 0)
+            // 위험 요약 — 원인과 남은 시간만 짧게. 결과·조치 등 상세는 경고 단말기가 담당한다.
+            var risk = NSP.Core.IncidentBoard.ForRoom(_selRoom);
+            if (risk != null)
             {
-                float limit = def.UnstaffedAccidentSeconds > 0f
-                    ? def.UnstaffedAccidentSeconds
-                    : Config.Instance?.Data?.UnstaffedAccidentSecondsDefault ?? 25f;
-                float left = Mathf.Max(0f, limit - state.UnstaffedTimer);
-                sb.Append($"[color=#ff9933]⚠ 무인 — {def.AccidentName} 까지 {Clock(left)}[/color]\n");
+                string label = risk.State switch
+                {
+                    NSP.Core.IncidentState.Active => "사고 발생",
+                    NSP.Core.IncidentState.Warning => "사고 위험",
+                    _ => "주의",
+                };
+                sb.Append($"[color=#ff9933]⚠ {label} — {risk.Title}[/color]\n");
+                sb.Append($"[color=#c9a06a]원인 : {risk.CauseText}[/color]\n");
+                if (risk.WarningRemainingSeconds >= 0f)
+                    sb.Append($"[color=#ff9933]남은 시간 : {Clock(risk.WarningRemainingSeconds)}[/color]\n");
             }
 
             sb.Append($"상태 : {dangerTxt}");

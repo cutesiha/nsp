@@ -80,6 +80,11 @@ public static class FacilityLogFormatter
         LogEventType.Sabotage => Sabotage(e),
         LogEventType.TabooViolation => Row(e, Strip(e.Description), DisplayLogSeverity.Critical),
         LogEventType.PowerOutage => Row(e, Strip(e.Description), DisplayLogSeverity.Critical),
+        // 전력 용량 변화는 전후 값이 들어 있다. 늘어난 경우는 복구로 본다.
+        LogEventType.PowerCapacityChanged => Row(e, Strip(e.Description),
+            (e.Description ?? "").Contains("증가") ? DisplayLogSeverity.Recovery : DisplayLogSeverity.Critical),
+        LogEventType.ResourceShortage => Row(e, Strip(e.Description),
+            (e.Description ?? "").Contains("재개") ? DisplayLogSeverity.Recovery : DisplayLogSeverity.Warning),
         LogEventType.CctvDisconnect => Row(e, Strip(e.Description), DisplayLogSeverity.Warning),
         LogEventType.Death => Death(e, s),
         LogEventType.Isolation => Isolation(e, s),
@@ -124,8 +129,15 @@ public static class FacilityLogFormatter
         bool ordered = s.PendingOrder.GetValueOrDefault(id, "") == e.RoomId;
         s.PendingOrder.Remove(id);
         string verb = ordered ? "재배치" : "이동";
-        return Row(e, $"{Codename(id)} | {RoomName(from)} → {RoomName(e.RoomId)} {verb}",
+        var row = Row(e, $"{Codename(id)} | {RoomName(from)} → {RoomName(e.RoomId)} {verb}",
             DisplayLogSeverity.Normal, id);
+        if (row != null)
+        {
+            row.FromRoomId = from;
+            row.ToRoomId = e.RoomId;
+            row.PlayerOrdered = ordered;
+        }
+        return row;
     }
 
     // 업무를 시작했다는 것은 배치가 끝났다는 뜻이다(이동 없이 제자리 근무한 직원 포함).

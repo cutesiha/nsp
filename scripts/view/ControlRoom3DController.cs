@@ -91,6 +91,8 @@ public partial class ControlRoom3DController : Node3D
     // Title/Schedule 단계에서 ShiftFlowController 가 제어실 CRT 입력을 잠그거나(_inputLocked),
     // 책상 위 배치표 같은 다른 표면으로 입력을 돌린다(_modal).
     private IProjectionSurface _modal;
+    // 경고 단말기 화면을 누르고 있는 중인가(버튼은 누름+뗌이 같은 화면에서 와야 동작한다).
+    private bool _sensorPressed;
     private bool _inputLocked;
 
     public IReadOnlyList<MonitorScreen3D> Screens => _screens;
@@ -430,6 +432,18 @@ public partial class ControlRoom3DController : Node3D
                 GetViewport().SetInputAsHandled();
             return;
         }
+
+        // 경고 단말기 화면(작은 쿼드)은 CRT 목록에 없다. 화살표 버튼을 누를 수 있도록
+        // 모니터보다 먼저 판정해 그 화면 전용 뷰포트로 입력을 넘긴다.
+        if (ResolveTarget(GameSettings.ZoomTarget.Sensor) is AlertTerminalProp sensor
+            && sensor.TryProjectRay(origin, dir, clamp: _sensorPressed && !mb.Pressed, out Vector2 sp))
+        {
+            _sensorPressed = mb.Pressed;
+            sensor.TargetViewport?.PushInput(MakeButton(mb, sp), inLocalCoords: true);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+        _sensorPressed = false;
 
         if (mb.Pressed)
         {

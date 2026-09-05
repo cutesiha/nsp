@@ -152,4 +152,9 @@ public enum LogEventType
     // 발생한 업무를 제한시간 안에 처리하지 못해 사고로 이어짐(큰 붉은 배너 + 공포 연출 대상).
     // Neglect(미완료 상태로 자리 이탈 — 조용한 추리 단서)와 구분한다.
     TaskFailed,
+    // 사용 가능한 전력 용량이 실제로 바뀐 순간(전후 값 포함). 사고 자체가 아니라 그 결과이므로
+    // 수신 전화(IncomingCallDirector)는 이 종류를 듣지 않는다.
+    PowerCapacityChanged,
+    // 자원이 모자라 업무가 멈추거나 다시 돌기 시작한 순간(상태가 바뀔 때 한 번만).
+    ResourceShortage,
 }

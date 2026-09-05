@@ -94,6 +94,42 @@ public static class DialogueContextBuilder
         return room;
     }
 
+    // 그 시각 직전에 있던 작업실(현재 방으로 들어오기 전). 없으면 빈 값.
+    public static string RoomBefore(string employeeId, int day, float timeSeconds)
+    {
+        var t = GetTimeline(day);
+        if (!t.Moves.TryGetValue(employeeId, out var list) || list.Count == 0) return "";
+        string previous = "", current = list[0].Room;
+        foreach (var (time, r) in list)
+        {
+            if (time > timeSeconds) break;
+            if (r != current) { previous = current; current = r; }
+        }
+        return previous;
+    }
+
+    // 그 시각 이후 처음으로 옮겨 간 작업실. 끝까지 그 자리에 있었으면 빈 값.
+    public static string RoomAfter(string employeeId, int day, float timeSeconds)
+    {
+        var t = GetTimeline(day);
+        if (!t.Moves.TryGetValue(employeeId, out var list) || list.Count == 0) return "";
+        string at = RoomAt(employeeId, day, timeSeconds);
+        foreach (var (time, r) in list)
+            if (time > timeSeconds && !string.IsNullOrEmpty(r) && r != at) return r;
+        return "";
+    }
+
+    // 그 시각에 해당 작업실에 함께 있던 다른 직원들.
+    public static List<string> OccupantsAt(string roomId, int day, float timeSeconds, string exceptId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var result = new List<string>();
+        if (sim == null || string.IsNullOrEmpty(roomId)) return result;
+        foreach (string id in sim.GetEmployeeIds())
+            if (id != exceptId && RoomAt(id, day, timeSeconds) == roomId) result.Add(id);
+        return result;
+    }
+
     public static string RoomAtIncident(string employeeId, DialogueFact fact) =>
         fact == null ? "" : RoomAt(employeeId, fact.Entry?.Day ?? Day(), fact.TimeSeconds);
 

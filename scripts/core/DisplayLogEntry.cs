@@ -20,4 +20,11 @@ public sealed class DisplayLogEntry
     // 이 줄이 특정 직원의 행동인 경우에만 채워진다. 채워져 있으면 그 직원의 고유색으로 그린다.
     public string RelatedEmployeeId = "";
     public LogEventType SourceEventType;
+
+    // 이 줄이 직원 이동이면 채워진다. 꼬리질문 시스템이 "플레이어가 실제로 본 이동"을
+    // 문장 해석 없이 알아내기 위한 값이다.
+    public string FromRoomId = "";
+    public string ToRoomId = "";
+    // 관리자가 지시한 이동인가(false = 직원이 스스로 움직인 것으로 보인다).
+    public bool PlayerOrdered;
 }

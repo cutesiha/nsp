@@ -33,6 +33,7 @@ public partial class DialogueScenarioTest : Node
         ScenarioF();
         ScenarioG();
         ScenarioH();
+        FollowUpScenarios();
         GD.Print("=== 시나리오 검증 종료 ===");
         GetTree().Quit();
     }
@@ -219,6 +220,115 @@ public partial class DialogueScenarioTest : Node
     {
         var e = DialogueContextBuilder.SelectSubjectIncident(1);
         return e == null ? "no_incident" : DialogueFact.From(e, KnowledgeLevel.None).Key;
+    }
+
+    // ══ 꼬리질문 검증 ══════════════════════════════════════════════════
+    private void FollowUpScenarios()
+    {
+        GD.Print("\n########## 꼬리질문 시스템 ##########");
+
+        // F1 : 일반 까마귀 / 인접 작업실에서 소리만 들음
+        SetupBasic();
+        Turn("crow", DialogueQuestions.Anomaly, "F1 일반 까마귀 · Q1(간접 목격)");
+
+        // F2 : 일반 까마귀 / Q2 — 플레이어 증거 없음 → 추궁 후보가 나오면 안 된다
+        SetupBasic();
+        Turn("crow", DialogueQuestions.Where, "F2 일반 까마귀 · Q2(증거 없음)");
+
+        // F3 : 방해자 까마귀 / 실제 저장고, 주장 환기실 — 증거 없음
+        SetupSaboteur();
+        Turn("crow", DialogueQuestions.Where, "F3 방해자 까마귀 · Q2(증거 없음)");
+
+        // F4 : 같은 상황 + 해파리에게서 목격 증언을 먼저 확보
+        SetupSaboteur();
+        Log(LogEventType.Sabotage, "crow", Storage, 7f, new[] { "jellyfish" });
+        GD.Print("\n--- 먼저 해파리를 인터뷰해 목격 증언을 확보한다 ---");
+        Turn("jellyfish", DialogueQuestions.Suspicious, "F4-1 해파리 · Q3");
+        Turn("crow", DialogueQuestions.Where, "F4-2 방해자 까마귀 · Q2(목격 증언 확보 후)");
+
+        // F5 : 고양이가 여우의 행동을 목격 → Q3 세부 추궁
+        Reset();
+        Place(new Dictionary<string, string>
+        {
+            ["crow"] = Vent, ["owl"] = Guard, ["cat"] = Core,
+            ["rabbit"] = Maintenance, ["jellyfish"] = Storage, ["fox"] = Core,
+        });
+        Log(LogEventType.Sabotage, "fox", Core, 6f, new[] { "cat" });
+        Incident(LogEventType.TaskFailed, Power, 8.5f);
+        Turn("cat", DialogueQuestions.Suspicious, "F5 고양이 · Q3(실제 목격)");
+
+        // F6 : 답할 것이 없으면 꼬리질문 0개
+        SetupBasic();
+        Turn("owl", DialogueQuestions.Suspicious, "F6 올빼미 · Q3(목격 없음)");
+
+        // F7 : 6명이 같은 꼬리질문에 어떻게 다르게 답하는가
+        SetupBasic();
+        GD.Print("\n===== F7 : 같은 꼬리질문(그 전에는 어디에?) 6명 비교 =====");
+        foreach (string id in new[] { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" })
+        {
+            LocalDialogueGenerator.InterviewAnswer(id, DialogueQuestions.Where);
+            var q = new FollowUpQuestion
+            {
+                Intent = FollowUpIntent.AskPreviousLocation,
+                Text = "그 전에는 어디에 있었습니까?",
+                SubjectIncidentKey = SubjectKey(),
+            };
+            GD.Print($"  {id,-10} → {LocalDialogueGenerator.FollowUpAnswer(id, q)}");
+        }
+
+        // F8 : Q5 추궁 — 지시 없는 이동이 화면 로그에 떠 있을 때
+        SetupSaboteur();
+        GD.Print("\n--- 까마귀의 이동이 시설 로그 화면에 떴다고 가정 ---");
+        Turn("crow", DialogueQuestions.Accuse, "F8 방해자 까마귀 · Q5");
+    }
+
+    private void SetupBasic()
+    {
+        Reset();
+        Place(new Dictionary<string, string>
+        {
+            ["crow"] = Vent, ["owl"] = Guard, ["cat"] = Medical,
+            ["rabbit"] = Maintenance, ["jellyfish"] = Storage, ["fox"] = Core,
+        });
+        Incident(LogEventType.TaskFailed, Power, 8.5f);
+    }
+
+    private void SetupSaboteur()
+    {
+        Reset();
+        Place(new Dictionary<string, string>
+        {
+            ["crow"] = Vent, ["owl"] = Guard, ["cat"] = Medical,
+            ["rabbit"] = Maintenance, ["jellyfish"] = Storage, ["fox"] = Core,
+        });
+        GameState.Instance.SetSaboteur("crow");
+        // 근무 시작 배치가 끝난 상태로 만든다 — 이후의 이동이 시설 로그 화면에 뜬다.
+        foreach (var id in new[] { "crow", "owl", "cat", "rabbit", "jellyfish", "fox" })
+            Log(LogEventType.TaskStart, id,
+                FacilitySimulation.Instance.GetEmployeeState(id).AssignedRoomId, 1f);
+        Move("crow", Vent, Storage, 4f);
+        Incident(LogEventType.TaskFailed, Power, 8.5f);
+    }
+
+    // 기본 질문 → 답변 → 꼬리질문 후보 → 첫 후보 선택 → 답변까지 한 번에 출력.
+    private void Turn(string employeeId, string questionId, string label)
+    {
+        GD.Print($"\n===== {label} =====");
+        FollowUpQuestionGenerator.DebugLog = true;
+        var turn = LocalDialogueGenerator.Interview(employeeId, questionId);
+        FollowUpQuestionGenerator.DebugLog = false;
+        GD.Print($"  Q: {LocalInterviewDialogue.GetQuestionText(employeeId, questionId)}");
+        GD.Print($"  A: {turn.Answer}");
+        if (turn.FollowUps.Count == 0)
+        {
+            GD.Print("  꼬리질문 없음 → 기본 질문 목록으로 복귀");
+            return;
+        }
+        foreach (var f in turn.FollowUps)
+            GD.Print($"  [꼬리질문] {f.Text}   ({f.Intent}{(f.IsChallenge ? " · 추궁" : "")})");
+        var pick = turn.FollowUps[0];
+        GD.Print($"  → 선택: {pick.Text}");
+        GD.Print($"  A: {LocalDialogueGenerator.FollowUpAnswer(employeeId, pick)}");
     }
 
     // --- 도우미 ---------------------------------------------------------

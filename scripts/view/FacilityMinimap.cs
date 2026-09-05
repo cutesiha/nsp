@@ -125,13 +125,25 @@ public partial class FacilityMinimap : Control
         Rect2 box = BoxOf(roomId);
         var tier = def.IsRestricted ? RoomDangerTier.None : RoomStatusText.GetDangerTier(roomId);
 
-        Color fill = tier switch
+        // 색 단계는 경고 단말기와 같은 판정(IncidentBoard)을 쓴다 —
+        // 노랑=위험 축적 / 주황=사고 임박 / 빨강=사고 발생 / 회청색=수리 진행 중.
+        var incident = def.IsRestricted ? null : NSP.Core.IncidentBoard.ForRoom(roomId);
+        bool repairing = incident?.State == NSP.Core.IncidentState.Active
+                         && sim.OnDutyCount(roomId) > 0;
+        Color fill = incident?.State switch
         {
-            RoomDangerTier.Failure => new Color(0.55f, 0.09f, 0.09f)
+            NSP.Core.IncidentState.Active when repairing => new Color(0.20f, 0.26f, 0.30f),
+            NSP.Core.IncidentState.Active => new Color(0.55f, 0.09f, 0.09f)
                 .Lerp(new Color(0.8f, 0.15f, 0.15f), 0.5f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 90f)),
-            RoomDangerTier.Unstable => new Color(0.5f, 0.32f, 0.08f),
-            RoomDangerTier.Delayed => new Color(0.36f, 0.32f, 0.12f),
-            _ => def.IsRestricted ? new Color(0.10f, 0.11f, 0.13f) : new Color(0.11f, 0.17f, 0.16f),
+            NSP.Core.IncidentState.Warning => new Color(0.52f, 0.30f, 0.06f),
+            NSP.Core.IncidentState.Caution => new Color(0.40f, 0.36f, 0.10f),
+            _ => tier switch
+            {
+                RoomDangerTier.Failure => new Color(0.55f, 0.09f, 0.09f),
+                RoomDangerTier.Unstable => new Color(0.5f, 0.32f, 0.08f),
+                RoomDangerTier.Delayed => new Color(0.36f, 0.32f, 0.12f),
+                _ => def.IsRestricted ? new Color(0.10f, 0.11f, 0.13f) : new Color(0.11f, 0.17f, 0.16f),
+            },
         };
         DrawRect(box, fill);
 

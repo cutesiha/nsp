@@ -40,6 +40,9 @@ public partial class AlertSystem : Node
 
     public override void _EnterTree() => Instance = this;
 
+    // 사고 업무 → 사람이 읽는 제목. 경고 단말기와 미니맵이 같은 이름을 쓰도록 공개한다.
+    public static string HeadlineFor(string taskId) => TaskHeadline.GetValueOrDefault(taskId, "시설 이상");
+
     // 심각도(Critical > Warning > Notice) → 남은시간 짧은 순 정렬로 반환한다.
     // 화면(AlertTerminalView)은 맨 앞(가장 급한 것) 하나만 보여준다.
     public List<Alert> GetActiveAlerts()

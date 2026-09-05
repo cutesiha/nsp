@@ -35,6 +35,11 @@ public partial class ConfigData : Resource
     [Export] public float EmployeeMoveSpeedInShift = 42f;
     [Export] public float DayLengthSeconds = 180f;
 
+    // DAY1 은 시스템을 배우는 날이라 대형 작업실 사고가 겹치지 않게 한다.
+    // 활성 사고가 이 수 이상이거나, 직전 사고에서 이 시간이 지나지 않으면 새 사고를 미룬다.
+    [Export] public int Day1MaxActiveIncidents = 1;
+    [Export] public float IncidentGapSeconds = 18f;
+
     // --- 업무 수행 속도 --------------------------------------------------
     // 게이지는 1초에 BaseTaskWorkRate × 기술배율 × 스트레스배율 만큼 찬다.
     // BaseTaskWorkRate = 1 이므로 TaskDef.GaugeRequired 값이 곧 "능력 보통(기술2) 1명이

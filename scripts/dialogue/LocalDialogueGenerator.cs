@@ -46,12 +46,65 @@ public static class LocalDialogueGenerator
 
     // --- 인터뷰 --------------------------------------------------------
 
-    public static string InterviewAnswer(string employeeId, string questionId)
+    // 인터뷰 한 턴의 결과 — 답변과, 그 답변을 듣고 한 번 더 캐물을 수 있는 꼬리질문.
+    public sealed class InterviewTurn
+    {
+        public string Answer = "";
+        public List<FollowUpQuestion> FollowUps = new();
+    }
+
+    public static InterviewTurn Interview(string employeeId, string questionId)
     {
         var ctx = Context(employeeId, DialogueConversationKind.Interview, questionId, "", null);
         MarkAsked(ctx, questionId);
         var plan = DialogueResponsePlanner.Plan(ctx);
-        return KoreanDialogueComposer.Compose(ctx, plan);
+        string answer = KoreanDialogueComposer.Compose(ctx, plan);
+        // 꼬리질문은 "이번 답변을 듣기 전까지 플레이어가 알던 것"으로 판단한다.
+        // 그래서 증거 기록은 후보를 만든 뒤에 한다.
+        var follows = FollowUpQuestionGenerator.Generate(ctx, plan);
+        RecordEvidence(ctx, plan);
+        return new InterviewTurn { Answer = answer, FollowUps = follows };
+    }
+
+    public static string InterviewAnswer(string employeeId, string questionId) =>
+        Interview(employeeId, questionId).Answer;
+
+    // 꼬리질문 답변. 기본 질문과 같은 사건을 기준으로 하며, 이미 세운 알리바이와 어긋나지 않는다.
+    public static string FollowUpAnswer(string employeeId, FollowUpQuestion question)
+    {
+        if (question == null) return "";
+        int day = DialogueContextBuilder.Day();
+        var subject = EventLog.Instance?.GetAllEntries()
+            .FirstOrDefault(e => e.Day == day
+                && DialogueFact.From(e, KnowledgeLevel.None).Key == question.SubjectIncidentKey);
+
+        string questionId = FollowUpQuestionGenerator.IntentKey(question.Intent);
+        var ctx = Context(employeeId, DialogueConversationKind.Interview, questionId, "", subject);
+        ctx.BaseQuestionId = question.BaseQuestionId;
+        MarkAsked(ctx, questionId);
+        var plan = DialogueResponsePlanner.Plan(ctx);
+        string answer = KoreanDialogueComposer.Compose(ctx, plan);
+        RecordEvidence(ctx, plan);
+        return answer;
+    }
+
+    // 직원이 관리자에게 실제로 말한 내용만 "플레이어가 아는 것"으로 남긴다.
+    private static void RecordEvidence(DialogueContext ctx, DialogueResponsePlan plan)
+    {
+        string key = ctx.Subject?.Key ?? "no_incident";
+        switch (plan.Core)
+        {
+            case CoreKind.SelfLocation:
+                PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, plan.RoomId,
+                    plan.Time == TimeRef.Exact);
+                break;
+            case CoreKind.SuspiciousSighting:
+                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId, plan.IncidentRoomId);
+                break;
+            case CoreKind.SightingPlace:
+                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId, plan.RoomId);
+                break;
+        }
     }
 
     // --- 플레이어가 거는 일반 통화 ---------------------------------------

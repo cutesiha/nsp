@@ -28,6 +28,14 @@ public static class DialogueResponsePlanner
         plan.Deception = mode;
         if (ctx.IsSaboteur) EnsureClaimedRoom(ctx, claim, mode);
 
+        // 꼬리질문은 기본 질문과 같은 사건을 기준으로, 이미 한 주장과 어긋나지 않게 답한다.
+        if (ctx.QuestionId.StartsWith(DialogueQuestions.FollowUpPrefix, System.StringComparison.Ordinal))
+        {
+            PlanFollowUp(ctx, plan, profile, claim);
+            ApplyStyle(ctx, plan, profile);
+            return plan;
+        }
+
         switch (ctx.QuestionId)
         {
             case DialogueQuestions.Anomaly: PlanAnomaly(ctx, plan, profile, claim); break;
@@ -216,6 +224,141 @@ public static class DialogueResponsePlanner
         plan.Emotion = EmotionOf(fact.Type);
     }
 
+    // --- 꼬리질문 ------------------------------------------------------
+
+    // 이 직원이 "그 사건 당시 내가 있던 곳"으로 내세우고 있는 작업실.
+    // 방해자가 거짓 알리바이를 댔다면 꼬리질문도 그 알리바이를 기준으로 답해야 한다.
+    private static string AnchorRoom(DialogueContext ctx, DialogueClaim claim)
+    {
+        if (ctx.IsSaboteur && !string.IsNullOrEmpty(claim.ClaimedRoomId)) return claim.ClaimedRoomId;
+        return string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
+    }
+
+    private static void PlanFollowUp(DialogueContext ctx, DialogueResponsePlan plan,
+        DialogueVoiceProfile profile, DialogueClaim claim)
+    {
+        if (!System.Enum.TryParse(ctx.QuestionId[DialogueQuestions.FollowUpPrefix.Length..],
+                out FollowUpIntent intent))
+        {
+            plan.Core = CoreKind.NoAnomaly;
+            return;
+        }
+
+        string anchor = AnchorRoom(ctx, claim);
+        float when = ctx.Subject?.TimeSeconds ?? ctx.CurrentGameTime;
+        // Q3(목격)에서 이어진 꼬리질문은 사고가 아니라 "목격한 행동"이 대상이다.
+        bool aboutSighting = ctx.BaseQuestionId == DialogueQuestions.Suspicious && ctx.KnownSuspicious != null;
+        // 거짓 알리바이를 대고 있으면 실제 동선을 꺼내지 않는다 — 자백이 되어 버린다.
+        bool truthful = !ctx.IsSaboteur || claim.ClaimTruthful;
+        plan.RoomId = anchor;
+        plan.IncidentRoomId = ctx.Subject?.RoomId ?? "";
+        plan.IncidentType = ctx.Subject?.Type ?? default;
+        plan.IncidentTimeSeconds = when;
+        plan.Knowledge = ctx.SubjectKnowledge;
+
+        switch (intent)
+        {
+            case FollowUpIntent.AskPreviousLocation:
+            {
+                plan.Core = CoreKind.PreviousLocation;
+                string prev = truthful
+                    ? DialogueContextBuilder.RoomBefore(ctx.EmployeeId, ctx.CurrentDay, when)
+                    : "";
+                plan.DetailRoomId = prev;
+                plan.StatusNote = string.IsNullOrEmpty(prev) || prev == anchor ? "same" : "moved";
+                break;
+            }
+            case FollowUpIntent.AskNextAction:
+            {
+                plan.Core = CoreKind.NextAction;
+                string next = truthful
+                    ? DialogueContextBuilder.RoomAfter(ctx.EmployeeId, ctx.CurrentDay, when)
+                    : "";
+                plan.DetailRoomId = next;
+                plan.StatusNote = string.IsNullOrEmpty(next) ? "stayed" : "moved";
+                break;
+            }
+            case FollowUpIntent.AskWhoWasPresent:
+            case FollowUpIntent.AskWitness:
+            {
+                plan.Core = intent == FollowUpIntent.AskWitness ? CoreKind.WitnessAnswer : CoreKind.WhoWasPresent;
+                var others = DialogueContextBuilder.OccupantsAt(anchor, ctx.CurrentDay, when, ctx.EmployeeId);
+                plan.DetailName = others.Count > 0 ? others[0] : "";
+                plan.StatusNote = others.Count > 0 ? "with" : "alone";
+                break;
+            }
+            case FollowUpIntent.AskWhatWasHeard:
+                plan.Core = CoreKind.HeardDetail;
+                plan.Certainty = Certainty.Medium;
+                break;
+            case FollowUpIntent.AskWhatWasSeen:
+                plan.Core = CoreKind.SeenConfirm;
+                plan.StatusNote = aboutSighting || ctx.SubjectKnowledge == KnowledgeLevel.Direct ? "saw" : "heard";
+                break;
+            case FollowUpIntent.AskCertainty:
+                plan.Core = CoreKind.CertaintyAnswer;
+                // 목격 이야기라면 직접 본 것이므로 확신 쪽이다.
+                plan.StatusNote = aboutSighting || ctx.SubjectKnowledge == KnowledgeLevel.Direct ? "sure" : "unsure";
+                break;
+            case FollowUpIntent.AskDetails:
+                plan.Core = CoreKind.IncidentDetail;
+                if (aboutSighting)
+                {
+                    // 본 것은 "그 자리에 있었다"까지다. 무엇을 했는지까지 지어내지 않는다.
+                    plan.StatusNote = "sight";
+                    plan.SubjectEmployeeId = ctx.KnownSuspiciousActorId;
+                    plan.RoomId = ctx.KnownSuspicious.RoomId;
+                }
+                else
+                {
+                    plan.StatusNote = ctx.SubjectKnowledge == KnowledgeLevel.Direct ? "direct" : "indirect";
+                    // 원인을 모르는 간접 인지는 여기서도 원인을 말하지 않는다.
+                    plan.NeedsIndirectCaveat = ctx.SubjectKnowledge != KnowledgeLevel.Direct;
+                }
+                break;
+            case FollowUpIntent.AskExactLocation:
+                if (ctx.KnownSuspicious != null)
+                {
+                    plan.Core = CoreKind.SightingPlace;
+                    plan.RoomId = ctx.KnownSuspicious.RoomId;
+                    plan.SubjectEmployeeId = ctx.KnownSuspiciousActorId;
+                }
+                else plan.Core = CoreKind.SelfLocation;
+                break;
+            case FollowUpIntent.AskReason:
+                plan.Core = CoreKind.ReasonAnswer;
+                plan.StatusNote = ctx.KnownSuspicious != null ? "sight" : "opinion";
+                plan.SubjectEmployeeId = ctx.KnownSuspiciousActorId;
+                break;
+            case FollowUpIntent.AskReasonForMovement:
+                plan.Core = CoreKind.ReasonAnswer;
+                plan.StatusNote = "move";
+                break;
+            case FollowUpIntent.AskTodayDifference:
+                plan.Core = CoreKind.OpinionReason;
+                plan.StatusNote = "today";
+                break;
+            case FollowUpIntent.AskSuspicion:
+                plan.Core = CoreKind.OpinionReason;
+                plan.StatusNote = "suspicion";
+                break;
+            case FollowUpIntent.AskRouteAgain:
+                plan.Core = CoreKind.SelfLocation;
+                plan.IsRepeat = true;
+                break;
+            case FollowUpIntent.AskDefense:
+                plan.Core = CoreKind.ChallengeResponse;
+                plan.StatusNote = truthful ? "honest" : "evasive";
+                break;
+            default:
+                // Challenge* — 플레이어가 근거를 들이민 상황.
+                plan.Core = CoreKind.ChallengeResponse;
+                plan.StatusNote = truthful ? "honest" : "evasive";
+                plan.Emotion = truthful ? EmotionKind.Composed : EmotionKind.Alarm;
+                break;
+        }
+    }
+
     // --- 성격 반영 ------------------------------------------------------
 
     // 시간 언급·보조 정보 여부는 여기서만 정한다. 기본은 "말하지 않는다"이다.
@@ -273,7 +416,9 @@ public static class DialogueResponsePlanner
             return claim.Mode;
         }
 
+        // 여기까지 왔다는 것은 진실이 불리하다는 뜻이다 — TRUTH 는 후보가 아니다.
         var eligible = profile.DeceptionOrder
+            .Where(m => m != DeceptionMode.Truth)
             .Where(m => m != DeceptionMode.Deny || ctx.EvidenceAgainstCount >= 2)
             .Where(m => m != DeceptionMode.Redirect || ctx.KnownSuspicious != null)
             .ToList();

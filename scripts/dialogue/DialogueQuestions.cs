@@ -15,6 +15,9 @@ public static class DialogueQuestions
     public const string GeneralFocus = "GEN_FOCUS";
     public const string GeneralAnomaly = "GEN_ANOMALY";
 
+    // 꼬리질문. FollowUpIntent 를 그대로 식별자로 쓴다(FollowUpQuestionGenerator.IntentKey).
+    public const string FollowUpPrefix = "FU_";
+
     // 직원이 거는 수신 전화.
     public const string IncidentReport = "CALL_REPORT";
     public const string DispatchAccept = "CALL_ACCEPT";

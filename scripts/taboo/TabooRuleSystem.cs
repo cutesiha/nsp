@@ -403,6 +403,10 @@ public partial class TabooRuleSystem : Node
 
     public void ApplyRoomConsequence(TabooConsequenceType type, string roomId, float stressAmount = 10f)
     {
+        // 시설 기능 손실은 "그 사고의 결과"로 센서에 묶인다(사고가 여러 개로 보이지 않게).
+        // 전력 용량 변화만은 GameState 가 전후 값까지 넣어 주므로 여기서 중복 기록하지 않는다.
+        if (type != TabooConsequenceType.PowerCapacityLoss)
+            IncidentTracker.AddConsequence(roomId, IncidentBoard.ConsequenceText(type, stressAmount));
         var room = FacilitySimulation.Instance.GetRoomState(roomId);
         string roomName = FacilitySimulation.Instance.GetRoomDef(roomId)?.DisplayName ?? roomId;
         switch (type)

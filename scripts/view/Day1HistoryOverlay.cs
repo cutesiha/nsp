@@ -456,11 +456,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
     }
 
     // 까마귀처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
-    // 최소 밝기까지만 끌어올린다 — PhoneCallHud 와 같은 방식.
+    // 최소 밝기까지만 끌어올린다. 로그는 글자가 작고 줄이 빽빽해 통화창(0.55)보다
+    // 더 밝게 잡는다 — 이 값은 시설 로그에서만 쓴다.
     private static Color Readable(Color c)
     {
         float lum = c.R * 0.299f + c.G * 0.587f + c.B * 0.114f;
-        const float min = 0.55f;
+        const float min = 0.74f;
         return lum >= min ? c : c.Lerp(Colors.White, (min - lum) / Mathf.Max(0.001f, 1f - lum));
     }
 

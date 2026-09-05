@@ -678,6 +678,7 @@ public partial class FacilitySimulation : Node
         TabooRuleSystem.Instance?.ResetRuntimeState();
         // 지난 근무의 진술·알리바이는 새 근무로 넘어오지 않는다.
         NSP.Dialogue.DialogueClaimState.ResetAll();
+        IncidentTracker.Reset();
 
         // 방 점유자 목록을 이번 근무의 실제 근무자로 다시 만든다.
         // 프로젝트 로드 시점에는 6명 전원이 각자 StartRoomId 에 점유자로 들어가 있는데,
@@ -713,6 +714,7 @@ public partial class FacilitySimulation : Node
         TickVentilationFault(d);
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
+        TickCctvObservation(d);
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
@@ -1056,6 +1058,29 @@ public partial class FacilitySimulation : Node
 
     // 작업실을 근무자 없이 방치하면 그 방의 사고가 발생한다(RoomDef 에 방마다 정의).
     // 사고는 "수리" 업무로 남고, 지정된 인원/시간을 채워야 기능이 복구된다.
+    // CCTV 시청 기록 — 한 작업실을 3초 이상 계속 지켜보면 "관리자가 직접 봤다"로 남긴다.
+    // 채널을 휙휙 넘기는 것만으로는 증거가 되지 않는다.
+    private const float CctvObservationSeconds = 3f;
+    private string _watchedRoomId = "";
+    private float _watchedSeconds;
+
+    private void TickCctvObservation(float delta)
+    {
+        string room = GameState.Instance.IsCctvOperational() ? SurveillanceTargetRoomId ?? "" : "";
+        if (string.IsNullOrEmpty(room) || room != _watchedRoomId || IsRoomCctvBlocked(room))
+        {
+            _watchedRoomId = room;
+            _watchedSeconds = 0f;
+            return;
+        }
+
+        _watchedSeconds += delta;
+        if (_watchedSeconds < CctvObservationSeconds) return;
+        _watchedSeconds = 0f;
+        NSP.Dialogue.PlayerKnownEvidence.RecordCctvObservation(room, GameState.Instance.DayTimeSeconds,
+            GetRoomState(room)?.OccupantEmployeeIds);
+    }
+
     private void TickUnstaffedAccidents(float delta)
     {
         var cfg = Config.Instance.Data;
@@ -1076,9 +1101,22 @@ public partial class FacilitySimulation : Node
             room.UnstaffedTimer += delta;
             if (room.UnstaffedTimer < limit) continue;
 
+            // DAY1 은 사고가 겹치지 않게 잠시 미룬다. 타이머는 유지되므로
+            // 조건이 풀리는 즉시 발생한다(원인은 그대로 "근무자 부재").
+            if (!CanStartNewIncident()) { room.UnstaffedTimer = limit; continue; }
+
             room.UnstaffedTimer = 0f;
             TriggerRoomAccident(roomId, def);
         }
+    }
+
+    // DAY1 학습 편의: 대형 작업실 사고를 한 번에 하나로 제한한다. DAY2 이후에는 제한 없음.
+    private bool CanStartNewIncident()
+    {
+        if ((GameState.Instance?.CurrentDay ?? 1) != 1) return true;
+        var cfg = Config.Instance.Data;
+        if (IncidentTracker.ActiveCount >= Mathf.Max(1, cfg.Day1MaxActiveIncidents)) return false;
+        return GameState.Instance.DayTimeSeconds - IncidentTracker.LastIncidentAt >= cfg.IncidentGapSeconds;
     }
 
     private const TabooConsequenceType RoomAccidentNone = (TabooConsequenceType)(-1);
@@ -1091,6 +1129,9 @@ public partial class FacilitySimulation : Node
     {
         EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
             $"🚨 {RoomName(roomId)} — {def.AccidentName} (무인 방치)");
+        // 먼저 사고를 열어 둔다 — 뒤이어 적용되는 시설 손실이 이 사고의 결과로 묶인다.
+        IncidentTracker.Open(roomId, def.AccidentName, "장시간 근무자 부재",
+            "설비 수리 필요", def.RepairMinWorkers);
         TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
 
         _activeTasks.Add(new SpawnedTask
@@ -1121,6 +1162,8 @@ public partial class FacilitySimulation : Node
             TabooRuleSystem.Instance?.ApplyRoomConsequence(activeTask.NeglectConsequenceType, roomId, activeTask.NeglectConsequenceAmount);
             EventLog.Instance?.LogEvent(LogEventType.Sabotage, actorEmployeeId, roomId,
                 $"⚠ {roomDef?.DisplayName ?? roomId} 설비에서 원인 불명의 이상이 발견됐다.", witnesses);
+            // 센서에는 범인을 절대 넘기지 않는다 — 원인은 "판별 불가".
+            IncidentTracker.Anomaly(roomId, "비정상 조작 흔적 감지", "설비 상태 이상");
         }
         else
         {
@@ -1274,6 +1317,16 @@ public partial class FacilitySimulation : Node
             bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress
                 && GameState.Instance.Materials < Config.Instance.Data.MaterialsPerCoreGauge;
 
+            // 자재가 없어 코어 복구가 멈추거나 다시 도는 순간만 기록한다(매 틱 기록 금지).
+            if (blockedByMaterials != st.MaterialsBlockedLogged && workers.Count > 0)
+            {
+                st.MaterialsBlockedLogged = blockedByMaterials;
+                EventLog.Instance?.LogEvent(LogEventType.ResourceShortage, "", st.RoomId,
+                    blockedByMaterials
+                        ? $"⚠ {RoomName(st.RoomId)} — 자재 부족으로 '{taskDef.DisplayName}' 정지 (자재 {GameState.Instance.Materials})"
+                        : $"✓ {RoomName(st.RoomId)} — 자재 확보, '{taskDef.DisplayName}' 재개");
+            }
+
             if (workers.Count > 0)
             {
                 // 직원이 실제로 이 방에서 발생 업무를 수행하기 시작함 = TaskStart (1인 1회).
@@ -1329,6 +1382,7 @@ public partial class FacilitySimulation : Node
                 ? rdef.AccidentConsequence
                 : taskDef.NeglectConsequenceType;
             TabooRuleSystem.Instance?.RepairRoomConsequence(consequence, st.RoomId);
+            IncidentTracker.Resolve(st.RoomId);
             EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", st.RoomId,
                 $"✓ {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 수리 완료 · 기능 복구");
             st.Status = SpawnedTaskStatus.Completed;
@@ -1344,6 +1398,9 @@ public partial class FacilitySimulation : Node
             // 담당 직원이 완료해야 기능이 복구된다.
             EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", st.RoomId,
                 $"🚨 {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 고장 발생");
+            IncidentTracker.Open(st.RoomId, AlertSystem.HeadlineFor(st.TaskId), "경고 시간 내 대응 실패",
+                $"설비 수리 필요 (최소 {Mathf.Max(1, taskDef.MinWorkersToProgress)}명)",
+                taskDef.MinWorkersToProgress);
             TabooRuleSystem.Instance?.ApplyRoomConsequence(taskDef.NeglectConsequenceType, st.RoomId, taskDef.NeglectConsequenceAmount);
 
             st.IsRepair = true;

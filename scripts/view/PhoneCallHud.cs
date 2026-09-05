@@ -26,7 +26,7 @@ public partial class PhoneCallHud : CanvasLayer
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
     private static readonly Color Amber = new(1f, 0.78f, 0.35f);
 
-    private enum AfterMode { None, GeneralQuestions, EventChoices, LocalInterviewQuestions, EndOnly }
+    private enum AfterMode { None, GeneralQuestions, EventChoices, LocalInterviewQuestions, FollowUpQuestions, EndOnly }
 
     private Panel _panel;
     private HologramFrame _frame;
@@ -40,6 +40,8 @@ public partial class PhoneCallHud : CanvasLayer
     private string _dialogueEvent = DialogueRepository.EventGeneralCall;
     private string _incidentRoomId = "";
     private LocalDialogueGenerator.CallLine _event;
+    // 방금 답변을 듣고 한 번 더 캐물을 수 있는 질문(0~2개). 깊이는 1단계뿐이다.
+    private System.Collections.Generic.List<FollowUpQuestion> _followUps = new();
     private string _fullText = "";
     private double _typeTimer;
     private int _shownChars;
@@ -246,6 +248,7 @@ public partial class PhoneCallHud : CanvasLayer
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
                 case AfterMode.EventChoices: BuildEventChoices(); break;
                 case AfterMode.LocalInterviewQuestions: BuildLocalInterviewQuestions(); break;
+                case AfterMode.FollowUpQuestions: BuildFollowUpQuestions(); break;
                 case AfterMode.EndOnly: BuildEndOnly(); break;
             }
         }
@@ -280,6 +283,7 @@ public partial class PhoneCallHud : CanvasLayer
     private void BuildLocalInterviewQuestions()
     {
         ClearChoices();
+        _followUps.Clear();
         foreach (var question in LocalInterviewDialogue.Questions)
         {
             string id = question.Id;
@@ -293,9 +297,36 @@ public partial class PhoneCallHud : CanvasLayer
     {
         ClearChoices();
         string question = LocalInterviewDialogue.GetQuestionText(_employeeId, questionId);
-        string reply = LocalInterviewDialogue.Answer(_employeeId, questionId);
-        LocalInterviewDialogue.RecordTurn(_employeeId, question, reply);
+        var turn = LocalDialogueGenerator.Interview(_employeeId, questionId);
+        _followUps = turn.FollowUps;
+        LocalInterviewDialogue.RecordTurn(_employeeId, question, turn.Answer);
         RecordPlayer(question, DialogueConversationType.Interview);
+        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        StartTyping("\"" + turn.Answer + "\"",
+            _followUps.Count > 0 ? AfterMode.FollowUpQuestions : AfterMode.LocalInterviewQuestions);
+    }
+
+    // 답변에서 캐물을 것이 있을 때만 뜬다. 없으면 곧장 기본 질문 목록으로 돌아간다.
+    private void BuildFollowUpQuestions()
+    {
+        ClearChoices();
+        if (_followUps.Count == 0) { BuildLocalInterviewQuestions(); return; }
+        foreach (var q in _followUps)
+        {
+            var captured = q;
+            _choices.AddChild(InterviewChoiceButton(q.Text, () => OnFollowUpQuestion(captured)));
+        }
+        _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildLocalInterviewQuestions));
+    }
+
+    // 꼬리질문의 답변 뒤에는 다시 꼬리질문을 만들지 않는다(깊이 1단계).
+    private void OnFollowUpQuestion(FollowUpQuestion q)
+    {
+        ClearChoices();
+        _followUps = new System.Collections.Generic.List<FollowUpQuestion>();
+        string reply = LocalDialogueGenerator.FollowUpAnswer(_employeeId, q);
+        LocalInterviewDialogue.RecordTurn(_employeeId, q.Text, reply);
+        RecordPlayer(q.Text, DialogueConversationType.Interview);
         RecordNpc(reply, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
         StartTyping("\"" + reply + "\"", AfterMode.LocalInterviewQuestions);
     }

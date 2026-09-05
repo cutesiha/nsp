@@ -18,6 +18,8 @@ public sealed class DialogueContext
     public bool IsSaboteur;
     public DialogueConversationKind Conversation = DialogueConversationKind.Interview;
     public string QuestionId = "";
+    // 꼬리질문일 때, 이 질문이 나온 기본 질문(Q1~Q5). 그 외에는 빈 값.
+    public string BaseQuestionId = "";
     public string EventId = "";
 
     public int CurrentDay = 1;

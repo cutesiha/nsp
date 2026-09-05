@@ -129,6 +129,19 @@ public static class KoreanDialogueComposer
             : plan.Knowledge == KnowledgeLevel.Direct ? "report.direct" : "report.indirect",
         CoreKind.DispatchAccept => "accept",
         CoreKind.DispatchDecline => "decline",
+        // 꼬리질문 답변 — 결(StatusNote)까지 슬롯 이름에 붙인다.
+        CoreKind.PreviousLocation => "prevloc." + plan.StatusNote,
+        CoreKind.NextAction => "nextact." + plan.StatusNote,
+        CoreKind.WhoWasPresent => "present." + plan.StatusNote,
+        CoreKind.WitnessAnswer => "witness." + plan.StatusNote,
+        CoreKind.HeardDetail => "heard",
+        CoreKind.SeenConfirm => "seen." + plan.StatusNote,
+        CoreKind.CertaintyAnswer => "certain." + plan.StatusNote,
+        CoreKind.IncidentDetail => "detail." + plan.StatusNote,
+        CoreKind.SightingPlace => "sightplace",
+        CoreKind.ReasonAnswer => "reason." + plan.StatusNote,
+        CoreKind.OpinionReason => "opinionq." + plan.StatusNote,
+        CoreKind.ChallengeResponse => "challenge." + plan.StatusNote,
         _ => "noanomaly",
     };
 
@@ -153,7 +166,8 @@ public static class KoreanDialogueComposer
                 return Pick(style, "support.justify", vars);
             case DeceptionMode.Minimize when plan.Core == CoreKind.SelfLocation:
                 return Pick(style, "support.minimize", vars);
-            case DeceptionMode.Vague:
+            // 추궁 대응 문장 자체가 이미 회피라 "기억이 안 난다"를 두 번 붙이지 않는다.
+            case DeceptionMode.Vague when plan.Core != CoreKind.ChallengeResponse:
                 return Pick(style, "support.vague", vars);
             case DeceptionMode.Redirect when !string.IsNullOrEmpty(vars["who"]):
                 return Pick(style, "support.redirect", vars);
@@ -201,6 +215,9 @@ public static class KoreanDialogueComposer
             ["target"] = Codename(plan.TargetEmployeeId),
             ["trait"] = TraitStem(plan.TargetEmployeeId),
             ["task"] = ctx.CurrentTaskName ?? "",
+            // 꼬리질문 답변에 등장하는 보조 대상.
+            ["droom"] = RoomName(plan.DetailRoomId),
+            ["dname"] = Codename(plan.DetailName),
             ["what"] = IncidentClause(plan.IncidentType, KnowledgeLevel.Direct, p),
             ["sound"] = IncidentClause(plan.IncidentType, KnowledgeLevel.Indirect, p),
         };
@@ -600,6 +617,187 @@ public static class KoreanDialogueComposer
         ["fox|emotion.amused"] = new[] { "재미있는 밤이네요." },
         ["owl|emotion.composed"] = new[] { "보고는 그때 드렸습니다." },
         ["crow|emotion.composed"] = new[] { "그게 전부입니다." },
+
+        // 꼬리질문 답변 ─────────────────────────────────────────────
+        // 그 전에는 어디에 있었는가
+        ["owl|prevloc.same"] = new[] { "계속 {room}에 있었습니다.", "이동 없이 {room}에 있었습니다." },
+        ["cat|prevloc.same"] = new[] { "계속 {room}이요/요.", "{room}에 계속 있었어요." },
+        ["jellyfish|prevloc.same"] = new[] { "쭉 {room}에 있었어요...", "{room}에서 안 나갔어요." },
+        ["rabbit|prevloc.same"] = new[] { "계속 {room}에 있었어요!", "{room}에서 안 움직였어요!" },
+        ["crow|prevloc.same"] = new[] { "계속 {room}입니다.", "이동 없습니다." },
+        ["fox|prevloc.same"] = new[] { "계속 {room}에 있었죠.", "{room}에서 안 나갔어요." },
+
+        ["owl|prevloc.moved"] = new[] { "그 전에는 {droom}에 있었습니다.", "{droom}에서 {room}으로/로 옮겼습니다." },
+        ["cat|prevloc.moved"] = new[] { "{droom}에 있다가 왔어요.", "{droom}이요/요. 거기 있다가 옮겼어요." },
+        ["jellyfish|prevloc.moved"] = new[] { "그 전에는... {droom}에 있었어요.", "{droom}에 있다가 {room}으로/로 갔어요." },
+        ["rabbit|prevloc.moved"] = new[] { "그 전엔 {droom}에 있었어요!", "{droom}에 있다가 옮겼어요!" },
+        ["crow|prevloc.moved"] = new[] { "그 전에는 {droom}입니다.", "{droom}에서 이동했습니다." },
+        ["fox|prevloc.moved"] = new[] { "그 전엔 {droom}에 있었어요.", "{droom}에 있다가 옮겼죠." },
+
+        // 그 뒤에는 어떻게 했는가
+        ["owl|nextact.stayed"] = new[] { "자리를 지키고 상황을 지켜봤습니다.", "그대로 {room}에 있었습니다." },
+        ["cat|nextact.stayed"] = new[] { "그냥 하던 일 계속했어요.", "안 움직였어요." },
+        ["jellyfish|nextact.stayed"] = new[] { "무서워서 그냥 있었어요...", "그 자리에 계속 있었어요." },
+        ["rabbit|nextact.stayed"] = new[] { "그냥 계속 있었어요! 나가도 되나 싶어서요.", "자리 지켰어요!" },
+        ["crow|nextact.stayed"] = new[] { "위치를 유지했습니다.", "그대로 있었습니다." },
+        ["fox|nextact.stayed"] = new[] { "가만히 있었죠. 나설 이유가 없어서요.", "그냥 있었어요." },
+
+        ["owl|nextact.moved"] = new[] { "그 뒤에 {droom}으로/로 이동했습니다.", "{droom} 쪽으로 옮겼습니다." },
+        ["cat|nextact.moved"] = new[] { "{droom}으로/로 갔어요.", "{droom}이요/요. 그쪽으로 옮겼어요." },
+        ["jellyfish|nextact.moved"] = new[] { "그 다음엔... {droom}으로/로 갔어요.", "{droom} 쪽으로 옮겼어요." },
+        ["rabbit|nextact.moved"] = new[] { "{droom}으로/로 갔어요!", "바로 {droom} 쪽으로 갔어요!" },
+        ["crow|nextact.moved"] = new[] { "{droom}으로/로 이동했습니다.", "이후 {droom}입니다." },
+        ["fox|nextact.moved"] = new[] { "{droom}으로/로 옮겼어요.", "{droom} 쪽으로 갔죠." },
+
+        // 당시 같이 있던 사람
+        ["owl|present.alone"] = new[] { "혼자였습니다.", "그 시간에는 저 혼자 있었습니다." },
+        ["cat|present.alone"] = new[] { "혼자였어요.", "저 혼자요." },
+        ["jellyfish|present.alone"] = new[] { "혼자... 있었어요.", "저 혼자였어요." },
+        ["rabbit|present.alone"] = new[] { "혼자였어요!", "저밖에 없었어요!" },
+        ["crow|present.alone"] = new[] { "혼자였습니다.", "동석자 없습니다." },
+        ["fox|present.alone"] = new[] { "혼자였어요.", "아쉽게도 저 혼자요." },
+
+        ["owl|present.with"] = new[] { "{dname} 직원과 같이 있었습니다.", "{dname} 직원이 같은 방에 있었습니다." },
+        ["cat|present.with"] = new[] { "{dname} 씨도 있었어요.", "{dname} 씨랑 같이 있었어요." },
+        ["jellyfish|present.with"] = new[] { "{dname} 씨도 같이 있었어요.", "{dname} 씨가 있었어요... 아마요." },
+        ["rabbit|present.with"] = new[] { "{dname} 씨도 있었어요!", "{dname} 씨랑 같이 있었어요!" },
+        ["crow|present.with"] = new[] { "{dname} 직원이 있었습니다.", "{dname}. 같은 방입니다." },
+        ["fox|present.with"] = new[] { "{dname} 씨도 있었죠.", "{dname} 씨랑 같이 있었어요." },
+
+        // 위치를 확인해 줄 사람
+        ["owl|witness.alone"] = new[] { "확인해 줄 사람은 없습니다. 그건 인정합니다.", "증명해 줄 사람은 없습니다." },
+        ["cat|witness.alone"] = new[] { "없어요. 혼자였으니까요.", "없는데요." },
+        ["jellyfish|witness.alone"] = new[] { "없어요... 혼자 있어서요.", "그, 그건 없어요..." },
+        ["rabbit|witness.alone"] = new[] { "없어요! 혼자 있었거든요.", "아... 없네요." },
+        ["crow|witness.alone"] = new[] { "없습니다.", "증인 없습니다." },
+        ["fox|witness.alone"] = new[] { "없네요. 하필 혼자였어서.", "그건 없어요." },
+
+        ["owl|witness.with"] = new[] { "{dname} 직원이 확인해 줄 수 있습니다.", "{dname} 직원에게 물어보시면 됩니다." },
+        ["cat|witness.with"] = new[] { "{dname} 씨한테 물어보세요.", "{dname} 씨가 봤어요." },
+        ["jellyfish|witness.with"] = new[] { "{dname} 씨가... 알 거예요.", "{dname} 씨한테 여쭤보시면 돼요." },
+        ["rabbit|witness.with"] = new[] { "{dname} 씨요! 같이 있었어요!", "{dname} 씨한테 물어보세요!" },
+        ["crow|witness.with"] = new[] { "{dname}. 확인 가능합니다.", "{dname} 직원입니다." },
+        ["fox|witness.with"] = new[] { "{dname} 씨한테 물어보시죠.", "{dname} 씨가 있었어요." },
+
+        // 어떤 소리였는가
+        ["owl|heard"] = new[] { "금속이 부딪치는 것 같은 낮고 둔한 소리였습니다.", "짧고 무거운 소리였습니다. 한 번이었습니다." },
+        ["cat|heard"] = new[] { "뭔가 크게 부딪치는 소리요.", "쾅 하고 한 번. 그게 다예요." },
+        ["jellyfish|heard"] = new[] { "쿵... 하고 벽까지 울리는 소리였어요.", "무슨 소리인지는 잘 모르겠는데, 엄청 컸어요." },
+        ["rabbit|heard"] = new[] { "쾅! 하고 엄청 크게 났어요!", "뭐가 터지는 것 같은 소리였어요!" },
+        ["crow|heard"] = new[] { "낮고 둔한 충격음. 한 번이었습니다.", "금속음입니다. 짧았습니다." },
+        ["fox|heard"] = new[] { "둔탁하게 한 번. 기분 좋은 소리는 아니었어요.", "뭔가 무너지는 듯한 소리였죠." },
+
+        // 직접 본 것인가
+        ["owl|seen.saw"] = new[] { "네. 직접 봤습니다.", "제 눈으로 확인했습니다." },
+        ["cat|seen.saw"] = new[] { "네, 봤어요.", "직접 봤어요." },
+        ["jellyfish|seen.saw"] = new[] { "네... 봤어요.", "직접 봤어요. 정말이에요." },
+        ["rabbit|seen.saw"] = new[] { "네! 봤어요!", "제 눈으로 봤어요!" },
+        ["crow|seen.saw"] = new[] { "직접 봤습니다.", "확인했습니다." },
+        ["fox|seen.saw"] = new[] { "네, 봤어요.", "이건 직접 봤죠." },
+
+        ["owl|seen.heard"] = new[] { "아닙니다. 들은 것뿐입니다.", "본 것은 아닙니다. 소리만 들었습니다." },
+        ["cat|seen.heard"] = new[] { "아뇨. 소리만요.", "듣기만 했어요." },
+        ["jellyfish|seen.heard"] = new[] { "아, 아니요... 소리만 들었어요.", "본 건 아니에요..." },
+        ["rabbit|seen.heard"] = new[] { "아뇨! 소리만 들었어요.", "보진 못했어요!" },
+        ["crow|seen.heard"] = new[] { "아닙니다. 청각 정보뿐입니다.", "듣기만 했습니다." },
+        ["fox|seen.heard"] = new[] { "아뇨, 들은 거예요.", "보진 못했어요." },
+
+        // 확신하는가
+        ["owl|certain.sure"] = new[] { "확실합니다.", "제가 확인한 범위에서는 확실합니다." },
+        ["cat|certain.sure"] = new[] { "확실해요.", "네. 확실하니까 말한 거예요." },
+        ["jellyfish|certain.sure"] = new[] { "그건... 확실해요.", "네, 그건 맞아요." },
+        ["rabbit|certain.sure"] = new[] { "확실해요!", "네! 그건 확실해요!" },
+        ["crow|certain.sure"] = new[] { "확실합니다.", "맞습니다." },
+        ["fox|certain.sure"] = new[] { "그건 확실해요.", "네, 확실합니다." },
+
+        ["owl|certain.unsure"] = new[] { "단정하기는 어렵습니다.", "확인된 범위를 넘어서는 말씀드릴 수 없습니다." },
+        ["cat|certain.unsure"] = new[] { "글쎄요. 거기까진 몰라요.", "확실하냐고 하면 아니죠." },
+        ["jellyfish|certain.unsure"] = new[] { "그건... 잘 모르겠어요.", "제가 잘못 안 걸 수도 있어요..." },
+        ["rabbit|certain.unsure"] = new[] { "음... 그건 잘 모르겠어요.", "확실하진 않아요!" },
+        ["crow|certain.unsure"] = new[] { "단정할 수 없습니다.", "확인 못 했습니다." },
+        ["fox|certain.unsure"] = new[] { "글쎄요. 장담은 못 하겠는데요.", "거기까진 모르죠." },
+
+        // 구체적으로 어떤 상황이었는가
+        ["owl|detail.direct"] = new[] { "{iroom}에서 {what}", "가까이에서 봤습니다. {what}" },
+        ["cat|detail.direct"] = new[] { "{what} 그게 전부예요.", "{iroom}에서 {what}" },
+        ["jellyfish|detail.direct"] = new[] { "{what} 순식간이었어요.", "{iroom}에서요... {what}" },
+        ["rabbit|detail.direct"] = new[] { "{what} 진짜 순식간이었어요!", "{iroom}에서 {what}" },
+        ["crow|detail.direct"] = new[] { "{what} 그 이상은 없습니다.", "{iroom}. {what}" },
+        ["fox|detail.direct"] = new[] { "{what} 딱 그 정도예요.", "{iroom} 쪽에서 {what}" },
+
+        ["owl|detail.indirect"] = new[] { "제가 말씀드릴 수 있는 건 소리까지입니다.", "벽 너머라 상황까지는 알 수 없었습니다." },
+        ["cat|detail.indirect"] = new[] { "벽 너머라 그 이상은 몰라요.", "소리 말고는 없어요." },
+        ["jellyfish|detail.indirect"] = new[] { "소리밖에 못 들어서... 그 이상은 몰라요.", "무슨 일인지까지는 정말 모르겠어요." },
+        ["rabbit|detail.indirect"] = new[] { "소리만 들어서 그 이상은 몰라요!", "가서 본 게 아니라서요!" },
+        ["crow|detail.indirect"] = new[] { "청각 정보뿐입니다. 그 이상은 불명입니다.", "벽 너머입니다. 확인 불가." },
+        ["fox|detail.indirect"] = new[] { "벽 하나 사이라 거기까지예요.", "소리 말곤 아는 게 없어요." },
+
+        ["owl|detail.sight"] = new[] { "그 자리에 있었다는 것까지가 제가 본 전부입니다.", "무엇을 하고 있었는지까지는 확인하지 못했습니다." },
+        ["cat|detail.sight"] = new[] { "거기 서 있는 것만 봤어요. 뭘 했는진 몰라요.", "자세히 볼 상황은 아니었어요." },
+        ["jellyfish|detail.sight"] = new[] { "거기 있는 것만 봤어요... 뭘 했는지까지는 잘...", "무서워서 오래 못 봤어요." },
+        ["rabbit|detail.sight"] = new[] { "거기 있는 건 봤는데 뭘 했는지는 몰라요!", "그냥 있는 것만 봤어요!" },
+        ["crow|detail.sight"] = new[] { "위치까지입니다. 행동 내용은 확인하지 못했습니다.", "본 것은 그 자리에 있었다는 것뿐입니다." },
+        ["fox|detail.sight"] = new[] { "거기 있던 것까지만요. 그 이상은 저도 몰라요.", "굳이 붙어서 보진 않았거든요." },
+
+        // 어디에서 봤는가
+        ["owl|sightplace"] = new[] { "{room}에서 봤습니다." },
+        ["cat|sightplace"] = new[] { "{room}이요/요." },
+        ["jellyfish|sightplace"] = new[] { "{room}에서요... 거기서 봤어요." },
+        ["rabbit|sightplace"] = new[] { "{room}에서 봤어요!" },
+        ["crow|sightplace"] = new[] { "{room}입니다." },
+        ["fox|sightplace"] = new[] { "{room}에서요." },
+
+        // 그렇게 판단한 이유
+        ["owl|reason.sight"] = new[] { "평소 동선이 아니었기 때문입니다.", "그 시간에 그 자리에 있을 이유가 없었습니다." },
+        ["cat|reason.sight"] = new[] { "동선이 이상했으니까요.", "거기 있을 일이 아니잖아요." },
+        ["jellyfish|reason.sight"] = new[] { "평소랑 달라 보여서요...", "표정이 좀... 이상했어요." },
+        ["rabbit|reason.sight"] = new[] { "평소랑 완전 달랐거든요!", "거기 갈 이유가 없잖아요!" },
+        ["crow|reason.sight"] = new[] { "평소 동선과 달랐습니다.", "행동 순서가 부자연스러웠습니다." },
+        ["fox|reason.sight"] = new[] { "그 시간에 거기 있을 이유가 없죠.", "평소랑 달랐거든요." },
+
+        ["owl|reason.move"] = new[] { "확인이 필요하다고 판단했습니다.", "보고 전에 상황을 확인하려 했습니다." },
+        ["cat|reason.move"] = new[] { "필요해서 갔어요.", "가야 할 일이 있었으니까요." },
+        ["jellyfish|reason.move"] = new[] { "그, 확인할 게 있어서요...", "무서워서 그쪽으로 간 것도 있고요..." },
+        ["rabbit|reason.move"] = new[] { "확인하고 싶어서 갔어요!", "궁금해서 가봤어요!" },
+        ["crow|reason.move"] = new[] { "확인 목적입니다.", "필요한 이동이었습니다." },
+        ["fox|reason.move"] = new[] { "확인할 게 있었거든요.", "그럴 만한 이유가 있었어요." },
+
+        ["owl|reason.opinion"] = new[] { "같이 일해 본 인상이 그렇습니다.", "근무 태도를 보고 판단했습니다." },
+        ["cat|reason.opinion"] = new[] { "일하는 거 보면 알죠.", "그냥 보면 알아요." },
+        ["jellyfish|reason.opinion"] = new[] { "그냥... 그렇게 느꼈어요.", "제 느낌이라 확실하진 않아요." },
+        ["rabbit|reason.opinion"] = new[] { "같이 일해보면 알아요!", "그냥 그런 느낌이에요!" },
+        ["crow|reason.opinion"] = new[] { "관찰한 대로입니다.", "근무 태도 기준입니다." },
+        ["fox|reason.opinion"] = new[] { "같이 일해보면 보이죠.", "뭐, 인상이 그래요." },
+
+        // 오늘도 평소와 같았는가 / 수상하다고 느낀 적
+        ["owl|opinionq.today"] = new[] { "평소와 크게 다르지 않았습니다.", "오늘 특별히 달라 보이지는 않았습니다." },
+        ["cat|opinionq.today"] = new[] { "똑같았어요.", "다를 게 있었나요?" },
+        ["jellyfish|opinionq.today"] = new[] { "비슷했던 것 같아요...", "잘 모르겠어요. 오늘은 정신이 없어서요." },
+        ["rabbit|opinionq.today"] = new[] { "네! 평소랑 똑같았어요!", "음... 비슷했던 것 같아요!" },
+        ["crow|opinionq.today"] = new[] { "차이 없습니다.", "특이사항 없습니다." },
+        ["fox|opinionq.today"] = new[] { "평소랑 비슷했죠.", "글쎄요, 다들 오늘은 좀 예민하긴 했지만." },
+
+        ["owl|opinionq.suspicion"] = new[] { "근거 없이 의심할 생각은 없습니다.", "그럴 만한 장면은 보지 못했습니다." },
+        ["cat|opinionq.suspicion"] = new[] { "딱히요.", "그런 생각까진 안 해봤어요." },
+        ["jellyfish|opinionq.suspicion"] = new[] { "그런 건... 잘 모르겠어요.", "제가 의심할 처지는 아니라서요..." },
+        ["rabbit|opinionq.suspicion"] = new[] { "아뇨! 그런 생각은 안 해봤어요.", "설마요!" },
+        ["crow|opinionq.suspicion"] = new[] { "판단할 근거가 없습니다.", "없습니다." },
+        ["fox|opinionq.suspicion"] = new[] { "여기선 다들 조금씩 수상하죠. 저 포함해서요.", "그런 건 관리자님 몫 아닌가요?" },
+
+        // 추궁에 대한 대응
+        ["owl|challenge.honest"] = new[] { "제가 아는 대로 말씀드렸습니다. 기록을 대조해 주십시오.", "숨긴 것은 없습니다. 확인해 보시면 됩니다." },
+        ["cat|challenge.honest"] = new[] { "말한 그대로예요. 확인해보세요.", "숨길 게 있으면 말을 안 했겠죠." },
+        ["jellyfish|challenge.honest"] = new[] { "저, 저는 사실대로 말했어요... 정말이에요.", "숨긴 건 없어요..." },
+        ["rabbit|challenge.honest"] = new[] { "저 진짜 그대로 말한 거예요!", "확인해보시면 아실 거예요!" },
+        ["crow|challenge.honest"] = new[] { "사실대로 말했습니다. 기록을 확인하십시오.", "숨긴 것 없습니다." },
+        ["fox|challenge.honest"] = new[] { "제 말이 이상하게 들렸다면 다시 설명드리죠.", "숨길 이유가 없는데요." },
+
+        ["owl|challenge.evasive"] = new[] { "기록이 그렇다면 제가 놓친 부분이 있을 겁니다.", "그 부분은 제 기록에 남기지 않았습니다." },
+        ["cat|challenge.evasive"] = new[] { "그게 그렇게 중요한가요?", "잠깐 움직인 것까지 다 말해야 해요?" },
+        ["jellyfish|challenge.evasive"] = new[] { "그, 그게... 기억이 잘 안 나서요...", "제가 뭘 잘못 말했나요...?" },
+        ["rabbit|challenge.evasive"] = new[] { "어? 그게... 그건 별거 아니었어요!", "일부러 안 말한 건 아니에요!" },
+        ["crow|challenge.evasive"] = new[] { "그 부분은 기억나지 않습니다.", "말할 만한 일이 아니었습니다." },
+        ["fox|challenge.evasive"] = new[] { "기록이 그렇다면 그런 거겠죠. 저는 기억이 좀 다르네요.", "굳이 말할 일이라고 생각을 못 했어요." },
 
         // ── 끝맺음 ─────────────────────────────────────────────────────
         ["owl|closer"] = new[] { "필요하시면 기록을 확인해주십시오." },
