@@ -1280,8 +1280,10 @@ public partial class FacilitySimulation : Node
                 foreach (var w in workers)
                 {
                     if (!st.StartedWorkerIds.Add(w.EmployeeId)) continue;
+                    // 🔧 = 사고 복구 작업. 평상시 업무 시작과 달리 관리자에게도 보여야 하므로
+                    // 표식을 남긴다(시설 로그 화면이 이 표식으로 수리 시작을 골라낸다).
                     EventLog.Instance?.LogEvent(LogEventType.TaskStart, w.EmployeeId, st.RoomId,
-                        $"{Codename(w.EmployeeId)} {RoomName(st.RoomId)} 도착 / {taskDef.DisplayName} 시작",
+                        $"{(st.IsRepair ? "🔧 " : "")}{Codename(w.EmployeeId)} {RoomName(st.RoomId)} 도착 / {taskDef.DisplayName} 시작",
                         workers.Where(x => x.EmployeeId != w.EmployeeId).Select(x => x.EmployeeId));
                 }
 

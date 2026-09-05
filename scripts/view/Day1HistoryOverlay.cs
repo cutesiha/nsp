@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Core;
@@ -17,6 +18,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
     private static readonly Color InkDim = new(0.42f, 0.35f, 0.24f);
     private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
+    // 시설 로그의 중요도 색. 경고 단말기(AlertTerminalView)와 같은 팔레트를 쓴다.
+    private static readonly Color LogNormal = new(0.82f, 0.96f, 0.98f);
+    private static readonly Color LogWarning = new(0.95f, 0.80f, 0.25f);
+    private static readonly Color LogCritical = new(1f, 0.40f, 0.20f);
+    private static readonly Color LogRecovery = new(0.40f, 0.95f, 0.50f);
+    private static readonly Color LogTime = new(0.45f, 0.66f, 0.72f);
 
     private enum WindowMode { None, Log, Dialogue }
 
@@ -36,6 +43,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private Font _body;
     private Font _serif;
     private int _logRendered;
+    // 화면용으로 해석된 로그. EventLog 원본은 그대로 두고 여기에만 요약본을 만든다.
+    private List<DisplayLogEntry> _displayLog = new();
     private int _dialogueRendered;
     private bool _logStick;
     private bool _dialogueStick;
@@ -351,8 +360,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     {
         ClearRows(_logRows);
         _logRendered = 0;
-        foreach (var entry in EventLog.Instance?.GetAllEntries().Where(e => e.Day == 1) ?? Enumerable.Empty<LogEntry>())
-            AppendLogRow(entry);
+        _displayLog = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(), 1);
+        foreach (var row in _displayLog) AppendLogRow(row);
         if (_logRendered == 0) AddEmpty(_logRows, "아직 기록된 시설 로그가 없습니다.", Cyan with { A = 0.65f });
         QueueLogScroll(true, 0);
     }
@@ -368,15 +377,20 @@ public partial class Day1HistoryOverlay : CanvasLayer
         QueueDialogueScroll(true, 0);
     }
 
+    // 원본 기록 하나가 화면 로그 0줄이 될 수도, 여러 줄이 될 수도 있다.
+    // 요약본을 다시 만들어 늘어난 만큼만 덧붙인다.
     private void OnLogAdded()
     {
         if (_mode != WindowMode.Log) return;
-        var entry = EventLog.Instance?.GetAllEntries().LastOrDefault();
-        if (entry == null || entry.Day != 1) return;
+        var rebuilt = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(), 1);
+        if (rebuilt.Count == _displayLog.Count) { _displayLog = rebuilt; return; }
+        if (rebuilt.Count < _logRendered) { _displayLog = rebuilt; RebuildLog(); return; }
+
         bool stick = IsAtBottom(_logScroll);
         double old = _logScroll.GetVScrollBar().Value;
         if (_logRendered == 0) ClearRows(_logRows);
-        AppendLogRow(entry);
+        for (int i = _logRendered; i < rebuilt.Count; i++) AppendLogRow(rebuilt[i]);
+        _displayLog = rebuilt;
         QueueLogScroll(stick, old);
     }
 
@@ -402,16 +416,64 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (_mode == WindowMode.Dialogue) RebuildDialogue();
     }
 
-    private void AppendLogRow(LogEntry entry)
+    // 시각은 기본색, 본문은 "직원 고유색" 또는 "중요도 색". 두 색을 한 줄에 쓰기 위해
+    // RichTextLabel 을 사용한다.
+    private void AppendLogRow(DisplayLogEntry row)
     {
-        Label line = LabelFor($"{ShiftClock(entry.GameTimeSeconds)}   {StripLog(entry.Description)}", 18,
-            new Color(0.82f, 0.96f, 0.98f), _body);
-        line.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        line.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        line.CustomMinimumSize = new Vector2(0, 29);
+        var line = new RichTextLabel
+        {
+            BbcodeEnabled = true,
+            FitContent = true,
+            ScrollActive = false,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, 29),
+        };
+        line.AddThemeFontOverride("normal_font", _body);
+        line.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(18));
+        line.Text = $"[color=#{LogTime.ToHtml(false)}]{ShiftClock(row.Timestamp)}[/color]  " +
+                    $"[color=#{BodyColor(row).ToHtml(false)}]{Marker(row.Severity)} {Escape(row.Text)}[/color]";
         _logRows.AddChild(line);
         _logRendered++;
     }
+
+    // 직원 개인의 행동이면 그 직원의 고유색(IconColor), 시설 사건이면 중요도 색.
+    private static Color BodyColor(DisplayLogEntry row)
+    {
+        if (!string.IsNullOrEmpty(row.RelatedEmployeeId))
+        {
+            var def = FacilitySimulation.Instance?.GetEmployeeDef(row.RelatedEmployeeId);
+            if (def != null) return Readable(def.IconColor);
+        }
+        return row.Severity switch
+        {
+            DisplayLogSeverity.Warning => LogWarning,
+            DisplayLogSeverity.Critical => LogCritical,
+            DisplayLogSeverity.Recovery => LogRecovery,
+            _ => LogNormal,
+        };
+    }
+
+    // 까마귀처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
+    // 최소 밝기까지만 끌어올린다 — PhoneCallHud 와 같은 방식.
+    private static Color Readable(Color c)
+    {
+        float lum = c.R * 0.299f + c.G * 0.587f + c.B * 0.114f;
+        const float min = 0.55f;
+        return lum >= min ? c : c.Lerp(Colors.White, (min - lum) / Mathf.Max(0.001f, 1f - lum));
+    }
+
+    private static string Marker(DisplayLogSeverity severity) => severity switch
+    {
+        DisplayLogSeverity.Warning => "⚠",
+        DisplayLogSeverity.Critical => "■",
+        DisplayLogSeverity.Recovery => "✓",
+        _ => "·",
+    };
+
+    // 작업실/업무 이름에 대괄호가 들어가도 BBCode 태그로 해석되지 않게 한다.
+    private static string Escape(string text) => (text ?? "").Replace("[", "[lb]");
 
     private void AppendDialogueRow(DialogueHistoryEntry entry)
     {
@@ -502,9 +564,6 @@ public partial class Day1HistoryOverlay : CanvasLayer
         label.AddThemeColorOverride("font_color", color);
         return label;
     }
-
-    private static string StripLog(string value) =>
-        (value ?? "").Replace("⚠", "").Replace("🚨", "").Trim();
 
     private static string ShiftClock(float elapsedSeconds)
     {
