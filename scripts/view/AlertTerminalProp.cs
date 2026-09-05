@@ -12,6 +12,7 @@ namespace NSP.View;
 public partial class AlertTerminalProp : Node3D
 {
     private AlertTerminalView _ui;
+    private SubViewport _screenVp;
     private StandardMaterial3D _lamp1Mat, _lamp2Mat;
     private Node3D _beaconPivot;
     private SpotLight3D _beaconLight;
@@ -40,14 +41,13 @@ public partial class AlertTerminalProp : Node3D
         var logical = new Vector2I(384, 300);
         var vp = new SubViewport
         {
-            Size = new Vector2I(
-                Mathf.RoundToInt(logical.X * ControlRoom3DController.UiScale),
-                Mathf.RoundToInt(logical.Y * ControlRoom3DController.UiScale)),
+            Size = ControlRoom3DController.ViewportSize(logical),
             RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             Disable3D = true,
             TransparentBg = false,
         };
+        _screenVp = vp;
         _attachmentRoot.AddChild(vp);
         _ui = new AlertTerminalView();
         ControlRoom3DController.AddScaledView(vp, _ui, logical);
@@ -158,6 +158,13 @@ public partial class AlertTerminalProp : Node3D
     public override void _Process(double delta)
     {
         if (_ui == null) return;
+
+        // 성능: 근무 배치 단계처럼 단말기가 책상에서 치워져 있으면 화면을 그리지 않는다.
+        if (_screenVp != null)
+        {
+            var want = IsVisibleInTree() ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
+            if (_screenVp.RenderTargetUpdateMode != want) _screenVp.RenderTargetUpdateMode = want;
+        }
 
         // ── 화면 옆 소형 LED (기존 동작) ──
         var sev = _ui.CurrentSeverity;

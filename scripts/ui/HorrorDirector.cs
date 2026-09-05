@@ -304,8 +304,11 @@ public partial class HorrorDirector : Node
         if (sim == null) return;
 
         // "터지기 직전" 상태(제한시간 임박 / 금기 홀드 진행) → LEVEL 2 사전 징후.
-        bool imminent = sim.GetRoomIds().Any(r =>
-            RoomStatusText.GetDangerTier(r) is RoomDangerTier.Unstable or RoomDangerTier.Delayed);
+        // 성능: 매 프레임 도는 검사라 LINQ(클로저/이터레이터 할당) 대신 foreach 로 돈다.
+        bool imminent = false;
+        foreach (var r in sim.GetRoomIds())
+            if (RoomStatusText.GetDangerTier(r) is RoomDangerTier.Unstable or RoomDangerTier.Delayed)
+            { imminent = true; break; }
         if (imminent) PlayLevel2();
     }
 

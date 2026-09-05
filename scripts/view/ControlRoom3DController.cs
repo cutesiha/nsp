@@ -29,10 +29,43 @@ public partial class ControlRoom3DController : Node3D
     // 레이아웃 코드는 손대지 않고, View 를 이 배율로 스케일한 프레임 안에 넣어 통째로 확대한다.
     public const float UiScale = 1.3f;
 
+    // 성능: SubViewport 의 '렌더 해상도만' 낮추는 배율(레이아웃/글자 크기는 그대로).
+    // 뷰포트 크기와 스케일 프레임에 똑같이 곱하므로 화면에 보이는 결과는 동일하고
+    // 텍셀 수만 줄어든다(입력 좌표 매핑도 vp.Size 기준이라 그대로 맞는다).
+    private static float _renderScale = -1f;
+    public static float RenderScale
+    {
+        get
+        {
+            if (_renderScale > 0f) return _renderScale;
+            // [Tool] 스크립트가 에디터에서 이걸 읽을 때 설정을 로드하면 에디터 창 모드까지
+            // 건드리게 된다 — 에디터에서는 항상 원래 해상도로 둔다.
+            if (Engine.IsEditorHint()) return 1f;
+            GameSettings.Load();
+            _renderScale = GameSettings.GraphicsQuality switch
+            {
+                GameSettings.Quality.Low => 0.70f,
+                GameSettings.Quality.Medium => 0.85f,
+                _ => 1.0f,
+            };
+            return _renderScale;
+        }
+    }
+
+    // 논리 캔버스 크기 → 실제 SubViewport 렌더 해상도.
+    public static Vector2I ViewportSize(Vector2I logicalSize)
+    {
+        float k = UiScale * RenderScale;
+        return new Vector2I(
+            Mathf.Max(1, Mathf.RoundToInt(logicalSize.X * k)),
+            Mathf.Max(1, Mathf.RoundToInt(logicalSize.Y * k)));
+    }
+
     public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize)
     {
         var frame = new Control { Size = logicalSize, MouseFilter = Control.MouseFilterEnum.Ignore };
-        frame.Scale = new Vector2(UiScale, UiScale);
+        float k = UiScale * RenderScale;
+        frame.Scale = new Vector2(k, k);
         vp.AddChild(frame);
         frame.AddChild(view);
     }
@@ -137,10 +170,13 @@ public partial class ControlRoom3DController : Node3D
     private void BuildViewports()
     {
         // CCTV 3D 월드 — 자체 World3D 로 격리해서 중앙제어실 3D 와 섞이지 않게 한다.
+        // 이 뷰포트는 '두 번째 3D 렌더 패스'라 가장 비싸다. 오른쪽 CRT 가 실제로 CCTV
+        // 화면을 띄우고 있을 때만 갱신한다(UpdateActiveViewports).
         _facilityCctvVp = new SubViewport
         {
-            Size = new Vector2I(640, 480),
-            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            Size = new Vector2I(
+                Mathf.RoundToInt(640 * RenderScale), Mathf.RoundToInt(480 * RenderScale)),
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             OwnWorld3D = true,
             Disable3D = false,
@@ -179,6 +215,53 @@ public partial class ControlRoom3DController : Node3D
             if (s.Name.ToString().Contains(token))
                 s.Configure(vp);
         ApplyScreenParams();
+        UpdateActiveViewports();
+    }
+
+    // 성능: CRT 프로그램은 5개(시설/CCTV/보고서/휴게명단/인터뷰)지만 한 번에 화면에
+    // 붙어 있는 건 최대 2개다. 나머지는 매 프레임 render target 을 새로 그릴 이유가 없다.
+    // 지금 어느 화면에도 안 붙은 뷰포트는 Disabled 로 내려 GPU/CPU 를 통째로 아낀다.
+    // (Disabled 여도 안의 Control 은 _Process/_Input 을 그대로 받으므로 로직은 동일하다.)
+    private void UpdateActiveViewports()
+    {
+        bool cctvOnScreen = false;
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp })
+        {
+            if (vp == null) continue;
+            bool bound = false;
+            foreach (var s in _screens)
+                if (s.TargetViewport == vp) { bound = true; break; }
+
+            // CRT 가 꺼져 있는 단계(시작 화면 / 근무 배치)에서는 화면이 사실상 검게
+            // 눌려 있으므로 한 프레임만 그려두고 멈춘다(Once → 엔진이 알아서 Disabled).
+            var want = !bound ? SubViewport.UpdateMode.Disabled
+                : _brightness > 0.1f ? SubViewport.UpdateMode.Always
+                : SubViewport.UpdateMode.Once;
+            if (vp.RenderTargetUpdateMode != want) vp.RenderTargetUpdateMode = want;
+
+            if (bound && vp == _cctvVp) cctvOnScreen = true;
+        }
+
+        _cctvOnScreen = cctvOnScreen;
+        UpdateCctvWorldViewport();
+    }
+
+    private bool _cctvOnScreen;
+
+    // 두 번째 3D 렌더 패스(작업실 월드)는 오른쪽 CRT 가 CCTV 를 띄우고 있고, 그 화면이
+    // 실제로 켜져 있을 때만 돌린다. 시작 화면/근무 배치처럼 CRT 가 꺼져 있는 동안에는
+    // 어차피 보이지 않으므로 통째로 멈춘다.
+    private void UpdateCctvWorldViewport()
+    {
+        if (_facilityCctvVp == null) return;
+        // 화면에 붙어 있고 + CRT 가 켜져 있고 + 실제로 피드가 나오는 중일 때만.
+        // (NO SIGNAL / CCTV 전력 OFF 동안에는 어차피 노이즈만 보이므로 3D 를 멈춘다.)
+        bool feedLive = CCTVMonitorView.Instance?.FeedVisible ?? true;
+        var want = _cctvOnScreen && _brightness > 0.1f && feedLive
+            ? SubViewport.UpdateMode.Always
+            : SubViewport.UpdateMode.Disabled;
+        if (_facilityCctvVp.RenderTargetUpdateMode != want)
+            _facilityCctvVp.RenderTargetUpdateMode = want;
     }
 
     private void ApplyScreenParams()
@@ -195,10 +278,9 @@ public partial class ControlRoom3DController : Node3D
     {
         var vp = new SubViewport
         {
-            Size = new Vector2I(
-                Mathf.RoundToInt(MonitorCanvasSize.X * UiScale),
-                Mathf.RoundToInt(MonitorCanvasSize.Y * UiScale)),
-            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            Size = ViewportSize(MonitorCanvasSize),
+            // 어느 CRT 에도 안 붙은 동안은 그리지 않는다 — UpdateActiveViewports 가 켜준다.
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             HandleInputLocally = true,
             GuiDisableInput = false,
@@ -216,6 +298,8 @@ public partial class ControlRoom3DController : Node3D
             bool isFacility = s.Name.ToString().Contains("01");
             s.Configure(isFacility ? _facilityVp : _cctvVp);
         }
+
+        UpdateActiveViewports();
 
         // 근무 부팅 전까지 CRT 는 꺼진 상태로 둔다(시작 화면 / 배치 단계).
         SetScreenBrightness(0.02f);
@@ -238,6 +322,9 @@ public partial class ControlRoom3DController : Node3D
 
     public override void _Process(double delta)
     {
+        // CCTV 피드 상태는 매 프레임 바뀔 수 있으므로 여기서 계속 반영한다(값이 같으면 no-op).
+        UpdateCctvWorldViewport();
+
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
 
         GameState.Instance.AdvanceDayTime((float)delta);
@@ -462,7 +549,12 @@ public partial class ControlRoom3DController : Node3D
 
     // --- PHASE 6 훅 ---------------------------------------------------
 
-    public void SetScreenBrightness(float v) { _brightness = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("brightness", v); }
+    public void SetScreenBrightness(float v)
+    {
+        _brightness = v;
+        foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("brightness", v);
+        UpdateActiveViewports();
+    }
     public void SetScreenDistortion(float v) { _distortion = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("h_distortion", v); }
     public void SetScreenNoise(float v) { _noise = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("noise_strength", v); }
 }

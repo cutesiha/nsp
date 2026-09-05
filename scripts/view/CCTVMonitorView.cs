@@ -19,6 +19,11 @@ public partial class CCTVMonitorView : Control
     private TextureRect _bgTex;
     private CctvPlaceholder _bgPlaceholder;
     private bool _feedBound;
+
+    // 성능 훅: 지금 이 화면이 실제 3D 작업실 피드를 보여주고 있는가.
+    // ControlRoom3DController 가 이걸 보고 CCTV 3D 월드 SubViewport 를 켜고 끈다
+    // (NO SIGNAL / 전력 OFF 동안에는 두 번째 3D 렌더 패스를 통째로 멈춘다).
+    public bool FeedVisible { get; private set; }
     private Control _employeeLayer;
     private ColorRect _tint;
     private Label _stateLabel;
@@ -130,6 +135,7 @@ public partial class CCTVMonitorView : Control
 
     public override void _Process(double delta)
     {
+        FeedVisible = false;
         float d = (float)delta;
         var sim = FacilitySimulation.Instance;
         string roomId = sim?.SurveillanceTargetRoomId ?? "";
@@ -203,6 +209,7 @@ public partial class CCTVMonitorView : Control
         _stateLabel.Visible = false;
         BindFacilityFeed();
         bool hasFeed = _bgTex.Texture != null;
+        FeedVisible = hasFeed;
         _bgTex.Visible = hasFeed;
         _bgPlaceholder.Visible = !hasFeed;
         if (!hasFeed && _bgPlaceholder.RoomId != roomId)

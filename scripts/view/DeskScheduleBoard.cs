@@ -25,10 +25,9 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
         _vp = new SubViewport
         {
             // 렌더 해상도는 논리 캔버스 × UiScale — 배치표 글자·UI도 CRT 와 같은 배율로 키운다.
-            Size = new Vector2I(
-                Mathf.RoundToInt(CanvasSize.X * ControlRoom3DController.UiScale),
-                Mathf.RoundToInt(CanvasSize.Y * ControlRoom3DController.UiScale)),
-            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            Size = ControlRoom3DController.ViewportSize(CanvasSize),
+            // 배치표는 근무 배치 단계에서만 보인다. 그 외에는 그리지 않는다(SetActive).
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
             HandleInputLocally = true,
             GuiDisableInput = false,
@@ -103,6 +102,8 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
     {
         Visible = on;
         if (_pen != null) _pen.Visible = on;
+        if (_vp != null)
+            _vp.RenderTargetUpdateMode = on ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
         if (on)
         {
             if (_surface != null)
@@ -120,7 +121,7 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
     // 근무 확정 시 종이를 한쪽으로 치우는 연출.
     public void PlayDismiss()
     {
-        if (_surface == null) { Visible = false; return; }
+        if (_surface == null) { SetActive(false); return; }
         var t = CreateTween();
         t.SetParallel(true);
         t.TweenProperty(_surface, "position:x", 0.42f, 0.32);
@@ -129,6 +130,8 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
         {
             Visible = false;
             if (_pen != null) _pen.Visible = false;
+            // 종이를 치운 뒤에는 배치표 뷰포트도 멈춘다(근무 내내 매 프레임 그리지 않도록).
+            if (_vp != null) _vp.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
         }));
     }
 

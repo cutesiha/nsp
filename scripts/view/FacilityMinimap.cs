@@ -39,6 +39,7 @@ public partial class FacilityMinimap : Control
     private static readonly Vector2 BoxSize = new(92f, 56f);
 
     private Font _font;
+    private readonly HashSet<string> _seenCorridors = new();
 
     public override void _Ready()
     {
@@ -82,7 +83,9 @@ public partial class FacilityMinimap : Control
 
     private void DrawCorridors(FacilitySimulation sim)
     {
-        var seen = new HashSet<string>();
+        // 성능: 매 프레임 도는 _Draw 라 HashSet 을 새로 만들지 않고 재사용한다.
+        _seenCorridors.Clear();
+        var seen = _seenCorridors;
         var col = new Color(0.30f, 0.37f, 0.33f);
         foreach (var roomId in Layout.Keys)
         {

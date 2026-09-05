@@ -306,7 +306,8 @@ public partial class FacilityMonitorView : Control
 
     public override void _Process(double delta)
     {
-        _clock.Text = ShiftClock(GameState.Instance?.DayTimeSeconds ?? 0f);
+        string clock = ShiftClock(GameState.Instance?.DayTimeSeconds ?? 0f);
+        if (_clock.Text != clock) _clock.Text = clock;
         UpdateProtocol();
         UpdateInspector();
 
@@ -316,25 +317,36 @@ public partial class FacilityMonitorView : Control
             _alertLine.Modulate = new Color(1, 1, 1, 0.4f + 0.6f * Mathf.Abs(Mathf.Sin(Time.GetTicksMsec() / 120f)));
     }
 
+    // 성능: RichTextLabel 에 Text 를 대입하면 내용이 같아도 BBCode 를 다시 파싱하고
+    // 레이아웃을 다시 잡는다. 매 프레임 그 비용을 내지 않도록 바뀔 때만 대입한다.
+    private string _inspectorCache;
+    private void SetInspector(string text)
+    {
+        if (_inspectorCache == text) return;
+        _inspectorCache = text;
+        _inspector.Text = text;
+    }
+
     private void UpdateProtocol()
     {
         var sb = new StringBuilder("TODAY'S PROTOCOL   ");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
         if (taboos == null || taboos.Count == 0) sb.Append("—");
         else sb.Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
-        _protocol.Text = sb.ToString();
+        string protocol = sb.ToString();
+        if (_protocol.Text != protocol) _protocol.Text = protocol;
     }
 
     private void UpdateInspector()
     {
         var sim = FacilitySimulation.Instance;
-        if (sim == null) { _inspector.Text = ""; return; }
+        if (sim == null) { SetInspector(""); return; }
 
         if (!string.IsNullOrEmpty(_selEmp))
         {
             var def = sim.GetEmployeeDef(_selEmp);
             var st = sim.GetEmployeeState(_selEmp);
-            if (def == null || st == null) { _inspector.Text = "—"; _isolateBtn.Visible = false; return; }
+            if (def == null || st == null) { SetInspector("—"); _isolateBtn.Visible = false; return; }
 
             string room = sim.GetRoomDef(st.CurrentRoomId)?.DisplayName ?? "—";
             var task = sim.GetActiveTaskForRoom(st.CurrentRoomId);
@@ -343,13 +355,13 @@ public partial class FacilityMonitorView : Control
                 : st.IsMoving ? "이동 중"
                 : st.Stress > 70 ? "[color=#ffaa44]과부하[/color]" : "정상";
 
-            _inspector.Text =
+            SetInspector(
                 $"[color=#ffc040]EMPLOYEE[/color]\n[font_size=18]{def.Codename}[/font_size]\n\n" +
                 $"현재 위치 : {room}\n" +
                 $"현재 작업 : {(st.IsMoving ? "이동" : task?.DisplayName ?? "대기")}\n" +
                 $"기술 {def.Tech}  담력 {def.Courage}  관찰 {def.Observation}\n" +
                 $"스트레스 : {st.Stress:0}%\n" +
-                $"상태 : {status}";
+                $"상태 : {status}");
 
             _isolateBtn.Visible = st.Alive;
             _isolateBtn.Text = st.Isolated ? "격리 취소" : "격리";
@@ -362,7 +374,7 @@ public partial class FacilityMonitorView : Control
         {
             var def = sim.GetRoomDef(_selRoom);
             var state = sim.GetRoomState(_selRoom);
-            if (def == null || state == null) { _inspector.Text = "—"; return; }
+            if (def == null || state == null) { SetInspector("—"); return; }
 
             var st = sim.GetPrimarySpawnedTask(_selRoom);
             var tier = RoomStatusText.GetDangerTier(_selRoom);
@@ -399,11 +411,11 @@ public partial class FacilityMonitorView : Control
 
             // 설명 아래 — 고장 위험(카운트다운) 또는 이미 고장난 상태. 둘 다 아니면 안 띄운다.
             sb.Append(BuildRiskBlock(_selRoom, st, tier));
-            _inspector.Text = sb.ToString();
+            SetInspector(sb.ToString());
             return;
         }
 
-        _inspector.Text = "[color=#556]지도에서 방 또는 직원을 선택하세요.[/color]";
+        SetInspector("[color=#556]지도에서 방 또는 직원을 선택하세요.[/color]");
     }
 
     // 고장 위험 / 고장 상태 블록. 위험도 고장도 없으면 아무것도 붙이지 않는다.

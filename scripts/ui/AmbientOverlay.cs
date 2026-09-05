@@ -78,16 +78,19 @@ public partial class AmbientOverlay : CanvasLayer
         _noiseRect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_noiseRect);
 
+        // 성능: 알파 0인 전체화면 ColorRect도 매 프레임 1920x1080을 블렌딩한다. 내장 GPU에서는
+        // 이게 그냥 낭비라 실제로 쓰일 때만 Visible 로 켠다(보이는 결과는 동일).
         _flash = new ColorRect
         {
             Color = new Color(1f, 1f, 1f, 0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false,
         };
         _flash.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_flash);
 
         // SHUT DOWN — 전력 0. 화면이 확 어두워지고 붉은 대형 문구.
-        _shutdownDim = new ColorRect { Color = new Color(0f, 0f, 0f, 0f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        _shutdownDim = new ColorRect { Color = new Color(0f, 0f, 0f, 0f), MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
         _shutdownDim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_shutdownDim);
 
@@ -135,9 +138,15 @@ public partial class AmbientOverlay : CanvasLayer
 
         // SHUT DOWN 페이드 + 깜빡이는 문구
         _shutdownT = Mathf.Clamp(_shutdownT + (_shutdown ? d * 2.5f : -d * 3f), 0f, 1f);
+        bool shutdownVisible = _shutdownT > 0.001f;
+        if (_shutdownDim.Visible != shutdownVisible) _shutdownDim.Visible = shutdownVisible;
+        if (_shutdownLabel.Visible != shutdownVisible) _shutdownLabel.Visible = shutdownVisible;
         _shutdownDim.Color = new Color(0f, 0f, 0f, 0.72f * _shutdownT);
         float blink = _shutdown ? 0.55f + 0.45f * Mathf.Sin(_clock * 6f) : 1f;
         _shutdownLabel.Modulate = new Color(1f, 1f, 1f, _shutdownT * blink);
+
+        // 플래시가 다 사그라들면 전체화면 블렌드를 끈다(Flash() 가 다시 켠다).
+        if (_flash.Visible && _flash.Color.A <= 0.002f) _flash.Visible = false;
         if (_shutdownT > 0.01f && _shutdown && Mathf.PosMod(_clock, 0.9f) < d) _extraNoise = Mathf.Max(_extraNoise, 0.3f);
     }
 
@@ -145,6 +154,7 @@ public partial class AmbientOverlay : CanvasLayer
     public void Flash(float strength = 0.6f)
     {
         strength = Mathf.Clamp(strength, 0.05f, 1f);
+        _flash.Visible = true;
         var t = CreateTween();
         t.TweenProperty(_flash, "color:a", strength, 0.03);
         t.TweenProperty(_flash, "color:a", 0f, 0.12 + 0.16 * strength);

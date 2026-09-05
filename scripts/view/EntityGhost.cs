@@ -4,7 +4,7 @@ namespace NSP.View;
 
 // entity.glb(결번자 "존재") 인스턴스의 메시에 석고/플라스터 느낌 머티리얼을 입힌다.
 //  - 몸통: 흰색~옅은 회색, 거칠고 무광(StandardMaterial3D, roughness 높음, metallic 0)
-//  - 손끝/발끝: 검붉은색 — 메시 로컬 AABB 기준으로 "아래쪽(발) / 좌우 바깥 아래(손)" 정점에
+//  - 손끝/발끝: 검붉은색 — 메시 로컬 AABB 기준으로 "아래쪽(발) / 좌우로 뻗은 위쪽(손)" 정점에
 //    버텍스 컬러를 구워 넣고, StandardMaterial3D 의 vertex_color_use_as_albedo 로 표현한다.
 //    (텍스처 제작 없이 색/러프니스만으로 처리 — 요청 사항)
 // [Tool] — 에디터에서도 바로 반영된다.
@@ -14,8 +14,11 @@ public partial class EntityGhost : Node3D
     [Export] public Color BodyColor = new(0.86f, 0.86f, 0.87f);
     [Export] public Color TipColor = new(0.22f, 0.03f, 0.035f);
     [Export(PropertyHint.Range, "0,1")] public float Roughness = 0.93f;
-    // 끝부분이 물드는 범위(정규화 0~1). 클수록 손발 위쪽까지 붉게 번진다.
+    // 발끝이 물드는 높이 범위(정규화 0~1). 클수록 발목 위까지 붉게 번진다.
     [Export(PropertyHint.Range, "0.02,0.5")] public float TipReach = 0.16f;
+    // 손이 물드는 좌우 범위. 몸 중심축에서 좌우로 얼마나 뻗어야 붉어지기 시작하는지(0=중심, 1=제일 바깥).
+    // 값을 낮출수록 팔뚝 안쪽까지 붉게 번진다.
+    [Export(PropertyHint.Range, "0.1,0.9")] public float HandReach = 0.38f;
 
     public override void _Ready()
     {
@@ -47,9 +50,14 @@ public partial class EntityGhost : Node3D
             {
                 Vector3 n = (verts[i] - mn) * inv;                       // 0..1 per axis
                 float feet = Smooth(TipReach, 0f, n.Y);                  // 바닥 쪽 = 발끝
-                // 세로 중심축에서 XZ 로 멀리 뻗은 부분(벌린 팔·손). 몸통 중앙은 안 물든다.
-                float radial = new Vector2(n.X - 0.5f, n.Z - 0.5f).Length() * 2f;
-                float hands = Smooth(0.42f, 0.95f, radial) * Smooth(0.95f, 0.12f, n.Y);
+
+                // 손: 이 모델은 팔을 좌우로 펼치고 있으므로 "중심축에서 X 로 멀리 뻗은 위쪽"이 손이다.
+                // Z(몸 두께)는 쓰지 않는다 — Z 범위가 곧 몸통 두께라, 섞으면 가슴/등까지 물든다.
+                float lateral = Mathf.Abs(n.X - 0.5f) * 2f;              // 0=중심축, 1=제일 바깥
+                // 높이 게이트는 '위로 갈수록 1'. 다리·발은 feet 가 이미 담당하므로 아래쪽은 뺀다.
+                float upper = Smooth(0.45f, 0.62f, n.Y);
+                float hands = Smooth(HandReach, HandReach + 0.18f, lateral) * upper;
+
                 float tip = Mathf.Clamp(feet + hands, 0f, 1f);
                 colors[i] = BodyColor.Lerp(TipColor, Mathf.Pow(tip, 1.1f));
             }
