@@ -131,7 +131,7 @@ public static class RoomStatusText
         // 이미 실제로 벌어진 지속형 이상 상태 — 잠금(구역 봉쇄)은 플레이어의 의도적 조치라
         // "고장"으로 취급하지 않는다.
         var rdef = sim.GetRoomDef(roomId);
-        bool activeFailure = !state.PowerOn || state.CctvDisconnected
+        bool activeFailure = !state.PowerOn || sim.IsRoomCctvBlocked(roomId)
             || (rdef?.ManagedResource == RoomResourceType.Power && GameState.Instance.IsPowerAccidentActive())
             || (roomId == "guard_room" && GameState.Instance.CctvSystemOffline)
             || (roomId == "maintenance_room" && GameState.Instance.MaterialsProductionHalted)
@@ -170,7 +170,7 @@ public static class RoomStatusText
         if (roomId == "maintenance_room" && gs.MaterialsProductionHalted) return "자재 생산 정지";
         if (roomId == "vent_room" && gs.VentilationDown) return "환기 정지";
         if (!state.PowerOn) return "전력 차단";
-        if (state.CctvDisconnected) return "CCTV 단절";
+        if (FacilitySimulation.Instance?.IsRoomCctvBlocked(state.RoomId) == true) return "CCTV 단절";
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
         if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return "설비 고장";

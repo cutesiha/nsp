@@ -4,9 +4,12 @@
 
 [resource]
 script = ExtResource("1_taboo")
-TabooId = "taboo_redlight_codename"
-Description = "적색등 아래에서 코드네임을 부르지 말 것"
-ConditionType = 2
+TabooId = "taboo_call_dark_room"
+Description = "조명이 꺼진 곳의 직원을 호출하지 마십시오."
+ConditionType = 5
 ConditionParams = {}
-ConsequenceType = 3
-ConsequenceParams = {}
+ConsequenceType = 14
+ConsequenceParams = {
+"seconds": 20.0,
+"stress": 8.0
+}

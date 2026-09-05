@@ -52,6 +52,8 @@ public enum TaskEffectType
     AddMaterials,
     ReduceStress,
     BoostPowerCapacity,
+    // 저장고 상시 업무: 자재 보유 한도를 EffectAmount 만큼 올린다(MaterialsCapMax 까지).
+    RaiseMaterialsCap,
 }
 
 public enum TabooConditionType
@@ -59,6 +61,23 @@ public enum TabooConditionType
     MaxHeadcountInRoom,
     MinHeadcountInRoomAfterHour,
     CodenameSpokenUnderRedLight,
+    // ② 담력이 낮은 직원이 특정 방에서 혼자 근무 (params: room_id, max_courage, hold_seconds)
+    LowCourageAloneInRoom,
+    // ③ 종이 3번 울린 뒤 일정 시간 동안 직원 이동 금지 (params: window_seconds) — NotifyBellRang 훅
+    MovementAfterBell,
+    // ④ 조명이 꺼진 방의 직원에게 전화 (params 없음) — NotifyCallPlaced 훅
+    CallEmployeeInDarkRoom,
+    // ⑤ 같은 직원과 두 번 통화 (params 없음) — NotifyCallPlaced 훅
+    CallSameEmployeeTwice,
+    // ⑥ 같은 직원이 한 방에서 연속 근무 (params: room_id, hold_seconds)
+    ContinuousWorkInRoom,
+    // ⑦ 스트레스가 기준 이상인 직원 두 명을 동시에 치료 (params: room_id, stress_min, count)
+    TreatTwoHighStress,
+    // ⑧ 경비실 근무자가 혼자일 때 CCTV 연속 전환 (params: streak) — NotifyCctvSwitched 훅
+    CctvSwitchStreakAlone,
+    // ⑩ 자재가 기준 이상인데 저장고를 비워 둠(근무자 0명)
+    //    (params: room_id, materials_min, hold_seconds)
+    EmptyStorageWhenMaterialsHigh,
 }
 
 public enum TabooConsequenceType
@@ -75,6 +94,32 @@ public enum TabooConsequenceType
     MaterialsHalt,
     // FAIL-02: 환기 정지 → 전 직원 스트레스 수리 전까지 지속 상승.
     VentilationFault,
+    // 의료 장비 오염 — 의무실 스트레스 치료가 수리 전까지 불가.
+    MedicalContamination,
+    // 봉쇄 코어 출력 불안정 — 코어 복구 정지 + 주기적으로 복구율 감소.
+    CoreOutputUnstable,
+    // 보관 선반 붕괴 — 자재 보유 한도 감소, 한도 초과분 즉시 파괴.
+    StorageCollapse,
+
+    // ── 금기 위반 페널티 ────────────────────────────────────────────────
+    // 환기 일정 시간 중단 + 해당 직원 스트레스 증가.
+    VentHaltAndStress,
+    // 이동한 직원의 위치 파악·전화가 일정 시간 불가.
+    TrackingLost,
+    // 전화기 자체가 일정 시간 사용 불가 + 해당 직원 스트레스 증가.
+    PhoneLockAndStress,
+    // 직원이 아닌 목소리가 응답 — 통화가 일정 시간 잠긴다.
+    PhoneImpostorLock,
+    // 자재 감소 + 해당 직원 스트레스 증가.
+    MaterialLossAndStress,
+    // 치료 즉시 중단 + 대상 직원들 스트레스 증가.
+    TreatmentAbortAndStress,
+    // CCTV 채널이 뒤섞여 일정 시간 방 이름과 화면이 불일치.
+    CctvChannelScramble,
+    // 해당 직원들의 업무 속도 감소(일정 시간).
+    WorkSpeedPenalty,
+    // 저장 한도 감소 + 보유 자재 감소.
+    StorageCapAndMaterialLoss,
 }
 
 public enum SaboteurActionType

@@ -1,0 +1,11 @@
+[gd_resource type="AtlasTexture" load_steps=2 format=3]
+
+; 스탠딩 원화(standing_v1)에서 머리(어깨선 위)만 잘라낸 얼굴 아이콘.
+; 근무 배치표 / 휴게실 탑뷰 / 직원 상세 카드가 EmployeeDef.FacePortrait 로 이걸 쓴다.
+; 원화를 교체하면 region 만 다시 잡으면 된다 — 새 PNG 를 만들 필요는 없다.
+
+[ext_resource type="Texture2D" path="res://assets/characters/standing_v1/cat_stand.png" id="1_stand"]
+
+[resource]
+atlas = ExtResource("1_stand")
+region = Rect2(13, 36, 424, 424)

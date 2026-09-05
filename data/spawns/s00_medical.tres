@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_spawn")
-TaskId = "lockdown_gear_check"
-SpawnAtSeconds = 30.0
-Recurring = false
-RoomId = "guard_room"
+TaskId = "staff_treatment"
+SpawnAtSeconds = 0.0
+Recurring = true
+RoomId = "medical_room"

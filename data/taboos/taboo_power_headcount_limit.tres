@@ -10,10 +10,7 @@ ConditionType = 0
 ConditionParams = {
 "room_id": "power_room",
 "max": 1,
-"hold_seconds": 8.0,
-"defer_consequence": true,
-"alert_headline": "PROTOCOL VIOLATION",
-"alert_sublabel": "POWER ROOM"
+"hold_seconds": 6.0
 }
 ConsequenceType = 5
 ConsequenceParams = {

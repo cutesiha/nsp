@@ -15,7 +15,7 @@ public partial class GameState : Node
     public float DayTimeSeconds { get; private set; } = 0f;
 
     public float CoreProgress { get; private set; } = 0f;
-    public int Materials { get; private set; } = 0;
+    public int Materials { get; private set; } = 20;
 
     // 발전기 사고(TABOO-01/FAIL-01)로 인한 임시 최대 전력 용량 감소. 누적되지 않는 단일
     // 상태값 — 사고가 이미 진행 중이면 새 사고가 더 깎지 않고, 발전기 점검을 한 번 완료하면
@@ -24,6 +24,10 @@ public partial class GameState : Node
     public GameResult Result { get; private set; } = GameResult.None;
 
     public string SaboteurEmployeeId { get; private set; } = "";
+
+    // 이번 판(5일) 전체 누적 살인 성공 횟수. 기획상 최대 2회.
+    public int TotalKills { get; private set; }
+    public void RegisterKill() => TotalKills++;
 
     private readonly Random _rng = new();
 
@@ -48,6 +52,16 @@ public partial class GameState : Node
     public override void _EnterTree()
     {
         Instance = this;
+    }
+
+    // Config autoload 가 준비된 뒤 자재 시작값/한도를 데이터에서 읽어 온다
+    // (필드 초기값은 Config 가 없을 때의 안전값일 뿐이다).
+    public override void _Ready()
+    {
+        var cfg = Config.Instance?.Data;
+        if (cfg == null) return;
+        Materials = cfg.MaterialsStart;
+        MaterialsCap = cfg.MaterialsCapBase;
     }
 
     // 발전 사고로 깎인 만큼 뺀 실제 용량(0~PowerCapacityMax).
@@ -108,9 +122,23 @@ public partial class GameState : Node
         CoreProgress = Mathf.Clamp(CoreProgress + delta, 0f, 100f);
     }
 
+    // 자재 보유 한도. 기본 30이고 저장고 상시 업무로 최대 60까지 올릴 수 있다.
+    // 사고(보관 선반 붕괴)로 다시 내려갈 수 있으며, 그때 한도를 넘은 자재는 즉시 사라진다.
+    public int MaterialsCap { get; private set; } = 30;
+
     public void AddMaterials(int delta)
     {
-        Materials = Mathf.Clamp(Materials + delta, 0, Config.Instance.Data.MaterialsCap);
+        // 한도가 꽉 찬 상태에서 생산된 초과 자재는 그냥 사라진다(넘치는 만큼 버려짐).
+        Materials = Mathf.Clamp(Materials + delta, 0, MaterialsCap);
+    }
+
+    // 저장고 작업 = 한도 상승(최대 MaterialsCapMax). 사고 = 한도 하락(음수 delta).
+    // 한도가 내려가면 초과 보유분은 즉시 파괴된다.
+    public void AddMaterialsCap(int delta)
+    {
+        var cfg = Config.Instance.Data;
+        MaterialsCap = Mathf.Clamp(MaterialsCap + delta, 0, cfg.MaterialsCapMax);
+        if (Materials > MaterialsCap) Materials = MaterialsCap;
     }
 
     // 발전 사고 시 최대 전력 용량 감소량. 서로 다른 원인(발전기 방치=3, TABOO-01=2 등)이
@@ -139,16 +167,24 @@ public partial class GameState : Node
     public bool CctvSystemOffline { get; private set; }
     public bool MaterialsProductionHalted { get; private set; }
     public bool VentilationDown { get; private set; }
+    // 의료 장비 오염 — 의무실 스트레스 치료가 수리 전까지 불가.
+    public bool MedicalContaminated { get; private set; }
+    // 봉쇄 코어 출력 불안정 — 코어 복구 정지 + 주기적으로 복구율 감소.
+    public bool CoreOutputUnstable { get; private set; }
 
     public void SetCctvSystemOffline(bool v) => CctvSystemOffline = v;
     public void SetMaterialsProductionHalted(bool v) => MaterialsProductionHalted = v;
     public void SetVentilationDown(bool v) => VentilationDown = v;
+    public void SetMedicalContaminated(bool v) => MedicalContaminated = v;
+    public void SetCoreOutputUnstable(bool v) => CoreOutputUnstable = v;
 
     public void ResetFacilityFaults()
     {
         CctvSystemOffline = false;
         MaterialsProductionHalted = false;
         VentilationDown = false;
+        MedicalContaminated = false;
+        CoreOutputUnstable = false;
     }
 
     // 처음부터 다시 시작(시작화면으로 돌아가기). autoload 라 씬을 다시 로드해도 살아남는
@@ -159,9 +195,11 @@ public partial class GameState : Node
         CurrentPhase = GamePhase.Prep;
         DayTimeSeconds = 0f;
         CoreProgress = 0f;
-        Materials = 0;
+        Materials = Config.Instance.Data.MaterialsStart;
+        MaterialsCap = Config.Instance.Data.MaterialsCapBase;
         Result = GameResult.None;
         SaboteurEmployeeId = "";
+        TotalKills = 0;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON
         ResetFacilityFaults();
     }

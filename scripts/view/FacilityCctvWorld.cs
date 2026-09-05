@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using NSP.Core;
+using NSP.Data;
 using NSP.Facility;
 using NSP.Ui;
 
@@ -24,6 +25,15 @@ public partial class FacilityCctvWorld : Node3D
     [Export] public Vector3 CameraPosition = new(3.5f, 3.05f, 3.5f);
     [Export] public Vector3 CameraLookAt = new(-0.4f, 0.5f, -0.5f);
     [Export] public float CameraFov = 58f;
+
+    // 휴게시간 인터뷰용 사이드뷰. 근무 CCTV 가 코너에서 내려다보는 부감이라면, 이쪽은
+    // 사람 눈높이에서 옆으로 비스듬히 보는 구도다 — 같은 3D 방을 카메라만 바꿔 재사용한다.
+    [Export] public string InterviewRoomId = "medical_room";
+    [Export] public Vector3 InterviewCameraPosition = new(4.3f, 1.62f, 1.15f);
+    [Export] public Vector3 InterviewCameraLookAt = new(-0.3f, 1.15f, -0.55f);
+    [Export] public float InterviewCameraFov = 46f;
+
+    private bool _interviewMode;
 
     // roomId -> 방 씬 경로. central_office(중앙제어실)는 CCTV 대상 아님.
     private static readonly Dictionary<string, string> RoomScenes = new()
@@ -132,8 +142,15 @@ public partial class FacilityCctvWorld : Node3D
         if (!_employeesBuilt) BuildEmployees();
 
         var sim = FacilitySimulation.Instance;
+
+        // 휴게시간에는 같은 월드를 '인터뷰 사이드뷰'로 쓴다(오른쪽 CRT = InterviewCCTVView).
+        // 방 선택과 카메라만 바뀌며 시뮬레이션 상태는 건드리지 않는다.
+        bool interview = GameState.Instance?.CurrentPhase == GamePhase.Rest;
+        if (interview != _interviewMode) ApplyCameraMode(interview);
+
         // 시뮬레이션이 없으면(F6 단독 프리뷰) 방 하나는 보여준다.
-        string target = sim == null ? "core_room" : sim.SurveillanceTargetRoomId ?? "";
+        string target = interview ? InterviewRoomId
+            : sim == null ? "core_room" : sim.SurveillanceTargetRoomId ?? "";
 
         if (target != _shownRoom)
         {
@@ -142,8 +159,13 @@ public partial class FacilityCctvWorld : Node3D
                 node.Visible = roomId == target;
         }
 
-        UpdateEmployees(sim, target);
-        if (!_hauntActive) UpdateEntity(target);
+        // 인터뷰 화면에서는 직원을 2D 스탠딩 원화로 보여주므로 3D 플레이스홀더는 감춘다.
+        if (interview) HideAllActors();
+        else
+        {
+            UpdateEmployees(sim, target);
+            if (!_hauntActive) UpdateEntity(target);
+        }
 
         // 카메라 흔들림(카메라 공격 연출).
         double now = Time.GetTicksMsec() / 1000.0;
@@ -160,6 +182,25 @@ public partial class FacilityCctvWorld : Node3D
             _camShakeStrength = Mathf.MoveToward(_camShakeStrength, 0f, (float)delta * 40f);
             _camera.Rotation = _camera.Rotation.Lerp(_camBaseRot, Mathf.Clamp((float)delta * 12f, 0f, 1f));
         }
+    }
+
+    // 근무 CCTV 부감 ↔ 휴게시간 인터뷰 사이드뷰 전환. 카메라만 옮긴다.
+    private void ApplyCameraMode(bool interview)
+    {
+        _interviewMode = interview;
+        if (_camera == null) return;
+
+        _camera.Fov = interview ? InterviewCameraFov : CameraFov;
+        _camera.GlobalPosition = interview ? InterviewCameraPosition : CameraPosition;
+        _camera.LookAt(interview ? InterviewCameraLookAt : CameraLookAt, Vector3.Up);
+        _camBaseRot = _camera.Rotation;   // 흔들림 연출의 기준 자세도 같이 갱신
+    }
+
+    private void HideAllActors()
+    {
+        foreach (var (_, ph) in _employees)
+            if (ph.Visible) ph.Visible = false;
+        if (_entity != null && _entity.Visible && !_hauntActive) _entity.Visible = false;
     }
 
     // ── 발전실 금기 이벤트 연출 훅 (PowerRoomTabooEvent 가 순서대로 호출) ──────────
@@ -280,7 +321,9 @@ public partial class FacilityCctvWorld : Node3D
         {
             var st = sim.GetEmployeeState(id);
             string room = st == null ? "" : st.Isolated ? "isolation_room" : st.CurrentRoomId;
-            bool show = st is { Alive: true } && room == target && _rooms.ContainsKey(target);
+            // 오늘 배치되지 않은 직원은 근무 인원이 아니다 — 미니맵과 마찬가지로 CCTV 에도 안 잡힌다.
+            bool onShift = st != null && (st.Isolated || sim.IsOnDuty(id));
+            bool show = st is { Alive: true } && onShift && room == target && _rooms.ContainsKey(target);
 
             ph.Visible = show;
             if (!show) continue;

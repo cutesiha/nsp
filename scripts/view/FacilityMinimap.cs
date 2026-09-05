@@ -201,6 +201,9 @@ public partial class FacilityMinimap : Control
         if (!lightingOk && !(sim.GetRoomDef(st.CurrentRoomId)?.HasEmergencyLighting ?? false))
             return;
 
+        // 금기 페널티(위치 두절) 중인 직원도 지도에서 사라진다 — 데이터는 그대로다.
+        if (NSP.Taboo.TabooRuleSystem.Instance?.IsTrackingLost(id) == true) return;
+
         Vector2 p = st.Position;
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
 

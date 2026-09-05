@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
-[ext_resource type="Texture2D" path="res://assets/characters/fox.PNG" id="2_img"]
-[ext_resource type="Texture2D" path="res://assets/characters/fox_face.png" id="3_face"]
+[ext_resource type="Texture2D" path="res://assets/characters/standing_v1/fox_stand.png" id="2_img"]
+[ext_resource type="AtlasTexture" path="res://assets/characters/standing_v1/faces/fox_face.tres" id="3_face"]
 
 [resource]
 script = ExtResource("1_emp")

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_cctv_switch_streak"
+Description = "경비실 근무자가 혼자일 때 CCTV를 3회 연속 전환하지 마십시오."
+ConditionType = 9
+ConditionParams = {
+"streak": 3
+}
+ConsequenceType = 18
+ConsequenceParams = {
+"seconds": 20.0
+}

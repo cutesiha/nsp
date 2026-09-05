@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_spawn")
-TaskId = "power_generator_check"
-SpawnAtSeconds = 8.0
-Recurring = false
-RoomId = "power_room"
+TaskId = "inventory_sorting"
+SpawnAtSeconds = 0.0
+Recurring = true
+RoomId = "storage_room"

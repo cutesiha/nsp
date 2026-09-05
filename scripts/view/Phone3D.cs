@@ -257,24 +257,33 @@ public partial class Phone3D : Node3D
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
 
+        // 금기 페널티로 전화기가 잠겨 있으면 발신 자체가 되지 않는다.
+        if (NSP.Taboo.TabooRuleSystem.Instance?.IsPhoneLocked == true) return;
+
         bool resting = GameState.Instance?.CurrentPhase == GamePhase.Rest;
         string target = resting
             ? RestRosterView.Instance?.SelectedEmployeeId ?? ""
             : FacilityMonitorView.Instance?.SelectedEmployeeId ?? "";
-        bool usable = !string.IsNullOrEmpty(target) && sim.GetEmployeeState(target) is { Alive: true, Isolated: false };
+        // 근무 중에는 오늘 근무표에 올라간 직원에게만 전화가 간다. 휴게시간에는 배치가
+        // 의미 없으므로(전원이 쉬는 중) 생존·비격리만 본다.
+        bool Callable(string id) => resting
+            ? sim.GetEmployeeState(id) is { Alive: true, Isolated: false }
+            : sim.IsOnDuty(id);
 
-        if (!usable)
+        if (string.IsNullOrEmpty(target) || !Callable(target))
         {
             // 휴게시간에는 대상을 직접 골라야 한다 — 무작위로 아무나 걸지 않는다.
             if (resting) return;
             target = sim.GetEmployeeIds()
-                .Where(id => sim.GetEmployeeState(id) is { Alive: true, Isolated: false })
+                .Where(Callable)
                 .OrderBy(_ => GD.Randf())
                 .FirstOrDefault();
         }
         if (string.IsNullOrEmpty(target)) return;
 
         _caller = target;
+        // 금기 ④(조명 꺼진 직원 호출) · ⑤(같은 직원 두 번 통화) 판정 지점.
+        if (!resting) NSP.Taboo.TabooRuleSystem.Instance?.NotifyCallPlaced(target);
         // 휴게시간의 모든 발신은 실제 로그를 읽는 DAY1 로컬 인터뷰로 연결한다.
         // 방해자 역할은 여기서 정하지 않고 LocalInterviewDialogue가 GameState의 런타임 값만 읽는다.
         _dialogueEvent = resting

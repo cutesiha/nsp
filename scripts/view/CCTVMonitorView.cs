@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -179,11 +180,22 @@ public partial class CCTVMonitorView : Control
 
         var def = sim.GetRoomDef(roomId);
         var state = sim.GetRoomState(roomId);
-        _camLabel.Text = $"CAM · {def?.DisplayName ?? roomId}";
+        // 금기 페널티(채널 혼선) 중에는 방 이름과 화면이 일부러 어긋난다.
+        string camName = def?.DisplayName ?? roomId;
+        if (NSP.Taboo.TabooRuleSystem.Instance?.IsCctvScrambled == true)
+        {
+            var ids = sim.GetRoomIds().ToList();
+            if (ids.Count > 0)
+            {
+                int idx = Mathf.Abs(roomId.GetHashCode() + (int)(Time.GetTicksMsec() / 3000)) % ids.Count;
+                camName = sim.GetRoomDef(ids[idx])?.DisplayName ?? camName;
+            }
+        }
+        _camLabel.Text = $"CAM · {camName}";
 
         bool powered = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
         bool systemFault = GameState.Instance.CctvSystemOffline;
-        bool disconnected = state?.CctvDisconnected == true;
+        bool disconnected = sim.IsRoomCctvBlocked(roomId);
 
         if (!forceFeed && systemFault)
         {

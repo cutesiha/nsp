@@ -4,12 +4,15 @@
 
 [resource]
 script = ExtResource("1_taboo")
-TabooId = "taboo_maintenance_max1"
-Description = "정비실에 동시에 2명 이상 있지 말 것"
-ConditionType = 0
+TabooId = "taboo_maintenance_continuous"
+Description = "정비실에 같은 직원을 60초 이상 연속으로 두지 마십시오."
+ConditionType = 7
 ConditionParams = {
 "room_id": "maintenance_room",
-"max": 1
+"hold_seconds": 60.0
 }
-ConsequenceType = 1
-ConsequenceParams = {}
+ConsequenceType = 16
+ConsequenceParams = {
+"materials": 5,
+"stress": 8.0
+}

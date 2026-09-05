@@ -365,11 +365,10 @@ public partial class IncomingCallDirector : Node
     // --- 발신자 선정 헬퍼 -------------------------------------------
 
     // 오늘 근무에 배치된 직원만 전화를 건다 — 배치 안 된 직원은 미니맵에도 안 뜨는 비번이다.
-    private static bool Available(string employeeId)
-    {
-        var st = FacilitySimulation.Instance?.GetEmployeeState(employeeId);
-        return st is { Alive: true, Isolated: false } && !string.IsNullOrEmpty(st.AssignedRoomId);
-    }
+    // 전화를 걸어올 수 있는 직원 = 오늘 근무자. 판정은 FacilitySimulation 한 곳에서만 한다
+    // (Phone3D 의 발신 대상 판정과 같은 규칙).
+    private static bool Available(string employeeId) =>
+        FacilitySimulation.Instance?.IsOnDuty(employeeId) ?? false;
 
     private string RandomAvailable(string incidentKey)
     {

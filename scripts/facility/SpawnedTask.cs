@@ -26,6 +26,9 @@ public class SpawnedTask
     // 사고 업무를 제한시간 안에 못 막아 고장이 난 뒤, 같은 업무가 "수리" 로 전환된 상태.
     // 수리 업무는 제한시간이 없고, 완료하면 걸려 있던 시설 페널티가 풀린다.
     public bool IsRepair;
+    // 이 업무 인스턴스가 요구하는 최소 인원. 0 이면 TaskDef.MinWorkersToProgress 를 쓴다.
+    // (무인 방치 사고의 수리는 RoomDef.RepairMinWorkers 로 결정된다 — 발전실·코어실은 2명.)
+    public int MinWorkersOverride;
 
     public SpawnedTaskStatus Status = SpawnedTaskStatus.Active;
     // Completed / Failed 이후 방 카드에 "✓ 완료" · "🚨 실패" 를 잠깐 더 보여주기 위한 잔여 표시 시간.

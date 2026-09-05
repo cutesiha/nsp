@@ -224,7 +224,7 @@ public partial class ControlRoom3DController : Node3D
     // (Disabled 여도 안의 Control 은 _Process/_Input 을 그대로 받으므로 로직은 동일하다.)
     private void UpdateActiveViewports()
     {
-        bool cctvOnScreen = false;
+        bool cctvOnScreen = false, interviewOnScreen = false;
         foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp })
         {
             if (vp == null) continue;
@@ -240,13 +240,16 @@ public partial class ControlRoom3DController : Node3D
             if (vp.RenderTargetUpdateMode != want) vp.RenderTargetUpdateMode = want;
 
             if (bound && vp == _cctvVp) cctvOnScreen = true;
+            if (bound && vp == _interviewVp) interviewOnScreen = true;
         }
 
         _cctvOnScreen = cctvOnScreen;
+        _interviewOnScreen = interviewOnScreen;
         UpdateCctvWorldViewport();
     }
 
     private bool _cctvOnScreen;
+    private bool _interviewOnScreen;
 
     // 두 번째 3D 렌더 패스(작업실 월드)는 오른쪽 CRT 가 CCTV 를 띄우고 있고, 그 화면이
     // 실제로 켜져 있을 때만 돌린다. 시작 화면/근무 배치처럼 CRT 가 꺼져 있는 동안에는
@@ -254,10 +257,12 @@ public partial class ControlRoom3DController : Node3D
     private void UpdateCctvWorldViewport()
     {
         if (_facilityCctvVp == null) return;
-        // 화면에 붙어 있고 + CRT 가 켜져 있고 + 실제로 피드가 나오는 중일 때만.
+        // 근무 CCTV : 화면에 붙어 있고 + CRT 가 켜져 있고 + 실제로 피드가 나오는 중일 때만.
         // (NO SIGNAL / CCTV 전력 OFF 동안에는 어차피 노이즈만 보이므로 3D 를 멈춘다.)
+        // 휴게시간 인터뷰 : 같은 월드를 사이드뷰로 쓰므로 인터뷰 화면이 떠 있으면 켠다.
         bool feedLive = CCTVMonitorView.Instance?.FeedVisible ?? true;
-        var want = _cctvOnScreen && _brightness > 0.1f && feedLive
+        bool needed = (_cctvOnScreen && feedLive) || _interviewOnScreen;
+        var want = needed && _brightness > 0.1f
             ? SubViewport.UpdateMode.Always
             : SubViewport.UpdateMode.Disabled;
         if (_facilityCctvVp.RenderTargetUpdateMode != want)

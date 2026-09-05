@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TaskDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TaskDef.cs" id="1_task"]
+
+; 무인 방치 사고의 복구 업무. 실제 소요 시간/최소 인원은 RoomDef 의
+; RepairSeconds / RepairMinWorkers 가 결정한다(여기 값은 표시용 기본치).
+
+[resource]
+script = ExtResource("1_task")
+TaskId = "repair_vent"
+DisplayName = "환기 필터 교체"
+RoomId = "vent_room"
+RequiredStat = 0
+Priority = 0
+RecommendedHeadcount = 1
+GaugeRequired = 15.0
+EffectType = 0
+EffectAmount = 0.0
+HasNeglectConsequence = false
