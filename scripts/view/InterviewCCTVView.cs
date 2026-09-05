@@ -19,6 +19,7 @@ public partial class InterviewCCTVView : Control
     private TextureRect _roomFeed;      // 3D 사이드뷰 배경
     private ColorRect _roomFallback;    // 3D 준비 전 대체 배경
     private TextureRect _portrait;
+    private Control _portraitBox;
     private Label _stateLabel;
     private Label _recLabel;
     private Label _clock;
@@ -69,7 +70,7 @@ public partial class InterviewCCTVView : Control
         };
         AddChild(tint);
 
-        var portraitBox = new Control
+        _portraitBox = new Control
         {
             // 스탠딩 원화의 발끝이 화면 아래에 붙도록 프레임 전체 높이를 쓴다.
             Position = new Vector2(Frame.Position.X + Frame.Size.X / 2f - 190f, Frame.Position.Y),
@@ -77,16 +78,17 @@ public partial class InterviewCCTVView : Control
             ClipContents = true,
             MouseFilter = MouseFilterEnum.Ignore,
         };
-        AddChild(portraitBox);
+        AddChild(_portraitBox);
 
+        // 크기는 ApplyPortrait 가 직접 계산한다. 여기서 화면에 맞춰 늘리면(KeepAspect)
+        // 원화마다 잘라낸 여백이 달라서 키가 제각각으로 보인다.
         _portrait = new TextureRect
         {
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            StretchMode = TextureRect.StretchModeEnum.Scale,
             MouseFilter = MouseFilterEnum.Ignore,
         };
-        _portrait.SetAnchorsPreset(LayoutPreset.FullRect);
-        portraitBox.AddChild(_portrait);
+        _portraitBox.AddChild(_portrait);
 
         _stateLabel = Lbl("왼쪽 BREAK ROOM 에서 직원을 선택하세요", 20, new Color(0.8f, 0.85f, 0.8f));
         _stateLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y / 2f - 16f);
@@ -191,12 +193,102 @@ public partial class InterviewCCTVView : Control
         }
 
         _stateLabel.Visible = false;
-        _portrait.Texture = def.StandingImage ?? def.FacePortrait;
+        ApplyPortrait(def.StandingImage ?? def.FacePortrait);
         _namePlate.Visible = true;
         _nameLabel.Text = def.Codename;
         _statusLabel.Text = !st.Alive ? "응답 없음 · 기록 종료"
             : st.Isolated ? "격리됨 · 인터뷰 가능"
             : "휴게 중 · 전화 연결 대기";
+    }
+
+    // --- 스탠딩 원화 배치 ------------------------------------------------
+    //
+    // 원화는 캐릭터마다 따로 잘려 있어 캔버스 크기가 제각각이다. 화면에 "맞춰" 그리면
+    // 키가 작은 해파리가 여우만큼 커 보인다. 그래서 모든 원화에 같은 배율을 적용하고
+    // 발끝을 화면 아래에 붙인다 — 원화 안의 실제 그림 높이가 곧 키가 된다.
+    //
+    // 배율 기준은 가장 큰 원화(까마귀)가 표시 영역에 딱 들어가는 값이며,
+    // 나머지는 그 비율대로 자동으로 작아진다(여우 ≈ 0.88, 해파리 ≈ 0.68).
+
+    // 원화 위쪽 여백 — 제일 큰 캐릭터의 머리가 프레임 위선에 닿지 않게 한다.
+    private const float PortraitTopMargin = 12f;
+
+    private static readonly System.Collections.Generic.Dictionary<ulong, Rect2I> _contentBoxes = new();
+    private static float _portraitUnit = -1f;
+
+    private void ApplyPortrait(Texture2D tex)
+    {
+        _portrait.Texture = tex;
+        if (tex == null) return;
+
+        Rect2I box = ContentBox(tex);
+        float unit = PortraitUnit(_portraitBox.Size.Y - PortraitTopMargin);
+
+        _portrait.Size = new Vector2(tex.GetWidth() * unit, tex.GetHeight() * unit);
+        _portrait.Position = new Vector2(
+            // 가로는 그림의 중심을 표시 영역 중앙에.
+            _portraitBox.Size.X / 2f - (box.Position.X + box.Size.X / 2f) * unit,
+            // 세로는 그림의 발끝을 표시 영역 바닥에 정확히 붙인다(아래 공백 없음).
+            _portraitBox.Size.Y - (box.Position.Y + box.Size.Y) * unit);
+    }
+
+    // 여섯 명 중 가장 큰 원화가 표시 높이에 맞도록 하는 공통 배율.
+    private static float PortraitUnit(float availableHeight)
+    {
+        if (_portraitUnit > 0f) return _portraitUnit;
+
+        float tallest = 1f;
+        var sim = FacilitySimulation.Instance;
+        if (sim != null)
+        {
+            foreach (string id in sim.GetEmployeeIds())
+            {
+                var t = sim.GetEmployeeDef(id)?.StandingImage;
+                if (t != null) tallest = Mathf.Max(tallest, ContentBox(t).Size.Y);
+            }
+        }
+        _portraitUnit = availableHeight / Mathf.Max(1f, tallest);
+        return _portraitUnit;
+    }
+
+    // 원화에서 실제로 그림이 그려진 영역(투명 여백 제외). 원화를 교체해도 자동으로 다시 잡힌다.
+    private static Rect2I ContentBox(Texture2D tex)
+    {
+        ulong key = tex.GetInstanceId();
+        if (_contentBoxes.TryGetValue(key, out var cached)) return cached;
+
+        Rect2I box = Measure(tex.GetImage()) ?? new Rect2I(0, 0, tex.GetWidth(), tex.GetHeight());
+        _contentBoxes[key] = box;
+        return box;
+    }
+
+    // 알파가 충분히 진한 픽셀만 그림으로 본다. Image.GetUsedRect() 는 알파가 1이라도
+    // 포함해서, 원화 위쪽에 남은 아주 옅은 선까지 키로 계산되어 비율이 어긋난다.
+    private static Rect2I? Measure(Image img)
+    {
+        if (img == null) return null;
+        if (img.GetFormat() != Image.Format.Rgba8) img.Convert(Image.Format.Rgba8);
+
+        byte[] data = img.GetData();
+        int w = img.GetWidth(), h = img.GetHeight();
+        if (data == null || data.Length < w * h * 4) return null;
+
+        const int AlphaThreshold = 24;
+        int minX = w, maxX = -1, minY = h, maxY = -1;
+        for (int y = 0; y < h; y++)
+        {
+            int row = y * w * 4;
+            for (int x = 0; x < w; x++)
+            {
+                if (data[row + x * 4 + 3] <= AlphaThreshold) continue;
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                maxY = y;
+            }
+        }
+        if (maxX < 0) return null;
+        return new Rect2I(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
     // 3D 작업실 월드(FacilityCctvWorld)의 SubViewport 텍스처를 배경으로 한 번만 연결한다.

@@ -46,6 +46,9 @@ public static class IncidentBoard
         var sim = FacilitySimulation.Instance;
         var gs = GameState.Instance;
         if (sim == null || gs == null) return list;
+        // 근무 중에만 의미가 있다. 정산·휴게·다음 날 배치 화면에서는 아무것도 보여주지 않는다
+        // (경고음이 다음 날까지 계속 울리던 원인).
+        if (gs.CurrentPhase != GamePhase.Live) return list;
 
         // ① 이미 발생해 아직 해결되지 않은 사고.
         list.AddRange(IncidentTracker.Active);
@@ -134,7 +137,7 @@ public static class IncidentBoard
                     State = remaining <= WarningThreshold ? IncidentState.Warning : IncidentState.Caution,
                     CauseText = "점검 미수행",
                     WarningRemainingSeconds = remaining,
-                    ActionHint = $"업무 처리 필요 (최소 {Mathf.Max(1, taskDef.MinWorkersToProgress)}명)",
+                    ActionHint = $"업무 처리 · 최소 {Mathf.Max(1, taskDef.MinWorkersToProgress)}명",
                     Severity = remaining <= WarningThreshold ? AlertSeverity.Critical : AlertSeverity.Warning,
                     RepairWorkers = Mathf.Max(1, taskDef.MinWorkersToProgress),
                     ConsequenceLines = { ConsequenceText(taskDef.NeglectConsequenceType, taskDef.NeglectConsequenceAmount) },
@@ -210,11 +213,11 @@ public static class IncidentBoard
         TabooConsequenceType.PowerOutage => "정전",
         TabooConsequenceType.PowerCapacityLoss => $"사용 가능 전력 -{amount:0}",
         TabooConsequenceType.CctvDisconnect => "CCTV 신호 단절",
-        TabooConsequenceType.CctvSystemFault => "CCTV 시스템 정지 (수리 전까지)",
+        TabooConsequenceType.CctvSystemFault => "CCTV 시스템 정지",
         TabooConsequenceType.MaterialsHalt => "자재 생산 정지",
-        TabooConsequenceType.VentilationFault => "환기 정지 · 전 직원 스트레스 상승",
+        TabooConsequenceType.VentilationFault => "환기 정지 · 스트레스 상승",
         TabooConsequenceType.MedicalContamination => "스트레스 치료 불가",
-        TabooConsequenceType.CoreOutputUnstable => "코어 복구 정지 · 복구율 감소",
+        TabooConsequenceType.CoreOutputUnstable => "코어 복구 정지",
         TabooConsequenceType.StorageCollapse => $"자재 보유 한도 -{amount:0}",
         TabooConsequenceType.CorridorLock => "통로 봉쇄",
         TabooConsequenceType.ObservationCorruption => "정보 왜곡",

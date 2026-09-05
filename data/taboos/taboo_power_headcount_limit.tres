@@ -10,7 +10,8 @@ ConditionType = 0
 ConditionParams = {
 "room_id": "power_room",
 "max": 1,
-"hold_seconds": 6.0
+"hold_seconds": 6.0,
+"defer_consequence": true
 }
 ConsequenceType = 5
 ConsequenceParams = {

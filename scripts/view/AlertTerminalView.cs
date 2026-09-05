@@ -63,21 +63,22 @@ public partial class AlertTerminalView : Control
         var font = ViewFont.Default;
         const float x = 16f, w = CanvasW - x * 2f;
 
-        _head = Lbl("경고 단말기", 19, Dim, font, new Vector2(x, 6), 260, 24);
+        _head = Lbl("경고 단말기", 20, Dim, font, new Vector2(x, 4), 280, 26);
         AddChild(_head);
 
-        _status = Lbl("", 21, Ok, font, new Vector2(CanvasW - 200f, 6), 184, 24);
+        _status = Lbl("", 23, Ok, font, new Vector2(CanvasW - 210f, 3), 194, 32);
         _status.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_status);
 
-        _title = Lbl("정상 가동 중", 38, Ok, font, new Vector2(x, 34), w, 52);
+        _title = Lbl("정상 가동 중", 34, Ok, font, new Vector2(x, 30), w, 46);
         AddChild(_title);
 
-        _sub = Lbl("", 23, Dim, font, new Vector2(x, 84), w, 28);
+        _sub = Lbl("", 26, Dim, font, new Vector2(x, 76), w, 34);
         AddChild(_sub);
 
-        // 본문은 원인/시간/결과/조치 최대 6줄 — 페이지 화살표(y 258) 위에서 끊는다.
-        _body = Lbl("", 18, Body, font, new Vector2(x, 112), w, 142);
+        // 본문은 원인/결과/조치 3줄로 줄이고 글자를 크게 잡는다(멀리서도 읽혀야 한다).
+        // 페이지 화살표(y 258) 위에서 끊는다.
+        _body = Lbl("", 25, Body, font, new Vector2(x, 112), w, 142);
         AddChild(_body);
 
         _page = Lbl("", 19, Dim, font, new Vector2(CanvasW - 178f, CanvasH - 40f), 96, 30);
@@ -151,7 +152,7 @@ public partial class AlertTerminalView : Control
         WireLog();
 
         bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
-        if (live && !_wasLive) { DeathSeen = false; IncidentTracker.Reset(); }
+        if (live && !_wasLive) DeathSeen = false;
         _wasLive = live;
 
         double now = Time.GetTicksMsec() / 1000.0;
@@ -160,6 +161,21 @@ public partial class AlertTerminalView : Control
         if (GameState.Instance == null || FacilitySimulation.Instance == null)
         {
             Show("경고 단말기", "", "전원 차단", "", "사고 예측 불가", Dim, AlertSeverity.Notice);
+            SetNav(1);
+            return;
+        }
+
+        // 근무가 끝나면 단말기는 대기 상태다 — 경고음도 여기서 멈춘다.
+        if (!live)
+        {
+            CurrentSeverity = AlertSeverity.Notice;
+            _lastSeverity = AlertSeverity.Notice;
+            InFailureFlash = false;
+            _failureFlashUntil = -1;
+            _pageIndex = 0;
+            _lastTopIncidentId = "";
+            Show("경고 단말기", "대기", "대기 중", "", "근무가 시작되면 감시를 재개합니다.",
+                Dim, AlertSeverity.Notice);
             SetNav(1);
             return;
         }
@@ -236,25 +252,24 @@ public partial class AlertTerminalView : Control
                 _ => "해결됨",
             };
 
-        var lines = new List<string> { $"원인      {d.CauseText}" };
-        if (d.WarningRemainingSeconds >= 0f)
-            lines.Add(d.WarningRemainingSeconds <= 0.05f
-                ? "사고까지  발생 대기"
-                : $"사고까지  {Clock(d.WarningRemainingSeconds)}");
+        // 본문은 세 줄까지만. 남은 시간은 부제로 올려 크게 보이게 한다.
+        var lines = new List<string> { $"원인 · {d.CauseText}" };
         if (d.ConsequenceLines.Count > 0)
-            // 파생 결과가 많아도 화면을 넘기지 않도록 앞의 3줄까지만 보여준다.
-            lines.Add((d.State == IncidentState.Active ? "결과      " : "예상 결과  ")
-                      + string.Join("\n          ", d.ConsequenceLines.Take(3))
-                      + (d.ConsequenceLines.Count > 3
-                          ? $"\n          외 {d.ConsequenceLines.Count - 3}건" : ""));
-        if (!string.IsNullOrEmpty(d.ActionHint))
-            lines.Add($"조치      {d.ActionHint}");
+            lines.Add((d.State == IncidentState.Active ? "결과 · " : "예상 · ")
+                      + string.Join(" · ", d.ConsequenceLines.Take(2))
+                      + (d.ConsequenceLines.Count > 2 ? $" 외 {d.ConsequenceLines.Count - 2}건" : ""));
+        string action = d.ActionHint;
         if (d.State == IncidentState.Active && d.RepairWorkers > 1)
-            lines.Add($"수리 필요  {d.RepairWorkers}명");
+            action += $" · {d.RepairWorkers}명";
+        if (!string.IsNullOrEmpty(action)) lines.Add($"조치 · {action}");
+
+        string sub = RoomName(d.RoomId);
+        if (d.WarningRemainingSeconds > 0.05f) sub += $"   사고까지 {Clock(d.WarningRemainingSeconds)}";
+        else if (d.WarningRemainingSeconds >= 0f) sub += "   발생 대기";
 
         var severity = d.IsOperational ? AlertSeverity.Notice : d.Severity;
         Show(InFailureFlash && d.State == IncidentState.Active ? "⚠ 사고 발생" : "경고 단말기",
-            stateWord, d.Title, RoomName(d.RoomId), string.Join("\n", lines),
+            stateWord, d.Title, sub, string.Join("\n", lines),
             SeverityColor(severity), severity);
     }
 
@@ -262,8 +277,8 @@ public partial class AlertTerminalView : Control
     {
         string body = recent.Count == 0
             ? "기록 없음"
-            : string.Join("\n", recent.Select(r =>
-                $"{Clock24(r.StartedAt)} {RoomName(r.RoomId)} {r.Title}\n          → {Clock24(r.ResolvedAt)} 해결"));
+            : string.Join("\n", recent.Take(3).Select(r =>
+                $"{Clock24(r.StartedAt)} {RoomName(r.RoomId)} · {r.Title} → {Clock24(r.ResolvedAt)} 해결"));
         Show("경고 단말기", "기록", "최근 해결 기록", $"{recent.Count}건", body, Dim, AlertSeverity.Notice);
     }
 

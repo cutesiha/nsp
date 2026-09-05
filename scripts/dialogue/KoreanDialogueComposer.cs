@@ -78,7 +78,9 @@ public static class KoreanDialogueComposer
 
         string support = SupportClause(ctx, plan, p, vars, core);
         string emotion = plan.Emotion != EmotionKind.None ? Pick(style, EmotionSlot(plan.Emotion), vars) : "";
-        string closer = !noCloser && Roll(p.CloserChance) ? Pick(style, "closer", vars) : "";
+        // 되묻는 성격(여우)은 끝맺음 대신 질문을 되돌린다.
+        string closerSlot = p.AsksBack && Roll(0.55f) ? "closer.back" : "closer";
+        string closer = !noCloser && Roll(p.CloserChance) ? Pick(style, closerSlot, vars) : "";
 
         if (!string.IsNullOrEmpty(support)) parts.Add(new Part { Text = support, DropOrder = 2 });
         if (!string.IsNullOrEmpty(emotion)) parts.Add(new Part { Text = emotion, DropOrder = 3 });
@@ -350,7 +352,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|selfloc"] = new[] { "{room}에 있었어요.", "{room}이요/요... 거기 있었어요.", "저는 {room}에 있었어요." },
         ["rabbit|selfloc"] = new[] { "{room}이었/였어요!", "{room}에 있었어요!", "{room}에서 일하고 있었어요!" },
         ["crow|selfloc"] = new[] { "{room}에 있었습니다.", "{room}입니다.", "계속 {room}에 있었습니다." },
-        ["fox|selfloc"] = new[] { "{room}에 있었죠.", "{room}이요/요. 거기 있었어요.", "{room}에서 제 일 하고 있었어요." },
+        ["fox|selfloc"] = new[] { "{room}에 있었죠.", "{room}이요/요? 거기 있었는데요.", "{room}에서 제 일 하고 있었죠." },
 
         // ── 핵심: 직접 본 사건 ─────────────────────────────────────────
         ["owl|incident.direct"] = new[] { "{iroom}에서 {what}", "{iroom} 쪽입니다. {what}" },
@@ -358,7 +360,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|incident.direct"] = new[] { "{iroom}에서 {what}", "{iroom}에서요... {what}" },
         ["rabbit|incident.direct"] = new[] { "{iroom}에서 {what}", "{iroom}이요/요! {what}" },
         ["crow|incident.direct"] = new[] { "{iroom}에서 {what}", "{iroom}입니다. {what}" },
-        ["fox|incident.direct"] = new[] { "{iroom} 쪽에서 {what}", "{iroom}에서요. {what}" },
+        ["fox|incident.direct"] = new[] { "{iroom} 쪽에서 {what}", "{iroom} 말씀이시죠? {what}" },
 
         // ── 핵심: 벽 너머로 알게 된 사건(감각만) ────────────────────────
         ["owl|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "옆 작업실에 있었습니다만, {iroom} 쪽에서 {sound}" },
@@ -366,7 +368,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "저, {iroom} 쪽에서요... {sound}" },
         ["rabbit|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "{iroom} 쪽이요/요! {sound}" },
         ["crow|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "{iroom} 방향이었습니다. {sound}" },
-        ["fox|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "{iroom} 쪽이었/였어요. {sound}" },
+        ["fox|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "{iroom} 쪽이었/였죠. {sound}" },
 
         // ── 핵심: 아는 이상 없음 ───────────────────────────────────────
         ["owl|noanomaly"] = new[] { "특별한 건 없었습니다.", "제가 있던 곳에서는 이상을 확인하지 못했습니다." },
@@ -374,7 +376,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|noanomaly"] = new[] { "저는... 특별한 건 못 봤어요.", "아뇨, 아무것도 못 봤어요." },
         ["rabbit|noanomaly"] = new[] { "없었어요!", "저는 못 봤어요. 있었으면 바로 말씀드렸을 거예요!" },
         ["crow|noanomaly"] = new[] { "없습니다.", "확인한 이상은 없습니다." },
-        ["fox|noanomaly"] = new[] { "글쎄요. 제가 있던 쪽은 조용했어요.", "딱히 없었는데요." },
+        ["fox|noanomaly"] = new[] { "글쎄요~ 제가 있던 쪽은 조용했는데요.", "딱히요. 있었으면 진작 말씀드렸겠죠." },
 
         // ── 핵심: 실제로 목격한 다른 직원 ───────────────────────────────
         ["owl|sight"] = new[] { "{who} 직원의 행동이 평소와 달랐습니다.", "{sroom}에서 {who} 직원이 이상하게 움직이는 걸 봤습니다." },
@@ -382,7 +384,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|sight"] = new[] { "{who} 씨가... 조금 이상해 보였어요.", "{sroom}에서 {who} 씨를 봤는데요, 평소랑 달랐어요." },
         ["rabbit|sight"] = new[] { "{who} 씨요! 좀 이상했어요.", "{sroom}에서 {who} 씨가 뭔가 하고 있었어요!" },
         ["crow|sight"] = new[] { "{who}. 행동이 비정상이었습니다.", "{sroom}에서 {who} 직원을 봤습니다." },
-        ["fox|sight"] = new[] { "{who} 씨가 좀 재미있는 걸 하고 있던데요.", "{sroom}에서 {who} 씨를 봤어요." },
+        ["fox|sight"] = new[] { "{who} 씨가 좀 재미있는 걸 하고 있던데요.", "{sroom}에서 {who} 씨를 봤죠. 뭘 하는진 모르겠지만요." },
 
         // ── 핵심: 목격 없음 ────────────────────────────────────────────
         ["owl|nosight"] = new[] { "확인되지 않은 사람을 지목할 생각은 없습니다.", "그런 장면은 보지 못했습니다." },
@@ -390,7 +392,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|nosight"] = new[] { "아뇨... 다른 분을 볼 여유가 없었어요.", "저는 못 봤어요." },
         ["rabbit|nosight"] = new[] { "아뇨! 제가 본 사람 중엔 없었어요.", "못 봤어요!" },
         ["crow|nosight"] = new[] { "목격하지 못했습니다.", "없습니다." },
-        ["fox|nosight"] = new[] { "딱히요. 애매한 걸로 사람 몰아가긴 싫어서요.", "본 건 없는데요." },
+        ["fox|nosight"] = new[] { "딱히요. 애매한 걸로 사람 몰아가긴 싫어서요.", "본 건 없는데요. 왜, 짚이는 데라도 있으세요?" },
 
         // ── 핵심: 다른 직원 평가 ───────────────────────────────────────
         ["owl|opinion"] = new[] { "{target} 직원은 {trait}입니다.", "{target} 직원에 대해서는 {trait}이라고 봅니다." },
@@ -398,7 +400,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|opinion"] = new[] { "{target} 씨는... {trait}인 것 같아요.", "잘은 모르겠지만 {trait}인 것 같아요." },
         ["rabbit|opinion"] = new[] { "{target} 씨요? {trait}인 것 같아요!", "{trait}이에요! 저는 괜찮다고 생각해요." },
         ["crow|opinion"] = new[] { "{trait}입니다.", "{target}. {trait}입니다." },
-        ["fox|opinion"] = new[] { "{target} 씨요? {trait}이죠.", "{trait}이라고 해두죠." },
+        ["fox|opinion"] = new[] { "{target} 씨요? {trait}이죠.", "{trait}이라고 해두죠. 더 말하면 뒷담화 같잖아요." },
 
         // ── 핵심: 의심에 대한 대응(증거 없음) ───────────────────────────
         ["owl|deny"] = new[] { "저는 아닙니다. 기록부터 확인해주십시오.", "그렇게 보실 수는 있습니다. 다만 근거를 함께 봐주십시오." },
@@ -406,7 +408,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|deny"] = new[] { "저, 저요...? 아니에요.", "제가요? 정말 아무것도 안 했어요." },
         ["rabbit|deny"] = new[] { "네?! 저 아니에요!", "저 진짜 아니에요. 확인해보시면 아실 거예요!" },
         ["crow|deny"] = new[] { "아닙니다.", "아닙니다. 기록을 확인하십시오." },
-        ["fox|deny"] = new[] { "저를요? 어떤 근거인지부터 듣고 싶은데요.", "그럴 수도 있죠. 근데 저는 아니에요." },
+        ["fox|deny"] = new[] { "저를요? 어떤 근거인지부터 듣고 싶은데요.", "설마 이런 상황에 저부터 의심하시는 건 아니죠?" },
 
         // ── 핵심: 의심에 대한 대응(실제 기록이 있을 때) ──────────────────
         ["owl|deny.evidence"] = new[] { "그 기록이 저를 가리키는 건 압니다. 제가 한 일은 아닙니다.", "제 동선이 이상하게 보였다면 설명드리겠습니다." },
@@ -465,7 +467,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|comply"] = new[] { "죄, 죄송해요. 더 집중할게요...", "네... 신경 쓸게요." },
         ["rabbit|comply"] = new[] { "앗, 네! 제대로 할게요!", "알겠어요! 딴짓 안 할게요!" },
         ["crow|comply"] = new[] { "알겠습니다.", "그렇게 하겠습니다." },
-        ["fox|comply"] = new[] { "네, 네. 성실하게 해야겠네요.", "알겠습니다. 찍히기 전에 해야죠." },
+        ["fox|comply"] = new[] { "네, 네. 관리자님께 찍히기 전에 성실하게 해야겠네요.", "알겠습니다~ 잔소리는 여기까지만 하시죠." },
 
         // ── 핵심: 수신 전화 첫 대사(사고 신고) ───────────────────────────
         ["owl|report.direct"] = new[] { "관리자님, {iroom}에서 {what} 제가 확인하러 가도 괜찮겠습니까?", "관리자님, {iroom} 상황을 보고드립니다. {what} 지시 부탁드립니다." },
@@ -509,7 +511,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|opener"] = new[] { "아...", "저, 네...", "네, 네..." },
         ["rabbit|opener"] = new[] { "아, 네!", "어...!" },
         ["crow|opener"] = new[] { "네." },
-        ["fox|opener"] = new[] { "아~", "네에." },
+        ["fox|opener"] = new[] { "아~", "네에.", "음~" },
 
         ["owl|opener.repeat"] = new[] { "말씀드린 대로입니다.", "다시 말씀드리면," },
         ["cat|opener.repeat"] = new[] { "아까 말했잖아요.", "또요?" },
@@ -625,7 +627,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|prevloc.same"] = new[] { "쭉 {room}에 있었어요...", "{room}에서 안 나갔어요." },
         ["rabbit|prevloc.same"] = new[] { "계속 {room}에 있었어요!", "{room}에서 안 움직였어요!" },
         ["crow|prevloc.same"] = new[] { "계속 {room}입니다.", "이동 없습니다." },
-        ["fox|prevloc.same"] = new[] { "계속 {room}에 있었죠.", "{room}에서 안 나갔어요." },
+        ["fox|prevloc.same"] = new[] { "계속 {room}에 있었죠.", "{room}에서 안 나갔어요. 나갈 일도 없었고요." },
 
         ["owl|prevloc.moved"] = new[] { "그 전에는 {droom}에 있었습니다.", "{droom}에서 {room}으로/로 옮겼습니다." },
         ["cat|prevloc.moved"] = new[] { "{droom}에 있다가 왔어요.", "{droom}이요/요. 거기 있다가 옮겼어요." },
@@ -655,7 +657,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|present.alone"] = new[] { "혼자... 있었어요.", "저 혼자였어요." },
         ["rabbit|present.alone"] = new[] { "혼자였어요!", "저밖에 없었어요!" },
         ["crow|present.alone"] = new[] { "혼자였습니다.", "동석자 없습니다." },
-        ["fox|present.alone"] = new[] { "혼자였어요.", "아쉽게도 저 혼자요." },
+        ["fox|present.alone"] = new[] { "혼자였죠.", "아쉽게도 저 혼자요. 증인이 필요하신가 봐요?" },
 
         ["owl|present.with"] = new[] { "{dname} 직원과 같이 있었습니다.", "{dname} 직원이 같은 방에 있었습니다." },
         ["cat|present.with"] = new[] { "{dname} 씨도 있었어요.", "{dname} 씨랑 같이 있었어요." },
@@ -670,7 +672,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|witness.alone"] = new[] { "없어요... 혼자 있어서요.", "그, 그건 없어요..." },
         ["rabbit|witness.alone"] = new[] { "없어요! 혼자 있었거든요.", "아... 없네요." },
         ["crow|witness.alone"] = new[] { "없습니다.", "증인 없습니다." },
-        ["fox|witness.alone"] = new[] { "없네요. 하필 혼자였어서.", "그건 없어요." },
+        ["fox|witness.alone"] = new[] { "없네요. 하필 혼자였어서.", "그건 없어요. 곤란하게 됐네요~" },
 
         ["owl|witness.with"] = new[] { "{dname} 직원이 확인해 줄 수 있습니다.", "{dname} 직원에게 물어보시면 됩니다." },
         ["cat|witness.with"] = new[] { "{dname} 씨한테 물어보세요.", "{dname} 씨가 봤어요." },
@@ -693,14 +695,14 @@ public static class KoreanDialogueComposer
         ["jellyfish|seen.saw"] = new[] { "네... 봤어요.", "직접 봤어요. 정말이에요." },
         ["rabbit|seen.saw"] = new[] { "네! 봤어요!", "제 눈으로 봤어요!" },
         ["crow|seen.saw"] = new[] { "직접 봤습니다.", "확인했습니다." },
-        ["fox|seen.saw"] = new[] { "네, 봤어요.", "이건 직접 봤죠." },
+        ["fox|seen.saw"] = new[] { "네, 이건 직접 봤죠.", "봤어요. 이건 확실하고요." },
 
         ["owl|seen.heard"] = new[] { "아닙니다. 들은 것뿐입니다.", "본 것은 아닙니다. 소리만 들었습니다." },
         ["cat|seen.heard"] = new[] { "아뇨. 소리만요.", "듣기만 했어요." },
         ["jellyfish|seen.heard"] = new[] { "아, 아니요... 소리만 들었어요.", "본 건 아니에요..." },
         ["rabbit|seen.heard"] = new[] { "아뇨! 소리만 들었어요.", "보진 못했어요!" },
         ["crow|seen.heard"] = new[] { "아닙니다. 청각 정보뿐입니다.", "듣기만 했습니다." },
-        ["fox|seen.heard"] = new[] { "아뇨, 들은 거예요.", "보진 못했어요." },
+        ["fox|seen.heard"] = new[] { "아뇨, 들은 거예요.", "보진 못했죠. 벽 하나 사이라서요." },
 
         // 확신하는가
         ["owl|certain.sure"] = new[] { "확실합니다.", "제가 확인한 범위에서는 확실합니다." },
@@ -708,14 +710,14 @@ public static class KoreanDialogueComposer
         ["jellyfish|certain.sure"] = new[] { "그건... 확실해요.", "네, 그건 맞아요." },
         ["rabbit|certain.sure"] = new[] { "확실해요!", "네! 그건 확실해요!" },
         ["crow|certain.sure"] = new[] { "확실합니다.", "맞습니다." },
-        ["fox|certain.sure"] = new[] { "그건 확실해요.", "네, 확실합니다." },
+        ["fox|certain.sure"] = new[] { "그건 확실하죠.", "이건 장담해도 됩니다." },
 
         ["owl|certain.unsure"] = new[] { "단정하기는 어렵습니다.", "확인된 범위를 넘어서는 말씀드릴 수 없습니다." },
         ["cat|certain.unsure"] = new[] { "글쎄요. 거기까진 몰라요.", "확실하냐고 하면 아니죠." },
         ["jellyfish|certain.unsure"] = new[] { "그건... 잘 모르겠어요.", "제가 잘못 안 걸 수도 있어요..." },
         ["rabbit|certain.unsure"] = new[] { "음... 그건 잘 모르겠어요.", "확실하진 않아요!" },
         ["crow|certain.unsure"] = new[] { "단정할 수 없습니다.", "확인 못 했습니다." },
-        ["fox|certain.unsure"] = new[] { "글쎄요. 장담은 못 하겠는데요.", "거기까진 모르죠." },
+        ["fox|certain.unsure"] = new[] { "글쎄요~ 장담은 못 하겠는데요.", "거기까진 모르죠. 제가 전부 볼 순 없잖아요." },
 
         // 구체적으로 어떤 상황이었는가
         ["owl|detail.direct"] = new[] { "{iroom}에서 {what}", "가까이에서 봤습니다. {what}" },
@@ -753,14 +755,14 @@ public static class KoreanDialogueComposer
         ["jellyfish|reason.sight"] = new[] { "평소랑 달라 보여서요...", "표정이 좀... 이상했어요." },
         ["rabbit|reason.sight"] = new[] { "평소랑 완전 달랐거든요!", "거기 갈 이유가 없잖아요!" },
         ["crow|reason.sight"] = new[] { "평소 동선과 달랐습니다.", "행동 순서가 부자연스러웠습니다." },
-        ["fox|reason.sight"] = new[] { "그 시간에 거기 있을 이유가 없죠.", "평소랑 달랐거든요." },
+        ["fox|reason.sight"] = new[] { "그 시간에 거기 있을 이유가 없죠.", "평소랑 달랐거든요. 저는 그런 게 잘 보여서요." },
 
         ["owl|reason.move"] = new[] { "확인이 필요하다고 판단했습니다.", "보고 전에 상황을 확인하려 했습니다." },
         ["cat|reason.move"] = new[] { "필요해서 갔어요.", "가야 할 일이 있었으니까요." },
         ["jellyfish|reason.move"] = new[] { "그, 확인할 게 있어서요...", "무서워서 그쪽으로 간 것도 있고요..." },
         ["rabbit|reason.move"] = new[] { "확인하고 싶어서 갔어요!", "궁금해서 가봤어요!" },
         ["crow|reason.move"] = new[] { "확인 목적입니다.", "필요한 이동이었습니다." },
-        ["fox|reason.move"] = new[] { "확인할 게 있었거든요.", "그럴 만한 이유가 있었어요." },
+        ["fox|reason.move"] = new[] { "확인할 게 있었거든요.", "그럴 만한 이유가 있었죠. 자세히 말씀드릴 것까진 없고요." },
 
         ["owl|reason.opinion"] = new[] { "같이 일해 본 인상이 그렇습니다.", "근무 태도를 보고 판단했습니다." },
         ["cat|reason.opinion"] = new[] { "일하는 거 보면 알죠.", "그냥 보면 알아요." },
@@ -790,7 +792,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|challenge.honest"] = new[] { "저, 저는 사실대로 말했어요... 정말이에요.", "숨긴 건 없어요..." },
         ["rabbit|challenge.honest"] = new[] { "저 진짜 그대로 말한 거예요!", "확인해보시면 아실 거예요!" },
         ["crow|challenge.honest"] = new[] { "사실대로 말했습니다. 기록을 확인하십시오.", "숨긴 것 없습니다." },
-        ["fox|challenge.honest"] = new[] { "제 말이 이상하게 들렸다면 다시 설명드리죠.", "숨길 이유가 없는데요." },
+        ["fox|challenge.honest"] = new[] { "제 말이 이상하게 들렸다면 다시 설명드리죠.", "숨길 이유가 없는데요. 뭘 보고 그러세요?" },
 
         ["owl|challenge.evasive"] = new[] { "기록이 그렇다면 제가 놓친 부분이 있을 겁니다.", "그 부분은 제 기록에 남기지 않았습니다." },
         ["cat|challenge.evasive"] = new[] { "그게 그렇게 중요한가요?", "잠깐 움직인 것까지 다 말해야 해요?" },
@@ -805,6 +807,13 @@ public static class KoreanDialogueComposer
         ["jellyfish|closer"] = new[] { "이 정도밖에 못 도와드려서 죄송해요..." },
         ["rabbit|closer"] = new[] { "또 필요하면 말씀해주세요!" },
         ["crow|closer"] = new[] { "이상입니다." },
-        ["fox|closer"] = new[] { "이 정도면 되셨나요?", "그래서, 뭐가 더 궁금하신데요?" },
+        ["fox|closer"] = new[] { "이 정도면 되셨나요?", "뭐, 이 정도죠." },
+        // 여우는 곤란한 질문을 되돌린다(SpeechStyleLine3). AsksBack 프로필이 이 풀을 쓴다.
+        ["fox|closer.back"] = new[]
+        {
+            "그래서, 뭐가 더 궁금하신데요?",
+            "그런데 그걸 왜 궁금해하시는지가 더 궁금한데요.",
+            "관리자님은 어떻게 보시는데요?",
+        },
     };
 }

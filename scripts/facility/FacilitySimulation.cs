@@ -285,8 +285,12 @@ public partial class FacilitySimulation : Node
         _surveillanceTargetRoomId = roomId;
     }
 
+    // 연출로 CCTV 를 강제 전환하기 직전에 보고 있던 채널. 연출이 끝나면 여기로 돌아간다.
+    private string _preForcedSurveillanceRoomId = "";
+
     public void ForceSurveillanceTarget(string roomId, float seconds)
     {
+        if (!IsSurveillanceForced()) _preForcedSurveillanceRoomId = _surveillanceTargetRoomId ?? "";
         _forcedSurveillanceRoomId = roomId ?? "";
         _forcedSurveillanceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(0.1f, seconds);
         _surveillanceTargetRoomId = _forcedSurveillanceRoomId;
@@ -295,16 +299,26 @@ public partial class FacilitySimulation : Node
     public void ReleaseForcedSurveillance(string roomId = "")
     {
         if (!string.IsNullOrEmpty(roomId) && _forcedSurveillanceRoomId != roomId) return;
+        EndForcedSurveillance();
+    }
+
+    // 강제 전환 해제 — 연출 전에 보던 채널로 되돌린다. 전력이 없던 상태였다면
+    // 채널만 돌아가고 화면은 그대로 "CCTV POWER OFF" 로 표시된다(전력 판정은 건드리지 않는다).
+    private void EndForcedSurveillance()
+    {
         _forcedSurveillanceRoomId = "";
         _forcedSurveillanceUntil = -1;
+        if (!string.IsNullOrEmpty(_preForcedSurveillanceRoomId))
+            _surveillanceTargetRoomId = _preForcedSurveillanceRoomId;
+        _preForcedSurveillanceRoomId = "";
     }
 
     private bool IsSurveillanceForced()
     {
         if (string.IsNullOrEmpty(_forcedSurveillanceRoomId)) return false;
         if (Time.GetTicksMsec() / 1000.0 < _forcedSurveillanceUntil) return true;
-        _forcedSurveillanceRoomId = "";
-        _forcedSurveillanceUntil = -1;
+        // 시간이 다 되어 저절로 풀릴 때도 원래 채널로 되돌린다.
+        EndForcedSurveillance();
         return false;
     }
 
@@ -1172,6 +1186,9 @@ public partial class FacilitySimulation : Node
                 st.Gauge = Mathf.Max(0f, st.Gauge - Config.Instance.Data.SabotageTaskGaugeLoss);
             EventLog.Instance?.LogEvent(LogEventType.Sabotage, actorEmployeeId, roomId,
                 $"⚠ {roomDef?.DisplayName ?? roomId} — '{activeTask.DisplayName}' 진행 기록에 원인 불명의 지연이 있었다.", witnesses);
+            // 설비가 망가지지 않은 유형이라도 흔적은 남는다 — 센서에서 확인할 수 있어야 한다.
+            IncidentTracker.Anomaly(roomId, "비정상 조작 흔적 감지",
+                $"'{activeTask.DisplayName}' 진행 지연");
         }
     }
 
@@ -1470,6 +1487,8 @@ public partial class FacilitySimulation : Node
                 break;
             case TaskEffectType.BoostPowerCapacity:
                 GameState.Instance.RepairPowerAccident();
+                // 발전실 사고(금기 이상현상 포함)는 전력이 정상으로 돌아온 시점에 해결된다.
+                IncidentTracker.Resolve(roomId);
                 badge += " · ⚡ 전력 정상 복구";
                 break;
         }

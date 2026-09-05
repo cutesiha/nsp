@@ -352,9 +352,12 @@ public partial class FacilityMonitorView : Control
         _face.Texture = tex;
         _face.Visible = tex != null;
 
+        // 방을 고르면 격리 버튼이 숨으므로 그 자리까지 설명이 내려올 수 있다.
+        // (직원을 고르면 y 328 의 격리 버튼 위에서 끊어야 한다.)
         float top = tex != null ? 30f + FaceSize + 6f : 30f;
+        float bottom = tex != null ? 322f : 362f;
         _inspector.Position = new Vector2(10, top);
-        _inspector.Size = new Vector2(304, 322f - top);
+        _inspector.Size = new Vector2(304, bottom - top);
     }
 
     private void UpdateProtocol()

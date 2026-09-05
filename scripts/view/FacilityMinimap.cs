@@ -46,6 +46,8 @@ public partial class FacilityMinimap : Control
         _font = ViewFont.Default;
         MouseFilter = MouseFilterEnum.Stop;
         SetProcess(true);
+        // 끌어다 놓기는 _GuiInput 밖(루트 _Input)에서 이동/뗌을 받아야 한다.
+        SetProcessInput(true);
     }
 
     public override void _Process(double delta)
@@ -76,6 +78,8 @@ public partial class FacilityMinimap : Control
 
         foreach (var roomId in Layout.Keys)
             DrawRoom(sim, roomId);
+
+        DrawDragHint(sim);
 
         foreach (var id in sim.GetEmployeeIds())
             DrawEmployee(sim, id);
@@ -125,23 +129,19 @@ public partial class FacilityMinimap : Control
         Rect2 box = BoxOf(roomId);
         var tier = def.IsRestricted ? RoomDangerTier.None : RoomStatusText.GetDangerTier(roomId);
 
-        // 색 단계는 경고 단말기와 같은 판정(IncidentBoard)을 쓴다 —
-        // 노랑=위험 축적 / 주황=사고 임박 / 빨강=사고 발생 / 회청색=수리 진행 중.
+        // 색은 두 단계뿐이다 — 주황(경고) / 빨강(사고 발생).
+        // 단계 판정만 경고 단말기와 같은 IncidentBoard 를 쓴다.
         var incident = def.IsRestricted ? null : NSP.Core.IncidentBoard.ForRoom(roomId);
-        bool repairing = incident?.State == NSP.Core.IncidentState.Active
-                         && sim.OnDutyCount(roomId) > 0;
         Color fill = incident?.State switch
         {
-            NSP.Core.IncidentState.Active when repairing => new Color(0.20f, 0.26f, 0.30f),
             NSP.Core.IncidentState.Active => new Color(0.55f, 0.09f, 0.09f)
                 .Lerp(new Color(0.8f, 0.15f, 0.15f), 0.5f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 90f)),
-            NSP.Core.IncidentState.Warning => new Color(0.52f, 0.30f, 0.06f),
-            NSP.Core.IncidentState.Caution => new Color(0.40f, 0.36f, 0.10f),
+            NSP.Core.IncidentState.Warning or NSP.Core.IncidentState.Caution
+                => new Color(0.5f, 0.32f, 0.08f),
             _ => tier switch
             {
                 RoomDangerTier.Failure => new Color(0.55f, 0.09f, 0.09f),
-                RoomDangerTier.Unstable => new Color(0.5f, 0.32f, 0.08f),
-                RoomDangerTier.Delayed => new Color(0.36f, 0.32f, 0.12f),
+                RoomDangerTier.Unstable or RoomDangerTier.Delayed => new Color(0.5f, 0.32f, 0.08f),
                 _ => def.IsRestricted ? new Color(0.10f, 0.11f, 0.13f) : new Color(0.11f, 0.17f, 0.16f),
             },
         };
@@ -191,6 +191,26 @@ public partial class FacilityMinimap : Control
             DrawString(_font, new Vector2(box.Position.X, box.Position.Y - 14f),
                 $"CORE {NSP.Core.GameState.Instance.CoreProgress:0}%", HorizontalAlignment.Center, box.Size.X, 11,
                 new Color(0.5f, 0.8f, 1f));
+    }
+
+    // 끌고 있는 동안 대상 작업실을 밝히고, 커서 자리에 직원 색 점을 따라 그린다.
+    private void DrawDragHint(FacilitySimulation sim)
+    {
+        if (!_dragging || string.IsNullOrEmpty(_dragEmp)) return;
+
+        string hover = RoomAt(_lastDragPos);
+        if (hover != null)
+        {
+            bool ok = sim.CanAssignToRoom(hover)
+                      && sim.GetEmployeeState(_dragEmp)?.AssignedRoomId != hover;
+            DrawRect(BoxOf(hover).Grow(3f),
+                ok ? new Color(0.45f, 1f, 0.8f, 0.95f) : new Color(1f, 0.4f, 0.3f, 0.9f), false, 2.4f);
+        }
+
+        var def = sim.GetEmployeeDef(_dragEmp);
+        Color c = def?.IconColor ?? Colors.White;
+        DrawCircle(_lastDragPos, EmpDotRadius, new Color(c.R, c.G, c.B, 0.85f));
+        DrawCircle(_lastDragPos, EmpDotRadius, new Color(1f, 1f, 1f, 0.9f), false, 1.6f);
     }
 
     private static bool TabooRuleSystemAtRisk(string roomId) =>
@@ -251,7 +271,16 @@ public partial class FacilityMinimap : Control
         string empHit = EmployeeAt(sim, mb.Position);
         if (empHit != null)
         {
-            OnEmployeeSelected?.Invoke(empHit);
+            var st = sim.GetEmployeeState(empHit);
+            // 살아 있고 격리되지 않았으면 끌어다 놓을 수 있다. 선택은 손을 뗄 때 처리한다.
+            if (st is { Alive: true, Isolated: false })
+            {
+                _dragEmp = empHit;
+                _pressPos = mb.Position;
+                _lastDragPos = mb.Position;
+                _dragging = false;
+            }
+            else OnEmployeeSelected?.Invoke(empHit);
             AcceptEvent();
             return;
         }
@@ -264,15 +293,19 @@ public partial class FacilityMinimap : Control
         }
     }
 
+    // 같은 방에 여러 명이 겹쳐 있어도 클릭 지점에 가장 가까운 직원을 집는다.
     private string EmployeeAt(FacilitySimulation sim, Vector2 pos)
     {
+        string best = null;
+        float bestDist = float.MaxValue;
         foreach (var id in sim.GetEmployeeIds())
         {
             var st = sim.GetEmployeeState(id);
-            if (st != null && st.Position.DistanceTo(pos) <= EmpDotRadius + 5f)
-                return id;
+            if (st == null) continue;
+            float d = st.Position.DistanceTo(pos);
+            if (d <= EmpDotRadius + 5f && d < bestDist) { best = id; bestDist = d; }
         }
-        return null;
+        return best;
     }
 
     private string RoomAt(Vector2 pos)
@@ -283,31 +316,58 @@ public partial class FacilityMinimap : Control
         return null;
     }
 
-    public override Variant _GetDragData(Vector2 atPosition)
-    {
-        var sim = FacilitySimulation.Instance;
-        if (sim == null) return default;
-        string id = EmployeeAt(sim, atPosition);
-        if (id == null) return default;
-        var st = sim.GetEmployeeState(id);
-        if (st == null || !st.Alive || st.Isolated) return default;
+    // --- 직원 끌어다 놓기 (수동 구현) --------------------------------------
+    //
+    // Godot 기본 DnD(_GetDragData/_CanDropData)는 이 미니맵처럼 SubViewport 안에서
+    // PushInput 으로 입력을 받는 화면에서는 시작조차 되지 않는다. 게다가 _GuiInput 이
+    // 눌림을 AcceptEvent 로 먹어버려서 드래그가 아예 걸리지 않았다.
+    // 배치표(ScheduleBoardUI)와 같은 방식으로 눌림 → 이동 → 뗌을 직접 추적한다.
+    private string _dragEmp = "";
+    private Vector2 _pressPos, _lastDragPos;
+    private bool _dragging;
 
-        var prev = new ColorRect { Color = sim.GetEmployeeDef(id).IconColor, Size = new Vector2(16f, 16f) };
-        SetDragPreview(prev);
-        return id;
+    public bool IsDraggingEmployee => _dragging;
+
+    public override void _Input(InputEvent e)
+    {
+        if (string.IsNullOrEmpty(_dragEmp)) return;
+
+        // 이 뷰는 스케일 프레임 안에 있다 — 입력이 뷰포트(확대) 좌표로 들어오므로 로컬로 바꾼다.
+        e = MakeInputLocal(e);
+
+        if (e is InputEventMouseMotion mm)
+        {
+            _lastDragPos = mm.Position;
+            if (!_dragging && mm.Position.DistanceTo(_pressPos) > 6f) _dragging = true;
+            if (_dragging) QueueRedraw();
+        }
+        else if (e is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left })
+        {
+            if (_dragging) DropEmployee(_lastDragPos);
+            else OnEmployeeSelected?.Invoke(_dragEmp);   // 끌지 않았으면 그냥 선택
+            _dragEmp = "";
+            _dragging = false;
+            QueueRedraw();
+        }
     }
 
-    public override bool _CanDropData(Vector2 atPosition, Variant data)
+    private void DropEmployee(Vector2 pos)
     {
-        if (data.VariantType != Variant.Type.String) return false;
         var sim = FacilitySimulation.Instance;
-        string roomId = RoomAt(atPosition);
-        if (sim == null || roomId == null) return false;
-        var emp = sim.GetEmployeeState(data.AsString());
-        return emp != null && emp.Alive && !emp.Isolated && emp.AssignedRoomId != roomId && sim.CanAssignToRoom(roomId);
+        string roomId = RoomAt(pos);
+        if (sim == null || roomId == null) { OnEmployeeSelected?.Invoke(_dragEmp); return; }
+
+        var emp = sim.GetEmployeeState(_dragEmp);
+        if (emp == null || !emp.Alive || emp.Isolated) return;
+        if (emp.AssignedRoomId == roomId) return;
+        if (!sim.CanAssignToRoom(roomId)) return;
+
+        // ClearAssignment 없이 바로 재배치 — AssignToRoom 이 이동까지 처리한다.
+        sim.AssignToRoom(_dragEmp, roomId);
+        OnEmployeeSelected?.Invoke(_dragEmp);
     }
 
-    public override void _DropData(Vector2 atPosition, Variant data)
+    private void UnusedDropData(Vector2 atPosition, Variant data)
     {
         var sim = FacilitySimulation.Instance;
         string roomId = RoomAt(atPosition);

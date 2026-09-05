@@ -22,12 +22,46 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
     private bool _built;
     private Node3D _attachmentRoot;
 
-    // sencor.glb 화면 맞춤값 (SensorModel 로컬 = glb 단위). 필요하면 여기만 만진다.
+    // sencor.glb 화면 맞춤값 (SensorModel 로컬 = glb 단위).
+    // 에디터에서도 화면 사각형이 보이고, 아래 세 값을 인스펙터에서 바꾸면 즉시 움직인다.
+    //
     // 화면 비율(560:300)에 맞춘 가로 긴 표시창. SensorModel 의 X 스케일이 커진 만큼
     // 실제 화면은 더 넓어진다 — 몸체를 키우기보다 화면 면적을 넓히는 쪽을 우선한다.
-    [Export] public Vector2 ScreenSize = new(0.76f, 0.50f);
-    [Export] public Vector3 ScreenOffset = new(0.01f, 0.50f, 0.19f);
-    [Export] public float ScreenTiltDeg = -26.6f;
+    private Vector2 _screenSize = new(0.76f, 0.50f);
+    // 화면은 sencor.glb 앞면(측정식 z = -0.043x - 0.5013y + 0.358) 위에 놓여야 한다.
+    // 중심 (x 0.01, y 0.50) 에서 그 평면의 z 는 0.107.
+    private Vector3 _screenOffset = new(0.01f, 0.50f, 0.115f);
+    private float _screenTiltDeg = -26.6f;
+
+    [Export]
+    public Vector2 ScreenSize
+    {
+        get => _screenSize;
+        set { _screenSize = value; UpdateScreenTransform(); }
+    }
+
+    [Export]
+    public Vector3 ScreenOffset
+    {
+        get => _screenOffset;
+        set { _screenOffset = value; UpdateScreenTransform(); }
+    }
+
+    [Export(PropertyHint.Range, "-90,90,0.1")]
+    public float ScreenTiltDeg
+    {
+        get => _screenTiltDeg;
+        set { _screenTiltDeg = value; UpdateScreenTransform(); }
+    }
+
+    // 인스펙터에서 값이 바뀌면 쿼드를 다시 맞춘다(에디터에서 위치를 직접 잡기 위한 것).
+    private void UpdateScreenTransform()
+    {
+        if (_screen == null || !IsInstanceValid(_screen)) return;
+        if (_screen.Mesh is QuadMesh q) q.Size = _screenSize;
+        _screen.Position = _screenOffset;
+        _screen.RotationDegrees = new Vector3(_screenTiltDeg, 0f, 0f);
+    }
     [Export] public Vector3 BeaconOffset = new(0.16f, 0.87f, -0.18f);
     [Export] public Vector3 LedOffset = new(0.44f, 0.6f, 0.04f);
 
@@ -72,6 +106,14 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
         // 로컬 좌표계의 자식으로 넣어야 모델 위에 정확히 붙는다.
         _attachmentRoot = GetNodeOrNull<Node3D>("SensorModel") ?? this;
 
+        // 에디터에서는 게임 autoload 도 컨트롤러도 없다. 위치를 직접 잡을 수 있도록
+        // SubViewport 없이 화면 사각형만 밝은 색으로 띄운다(실행 중에는 이 경로를 타지 않는다).
+        if (Engine.IsEditorHint())
+        {
+            BuildScreenQuad(null);
+            return;
+        }
+
         // 표시창(SubViewport 투사). 렌더 해상도 = 논리 캔버스 × UiScale (글자도 같은 배율로 확대).
         var logical = new Vector2I(560, 300);
         var vp = new SubViewport
@@ -87,23 +129,7 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
         _ui = new AlertTerminalView();
         ControlRoom3DController.AddScaledView(vp, _ui, logical);
 
-        _screen = new MeshInstance3D
-        {
-            // sencor.glb의 기울어진 앞면 = 하나의 평면(메시에서 실측: z ≈ -0.043x - 0.5013y + 0.358,
-            // 즉 뒤로 26.6° 젖혀짐). 이 평면 위, CRT 유리 바로 앞에 불투명 경고 화면을 올려
-            // 모델에 구워진 초록 글자를 완전히 덮고 AlertSystem의 현재 경고만 보이게 한다.
-            // 값 조정: SensorModel 로컬 좌표(글b 단위). 프레임(베젤 z≈0.31)이 가장자리를 가려줌.
-            Mesh = new QuadMesh { Size = new Vector2(ScreenSize.X, ScreenSize.Y) },
-            Position = ScreenOffset,
-            RotationDegrees = new Vector3(ScreenTiltDeg, 0f, 0f),
-            MaterialOverride = new StandardMaterial3D
-            {
-                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-                AlbedoTexture = vp.GetTexture(),
-                TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
-            },
-        };
-        _attachmentRoot.AddChild(_screen);
+        BuildScreenQuad(vp.GetTexture());
 
         // GLB에 이미 구워진 경광등 돔/LED 위에 '동작하는' 버전을 겹쳐 올린다.
         // (돔 실측 중심 x≈0.16, z≈-0.18, 밑동 y≈0.87 / LED 스택 화면 오른쪽 x≈0.42)
@@ -117,6 +143,36 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
         _attachmentRoot.AddChild(lamp2);
 
         BuildBeacon();
+    }
+
+    // sencor.glb의 기울어진 앞면 = 하나의 평면(메시에서 실측: z ≈ -0.043x - 0.5013y + 0.358,
+    // 즉 뒤로 26.6° 젖혀짐). 이 평면 위, CRT 유리 바로 앞에 경고 화면을 올려
+    // 모델에 구워진 초록 글자를 완전히 덮는다.
+    // tex 가 null 이면(에디터) 위치 확인용 밝은 사각형으로 그린다.
+    private void BuildScreenQuad(Texture2D tex)
+    {
+        _screen = new MeshInstance3D
+        {
+            Name = "ScreenQuad",
+            Mesh = new QuadMesh { Size = _screenSize },
+            Position = _screenOffset,
+            RotationDegrees = new Vector3(_screenTiltDeg, 0f, 0f),
+            MaterialOverride = tex != null
+                ? new StandardMaterial3D
+                {
+                    ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                    AlbedoTexture = tex,
+                    TextureFilter = BaseMaterial3D.TextureFilterEnum.Nearest,
+                }
+                : new StandardMaterial3D
+                {
+                    ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                    AlbedoColor = new Color(0.25f, 1f, 0.75f, 0.55f),
+                    Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                    CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                },
+        };
+        _attachmentRoot.AddChild(_screen);
     }
 
     // 경찰차식 회전 경광등: 받침 + 반투명 돔 + 그 안에서 도는 SpotLight + 발광 전구.
@@ -208,7 +264,7 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
 
     public override void _Process(double delta)
     {
-        if (_ui == null) return;
+        if (Engine.IsEditorHint() || _ui == null) return;
 
         // 성능: 근무 배치 단계처럼 단말기가 책상에서 치워져 있으면 화면을 그리지 않는다.
         if (_screenVp != null)

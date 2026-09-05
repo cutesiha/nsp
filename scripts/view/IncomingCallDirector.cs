@@ -32,6 +32,16 @@ public partial class IncomingCallDirector : Node
     // 한 상황당 걸려오는 전화 수 상한.
     [Export] public int MaxCallsPerIncident = 2;
 
+    // 근무 시작 직후에는 전화가 오지 않는다 — 배치를 확인할 시간을 준다.
+    [Export] public float FirstCallDelaySeconds = 5f;
+    // 이 시간 안에 이만큼 걸렸으면, 창이 지날 때까지 다음 전화를 미룬다.
+    [Export] public float CallWindowSeconds = 20f;
+    [Export] public int MaxCallsPerWindow = 2;
+    // 벨과 벨 사이의 최소 간격. 창 제한과 함께 걸어 "20초에 2통"을 확실히 지킨다.
+    [Export] public float MinRingGapSeconds = 7f;
+    // 켜면 전화가 걸릴 때마다 이유와 최근 통화 수를 출력한다(개발용).
+    [Export] public bool DebugCalls = false;
+
     // 예전에는 사고 발견 대사가 방 이름을 '발전실'로 못박고 있어서 다른 작업실 사고에는
     // 전화를 걸 수 없었다. 지금은 LocalDialogueGenerator 가 실제 RoomId/EventType 으로
     // 대사를 만들므로 모든 작업실 사고가 자연스럽게 신고된다.
@@ -64,6 +74,9 @@ public partial class IncomingCallDirector : Node
     private string _lastIncidentKey = "";
     private double _lastCallEndedAt = -1000.0;
     private bool _blackoutWas;
+    // 최근에 실제로 벨이 울린 시각들 — 짧은 시간에 전화가 몰리지 않게 한다.
+    private readonly List<double> _recentCalls = new();
+    private double _lastRingAt = -1000.0;
     private bool _eventWired, _phoneWired, _hudWired;
     private readonly RandomNumberGenerator _rng = new();
 
@@ -84,6 +97,8 @@ public partial class IncomingCallDirector : Node
             _blackoutWas = false;
             _lastIncidentKey = "";
             _lastCallEndedAt = -1000.0;
+            _recentCalls.Clear();
+            _lastRingAt = -1000.0;
             return;
         }
 
@@ -137,13 +152,14 @@ public partial class IncomingCallDirector : Node
 
         switch (e.EventType)
         {
-            // 파괴공작: 목격자가 있으면 "수상한 행동 목격"(⑤), 없으면 "사고 발견"(①) 으로.
+            // 파괴공작: 실제로 본 직원이 있을 때만 "수상한 행동 목격"(⑤) 전화가 온다.
+            // 아무도 못 봤다면 전화가 오지 않는다 — 흔적은 경고 단말기와 시설 로그에만 남는다.
+            // (예전에는 목격자가 없을 때 "사고 발견" 전화를 걸어, 센서에는 아무 사고도 없는데
+            //  직원이 그 작업실 사고를 보고하는 것처럼 보였다.)
             case LogEventType.Sabotage:
                 var witness = e.WitnessEmployeeIds.FirstOrDefault(id => Available(id) && !AlreadyCalled(RoomKey(e.RoomId), id));
                 if (!string.IsNullOrEmpty(witness))
                     Enqueue(witness, DialogueRepository.EventWitnessSuspicious, RoomKey(e.RoomId), e.RoomId);
-                else
-                    EnqueueAccident(e.RoomId, e.ActorEmployeeId);
                 break;
 
             // 시설 사고(방치로 인한 고장 등) → 근처 직원이 "사고 발견"(①).
@@ -274,6 +290,16 @@ public partial class IncomingCallDirector : Node
         double now = Time.GetTicksMsec() / 1000.0;
         if (now < _gapUntil) return;
 
+        // 근무 시작 후 일정 시간이 지나야 첫 전화가 온다.
+        if ((GameState.Instance?.DayTimeSeconds ?? 0f) < FirstCallDelaySeconds) return;
+
+        // 벨과 벨 사이 최소 간격.
+        if (now - _lastRingAt < MinRingGapSeconds) return;
+
+        // 최근 창 안에서 이미 상한만큼 걸렸으면 대기열을 그대로 둔 채 기다린다.
+        _recentCalls.RemoveAll(t => now - t > CallWindowSeconds);
+        if (_recentCalls.Count >= Mathf.Max(1, MaxCallsPerWindow)) return;
+
         while (_queue.Count > 0)
         {
             var p = _queue[0];
@@ -294,6 +320,11 @@ public partial class IncomingCallDirector : Node
             if (inc != null) inc.Calls++;
             _lastIncidentKey = p.DedupeKey;
             _active = p;
+            _recentCalls.Add(now);
+            _lastRingAt = now;
+            if (DebugCalls)
+                GD.Print($"[CALL] {p.EmployeeId} / {p.DialogueEvent} / {p.RoomId} — "
+                         + $"최근 {CallWindowSeconds:0}초 내 {_recentCalls.Count}/{MaxCallsPerWindow}통");
             Phone3D.Instance.RingIncoming(p.EmployeeId, p.DialogueEvent, p.RoomId);
             return;
         }

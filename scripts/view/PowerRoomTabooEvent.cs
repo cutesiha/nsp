@@ -139,6 +139,10 @@ public partial class PowerRoomTabooEvent : Node
             sim?.ReleaseForcedSurveillance(RoomId);
             // 7. 실제 게임 페널티 — 연출 성공 여부와 무관하게 반드시 적용한다.
             //    전력 용량 3 → 1, 발전실 두 직원 스트레스 크게 상승.
+            // 이 사고는 수리 업무를 남기지 않아 방 상태만으로는 알 수 없다.
+            // 먼저 사고로 등록해야 미니맵이 빨갛게 뜨고 전력 손실이 결과로 묶인다.
+            IncidentTracker.Open(RoomId, "발전 설비 이상", "금기 위반",
+                "발전기 점검 완료 필요", 2);
             TabooRuleSystem.Instance?.ApplyDeferredConsequence(tabooId, RoomId);
             EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", RoomId,
                 "⚠ POWER SYSTEM ABNORMALITY — 전력 용량 제한 (CAPACITY LIMITED)");
