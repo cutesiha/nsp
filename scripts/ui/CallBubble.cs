@@ -120,7 +120,8 @@ public partial class CallBubble : Control
     {
         _choiceBubble.Visible = false;
         _tail.Visible = false;
-        StartTyping(DialogueRepository.GeneralAnswer(_employeeId, questionIndex), EndCallSoon);
+        // 대답은 현재 근무 상태에서 생성한다(3D 전화기와 같은 파이프라인).
+        StartTyping(LocalDialogueGenerator.GeneralAnswer(_employeeId, questionIndex), EndCallSoon);
     }
 
     private async void EndCallSoon()

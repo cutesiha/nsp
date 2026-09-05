@@ -10,9 +10,9 @@ namespace NSP.View;
 // 책상 위 경고 단말기(SENSOR 전용 화면)의 실제 내용. 판정은 전혀 하지 않는다 —
 // AlertSystem이 계산한 목록과 GameState/EventLog를 읽기만 한다. 문구는 전부 한글.
 //   SENSOR ON  : AlertSystem이 계산한 가장 급한 예고를 그대로 보여준다(카운트다운 포함).
-//   SENSOR OFF : 평소엔 "센서 전원 차단"만, 실제 사고 로그 순간만 최소 사후 경보를 잠깐 띄운다.
+//   SENSOR OFF : 평소엔 "경고 단말기 전원 차단"만, 실제 사고 로그 순간만 최소 사후 경보를 잠깐 띄운다.
 // CurrentSeverity / InFailureFlash / DeathSeen 는 AlertTerminalProp 의 회전 경광등이 색·속도를 정하는 데 쓴다.
-// [Tool] — 에디터 뷰포트에서도 화면이 보이게 한다(에디터엔 autoload가 없어 "센서 전원 차단").
+// [Tool] — 에디터 뷰포트에서도 화면이 보이게 한다(에디터엔 autoload가 없어 "경고 단말기 전원 차단").
 [Tool]
 public partial class AlertTerminalView : Control
 {
@@ -106,7 +106,9 @@ public partial class AlertTerminalView : Control
         if (!sensorOn)
         {
             CurrentSeverity = AlertSeverity.Notice;
-            Show3("센서 전원 차단", "사고 예측 불가", "", new Color(0.55f, 0.55f, 0.55f));
+            // 화면 위쪽 머리글이 이미 "경고 단말기"라 여기서는 상태만 크게 띄운다
+            // (46pt 한 줄 폭을 넘기면 두 줄로 접혀 아래 문구를 밀어낸다).
+            Show3("전원 차단", "사고 예측 불가", "", new Color(0.55f, 0.55f, 0.55f));
             return;
         }
 

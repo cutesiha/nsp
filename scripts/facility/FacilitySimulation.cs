@@ -676,6 +676,8 @@ public partial class FacilitySimulation : Node
         _ventStressTimer = 0f;
         _coreUnstableTimer = 0f;
         TabooRuleSystem.Instance?.ResetRuntimeState();
+        // 지난 근무의 진술·알리바이는 새 근무로 넘어오지 않는다.
+        NSP.Dialogue.DialogueClaimState.ResetAll();
 
         // 방 점유자 목록을 이번 근무의 실제 근무자로 다시 만든다.
         // 프로젝트 로드 시점에는 6명 전원이 각자 StartRoomId 에 점유자로 들어가 있는데,

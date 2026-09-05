@@ -325,19 +325,43 @@ public partial class ScheduleBoardUI : Control
 
         AddLabel(_info, def.DisplayName, new Vector2(px, py), 20, Ink, _serif);
 
+        // 요구 능력이 3개인 작업실(경비실: 담력·기술·관찰)은 한 줄에 다 넣으면 마지막
+        // 항목이 배치표 오른쪽 밖으로 삐져나간다. 폭을 재서 넘칠 때만 줄을 나눈다.
         var stats = RoomRequiredStats(sim, roomId);
-        string statLine = stats.Count == 0 ? "" : string.Join("  ·  ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
+        string joined = string.Join("  ·  ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
+        float y = py + 28;
+        bool wrapped = stats.Count > 0 && TextWidth($"요구 능력  {joined}", 15) > pw;
+        if (!wrapped)
+        {
+            AddLabel(_info, $"요구 능력  {joined}", new Vector2(px, y), 15, InkRed, _body);
+            y += 24f;
+        }
+        else
+        {
+            // 머리말을 위로 올리고 능력 목록만 다음 줄에 둔다. 그래도 넘치면 한 단계 줄인다.
+            AddLabel(_info, "요구 능력", new Vector2(px, y), 15, InkRed, _body);
+            int statSize = TextWidth(joined, 15) <= pw ? 15 : 13;
+            AddLabel(_info, joined, new Vector2(px, y + 20f), statSize, InkRed, _body);
+            y += 40f;
+        }
+
         int headcount = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
-        AddLabel(_info, $"요구 능력  {statLine}", new Vector2(px, py + 32), 15, InkRed, _body);
         Color headcountColor = headcount >= 2 ? HeadcountBlue : HeadcountBrown;
-        var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, py + 56), 15, headcountColor, _body);
+        var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, y), 15, headcountColor, _body);
         headcountLabel.AddThemeColorOverride("font_outline_color", headcountColor.Darkened(0.18f));
         headcountLabel.AddThemeConstantOverride("outline_size", 1);
+        y += 24f;
 
         string desc = FirstSentence(RoomDetailCard.Descriptions.GetValueOrDefault(roomId, ""));
-        var d = AddLabel(_info, desc, new Vector2(px, py + 84), 14, Ink, _body);
-        d.Size = new Vector2(pw, 84);
+        // 능력 목록이 두 줄로 늘어난 만큼 설명이 쓸 수 있는 높이가 줄어든다.
+        var d = AddLabel(_info, desc, new Vector2(px, y), wrapped ? 13 : 14, Ink, _body);
+        // 줄바꿈을 먼저 켜야 한다. 끄고 폭을 주면 Label 의 최소 폭이 "한 줄 전체 길이"라
+        // 지정한 폭이 무시되고 종이 오른쪽 밖으로 늘어난다.
         d.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        d.ClipText = true;
+        // 남은 세로 공간만 쓴다 — 오른쪽 아래 "근무 시작" 버튼 위에서 끊는다.
+        d.CustomMinimumSize = new Vector2(pw, 0);
+        d.Size = new Vector2(pw, Mathf.Max(20f, CanvasSize.Y - 64f - y));
     }
 
     private void DrawEmployeeInfo(FacilitySimulation sim, string employeeId, float px, float py, float pw)
@@ -457,6 +481,10 @@ public partial class ScheduleBoardUI : Control
         2 => ("○ 보통", new Color(0.85f, 0.47f, 0.06f), "기준 속도"),
         _ => ("△ 비효율", InkRed, "업무 속도 크게 느림"),
     };
+
+    // 정보 패널은 좌표로 직접 배치하므로, 줄을 나눌지 판단하려면 실제 글자 폭이 필요하다.
+    private float TextWidth(string text, int size) =>
+        _body?.GetStringSize(text, HorizontalAlignment.Left, -1, size).X ?? 0f;
 
     private static string StatIcon(StatType s) => s switch
     {

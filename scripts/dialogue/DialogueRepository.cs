@@ -4,9 +4,11 @@ using Godot;
 
 namespace NSP.Dialogue;
 
-// docs/NSP_DIALOGUE_RUNTIME.md 를 읽어 전화 대사를 제공한다.
+// docs/NSP_DIALOGUE_RUNTIME.md 를 읽어 고정 대사를 제공한다.
 //  - 원본(야간근무지침_상황별_예시_대사_모음.md)의 문장을 그대로 옮긴 파일이며 여기서 수정하지 않는다.
-//  - API 연결 여부와 무관하게 이 데이터만으로 통화가 완결되어야 한다.
+//  - 대사 생성은 LocalDialogueGenerator 가 담당한다. 이 클래스의 역할은 두 가지로 축소됐다.
+//      · 일반 통화의 "질문 목록"과 첫 인사 제공(대답은 생성기가 만든다)
+//      · 생성기가 대사를 만들 수 없을 때의 폴백
 //  - 파일이 없거나 파싱이 깨져도 게임이 멈추지 않도록 최소 폴백을 반환한다.
 public static class DialogueRepository
 {

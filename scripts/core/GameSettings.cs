@@ -35,7 +35,7 @@ public static class GameSettings
     {
         (ZoomTarget.Monitor1, "모니터 1 확대"),
         (ZoomTarget.Monitor2, "모니터 2 확대"),
-        (ZoomTarget.Sensor, "센서 기기 확대"),
+        (ZoomTarget.Sensor, "경고 단말기 확대"),
         (ZoomTarget.PowerPanel, "전력 기기 확대"),
     };
 

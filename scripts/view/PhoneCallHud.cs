@@ -8,8 +8,8 @@ namespace NSP.View;
 // 전화 통화 자막 UI. 화면 하단의 작은 홀로그램 '창' 으로만 표시한다 — 중앙 대형 팝업 금지.
 //  - 일반 통화(플레이어 발신): 인사 → 질문 → 대답 …
 //  - 이벤트 통화(직원 발신: 사고/비명/정전/목격/인터뷰): 첫 대사 → 2지선다 → 대답 → 종료
-// 일반/이벤트 통화는 DialogueRepository를, DAY1 휴게 인터뷰는 LocalInterviewDialogue
-// (docs/휴게시간_대사목록.md + 실제 이벤트 로그)를 사용한다.
+// 모든 대사는 LocalDialogueGenerator(로컬 규칙 기반 생성기)가 실제 게임 로그/상태에서 만든다.
+// DialogueRepository 는 질문 목록과, 생성이 불가능할 때의 폴백 대사로만 남는다.
 // CanvasLayer 자체는 항상 켜두고 통화창(_panel)만 여닫는다 — 벨이 울리는 동안 아주 작은
 // "INCOMING CALL" 보조 표시를 띄우기 위함(직원 이름은 받기 전까지 알려주지 않는다).
 public partial class PhoneCallHud : CanvasLayer
@@ -38,7 +38,8 @@ public partial class PhoneCallHud : CanvasLayer
 
     private string _employeeId = "";
     private string _dialogueEvent = DialogueRepository.EventGeneralCall;
-    private DialogueRepository.EventLine _event;
+    private string _incidentRoomId = "";
+    private LocalDialogueGenerator.CallLine _event;
     private string _fullText = "";
     private double _typeTimer;
     private int _shownChars;
@@ -142,10 +143,12 @@ public partial class PhoneCallHud : CanvasLayer
         if (_incoming != null) _incoming.Visible = false;
     }
 
-    public void Open(string employeeId, string dialogueEvent = DialogueRepository.EventGeneralCall)
+    public void Open(string employeeId, string dialogueEvent = DialogueRepository.EventGeneralCall,
+        string incidentRoomId = "")
     {
         _employeeId = employeeId;
         _dialogueEvent = string.IsNullOrEmpty(dialogueEvent) ? DialogueRepository.EventGeneralCall : dialogueEvent;
+        _incidentRoomId = incidentRoomId ?? "";
         HideIncoming();
         _panel.Visible = true;
         SetInterviewLayout(_dialogueEvent == LocalInterviewDialogue.EventDay1Interview);
@@ -173,7 +176,10 @@ public partial class PhoneCallHud : CanvasLayer
 
         if (_dialogueEvent != DialogueRepository.EventGeneralCall)
         {
-            _event = DialogueRepository.GetEvent(_dialogueEvent, employeeId);
+            // 사고 신고는 실제 RoomId/EventType 으로 매번 새로 만든다. 만들 수 없을 때만
+            // 원본 대사(DialogueRepository)를 폴백으로 쓴다.
+            _event = LocalDialogueGenerator.BuildIncomingCall(employeeId, _dialogueEvent, _incidentRoomId)
+                     ?? FallbackEvent(_dialogueEvent, employeeId);
             if (_event != null && !string.IsNullOrEmpty(_event.Opening))
             {
                 RecordNpc(_event.Opening, DialogueEntryType.NpcLine, DialogueConversationType.IncomingCall);
@@ -184,9 +190,23 @@ public partial class PhoneCallHud : CanvasLayer
         }
 
         _event = null;
-        string generalGreeting = DialogueRepository.Greeting(employeeId);
+        string generalGreeting = LocalDialogueGenerator.GeneralGreeting(employeeId);
         RecordNpc(generalGreeting, DialogueEntryType.NpcLine, DialogueConversationType.OutgoingCall);
         StartTyping("\"" + generalGreeting + "\"", AfterMode.GeneralQuestions);
+    }
+
+    // 동적 생성이 불가능한 경우에만 쓰는 폴백 — 원본 문서의 고정 대사를 같은 형태로 감싼다.
+    private static LocalDialogueGenerator.CallLine FallbackEvent(string dialogueEvent, string employeeId)
+    {
+        // "수상한 행동 목격" 원문은 특정 직원(여우)과 작업실을 문장에 박아 두었다.
+        // 실제로 목격한 사실이 없으면 그 문장이 없는 사실을 말하게 되므로 폴백하지 않는다.
+        if (dialogueEvent == DialogueRepository.EventWitnessSuspicious) return null;
+        var src = DialogueRepository.GetEvent(dialogueEvent, employeeId);
+        if (src == null) return null;
+        var line = new LocalDialogueGenerator.CallLine { Opening = src.Opening };
+        foreach (var c in src.Choices)
+            line.Choices.Add(new LocalDialogueGenerator.CallChoice { Text = c.Text, Reply = c.Reply });
+        return line;
     }
 
     private void StartTyping(string text, AfterMode after)
@@ -249,7 +269,8 @@ public partial class PhoneCallHud : CanvasLayer
         ClearChoices();
         var questions = DialogueRepository.GeneralQuestions(_employeeId);
         string question = idx >= 0 && idx < questions.Count ? questions[idx].Question : "";
-        string answer = DialogueRepository.GeneralAnswer(_employeeId, idx);
+        // 질문 목록은 기존 구조 그대로, 대답만 현재 근무 상태에서 생성한다.
+        string answer = LocalDialogueGenerator.GeneralAnswer(_employeeId, idx);
         RecordPlayer(question, DialogueConversationType.OutgoingCall);
         RecordNpc(answer, DialogueEntryType.NpcResponse, DialogueConversationType.OutgoingCall);
         StartTyping("\"" + answer + "\"", AfterMode.GeneralQuestions);
@@ -292,7 +313,7 @@ public partial class PhoneCallHud : CanvasLayer
         }
     }
 
-    private void OnEventChoice(DialogueRepository.Choice c, int index)
+    private void OnEventChoice(LocalDialogueGenerator.CallChoice c, int index)
     {
         ClearChoices();
         RecordPlayer(c.Text, DialogueConversationType.IncomingCall);

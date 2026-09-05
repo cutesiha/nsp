@@ -7,7 +7,7 @@ namespace NSP.View;
 // 값은 전부 GameSettings 가 들고 있고, 여기서는 읽고 쓰기만 한다.
 //   · 음량 : MASTER(전체) / BGM(배경음악) / SFX(효과음)
 //   · 화면 : 전체화면 켜기·끄기 / 그래픽 품질(3D 렌더 배율)
-//   · 조작 : 모니터1 / 모니터2 / 센서 기기 / 전력 기기 확대 숫자키
+//   · 조작 : 모니터1 / 모니터2 / 경고 단말기 / 전력 기기 확대 숫자키
 public partial class SettingsPanel : CanvasLayer
 {
     private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
@@ -156,6 +156,7 @@ public partial class SettingsPanel : CanvasLayer
         vb.AddChild(Lbl("항목을 누른 뒤 원하는 키를 입력하세요.  (ESC = 취소)", 14, InkDim, _body));
         foreach (var (target, label) in GameSettings.ZoomTargets)
             vb.AddChild(KeyRow(target, label));
+        vb.AddChild(FixedKeysBlock());
 
         // ── 하단 버튼 ──
         var bottom = Row();
@@ -246,6 +247,42 @@ public partial class SettingsPanel : CanvasLayer
         _keyButtons[target] = b;
         row.AddChild(b);
         return row;
+    }
+
+    // 재지정할 수 없는 고정 키. 숫자키 목록 바로 아래에 한 줄로 붙는다
+    // (종이 높이가 정해져 있어 세 줄로 쌓으면 하단 버튼과 겹친다).
+    private Control FixedKeysBlock()
+    {
+        var box = new VBoxContainer();
+        box.AddThemeConstantOverride("separation", 4);
+        box.AddChild(Lbl("아래 키는 변경할 수 없습니다.", 14, InkDim, _body));
+
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 20);
+        row.AddChild(KeyChip("L", "로그 열람"));
+        row.AddChild(KeyChip("D", "대화 기록 열람"));
+        row.AddChild(KeyChip("ESC", "일시정지 메뉴"));
+        box.AddChild(row);
+        return box;
+    }
+
+    private Control KeyChip(string key, string what)
+    {
+        var h = new HBoxContainer();
+        h.AddThemeConstantOverride("separation", 7);
+
+        var k = Lbl(key, 18, Ink, _body);
+        k.HorizontalAlignment = HorizontalAlignment.Center;
+        k.CustomMinimumSize = new Vector2(key.Length > 1 ? 54f : 38f, 30f);
+        k.AddThemeStyleboxOverride("normal", new StyleBoxFlat
+        {
+            BgColor = new Color(0.80f, 0.74f, 0.58f),
+            BorderColor = new Color(0.34f, 0.26f, 0.15f),
+            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
+        });
+        h.AddChild(k);
+        h.AddChild(Lbl(what, 17, InkDim, _body));
+        return h;
     }
 
     private void RefreshKeyButtons()

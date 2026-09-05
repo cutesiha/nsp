@@ -32,18 +32,17 @@ public partial class IncomingCallDirector : Node
     // 한 상황당 걸려오는 전화 수 상한.
     [Export] public int MaxCallsPerIncident = 2;
 
-    // "사고 발견"(①) 대사 원문은 6명 중 5명이 방 이름을 '발전실'로 못박고 있다
-    // (docs/야간근무지침_상황별_예시_대사_모음.md). 그래서 정비실·환기실 사고에도
-    // "발전실에서 폭발음" 이라고 전화가 와서, 플레이어에겐 발전실 전화가 4~5번 오는 것처럼 보인다.
-    // 대사를 임의로 고칠 수 없으므로, 사고 발견 통화는 발전실 사고에만 건다.
-    // 다른 작업실용 대사를 원문에 추가하면 이 값을 false 로 바꾸면 된다.
-    [Export] public bool AccidentCallsPowerRoomOnly = true;
+    // 예전에는 사고 발견 대사가 방 이름을 '발전실'로 못박고 있어서 다른 작업실 사고에는
+    // 전화를 걸 수 없었다. 지금은 LocalDialogueGenerator 가 실제 RoomId/EventType 으로
+    // 대사를 만들므로 모든 작업실 사고가 자연스럽게 신고된다.
+    [Export] public bool AccidentCallsPowerRoomOnly = false;
 
     private sealed class Pending
     {
         public string EmployeeId = "";
         public string DialogueEvent = "";
         public string DedupeKey = "";
+        public string RoomId = "";
         public double QueuedAt;
     }
 
@@ -263,6 +262,7 @@ public partial class IncomingCallDirector : Node
             EmployeeId = employeeId,
             DialogueEvent = dialogueEvent,
             DedupeKey = dedupeKey,
+            RoomId = roomId ?? "",
             QueuedAt = Time.GetTicksMsec() / 1000.0,
         });
     }
@@ -294,7 +294,7 @@ public partial class IncomingCallDirector : Node
             if (inc != null) inc.Calls++;
             _lastIncidentKey = p.DedupeKey;
             _active = p;
-            Phone3D.Instance.RingIncoming(p.EmployeeId, p.DialogueEvent);
+            Phone3D.Instance.RingIncoming(p.EmployeeId, p.DialogueEvent, p.RoomId);
             return;
         }
     }

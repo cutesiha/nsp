@@ -39,6 +39,7 @@ public partial class Phone3D : Node3D
     private string _caller = "";
     // 이번 통화에 사용할 대사 이벤트(사고/비명/정전/목격/인터뷰/일반). PhoneCallHud 로 넘긴다.
     private string _dialogueEvent = DialogueRepository.EventGeneralCall;
+    private string _incidentRoomId = "";
     // 수신 전화인지(true) 관리자 발신인지(false). 수신 전화만 patience 타이머가 돈다.
     private bool _isIncoming;
     // 수신 전화에서 이 시각(초)을 넘기면 직원이 포기하고 끊는다. -1 = 비활성.
@@ -216,11 +217,14 @@ public partial class Phone3D : Node3D
 
     // 게임 이벤트(사고 보고 등)에서 걸려오는 전화. dialogueEvent = DialogueRepository.Event* 중 하나.
     // IncomingCallDirector 만 호출한다(한 번에 한 통화 보장은 그쪽 큐가 담당).
-    public void RingIncoming(string employeeId, string dialogueEvent = DialogueRepository.EventGeneralCall)
+    public void RingIncoming(string employeeId, string dialogueEvent = DialogueRepository.EventGeneralCall,
+        string incidentRoomId = "")
     {
         if (_state != PhoneState.Idle || string.IsNullOrEmpty(employeeId)) return;
         _caller = employeeId;
         _dialogueEvent = string.IsNullOrEmpty(dialogueEvent) ? DialogueRepository.EventGeneralCall : dialogueEvent;
+        // 어느 작업실 사건인지 — 대사 생성기가 실제 방 이름/사고 종류를 쓰기 위해 필요하다.
+        _incidentRoomId = incidentRoomId ?? "";
         _isIncoming = true;
         _state = PhoneState.Ringing;
         _autoPickupAt = -1;
@@ -289,6 +293,7 @@ public partial class Phone3D : Node3D
         _dialogueEvent = resting
             ? LocalInterviewDialogue.EventDay1Interview
             : DialogueRepository.EventGeneralCall;
+        _incidentRoomId = "";
         _isIncoming = false;
         _patienceUntil = -1;
 
@@ -333,7 +338,7 @@ public partial class Phone3D : Node3D
         if (_dialogueEvent == DialogueRepository.EventInterviewSuspected)
             RestRosterView.Instance?.DisarmInterrogate();
         EmitSignal(SignalName.PickedUp);
-        _hud?.Open(_caller, _dialogueEvent);
+        _hud?.Open(_caller, _dialogueEvent, _incidentRoomId);
     }
 
     private void HangUp()
