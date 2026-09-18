@@ -74,6 +74,11 @@ public partial class ControlRoom3DController : Node3D
         { "core_room", "power_room", "vent_room", "maintenance_room", "guard_room", "medical_room" };
     public static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
 
+    // 금기가 아직 해금되지 않은 날에는 활성 금기가 하나도 없다 — 금기 데이터와 판정 코드는
+    // 그대로 남아 있고, 오늘 적용할 목록만 비운다(DayFeatures.TaboosEnabled).
+    public static string[] TodayTabooIds() =>
+        DayFeatures.TaboosEnabled ? DailyTabooIds : System.Array.Empty<string>();
+
     private Camera3D _camera;
     private SeatedCameraRig _rig;
     private readonly List<MonitorScreen3D> _screens = new();
@@ -128,7 +133,7 @@ public partial class ControlRoom3DController : Node3D
     // 배치 확정 시점에 이 메서드가 호출되어 시뮬레이션을 실제로 굴리기 시작한다.
     public void BeginShift()
     {
-        TabooRuleSystem.Instance?.ActivateDailyTaboos(DailyTabooIds);
+        TabooRuleSystem.Instance?.ActivateDailyTaboos(TodayTabooIds());
         GameState.Instance?.SetPhase(GamePhase.Live);
         FacilitySimulation.Instance?.ResetForNewShift();
         EventLog.Instance?.ClearAll();
@@ -323,8 +328,10 @@ public partial class ControlRoom3DController : Node3D
         if (employees.Any(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId)))
             return;
 
-        for (int i = 0; i < employees.Count && i < AutoStaffRooms.Length; i++)
-            sim.AssignToRoom(employees[i], AutoStaffRooms[i]);
+        // 오늘 잠긴 작업실(환기실/의무실 등)은 자동 배치 대상에서도 뺀다.
+        var rooms = AutoStaffRooms.Where(sim.IsRoomActive).ToList();
+        for (int i = 0; i < employees.Count && i < rooms.Count; i++)
+            sim.AssignToRoom(employees[i], rooms[i]);
     }
 
     public override void _Process(double delta)

@@ -134,7 +134,9 @@ public partial class ShiftFlowController : Node
         _stage = Stage.Schedule;
 
         _title?.FadeOut();
-        TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.DailyTabooIds);
+        TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.TodayTabooIds());
+        // 오늘의 기분상태는 근무 배치 화면에 들어오는 순간 하루에 한 번만 새로 정해진다.
+        FacilitySimulation.Instance?.RollDailyMoods();
         GameState.Instance?.SetPhase(GamePhase.Schedule);
         // 시작 화면부터 같은 곡을 이어 재생한다. 다음 날 배치 진입 때는 앞 단계에서 곡을
         // 페이드아웃했으므로 여기서 다시 루프로 시작한다.

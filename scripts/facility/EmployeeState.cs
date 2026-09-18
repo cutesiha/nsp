@@ -36,5 +36,12 @@ public class EmployeeState
     // 도착한 뒤의 모든 이동(재배치·사고 확인 등)은 근무 중 저속으로 걷는다.
     public bool InitialDeployDone = false;
 
+    // 오늘의 기분상태 — 직원 본인이 근무 전에 적어 내는 자기보고다. 수치 스탯이 아니라
+    // 플레이어가 배치 전에 읽는 추리 단서이며, 매 DAY DailyMoodSystem 이 다시 고른다.
+    // 기분 자체에 대해서는 거짓말하지 않는다(약하게/모호하게 적을 수는 있다).
+    public string DailyMood = "";
+    // 어제 적어 낸 기분. 같은 표현이 연달아 반복되지 않게 하는 데만 쓴다.
+    public string PreviousMood = "";
+
     public List<ConversationTurn> ConversationHistory = new();
 }

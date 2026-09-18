@@ -255,6 +255,8 @@ public static class KoreanDialogueComposer
     {
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
         if (def == null) return "무난한 편";
+        // 능력치가 잠긴 날에는 플레이어도 그 수치를 볼 수 없다 — 없는 정보로 평가하지 않는다.
+        if (!NSP.Core.DayFeatures.StatsEnabled) return "무난한 편";
         var options = new List<string>();
         if (def.Tech >= 3) options.Add("일 처리는 빠른 편");
         if (def.Tech <= 1) options.Add("일이 조금 더딘 편");

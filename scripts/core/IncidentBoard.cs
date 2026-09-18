@@ -183,10 +183,13 @@ public static class IncidentBoard
     private static void AddOperationalStatus(FacilitySimulation sim, GameState gs, List<IncidentDisplayData> list)
     {
         var cfg = Config.Instance?.Data;
+        // 스트레스가 잠긴 날에는 이 경고 자체가 의미가 없다(환기실 무인 = 스트레스 상승).
+        if (!DayFeatures.StressEnabled) return;
         foreach (string roomId in sim.GetRoomIds())
         {
             var def = sim.GetRoomDef(roomId);
             if (def == null || def.ManagedResource != RoomResourceType.Stress) continue;
+            if (!sim.IsRoomActive(roomId)) continue;
             if (sim.OnDutyCount(roomId) > 0) continue;
 
             list.Add(new IncidentDisplayData

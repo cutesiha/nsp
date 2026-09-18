@@ -29,6 +29,9 @@ public sealed class DialogueContext
     public string AssignedRoomId = "";
     public float Stress = 1f;
     public string StressBand = "";
+    // 이 직원이 오늘 근무 전에 적어 낸 "오늘의 기분". 본인 자기보고라 거짓이 아니다.
+    // (기분을 소재로 한 질문은 아직 없다 — 대사 계층이 읽을 수 있게 값만 실어 둔다.)
+    public string DailyMood = "";
     public bool Incapacitated;
     public bool Isolated;
     public bool IsMoving;

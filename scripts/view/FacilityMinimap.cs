@@ -127,11 +127,14 @@ public partial class FacilityMinimap : Control
         if (def == null || state == null) return;
 
         Rect2 box = BoxOf(roomId);
-        var tier = def.IsRestricted ? RoomDangerTier.None : RoomStatusText.GetDangerTier(roomId);
+        // 오늘 잠긴 작업실(환기실/의무실)은 배치도 업무도 사고도 없다 — 격리실처럼 어둡게만 둔다.
+        bool inactive = !sim.IsRoomActive(roomId);
+        bool dormant = def.IsRestricted || inactive;
+        var tier = dormant ? RoomDangerTier.None : RoomStatusText.GetDangerTier(roomId);
 
         // 색은 두 단계뿐이다 — 주황(경고) / 빨강(사고 발생).
         // 단계 판정만 경고 단말기와 같은 IncidentBoard 를 쓴다.
-        var incident = def.IsRestricted ? null : NSP.Core.IncidentBoard.ForRoom(roomId);
+        var incident = dormant ? null : NSP.Core.IncidentBoard.ForRoom(roomId);
         Color fill = incident?.State switch
         {
             NSP.Core.IncidentState.Active => new Color(0.55f, 0.09f, 0.09f)
@@ -142,7 +145,7 @@ public partial class FacilityMinimap : Control
             {
                 RoomDangerTier.Failure => new Color(0.55f, 0.09f, 0.09f),
                 RoomDangerTier.Unstable or RoomDangerTier.Delayed => new Color(0.5f, 0.32f, 0.08f),
-                _ => def.IsRestricted ? new Color(0.10f, 0.11f, 0.13f) : new Color(0.11f, 0.17f, 0.16f),
+                _ => dormant ? new Color(0.10f, 0.11f, 0.13f) : new Color(0.11f, 0.17f, 0.16f),
             },
         };
         DrawRect(box, fill);
@@ -157,7 +160,13 @@ public partial class FacilityMinimap : Control
         // (인원수 "● n" 표기는 아이콘이 곧 인원이라 지웠다. 아이콘과 겹쳐 읽기 힘들었다.)
         string name = def.DisplayName;
         DrawString(_font, box.Position + new Vector2(0f, 14f), name, HorizontalAlignment.Center,
-            box.Size.X, 12, new Color(0.85f, 0.92f, 0.88f));
+            box.Size.X, 12, inactive ? new Color(0.45f, 0.48f, 0.47f) : new Color(0.85f, 0.92f, 0.88f));
+        if (inactive)
+        {
+            DrawString(_font, box.Position + new Vector2(0f, 32f), "비활성", HorizontalAlignment.Center,
+                box.Size.X, 11, new Color(0.42f, 0.45f, 0.44f));
+            return;
+        }
 
         // 발생 업무: 남은 시간 + 게이지
         var st = sim.GetPrimarySpawnedTask(roomId);
@@ -288,7 +297,8 @@ public partial class FacilityMinimap : Control
         string roomHit = RoomAt(mb.Position);
         if (roomHit != null)
         {
-            OnRoomSelected?.Invoke(roomHit);
+            // 오늘 잠긴 작업실은 선택해도 볼 것이 없다 — 인스펙터/CCTV를 그쪽으로 돌리지 않는다.
+            if (sim.IsRoomActive(roomHit)) OnRoomSelected?.Invoke(roomHit);
             AcceptEvent();
         }
     }

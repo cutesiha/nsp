@@ -154,8 +154,14 @@ public partial class AIService : Node
         AppendIfAny(sb, "말투 예시:", def.SpeechExample1, def.SpeechExample2, def.SpeechExample3);
         AppendIfAny(sb, "위기 상황에서의 행동 경향:", def.BehaviorLine1, def.BehaviorLine2, def.BehaviorLine3);
 
-        sb.AppendLine($"능력치: 기술 {def.Tech}, 담력 {def.Courage}, 관찰 {def.Observation}");
-        sb.AppendLine($"현재 스트레스: {state.Stress}/{Config.Instance.Data.StressMax}");
+        // 능력치/스트레스가 잠긴 날에는 플레이어도 그 수치를 보지 못한다 — 프롬프트에도 넣지 않는다.
+        if (DayFeatures.StatsEnabled)
+            sb.AppendLine($"능력치: 기술 {def.Tech}, 담력 {def.Courage}, 관찰 {def.Observation}");
+        if (DayFeatures.StressEnabled)
+            sb.AppendLine($"현재 스트레스: {state.Stress}/{Config.Instance.Data.StressMax}");
+        // 오늘 근무 전에 본인이 적어 낸 기분. 자기보고이므로 이 값 자체는 거짓이 아니다.
+        if (!string.IsNullOrEmpty(state.DailyMood))
+            sb.AppendLine($"오늘 근무표에 적어 낸 오늘의 기분: {state.DailyMood}");
         string currentTaskName = FacilitySimulation.Instance.GetActiveTaskForRoom(state.CurrentRoomId)?.DisplayName ?? "없음";
         sb.AppendLine($"현재 위치/업무: {state.CurrentRoomId} / {currentTaskName}");
         sb.AppendLine("Godot가 확인한 사실(이 목록 밖의 사건·목격·동선을 만들어내지 마세요):");

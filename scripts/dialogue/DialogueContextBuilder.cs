@@ -264,6 +264,7 @@ public static class DialogueContextBuilder
             AssignedRoomId = st?.AssignedRoomId ?? "",
             Stress = st?.Stress ?? 1f,
             StressBand = st != null && sim != null ? sim.StressBandName(st) : "",
+            DailyMood = st?.DailyMood ?? "",
             Incapacitated = st?.Incapacitated ?? false,
             Isolated = st?.Isolated ?? false,
             IsMoving = st?.IsMoving ?? false,

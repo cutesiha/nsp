@@ -36,6 +36,10 @@ public partial class FacilitySimulation : Node
     private readonly Dictionary<string, Vector2> _roomVisualCenters = new();
     private readonly Dictionary<string, Color> _roomVisualColors = new();
     private readonly Random _rng = new();
+    // 직원별 "오늘의 기분" 배정. 기분은 EmployeeState 에만 저장되고 이 클래스는 고르기만 한다.
+    // 표현 풀(res://data/moods)을 처음 쓸 때 읽는다 — autoload 생성 순서에 기대지 않는다.
+    private DailyMoodSystem _dailyMoods;
+    private DailyMoodSystem Moods => _dailyMoods ??= new DailyMoodSystem();
     private float _saboteurDecisionTimer = 0f;
     private int _killsToday = 0;
     private bool _cctvWasOperational = true;
@@ -110,7 +114,18 @@ public partial class FacilitySimulation : Node
             if (_roomStates.TryGetValue(kv.Value.CurrentRoomId, out var room))
                 room.OccupantEmployeeIds.Add(kv.Key);
         }
+
+        // 근무 배치 화면이 열리기 전에 이미 값이 있어야 한다(ShiftFlowController 가 DAY 마다 다시 굴린다).
+        RollDailyMoods();
     }
+
+    // --- 오늘의 기분상태 ----------------------------------------------------
+    // 하루가 시작될 때(근무 배치 진입) 한 번만 호출한다. 방해자 여부는 전혀 쓰지 않는다.
+    public void RollDailyMoods() => Moods.RollForDay(_employeeStates.Values);
+
+    // 근무 배치 UI / 대화 시스템이 읽는 단일 창구.
+    public string GetDailyMood(string employeeId) =>
+        _employeeStates.GetValueOrDefault(employeeId)?.DailyMood ?? "";
 
     // 시작화면으로 돌아가 처음부터 다시 시작. autoload 라 씬을 다시 로드해도 남아 있는
     // 배치/사망/격리/스트레스/발생 업무를 전부 지우고 DAY 1 초기 상태로 되돌린다.
@@ -162,12 +177,19 @@ public partial class FacilitySimulation : Node
     public EmployeeState GetEmployeeState(string id) => _employeeStates.GetValueOrDefault(id);
     public RoomState GetRoomState(string id) => _roomStates.GetValueOrDefault(id);
 
+    // 오늘 이 작업실을 쓰는가(RoomDef.UnlockDay 기준). 잠긴 방은 배치도, 업무 발생도,
+    // 무인 방치 사고도 없고 시설 지도에도 비활성으로 표시된다.
+    public bool IsRoomActive(string roomId) => DayFeatures.IsRoomActive(_roomDefs.GetValueOrDefault(roomId));
+
     // 스트레스 연동 지점(단일 창구). 모든 스트레스 증감은 반드시 여기를 지난다.
     //  · 증가분에는 담력 배율이 걸린다 (담력 1=100% / 2=80% / 3=60%). 감소(치료)에는 안 건다.
     //  · 값은 1~50 으로 고정된다.
     //  · 46 이상이 되면 기절 — 의무실로 강제 송환되고 당일 업무 불가.
     public void AddStress(string employeeId, float amount, string reason = "")
     {
+        // V3 초반 단순화: 스트레스가 잠긴 날에는 수치가 아예 움직이지 않는다(기절도 없다).
+        if (!DayFeatures.StressEnabled) return;
+
         var st = _employeeStates.GetValueOrDefault(employeeId);
         if (st == null || !st.Alive) return;
         var cfg = Config.Instance.Data;
@@ -201,6 +223,7 @@ public partial class FacilitySimulation : Node
     public float StressWorkRate(EmployeeState st)
     {
         var cfg = Config.Instance.Data;
+        if (!DayFeatures.StressEnabled) return cfg.StressWorkRateNormal;
         if (st.Incapacitated || st.Stress >= cfg.StressFaintFrom) return 0f;
         if (st.Stress >= cfg.StressDangerFrom) return cfg.StressWorkRateDanger;
         if (st.Stress >= cfg.StressCautionFrom) return cfg.StressWorkRateCaution;
@@ -211,6 +234,7 @@ public partial class FacilitySimulation : Node
     public string StressBandName(EmployeeState st)
     {
         var cfg = Config.Instance.Data;
+        if (!DayFeatures.StressEnabled) return "정상";
         if (st.Incapacitated || st.Stress >= cfg.StressFaintFrom) return "기절";
         if (st.Stress >= cfg.StressDangerFrom) return "위험";
         if (st.Stress >= cfg.StressCautionFrom) return "주의";
@@ -222,16 +246,21 @@ public partial class FacilitySimulation : Node
         table == null || table.Length == 0 ? 1f : table[Mathf.Clamp(stat, 0, table.Length - 1)];
 
     // 기술 → 업무 속도 배율.
+    // 능력치가 잠긴 날(DayFeatures.StatsEnabled == false)에는 전원 "보통(2)"으로 읽어
+    // 배율이 1.0 이 된다 — 누구를 어디에 넣어도 업무 속도가 같아진다.
     public float TechWorkMultiplier(string employeeId) =>
-        StatLookup(Config.Instance.Data.TechWorkRate, _employeeDefs.GetValueOrDefault(employeeId)?.Tech ?? 2);
+        StatLookup(Config.Instance.Data.TechWorkRate,
+            DayFeatures.EffectiveStat(_employeeDefs.GetValueOrDefault(employeeId)?.Tech ?? 2));
 
     // 담력 → 스트레스 획득량 배율.
     public float CourageStressMultiplier(string employeeId) =>
-        StatLookup(Config.Instance.Data.CourageStressGain, _employeeDefs.GetValueOrDefault(employeeId)?.Courage ?? 2);
+        StatLookup(Config.Instance.Data.CourageStressGain,
+            DayFeatures.EffectiveStat(_employeeDefs.GetValueOrDefault(employeeId)?.Courage ?? 2));
 
     // 관찰 → 단서 포착 확률(0~1). 목격/추리 정보가 실제로 남을 확률에 쓴다.
     public float ObservationClueChance(string employeeId) =>
-        StatLookup(Config.Instance.Data.ObservationClueChance, _employeeDefs.GetValueOrDefault(employeeId)?.Observation ?? 2);
+        StatLookup(Config.Instance.Data.ObservationClueChance,
+            DayFeatures.EffectiveStat(_employeeDefs.GetValueOrDefault(employeeId)?.Observation ?? 2));
 
     // 로그 표시용 — 내부 id 대신 플레이어가 보는 코드네임/방 이름으로 남기기 위한 헬퍼.
     private string Codename(string employeeId) => _employeeDefs.GetValueOrDefault(employeeId)?.Codename ?? employeeId;
@@ -449,6 +478,8 @@ public partial class FacilitySimulation : Node
             return false;
         if (!_roomDefs.TryGetValue(roomId, out var roomDef) || roomDef.IsRestricted)
             return false;
+        if (!DayFeatures.IsRoomActive(roomDef))
+            return false;
 
         return BeginPathTo(emp, roomId);
     }
@@ -609,6 +640,7 @@ public partial class FacilitySimulation : Node
     public bool CanAssignToRoom(string roomId)
     {
         if (!_roomDefs.TryGetValue(roomId, out var def) || def.IsRestricted) return false;
+        if (!DayFeatures.IsRoomActive(def)) return false;
         if (!_roomStates.TryGetValue(roomId, out var state) || state.Locked) return false;
         return GetAssignedCount(roomId) < RoomSlotCapacity;
     }
@@ -751,6 +783,9 @@ public partial class FacilitySimulation : Node
             return;
         }
         string roomId = !string.IsNullOrEmpty(def.RoomId) ? def.RoomId : taskDef.RoomId;
+
+        // 오늘 잠겨 있는 작업실(환기실/의무실 등)에는 배치 자체가 불가능하므로 업무도 띄우지 않는다.
+        if (!IsRoomActive(roomId)) return;
 
         // 같은 방에 같은 업무가 이미 진행 중이면 중복 발생시키지 않는다.
         if (_activeTasks.Any(t => t.TaskId == taskDef.TaskId && t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active))
@@ -1002,6 +1037,8 @@ public partial class FacilitySimulation : Node
     private void TickVentilationFault(float delta)
     {
         var cfg = Config.Instance.Data;
+        // 스트레스 또는 환기실이 잠긴 날에는 이 계통 전체가 돌지 않는다.
+        if (!DayFeatures.StressEnabled || !IsRoomActive(VentRoomId)) { _ventStressTimer = 0f; return; }
         // 금기 페널티로 강제 정지된 환기는 시간이 지나면 저절로 풀린다(설비 고장과 구분).
         var taboo = TabooRuleSystem.Instance;
         if (taboo != null && GameState.Instance.VentilationDown && taboo.VentHaltUntil > 0f && !taboo.IsVentHalted
@@ -1102,6 +1139,8 @@ public partial class FacilitySimulation : Node
         {
             var def = _roomDefs.GetValueOrDefault(roomId);
             if (def == null || def.IsRestricted || def.AccidentConsequence == RoomAccidentNone) continue;
+            // 오늘 잠긴 작업실은 아무도 배치할 수 없다 — 무인 방치 사고도 나지 않는다.
+            if (!DayFeatures.IsRoomActive(def)) { room.UnstaffedTimer = 0f; continue; }
 
             // 이미 그 방에 사고 수리 업무가 걸려 있으면 타이머를 멈춘다(중복 발생 방지).
             if (HasActiveRepair(roomId)) { room.UnstaffedTimer = 0f; continue; }

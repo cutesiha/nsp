@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MoodPoolDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/MoodPoolDef.cs" id="1_mood"]
+
+; 표현은 전부 docs/NSP_V3_REWORK_REVISED.md 의 기분상태 목록에서 가져온다.
+; CalmMoods = DAY1(이전 사건 없음) 용. Light/Strong 은 이후 DAY 확장용이며 현재는 쓰이지 않는다.
+
+[resource]
+script = ExtResource("1_mood")
+EmployeeId = "rabbit"
+CalmMoods = Array[String](["기분 좋음", "기대됨", "활기참", "즐거움", "나쁘지 않음"])
+VagueMoods = Array[String]([])
+LightEventMoods = Array[String](["신경 쓰임", "걱정됨", "피곤함"])
+StrongEventMoods = Array[String](["겁먹음", "충격받음", "무서움", "아무 일도 없었으면 좋겠음"])

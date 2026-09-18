@@ -7,6 +7,19 @@ public partial class ConfigData : Resource
 {
     [Export] public int MaxDays = 5;
     [Export] public int MaxEmployees = 6;
+
+    // --- V3 초반 단순화: 시스템 해금 날짜 (DayFeatures 가 유일하게 읽는다) -------
+    // DAY1 은 "배치 → 작업실 운영 → 사고/방해 → 로그·대화 단서 → 방해자 추리 → 코어 복구"
+    // 만 남긴다. 아래 값을 1 로 내리면 해당 시스템이 DAY1 부터 다시 켜진다(코드는 그대로다).
+    // 작업실(환기실·의무실)의 해금 날짜는 RoomDef.UnlockDay 에서 방마다 따로 지정한다.
+    [Export] public int StatsUnlockDay = 2;    // 기술 / 담력 / 관찰
+    [Export] public int StressUnlockDay = 2;   // 스트레스 수치 + 기절
+    [Export] public int TabooUnlockDay = 2;    // 오늘의 금기
+
+    // --- 오늘의 기분상태 -----------------------------------------------------
+    // "잘 모르겠음 / 별생각 없음" 같은 모호한 표현을 한 DAY 에 쓸 수 있는 최대 인원.
+    [Export] public int MoodVagueMaxPerDay = 2;
+
     // --- 스트레스 : 1 ~ 50 구간제 ------------------------------------------
     //  1~10  정상   업무 속도 100%
     // 11~30  주의   업무 속도  85%

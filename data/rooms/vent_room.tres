@@ -9,6 +9,7 @@ DisplayName = "환기실"
 ConnectedRoomIds = Array[String](["power_room", "medical_room"])
 MapPosition = Vector2(160, 220)
 IsCoreRoom = false
+UnlockDay = 2
 ManagedResource = 2
 AccidentName = "환기 필터 고장"
 UnstaffedAccidentSeconds = 25.0

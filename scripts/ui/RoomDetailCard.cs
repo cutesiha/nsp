@@ -80,14 +80,18 @@ public partial class RoomDetailCard : PanelContainer
         _taskListButton.Visible = true;
         _lockButton.Visible = true;
 
-        var requiredStats = sim.GetRoomTasksInPriorityOrder(_roomId)
-            .Select(t => t.RequiredStat)
-            .Distinct()
-            .Select(StatLabel);
-        string statsLine = string.Join(", ", requiredStats);
-
         string desc = Descriptions.GetValueOrDefault(_roomId, "");
-        _descLabel.Text = $"{desc}\n요구 능력: {statsLine}\n인원: {sim.GetAssignedCount(_roomId)}/2";
+        // 능력치가 잠긴 날에는 "요구 능력" 줄을 싣지 않는다.
+        string statsLine = "";
+        if (NSP.Core.DayFeatures.StatsEnabled)
+        {
+            var requiredStats = sim.GetRoomTasksInPriorityOrder(_roomId)
+                .Select(t => t.RequiredStat)
+                .Distinct()
+                .Select(StatLabel);
+            statsLine = $"요구 능력: {string.Join(", ", requiredStats)}\n";
+        }
+        _descLabel.Text = $"{desc}\n{statsLine}인원: {sim.GetAssignedCount(_roomId)}/2";
 
         _lockButton.Text = state.Locked ? "봉쇄 해제" : "구역 봉쇄";
     }

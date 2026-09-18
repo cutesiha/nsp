@@ -388,29 +388,50 @@ public partial class FacilityMonitorView : Control
                 : st.Incapacitated ? "[color=#ff5555]기절 — 당일 업무 불가[/color]"
                 : st.IsMoving ? "이동 중" : "정상";
 
-            // 스트레스는 1~50 구간제. 구간 이름과 그 구간의 업무 속도를 같이 보여준다.
-            string band = sim.StressBandName(st);
-            string bandColor = band switch
-            {
-                "기절" => "#ff5555",
-                "위험" => "#ff9933",
-                "주의" => "#dddd55",
-                _ => "#88cc88",
-            };
-            int workPct = Mathf.RoundToInt(sim.StressWorkRate(st) * 100f);
-            float stressMax = Config.Instance?.Data?.StressMax ?? 50f;
-
             string doing = st.IsMoving ? "이동 중" : task?.DisplayName ?? "대기";
             bool abnormal = !st.Alive || st.Isolated || st.Incapacitated;
+
+            // 능력치/스트레스가 잠긴 날에는 그 줄 자체를 싣지 않고,
+            // 배치 판단에 실제로 쓰는 "오늘의 기분"을 대신 보여준다.
+            string detail;
+            if (DayFeatures.StatsEnabled || DayFeatures.StressEnabled)
+            {
+                var sb = new System.Text.StringBuilder();
+                if (DayFeatures.StatsEnabled)
+                {
+                    sb.Append($"기술 {def.Tech} · 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"담력 {def.Courage} · 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"관찰 {def.Observation} · 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n");
+                }
+                if (DayFeatures.StressEnabled)
+                {
+                    // 스트레스는 1~50 구간제. 구간 이름과 그 구간의 업무 속도를 같이 보여준다.
+                    string band = sim.StressBandName(st);
+                    string bandColor = band switch
+                    {
+                        "기절" => "#ff5555",
+                        "위험" => "#ff9933",
+                        "주의" => "#dddd55",
+                        _ => "#88cc88",
+                    };
+                    float stressMax = Config.Instance?.Data?.StressMax ?? 50f;
+                    sb.Append($"스트레스 {st.Stress:0} / {stressMax:0} · [color={bandColor}]{band}[/color]" +
+                              $" · 작업 {Mathf.RoundToInt(sim.StressWorkRate(st) * 100f)}%");
+                }
+                detail = sb.ToString().TrimEnd('\n');
+            }
+            else
+            {
+                string mood = sim.GetDailyMood(_selEmp);
+                detail = $"오늘의 기분 · [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "—" : mood)}[/color]"
+                         + (string.IsNullOrEmpty(def.Trait) ? "" : $"\n[color=#8a99a8]{def.Trait}[/color]");
+            }
 
             SetFace(def.FacePortrait);
             SetInspector(
                 $"[color=#ffc040]EMPLOYEE[/color]\n[font_size=23]{def.Codename}[/font_size]\n" +
                 $"[color=#8a99a8]{room} · {doing}[/color]\n\n" +
-                $"기술 {def.Tech} · 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n" +
-                $"담력 {def.Courage} · 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n" +
-                $"관찰 {def.Observation} · 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n" +
-                $"스트레스 {st.Stress:0} / {stressMax:0} · [color={bandColor}]{band}[/color] · 작업 {workPct}%" +
+                detail +
                 (abnormal ? $"\n{status}" : ""));
 
             _isolateBtn.Visible = st.Alive;
