@@ -230,7 +230,7 @@ metallic = 0.5
 roughness = 0.1
 
 [sub_resource type="StandardMaterial3D" id="Mat_LampWhite"]
-albedo_color = Color(0.9, 0.9, 0.85, 1)
+albedo_color = Color(0.9046619, 0.16826218, 0.14612338, 1)
 emission_enabled = true
 emission = Color(0.85, 0.85, 0.75, 1)
 emission_energy_multiplier = 1.5
@@ -281,7 +281,7 @@ surface_material_override/0 = SubResource("Mat_Concrete")
 [node name="Desk" type="Node3D" parent="ControlRoom" unique_id=1358865284]
 
 [node name="Desk_Top" type="MeshInstance3D" parent="ControlRoom/Desk" unique_id=619515418]
-transform = Transform3D(1.95, 0, 0, 0, 0.05, 0, 0, 0, 0.8, 0, 0.73, -0.62)
+transform = Transform3D(1.95, 0, 0, 0, 0.05, 0, 0, 0, 0.8, 0.001065731, 0.7300001, -0.6201573)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Desk")
 
@@ -965,9 +965,11 @@ font_size = 26
 outline_size = 0
 
 [node name="M01_Glow" type="OmniLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.13, 0.25)
+transform = Transform3D(1.0002681, 0, 0, 0, 0.99999994, 0, 0, 0, 1.0002681, 0.017760724, 1.1249524, 0.051451623)
 light_color = Color(0.5, 0.8, 1, 1)
 light_energy = 0.6
+light_size = 1.0
+light_specular = 0.0
 omni_range = 1.7
 
 [node name="Monitor02" type="Node3D" parent="ControlRoom" unique_id=1106093213]
@@ -1002,9 +1004,10 @@ font_size = 26
 outline_size = 0
 
 [node name="M02_Glow" type="OmniLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.13, 0.25)
+transform = Transform3D(1.0002681, 0, 0, 0, 0.99999994, 0, 0, 0, 1.0002681, -0.0038870275, 1.1299993, 0.09275615)
 light_color = Color(0.5, 0.8, 1, 1)
 light_energy = 0.6
+light_size = 0.095
 omni_range = 1.7
 
 [node name="Keyboard" type="MeshInstance3D" parent="ControlRoom" unique_id=1690353115]
@@ -1076,6 +1079,7 @@ surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
 [node name="Panel_Lamp" type="SpotLight3D" parent="ControlRoom/ControlPanel" unique_id=572600137]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.55, 0.05)
+visible = false
 light_color = Color(1, 0.85, 0.6, 1)
 light_energy = 0.9
 spot_range = 2.0
@@ -1084,6 +1088,7 @@ spot_angle = 38.0
 [node name="AlertTerminal" type="Node3D" parent="ControlRoom" unique_id=1048108150]
 transform = Transform3D(0.7398418, 0, 0.35332987, 0, 0.82, 0, -0.35332987, 0, 0.7398418, -0.36562842, 0.762, -0.40949714)
 script = ExtResource("16_alertterm")
+ScreenSize = Vector2(0.64, 0.5)
 ScreenOffset = Vector3(0.01, 0.5, 0.19)
 
 [node name="SensorModel" parent="ControlRoom/AlertTerminal" unique_id=1791706101 instance=ExtResource("22_sensor_model")]
@@ -1143,6 +1148,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_GlassDark")
 
 [node name="Lights" type="Node3D" parent="ControlRoom" unique_id=1001626452]
+visible = false
 
 [node name="CeilingFixture" type="MeshInstance3D" parent="ControlRoom/Lights" unique_id=1530102759]
 transform = Transform3D(1.3, 0, 0, 0, 0.06, 0, 0, 0, 0.3, 0, 2.63, -0.8)

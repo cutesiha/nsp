@@ -53,45 +53,76 @@ public partial class AlertTerminalView : Control
 
     public override void _Ready()
     {
+        EnsureBuilt();
+    }
+
+    // 화면 위젯을 만든다. 노드가 이미 있으면(예: 이 스크립트의 C# 인스턴스만 새로 만들어져
+    // 참조가 날아간 경우) 이름으로 다시 찾아 붙인다.
+    //
+    // _Ready 에서 한 번만 대입하면 안 되는 이유: Godot 이 어떤 이유로든 스크립트의 관리
+    // 인스턴스를 다시 만들면 _Ready 는 다시 불리지 않고 _Process 만 계속 돈다. 그러면
+    // 아래 필드들이 전부 null 인 채로 Show()/SetNav() 가 불려 매 프레임
+    // NullReferenceException 이 쏟아진다(화면은 멈추고 콘솔만 수천 줄로 찬다).
+    // 그래서 _Process 도 맨 앞에서 이 함수를 부른다.
+    private void EnsureBuilt()
+    {
+        if (_head != null && IsInstanceValid(_head)) return;
+
         SetAnchorsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Pass;
-
-        var bg = new ColorRect { Color = new Color(0.015f, 0.02f, 0.015f), MouseFilter = MouseFilterEnum.Ignore };
-        bg.SetAnchorsPreset(LayoutPreset.FullRect);
-        AddChild(bg);
 
         var font = ViewFont.Default;
         const float x = 16f, w = CanvasW - x * 2f;
 
-        _head = Lbl("경고 단말기", 20, Dim, font, new Vector2(x, 4), 280, 26);
-        AddChild(_head);
+        var bg = Adopt("Bg", () =>
+        {
+            var c = new ColorRect { Color = new Color(0.015f, 0.02f, 0.015f), MouseFilter = MouseFilterEnum.Ignore };
+            c.SetAnchorsPreset(LayoutPreset.FullRect);
+            return c;
+        });
+        MoveChild(bg, 0); // 배경은 항상 맨 뒤(먼저 그려짐)
 
-        _status = Lbl("", 23, Ok, font, new Vector2(CanvasW - 210f, 3), 194, 32);
-        _status.HorizontalAlignment = HorizontalAlignment.Right;
-        AddChild(_status);
+        _head = Adopt("Head", () => Lbl("경고 단말기", 20, Dim, font, new Vector2(x, 4), 280, 26));
 
-        _title = Lbl("정상 가동 중", 34, Ok, font, new Vector2(x, 30), w, 46);
-        AddChild(_title);
+        _status = Adopt("Status", () =>
+        {
+            var l = Lbl("", 23, Ok, font, new Vector2(CanvasW - 210f, 3), 194, 32);
+            l.HorizontalAlignment = HorizontalAlignment.Right;
+            return l;
+        });
 
-        _sub = Lbl("", 26, Dim, font, new Vector2(x, 76), w, 34);
-        AddChild(_sub);
+        _title = Adopt("Title", () => Lbl("정상 가동 중", 34, Ok, font, new Vector2(x, 30), w, 46));
+
+        _sub = Adopt("Sub", () => Lbl("", 26, Dim, font, new Vector2(x, 76), w, 34));
 
         // 본문은 원인/결과/조치 3줄로 줄이고 글자를 크게 잡는다(멀리서도 읽혀야 한다).
         // 페이지 화살표(y 258) 위에서 끊는다.
-        _body = Lbl("", 25, Body, font, new Vector2(x, 112), w, 142);
-        AddChild(_body);
+        _body = Adopt("Body", () => Lbl("", 25, Body, font, new Vector2(x, 112), w, 142));
 
-        _page = Lbl("", 19, Dim, font, new Vector2(CanvasW - 178f, CanvasH - 40f), 96, 30);
-        _page.HorizontalAlignment = HorizontalAlignment.Center;
-        AddChild(_page);
+        _page = Adopt("Page", () =>
+        {
+            var l = Lbl("", 19, Dim, font, new Vector2(CanvasW - 178f, CanvasH - 40f), 96, 30);
+            l.HorizontalAlignment = HorizontalAlignment.Center;
+            return l;
+        });
 
-        _prev = NavButton("◀", font, new Vector2(CanvasW - 224f, CanvasH - 42f));
+        _prev = Adopt("Prev", () => NavButton("◀", font, new Vector2(CanvasW - 224f, CanvasH - 42f)));
         _prev.Pressed += () => Turn(-1);
-        AddChild(_prev);
 
-        _next = NavButton("▶", font, new Vector2(CanvasW - 76f, CanvasH - 42f));
+        _next = Adopt("Next", () => NavButton("▶", font, new Vector2(CanvasW - 76f, CanvasH - 42f)));
         _next.Pressed += () => Turn(+1);
-        AddChild(_next);
+    }
+
+    // 같은 이름의 자식이 이미 있으면 그것을 쓰고, 없을 때만 만들어 붙인다.
+    private T Adopt<T>(string name, System.Func<T> create) where T : Control
+    {
+        var existing = GetNodeOrNull<T>(name);
+        if (existing != null && IsInstanceValid(existing)) return existing;
+
+        T made = create();
+        made.Name = name;
+        AddChild(made);
+        return made;
     }
 
     private void Turn(int step)
@@ -149,6 +180,8 @@ public partial class AlertTerminalView : Control
 
     public override void _Process(double delta)
     {
+        // _Ready 가 돌지 않았거나 참조가 날아간 상태로 들어와도 아래에서 null 을 밟지 않게 한다.
+        EnsureBuilt();
         WireLog();
 
         bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
