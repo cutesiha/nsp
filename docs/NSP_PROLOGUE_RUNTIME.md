@@ -19,7 +19,12 @@
 #       figure:    <res 경로>   배경 앞에 서는 인물 일러스트. 없으면 [ FIGURE ] 임시 칸.
 #       figurenote:<text>       그 인물 칸에 띄울 설명
 #       title:     <text>       이 슬라이드부터 머리말 교체
-#       speaker:   <text>       말하는 사람 라벨 (없으면 안 뜸)
+#       speaker:   <text>       화면에 보이는 말하는 사람 라벨 (없으면 안 뜸)
+#       voice:     <보이스 id>   글자가 찍힐 때 울리는 타이핑 보이스
+#                               director = 연구소 총괄 관리자 / guide0 = GUIDE-0
+#                               cat crow fox jellyfish owl rabbit = 기존 직원 보이스 그대로
+#       radio:     true         무전/인터컴으로 들리게 한다(앞뒤 치직 + 약한 잡음 + 무전 필터).
+#                               직원 보이스를 바꾸지 않고 Radio 버스로만 통과시킨다.
 #       text:      <text>       자막 한 줄 → 이 줄이 있으면 절대 자동으로 안 넘어간다
 #                               (스페이스 / 엔터 / 클릭으로만 진행)
 #       overlay:   <text>       화면 한가운데 크게 뜨는 텍스트 (EMERGENCY SEAL 등). 타이핑된다.
@@ -39,13 +44,16 @@
 #
 #   @guide <id>         GUIDE-0 홀로그램 대사 묶음
 #     portrait: <표정키>   assets/ui/guide0/guide0_<표정키>.png 를 찾는다(없으면 임시 초상)
+#     voice: <보이스 id>   이 묶음의 타이핑 보이스(기본 guide0)
 #     line: <text>         대사 한 줄(순서대로)
 #     icons: employees     그 자리에서 직원 아이콘 6개를 띄운다
 #     fx:   noise          짧은 노이즈
 #
 #   @menu <id>          GUIDE-0 선택지
+#     mode: all                             모든 항목을 한 번씩 확인해야 메뉴가 끝난다(순서 자유).
+#                                           이미 확인한 항목은 체크 표시 + 비활성으로 남는다.
 #     option: <보이는 문구> | <@guide id>   고르면 답변 후 메뉴로 돌아온다
-#     final:  <보이는 문구> | <@guide id>   고르면 답변 후 메뉴가 끝난다(다음 단계로)
+#     final:  <보이는 문구> | <@guide id>   고르면 그 자리에서 메뉴가 끝난다(mode: all 이면 안 씀)
 #
 #   @scripted <id>      튜토리얼 전용 고정 답변
 #     text: <text>         {FROM_ROOM} 등 치환자 사용 가능
@@ -57,7 +65,7 @@
 # 프롤로그 #1 — 낡은 연구소 홍보 기록 영상
 # ========================================================================
 @cutscene prologue_archive
-title: 00 지하연구시설 기록 영상 / ARCHIVE 01
+title: 국가특수에너지연구원 제7지하시설 기록 영상 / ARCHIVE 01
 
 @slide
 image: res://assets/cutscene/prologue/archive_01_facility.png
@@ -72,7 +80,8 @@ figure: res://assets/cutscene/prologue/figure_director.png
 figurenote: 연구소 총괄 관리자 상반신 일러스트
 imagenote: 연구소 총괄 관리자 클로즈업
 speaker: 나레이션
-text: 00 연구소는 미지의 개체, 통칭 ‘존재’가 발생시키는 에너지를 연구해 왔습니다.
+voice: director
+text: 국가특수에너지연구원은 미지의 개체, 통칭 ‘존재’가 발생시키는 에너지를 연구해 왔습니다.
 hold: 4.6
 
 @slide
@@ -81,6 +90,7 @@ figure: res://assets/cutscene/prologue/figure_director.png
 figurenote: 연구소 총괄 관리자 상반신 일러스트
 imagenote: 연구동 내부 · 안정적으로 유지되는 생활 구역
 speaker: 나레이션
+voice: director
 text: 이 연구를 통해 우리는 외부 환경과 단절된 시설에서도 안정적인 생존 환경을 유지할 수 있었습니다.
 hold: 5.0
 
@@ -90,6 +100,7 @@ figure: res://assets/cutscene/prologue/figure_director.png
 figurenote: 연구소 총괄 관리자 상반신 일러스트
 imagenote: 봉쇄 코어 클로즈업 · 푸른 빛으로 안정 가동
 speaker: 나레이션
+voice: director
 text: 시설의 중심에는 생명 유지와 외부 차폐를 담당하는 봉쇄 코어가 있습니다.
 hold: 4.8
 
@@ -165,10 +176,11 @@ hold: 0.85
 fx: cut
 
 # 코어실 — 타이핑되는 경고
+# 09 / 11 은 일부러 그림이 없다 — 검은 화면에 경고 문구만 타이핑되는 단말기 컷이다.
 @slide
 title: CORE CHAMBER / LIVE
-image: res://assets/cutscene/prologue/disaster_09_core_alert.png
-imagenote: 코어실 · 붉게 점멸하는 봉쇄 코어 확대
+image:
+imagenote:
 sfx: sensor_beep
 overlay: EXTERNAL CATASTROPHE DETECTED
 hold: 1.9
@@ -183,8 +195,8 @@ hold: 1.9
 fx: typing
 
 @slide
-image: res://assets/cutscene/prologue/disaster_11_core_3pct.png
-imagenote: 코어 출력 표시등이 3%까지 떨어짐
+image:
+imagenote:
 overlay: CORE OUTPUT 3%
 sfx: alarm
 hold: 2.2
@@ -195,6 +207,8 @@ fx: glitch
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
+voice: owl
+radio: true
 text: 지상 관측망이 전부 끊겼습니다!
 sfx: noise
 jolt: 0.25
@@ -204,6 +218,8 @@ hold: 3.0
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
+voice: jellyfish
+radio: true
 text: 격리 구역에서 개체들이 빠져나왔어요!
 sfx: noise
 jolt: 0.25
@@ -213,6 +229,8 @@ hold: 3.0
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
+voice: crow
+radio: true
 text: 봉쇄 코어 출력이 비정상적으로 떨어졌습니다! 이대로 가다간--!!
 sfx: noise
 jolt: 0.25
@@ -222,6 +240,7 @@ hold: 3.4
 image: res://assets/cutscene/prologue/disaster_13_director_last.png
 imagenote: 총괄 관리자 · 마지막 지시
 speaker: 총괄 관리자
+voice: director
 text: 큰일이군. 비상 차폐를 가동해!
 sfx: switch
 hold: 3.2
@@ -235,7 +254,7 @@ overlay: EMERGENCY SEAL — 120:00:00
 sfx: boom
 sfxloopstop: siren
 shake: 0
-hold: 0
+hold: 2.4
 fx: blackout
 
 # 플레이어가 머리를 세게 얻어맞고 책상에 엎어진다.
@@ -261,9 +280,9 @@ wait: 0.9
 line: EMERGENCY AUTHORITY TRANSFER...
 wait: 1.1
 line:
-line: PREVIOUS ADMINISTRATOR
+line: PREVIOUS FACILITY ADMINISTRATOR
 line:   ID      : ******
-line:   STATUS  : UNKNOWN
+line:   STATUS  : DECEASED
 wait: 1.0
 line:
 line: SCANNING SUCCESSOR BIOSIGN...
@@ -283,31 +302,46 @@ line: 안녕하세요.
 line: 관리자 권한 승계가 완료되었습니다.
 line: 현재 상황에 대한 설명이 필요하십니까?
 
+# mode: all — 세 질문을 각각 한 번씩 모두 확인해야 다음 단계로 넘어간다(순서는 자유).
 @menu g_main
-option: 전임 관리자는 어떻게 됐지? | g_prev_admin
-option: 남은 직원은? | g_staff
-final: 내가 해야 할 일은? | g_mission
+mode: all
+option: 무슨 일이 벌어진 거지? | g_what_happened
+option: 나는 누구지? | g_who_am_i
+option: 내가 해야 할 일은? | g_mission
 
-@guide g_prev_admin
+@guide g_what_happened
 portrait: normal
-line: 마지막 생체 신호는 사고 발생 17분 후 소실되었습니다.
-line: 현재 상태는 확인할 수 없습니다.
-
-@guide g_staff
-portrait: normal
+line: 시설 외부에서 대규모 재난이 발생했습니다.
+line: 현재 지상 환경은 생존에 적합하지 않은 상태입니다.
+line: 동시에 시설 내부에서도 격리 사고가 발생하여 봉쇄 코어가 심각하게 손상되었습니다.
+line: 현재 시설은 비상 차폐 시스템을 통해 외부 환경과 격리되어 있습니다.
+line: 하지만 비상 차폐의 유지 가능 시간은 120시간입니다.
 line: 현장 활동이 가능한 직원은 여섯 명입니다.
 icons: employees
-line: 시설 규정에 따라 모두 코드네임과 안면 보호구를 사용하고 있습니다.
+line: 직원들과 함께 봉쇄 코어를 복구해야 합니다.
 fx: noise
 line: 다만...
 line: 직원 신원 기록 중 하나가 일치하지 않습니다.
+line: 정체불명의 개체가 직원들 사이에 포함되어 있을 가능성이 있습니다.
+
+@guide g_who_am_i
+portrait: normal
+line: 관리자님께서는 사고 이전부터 본 시설의 관제 업무를 담당하고 있었습니다.
+line: 그러나 시설 전체에 대한 최종 관리 권한은 보유하고 있지 않았습니다.
+line: 기존 시설 총괄 관리자는 사고 발생 당시 사망한 것으로 확인되었습니다.
+line: 비상 관리 규정에 따라 차순위 권한자인 관리자님께 모든 시설 관리 권한이 승계되었습니다.
+line: 현재 관리자님은 이 시설의 총괄 관리자입니다.
+line: 현장 직원 여섯 명의 배치와 시설 운영, 그리고 비상 상황에 대한 최종 판단을 담당하게 됩니다.
 
 @guide g_mission
 portrait: normal
 line: 비상 차폐 시스템의 예상 유지 시간은 120시간입니다.
 line: 그전에 봉쇄 코어를 완전히 복구해야 합니다.
+line: 봉쇄 코어가 복구되지 않을 경우 시설의 차폐 및 생명 유지 기능을 더 이상 유지할 수 없습니다.
+line: 직원들을 작업실에 배치하여 시설을 복구하십시오.
 line: 시설 로그와 직원들의 진술도 확인하십시오.
 line: 현재 여섯 직원 중 정체불명의 개체가 포함되어 있을 가능성이 있습니다.
+line: 시설 복구를 방해하는 개체를 찾아내는 것 역시 관리자님의 임무입니다.
 
 
 # ========================================================================
@@ -315,9 +349,11 @@ line: 현재 여섯 직원 중 정체불명의 개체가 포함되어 있을 가
 # ========================================================================
 @guide g_day0_open
 portrait: normal
+line: 현재 상황에 대한 기본 안내가 완료되었습니다.
 line: 관리자 업무는 이번이 처음이시군요.
 portrait: smile
-line: 걱정하지 마십시오. 제가 도와드리겠습니다.
+line: 걱정하지 마십시오.
+line: 제가 도와드리겠습니다.
 
 
 # ========================================================================

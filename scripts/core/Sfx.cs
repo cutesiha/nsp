@@ -33,6 +33,7 @@ public partial class Sfx : Node
     // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
     // 최소 간격(Rate Limit)으로 너무 촘촘하게 울리지 않게 한다.
     private AudioStreamPlayer _voicePlayer;
+    private AudioStreamPlayer _voiceRadioPlayer;
     private readonly RandomNumberGenerator _voiceRng = new();
     private readonly Dictionary<string, List<AudioStream>> _voiceVariantCache = new();
     private double _lastVoiceBlipMsec = -10000;
@@ -58,6 +59,11 @@ public partial class Sfx : Node
 
         _voicePlayer = new AudioStreamPlayer { Bus = GameSettings.BusSfx };
         AddChild(_voicePlayer);
+
+        // 무전 채널 — 같은 보이스 파일을 Radio 버스(대역통과+약한 찌그러짐)로만 흘려보낸다.
+        // 직원별 보이스 파일도, 평소 통화/인터뷰 재생 경로도 전혀 바뀌지 않는다.
+        _voiceRadioPlayer = new AudioStreamPlayer { Bus = GameSettings.BusRadio };
+        AddChild(_voiceRadioPlayer);
 
         for (int i = 0; i < 2; i++)
         {
@@ -203,7 +209,9 @@ public partial class Sfx : Node
     // res://assets/audio/sfx_voice_{employeeId}_01.wav, _02, _03... 처럼 variant가
     // 여러 개 있으면 매번 그중 하나를 무작위로 골라 같은 글자에도 완전히 같은 소리가
     // 반복되지 않게 한다(variant가 없는 캐릭터는 voice_{employeeId}.wav 단일 파일로 폴백).
-    public void PlayVoiceBlip(string employeeId, char c)
+    // radio: true 면 같은 보이스를 무전 버스로 흘린다(프롤로그 대재난 무전 전용).
+    // 기본값이 false 라 기존 호출부(전화/인터뷰)의 동작은 한 글자도 바뀌지 않는다.
+    public void PlayVoiceBlip(string employeeId, char c, bool radio = false)
     {
         if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
 
@@ -213,11 +221,14 @@ public partial class Sfx : Node
         var variants = LoadVoiceVariants(employeeId);
         if (variants.Count == 0) return;
 
+        var player = radio ? _voiceRadioPlayer : _voicePlayer;
+        if (player == null) return;
+
         _lastVoiceBlipMsec = now;
-        _voicePlayer.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
+        player.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
         float semitones = _voiceRng.RandfRange(-VoicePitchVariationSemitones, VoicePitchVariationSemitones);
-        _voicePlayer.PitchScale = Mathf.Pow(2f, semitones / 12f);
-        _voicePlayer.Play();
+        player.PitchScale = Mathf.Pow(2f, semitones / 12f);
+        player.Play();
     }
 
     private List<AudioStream> LoadVoiceVariants(string employeeId)
@@ -245,7 +256,11 @@ public partial class Sfx : Node
     }
 
     // 대사 스킵/즉시 완성 시 트레일링 블립을 바로 끊는다.
-    public void StopVoiceBlip() => _voicePlayer?.Stop();
+    public void StopVoiceBlip()
+    {
+        _voicePlayer?.Stop();
+        _voiceRadioPlayer?.Stop();
+    }
 
     // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 결번자 웃음 -------------
     private readonly Dictionary<string, AudioStream> _employeeScreamStreams = new();

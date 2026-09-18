@@ -13,6 +13,12 @@ public static class PrologueTextStyle
     // 타자 소리를 몇 글자마다 한 번 낼지(매 글자마다 내면 지저분하다).
     public const int BlipEveryChars = 2;
 
+    // 승계 콘솔은 '기계가 빠르게 찍는' 느낌이라 대사보다 훨씬 빠르다.
+    public const float ConsoleSecondsPerChar = 0.014f;
+    // 줄과 줄 사이 간격.
+    public const double ConsoleLineGap = 0.05;
+    public const double ConsoleOkGap = 0.30;
+
     public static float TypeSeconds(string text) =>
         Mathf.Max(MinTypeSeconds, (text?.Length ?? 0) * SecondsPerChar);
 

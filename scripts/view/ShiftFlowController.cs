@@ -256,6 +256,14 @@ public partial class ShiftFlowController : Node
 
         await Wait(0.75);
         _ctl?.BeginShift();
+
+        // 근무 화면은 여기서 확실히 건다. (DAY0 는 오른쪽 CRT 가 GUIDE-0 안내 전용이다.)
+        // 튜토리얼 대사 진행 상황과 무관하게 항상 실행되어야 모니터가 비지 않는다.
+        if (_ctl != null)
+        {
+            _ctl.SetLeftScreen(_ctl.FacilityViewport);
+            _ctl.SetRightScreen(DayFeatures.IsTutorialDay ? _ctl.GuideViewport : _ctl.CctvViewport);
+        }
         _stage = Stage.Shift;
     }
 

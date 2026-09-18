@@ -585,6 +585,10 @@ public partial class ControlRoom3DController : Node3D
     // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
     public void ShakeCamera(float strengthDegrees, float seconds) => _rig?.Shake(strengthDegrees, seconds);
 
+    // 프롤로그 — 의식을 잃고 책상에 엎어지는 시점 연출.
+    public void CollapseCameraOntoDesk(float seconds = 0.38f) => _rig?.CollapseOntoDesk(seconds);
+    public void ResetCameraCollapse() => _rig?.ResetCollapse();
+
     // 확대 중이면 풀고 true. PauseMenu 가 ESC 를 받았을 때 "메뉴 열기"보다 먼저 시도한다.
     public bool UnzoomIfFocused()
     {

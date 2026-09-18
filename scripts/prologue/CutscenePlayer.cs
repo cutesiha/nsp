@@ -64,6 +64,9 @@ public partial class CutscenePlayer : Control
     private double _fxTime;
     private double _joltUntil;
     private bool _impactFallStarted;
+    // 자막이 한 글자씩 드러날 때마다 화자 보이스를 울리기 위한 진행도.
+    private int _spokenChars;
+    private bool _radioOpen;
 
     // 재생바용 — 컷씬 전체 길이와 지금까지 흐른 시간(진짜 영상처럼 보이게).
     private double _totalSeconds;
@@ -156,6 +159,9 @@ public partial class CutscenePlayer : Control
         _text.VisibleRatio = 1f;
         _overlay.VisibleRatio = 1f;
         _slideElapsed = Math.Max(_slideElapsed, _typeSeconds);
+        _spokenChars = _text.Text.Length;
+        Sfx.Instance?.StopVoiceBlip();
+        CloseRadio();
     }
 
     private void Advance()
@@ -221,6 +227,12 @@ public partial class CutscenePlayer : Control
             hasText ? PrologueTextStyle.TypeSeconds(s.Text) : 0f,
             _overlay.Text.Length > 0 ? PrologueTextStyle.TypeSeconds(s.Overlay) : 0f);
 
+        // 화자 보이스 — 기존 직원 보이스 파일을 그대로 쓰고, 무전이면 Radio 버스로 흘린다.
+        _spokenChars = 0;
+        Sfx.Instance?.StopVoiceBlip();
+        CloseRadio();
+        if (hasText && s.Radio && !string.IsNullOrEmpty(s.VoiceId)) OpenRadio();
+
         // 대사가 있는 슬라이드는 절대 저절로 넘어가지 않는다(hold: 값은 무시된다).
         // 대사가 없는 컷(몽타주·경고 문구)은 타이핑이 끝난 뒤 hold: 만큼 더 보여주고 넘어가되,
         // hold: 0 으로 적으면 그 컷도 입력을 기다린다.
@@ -253,8 +265,25 @@ public partial class CutscenePlayer : Control
 
     private string _activeLoop = "";
 
+    // 무전 개시/종료 "치직" + 통신 중 약한 잡음. 잡음은 아주 낮게 깔아 보이스를 덮지 않는다.
+    private void OpenRadio()
+    {
+        _radioOpen = true;
+        Sfx.Instance?.Play("radio_click_on", -8f);
+        Sfx.Instance?.Loop("radio_static", -22f);
+    }
+
+    private void CloseRadio()
+    {
+        if (!_radioOpen) return;
+        _radioOpen = false;
+        Sfx.Instance?.StopLoop("radio_static");
+        Sfx.Instance?.Play("radio_click_off", -10f);
+    }
+
     private void StopAllLoops()
     {
+        CloseRadio();
         if (string.IsNullOrEmpty(_activeLoop)) return;
         Sfx.Instance?.StopLoop(_activeLoop);
         _activeLoop = "";
@@ -298,7 +327,14 @@ public partial class CutscenePlayer : Control
 
         // 자막/경고 타이핑 — GUIDE-0 와 완전히 같은 속도(PrologueTextStyle).
         if (_subtitleBox.Visible && _text.VisibleRatio < 1f)
+        {
             _text.VisibleRatio = PrologueTextStyle.Ratio(_text.Text, _slideElapsed);
+            SpeakRevealed();
+        }
+        else if (_radioOpen && _text.VisibleRatio >= 1f)
+        {
+            CloseRadio();   // 문장이 다 떴으면 통신 종료 치직
+        }
         if (_overlay.Text.Length > 0 && _overlay.VisibleRatio < 1f)
             _overlay.VisibleRatio = PrologueTextStyle.Ratio(_overlay.Text, _slideElapsed);
 
@@ -313,6 +349,20 @@ public partial class CutscenePlayer : Control
         }
         // 경고 문구가 다 찍힌 뒤부터 hold 를 센다 — 다 읽기 전에 넘어가지 않게.
         if (_slideElapsed >= _typeSeconds + _slideHold) Advance();
+    }
+
+    // 새로 드러난 글자만큼 화자 보이스를 울린다(기존 직원 보이스 시스템을 그대로 호출).
+    private void SpeakRevealed()
+    {
+        string voice = _slide?.VoiceId ?? "";
+        if (string.IsNullOrEmpty(voice)) return;
+        int shown = Mathf.RoundToInt(_text.VisibleRatio * _text.Text.Length);
+        while (_spokenChars < shown)
+        {
+            char c = _text.Text[_spokenChars];
+            _spokenChars++;
+            Sfx.Instance?.PlayVoiceBlip(voice, c, _slide.Radio);
+        }
     }
 
     private void UpdateChrome()
@@ -387,9 +437,10 @@ public partial class CutscenePlayer : Control
                     {
                         _impactFallStarted = true;
                         Sfx.Instance?.Play("body_fall", -2f);
-                        ControlRoom3DController.Instance?.ShakeCamera(3.2f, 0.35f);
+                        // 시점 자체가 책상으로 빠르게 고꾸라진다(고개가 떨어지듯).
+                        ControlRoom3DController.Instance?.CollapseCameraOntoDesk(0.34f);
                     }
-                    float fall = Mathf.Clamp((t - 0.45f) / 0.85f, 0f, 1f);
+                    float fall = Mathf.Clamp((t - 0.45f) / 0.55f, 0f, 1f);
                     offset.Y += fall * fall * 120f;
                     _fade.Color = _fade.Color with { A = fall };
                 }

@@ -12,6 +12,9 @@ public static class GameSettings
     public const string BusMaster = "Master";
     public const string BusBgm = "BGM";
     public const string BusSfx = "SFX";
+    // 무전/인터컴 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
+    // 기존 직원 보이스를 그대로 통과시키되 대역만 좁혀 "무전기에서 나오는 소리"로 만든다.
+    public const string BusRadio = "Radio";
 
     private const string ConfigPath = "user://nsp_settings.cfg";
 
@@ -75,7 +78,8 @@ public static class GameSettings
 
     // --- 적용 -------------------------------------------------------------
 
-    // Master 아래 BGM / SFX 버스를 보장한다. 오디오 노드가 만들어지기 전에 불려야 한다.
+    // Master 아래 BGM / SFX 버스와, SFX 아래 Radio 버스를 보장한다.
+    // 오디오 노드가 만들어지기 전에 불려야 한다.
     public static void EnsureBuses()
     {
         foreach (string name in new[] { BusBgm, BusSfx })
@@ -86,6 +90,33 @@ public static class GameSettings
             AudioServer.SetBusName(idx, name);
             AudioServer.SetBusSend(idx, BusMaster);
         }
+        EnsureRadioBus();
+    }
+
+    // 무전 질감은 이 버스의 필터로만 만든다 — 원본 보이스 파일은 전혀 건드리지 않는다.
+    //   대역통과(중역만 남김) → 살짝 찌그러뜨림 → 고역 한 번 더 깎기
+    // 목소리를 알아들을 수 있는 선에서 좁고 먹먹하게만 만드는 것이 목표다.
+    private static void EnsureRadioBus()
+    {
+        if (AudioServer.GetBusIndex(BusRadio) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusRadio);
+        AudioServer.SetBusSend(idx, BusSfx);
+
+        AudioServer.AddBusEffect(idx, new AudioEffectBandPassFilter
+        {
+            CutoffHz = 1500f,   // 무전기 스피커 대역
+            Resonance = 0.5f,
+            Db = AudioEffectFilter.FilterDB.Filter12Db,
+        });
+        AudioServer.AddBusEffect(idx, new AudioEffectDistortion
+        {
+            Mode = AudioEffectDistortion.ModeEnum.Clip,
+            Drive = 0.18f,      // 아주 약하게 — 강하면 타이핑 보이스를 덮는다
+            PostGain = -1f,
+        });
+        AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter { CutoffHz = 3200f });
     }
 
     private static void ApplyAudio()

@@ -92,9 +92,7 @@ public partial class TutorialDirector : Node
         await Say("tut_assign_rest");
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Live);
 
-        // 근무가 시작되면 왼쪽은 시설 화면, 오른쪽은 계속 GUIDE-0.
-        _ctl?.SetLeftScreen(_ctl.FacilityViewport);
-        _ctl?.SetRightScreen(_ctl.GuideViewport);
+        // 근무 화면 전환은 ShiftFlowController.EnterShift 가 이미 끝냈다(왼쪽=시설 / 오른쪽=GUIDE-0).
         await Say("tut_shift_start");
 
         // ── STEP 3 : 사고 ────────────────────────────────────────────

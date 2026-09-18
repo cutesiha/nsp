@@ -54,9 +54,15 @@ public partial class GuideHologramView : Control
     private double _lineElapsed;
     private double _lineDuration;
     private Action _guideDone;
+    // true 면 마지막 대사의 타이핑이 끝나는 순간을 완료로 본다(뒤에 선택지가 이어질 때).
+    private bool _completeWhenTyped;
     private Action<PrologueScript.MenuOption> _menuPick;
+    // 이미 확인한 선택지(mode: all 메뉴의 체크 표시).
+    private readonly HashSet<string> _answeredOptions = new();
 
     private double _noiseUntil;
+    // GUIDE-0 대사가 한 글자씩 드러날 때마다 전용 보이스를 울리기 위한 진행도.
+    private int _spokenChars;
 
     public override void _Ready()
     {
@@ -135,6 +141,7 @@ public partial class GuideHologramView : Control
     {
         _guide = null;
         _guideDone = null;
+        _completeWhenTyped = false;
         _menuPick = null;
         ClearChoices();
         _icons.Visible = false;
@@ -143,7 +150,7 @@ public partial class GuideHologramView : Control
 
     // 대사 묶음을 순서대로 보여준다. 다 끝나면 마지막 줄을 화면에 남긴 채 onDone 을 부른다
     // (튜토리얼 중에는 그 줄이 그대로 지시문 역할을 한다).
-    public void ShowGuide(string guideId, Action onDone = null)
+    public void ShowGuide(string guideId, Action onDone = null, bool completeWhenTyped = false)
     {
         var block = PrologueScript.GetGuide(guideId);
         if (block == null)
@@ -157,19 +164,24 @@ public partial class GuideHologramView : Control
         _icons.Visible = false;
         _guide = block;
         _guideDone = onDone;
+        _completeWhenTyped = completeWhenTyped;
         _beat = -1;
         SetPortrait(block.StartPortrait);
         NextBeat();
     }
 
     // 치환자가 있는 대사(예: tut_relocate 의 {ROOM})를 쓸 때.
-    public void ShowGuide(string guideId, Dictionary<string, string> replacements, Action onDone = null)
+    public void ShowGuide(string guideId, Dictionary<string, string> replacements, Action onDone = null,
+        bool completeWhenTyped = false)
     {
         _replacements = replacements;
-        ShowGuide(guideId, onDone);
+        ShowGuide(guideId, onDone, completeWhenTyped);
     }
 
     private Dictionary<string, string> _replacements;
+
+    // 새 메뉴를 처음 열 때 호출 — 확인 표시를 초기화한다.
+    public void ResetMenuProgress() => _answeredOptions.Clear();
 
     public void ShowMenu(string menuId, Action<PrologueScript.MenuOption> onPick)
     {
@@ -183,17 +195,34 @@ public partial class GuideHologramView : Control
         foreach (var opt in menu.Options)
         {
             var captured = opt;
-            var b = MonitorUi.Button(captured.Label, Cyan, _font, () =>
+            bool answered = _answeredOptions.Contains(captured.GuideId);
+            // 이미 확인한 질문은 체크 표시 + 어두운 색으로 눌러 두고 다시 고를 수 없게 한다.
+            var accent = answered ? new Color(0.30f, 0.44f, 0.48f) : Cyan;
+            string label = (answered ? "✓  " : "") + captured.Label;
+            var b = MonitorUi.Button(label, accent, _font, () =>
             {
+                if (answered) return;
                 ClearChoices();
                 Sfx.Instance?.Play("click", -10f);
+                _answeredOptions.Add(captured.GuideId);
                 var cb = _menuPick;
                 _menuPick = null;
                 cb?.Invoke(captured);
             }, 16);
+            b.Disabled = answered;
             b.CustomMinimumSize = new Vector2(0f, 34f);
             _choices.AddChild(b);
         }
+    }
+
+    // mode: all 메뉴에서 모든 항목을 한 번씩 확인했는가.
+    public bool AllOptionsAnswered(string menuId)
+    {
+        var menu = PrologueScript.GetMenu(menuId);
+        if (menu == null) return true;
+        foreach (var o in menu.Options)
+            if (!_answeredOptions.Contains(o.GuideId)) return false;
+        return true;
     }
 
     private void ClearChoices()
@@ -254,6 +283,8 @@ public partial class GuideHologramView : Control
         _line.Text = text;
         _line.VisibleRatio = 0f;
         _lineElapsed = 0;
+        _spokenChars = 0;
+        Sfx.Instance?.StopVoiceBlip();
         // 타이핑 속도는 프롤로그 자막과 같은 값(PrologueTextStyle)을 쓴다.
         _lineDuration = PrologueTextStyle.TypeSeconds(text);
         _hint.Visible = true;
@@ -308,6 +339,8 @@ public partial class GuideHologramView : Control
         {
             _lineElapsed += delta;
             _line.VisibleRatio = PrologueTextStyle.Ratio(_line.Text, _lineElapsed);
+            SpeakRevealed();
+            if (_line.VisibleRatio >= 1f) OnLineTypedOut();
         }
 
         float noise = Time.GetTicksMsec() / 1000.0 < _noiseUntil ? 1f : 0f;
@@ -325,9 +358,9 @@ public partial class GuideHologramView : Control
         {
             _consoleTypeClock += delta;
             while (_consoleTypedChars < _consoleTyping.Length
-                   && _consoleTypeClock >= PrologueTextStyle.SecondsPerChar)
+                   && _consoleTypeClock >= PrologueTextStyle.ConsoleSecondsPerChar)
             {
-                _consoleTypeClock -= PrologueTextStyle.SecondsPerChar;
+                _consoleTypeClock -= PrologueTextStyle.ConsoleSecondsPerChar;
                 _consoleTypedChars++;
                 char c = _consoleTyping[_consoleTypedChars - 1];
                 if (c != ' ' && _consoleTypedChars % PrologueTextStyle.BlipEveryChars == 0)
@@ -337,7 +370,7 @@ public partial class GuideHologramView : Control
             if (_consoleTypedChars >= _consoleTyping.Length)
             {
                 if (_consoleTypingIsOk) Sfx.Instance?.Play("task_done", -6f);
-                _consoleWait = _consoleTypingIsOk ? 0.45 : 0.16;
+                _consoleWait = _consoleTypingIsOk ? PrologueTextStyle.ConsoleOkGap : PrologueTextStyle.ConsoleLineGap;
                 _consoleTyping = "";
                 _consoleTypedChars = 0;
             }
@@ -363,7 +396,7 @@ public partial class GuideHologramView : Control
         {
             _consoleLines.Add("");
             RenderConsole();
-            _consoleWait = 0.10;
+            _consoleWait = PrologueTextStyle.ConsoleLineGap;
             return;
         }
 
@@ -387,14 +420,64 @@ public partial class GuideHologramView : Control
         _console.Text = string.Join("\n", _consoleLines) + (caret ? " _" : "");
     }
 
-    // 스페이스/엔터/클릭으로만 넘어간다(자동 진행 없음).
-    public bool IsWaitingForInput => _guide != null;
+    // 스페이스/엔터/클릭으로만 넘어간다(자동 진행 없음). 콘솔이 돌아가는 동안에도 받는다.
+    public bool IsWaitingForInput => _guide != null || _consoleBlock != null;
 
     public void RequestAdvance()
     {
+        // 승계 콘솔 — 찍는 중이면 그 줄을 즉시 완성하고, 아니면 곧바로 다음 줄로 넘긴다.
+        if (_consoleBlock != null)
+        {
+            if (_consoleTypedChars < _consoleTyping.Length)
+            {
+                _consoleTypedChars = _consoleTyping.Length;
+                RenderConsole();
+                if (_consoleTypingIsOk) Sfx.Instance?.Play("task_done", -6f);
+                _consoleTyping = "";
+                _consoleTypedChars = 0;
+            }
+            _consoleWait = 0;
+            return;
+        }
+
         if (_guide == null) return;
-        if (_line.VisibleRatio < 1f) { _line.VisibleRatio = 1f; _lineElapsed = _lineDuration; return; }
+        if (_line.VisibleRatio < 1f)
+        {
+            _line.VisibleRatio = 1f;
+            _lineElapsed = _lineDuration;
+            _spokenChars = _line.Text.Length;
+            Sfx.Instance?.StopVoiceBlip();
+            return;
+        }
         NextBeat();
+    }
+
+    // 마지막 대사의 타이핑이 끝난 순간 — completeWhenTyped 모드면 여기서 바로 완료 처리한다.
+    // 대사는 화면에 그대로 남고, 호출부가 곧바로 선택지를 띄운다.
+    private void OnLineTypedOut()
+    {
+        if (!_completeWhenTyped || _guide == null) return;
+        if (_beat < _guide.Beats.Count - 1) return;   // 아직 남은 대사가 있다
+        _hint.Visible = false;
+        _guide = null;
+        _completeWhenTyped = false;
+        var done = _guideDone;
+        _guideDone = null;
+        done?.Invoke();
+    }
+
+    // 새로 드러난 글자만큼 GUIDE-0 보이스를 울린다(직원 보이스와 같은 재생 경로, 다른 Voice ID).
+    private void SpeakRevealed()
+    {
+        string voice = _guide?.VoiceId ?? "";
+        if (string.IsNullOrEmpty(voice)) return;
+        int shown = Mathf.RoundToInt(_line.VisibleRatio * _line.Text.Length);
+        while (_spokenChars < shown)
+        {
+            char c = _line.Text[_spokenChars];
+            _spokenChars++;
+            Sfx.Instance?.PlayVoiceBlip(voice, c);
+        }
     }
 
     // CRT 를 직접 클릭해도 넘어간다(화면 아무 곳이나 누르는 경로는 PrologueAdvanceInput).

@@ -35,6 +35,10 @@ public partial class SeatedCameraRig : Node3D
     private Vector3 _shakeOffset;
     private Tween _shakeTween;
 
+    // 의식을 잃고 책상에 엎어질 때의 오프셋(위치 m / 회전 deg). 프롤로그 전용.
+    private Vector3 _collapsePos, _collapseRotDeg;
+    private Tween _collapseTween;
+
     // 통화 중 고개를 수화기 쪽으로 살짝 기울인다(사람이 전화를 어깨/귀로 가져가듯).
     [Export] public Vector3 PhoneTiltDegrees = new(2.5f, -1.5f, -2f);
     private float _phoneTiltWeight;
@@ -64,9 +68,32 @@ public partial class SeatedCameraRig : Node3D
                                Mathf.Sin(phase * 0.37f) * BreathSwayDegrees * 0.7f, 0f);
         }
 
-        rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight;
-        Position = pos;
+        rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight + _collapseRotDeg;
+        Position = pos + _collapsePos;
         RotationDegrees = rot;
+    }
+
+    // 머리를 맞고 책상에 엎어진다 — 시점이 빠르게 아래로 떨어지며 앞으로 고꾸라진다.
+    // 되돌리려면 ResetCollapse().
+    public void CollapseOntoDesk(float seconds = 0.38f)
+    {
+        _collapseTween?.Kill();
+        _collapseTween = CreateTween();
+        _collapseTween.SetParallel(true);
+        // 머리가 책상 높이까지 떨어지면서 앞으로 숙여지고 옆으로 살짝 기운다.
+        _collapseTween.TweenMethod(Callable.From<Vector3>(v => _collapsePos = v),
+            _collapsePos, new Vector3(0.05f, -0.42f, 0.18f), seconds)
+            .SetTrans(Tween.TransitionType.Quint).SetEase(Tween.EaseType.In);
+        _collapseTween.TweenMethod(Callable.From<Vector3>(v => _collapseRotDeg = v),
+            _collapseRotDeg, new Vector3(-58f, 6f, -14f), seconds)
+            .SetTrans(Tween.TransitionType.Quint).SetEase(Tween.EaseType.In);
+    }
+
+    public void ResetCollapse()
+    {
+        _collapseTween?.Kill();
+        _collapsePos = Vector3.Zero;
+        _collapseRotDeg = Vector3.Zero;
     }
 
     // --- CRT 앞으로 확대 --------------------------------------------------

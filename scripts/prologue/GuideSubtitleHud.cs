@@ -15,15 +15,33 @@ public partial class GuideSubtitleHud : CanvasLayer
 
     private Panel _panel;
     private Label _label;
+    private Label _arrow;          // 다음으로 넘길 수 있을 때 오른쪽 끝에서 둥둥 떠다니는 ▶
     private bool _active;
+    private float _arrowTime;
 
     public override void _Ready()
     {
         Instance = this;
         Layer = 85; // 통화 HUD(90) 아래, 시작 화면(80) 위
         BuildUi();
+        SetProcess(true);
         Visible = false;
     }
+
+    // ▶ 는 "지금 아무 데나 눌러도 된다"는 표시다 — 넘길 게 있을 때만 뜨고 좌우로 살랑인다.
+    public override void _Process(double delta)
+    {
+        if (!Visible || _arrow == null) return;
+        bool canAdvance = GuideHologramView.Instance?.IsWaitingForInput == true;
+        _arrow.Visible = canAdvance;
+        if (!canAdvance) return;
+
+        _arrowTime += (float)delta;
+        _arrow.Position = new Vector2(_arrowBaseX + Mathf.Sin(_arrowTime * 4.2f) * 5f, _arrowBaseY);
+        _arrow.Modulate = new Color(1f, 1f, 1f, 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Sin(_arrowTime * 3.4f)));
+    }
+
+    private float _arrowBaseX, _arrowBaseY;
 
     public override void _ExitTree()
     {
@@ -74,7 +92,7 @@ public partial class GuideSubtitleHud : CanvasLayer
         _label = new Label
         {
             Position = new Vector2(16f, 26f),
-            Size = new Vector2(828f, 38f),
+            Size = new Vector2(792f, 38f),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
@@ -82,5 +100,19 @@ public partial class GuideSubtitleHud : CanvasLayer
         _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
         _label.AddThemeColorOverride("font_color", new Color(0.90f, 0.98f, 1f));
         _panel.AddChild(_label);
+
+        _arrowBaseX = 818f;
+        _arrowBaseY = 32f;
+        _arrow = new Label
+        {
+            Text = "▶",
+            Position = new Vector2(_arrowBaseX, _arrowBaseY),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _arrow.AddThemeFontOverride("font", ViewFont.Default);
+        _arrow.AddThemeFontSizeOverride("font_size", ViewFont.FS(18));
+        _arrow.AddThemeColorOverride("font_color", new Color(0.62f, 0.98f, 1f));
+        _panel.AddChild(_arrow);
     }
 }

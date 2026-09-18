@@ -9,9 +9,9 @@ namespace NSP.Prologue;
 // 이 노드는 씬 루트(ControlRoom3DController)보다 먼저 _Input 을 받으므로, 배치표가 모달로
 // 입력을 가져가는 단계에서도 대사를 넘길 수 있다.
 //
-// 마우스 클릭을 "화면 아무 곳이나"로 받는 것은 프롤로그 동안만이다. DAY0 교육 중에는
-// 플레이어가 지도·배치표·전화기를 계속 클릭해야 하므로, 키(스페이스/엔터)로 넘기거나
-// GUIDE-0 모니터를 직접 클릭하게 둔다.
+// 대사가 떠 있는 동안에는 화면 아무 곳이나 클릭해도 넘어간다. 대사 묶음이 끝나면
+// IsWaitingForInput 이 false 가 되므로, 플레이어가 지도·배치표·전화기를 클릭하는 데는
+// 전혀 방해가 되지 않는다.
 public partial class PrologueAdvanceInput : Node
 {
     public override void _Ready() => SetProcessInput(true);
@@ -25,9 +25,6 @@ public partial class PrologueAdvanceInput : Node
 
         // 통화 HUD / 로그 창이 떠 있으면 그쪽 입력이 우선이다.
         if (PhoneCallHud.Instance?.IsOpen == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
-
-        bool prologueRunning = PrologueDirector.Instance?.IsRunning == true;
-        if (byClick && !prologueRunning) return;
 
         if (CutscenePlayer.Instance is { IsWaitingForInput: true } cut)
         {

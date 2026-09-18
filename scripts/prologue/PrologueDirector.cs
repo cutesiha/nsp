@@ -21,6 +21,9 @@ public partial class PrologueDirector : Node
     public event Action Finished;
     public bool IsRunning { get; private set; }
 
+    // 첫 브리핑 선택지(무슨 일이 / 나는 누구 / 내가 할 일). 문구·답변은 전부 데이터 파일에 있다.
+    private const string MainMenuId = "g_main";
+
     private ControlRoom3DController _ctl;
     private TitleOverlay _title;
 
@@ -93,6 +96,7 @@ public partial class PrologueDirector : Node
         await Wait(0.7);
         cutscene.Clear();
         _ctl?.SetScreenBrightness(0.02f);
+        _ctl?.ResetCameraCollapse();   // 책상에 엎어진 자세를 정상으로 되돌린다
         _ctl?.ClearFocus();
         await Wait(0.9);
 
@@ -109,19 +113,22 @@ public partial class PrologueDirector : Node
         await PlayConsole(guide, "authority_transfer");
         await Wait(0.5);
 
-        // GUIDE-0 등장.
-        await ShowGuide(guide, "g_intro");
+        // GUIDE-0 등장. 마지막 대사가 다 찍히는 순간 바로 선택지를 띄운다(추가 클릭 없음).
+        await ShowGuide(guide, "g_intro", null, completeWhenTyped: true);
 
-        // ── 선택지 : 마지막 항목(내가 해야 할 일은?)을 고를 때까지 반복 ────
-        while (true)
+        // ── 선택지 : 세 질문을 각각 한 번씩 모두 확인해야 다음으로 넘어간다 ──
+        //    순서는 자유. 이미 확인한 질문은 체크 표시 + 비활성으로 남는다.
+        guide.ResetMenuProgress();
+        while (!guide.AllOptionsAnswered(MainMenuId))
         {
-            var pick = await ShowMenu(guide, "g_main");
+            var pick = await ShowMenu(guide, MainMenuId);
             if (pick == null) break;
-            await ShowGuide(guide, pick.GuideId);
+            // 답변이 끝나는 순간 다시 선택지로 — 여기서도 추가 클릭이 필요 없다.
+            await ShowGuide(guide, pick.GuideId, null, completeWhenTyped: true);
             if (pick.IsFinal) break;
         }
 
-        // ── #4 : DAY 0 예고 ───────────────────────────────────────────
+        // ── #4 : 안내 완료 → DAY 0 예고 ───────────────────────────────
         await ShowGuide(guide, "g_day0_open");
         await Wait(0.3);
 
@@ -167,12 +174,14 @@ public partial class PrologueDirector : Node
         return tcs.Task;
     }
 
+    // completeWhenTyped: 마지막 대사가 다 찍히는 순간 완료로 본다(뒤에 선택지가 이어질 때).
     public static Task ShowGuide(GuideHologramView guide, string id,
-        System.Collections.Generic.Dictionary<string, string> replacements = null)
+        System.Collections.Generic.Dictionary<string, string> replacements = null,
+        bool completeWhenTyped = false)
     {
         var tcs = new TaskCompletionSource();
-        if (replacements != null) guide.ShowGuide(id, replacements, () => tcs.TrySetResult());
-        else guide.ShowGuide(id, () => tcs.TrySetResult());
+        if (replacements != null) guide.ShowGuide(id, replacements, () => tcs.TrySetResult(), completeWhenTyped);
+        else guide.ShowGuide(id, () => tcs.TrySetResult(), completeWhenTyped);
         return tcs.Task;
     }
 

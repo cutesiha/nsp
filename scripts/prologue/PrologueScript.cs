@@ -26,6 +26,11 @@ public static class PrologueScript
         public string FigurePath = "";
         public string FigureNote = "";
         public string Speaker = "";
+        // 이 슬라이드 자막을 읽는 목소리. 기존 직원 id(rabbit, owl …) 또는 프롤로그 전용
+        // director / guide0. 비워 두면 소리 없이 글자만 찍힌다.
+        public string VoiceId = "";
+        // 무전/인터컴으로 들리는가(Radio 버스 + 앞뒤 치직 + 약한 잡음).
+        public bool Radio;
         public string Text = "";
         public string Overlay = "";
         public string Sfx = "";
@@ -75,6 +80,8 @@ public static class PrologueScript
     {
         public string Id = "";
         public string StartPortrait = "normal";
+        // GUIDE-0 전용 보이스. 데이터에서 voice: 로 덮어쓸 수 있다.
+        public string VoiceId = "guide0";
         public readonly List<GuideBeat> Beats = new();
     }
 
@@ -82,12 +89,15 @@ public static class PrologueScript
     {
         public string Label = "";
         public string GuideId = "";
+        // final: 로 적은 항목 — 고르면 그 자리에서 메뉴가 끝난다(mode: all 이면 쓰지 않는다).
         public bool IsFinal;
     }
 
     public sealed class MenuBlock
     {
         public string Id = "";
+        // mode: all — 모든 항목을 한 번씩 확인해야 메뉴가 끝난다(순서는 자유).
+        public bool RequireAll;
         public readonly List<MenuOption> Options = new();
     }
 
@@ -237,6 +247,8 @@ public static class PrologueScript
             case "title": s.Title = value; inheritedTitle = value; return true;
             case "image": s.ImagePath = value; return true;
             case "imagenote": s.ImageNote = value; return true;
+            case "voice": s.VoiceId = value; return true;
+            case "radio": s.Radio = ParseBool(value); return true;
             case "figure": s.FigurePath = value; return true;
             case "figurenote": s.FigureNote = value; return true;
             case "sfxloop": s.SfxLoopStart = value; return true;
@@ -255,6 +267,10 @@ public static class PrologueScript
             default: return false;
         }
     }
+
+    private static bool ParseBool(string v) =>
+        v.Equals("true", StringComparison.OrdinalIgnoreCase) || v == "1"
+        || v.Equals("yes", StringComparison.OrdinalIgnoreCase);
 
     private static float ParseFloat(string v, float fallback) =>
         float.TryParse(v, System.Globalization.NumberStyles.Float,
@@ -296,6 +312,7 @@ public static class PrologueScript
                 if (g.Beats.Count == 0) g.StartPortrait = value;
                 else g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Portrait, Value = value });
                 return true;
+            case "voice": g.VoiceId = value; return true;
             case "line": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Line, Value = value }); return true;
             case "icons": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Icons, Value = value }); return true;
             case "fx": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Noise, Value = value }); return true;
@@ -305,6 +322,11 @@ public static class PrologueScript
 
     private static bool ApplyMenuField(MenuBlock m, string key, string value)
     {
+        if (key == "mode")
+        {
+            m.RequireAll = value.Equals("all", StringComparison.OrdinalIgnoreCase);
+            return true;
+        }
         if (key is not ("option" or "final")) return false;
         int bar = value.LastIndexOf('|');
         if (bar < 0) return true;
