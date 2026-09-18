@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_core_headcount_limit"
+Description = "코어실에 동시에 2명 이상의 직원을 배치하지 마십시오."
+ConditionType = 0
+ConditionParams = {
+"room_id": "core_room",
+"max": 1,
+"hold_seconds": 6.0
+}
+ConsequenceType = 19
+ConsequenceParams = {
+"multiplier": 0.6,
+"seconds": 30.0
+}

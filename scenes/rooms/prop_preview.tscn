@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://bt6e73vxby1qm"]
+
+[ext_resource type="PackedScene" uid="uid://cr62hqgeo0u83" path="res://assets/models/rotart_phone.glb" id="1_phone"]
+[ext_resource type="PackedScene" uid="uid://d1jsedeqyo42j" path="res://assets/models/sencor.glb" id="2_sencor"]
+[ext_resource type="PackedScene" uid="uid://cwl6cjb8156q1" path="res://assets/models/switch.glb" id="3_switch"]
+
+[sub_resource type="Environment" id="Env_Preview"]
+background_mode = 1
+background_color = Color(0.06, 0.065, 0.08, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.63, 0.7, 1)
+ambient_light_energy = 0.6
+tonemap_mode = 2
+
+[node name="PropPreview" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_Preview")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766044, -0.321394, 0.55667, 0, 0.866025, 0.5, -0.642788, -0.383022, 0.663414, 0, 3, 0)
+light_energy = 1.1
+shadow_enabled = true
+
+[node name="Phone" parent="." instance=ExtResource("1_phone")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0, 0)
+
+[node name="Sencor" parent="." instance=ExtResource("2_sencor")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Switch" parent="." instance=ExtResource("3_switch")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.939693, 0.342020, 0, -0.342020, 0.939693, 0, 0.6, 1.6)
+current = true
+fov = 55.0

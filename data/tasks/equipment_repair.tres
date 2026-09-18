@@ -16,4 +16,4 @@ EffectType = 0
 EffectAmount = 0.0
 HasNeglectConsequence = true
 NeglectThresholdSeconds = 30.0
-NeglectConsequenceType = 2
+NeglectConsequenceType = 7

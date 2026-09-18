@@ -70,13 +70,20 @@ public static class RoomStatusText
             if (st.Status == SpawnedTaskStatus.Completed) return $"✓ {name} 완료";
             if (st.Status == SpawnedTaskStatus.Failed) return $"🚨 {name} 처리 실패";
 
+            if (st.IsRepair) return $"🔧 {name} 수리 필요";
+
             string icon = WorkIcon(roomDef.ManagedResource);
             string head = st.Recurring ? $"{icon} {name}" : $"{icon} {name}  ⏱{Clock(st.Remaining)}";
+
+            int here = sim.GetRoomState(roomId)?.OccupantEmployeeIds.Count ?? 0;
+            int need = task != null ? Mathf.Max(1, task.MinWorkersToProgress) : 1;
 
             string body;
             if (sim.IsRoomBlockedByMaterials(roomId))
                 body = "📦 자재 부족 — 대기";
-            else if ((sim.GetRoomState(roomId)?.OccupantEmployeeIds.Count ?? 0) > 0)
+            else if (here > 0 && here < need)
+                body = $"⚠ {need}명 필요 (현재 {here}명)";
+            else if (here > 0)
             {
                 float pct = Mathf.Clamp(st.Ratio, 0f, 1f) * 100f;
                 body = $"{Bar(st.Ratio)} {pct:0}%";
@@ -123,12 +130,16 @@ public static class RoomStatusText
 
         // 이미 실제로 벌어진 지속형 이상 상태 — 잠금(구역 봉쇄)은 플레이어의 의도적 조치라
         // "고장"으로 취급하지 않는다.
-        bool activeFailure = !state.PowerOn || state.CctvDisconnected
-            || (sim.GetRoomDef(roomId)?.ManagedResource == RoomResourceType.Power && GameState.Instance.IsPowerAccidentActive());
+        var rdef = sim.GetRoomDef(roomId);
+        bool activeFailure = !state.PowerOn || sim.IsRoomCctvBlocked(roomId)
+            || (rdef?.ManagedResource == RoomResourceType.Power && GameState.Instance.IsPowerAccidentActive())
+            || (roomId == "guard_room" && GameState.Instance.CctvSystemOffline)
+            || (roomId == "maintenance_room" && GameState.Instance.MaterialsProductionHalted)
+            || (roomId == "vent_room" && GameState.Instance.VentilationDown);
         if (activeFailure) return RoomDangerTier.Failure;
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
-        if (prim is { Status: SpawnedTaskStatus.Failed }) return RoomDangerTier.Failure;
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return RoomDangerTier.Failure;
 
         // 발생 업무의 제한시간이 얼마나 임박했는가(0~1).
         float ratio = sim.GetRoomUrgencyRatio(roomId);
@@ -143,6 +154,27 @@ public static class RoomStatusText
 
         if (ratio <= 0f) return RoomDangerTier.None;
         return ratio < 0.5f ? RoomDangerTier.Delayed : RoomDangerTier.Unstable;
+    }
+
+    // 이미 고장난 방이 "무엇을 못 하게 됐는지" 한 줄로. 고장이 아니면 빈 문자열.
+    public static string GetFailureCause(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var state = sim?.GetRoomState(roomId);
+        if (sim == null || state == null) return "";
+
+        var gs = GameState.Instance;
+        var rdef = sim.GetRoomDef(roomId);
+        if (rdef?.ManagedResource == RoomResourceType.Power && gs.IsPowerAccidentActive()) return "전력 용량 저하";
+        if (roomId == "guard_room" && gs.CctvSystemOffline) return "감시 시스템 오프라인";
+        if (roomId == "maintenance_room" && gs.MaterialsProductionHalted) return "자재 생산 정지";
+        if (roomId == "vent_room" && gs.VentilationDown) return "환기 정지";
+        if (!state.PowerOn) return "전력 차단";
+        if (FacilitySimulation.Instance?.IsRoomCctvBlocked(state.RoomId) == true) return "CCTV 단절";
+
+        var prim = sim.GetPrimarySpawnedTask(roomId);
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return "설비 고장";
+        return "";
     }
 
     public static string GetDangerLine(RoomDangerTier tier) => tier switch

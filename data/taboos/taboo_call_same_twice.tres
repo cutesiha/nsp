@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_call_same_twice"
+Description = "같은 직원과 두 번 통화하지 마십시오."
+ConditionType = 6
+ConditionParams = {}
+ConsequenceType = 15
+ConsequenceParams = {
+"seconds": 30.0
+}

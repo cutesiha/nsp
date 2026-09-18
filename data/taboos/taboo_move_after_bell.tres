@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_move_after_bell"
+Description = "종이 세 번 울린 뒤 30초간 직원을 이동시키지 마십시오."
+ConditionType = 4
+ConditionParams = {
+"window_seconds": 30.0
+}
+ConsequenceType = 13
+ConsequenceParams = {
+"seconds": 20.0
+}

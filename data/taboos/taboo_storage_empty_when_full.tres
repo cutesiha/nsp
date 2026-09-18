@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="TabooDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/TabooDef.cs" id="1_taboo"]
+
+[resource]
+script = ExtResource("1_taboo")
+TabooId = "taboo_storage_empty_when_full"
+Description = "자재가 30개 이상일 때 저장고를 비워 두지 마십시오."
+ConditionType = 10
+ConditionParams = {
+"room_id": "storage_room",
+"materials_min": 30,
+"hold_seconds": 8.0
+}
+ConsequenceType = 20
+ConsequenceParams = {
+"cap": 5,
+"materials": 5
+}

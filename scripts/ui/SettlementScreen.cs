@@ -27,7 +27,7 @@ public partial class SettlementScreen : Control
 
         var lines = new System.Text.StringBuilder();
         lines.AppendLine($"봉쇄 코어 진행도: {GameState.Instance.CoreProgress:0.0}%");
-        lines.AppendLine($"자재: {GameState.Instance.Materials} / {Config.Instance.Data.MaterialsCap}");
+        lines.AppendLine($"자재: {GameState.Instance.Materials} / {GameState.Instance.MaterialsCap}");
         lines.AppendLine($"생존 직원: {aliveCount} / {employeeIds.Count}");
         if (deadCodenames.Count > 0)
             lines.AppendLine($"사망: {string.Join(", ", deadCodenames)}");

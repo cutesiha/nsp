@@ -44,8 +44,8 @@ public partial class RoomView : ColorRect
         MouseFilter = MouseFilterEnum.Stop;
 
         // 이 방을 CCTV로 보고 있을 때만 도는 수리음(망치 소리) 루프.
-        _workSfx = new AudioStreamPlayer { VolumeDb = -8f };
-        const string repairPath = "res://assets/audio/sfx_repair.wav";
+        _workSfx = new AudioStreamPlayer { VolumeDb = -8f, Bus = NSP.Core.GameSettings.BusSfx };
+        const string repairPath = "res://assets/audio/sfx/repair.wav";
         if (ResourceLoader.Exists(repairPath))
             _workSfx.Stream = GD.Load<AudioStream>(repairPath);
         _workSfx.Finished += () => { if (_workLoop && _workSfx.Stream != null) _workSfx.Play(); };
