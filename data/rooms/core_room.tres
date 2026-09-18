@@ -9,6 +9,7 @@ DisplayName = "코어실"
 ConnectedRoomIds = Array[String](["central_office", "guard_room", "storage_room"])
 MapPosition = Vector2(160, 320)
 IsCoreRoom = true
+UnlockDay = 0
 ManagedResource = 6
 HasEmergencyLighting = true
 AccidentName = "봉쇄 코어 출력 불안정"

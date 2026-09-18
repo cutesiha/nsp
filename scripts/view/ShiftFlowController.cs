@@ -2,6 +2,7 @@ using Godot;
 using NSP.Core;
 using NSP.Data;
 using NSP.Facility;
+using NSP.Prologue;
 using NSP.Taboo;
 using NSP.Ui;
 
@@ -39,7 +40,11 @@ public partial class ShiftFlowController : Node
     };
     [Export] public float BoardFocusDistance = 0.42f;
 
-    private enum Stage { Boot, Title, Schedule, Booting, Shift, Ending, Report, Rest, DayTransition, Final }
+    // 새 게임을 프롤로그 + DAY0 교육부터 시작할지. 끄면 예전처럼 곧장 DAY1 배치로 들어간다
+    // (개발 중 DAY1 만 반복 테스트할 때 인스펙터에서 끄면 된다).
+    [Export] public bool PlayPrologue = true;
+
+    private enum Stage { Boot, Title, Prologue, Schedule, Booting, Shift, Ending, Report, Rest, DayTransition, Final }
     private Stage _stage = Stage.Boot;
 
     private ControlRoom3DController _ctl;
@@ -78,7 +83,7 @@ public partial class ShiftFlowController : Node
 
         if (_title != null)
         {
-            _title.StartRequested += EnterSchedule;
+            _title.StartRequested += OnStartPressed;
             _title.QuitRequested += () => GetTree().Quit();
             _title.ShowTitle();
         }
@@ -99,7 +104,7 @@ public partial class ShiftFlowController : Node
         if (!_wiredViews) WireLateSignals();
 
         // 근무 시간이 다 되면(시계가 종료 시간 도달) 자동으로 근무를 종료한다.
-        if (_stage == Stage.Shift && GameState.Instance != null)
+        if (_stage == Stage.Shift && GameState.Instance != null && !DayFeatures.IsTutorialDay)
         {
             float limit = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
             if (GameState.Instance.DayTimeSeconds >= limit)
@@ -122,14 +127,47 @@ public partial class ShiftFlowController : Node
 
     // --- 시작 → 배치 -----------------------------------------------------
 
+    // 시작 화면의 '근무 시작' — 프롤로그를 먼저 재생하고, 끝나면 DAY0 배치로 넘어간다.
+    private void OnStartPressed()
+    {
+        if (_stage != Stage.Title) return;
+
+        // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
+        // 그 값이 남지 않게 모든 런 상태를 비운다.
+        StartNewRun(PlayPrologue ? 0 : 1);
+
+        if (!PlayPrologue || PrologueDirector.Instance == null)
+        {
+            EnterSchedule();
+            return;
+        }
+
+        _stage = Stage.Prologue;
+        _title?.FadeOut();
+        GameState.Instance?.SetPhase(GamePhase.Prep);
+        Sfx.Instance?.FadeOutMusic(1.0f);
+        _ctl?.SetInputLocked(false);
+        // 프롤로그 동안 책상 위는 그대로 두고 두 CRT 만 쓴다.
+        PrologueDirector.Instance.Finished += OnPrologueFinished;
+        PrologueDirector.Instance.Play();
+    }
+
+    private void OnPrologueFinished()
+    {
+        if (PrologueDirector.Instance != null)
+            PrologueDirector.Instance.Finished -= OnPrologueFinished;
+        if (_stage != Stage.Prologue) return;
+        _stage = Stage.DayTransition;   // EnterSchedule 의 진입 조건을 맞춘다
+        EnterSchedule();
+    }
+
     private void EnterSchedule()
     {
         if (_stage is not (Stage.Title or Stage.DayTransition)) return;
 
-        // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
-        // 그 값이 남지 않게 모든 런 상태를 비운 뒤 이번 판의 방해자를 새로 뽑는다.
+        // 프롤로그를 끄고 곧장 시작한 경우에도 새 게임 초기화는 반드시 한 번 지난다.
         if (_stage == Stage.Title)
-            StartNewRun();
+            StartNewRun(1);
 
         _stage = Stage.Schedule;
 
@@ -157,20 +195,26 @@ public partial class ShiftFlowController : Node
 
         if (_board != null)
             _rig?.FocusOnScreen(_board.SurfaceCenterWorld, _board.SurfaceNormalWorld, BoardFocusDistance, 0.7f);
+
+        // DAY0 = GUIDE-0 가 진행하는 관리자 교육. 배치표가 열린 직후부터 시작한다.
+        if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
     }
 
-    private static void StartNewRun()
+    private static void StartNewRun(int startDay)
     {
         var state = GameState.Instance;
         var sim = FacilitySimulation.Instance;
         if (state == null || sim == null) return;
 
-        state.ResetRun();
+        state.ResetRun(startDay);
         sim.ResetRun();
         EventLog.Instance?.ClearAll();
         DialogueHistory.Instance?.ClearAll();
 
-        state.AssignRandomSaboteur(sim.GetEmployeeIds());
+        // DAY0 교육에는 방해자가 없다 — DAY1 근무가 시작될 때 ControlRoom3DController 가 뽑는다.
+        if (!DayFeatures.SaboteurActive) return;
+
+        state.AssignRandomSaboteur(sim.GetActiveEmployeeIds());
         string id = state.SaboteurEmployeeId;
         if (string.IsNullOrEmpty(id)) return;
 
@@ -268,6 +312,9 @@ public partial class ShiftFlowController : Node
     }
 
     // --- 휴게 → 다음 날 배치 / 최종 결과 -----------------------------------
+
+    // DAY0 교육이 끝나면 TutorialDirector 가 직접 DAY1 로 넘긴다("그럼 이제, DAY 1 근무를 시작합니다").
+    public void AdvanceFromTutorial() => RequestNextFromRest();
 
     private void RequestNextFromRest()
     {

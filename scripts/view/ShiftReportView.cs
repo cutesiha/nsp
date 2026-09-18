@@ -89,9 +89,10 @@ public partial class ShiftReportView : Control
         int taboo = entries.Count(e => e.EventType == LogEventType.TabooViolation);
         int sabotage = entries.Count(e => e.EventType == LogEventType.Sabotage);
         int incidents = entries.Count(e => e.EventType is LogEventType.TaskFailed or LogEventType.PowerOutage or LogEventType.CctvDisconnect) + sabotage;
-        int isolated = sim.GetEmployeeIds().Count(id => sim.GetEmployeeState(id)?.Isolated == true);
-        int aliveCount = sim.GetEmployeeIds().Count(id => sim.GetEmployeeState(id)?.Alive ?? false);
-        int total = sim.GetEmployeeIds().Count;
+        var roster = sim.GetActiveEmployeeIds();
+        int isolated = roster.Count(id => sim.GetEmployeeState(id)?.Isolated == true);
+        int aliveCount = roster.Count(id => sim.GetEmployeeState(id)?.Alive ?? false);
+        int total = roster.Count;
 
         float coreDelta = gs.CoreProgress - coreAtStart;
         int materialsDelta = gs.Materials - materialsAtStart;

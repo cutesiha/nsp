@@ -27,6 +27,10 @@
 [ext_resource type="Script" uid="uid://duvrvmelli86b" path="res://scripts/view/ShiftHud.cs" id="25_shifthud"]
 [ext_resource type="Script" uid="uid://cjb6173nf0v3k" path="res://scripts/view/Day1HistoryOverlay.cs" id="26_history"]
 [ext_resource type="Script" uid="uid://dexaaxs624710" path="res://scripts/view/PlayerViewGuide.cs" id="27_player_guide"]
+[ext_resource type="Script" uid="uid://b3un727meurm0" path="res://scripts/prologue/PrologueDirector.cs" id="28_prologuedir"]
+[ext_resource type="Script" uid="uid://fppsaeswbeou" path="res://scripts/prologue/TutorialDirector.cs" id="29_tutorialdir"]
+[ext_resource type="Script" uid="uid://b08v5v32yrh8a" path="res://scripts/prologue/GuideSubtitleHud.cs" id="30_guidesub"]
+[ext_resource type="Script" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -1056,6 +1060,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.12, 0)
 
 [node name="ControlPanel" type="Node3D" parent="ControlRoom" unique_id=1471960168]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.8, 0.76, -0.5)
+visible = false
 
 [node name="Panel_Body" type="MeshInstance3D" parent="ControlRoom/ControlPanel" unique_id=286125886]
 transform = Transform3D(0.34, 0, 0, 0, 0.09, 0, 0, 0, 0.24, 0, 0, 0)
@@ -1233,3 +1238,15 @@ script = ExtResource("26_history")
 
 [node name="PauseMenu" type="CanvasLayer" parent="." unique_id=771100885]
 script = ExtResource("24_pausemenu")
+
+[node name="PrologueDirector" type="Node" parent="." unique_id=771100886]
+script = ExtResource("28_prologuedir")
+
+[node name="TutorialDirector" type="Node" parent="." unique_id=771100887]
+script = ExtResource("29_tutorialdir")
+
+[node name="GuideSubtitleHud" type="CanvasLayer" parent="." unique_id=771100888]
+script = ExtResource("30_guidesub")
+
+[node name="PrologueAdvanceInput" type="Node" parent="." unique_id=771100889]
+script = ExtResource("31_advinput")

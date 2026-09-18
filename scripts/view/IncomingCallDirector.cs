@@ -88,7 +88,8 @@ public partial class IncomingCallDirector : Node
     {
         Wire();
 
-        if (GameState.Instance?.CurrentPhase != GamePhase.Live)
+        // DAY0(교육)에는 자동 전화가 걸려오지 않는다 — 튜토리얼이 정해진 한 통만 직접 건다.
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live || !DayFeatures.AutoCallsEnabled)
         {
             // 근무가 아니면 큐를 비운다(정산/휴게/다음 날로 이월하지 않는다).
             if (_queue.Count > 0) _queue.Clear();
@@ -405,7 +406,7 @@ public partial class IncomingCallDirector : Node
     {
         var sim = FacilitySimulation.Instance;
         if (sim == null) return "";
-        var pool = sim.GetEmployeeIds().Where(id => Available(id) && !AlreadyCalled(incidentKey, id)).ToList();
+        var pool = sim.GetActiveEmployeeIds().Where(id => Available(id) && !AlreadyCalled(incidentKey, id)).ToList();
         return pool.Count == 0 ? "" : pool[_rng.RandiRange(0, pool.Count - 1)];
     }
 

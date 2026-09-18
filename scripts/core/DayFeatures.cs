@@ -17,6 +17,15 @@ public static class DayFeatures
     private static int Day => GameState.Instance?.CurrentDay ?? 1;
     private static ConfigData Cfg => Config.Instance?.Data;
 
+    // DAY0 = GUIDE-0 가 진행하는 가상 교육 시뮬레이션. 방해자도, 자동 사고도, 자동 전화도 없다.
+    public static bool IsTutorialDay => Day <= 0;
+    // 방해자 배정/행동. 교육용 DAY0 에는 방해자가 존재하지 않는다.
+    public static bool SaboteurActive => Day >= 1;
+    // 무인 방치 사고 등 시뮬레이션이 스스로 일으키는 사고. DAY0 는 튜토리얼이 직접 일으킨다.
+    public static bool AutoIncidentsEnabled => Day >= 1;
+    // IncomingCallDirector 의 자동 전화. DAY0 는 튜토리얼이 정해진 전화 한 통만 건다.
+    public static bool AutoCallsEnabled => Day >= 1;
+
     public static bool StatsEnabled => Day >= (Cfg?.StatsUnlockDay ?? 2);
     public static bool StressEnabled => Day >= (Cfg?.StressUnlockDay ?? 2);
     public static bool TaboosEnabled => Day >= (Cfg?.TabooUnlockDay ?? 2);

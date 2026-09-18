@@ -35,6 +35,10 @@ public partial class EmployeeDef : Resource
     // 코드에 하드코딩하지 않고 캐릭터 데이터에서 관리한다.
     [Export] public float IncomingCallPatienceSeconds = 5f;
 
+    // 이 직원이 근무에 나오는 날. DAY0(교육)에는 0 인 직원만 나온다.
+    // 데이터만 바꾸면 되므로 튜토리얼 인원 구성은 코드를 고치지 않고 조정할 수 있다.
+    [Export] public int UnlockDay = 1;
+
     [Export] public string StartRoomId = "";
     [Export] public Color IconColor = new Color(0.7f, 0.7f, 0.7f);
     [Export] public Texture2D StandingImage;

@@ -95,8 +95,17 @@ public partial class RestRosterView : Control
         if (Instance == this) Instance = null;
     }
 
+    // DAY0 교육 중에는 다음 날로 넘어가지 못하게 잠근다(TutorialDirector 가 제어).
+    public void SetNextEnabled(bool enabled, string lockedText = "")
+    {
+        if (_nextBtn == null) return;
+        _nextBtn.Disabled = !enabled;
+        if (!enabled && !string.IsNullOrEmpty(lockedText)) _nextBtn.Text = lockedText;
+    }
+
     public void Present(bool finalDay)
     {
+        _nextBtn.Disabled = false;
         _nextBtn.Text = finalDay ? "최종 결과 확인 ▶" : "다음 날 근무 배치 ▶";
         SelectedEmployeeId = "";
         _selected.Text = "휴게실 안의 직원 아이콘을 선택하세요.";
@@ -201,7 +210,7 @@ public partial class RestRosterView : Control
             if (sim == null) return;
 
             int seat = 0;
-            foreach (string id in sim.GetEmployeeIds())
+            foreach (string id in sim.GetActiveEmployeeIds())
             {
                 if (seat >= Seats.Length) break;
                 var def = sim.GetEmployeeDef(id);

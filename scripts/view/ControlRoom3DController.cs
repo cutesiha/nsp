@@ -83,6 +83,8 @@ public partial class ControlRoom3DController : Node3D
     private SeatedCameraRig _rig;
     private readonly List<MonitorScreen3D> _screens = new();
     private SubViewport _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp;
+    // 프롤로그/튜토리얼 전용 — 왼쪽 CRT 의 '영상'(컷씬)과 오른쪽 CRT 의 GUIDE-0 홀로그램.
+    private SubViewport _cutsceneVp, _guideVp;
     // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
     // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
     private SubViewport _facilityCctvVp;
@@ -139,10 +141,11 @@ public partial class ControlRoom3DController : Node3D
         EventLog.Instance?.ClearAll();
         if ((GameState.Instance?.CurrentDay ?? 1) == 1)
             DialogueHistory.Instance?.ClearAll();
-        if (string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
+        // DAY0(교육)에는 방해자가 존재하지 않는다 — 배정 자체를 하지 않으면 TickSaboteur 가 통째로 쉰다.
+        if (DayFeatures.SaboteurActive && string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
         {
             var sim = FacilitySimulation.Instance;
-            GameState.Instance?.AssignRandomSaboteur(sim?.GetEmployeeIds() ?? System.Array.Empty<string>());
+            GameState.Instance?.AssignRandomSaboteur(sim?.GetActiveEmployeeIds() ?? new System.Collections.Generic.List<string>());
             string id = GameState.Instance?.SaboteurEmployeeId ?? "";
             if (!string.IsNullOrEmpty(id))
             {
@@ -173,6 +176,8 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport RestRosterViewport => _restRosterVp;
     public SubViewport InterviewViewport => _interviewVp;
     public SubViewport FacilityCctvViewport => _facilityCctvVp;
+    public SubViewport CutsceneViewport => _cutsceneVp;
+    public SubViewport GuideViewport => _guideVp;
 
     private void BuildViewports()
     {
@@ -208,6 +213,12 @@ public partial class ControlRoom3DController : Node3D
 
         _interviewVp = MakeViewport();
         AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize);
+
+        _cutsceneVp = MakeViewport();
+        AddScaledView(_cutsceneVp, new NSP.Prologue.CutscenePlayer(), MonitorCanvasSize);
+
+        _guideVp = MakeViewport();
+        AddScaledView(_guideVp, new NSP.Prologue.GuideHologramView(), MonitorCanvasSize);
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
@@ -232,7 +243,7 @@ public partial class ControlRoom3DController : Node3D
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp })
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp })
         {
             if (vp == null) continue;
             bool bound = false;
@@ -321,7 +332,7 @@ public partial class ControlRoom3DController : Node3D
     {
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
-        var employees = sim.GetEmployeeIds().ToList();
+        var employees = sim.GetActiveEmployeeIds();
 
         // 스케줄 화면을 거쳐 들어온 경우 플레이어 배치를 존중한다.
         // 아무도 배치돼 있지 않을 때(F6 단독 실행)만 자동 배치한다.
@@ -556,6 +567,23 @@ public partial class ControlRoom3DController : Node3D
         Vector3 normal = node.GlobalTransform.Basis.Z.Normalized();
         _rig?.FocusOnScreen(center, normal, isScreen ? FocusDistance : DeskPropFocusDistance);
     }
+
+    // 프롤로그/튜토리얼 연출용 — 코드에서 모니터를 확대하거나 자리로 돌아온다.
+    // index 1 = 왼쪽(MONITOR 01), 2 = 오른쪽(MONITOR 02).
+    public void FocusMonitor(int index)
+    {
+        var t = index == 2 ? GameSettings.ZoomTarget.Monitor2 : GameSettings.ZoomTarget.Monitor1;
+        var node = ResolveTarget(t);
+        if (node == null) return;
+        _focusedNode = node;
+        _focusedScreen = node as MonitorScreen3D;
+        _rig?.FocusOnScreen(node.GlobalPosition, node.GlobalTransform.Basis.Z.Normalized(), FocusDistance);
+    }
+
+    public void ClearFocus() => Unfocus();
+
+    // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
+    public void ShakeCamera(float strengthDegrees, float seconds) => _rig?.Shake(strengthDegrees, seconds);
 
     // 확대 중이면 풀고 true. PauseMenu 가 ESC 를 받았을 때 "메뉴 열기"보다 먼저 시도한다.
     public bool UnzoomIfFocused()

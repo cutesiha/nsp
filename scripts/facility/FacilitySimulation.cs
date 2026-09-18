@@ -168,6 +168,16 @@ public partial class FacilitySimulation : Node
     }
 
     public IReadOnlyCollection<string> GetEmployeeIds() => _employeeStates.Keys;
+
+    // 오늘 실제로 근무에 나오는 직원(EmployeeDef.UnlockDay 기준). DAY0 교육에는 일부만 나온다.
+    // 배치표 / 휴게 명단 / 보고서처럼 "오늘의 인원"을 보여주는 곳은 전부 이쪽을 쓴다.
+    public List<string> GetActiveEmployeeIds() =>
+        _employeeStates.Keys
+            .Where(id => (GameState.Instance?.CurrentDay ?? 1) >= (_employeeDefs.GetValueOrDefault(id)?.UnlockDay ?? 1))
+            .ToList();
+
+    public bool IsEmployeeActiveToday(string employeeId) =>
+        (GameState.Instance?.CurrentDay ?? 1) >= (_employeeDefs.GetValueOrDefault(employeeId)?.UnlockDay ?? 1);
     public IReadOnlyCollection<string> GetRoomIds() => _roomStates.Keys;
     public IEnumerable<TaskDef> GetTaskDefs() => _taskDefs.Values;
 
@@ -1132,8 +1142,26 @@ public partial class FacilitySimulation : Node
             GetRoomState(room)?.OccupantEmployeeIds);
     }
 
+    // DAY0 교육에서 GUIDE-0 가 정해진 시점에 일으키는 사고. 일반 사고와 완전히 같은 경로를
+    // 지나므로(수리 업무 · 로그 · 경고 단말기) 플레이어가 배우는 내용이 본편과 동일하다.
+    // minWorkers > 0 이면 그 사고의 수리 최소 인원을 그 값으로 덮어쓴다. 교육에서는
+    // "지금 그 방에 있는 인원 + 1" 로 잡아, 반드시 한 명을 더 보내야 수리되게 만든다.
+    public bool TriggerTutorialAccident(string roomId, int minWorkers = 0)
+    {
+        var def = _roomDefs.GetValueOrDefault(roomId);
+        if (def == null || def.AccidentConsequence == RoomAccidentNone) return false;
+        if (HasActiveRepair(roomId)) return false;
+        TriggerRoomAccident(roomId, def, minWorkers);
+        return true;
+    }
+
+    // 그 방에 아직 수리해야 할 사고가 남아 있는가(튜토리얼 진행 판정에도 쓴다).
+    public bool HasRepairPending(string roomId) => HasActiveRepair(roomId);
+
     private void TickUnstaffedAccidents(float delta)
     {
+        // DAY0 는 교육용이라 시뮬레이션이 스스로 사고를 내지 않는다 — 튜토리얼이 직접 낸다.
+        if (!DayFeatures.AutoIncidentsEnabled) return;
         var cfg = Config.Instance.Data;
         foreach (var (roomId, room) in _roomStates)
         {
@@ -1178,7 +1206,7 @@ public partial class FacilitySimulation : Node
         _activeTasks.Any(t => t.RoomId == roomId && t.IsRepair && t.Status == SpawnedTaskStatus.Active);
 
     // 사고 발생 — 결과를 적용하고, 그 방에 수리 업무를 띄운다.
-    private void TriggerRoomAccident(string roomId, RoomDef def)
+    private void TriggerRoomAccident(string roomId, RoomDef def, int minWorkersOverride = 0)
     {
         EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
             $"🚨 {RoomName(roomId)} — {def.AccidentName} (무인 방치)");
@@ -1196,7 +1224,7 @@ public partial class FacilitySimulation : Node
             Status = SpawnedTaskStatus.Active,
             TimeLimitSeconds = float.MaxValue,
             GaugeRequired = Mathf.Max(1f, def.RepairSeconds),
-            MinWorkersOverride = Mathf.Max(1, def.RepairMinWorkers),
+            MinWorkersOverride = Mathf.Max(1, minWorkersOverride > 0 ? minWorkersOverride : def.RepairMinWorkers),
         });
     }
 

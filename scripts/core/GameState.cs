@@ -207,6 +207,13 @@ public partial class GameState : Node
 
     // 처음부터 다시 시작(시작화면으로 돌아가기). autoload 라 씬을 다시 로드해도 살아남는
     // 진행 상태를 전부 DAY 1 초기값으로 되돌린다.
+    // 프롤로그를 거쳐 새 게임을 시작하면 DAY0(교육)부터, 프롤로그를 건너뛰면 DAY1 부터.
+    public void ResetRun(int startDay)
+    {
+        ResetRun();
+        CurrentDay = Math.Max(0, startDay);
+    }
+
     public void ResetRun()
     {
         CurrentDay = 1;

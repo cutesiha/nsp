@@ -9,6 +9,7 @@ DisplayName = "저장고"
 ConnectedRoomIds = Array[String](["core_room", "maintenance_room"])
 MapPosition = Vector2(380, 320)
 IsCoreRoom = false
+UnlockDay = 0
 ManagedResource = 7
 AccidentName = "보관 선반 붕괴"
 UnstaffedAccidentSeconds = 30.0

@@ -52,6 +52,8 @@ public partial class PhoneCallHud : CanvasLayer
     // 3D CRT 입력기가 통화창 뒤의 버튼까지 같은 마우스 입력을 전달하지 않도록,
     // 열려 있는 통화창의 상태를 외부에 명시한다.
     public bool IsOpen => _panel?.Visible ?? false;
+    // 지금 통화 중인 상대. 튜토리얼이 "토끼와 통화 중인가"를 확인하는 데 쓴다.
+    public string CurrentEmployeeId => _employeeId;
 
     public override void _Ready()
     {

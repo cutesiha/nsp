@@ -229,7 +229,7 @@ public partial class ScheduleBoardUI : Control
         float y = headY + 24f;
         foreach (var roomId in rooms)
         {
-            var here = sim.GetEmployeeIds()
+            var here = sim.GetActiveEmployeeIds()
                 .Select(sim.GetEmployeeState)
                 .Where(s => s != null && s.AssignedRoomId == roomId)
                 .Select(s => s.EmployeeId)
@@ -265,7 +265,7 @@ public partial class ScheduleBoardUI : Control
         // --- 오른쪽 대기 인원(직원 카드) ---
         AddLabel(_form, "대기 인원", new Vector2(DockLeft + 12, 8), 15, InkDim, _body);
         float ey = EmpCardTop;
-        foreach (var empId in sim.GetEmployeeIds())
+        foreach (var empId in sim.GetActiveEmployeeIds())
         {
             var edef = sim.GetEmployeeDef(empId);
             var est = sim.GetEmployeeState(empId);
@@ -288,12 +288,13 @@ public partial class ScheduleBoardUI : Control
         }
 
         // --- 하단 상태/버튼 ---
-        int total = sim.GetEmployeeIds().Count;
-        int placed = sim.GetEmployeeIds().Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
+        var roster = sim.GetActiveEmployeeIds();
+        int total = roster.Count;
+        int placed = roster.Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
         int missing = total - placed;
         // 배치 단계에서는 직원이 아직 방으로 이동하지 않았으므로(시뮬레이션 미가동)
         // 물리적 점유(OccupantEmployeeIds)가 아니라 배치 지정(AssignedRoomId)으로 판정한다.
-        bool coreStaffed = sim.GetEmployeeIds().Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
+        bool coreStaffed = roster.Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
 
         string statusText = !coreStaffed
             ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
@@ -328,7 +329,7 @@ public partial class ScheduleBoardUI : Control
 
         // 직원 카드가 끝난 아래로 내려 겹치지 않게 한다.
         const float px = DockLeft + 12, pw = DockRight - DockLeft - 24;
-        float py = EmpCardsBottom(sim.GetEmployeeIds().Count) + 12f;
+        float py = EmpCardsBottom(sim.GetActiveEmployeeIds().Count) + 12f;
 
         // 능력치 비교는 능력치가 해금된 날에만 의미가 있다.
         if (DayFeatures.StatsEnabled && !string.IsNullOrEmpty(_selectedEmp) && !string.IsNullOrEmpty(_hoverRoom))

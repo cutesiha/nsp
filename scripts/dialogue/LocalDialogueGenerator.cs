@@ -53,8 +53,16 @@ public static class LocalDialogueGenerator
         public List<FollowUpQuestion> FollowUps = new();
     }
 
+    // DAY0 교육용 고정 답변 후크. TutorialDirector 가 설정하고 DAY1 진입 시 반드시 해제한다.
+    // null 을 돌려주면 평소대로 로그 기반 대사를 생성한다 — 일반 플레이에는 아무 영향이 없다.
+    public static System.Func<string, string, string> ScriptedAnswerOverride;
+
     public static InterviewTurn Interview(string employeeId, string questionId)
     {
+        string scripted = ScriptedAnswerOverride?.Invoke(employeeId, questionId);
+        if (!string.IsNullOrEmpty(scripted))
+            return new InterviewTurn { Answer = scripted };
+
         var ctx = Context(employeeId, DialogueConversationKind.Interview, questionId, "", null);
         MarkAsked(ctx, questionId);
         var plan = DialogueResponsePlanner.Plan(ctx);

@@ -29,6 +29,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     public static Day1HistoryOverlay Instance { get; private set; }
     public bool IsWindowOpen => _mode != WindowMode.None;
+    // 튜토리얼(TutorialDirector)이 "플레이어가 실제로 이 창을 열었는가"를 확인한다.
+    public bool IsLogOpen => _mode == WindowMode.Log;
+    public bool IsDialogueOpen => _mode == WindowMode.Dialogue;
 
     private WindowMode _mode;
     private Control _root;

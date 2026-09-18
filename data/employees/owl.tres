@@ -30,6 +30,7 @@ BehaviorLine2 = "비명이나 큰 충격음이 들려도 당황해서 업무를 
 BehaviorLine3 = "금기 경고가 발생하면 규칙을 최우선으로 지키려 하며, 빠른 해결보다 안전한 절차를 택한다."
 
 IncomingCallPatienceSeconds = 5.0
+UnlockDay = 0
 StartRoomId = "guard_room"
 IconColor = Color(0.78,0.46,0.16, 1)
 StandingImage = ExtResource("2_img")
