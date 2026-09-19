@@ -96,6 +96,10 @@ public partial class ControlRoom3DController : Node3D
     private SubViewport _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp;
     // 프롤로그/튜토리얼 전용 — 왼쪽 CRT 의 '영상'(컷씬)과 오른쪽 CRT 의 GUIDE-0 홀로그램.
     private SubViewport _cutsceneVp, _guideVp;
+    // 프롤로그에서 왼쪽 CRT 가 맡는 GUIDE-0 얼굴 화면.
+    private SubViewport _guideFaceVp;
+    // 타이틀 화면 2 전용 — 왼쪽 CRT 직원 신원 확인, 오른쪽 CRT 관리자 단말기.
+    private SubViewport _titleStaffVp, _titleTerminalVp;
     // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
     // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
     private SubViewport _facilityCctvVp;
@@ -189,6 +193,9 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport FacilityCctvViewport => _facilityCctvVp;
     public SubViewport CutsceneViewport => _cutsceneVp;
     public SubViewport GuideViewport => _guideVp;
+    public SubViewport GuideFaceViewport => _guideFaceVp;
+    public SubViewport TitleStaffViewport => _titleStaffVp;
+    public SubViewport TitleTerminalViewport => _titleTerminalVp;
 
     private void BuildViewports()
     {
@@ -230,6 +237,15 @@ public partial class ControlRoom3DController : Node3D
 
         _guideVp = MakeViewport();
         AddScaledView(_guideVp, new NSP.Prologue.GuideHologramView(), MonitorCanvasSize);
+
+        _guideFaceVp = MakeViewport();
+        AddScaledView(_guideFaceVp, new NSP.Prologue.GuideFaceView(), MonitorCanvasSize);
+
+        _titleStaffVp = MakeViewport();
+        AddScaledView(_titleStaffVp, new TitleStaffIdView(), MonitorCanvasSize);
+
+        _titleTerminalVp = MakeViewport();
+        AddScaledView(_titleTerminalVp, new TitleTerminalView(), MonitorCanvasSize);
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
@@ -254,7 +270,7 @@ public partial class ControlRoom3DController : Node3D
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp })
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp })
         {
             if (vp == null) continue;
             bool bound = false;
@@ -296,6 +312,15 @@ public partial class ControlRoom3DController : Node3D
             : SubViewport.UpdateMode.Disabled;
         if (_facilityCctvVp.RenderTargetUpdateMode != want)
             _facilityCctvVp.RenderTargetUpdateMode = want;
+    }
+
+    // 시작 화면에서 장비를 한 대씩 켜는 연출용 — CRT 하나의 밝기만 따로 덮어쓴다.
+    // (SetScreenBrightness 로 전체를 다시 칠하면 덮어쓴 값은 사라진다 — 순서에 주의.)
+    public void SetScreenBrightnessFor(string nameToken, float v)
+    {
+        foreach (var s in _screens)
+            if (s.Name.ToString().Contains(nameToken))
+                s.ScreenMaterial?.SetShaderParameter("brightness", v);
     }
 
     private void ApplyScreenParams()
@@ -581,17 +606,17 @@ public partial class ControlRoom3DController : Node3D
 
     // 프롤로그/튜토리얼 연출용 — 코드에서 모니터를 확대하거나 자리로 돌아온다.
     // index 1 = 왼쪽(MONITOR 01), 2 = 오른쪽(MONITOR 02).
-    public void FocusMonitor(int index)
+    public void FocusMonitor(int index, float seconds = 0.32f)
     {
         var t = index == 2 ? GameSettings.ZoomTarget.Monitor2 : GameSettings.ZoomTarget.Monitor1;
         var node = ResolveTarget(t);
         if (node == null) return;
         _focusedNode = node;
         _focusedScreen = node as MonitorScreen3D;
-        _rig?.FocusOnScreen(node.GlobalPosition, node.GlobalTransform.Basis.Z.Normalized(), FocusDistance);
+        _rig?.FocusOnScreen(node.GlobalPosition, node.GlobalTransform.Basis.Z.Normalized(), FocusDistance, seconds);
     }
 
-    public void ClearFocus() => Unfocus();
+    public void ClearFocus(float seconds = 0.3f) => Unfocus(seconds);
 
     // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
     public void ShakeCamera(float strengthDegrees, float seconds) => _rig?.Shake(strengthDegrees, seconds);
@@ -608,12 +633,12 @@ public partial class ControlRoom3DController : Node3D
         return true;
     }
 
-    private void Unfocus()
+    private void Unfocus(float seconds = 0.3f)
     {
         if (_focusedNode == null) return;
         _focusedNode = null;
         _focusedScreen = null;
-        _rig?.ReturnToSeat();
+        _rig?.ReturnToSeat(seconds);
     }
 
     // --- PHASE 6 훅 ---------------------------------------------------

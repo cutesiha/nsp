@@ -306,7 +306,7 @@ fx: glitch
 
 @slide
 title: ARCHIVE 02 / EMERGENCY RECORD
-image: res://assets/cutscene/prologue/disaster_13_director_last.png
+image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 총괄 관리자 · 마지막 지시
 speaker: 총괄 관리자
 voice: director
@@ -379,7 +379,8 @@ hold: 1.5
 @guide g_intro
 portrait: normal
 panel: none
-line: 안녕하세요, 관리자님.
+line: 안녕하세요.
+line: 관리자 권한 승계가 완료되었습니다.
 line: 현재 상황에 대한 설명이 필요하십니까?
 
 # mode: all — 세 질문을 각각 한 번씩 모두 확인해야 다음 단계로 넘어간다(순서는 자유).
@@ -398,6 +399,7 @@ line: 그 과정에서 봉쇄 코어가 심각하게 손상되었습니다.
 icons: employees
 line: 현재 현장에서 활동 가능한 직원은 여섯 명입니다.
 fx: noise
+portrait: sneer
 line: 그리고... 그중 한 명의 신원 기록이 일치하지 않습니다.
 
 @guide g_who_am_i

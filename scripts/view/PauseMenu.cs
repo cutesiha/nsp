@@ -72,6 +72,9 @@ public partial class PauseMenu : CanvasLayer
         // 설정 창이 열려 있으면 그 창이 ESC 를 먼저 처리한다.
         if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
 
+        // 시작 화면(중앙제어실 전체가 타이틀)에서는 ESC 가 그쪽 단말기의 '뒤로'다.
+        if (TitleRoomDirector.Instance?.IsRunning == true) return;
+
         if (_confirm is { Visible: true }) HideConfirm();
         else if (Visible) Close();
         // 메뉴가 닫혀 있고 기기를 확대해 보는 중이면, ESC 는 먼저 확대만 푼다.

@@ -5,13 +5,19 @@ namespace NSP.Prologue;
 
 // GUIDE-0 자막 띠.
 //
-// GUIDE-0 의 본체는 어디까지나 오른쪽 CRT 의 홀로그램 창이다. 다만 근무 배치(책상을 내려다봄)나
-// 휴게시간(오른쪽 CRT 가 인터뷰 화면) 처럼 그 모니터가 화면에 없는 단계가 있어서, 그동안에도
-// 지시를 놓치지 않도록 같은 문장을 화면 아래에 한 줄로 띄운다.
-// 프롤로그처럼 홀로그램이 정면에 보이는 단계에서는 꺼 둔다(SetActive(false)).
+// 오른쪽 CRT 가 화면에 없거나(근무 배치=책상, 휴게=인터뷰 화면) 대사를 그 창에서 뺀
+// 압축 모드일 때, 같은 문장을 화면 아래에 띄운다.
+//
+// 글자는 홀로그램 창과 '같은 진행도'로 드러난다 — 타이핑 타이밍과 보이스는
+// GuideHologramView 가 한 곳에서 굴리고, 여기는 그 VisibleRatio 를 그대로 따라간다.
+// (여기서 따로 타이핑하면 소리가 두 번 나고 속도도 어긋난다.)
 public partial class GuideSubtitleHud : CanvasLayer
 {
     public static GuideSubtitleHud Instance { get; private set; }
+
+    // 자막 블록 크기 — 대사가 길어도 두 줄 이상 편하게 들어가게 넉넉히 잡는다.
+    private const float PanelHalfWidth = 560f;
+    private const float PanelHeight = 112f;
 
     private Panel _panel;
     private Label _label;
@@ -32,7 +38,15 @@ public partial class GuideSubtitleHud : CanvasLayer
     public override void _Process(double delta)
     {
         if (!Visible || _arrow == null) return;
-        bool canAdvance = GuideHologramView.Instance?.IsWaitingForInput == true;
+
+        // 홀로그램 창이 찍고 있는 만큼만 여기도 드러낸다(보이스도 그쪽이 울린다).
+        var guide = GuideHologramView.Instance;
+        if (guide != null && guide.CurrentLineText == _label.Text)
+            _label.VisibleRatio = guide.CurrentLineRatio;
+        else
+            _label.VisibleRatio = 1f;
+
+        bool canAdvance = guide?.IsWaitingForInput == true && _label.VisibleRatio >= 1f;
         _arrow.Visible = canAdvance;
         if (!canAdvance) return;
 
@@ -62,18 +76,20 @@ public partial class GuideSubtitleHud : CanvasLayer
         if (top)
         {
             _panel.AnchorTop = 0f; _panel.AnchorBottom = 0f;
-            _panel.OffsetTop = 0f; _panel.OffsetBottom = 70f;
+            _panel.OffsetTop = 0f; _panel.OffsetBottom = PanelHeight;
         }
         else
         {
             _panel.AnchorTop = 1f; _panel.AnchorBottom = 1f;
-            _panel.OffsetTop = -132f; _panel.OffsetBottom = -62f;
+            _panel.OffsetTop = -PanelHeight - 44f; _panel.OffsetBottom = -44f;
         }
     }
 
     public void SetLine(string text)
     {
         _label.Text = text ?? "";
+        // 새 문장은 0 에서 시작해 홀로그램 창과 같은 속도로 드러난다.
+        _label.VisibleRatio = string.IsNullOrEmpty(_label.Text) ? 1f : 0f;
         Visible = _active && !string.IsNullOrEmpty(_label.Text);
     }
 
@@ -88,8 +104,8 @@ public partial class GuideSubtitleHud : CanvasLayer
         _panel = new Panel { MouseFilter = Control.MouseFilterEnum.Ignore };
         _panel.AnchorLeft = 0.5f; _panel.AnchorRight = 0.5f;
         _panel.AnchorTop = 1f; _panel.AnchorBottom = 1f;
-        _panel.OffsetLeft = -430f; _panel.OffsetRight = 430f;
-        _panel.OffsetTop = -132f; _panel.OffsetBottom = -62f;
+        _panel.OffsetLeft = -PanelHalfWidth; _panel.OffsetRight = PanelHalfWidth;
+        _panel.OffsetTop = -PanelHeight - 44f; _panel.OffsetBottom = -44f;
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = new Color(0.03f, 0.10f, 0.12f, 0.88f),
@@ -100,7 +116,7 @@ public partial class GuideSubtitleHud : CanvasLayer
         });
         root.AddChild(_panel);
 
-        var tag = new Label { Text = "GUIDE-0", Position = new Vector2(16f, 8f), MouseFilter = Control.MouseFilterEnum.Ignore };
+        var tag = new Label { Text = "GUIDE-0", Position = new Vector2(24f, 12f), MouseFilter = Control.MouseFilterEnum.Ignore };
         tag.AddThemeFontOverride("font", ViewFont.Default);
         tag.AddThemeFontSizeOverride("font_size", ViewFont.FS(12));
         tag.AddThemeColorOverride("font_color", new Color(0.55f, 0.95f, 1f));
@@ -108,18 +124,18 @@ public partial class GuideSubtitleHud : CanvasLayer
 
         _label = new Label
         {
-            Position = new Vector2(16f, 26f),
-            Size = new Vector2(792f, 38f),
+            Position = new Vector2(24f, 38f),
+            Size = new Vector2(PanelHalfWidth * 2f - 82f, PanelHeight - 50f),
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         _label.AddThemeFontOverride("font", ViewFont.Default);
-        _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
+        _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
         _label.AddThemeColorOverride("font_color", new Color(0.90f, 0.98f, 1f));
         _panel.AddChild(_label);
 
-        _arrowBaseX = 818f;
-        _arrowBaseY = 32f;
+        _arrowBaseX = PanelHalfWidth * 2f - 44f;
+        _arrowBaseY = PanelHeight - 44f;
         _arrow = new Label
         {
             Text = "▶",

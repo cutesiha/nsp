@@ -42,10 +42,13 @@ CRT 는 이 논리 캔버스를 1.3배로 렌더하므로, 실제 화면에 찍�
 
 ## prologue/ — 프롤로그 #2 대재난
 
+대재난은 새 컷으로 시작하지 않는다 — 직전 컷(`archive_04_core.png`)이 그 자리에서 기괴하게
+일그러지고, 그 상태에서 `SIGNAL LOST` 가 뜬 뒤 붉은 경보창으로 넘어간다.
+그래서 예전에 쓰던 `disaster_01_director_glitch.png` / `disaster_02_signal_lost.png` 는
+지금 어디에도 안 쓰인다(파일은 지우지 않았다 — 나중에 다른 컷에 쓰고 싶으면 그대로 있다).
+
 | 파일명 | 장면 |
 |---|---|
-| `disaster_01_director_glitch.png` | 총괄 관리자의 얼굴이 일그러지며 화면이 찢어짐 |
-| `disaster_02_signal_lost.png` | 완전히 깨진 화면 |
 | `disaster_03_surface_red.png` | 지상 관측 카메라가 붉게 물듦 |
 | `disaster_04_lab_wreck.png` | 연구실 파손 · 집기가 쏟아짐 |
 | `disaster_05_staff_running.png` | 직원이 허겁지겁 복도를 뛰어감 |

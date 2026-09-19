@@ -15,7 +15,7 @@ public static class PrologueScript
     private const string RuntimePath = "res://docs/NSP_PROLOGUE_RUNTIME.md";
 
     // --- 컷씬 -----------------------------------------------------------
-    public enum SlideFx { None, Glitch, Cut, Siren, Shake, Blackout, Typing, Impact, Alert, Flicker, Crt }
+    public enum SlideFx { None, Glitch, Cut, Siren, Shake, Blackout, Typing, Impact, Alert, Flicker, Crt, Warp, WarpHold }
 
     public sealed class Slide
     {
@@ -57,6 +57,11 @@ public static class PrologueScript
         public string GaugeSub = "";
         public string GaugeAlert = "";
         public readonly List<float> GaugeSteps = new();
+        // 비상 경보창 — 빨간 경보 패널. AlertTitle 이 비어 있으면 안 그린다.
+        public string AlertTitle = "";
+        public string AlertSub = "";
+        public string AlertFoot = "";
+        public readonly List<(string Label, string Value)> AlertRows = new();
         public SlideFx Fx = SlideFx.None;
     }
 
@@ -315,12 +320,32 @@ public static class PrologueScript
                 foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
                     s.GaugeSteps.Add(ParseFloat(part.Trim(), 0f));
                 return true;
+            case "alert":
+            {
+                var (a, b) = SplitBar(value);
+                s.AlertTitle = a; s.AlertSub = b;
+                return true;
+            }
+            case "alertrow":
+            {
+                var (a, b) = SplitBar(value);
+                s.AlertRows.Add((a, b));
+                return true;
+            }
+            case "alertfoot": s.AlertFoot = value; return true;
             case "sfxafter": s.SfxAfter = value; return true;
             case "sfx": s.Sfx = value; return true;
             case "hold": s.Hold = ParseFloat(value, s.Hold); return true;
             case "fx": s.Fx = ParseFx(value); return true;
             default: return false;
         }
+    }
+
+    // "왼쪽 | 오른쪽" 을 둘로 가른다. '|' 가 없으면 오른쪽은 빈 문자열.
+    private static (string Left, string Right) SplitBar(string v)
+    {
+        int bar = v.IndexOf('|');
+        return bar < 0 ? (v.Trim(), "") : (v[..bar].Trim(), v[(bar + 1)..].Trim());
     }
 
     // 데이터 파일에서는 줄바꿈을 역슬래시 n 두 글자로 적는다(한 줄에 한 항목이라는 규칙을 지키려고).
@@ -347,6 +372,8 @@ public static class PrologueScript
         "alert" => SlideFx.Alert,
         "flicker" => SlideFx.Flicker,
         "crt" => SlideFx.Crt,
+        "warp" => SlideFx.Warp,
+        "warphold" => SlideFx.WarpHold,
         _ => SlideFx.None,
     };
 

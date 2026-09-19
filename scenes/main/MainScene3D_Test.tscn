@@ -30,7 +30,8 @@
 [ext_resource type="Script" uid="uid://b3un727meurm0" path="res://scripts/prologue/PrologueDirector.cs" id="28_prologuedir"]
 [ext_resource type="Script" uid="uid://fppsaeswbeou" path="res://scripts/prologue/TutorialDirector.cs" id="29_tutorialdir"]
 [ext_resource type="Script" uid="uid://b08v5v32yrh8a" path="res://scripts/prologue/GuideSubtitleHud.cs" id="30_guidesub"]
-[ext_resource type="Script" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
+[ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
+[ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -1039,7 +1040,7 @@ mesh = SubResource("DialRing")
 surface_material_override/0 = SubResource("Mat_DialRing")
 
 [node name="PhoneModel" parent="ControlRoom/Telephone" unique_id=1126881769 instance=ExtResource("21_phone_model")]
-transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0)
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0.02616015)
 
 [node name="PhoneModelSplitter" type="Node" parent="ControlRoom/Telephone" unique_id=740296021]
 script = ExtResource("24_phone_splitter")
@@ -1097,14 +1098,14 @@ ScreenSize = Vector2(0.64, 0.5)
 ScreenOffset = Vector3(0.01, 0.5, 0.19)
 
 [node name="SensorModel" parent="ControlRoom/AlertTerminal" unique_id=1791706101 instance=ExtResource("22_sensor_model")]
-transform = Transform3D(0.29, 0, 0, 0, 0.236, 0, 0, 0, 0.236, 0.00040641427, 0, -0.0004454255)
+transform = Transform3D(0.29, 0, -7.450581e-09, 0, 0.236, 0, 7.450581e-09, 0, 0.236, -0.012483373, 0, 0.02654463)
 
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
 transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)
 script = ExtResource("15_powerpanel")
 
 [node name="SwitchModel" parent="ControlRoom/PowerSwitchPanel" unique_id=647797286 instance=ExtResource("23_switch_model")]
-transform = Transform3D(0.24, 0, 0, 0, 0.24, 0, 0, 0, 0.24, 0, 0, 0)
+transform = Transform3D(0.24000002, 0, -7.450581e-09, 0, 0.24000002, 0, 7.450581e-09, 0, 0.24000002, 0.013676226, 0, 0.03698951)
 
 [node name="Vent" type="Node3D" parent="ControlRoom" unique_id=521371302]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1.75, -2.54)
@@ -1190,7 +1191,7 @@ omni_range = 4.0
 [node name="HorrorProps" type="Node3D" parent="." unique_id=1861570663]
 
 [node name="PlayerSeatRig" type="Node3D" parent="." unique_id=290693494]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
@@ -1250,3 +1251,6 @@ script = ExtResource("30_guidesub")
 
 [node name="PrologueAdvanceInput" type="Node" parent="." unique_id=771100889]
 script = ExtResource("31_advinput")
+
+[node name="TitleRoomDirector" type="Node" parent="." unique_id=771100890]
+script = ExtResource("32_titleroom")

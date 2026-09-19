@@ -41,6 +41,9 @@ public partial class GuideHologramView : Control
     private Label _hint;
     private InfoPanel _panel;
     private SystemWindow _window;
+    // 압축 모드 — 얼굴/이름/대사를 이 창에서 빼고(왼쪽 CRT 와 자막 띠가 맡는다)
+    // 보조 정보판과 선택지만 크게 보여준다.
+    private bool _compact;
 
     // 진행 상태
     private readonly List<string> _consoleLines = new();
@@ -203,10 +206,33 @@ public partial class GuideHologramView : Control
         SetPanel("none");
     }
 
+    // 프롤로그에서 화면을 셋으로 나눌 때 켠다.
+    //   왼쪽 CRT = GuideFaceView(얼굴)  /  이 창 = 그림·도형  /  화면 아래 = 대사
+    public void SetCompact(bool on)
+    {
+        _compact = on;
+        _portrait.Visible = !on;
+        _name.Visible = !on;
+        _line.Visible = !on;
+        _hint.Visible = _hint.Visible && !on;
+
+        // 얼굴이 빠진 만큼 정보판을 크게 키워 가운데에 놓는다.
+        _panel.Position = on ? new Vector2(178f, 104f) : new Vector2(388f, 88f);
+        _panel.Scale = on ? new Vector2(1.5f, 1.5f) : Vector2.One;
+        _icons.Position = on ? new Vector2(126f, 368f) : new Vector2(126f, 380f);
+        _choices.Position = on ? new Vector2(148f, 376f) : new Vector2(148f, 382f);
+    }
+
+    // 자막 띠가 같은 속도로 글자를 드러내기 위해 읽어 가는 값.
+    public string CurrentLineText => _line?.Text ?? "";
+    public float CurrentLineRatio => _line?.VisibleRatio ?? 1f;
+
     // 창 오른쪽 보조 정보판 — none / alert / authority / mission.
     private void SetPanel(string kind)
     {
         string k = string.IsNullOrEmpty(kind) ? "none" : kind.Trim().ToLowerInvariant();
+        // 압축 모드에서는 창에 대사가 없으므로, 보여줄 정보판이 없을 때도 빈 창으로 두지 않는다.
+        if (_compact && k == "none") k = "idle";
         _panel.Kind = k;
         _panel.Visible = k != "none";
         _panel.QueueRedraw();
@@ -318,6 +344,7 @@ public partial class GuideHologramView : Control
                     continue;
                 case PrologueScript.GuideBeatKind.Noise:
                     _noiseUntil = Time.GetTicksMsec() / 1000.0 + 0.7;
+                    GuideFaceView.Instance?.Flash();
                     Sfx.Instance?.Play("noise", -10f);
                     _beat++;
                     continue;
@@ -356,7 +383,7 @@ public partial class GuideHologramView : Control
         Sfx.Instance?.StopVoiceBlip();
         // 타이핑 속도는 프롤로그 자막과 같은 값(PrologueTextStyle)을 쓴다.
         _lineDuration = PrologueTextStyle.TypeSeconds(text);
-        _hint.Visible = true;
+        _hint.Visible = !_compact;
     }
 
     private void SetPortrait(string key)
@@ -364,6 +391,8 @@ public partial class GuideHologramView : Control
         _portrait.Expression = string.IsNullOrEmpty(key) ? "normal" : key;
         _portrait.Texture = LoadPortrait(_portrait.Expression);
         _portrait.QueueRedraw();
+        // 왼쪽 CRT 의 얼굴 화면도 같은 표정으로 맞춘다.
+        GuideFaceView.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture);
     }
 
     private static Texture2D LoadPortrait(string expression)
@@ -735,7 +764,8 @@ public partial class GuideHologramView : Control
                 {
                     float k = Mathf.Min(Size.X / src.X, Size.Y / src.Y);
                     var dst = src * k;
-                    DrawTextureRect(Texture, new Rect2(box.Position + (Size - dst) * 0.5f, dst), false);
+                    // 원본은 흰색 도트 — 홀로그램 색으로 물들여 그린다.
+                    DrawTextureRect(Texture, new Rect2(box.Position + (Size - dst) * 0.5f, dst), false, Cyan);
                 }
             }
             else
@@ -814,10 +844,39 @@ public partial class GuideHologramView : Control
 
             switch (Kind)
             {
+                case "idle": DrawIdle(font); break;
                 case "alert": DrawAlert(font); break;
                 case "authority": DrawAuthority(font); break;
                 case "mission": DrawMission(font); break;
             }
+        }
+
+        // 보여줄 정보가 없는 동안의 대기 화면 — 창이 살아 있다는 느낌만 준다.
+        private void DrawIdle(Font font)
+        {
+            DrawString(font, new Vector2(16f, 30f), "GUIDANCE UNIT", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(14), Cyan with { A = 0.8f });
+            DrawString(font, new Vector2(16f, 54f), "ONLINE", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(20), new Color(0.80f, 1f, 0.92f));
+
+            DrawLine(new Vector2(16f, 70f), new Vector2(Size.X - 16f, 70f), Cyan with { A = 0.3f }, 1f);
+
+            // 천천히 흐르는 진단 막대 몇 줄.
+            for (int i = 0; i < 4; i++)
+            {
+                float y = 88f + i * 18f;
+                var bar = new Rect2(16f, y, Size.X - 32f, 9f);
+                DrawRect(bar, new Color(0f, 0f, 0f, 0.35f));
+                float w = 0.35f + 0.6f * (0.5f + 0.5f * Mathf.Sin(_t * (0.7f + i * 0.31f) + i));
+                DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * w, bar.Size.Y)),
+                    Cyan with { A = 0.35f + 0.2f * i * 0.25f });
+            }
+
+            // 좌우로 흐르는 스캔 표시.
+            float sweep = Mathf.PosMod(_t * 0.4f, 1f);
+            DrawRect(new Rect2(16f + (Size.X - 32f) * sweep, 160f, 3f, 12f), Cyan with { A = 0.7f });
+            DrawString(font, new Vector2(16f, Size.Y - 10f), "SYS DIAGNOSTIC  ·  NOMINAL",
+                HorizontalAlignment.Left, Size.X - 32f, ViewFont.S(12), Cyan with { A = 0.55f });
         }
 
         // 무슨 일이 벌어진 거지? — 재난 / 격리 붕괴 / 신원 오류.

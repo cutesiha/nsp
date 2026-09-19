@@ -28,6 +28,8 @@ public partial class ShiftFlowController : Node
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
     [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
     [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
+    // 타이틀 화면 2 — 중앙제어실 전체가 타이틀. 없으면 기존 TitleOverlay 메뉴로 되돌아간다.
+    [Export] public NodePath TitleRoomPath = "../TitleRoomDirector";
 
     // 근무 배치 단계에서 책상 위를 치운다(배치표만 남긴다). 근무 시작 시 되돌린다.
     [Export] public NodePath[] DeskClutterPaths =
@@ -51,6 +53,7 @@ public partial class ShiftFlowController : Node
     private SeatedCameraRig _rig;
     private TitleOverlay _title;
     private DeskScheduleBoard _board;
+    private TitleRoomDirector _titleRoom;
     private OmniLight3D _ceiling, _fill;
     private Node3D _arms;
     private readonly System.Collections.Generic.List<Node3D> _clutter = new();
@@ -66,6 +69,7 @@ public partial class ShiftFlowController : Node
         _rig = GetNodeOrNull<SeatedCameraRig>(RigPath);
         _title = GetNodeOrNull<TitleOverlay>(TitleOverlayPath);
         _board = GetNodeOrNull<DeskScheduleBoard>(DeskBoardPath);
+        _titleRoom = GetNodeOrNull<TitleRoomDirector>(TitleRoomPath);
         _ceiling = GetNodeOrNull<OmniLight3D>(CeilingLightPath);
         _fill = GetNodeOrNull<OmniLight3D>(FillLightPath);
         _arms = GetNodeOrNull<Node3D>(ArmsPath);
@@ -85,7 +89,15 @@ public partial class ShiftFlowController : Node
         {
             _title.StartRequested += OnStartPressed;
             _title.QuitRequested += () => GetTree().Quit();
+            // TitleOverlay.UseLegacyTitle 이 꺼져 있으면 여기서 메뉴는 뜨지 않는다
+            // (암전/배너용 레이어로만 남는다).
             _title.ShowTitle();
+        }
+        // 제어실 자체를 타이틀로 쓴다 — 두 CRT + 책상 장비가 메뉴 역할을 한다.
+        if (_titleRoom != null)
+        {
+            _titleRoom.StartRequested += OnStartPressed;
+            _titleRoom.Begin();
         }
         if (_board != null)
         {

@@ -19,8 +19,13 @@ public partial class MonitorScreen3D : MeshInstance3D, IProjectionSurface
         TargetViewport = viewport;
         CanvasSize = viewport.Size;
 
-        var shader = GD.Load<Shader>("res://shaders/crt_screen.gdshader");
-        ScreenMaterial = new ShaderMaterial { Shader = shader };
+        // 화면에 붙는 프로그램은 단계마다 바뀐다. 그때마다 머티리얼을 새로 만들면
+        // 이전 ViewportTexture 가 계속 남으므로, 있으면 재사용하고 텍스처만 갈아 끼운다.
+        if (ScreenMaterial == null)
+        {
+            var shader = GD.Load<Shader>("res://shaders/crt_screen.gdshader");
+            ScreenMaterial = new ShaderMaterial { Shader = shader };
+        }
         ScreenMaterial.SetShaderParameter("screen_tex", viewport.GetTexture());
         ScreenMaterial.SetShaderParameter("region_min", Vector2.Zero);
         ScreenMaterial.SetShaderParameter("region_max", Vector2.One);

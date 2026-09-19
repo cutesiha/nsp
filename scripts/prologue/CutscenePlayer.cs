@@ -31,7 +31,8 @@ public partial class CutscenePlayer : Control
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Ink = new(0.88f, 0.92f, 0.90f);
     private static readonly Color Dim = new(0.48f, 0.56f, 0.55f);
-    private static readonly Color Amber = new(0.95f, 0.76f, 0.30f);
+    // 영상 안 글씨는 흰색으로 통일한다(경보만 빨강).
+    private static readonly Color Amber = new(0.94f, 0.96f, 0.96f);
     private static readonly Color AlertRed = new(1f, 0.42f, 0.32f);
     private static readonly Color Chrome = new(0.105f, 0.115f, 0.135f);
 
@@ -46,6 +47,8 @@ public partial class CutscenePlayer : Control
     private static readonly Rect2 RadioBox = new(26f, 286f, 316f, 88f);
     // 코어 출력 게이지 — 영상 한가운데 아래쪽.
     private static readonly Rect2 GaugeBox = new(70f, 232f, 660f, 168f);
+    // 비상 경보창 — 실제 시설 경보 패널처럼 영상 한가운데 크게 뜬다.
+    private static readonly Rect2 AlertBox = new(118f, 78f, 564f, 362f);
 
     private Font _font;
     private Control _frame;          // 흔들림이 걸리는 영상 내용물
@@ -68,6 +71,8 @@ public partial class CutscenePlayer : Control
     private PlayerChrome _chrome;
     private RadioHud _radioHud;
     private GaugePanel _gauge;
+    private AlertBoard _alertBoard;
+    private WarpOverlay _warp;
 
     private PrologueScript.Cutscene _cutscene;
     private PrologueScript.Slide _slide;
@@ -166,6 +171,9 @@ public partial class CutscenePlayer : Control
         _clickHint.Visible = false;
         _radioHud.Visible = false;
         _gauge.Visible = false;
+        _alertBoard.Visible = false;
+        _warp.Visible = false;
+        _warp.Amount = 0f;
         _tint.Color = _tint.Color with { A = 0f };
         _fade.Color = _fade.Color with { A = 0f };
         _glitch.Amount = 0f;
@@ -235,9 +243,14 @@ public partial class CutscenePlayer : Control
         if (_fx == PrologueScript.SlideFx.Cut) _cutStyle = PickCutStyle();
 
         // 배경 이미지: 최종 파일이 있으면 그걸, 없으면 같은 자리에 임시 패널.
+        // 일그러짐 연출 중에는 원본 대신 WarpOverlay 가 같은 그림을 조각내어 그린다.
+        bool warping = _fx is PrologueScript.SlideFx.Warp or PrologueScript.SlideFx.WarpHold;
         var tex = LoadImage(s.ImagePath);
         _image.Texture = tex;
-        _image.Visible = tex != null;
+        _image.Visible = tex != null && !warping;
+        _warp.Texture = tex;
+        _warp.Visible = warping && tex != null;
+        _warp.Amount = _fx == PrologueScript.SlideFx.WarpHold ? 0.9f : 0f;
         _placeholder.Visible = tex == null && (!string.IsNullOrEmpty(s.ImageNote) || !string.IsNullOrEmpty(s.ImagePath));
         _placeholder.Note = s.ImageNote;
         _placeholder.QueueRedraw();
@@ -276,6 +289,7 @@ public partial class CutscenePlayer : Control
         SetupKenBurns(s);
         SetupRadioHud(s);
         SetupGauge(s);
+        SetupAlertBoard(s);
 
         // 화자 보이스 — 기존 직원 보이스 파일을 그대로 쓰고, 무전이면 Radio 버스로 흘린다.
         _spokenChars = 0;
@@ -359,6 +373,19 @@ public partial class CutscenePlayer : Control
         _radioHud.Signal = s.Signal;
         _radioHud.CallSign = string.IsNullOrEmpty(s.VoiceId) ? "UNKNOWN" : s.VoiceId.ToUpperInvariant();
         _radioHud.Cut = false;
+    }
+
+    // 비상 경보창 — 제목/부제/항목들/맨 아랫줄. 항목은 한 줄씩 차례로 뜬다.
+    private void SetupAlertBoard(PrologueScript.Slide s)
+    {
+        bool on = !string.IsNullOrEmpty(s.AlertTitle);
+        _alertBoard.Visible = on;
+        if (!on) return;
+        _alertBoard.Title = s.AlertTitle;
+        _alertBoard.Sub = s.AlertSub;
+        _alertBoard.Foot = s.AlertFoot;
+        _alertBoard.Rows = s.AlertRows;
+        _alertBoard.Reset();
     }
 
     private void SetupGauge(PrologueScript.Slide s)
@@ -470,6 +497,7 @@ public partial class CutscenePlayer : Control
         ApplyKenBurns((float)Mathf.Clamp(_slideElapsed / _kenSeconds, 0.0, 1.0));
         if (_radioHud.Visible) _radioHud.Tick((float)delta);
         if (_gauge.Visible) _gauge.Tick(_slideElapsed);
+        if (_alertBoard.Visible) _alertBoard.Tick(_slideElapsed);
 
         ApplyFx();
         UpdateChrome();
@@ -583,6 +611,35 @@ public partial class CutscenePlayer : Control
                 _videoClip.Scale = new Vector2(1f, Mathf.Min(1f, open * open));
                 _tint.Color = _tint.Color with { A = Mathf.Max(0f, 0.75f - t * 3.4f) };
                 _glitch.Amount = Mathf.Max(0.08f, 1f - t * 1.4f);
+                break;
+            }
+
+            // 직전 컷이 그 자리에서 기괴하게 일그러진다(새 그림을 띄우지 않는다).
+            case PrologueScript.SlideFx.Warp:
+            {
+                float a = Mathf.Clamp(t / 1.5f, 0f, 1f);
+                _warp.Amount = a;
+                _warp.Phase = t * 9f;
+                _warp.QueueRedraw();
+                _glitch.Amount = 0.3f + 0.7f * a;
+                _tint.Color = new Color(0.85f, 0.10f, 0.08f,
+                    0.06f + 0.26f * a * (0.5f + 0.5f * Mathf.Sin(t * 19f)));
+                offset += new Vector2(Mathf.Sin(t * 61f), Mathf.Cos(t * 47f)) * 9f * a;
+                // 끝으로 갈수록 어두워진다 — 그대로 신호 두절 컷으로 이어진다.
+                _fade.Color = _fade.Color with { A = Mathf.Max(0f, (a - 0.70f) / 0.30f) * 0.55f };
+                break;
+            }
+
+            // 일그러진 그 상태로 멈춘다(신호 두절 문구가 올라앉는 화면).
+            case PrologueScript.SlideFx.WarpHold:
+            {
+                _warp.Amount = 0.85f + 0.15f * Mathf.Sin(t * 13f);
+                _warp.Phase = t * 9f;
+                _warp.QueueRedraw();
+                _glitch.Amount = 1f;
+                _tint.Color = new Color(0.85f, 0.10f, 0.08f, 0.12f);
+                _fade.Color = _fade.Color with { A = 0.55f };
+                offset.X += Mathf.Sin(t * 73f) * 5f;
                 break;
             }
 
@@ -713,6 +770,17 @@ public partial class CutscenePlayer : Control
         };
         _videoClip.AddChild(_image);
 
+        // 같은 그림을 가로로 잘라 어긋나게 그리는 일그러짐 레이어.
+        _warp = new WarpOverlay
+        {
+            Position = Vector2.Zero,
+            Size = VideoArea.Size,
+            Area = new Rect2(Vector2.Zero, VideoArea.Size),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _videoClip.AddChild(_warp);
+
         // 인물 일러스트 — 배경 위, 자막 위쪽에 선다.
         _figurePlaceholder = new PlaceholderPanel
         {
@@ -767,6 +835,15 @@ public partial class CutscenePlayer : Control
         };
         _frame.AddChild(_gauge);
 
+        _alertBoard = new AlertBoard
+        {
+            Position = AlertBox.Position,
+            Size = AlertBox.Size,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _frame.AddChild(_alertBoard);
+
         _radioHud = new RadioHud
         {
             Position = RadioBox.Position,
@@ -790,10 +867,10 @@ public partial class CutscenePlayer : Control
         });
         _frame.AddChild(_subtitleBox);
 
-        _speaker = MakeLabel("", 16, Amber, new Vector2(16f, 6f));
+        _speaker = MakeLabel("", 13, Amber, new Vector2(16f, 6f));
         _subtitleBox.AddChild(_speaker);
 
-        _text = MakeLabel("", 22, Ink, new Vector2(16f, 30f));
+        _text = MakeLabel("", 18, Ink, new Vector2(16f, 28f));
         _text.Size = new Vector2(SubtitleBox.Size.X - 32f, 60f);
         _text.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _subtitleBox.AddChild(_text);
@@ -810,7 +887,7 @@ public partial class CutscenePlayer : Control
         _fade.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_fade);
 
-        _clickHint = MakeLabel("▶  SPACE / ENTER / 클릭", 15, new Color(0.62f, 0.72f, 0.72f),
+        _clickHint = MakeLabel("▶  SPACE / ENTER / 클릭", 13, new Color(0.62f, 0.72f, 0.72f),
             new Vector2(0f, VideoArea.Position.Y + VideoArea.Size.Y - 26f));
         _clickHint.Size = new Vector2(Canvas.X - 34f, 20f);
         _clickHint.HorizontalAlignment = HorizontalAlignment.Right;
@@ -1018,7 +1095,7 @@ public partial class CutscenePlayer : Control
             var font = ViewFont.Default;
             var box = new Rect2(Vector2.Zero, Size);
             DrawRect(box, new Color(0.02f, 0.03f, 0.04f, 0.70f));
-            DrawRect(box, new Color(0.60f, 0.55f, 0.30f, 0.55f), false, 1.4f);
+            DrawRect(box, new Color(0.62f, 0.66f, 0.68f, 0.5f), false, 1.4f);
 
             float pct = Mathf.Clamp(_value, 0f, 100f);
             // 40% 아래부터 주황 → 빨강.
@@ -1055,6 +1132,162 @@ public partial class CutscenePlayer : Control
                 float blink = 0.55f + 0.45f * Mathf.Sin((float)(_alertAt >= 0 ? Time.GetTicksMsec() / 1000.0 : 0) * 12f);
                 DrawString(font, new Vector2(20f, Size.Y - 14f), AlertText, HorizontalAlignment.Left,
                     Size.X - 40f, ViewFont.S(25), new Color(1f, 0.30f, 0.24f, blink));
+            }
+        }
+    }
+
+    // --- 비상 경보창 ---------------------------------------------------------
+    // "경고 문구 한 줄"이 아니라 실제 시설 경보 패널처럼 보이게 한다.
+    // 제목(한글) · 부제(영문) · 항목 목록 · 맨 아랫줄 지시. 항목은 한 줄씩 차례로 켜진다.
+    private partial class AlertBoard : Control
+    {
+        public string Title = "";
+        public string Sub = "";
+        public string Foot = "";
+        public IReadOnlyList<(string Label, string Value)> Rows = Array.Empty<(string, string)>();
+
+        private const float Lead = 0.30f, RowGap = 0.22f;
+        private static readonly Color Deep = new(0.14f, 0.015f, 0.015f, 0.93f);
+        private static readonly Color Line = new(1f, 0.22f, 0.18f);
+        private static readonly Color Soft = new(1f, 0.46f, 0.40f);
+
+        private int _shown;
+        private bool _footShown;
+        private float _t;
+
+        public void Reset()
+        {
+            _shown = 0;
+            _footShown = false;
+            _t = 0f;
+            QueueRedraw();
+        }
+
+        public void Tick(double elapsed)
+        {
+            _t = (float)elapsed;
+            int want = elapsed < Lead ? 0 : Mathf.Min(Rows.Count, (int)((elapsed - Lead) / RowGap) + 1);
+            if (want != _shown)
+            {
+                _shown = want;
+                Sfx.Instance?.Play("tick", -14f);
+            }
+            if (!_footShown && Rows.Count > 0 && _shown >= Rows.Count
+                && elapsed > Lead + Rows.Count * RowGap + 0.15)
+            {
+                _footShown = true;
+                Sfx.Instance?.Play("sensor_beep", -10f);
+            }
+            QueueRedraw();
+        }
+
+        public override void _Draw()
+        {
+            var font = ViewFont.Default;
+            var box = new Rect2(Vector2.Zero, Size);
+            float pulse = 0.65f + 0.35f * (0.5f + 0.5f * Mathf.Sin(_t * 7.5f));
+
+            // 패널 — 짙은 적색 바탕 + 두꺼운 경보 테두리.
+            DrawRect(box.Grow(6f), new Color(0.35f, 0.03f, 0.03f, 0.35f * pulse));
+            DrawRect(box, Deep);
+            DrawRect(box, Line with { A = 0.95f * pulse }, false, 3f);
+            DrawRect(box.Grow(-6f), Line with { A = 0.35f }, false, 1f);
+            for (float y = 0; y < Size.Y; y += 3f)
+                DrawRect(new Rect2(0, y, Size.X, 1f), new Color(0f, 0f, 0f, 0.16f));
+
+            // 경고 삼각형.
+            var c = new Vector2(Size.X * 0.5f, 60f);
+            var pts = new[]
+            {
+                c + new Vector2(0f, -30f), c + new Vector2(30f, 22f), c + new Vector2(-30f, 22f),
+            };
+            DrawColoredPolygon(pts, Line with { A = 0.92f * pulse });
+            DrawPolyline(new[] { pts[0], pts[1], pts[2], pts[0] }, new Color(1f, 0.75f, 0.70f, 0.9f), 2.2f);
+            DrawString(font, new Vector2(c.X - 12f, c.Y + 16f), "!", HorizontalAlignment.Center, 24f,
+                ViewFont.S(24), Deep);
+
+            // 제목 / 부제.
+            DrawString(font, new Vector2(0f, 128f), Title, HorizontalAlignment.Center, Size.X,
+                ViewFont.S(36), new Color(1f, 0.30f, 0.24f));
+            if (!string.IsNullOrEmpty(Sub))
+                DrawString(font, new Vector2(0f, 156f), Sub, HorizontalAlignment.Center, Size.X,
+                    ViewFont.S(17), Soft);
+
+            DrawRect(new Rect2(34f, 178f, Size.X - 68f, 1.6f), Line with { A = 0.55f });
+
+            // 항목 — 왼쪽 라벨 / 오른쪽 값.
+            float y2 = 212f;
+            for (int i = 0; i < Rows.Count; i++)
+            {
+                if (i >= _shown) break;
+                var (label, value) = Rows[i];
+                DrawString(font, new Vector2(40f, y2), label, HorizontalAlignment.Left,
+                    Size.X - 200f, ViewFont.S(19), Soft);
+                // 마지막에 켜진 항목은 잠깐 밝게 깜빡인다.
+                bool fresh = i == _shown - 1;
+                DrawString(font, new Vector2(Size.X - 200f, y2), value, HorizontalAlignment.Right,
+                    160f, ViewFont.S(19), fresh ? new Color(1f, 0.85f, 0.80f, pulse) : new Color(1f, 0.32f, 0.26f));
+                y2 += 32f;
+            }
+
+            if (_footShown && !string.IsNullOrEmpty(Foot))
+                DrawString(font, new Vector2(0f, Size.Y - 30f), Foot, HorizontalAlignment.Center,
+                    Size.X, ViewFont.S(24), new Color(1f, 0.36f, 0.30f, 0.55f + 0.45f * pulse));
+        }
+    }
+
+    // --- 일그러짐(화면이 찢어지며 뒤틀리는 연출) -------------------------------
+    // 새 그림을 띄우는 게 아니라, 직전 컷의 같은 이미지를 가로로 잘라 어긋나게 그린다.
+    private partial class WarpOverlay : Control
+    {
+        public Texture2D Texture;
+        public Rect2 Area;
+        public float Amount;
+        public float Phase;
+
+        private const int Slices = 30;
+        private readonly RandomNumberGenerator _rng = new();
+
+        public override void _Draw()
+        {
+            if (Texture == null || Amount <= 0.01f) return;
+            var src = Texture.GetSize();
+            if (src.X <= 0f || src.Y <= 0f) return;
+
+            // 원본과 같은 자리(비율 유지, 가운데 정렬)에 놓고 조각을 흩뜨린다.
+            float k = Mathf.Min(Area.Size.X / src.X, Area.Size.Y / src.Y);
+            var dst = src * k;
+            var at = Area.Position + (Area.Size - dst) * 0.5f;
+
+            float sliceH = dst.Y / Slices;
+            float srcH = src.Y / Slices;
+            _rng.Seed = 990013;   // 매 프레임 같은 패턴 → 지직거리되 완전 난장판은 아니게
+
+            for (int i = 0; i < Slices; i++)
+            {
+                float t = i / (float)Slices;
+                float wob = Mathf.Sin(t * 17f + Phase) + Mathf.Sin(t * 5.3f - Phase * 0.7f);
+                float off = (wob * 0.5f + _rng.RandfRange(-1f, 1f) * 0.8f) * Amount * 96f * (0.3f + t);
+                float sy = Mathf.Sin(t * 11f + Phase * 1.3f) * Amount * 22f;
+                float sx = 1f + Mathf.Sin(t * 8f + Phase) * Amount * 0.22f;
+
+                var srcRect = new Rect2(0f, i * srcH, src.X, srcH + 1f);
+                var dstRect = new Rect2(at.X + off - dst.X * (sx - 1f) * 0.5f, at.Y + i * sliceH + sy,
+                    dst.X * sx, sliceH + 1.5f);
+
+                // 일그러질수록 어두워지고 붉게 물든다.
+                float dark = 1f - 0.45f * Amount;
+                DrawTextureRectRegion(Texture, dstRect, srcRect,
+                    new Color(dark, dark * (1f - 0.35f * Amount), dark * (1f - 0.35f * Amount)));
+
+                // 채널이 어긋난 듯한 잔상.
+                if (Amount > 0.35f && i % 3 == 0)
+                {
+                    DrawTextureRectRegion(Texture, dstRect with { Position = dstRect.Position + new Vector2(7f * Amount, 0f) },
+                        srcRect, new Color(1f, 0.15f, 0.15f, 0.30f * Amount));
+                    DrawTextureRectRegion(Texture, dstRect with { Position = dstRect.Position - new Vector2(7f * Amount, 0f) },
+                        srcRect, new Color(0.2f, 0.9f, 1f, 0.24f * Amount));
+                }
             }
         }
     }

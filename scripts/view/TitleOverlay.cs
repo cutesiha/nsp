@@ -11,6 +11,11 @@ public partial class TitleOverlay : CanvasLayer
     [Signal] public delegate void StartRequestedEventHandler();
     [Signal] public delegate void QuitRequestedEventHandler();
 
+    // 타이틀 화면 2(TitleRoomDirector — 중앙제어실 전체가 타이틀)로 교체하면서
+    // 이 2D 메뉴는 꺼 두었다. 되살리려면 인스펙터에서 이 값을 켜면 된다.
+    // 암전/배너(FadeToBlack / FadeFromBlack / FlashBanner)는 프롤로그가 계속 쓰므로 그대로 둔다.
+    [Export] public bool UseLegacyTitle = false;
+
     private Control _root;
     private VBoxContainer _menu;
     private Label _banner;
@@ -38,6 +43,13 @@ public partial class TitleOverlay : CanvasLayer
     public void ShowTitle()
     {
         Visible = true;
+        if (!UseLegacyTitle)
+        {
+            // 메뉴 패널은 띄우지 않는다 — 제어실 자체가 타이틀이다.
+            _root.Visible = false;
+            _root.MouseFilter = Control.MouseFilterEnum.Ignore;
+            return;
+        }
         _root.Visible = true;
         _root.Modulate = Colors.White;
     }

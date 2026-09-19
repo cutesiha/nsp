@@ -1,0 +1,550 @@
+using System;
+using System.Threading.Tasks;
+using Godot;
+using NSP.Core;
+
+namespace NSP.View;
+
+// 타이틀 화면 2 — "중앙제어실 전체가 타이틀".
+//
+// 화면 위에 메뉴 패널을 얹지 않는다(그건 기존 TitleOverlay 의 방식이고 지금은 꺼 둔다).
+// 대신 이미 있는 제어실 장비를 그대로 쓴다.
+//   왼쪽 CRT  = TitleStaffIdView  (직원 여섯 명 신원 확인 + 무작위 오류 연출)
+//   오른쪽 CRT = TitleTerminalView (표제 + 명령 선택지)
+//   책상 장비  = 전화기 / 센서 단말 / 전력 패널 → 같은 명령의 지름길
+//
+// 게임을 켜면 오른쪽 CRT 를 확대한 화면에서 시작한다. 아무 키나 누르면 표제와 메뉴가
+// 그 확대 화면에 뜨고, 그 다음 화면이 천천히 축소되며 제어실 전체와 책상 장비가 드러난다.
+//
+// 이 노드가 제어실 입력을 직접 레이캐스트한다. 근무 중 입력(ControlRoom3DController)은
+// 타이틀 동안 잠겨 있으므로 서로 간섭하지 않는다.
+public partial class TitleRoomDirector : Node
+{
+    public static TitleRoomDirector Instance { get; private set; }
+
+    [Export] public NodePath ControllerPath = "..";
+    [Export] public NodePath PhonePath = "../ControlRoom/Telephone";
+    [Export] public NodePath SensorPath = "../ControlRoom/AlertTerminal";
+    [Export] public NodePath PowerPanelPath = "../ControlRoom/PowerSwitchPanel";
+    [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
+    [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
+
+    // 책상 장비를 가리켰는지 판정하는 반경(m). 모델이 바뀌면 여기만 조정한다.
+    [Export] public float PhoneRadius = 0.13f;
+    [Export] public float SensorRadius = 0.12f;
+    [Export] public float PowerRadius = 0.13f;
+
+    public event Action StartRequested;
+    public bool IsRunning { get; private set; }
+
+    // 책상 장비 ↔ 명령 연결. 라벨은 화면 아래 힌트 줄에 뜬다.
+    private static readonly (string Id, string Hint)[] PropHints =
+    {
+        ("archive", "전화기  —  ARCHIVE  ·  통신 기록"),
+        ("config", "센서 단말  —  SYSTEM CONFIG  ·  환경 설정"),
+        ("quit", "전력 패널  —  SHUT DOWN  ·  시스템 종료"),
+    };
+
+    private ControlRoom3DController _ctl;
+    private Camera3D _camera;
+    private Node3D _phone, _sensor, _power;
+    private OmniLight3D _ceiling, _fill;
+    private float _ceilBase = 1.1f, _fillBase = 0.4f;
+    private SettingsPanel _settings;
+
+    private TitleHintHud _hint;
+
+    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Done }
+    private Phase _phase = Phase.Off;
+
+    private string _hoverProp = "";
+    // 마우스 위치 — 실제 커서 폴링과 모션 이벤트 중 최근 것을 쓴다.
+    private Vector2 _mouse;
+    private Vector2 _lastPolled = new(-9999f, -9999f);
+    private double _nextFlicker = 7.0, _nextDistant = 11.0;
+    private readonly RandomNumberGenerator _rng = new();
+
+    public override void _Ready()
+    {
+        Instance = this;
+        _rng.Randomize();
+        _ctl = GetNodeOrNull<ControlRoom3DController>(ControllerPath);
+        _phone = GetNodeOrNull<Node3D>(PhonePath);
+        _sensor = GetNodeOrNull<Node3D>(SensorPath);
+        _power = GetNodeOrNull<Node3D>(PowerPanelPath);
+        _ceiling = GetNodeOrNull<OmniLight3D>(CeilingLightPath);
+        _fill = GetNodeOrNull<OmniLight3D>(FillLightPath);
+
+        _hint = new TitleHintHud();
+        AddChild(_hint);
+
+        SetProcess(false);
+        SetProcessUnhandledInput(false);
+    }
+
+    public override void _ExitTree()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    // ShiftFlowController 가 부팅 직후 부른다.
+    public void Begin()
+    {
+        if (IsRunning) return;
+        IsRunning = true;
+        _ = BootAsync();
+    }
+
+    private async Task BootAsync()
+    {
+        // 컨트롤러의 AfterReady(CallDeferred)가 CRT 를 초기 상태로 돌려놓은 뒤에 시작한다.
+        await NextFrame();
+        await NextFrame();
+
+        _camera = GetViewport().GetCamera3D();
+        if (_ctl == null || TitleTerminalView.Instance == null || TitleStaffIdView.Instance == null)
+        {
+            GD.PushWarning("TitleRoomDirector: 타이틀 화면을 찾지 못해 건너뜁니다.");
+            IsRunning = false;
+            StartRequested?.Invoke();
+            return;
+        }
+
+        if (_ceiling != null) _ceilBase = _ceiling.LightEnergy / 0.26f;
+        if (_fill != null) _fillBase = _fill.LightEnergy / 0.3f;
+
+        _ctl.SetLeftScreen(_ctl.TitleStaffViewport);
+        _ctl.SetRightScreen(_ctl.TitleTerminalViewport);
+
+        // 뷰포트가 매 프레임 갱신되도록 전체 밝기는 올려 두고, 왼쪽 CRT 만 꺼 둔다.
+        _ctl.SetScreenBrightness(1f);
+        // 왼쪽 CRT 는 아직 꺼져 있다 — 약한 노이즈만 보일 정도로.
+        _ctl.SetScreenBrightnessFor("01", 0.13f);
+        // 타이틀 동안에는 화면 노이즈를 조금 낮춘다(표제와 메뉴가 첫인상이다).
+        _ctl.SetScreenNoise(0.018f);
+
+        TitleStaffIdView.Instance.PowerOff();
+        TitleTerminalView.Instance.ShowStandby();
+
+        // 게임 시작 순간부터 오른쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
+        _ctl.FocusMonitor(2, 0.01f);
+
+        _hint.SetLine("");
+        _hint.SetSub("아무 키나 누르십시오");
+        _hint.ShowHud();
+
+        _phase = Phase.Standby;
+        SetProcess(true);
+        SetProcessUnhandledInput(true);
+    }
+
+    // --- 전원 투입 ------------------------------------------------------------
+
+    private async Task PowerOnAsync()
+    {
+        _phase = Phase.PoweringOn;
+        _hint.SetSub("");
+        Sfx.Instance?.Play("sensor_beep", -8f);       // 삑
+
+        // 1) 확대된 화면에서 표제와 메뉴가 먼저 뜬다 — 제목을 크게 읽히게.
+        await Wait(0.28);
+        TitleTerminalView.Instance?.ShowMenu();
+        Sfx.Instance?.Play("tick", -14f);
+        await Wait(1.35);
+
+        // 2) 화면이 천천히 축소되며 제어실 전체가 드러난다.
+        _ctl?.ClearFocus(1.15f);
+        await Wait(0.45);
+
+        // 3) 축소되는 동안 나머지 장비가 하나씩 켜진다.
+        Sfx.Instance?.Play("relay_click", -7f);        // 왼쪽 모니터 ON
+        var t1 = CreateTween();
+        t1.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightnessFor("01", v)), 0.13f, 1.0f, 0.5)
+          .SetTrans(Tween.TransitionType.Sine);
+        TitleStaffIdView.Instance?.PowerOn();
+
+        await Wait(0.45);
+        Sfx.Instance?.Play("switch", -10f);             // 책상 조명 ON
+        var lt = CreateTween();
+        lt.SetParallel(true);
+        if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilBase * 0.34f, 0.7);
+        if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase * 0.45f, 0.7);
+
+        await Wait(0.40);
+        Sfx.Instance?.Play("relay_click", -12f);        // 센서 단말 ON
+
+        await Wait(0.35);
+        _hint.SetSub("↑ ↓ 선택  ·  ENTER 확인  ·  책상 장비를 눌러도 됩니다");
+        _phase = Phase.Menu;
+    }
+
+    // --- 명령 --------------------------------------------------------------
+
+    private void Activate(string id)
+    {
+        if (_phase != Phase.Menu) return;
+        Sfx.Instance?.Play("relay_click", -6f);
+        switch (id)
+        {
+            case "start": _ = StartShiftAsync(); break;
+            case "archive": _ = ArchiveAsync(); break;
+            case "config": OpenSettings(); break;
+            case "quit": ShowShutdownConfirm(); break;
+            case "back": TitleTerminalView.Instance?.ShowMenu(); break;
+        }
+    }
+
+    // 근무 개시 — 인증 연출을 거쳐 그대로 프롤로그로 이어진다.
+    private async Task StartShiftAsync()
+    {
+        _phase = Phase.Busy;
+        _hint.SetSub("");
+        var term = TitleTerminalView.Instance;
+        var staff = TitleStaffIdView.Instance;
+
+        term.BeginReport("ADMINISTRATOR ACCESS");
+        term.PushLine("> auth --administrator", 3);
+        await Wait(0.55);
+        term.PushLine("SCANNING STAFF IDENTIFICATION...");
+
+        await Wait(0.35);
+        var tcs = new TaskCompletionSource();
+        staff.RunScan(() => tcs.TrySetResult());
+        await tcs.Task;
+
+        await Wait(0.30);
+        term.PushLine("ACCESS GRANTED", 1);
+        Sfx.Instance?.Play("task_done", -5f);
+        await Wait(1.10);
+
+        // 화면을 한 번 내려 두고 넘긴다 — 프롤로그가 다시 켜는 연출로 자연히 이어진다.
+        _ctl?.SetScreenNoise(0.035f);   // 게임 화면의 기본 노이즈로 되돌린다
+        var t = CreateTween();
+        t.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 1.0f, 0.02f, 0.45)
+         .SetTrans(Tween.TransitionType.Sine);
+        await Wait(0.55);
+
+        Finish();
+        StartRequested?.Invoke();
+    }
+
+    // 기록 열람 — 아직 저장/기록 시스템이 없으므로 "기록 없음"만 알린다.
+    private async Task ArchiveAsync()
+    {
+        _phase = Phase.Busy;
+        var term = TitleTerminalView.Instance;
+        Sfx.Instance?.Play("phone_pickup", -16f);   // 전화기 쪽이 살아난다
+        term.BeginReport("ARCHIVE  /  통신 기록", ("back", "뒤로"));
+        term.PushLine("> archive --list", 3);
+        await Wait(0.45);
+        term.PushLine("저장된 근무 기록이 없습니다.");
+        await Wait(0.25);
+        term.PushLine("NO RECORD FOUND", 3);
+        _hint.SetSub("ESC 또는 ‘뒤로’");
+        _phase = Phase.Menu;
+    }
+
+    private void OpenSettings()
+    {
+        if (_settings == null || !IsInstanceValid(_settings))
+        {
+            _settings = new SettingsPanel();
+            AddChild(_settings);
+        }
+        _settings.Open();
+    }
+
+    private void ShowShutdownConfirm()
+    {
+        var term = TitleTerminalView.Instance;
+        term.BeginReport("SHUT DOWN SYSTEM?", ("yes", "예"), ("no", "아니오"));
+        term.PushLine("시스템을 종료하시겠습니까?", 2);
+        _hint.SetSub("ESC 로 취소");
+    }
+
+    // 종료 — 장비가 하나씩 꺼지고 SYSTEM OFFLINE.
+    private async Task ShutdownAsync()
+    {
+        _phase = Phase.Busy;
+        _hint.SetLine("");
+        _hint.SetSub("");
+        var term = TitleTerminalView.Instance;
+
+        TitleStaffIdView.Instance?.PowerOff();
+        Sfx.Instance?.Play("relay_click", -6f);
+        var t1 = CreateTween();
+        t1.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightnessFor("01", v)), 1.0f, 0.02f, 0.4);
+
+        var lt = CreateTween();
+        lt.SetParallel(true);
+        if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", 0.02f, 1.0);
+        if (_fill != null) lt.TweenProperty(_fill, "light_energy", 0.02f, 1.0);
+
+        await Wait(0.55);
+        term.BeginReport("");
+        term.PushLine("SYSTEM OFFLINE", 3);
+        Sfx.Instance?.Play("power_down", -6f);
+
+        await Wait(1.10);
+        var t2 = CreateTween();
+        t2.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 1.0f, 0.0f, 0.7);
+        await Wait(0.9);
+        GetTree().Quit();
+    }
+
+    private void Finish()
+    {
+        _phase = Phase.Done;
+        IsRunning = false;
+        SetProcess(false);
+        SetProcessUnhandledInput(false);
+        _hint.HideHud();
+    }
+
+    // --- 입력 ---------------------------------------------------------------
+
+    public override void _UnhandledInput(InputEvent e)
+    {
+        if (_phase is Phase.Off or Phase.Done or Phase.PoweringOn) return;
+        if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
+
+        if (e is InputEventMouseMotion mm) { _mouse = mm.Position; return; }
+
+        if (e is InputEventKey { Pressed: true, Echo: false } k)
+        {
+            if (_phase == Phase.Standby)
+            {
+                _ = PowerOnAsync();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (_phase != Phase.Menu) return;
+
+            switch (k.Keycode)
+            {
+                case Key.Up or Key.W:
+                    if (TitleTerminalView.Instance.MoveCursor(-1)) Sfx.Instance?.Play("tick", -16f);
+                    GetViewport().SetInputAsHandled();
+                    return;
+                case Key.Down or Key.S:
+                    if (TitleTerminalView.Instance.MoveCursor(1)) Sfx.Instance?.Play("tick", -16f);
+                    GetViewport().SetInputAsHandled();
+                    return;
+                case Key.Enter or Key.KpEnter or Key.Space:
+                    Select();
+                    GetViewport().SetInputAsHandled();
+                    return;
+                case Key.Escape:
+                    if (TitleTerminalView.Instance.CurrentMode == TitleTerminalView.Mode.Report)
+                    {
+                        TitleTerminalView.Instance.ShowMenu();
+                        _hint.SetSub("↑ ↓ 선택  ·  ENTER 확인  ·  책상 장비를 눌러도 됩니다");
+                        GetViewport().SetInputAsHandled();
+                    }
+                    return;
+            }
+            return;
+        }
+
+        if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
+        {
+            if (_phase == Phase.Standby)
+            {
+                _ = PowerOnAsync();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (_phase != Phase.Menu) return;
+
+            // 장비를 눌렀으면 그 장비에 걸린 명령, 아니면 단말기에서 가리킨 항목.
+            string id = !string.IsNullOrEmpty(_hoverProp) ? _hoverProp : TerminalItemUnderMouse();
+            if (!string.IsNullOrEmpty(id)) { ActivateResolved(id); GetViewport().SetInputAsHandled(); }
+        }
+    }
+
+    private void Select() => ActivateResolved(TitleTerminalView.Instance.SelectedId);
+
+    // 종료 확인 창의 예/아니오는 일반 명령과 다르게 처리한다.
+    private void ActivateResolved(string id)
+    {
+        switch (id)
+        {
+            case "yes": _ = ShutdownAsync(); return;
+            case "no":
+            case "back":
+                Sfx.Instance?.Play("relay_click", -8f);
+                TitleTerminalView.Instance.ShowMenu();
+                _hint.SetSub("↑ ↓ 선택  ·  ENTER 확인  ·  책상 장비를 눌러도 됩니다");
+                return;
+            default:
+                Activate(id);
+                return;
+        }
+    }
+
+    // --- tick : 마우스 호버 + 잔잔한 생활감 --------------------------------------
+
+    public override void _Process(double delta)
+    {
+        TickAmbience(delta);
+        if (_phase != Phase.Menu) return;
+        if (_camera == null) _camera = GetViewport().GetCamera3D();
+        if (_camera == null) return;
+
+        Vector2 polled = GetViewport().GetMousePosition();
+        if (!polled.IsEqualApprox(_lastPolled)) { _lastPolled = polled; _mouse = polled; }
+        Vector3 origin = _camera.ProjectRayOrigin(_mouse);
+        Vector3 dir = _camera.ProjectRayNormal(_mouse);
+
+        // 1) 책상 장비.
+        string prop = PropUnder(origin, dir);
+        if (prop != _hoverProp)
+        {
+            _hoverProp = prop;
+            if (!string.IsNullOrEmpty(prop))
+            {
+                Sfx.Instance?.Play("tick", -16f);
+                foreach (var (id, hintText) in PropHints)
+                    if (id == prop) _hint.SetLine(hintText);
+                TitleTerminalView.Instance.HoverId(prop);
+            }
+            else _hint.SetLine("");
+        }
+        if (!string.IsNullOrEmpty(prop))
+        {
+            TitleStaffIdView.Instance.SetHover(-1);
+            return;
+        }
+
+        // 2) 오른쪽 CRT 의 명령 선택지.
+        string item = TerminalItemUnderMouse();
+        if (!string.IsNullOrEmpty(item))
+        {
+            if (TitleTerminalView.Instance.HoverId(item)) Sfx.Instance?.Play("tick", -16f);
+            TitleStaffIdView.Instance.SetHover(-1);
+            _hint.SetLine("");
+            return;
+        }
+
+        // 3) 왼쪽 CRT 의 직원 카드 — 마우스를 올리면 신원 한 줄이 뜬다.
+        int card = -1;
+        if (TryCanvasPos("01", origin, dir, out Vector2 lp))
+            card = TitleStaffIdView.Instance.IndexAt(lp);
+        if (TitleStaffIdView.Instance.SetHover(card)) Sfx.Instance?.Play("tick", -20f);
+        _hint.SetLine(card >= 0 ? TitleStaffIdView.Instance.HoverLine : "");
+    }
+
+    private void TickAmbience(double delta)
+    {
+        if (_phase is Phase.Off or Phase.Done) return;
+
+        // 형광등이 가끔 한 번 깜빡인다.
+        _nextFlicker -= delta;
+        if (_nextFlicker <= 0 && _ceiling != null && _phase != Phase.Standby)
+        {
+            _nextFlicker = _rng.RandfRange(7f, 15f);
+            float keep = _ceiling.LightEnergy;
+            var t = CreateTween();
+            t.TweenProperty(_ceiling, "light_energy", keep * 0.25f, 0.05);
+            t.TweenProperty(_ceiling, "light_energy", keep, 0.10);
+            Sfx.Instance?.Play("flicker", -26f);
+        }
+
+        // 멀리서 금속 부딪히는 소리.
+        _nextDistant -= delta;
+        if (_nextDistant <= 0)
+        {
+            _nextDistant = _rng.RandfRange(10f, 20f);
+            Sfx.Instance?.Play(_rng.Randf() > 0.5f ? "metal_clang" : "pipe_knock", -28f);
+        }
+    }
+
+    // --- 레이캐스트 헬퍼 --------------------------------------------------------
+
+    private string TerminalItemUnderMouse()
+    {
+        if (_camera == null) return "";
+        Vector3 o = _camera.ProjectRayOrigin(_mouse);
+        Vector3 d = _camera.ProjectRayNormal(_mouse);
+        return TryCanvasPos("02", o, d, out Vector2 p) ? TitleTerminalView.Instance.ItemAt(p) : "";
+    }
+
+    // CRT 평면을 맞췄으면 그 화면의 '논리 캔버스' 좌표를 돌려준다.
+    // (TryProjectRay 는 실제 뷰포트 해상도 좌표를 주므로 스케일로 나눈다.)
+    private bool TryCanvasPos(string token, Vector3 origin, Vector3 dir, out Vector2 logical)
+    {
+        logical = Vector2.Zero;
+        if (_ctl == null) return false;
+        foreach (var s in _ctl.Screens)
+        {
+            if (!s.Name.ToString().Contains(token)) continue;
+            if (!s.TryProjectRay(origin, dir, clamp: false, out Vector2 vp)) return false;
+            logical = vp / Mathf.Max(0.01f, ControlRoom3DController.SurfaceScale());
+            return true;
+        }
+        return false;
+    }
+
+    private string PropUnder(Vector3 origin, Vector3 dir)
+    {
+        if (_phone != null && RayHitsSphere(origin, dir, _phone.GlobalPosition, PhoneRadius)) return "archive";
+        if (_sensor != null && RayHitsSphere(origin, dir, _sensor.GlobalPosition, SensorRadius)) return "config";
+        if (_power != null && RayHitsSphere(origin, dir, _power.GlobalPosition, PowerRadius)) return "quit";
+        return "";
+    }
+
+    private static bool RayHitsSphere(Vector3 origin, Vector3 dir, Vector3 center, float radius)
+    {
+        Vector3 oc = origin - center;
+        float b = oc.Dot(dir);
+        float c = oc.LengthSquared() - radius * radius;
+        float disc = b * b - c;
+        return disc >= 0f && -b + Mathf.Sqrt(disc) > 0f;
+    }
+
+    private async Task NextFrame() =>
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+    private async Task Wait(double seconds) =>
+        await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
+
+    // --- 화면 아래 어두운 공간의 힌트 줄 ------------------------------------------
+    private partial class TitleHintHud : CanvasLayer
+    {
+        private Label _line, _sub;
+
+        public override void _Ready()
+        {
+            Layer = 78;   // 시작 화면(80) 아래
+            var root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
+            root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            AddChild(root);
+
+            _line = Make(ViewFont.FS(17), new Color(0.72f, 0.86f, 0.84f), -96f);
+            root.AddChild(_line);
+            _sub = Make(ViewFont.FS(13), new Color(0.40f, 0.48f, 0.50f), -58f);
+            root.AddChild(_sub);
+            Visible = false;
+        }
+
+        private static Label Make(int size, Color col, float bottomOffset)
+        {
+            var l = new Label
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+                AnchorLeft = 0f, AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
+                OffsetTop = bottomOffset, OffsetBottom = bottomOffset + 34f,
+            };
+            l.AddThemeFontOverride("font", ViewFont.Default);
+            l.AddThemeFontSizeOverride("font_size", size);
+            l.AddThemeColorOverride("font_color", col);
+            return l;
+        }
+
+        public void SetLine(string t) { if (_line != null) _line.Text = t ?? ""; }
+        public void SetSub(string t) { if (_sub != null) _sub.Text = t ?? ""; }
+        public void ShowHud() => Visible = true;
+        public void HideHud() => Visible = false;
+    }
+}

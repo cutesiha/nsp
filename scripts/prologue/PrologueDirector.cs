@@ -9,6 +9,7 @@ namespace NSP.Prologue;
 // 프롤로그 진행자.
 //   기록 영상(왼쪽 CRT) → 대재난 → 머리 충격 → 암전/이명 → 의식 회복
 //   → 권한 승계 콘솔(오른쪽 CRT) → 승계 완료 창 → GUIDE-0.exe 등장
+//     (이때부터 화면이 셋으로 나뉜다: 왼쪽 CRT = 얼굴 / 오른쪽 CRT = 그림·도형 / 화면 아래 = 대사)
 //   → 선택지 설명(세 질문) → DAY 0 예고
 //
 // 콘솔부터는 모니터를 확대하지 않고 제어실 전체 화면(실시간 운영과 같은 시점)에서 진행한다.
@@ -127,6 +128,8 @@ public partial class PrologueDirector : Node
         var bt2 = CreateTween();
         bt2.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 0.0f, 1.0f, 0.55)
            .SetTrans(Tween.TransitionType.Sine);
+        // 승계 콘솔 동안 켜지는 건 오른쪽 CRT 뿐이다.
+        _ctl?.SetScreenBrightnessFor("01", 0.03f);
         await Wait(1.0);
 
         await PlayConsole(guide, "authority_transfer");
@@ -137,8 +140,20 @@ public partial class PrologueDirector : Node
         await Wait(0.35);
 
         // 그 다음에야 GUIDE-0.exe 가 뜬다(별개의 사건).
-        // 마지막 대사가 다 찍히는 순간 바로 선택지를 띄운다(추가 클릭 없음).
+        // 여기서부터 화면이 셋으로 나뉜다.
+        //   모니터 1 = GUIDE-0 얼굴 / 모니터 2 = 그림·도형이 도는 창 / 화면 아래 = 대사
         guide.ClearConsole();
+        guide.SetCompact(true);
+        GuideFaceView.Instance?.SetShown(true);
+        _ctl?.SetLeftScreen(_ctl.GuideFaceViewport);
+        Sfx.Instance?.Play("relay_click", -6f);
+        Sfx.Instance?.Play("crt_on", -10f);
+        var bt3 = CreateTween();
+        bt3.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightnessFor("01", v)), 0.03f, 1.0f, 0.5)
+           .SetTrans(Tween.TransitionType.Sine);
+        await Wait(0.55);
+
+        // 마지막 대사가 다 찍히는 순간 바로 선택지를 띄운다(추가 클릭 없음).
         await ShowGuide(guide, "g_intro", null, completeWhenTyped: true);
 
         // ── 선택지 : 세 질문을 각각 한 번씩 모두 확인해야 다음으로 넘어간다 ──
@@ -158,6 +173,8 @@ public partial class PrologueDirector : Node
         await Wait(0.3);
 
         guide.HideHologram();
+        guide.SetCompact(false);
+        GuideFaceView.Instance?.SetShown(false);
         guide.LineShown -= OnGuideLine;
         GuideSubtitleHud.Instance?.SetActive(false);
         GuideSubtitleHud.Instance?.Clear();
