@@ -26,6 +26,9 @@ public static class PlayerKnownEvidence
         public string IncidentKey = "";
         public string RoomId = "";
         public bool StatedExactTime;
+        // 이 진술이 가리키는 시각(근무 시작 = 0초). 모순 판정은 이 값이 있어야만 성립한다.
+        public float AnchorTime;
+        public bool HasTime;
     }
 
     // 어떤 직원이 "그 사람을 여기서 봤다"고 말한 내용.
@@ -34,6 +37,8 @@ public static class PlayerKnownEvidence
         public string SpeakerId = "";
         public string SubjectId = "";
         public string RoomId = "";
+        public float AnchorTime;
+        public bool HasTime;
     }
 
     // 시설 로그 화면에 실제로 떴던 이동 한 건.
@@ -61,7 +66,8 @@ public static class PlayerKnownEvidence
 
     // --- 진술 기록 ------------------------------------------------------
 
-    public static void RecordLocationStatement(string speakerId, string incidentKey, string roomId, bool exactTime)
+    public static void RecordLocationStatement(string speakerId, string incidentKey, string roomId, bool exactTime,
+        float anchorTime = -1f)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(roomId)) return;
         var found = _locations.FirstOrDefault(x => x.SpeakerId == speakerId && x.IncidentKey == incidentKey);
@@ -69,11 +75,13 @@ public static class PlayerKnownEvidence
         {
             found.RoomId = roomId;
             found.StatedExactTime |= exactTime;
+            if (anchorTime >= 0f) { found.AnchorTime = anchorTime; found.HasTime = true; }
             return;
         }
         _locations.Add(new LocationStatement
         {
             SpeakerId = speakerId, IncidentKey = incidentKey ?? "", RoomId = roomId, StatedExactTime = exactTime,
+            AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
         });
     }
 
@@ -113,11 +121,15 @@ public static class PlayerKnownEvidence
 
     public static int CctvObservationCount => _cctv.Count;
 
-    public static void RecordSighting(string speakerId, string subjectId, string roomId)
+    public static void RecordSighting(string speakerId, string subjectId, string roomId, float anchorTime = -1f)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId)) return;
         if (_sightings.Any(x => x.SpeakerId == speakerId && x.SubjectId == subjectId && x.RoomId == roomId)) return;
-        _sightings.Add(new SightingStatement { SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "" });
+        _sightings.Add(new SightingStatement
+        {
+            SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "",
+            AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
+        });
     }
 
     // --- 조회 ------------------------------------------------------------
@@ -151,6 +163,14 @@ public static class PlayerKnownEvidence
             })
             .ToList();
     }
+
+    // 이 직원이 관리자에게 한 모든 위치 진술(최근 순).
+    public static IReadOnlyList<LocationStatement> StatementsBy(string employeeId) =>
+        _locations.Where(x => x.SpeakerId == employeeId).ToList();
+
+    // 관리자가 CCTV 로 이 직원을 실제로 본 모든 순간(최근 순).
+    public static IReadOnlyList<CctvObservation> CctvSightingsOf(string employeeId) =>
+        _cctv.Where(o => o.Occupants.Contains(employeeId)).ToList();
 
     public static void ResetAll()
     {

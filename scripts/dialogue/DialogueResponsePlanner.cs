@@ -15,7 +15,7 @@ public static class DialogueResponsePlanner
     public static DialogueResponsePlan Plan(DialogueContext ctx)
     {
         var profile = DialogueVoiceProfiles.Get(ctx.EmployeeId);
-        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.Subject?.Key ?? "no_incident");
+        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
 
         var plan = new DialogueResponsePlan
         {

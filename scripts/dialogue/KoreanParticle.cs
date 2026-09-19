@@ -61,7 +61,11 @@ public static class KoreanParticle
             if (matched > 0)
             {
                 string before = sb.ToString();
-                sb.Append(HasFinal(before) ? left : right);
+                // "으로/로" 만 예외다 — ㄹ 받침 뒤에는 "로" 가 붙는다(정비실로, 저장고로).
+                bool useLeft = left == "으로"
+                    ? HasFinal(before) && !EndsWithRieul(before)
+                    : HasFinal(before);
+                sb.Append(useLeft ? left : right);
                 i += matched;
                 continue;
             }

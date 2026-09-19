@@ -74,6 +74,7 @@ public static class DialogueClaimState
         _claims.Clear();
         _recent.Clear();
         PlayerKnownEvidence.ResetAll();
+        InterviewReplyPlanner.Reset();
         DialogueContextBuilder.Invalidate();
     }
 }

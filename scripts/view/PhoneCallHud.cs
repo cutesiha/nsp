@@ -7,7 +7,9 @@ namespace NSP.View;
 
 // 전화 통화 자막 UI. 화면 하단의 작은 홀로그램 '창' 으로만 표시한다 — 중앙 대형 팝업 금지.
 //  - 일반 통화(플레이어 발신): 인사 → 질문 → 대답 …
-//  - 이벤트 통화(직원 발신: 사고/비명/정전/목격/인터뷰): 첫 대사 → 2지선다 → 대답 → 종료
+//  - 이벤트 통화(직원 발신: 사고/비명/정전/목격): 첫 대사 → 2지선다 → 대답 → 종료
+//  - 휴게시간 심문: 왼쪽에 대화, 오른쪽에 「조사 자료」. 플레이어가 자료를 골라 질문을
+//    만들고, 자료 두 장을 직접 맞대어 모순을 제시한다(InterviewSession 이 규칙을 쥔다).
 // 모든 대사는 LocalDialogueGenerator(로컬 규칙 기반 생성기)가 실제 게임 로그/상태에서 만든다.
 // DialogueRepository 는 질문 목록과, 생성이 불가능할 때의 폴백 대사로만 남는다.
 // CanvasLayer 자체는 항상 켜두고 통화창(_panel)만 여닫는다 — 벨이 울리는 동안 아주 작은
@@ -26,22 +28,39 @@ public partial class PhoneCallHud : CanvasLayer
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
     private static readonly Color Amber = new(1f, 0.78f, 0.35f);
 
-    private enum AfterMode { None, GeneralQuestions, EventChoices, LocalInterviewQuestions, FollowUpQuestions, EndOnly }
+    private enum AfterMode
+    {
+        None, GeneralQuestions, EventChoices, EndOnly,
+        // 휴게시간 심문: 기본 질문 / 고른 자료의 질문 / 중립 꼬리질문
+        InterviewMenu, InterviewIntents, InterviewFollowUps,
+    }
 
     private Panel _panel;
     private HologramFrame _frame;
     private Label _speaker;
+    private Label _playerLine;
     private Label _message;
     private VBoxContainer _choices;
     private Label _incoming;
     private Font _font;
 
+    // 휴게시간 심문 전용 — 오른쪽 「조사 자료」 열.
+    private HBoxContainer _body;
+    private VBoxContainer _leftCol;
+    private VBoxContainer _evidenceCol;
+    private VBoxContainer _evidenceList;
+    private Label _evidenceHint;
+    private Button _askBtn;
+    private Button _confrontBtn;
+    private InterviewSession _session;
+    private System.Collections.Generic.List<InterviewQuestion> _intents = new();
+
     private string _employeeId = "";
     private string _dialogueEvent = DialogueRepository.EventGeneralCall;
     private string _incidentRoomId = "";
     private LocalDialogueGenerator.CallLine _event;
-    // 방금 답변을 듣고 한 번 더 캐물을 수 있는 질문(0~2개). 깊이는 1단계뿐이다.
-    private System.Collections.Generic.List<FollowUpQuestion> _followUps = new();
+    // 방금 답변에서 자연스럽게 이어지는 중립 질문(0~2개). 추궁은 여기 들어오지 않는다.
+    private System.Collections.Generic.List<InterviewQuestion> _followUps = new();
     private string _fullText = "";
     private double _typeTimer;
     private int _shownChars;
@@ -83,22 +102,35 @@ public partial class PhoneCallHud : CanvasLayer
         _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _panel.AddChild(_frame);
 
-        var vb = new VBoxContainer();
-        vb.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        vb.AddThemeConstantOverride("separation", 12);
-        _panel.AddChild(vb);
+        // 왼쪽 = 대화, 오른쪽 = 조사 자료. 일반 통화에서는 오른쪽 열을 숨긴다.
+        _body = new HBoxContainer();
+        _body.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _body.AddThemeConstantOverride("separation", 18);
+        _panel.AddChild(_body);
+
+        _leftCol = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _leftCol.AddThemeConstantOverride("separation", 10);
+        _body.AddChild(_leftCol);
 
         _speaker = Lbl("", 22, Amber);
-        vb.AddChild(_speaker);
+        _leftCol.AddChild(_speaker);
+
+        // 플레이어가 방금 던진 질문. 심문에서 "무엇을 물었는지"가 남아야 흐름이 읽힌다.
+        _playerLine = Lbl("", 15, new Color(0.62f, 0.72f, 0.76f));
+        _playerLine.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _playerLine.Visible = false;
+        _leftCol.AddChild(_playerLine);
 
         _message = Lbl("", 19, new Color(0.82f, 0.96f, 0.98f));
         _message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _message.CustomMinimumSize = new Vector2(0, 88);
-        vb.AddChild(_message);
+        _leftCol.AddChild(_message);
 
         _choices = new VBoxContainer();
         _choices.AddThemeConstantOverride("separation", 7);
-        vb.AddChild(_choices);
+        _leftCol.AddChild(_choices);
+
+        BuildEvidenceColumn();
 
         _incoming = new Label
         {
@@ -114,6 +146,109 @@ public partial class PhoneCallHud : CanvasLayer
         _incoming.AddThemeColorOverride("font_outline_color", Colors.Black);
         _incoming.AddThemeConstantOverride("outline_size", 4);
         AddChild(_incoming);
+    }
+
+    // --- 조사 자료 열 ---------------------------------------------------
+
+    private void BuildEvidenceColumn()
+    {
+        _evidenceCol = new VBoxContainer
+        {
+            Visible = false,
+            CustomMinimumSize = new Vector2(430, 0),
+            SizeFlagsHorizontal = Control.SizeFlags.Fill,
+        };
+        _evidenceCol.AddThemeConstantOverride("separation", 8);
+        _body.AddChild(_evidenceCol);
+
+        var head = Lbl("조 사 자 료", 17, Cyan);
+        head.HorizontalAlignment = HorizontalAlignment.Center;
+        _evidenceCol.AddChild(head);
+
+        // ScrollContainer 는 내용물의 최소 높이를 그대로 물려받는다. 그대로 두면 자료가
+        // 늘어날수록 세로로 밀려 아래의 버튼이 창 밖으로 나간다. 최소 높이가 없는 Control
+        // 안에 넣어 "남는 자리만 차지"하게 만든다.
+        var scrollHost = new Control
+        {
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+            ClipContents = true,
+        };
+        _evidenceCol.AddChild(scrollHost);
+
+        var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        scroll.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        scrollHost.AddChild(scroll);
+
+        _evidenceList = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _evidenceList.AddThemeConstantOverride("separation", 5);
+        scroll.AddChild(_evidenceList);
+
+        _evidenceHint = Lbl("", 13, new Color(0.62f, 0.72f, 0.76f));
+        _evidenceHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _evidenceCol.AddChild(_evidenceHint);
+
+        _askBtn = ChoiceButton("선택한 자료로 질문", OnAskWithEvidence);
+        _askBtn.CustomMinimumSize = new Vector2(0, 38);
+        _evidenceCol.AddChild(_askBtn);
+
+        _confrontBtn = ChoiceButton("두 자료를 비교 / 모순 추궁", OnConfront);
+        _confrontBtn.CustomMinimumSize = new Vector2(0, 38);
+        _evidenceCol.AddChild(_confrontBtn);
+    }
+
+    // 자료 카드를 다시 그린다. 답변으로 새 진술이 남으면 카드가 늘어난다.
+    private void RefreshEvidence()
+    {
+        if (_evidenceList == null || _session == null) return;
+        foreach (var c in _evidenceList.GetChildren()) c.QueueFree();
+
+        foreach (var ev in _session.Board)
+        {
+            var captured = ev;
+            bool on = _session.IsSelected(ev.Id);
+            var b = new Button
+            {
+                Text = (on ? "▣ " : "□ ") + ev.Header + "\n"
+                       + (string.IsNullOrEmpty(ev.TimeText) ? "" : ev.TimeText + "  ") + ev.Body,
+                Alignment = HorizontalAlignment.Left,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                CustomMinimumSize = new Vector2(0, 52),
+            };
+            b.AddThemeFontOverride("font", _font);
+            b.AddThemeFontSizeOverride("font_size", ViewFont.FS(13));
+            b.AddThemeColorOverride("font_color", on ? Colors.White : Cyan);
+            b.AddThemeColorOverride("font_hover_color", Colors.White);
+            var box = new StyleBoxFlat
+            {
+                BgColor = on ? new Color(0.16f, 0.34f, 0.38f, 0.8f) : new Color(0.06f, 0.13f, 0.16f, 0.6f),
+                BorderColor = on ? Cyan : Cyan with { A = 0.32f },
+                BorderWidthLeft = on ? 2 : 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+                ContentMarginLeft = 9, ContentMarginRight = 9, ContentMarginTop = 4, ContentMarginBottom = 4,
+            };
+            b.AddThemeStyleboxOverride("normal", box);
+            b.AddThemeStyleboxOverride("hover", box);
+            b.AddThemeStyleboxOverride("pressed", box);
+            b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+            b.Pressed += () =>
+            {
+                _session.Toggle(captured.Id);
+                RefreshEvidence();
+            };
+            _evidenceList.AddChild(b);
+        }
+
+        if (_session.Board.Count == 0)
+            _evidenceList.AddChild(Lbl("확보한 자료가 없습니다.", 13, new Color(0.55f, 0.62f, 0.66f)));
+
+        int picked = _session.Selected.Count;
+        _askBtn.Disabled = picked == 0;
+        _confrontBtn.Disabled = picked != 2;
+        _evidenceHint.Text = picked switch
+        {
+            0 => "자료를 고르면 그 기록을 물을 수 있습니다.",
+            1 => "한 장 더 고르면 맞대어 볼 수 있습니다.",
+            _ => "두 자료를 맞대어 모순을 제시합니다.",
+        };
     }
 
     private Label Lbl(string t, int size, Color c)
@@ -171,12 +306,18 @@ public partial class PhoneCallHud : CanvasLayer
 
         if (_dialogueEvent == LocalInterviewDialogue.EventDay1Interview)
         {
-            // 휴게시간 인터뷰는 Claude/API가 아니라 로컬 로그 기반 대사로 완결한다.
-            string greeting = LocalInterviewDialogue.InterviewGreeting(employeeId);
+            // 휴게시간 심문 — 질문은 플레이어가 조사 자료에서 직접 만든다.
+            _session = new InterviewSession(employeeId);
+            _followUps.Clear();
+            _intents.Clear();
+            _playerLine.Visible = false;
+            RefreshEvidence();
+            string greeting = _session.Greeting();
             RecordNpc(greeting, DialogueEntryType.NpcLine, DialogueConversationType.Interview);
-            StartTyping("\"" + greeting + "\"", AfterMode.LocalInterviewQuestions);
+            StartTyping("\"" + greeting + "\"", AfterMode.InterviewMenu);
             return;
         }
+        _session = null;
 
         if (_dialogueEvent != DialogueRepository.EventGeneralCall)
         {
@@ -249,8 +390,9 @@ public partial class PhoneCallHud : CanvasLayer
             {
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
                 case AfterMode.EventChoices: BuildEventChoices(); break;
-                case AfterMode.LocalInterviewQuestions: BuildLocalInterviewQuestions(); break;
-                case AfterMode.FollowUpQuestions: BuildFollowUpQuestions(); break;
+                case AfterMode.InterviewMenu: BuildInterviewMenu(); break;
+                case AfterMode.InterviewIntents: BuildIntentChoices(); break;
+                case AfterMode.InterviewFollowUps: BuildInterviewFollowUps(); break;
                 case AfterMode.EndOnly: BuildEndOnly(); break;
             }
         }
@@ -281,56 +423,112 @@ public partial class PhoneCallHud : CanvasLayer
         StartTyping("\"" + answer + "\"", AfterMode.GeneralQuestions);
     }
 
-    // --- DAY1 휴게시간 인터뷰(플레이어 발신) ----------------------------
-    private void BuildLocalInterviewQuestions()
+    // --- 휴게시간 심문 --------------------------------------------------
+
+    // 기본 질문 — 증거 없이도 물을 수 있는 도입부. 인터뷰의 중심이 아니다.
+    private void BuildInterviewMenu()
     {
         ClearChoices();
         _followUps.Clear();
-        foreach (var question in LocalInterviewDialogue.Questions)
+        _intents.Clear();
+        RefreshEvidence();
+        foreach (var q in _session.BasicQuestions())
         {
-            string id = question.Id;
-            _choices.AddChild(InterviewChoiceButton(LocalInterviewDialogue.GetQuestionText(_employeeId, id),
-                () => OnLocalInterviewQuestion(id)));
+            var captured = q;
+            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
         }
         _choices.AddChild(InterviewChoiceButton("통화를 종료한다.", CloseCall));
     }
 
-    private void OnLocalInterviewQuestion(string questionId)
+    // 「선택한 자료로 질문」 — 고른 자료로 물을 수 있는 것들을 왼쪽에 펼친다.
+    private void OnAskWithEvidence()
     {
-        ClearChoices();
-        string question = LocalInterviewDialogue.GetQuestionText(_employeeId, questionId);
-        var turn = LocalDialogueGenerator.Interview(_employeeId, questionId);
-        _followUps = turn.FollowUps;
-        LocalInterviewDialogue.RecordTurn(_employeeId, question, turn.Answer);
-        RecordPlayer(question, DialogueConversationType.Interview);
-        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        StartTyping("\"" + turn.Answer + "\"",
-            _followUps.Count > 0 ? AfterMode.FollowUpQuestions : AfterMode.LocalInterviewQuestions);
+        if (_session == null) return;
+        _intents = _session.QuestionsForSelection();
+        if (_intents.Count == 0)
+        {
+            ShowSystemLine("그 자료로 더 물어볼 것이 없습니다.");
+            return;
+        }
+        BuildIntentChoices();
     }
 
-    // 답변에서 캐물을 것이 있을 때만 뜬다. 없으면 곧장 기본 질문 목록으로 돌아간다.
-    private void BuildFollowUpQuestions()
+    private void BuildIntentChoices()
     {
         ClearChoices();
-        if (_followUps.Count == 0) { BuildLocalInterviewQuestions(); return; }
+        foreach (var q in _intents)
+        {
+            var captured = q;
+            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
+        }
+        _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+    }
+
+    private void AskInterview(InterviewQuestion q)
+    {
+        ClearChoices();
+        var turn = _session.Ask(q);
+        _followUps = turn.FollowUps;
+        LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
+        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
+        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        ShowPlayerLine(turn.QuestionText);
+        RefreshEvidence();
+        StartTyping("\"" + turn.Answer + "\"",
+            _followUps.Count > 0 ? AfterMode.InterviewFollowUps : AfterMode.InterviewMenu);
+    }
+
+    // 답변에서 이어지는 중립 질문만. "기록과 다른데요?" 는 여기 없다.
+    private void BuildInterviewFollowUps()
+    {
+        ClearChoices();
+        if (_followUps.Count == 0) { BuildInterviewMenu(); return; }
         foreach (var q in _followUps)
         {
             var captured = q;
-            _choices.AddChild(InterviewChoiceButton(q.Text, () => OnFollowUpQuestion(captured)));
+            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
         }
-        _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildLocalInterviewQuestions));
+        _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
-    // 꼬리질문의 답변 뒤에는 다시 꼬리질문을 만들지 않는다(깊이 1단계).
-    private void OnFollowUpQuestion(FollowUpQuestion q)
+    // 「두 자료를 비교」 — 모순인지 아닌지는 여기서 처음 밝혀진다.
+    private void OnConfront()
     {
+        if (_session == null || !_session.CanTryConfront) return;
+        var result = _session.CheckContradiction();
+        if (!result.IsContradiction)
+        {
+            ShowSystemLine(result.Notice);
+            return;
+        }
+
         ClearChoices();
-        _followUps = new System.Collections.Generic.List<FollowUpQuestion>();
-        string reply = LocalDialogueGenerator.FollowUpAnswer(_employeeId, q);
-        LocalInterviewDialogue.RecordTurn(_employeeId, q.Text, reply);
-        RecordPlayer(q.Text, DialogueConversationType.Interview);
-        RecordNpc(reply, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        StartTyping("\"" + reply + "\"", AfterMode.LocalInterviewQuestions);
+        var turn = _session.Confront(result);
+        _followUps.Clear();
+        LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
+        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
+        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        ShowPlayerLine(turn.QuestionText);
+        _session.ClearSelection();
+        RefreshEvidence();
+        StartTyping("\"" + turn.Answer + "\"", AfterMode.InterviewMenu);
+    }
+
+    private void ShowPlayerLine(string text)
+    {
+        if (_playerLine == null) return;
+        _playerLine.Text = string.IsNullOrEmpty(text) ? "" : "관리자 ▸ " + text;
+        _playerLine.Visible = !string.IsNullOrEmpty(text);
+    }
+
+    // 직원이 하는 말이 아니라 시스템 안내(모순 없음 등). 목소리도 타이핑도 없다.
+    private void ShowSystemLine(string text)
+    {
+        _typing = false;
+        Sfx.Instance?.StopVoiceBlip();
+        ShowPlayerLine("");
+        _message.Text = "— " + text;
+        _message.VisibleCharacters = -1;
     }
 
     // --- 이벤트 통화(직원 발신) — 첫 대사 → 2지선다 → 대답 → 종료 --------
@@ -409,17 +607,22 @@ public partial class PhoneCallHud : CanvasLayer
 
     private void SetInterviewLayout(bool interview)
     {
+        if (_evidenceCol != null) _evidenceCol.Visible = interview;
+
         if (interview)
         {
-            // 질문 5개와 종료 버튼이 들어가는 높이만 쓰되, 휴게시간 화면의 하단에서
-            // 뜨게 한다. CRT를 가리지 않으며 선택지 아래의 큰 빈칸도 만들지 않는다.
+            // 심문은 왼쪽 대화 + 오른쪽 조사 자료의 두 열이라 넓은 판이 필요하다.
+            _panel.AnchorLeft = 0.06f;
+            _panel.AnchorRight = 0.94f;
             _panel.AnchorTop = 1f;
             _panel.AnchorBottom = 1f;
-            _panel.OffsetTop = -410f;
-            _panel.OffsetBottom = -20f;
+            _panel.OffsetTop = -600f;
+            _panel.OffsetBottom = -16f;
             return;
         }
 
+        _panel.AnchorLeft = 0.24f;
+        _panel.AnchorRight = 0.76f;
         _panel.AnchorTop = 0.62f;
         _panel.AnchorBottom = 0.95f;
         _panel.OffsetTop = 0f;
@@ -437,6 +640,10 @@ public partial class PhoneCallHud : CanvasLayer
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
         ClearChoices();
+        _session = null;
+        _followUps.Clear();
+        _intents.Clear();
+        ShowPlayerLine("");
         EmitSignal(SignalName.Closed);
     }
 

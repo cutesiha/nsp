@@ -242,9 +242,43 @@ public static class DialogueContextBuilder
         return result;
     }
 
+    // 사건 키로 실제 로그 한 줄을 되찾는다. 없으면 null — 없는 사건을 지어내지 않는다.
+    public static LogEntry FindByKey(int day, string incidentKey)
+    {
+        if (string.IsNullOrEmpty(incidentKey)) return null;
+        return EventLog.Instance?.GetAllEntries()
+            .FirstOrDefault(e => e.Day == day && DialogueFact.From(e, KnowledgeLevel.None).Key == incidentKey);
+    }
+
     // --- 컨텍스트 조립 --------------------------------------------------
+
+    // 기준 시각을 명시해 만드는 경로.
+    //
+    // 기본 Build 는 사건을 주지 않으면 "오늘 가장 무거운 사건"을 스스로 골라 기준으로 삼는다.
+    // 이동 기록이나 CCTV 처럼 사건이 아닌 순간을 물을 때 그 기본값이 끼어들면, 질문은
+    // 22:13 이동을 묻는데 답변은 22:40 사고를 기준으로 계산되는 사고가 난다.
+    // 그래서 증거 기반 심문은 반드시 이쪽으로 들어온다.
+    public static DialogueContext BuildAt(string employeeId, DialogueConversationKind kind,
+        string questionId, LogEntry subject, float anchorTime, string claimKey)
+    {
+        var ctx = Build(employeeId, kind, questionId, "", subject, autoSelectSubject: false);
+        if (anchorTime >= 0f)
+        {
+            ctx.SubjectTime = anchorTime;
+            ctx.HasSubjectTime = true;
+            // 사건이 따로 없으면 그 시각의 실제 위치를 여기서 다시 잡는다.
+            if (subject == null)
+            {
+                string at = RoomAt(employeeId, ctx.CurrentDay, anchorTime);
+                ctx.RoomAtSubject = string.IsNullOrEmpty(at) ? ctx.AssignedRoomId : at;
+            }
+        }
+        if (!string.IsNullOrEmpty(claimKey)) ctx.ClaimKey = claimKey;
+        return ctx;
+    }
+
     public static DialogueContext Build(string employeeId, DialogueConversationKind kind,
-        string questionId, string eventId, LogEntry subjectOverride)
+        string questionId, string eventId, LogEntry subjectOverride, bool autoSelectSubject = true)
     {
         var sim = FacilitySimulation.Instance;
         var gs = GameState.Instance;
@@ -271,7 +305,7 @@ public static class DialogueContextBuilder
             FacilityBlackout = gs != null && gs.PowerCapacity == 0,
         };
 
-        var subject = subjectOverride ?? SelectSubjectIncident(day);
+        var subject = subjectOverride ?? (autoSelectSubject ? SelectSubjectIncident(day) : null);
         if (subject != null)
         {
             var knowledge = KnowledgeOf(employeeId, subject);
@@ -279,6 +313,9 @@ public static class DialogueContextBuilder
             ctx.SubjectKnowledge = knowledge;
             ctx.RoomAtSubject = RoomAt(employeeId, subject.Day, subject.GameTimeSeconds);
             ctx.IsSubjectActor = subject.ActorEmployeeId == employeeId;
+            ctx.SubjectTime = subject.GameTimeSeconds;
+            ctx.HasSubjectTime = true;
+            ctx.ClaimKey = ctx.Subject.Key;
         }
         if (string.IsNullOrEmpty(ctx.RoomAtSubject))
             ctx.RoomAtSubject = ctx.AssignedRoomId;

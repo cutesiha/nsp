@@ -39,6 +39,13 @@ public sealed class DialogueContext
     // --- 이번 대화가 다루는 하나의 사건 ---------------------------------
     // 한 인터뷰 안에서는 모든 질문이 같은 사건을 기준으로 답한다.
     public DialogueFact Subject;
+    // 이 대화가 가리키는 시각. 사건이 있으면 그 사건의 시각이고, 사건 없이 특정 순간을
+    // 물을 때(이동 기록·CCTV)는 그 자료의 시각이다. 이 값이 없으면 시간을 근거로 삼지 않는다.
+    public float SubjectTime;
+    public bool HasSubjectTime;
+    // 이 대화에서 세우는 주장(알리바이)을 묶는 키. 사건이면 사건 키, 아니면 "t:<시각>".
+    // 서로 다른 순간의 주장이 한 덩어리로 섞이지 않게 하는 유일한 기준이다.
+    public string ClaimKey = "no_incident";
     // 사건이 일어난 그 시각에 이 직원이 실제로 있던 작업실(마지막 위치가 아니다).
     public string RoomAtSubject = "";
     public KnowledgeLevel SubjectKnowledge = KnowledgeLevel.None;

@@ -89,6 +89,8 @@ public static class LocalDialogueGenerator
         string questionId = FollowUpQuestionGenerator.IntentKey(question.Intent);
         var ctx = Context(employeeId, DialogueConversationKind.Interview, questionId, "", subject);
         ctx.BaseQuestionId = question.BaseQuestionId;
+        // 꼬리질문은 기본 질문과 같은 사건에 묶인다. 사건을 못 찾았더라도 주장 키는 유지한다.
+        if (!string.IsNullOrEmpty(question.SubjectIncidentKey)) ctx.ClaimKey = question.SubjectIncidentKey;
         MarkAsked(ctx, questionId);
         var plan = DialogueResponsePlanner.Plan(ctx);
         string answer = KoreanDialogueComposer.Compose(ctx, plan);
@@ -99,18 +101,23 @@ public static class LocalDialogueGenerator
     // 직원이 관리자에게 실제로 말한 내용만 "플레이어가 아는 것"으로 남긴다.
     private static void RecordEvidence(DialogueContext ctx, DialogueResponsePlan plan)
     {
-        string key = ctx.Subject?.Key ?? "no_incident";
+        string key = ctx.ClaimKey;
+        // 진술이 가리키는 시각. 기준 시각이 없으면 붙이지 않는다(-1) —
+        // 시각 없는 진술은 모순 판정의 근거가 되지 못한다.
+        float when = ctx.HasSubjectTime ? ctx.SubjectTime : -1f;
         switch (plan.Core)
         {
             case CoreKind.SelfLocation:
                 PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, plan.RoomId,
-                    plan.Time == TimeRef.Exact);
+                    plan.Time == TimeRef.Exact, when);
                 break;
             case CoreKind.SuspiciousSighting:
-                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId, plan.IncidentRoomId);
+                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId,
+                    plan.IncidentRoomId, ctx.KnownSuspicious?.TimeSeconds ?? when);
                 break;
             case CoreKind.SightingPlace:
-                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId, plan.RoomId);
+                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId,
+                    plan.RoomId, ctx.KnownSuspicious?.TimeSeconds ?? when);
                 break;
         }
     }
@@ -258,7 +265,7 @@ public static class LocalDialogueGenerator
     // 같은 질문을 다시 받았는지 기록한다. 핵심 주장은 그대로 두고 표현만 바뀐다.
     private static void MarkAsked(DialogueContext ctx, string questionId)
     {
-        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.Subject?.Key ?? "no_incident");
+        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
         ctx.AskCount = claim.Ask(questionId);
         ctx.IsRepeat = ctx.AskCount > 0;
     }

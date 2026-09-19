@@ -34,6 +34,8 @@ public partial class DialogueScenarioTest : Node
         ScenarioG();
         ScenarioH();
         FollowUpScenarios();
+        // 증거 기반 심문(조사 자료 → 질문 → 모순 추궁) 검증.
+        InterviewScenarioTest.RunAll();
         GD.Print("=== 시나리오 검증 종료 ===");
         GetTree().Quit();
     }
