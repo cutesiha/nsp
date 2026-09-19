@@ -13,8 +13,9 @@ namespace NSP.View;
 //   오른쪽 CRT = TitleTerminalView (표제 + 명령 선택지)
 //   책상 장비  = 전화기 / 센서 단말 / 전력 패널 → 같은 명령의 지름길
 //
-// 게임을 켜면 오른쪽 CRT 를 확대한 화면에서 시작한다. 아무 키나 누르면 표제와 메뉴가
-// 그 확대 화면에 뜨고, 그 다음 화면이 천천히 축소되며 제어실 전체와 책상 장비가 드러난다.
+// 게임을 켜면 오른쪽 CRT 를 확대한 화면에서 시작한다. 아무 키나 누르면 그 화면에서
+// 프로그램이 실행되듯 표제가 한 글자씩 찍히고 메뉴가 한 줄씩 뜬 뒤, 그제서야 화면이
+// 천천히 축소되며 제어실 전체와 책상 장비가 드러난다.
 //
 // 이 노드가 제어실 입력을 직접 레이캐스트한다. 근무 중 입력(ControlRoom3DController)은
 // 타이틀 동안 잠겨 있으므로 서로 간섭하지 않는다.
@@ -146,11 +147,12 @@ public partial class TitleRoomDirector : Node
         _hint.SetSub("");
         Sfx.Instance?.Play("sensor_beep", -8f);       // 삑
 
-        // 1) 확대된 화면에서 표제와 메뉴가 먼저 뜬다 — 제목을 크게 읽히게.
-        await Wait(0.28);
-        TitleTerminalView.Instance?.ShowMenu();
-        Sfx.Instance?.Play("tick", -14f);
-        await Wait(1.35);
+        // 1) 확대된 화면에서 표제가 한 글자씩 찍히고 메뉴가 한 줄씩 뜬다.
+        var term = TitleTerminalView.Instance;
+        term?.ShowMenu(true);
+        await Wait(0.18);
+        while (term != null && !term.MenuRevealDone) await NextFrame();
+        await Wait(0.55);
 
         // 2) 화면이 천천히 축소되며 제어실 전체가 드러난다.
         _ctl?.ClearFocus(1.15f);

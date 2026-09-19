@@ -43,11 +43,19 @@
 #       shake:     <px>         화면이 계속 미세하게 떨리는 세기. 다음 슬라이드로 이어진다(0 이면 해제)
 #       jolt:      <초>         슬라이드가 뜨는 순간 좌우로 짧게 흔들리는 시간
 #       ken:       off          느린 줌/팬(켄 번스)을 끈다. 기본은 켜짐 — 정지 이미지도 살아 움직인다.
-#       fx:        none|glitch|cut|siren|shake|blackout|typing|impact|alert|flicker|crt
+#       fx:        none|glitch|cut|siren|shake|blackout|typing|impact|alert|flicker|crt|warp|warphold
 #                               cut   = 컷이 바뀔 때마다 무작위로 하나(펀치 줌/흔들림/붉은 섬광/팬/글리치)
-#                               alert = 화면 전체 붉은 점멸(긴급 경보 카드)
+#                               alert = 화면 전체 붉은 점멸(경보창 컷)
 #                               flicker = 조명이 깜빡이듯 밝기가 튄다
 #                               crt   = 브라운관이 켜지는 순간(가로선 → 노이즈 → 영상)
+#                               warp  = 그 컷의 그림이 그 자리에서 찢어지며 기괴하게 일그러진다
+#                                       (새 그림을 띄우지 않는다 — 직전 컷과 같은 image: 를 쓰면 된다)
+#                               warphold = 일그러진 그 상태로 멈춘다(신호 두절 문구를 올릴 때)
+#
+#       ── 비상 경보창 ──
+#       alert:     <한글 제목> | <영문 부제>   실제 시설 경보 패널처럼 크게 뜬다
+#       alertrow:  <항목> | <값>               여러 줄 가능. 한 줄씩 차례로 켜진다
+#       alertfoot: <맨 아랫줄 지시>            항목이 다 뜬 뒤 깜빡이며 나타난다
 #
 #       ── 게이지(코어 출력 저하 연출) ──
 #       gauge:      <한글 제목>       예: 봉쇄 코어 출력
@@ -160,44 +168,54 @@ hold: 4.8
 @cutscene prologue_disaster
 title: 국가특수에너지연구원 제7지하시설 / ARCHIVE 01
 
-# 총괄 관리자의 얼굴이 일그러지고 신호가 깨진다.
+# 새 컷을 띄우지 않는다 — 직전 아카이브 화면(봉쇄 코어)이 그 자리에서 기괴하게 일그러진다.
 # shake: 는 다음 슬라이드로 계속 이어진다 — 암전 컷에서 0 으로 되돌린다.
 # sfxloop: siren 도 sfxloopstop 을 만날 때까지 계속 울린다.
 @slide
-image: res://assets/cutscene/prologue/disaster_01_director_glitch.png
-imagenote: 총괄 관리자의 얼굴이 일그러지며 화면이 찢어짐
+image: res://assets/cutscene/prologue/archive_04_core.png
+imagenote: 직전 컷 그대로 — 화면이 찢어지며 뒤틀린다
+ken: off
 sfx: noise
 sfxloop: siren
-shake: 2.5
-hold: 2.2
-fx: glitch
+shake: 3.0
+hold: 2.6
+fx: warp
 
+# 일그러진 그 상태에서 신호가 끊긴다.
 @slide
 title: SIGNAL LOST
-image: res://assets/cutscene/prologue/disaster_02_signal_lost.png
-imagenote: 완전히 깨진 화면 · 삐-- 하는 신호음
+image: res://assets/cutscene/prologue/archive_04_core.png
+imagenote:
+ken: off
+overlay: SIGNAL LOST
 sfx: alarm
-hold: 1.3
-fx: siren
+hold: 1.6
+fx: warphold
 
-# ── 긴급 경보 : 붉은 점멸 + 한글 경보문 (그림 없이 글자만) ──
+# ── 비상 경보창 : 실제 시설 경보 패널처럼 뜬다 ──
 @slide
 title: EMERGENCY BROADCAST
 image:
 imagenote:
-overlay: ⚠ 긴급 경보\n외부 대규모 재난 감지
-sub: EXTERNAL CATASTROPHE DETECTED
+alert: 대재난 경보 | FACILITY EMERGENCY
+alertrow: CONTAINMENT | CRITICAL
+alertrow: CORE OUTPUT | !
+alertrow: FACILITY LOCKDOWN | !
+alertfoot: 즉시 대피  ·  EVACUATE IMMEDIATELY
 sfx: alert_beep3
-hold: 2.0
+hold: 3.0
 fx: alert
 
 @slide
 image:
 imagenote:
-overlay: ⚠ 격리 시스템 이상\n연구구역 봉쇄 실패
-sub: CONTAINMENT FAILURE
+alert: 격리 시스템 이상 | CONTAINMENT FAILURE
+alertrow: RESEARCH ZONE | LOCKDOWN FAILED
+alertrow: BULKHEAD SEAL | OPEN
+alertrow: SPECIMEN CONTAINMENT | LOST
+alertfoot: 연구구역 봉쇄 실패
 sfx: alert_beep3
-hold: 2.0
+hold: 3.0
 fx: alert
 
 # ── 빠르게 지나가는 몽타주 ──
