@@ -104,8 +104,7 @@ public partial class GuideFaceView : Control
             {
                 float k = Mathf.Min(FaceBox.Size.X / src.X, FaceBox.Size.Y / src.Y);
                 var dst = src * k;
-                var at = FaceBox.Position + (FaceBox.Size - dst) * 0.5f
-                         + new Vector2(0f, GuideMouthAnimator.BobOffset);
+                var at = FaceBox.Position + (FaceBox.Size - dst) * 0.5f;
                 // 흰색 도트 원본을 홀로그램 하늘색으로 물들여 그린다(+ 입 Overlay).
                 GuideFacePaint.Draw(this, _texture, _mouthless, new Rect2(at, dst), Cyan);
             }

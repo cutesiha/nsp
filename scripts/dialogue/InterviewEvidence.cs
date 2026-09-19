@@ -67,5 +67,19 @@ public sealed class InterviewEvidence
     public bool CanAnchorPosition =>
         Position != PositionClaim.None && HasTime && !string.IsNullOrEmpty(SubjectRoomId);
 
-    public string OneLine => string.IsNullOrEmpty(TimeText) ? Body : TimeText + "  " + Body;
+    // 카드에 찍히는 한 줄. 종류를 두 글자로 앞에 달아 훑어보기 쉽게 한다.
+    //   기록  22:13  저장고 → 정비실
+    //   증언  22:16  까마귀 · 정비실에서 봤다
+    public string Tag => Kind switch
+    {
+        EvidenceKind.Movement => "기록",
+        EvidenceKind.Incident => "사고",
+        EvidenceKind.Cctv => "CCTV",
+        EvidenceKind.Testimony => "증언",
+        EvidenceKind.OwnStatement => "진술",
+        _ => "기분",
+    };
+
+    public string OneLine =>
+        $"{Tag}  {(string.IsNullOrEmpty(TimeText) ? "" : TimeText + "  ")}{Body}";
 }

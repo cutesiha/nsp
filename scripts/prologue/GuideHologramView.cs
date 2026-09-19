@@ -293,8 +293,8 @@ public partial class GuideHologramView : Control
         {
             var captured = opt;
             bool answered = _answeredOptions.Contains(captured.GuideId);
-            // 이미 확인한 질문은 체크 표시 + 어두운 색으로 눌러 두고 다시 고를 수 없게 한다.
-            var accent = answered ? new Color(0.30f, 0.44f, 0.48f) : Cyan;
+            // 이미 확인한 질문은 체크 표시만 붙인다. 색을 어둡게 하면 글씨가 아예 안 보인다.
+            var accent = Cyan;
             string label = (answered ? "✓  " : "") + captured.Label;
 
             void Pick()
@@ -412,8 +412,9 @@ public partial class GuideHologramView : Control
         _portrait.Texture = GuideArt.Portrait(_portrait.Expression, out bool mouthless);
         _portrait.Mouthless = mouthless;
         _portrait.QueueRedraw();
-        // 왼쪽 CRT 의 얼굴 화면도 같은 표정으로 맞춘다.
+        // 왼쪽 CRT 의 얼굴 화면과 교육용 구석 창도 같은 표정으로 맞춘다.
         GuideFaceView.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture, mouthless);
+        GuideCornerFace.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture, mouthless);
     }
 
     // 초상 탐색 규칙은 GuideArt 한 곳에만 둔다(얼굴 화면도 같은 규칙을 쓴다).
@@ -469,6 +470,7 @@ public partial class GuideHologramView : Control
         {
             _portrait.QueueRedraw();
             GuideFaceView.Instance?.NotifyMouthChanged();
+            GuideCornerFace.Instance?.NotifyMouthChanged();
         }
 
         float noise = Time.GetTicksMsec() / 1000.0 < _noiseUntil ? 1f : 0f;
@@ -797,8 +799,7 @@ public partial class GuideHologramView : Control
                 {
                     float k = Mathf.Min(Size.X / src.X, Size.Y / src.Y);
                     var dst = src * k;
-                    var at = box.Position + (Size - dst) * 0.5f
-                             + new Vector2(0f, GuideMouthAnimator.BobOffset);
+                    var at = box.Position + (Size - dst) * 0.5f;
                     GuideFacePaint.Draw(this, Texture, Mouthless, new Rect2(at, dst), Cyan);
                 }
             }
@@ -909,8 +910,6 @@ public partial class GuideHologramView : Control
             // 좌우로 흐르는 스캔 표시.
             float sweep = Mathf.PosMod(_t * 0.4f, 1f);
             DrawRect(new Rect2(16f + (Size.X - 32f) * sweep, 160f, 3f, 12f), Cyan with { A = 0.7f });
-            DrawString(font, new Vector2(16f, Size.Y - 10f), "SYS DIAGNOSTIC  ·  NOMINAL",
-                HorizontalAlignment.Left, Size.X - 32f, ViewFont.S(12), Cyan with { A = 0.55f });
         }
 
         // 무슨 일이 벌어진 거지? — 재난 / 격리 붕괴 / 신원 오류.

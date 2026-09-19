@@ -39,7 +39,7 @@ public static class FacilityLogFormatter
         rows.Add(new DisplayLogEntry
         {
             Timestamp = 0f,
-            Text = $"DAY {day:00} 근무 시작 / 초기 배치 완료",
+            Text = $"{DayFeatures.DayLabel(day)} 시작 / 초기 배치 완료",
             Severity = DisplayLogSeverity.Normal,
         });
 

@@ -64,14 +64,16 @@ public partial class TitleOverlay : CanvasLayer
     }
 
     // 근무 부팅 순간 잠깐 뜨는 "NIGHT SHIFT START" 배너.
-    public void FlashBanner(string text)
+    // fontSize / hold 를 주면 더 크게, 더 오래 띄운다(가상 시뮬레이션 기동 등).
+    public void FlashBanner(string text, int fontSize = 40, double hold = 0.7)
     {
+        _banner.AddThemeFontSizeOverride("font_size", ViewFont.FS(fontSize));
         _banner.Text = text;
         _banner.Visible = true;
         _banner.Modulate = new Color(1f, 1f, 1f, 0f);
         var t = CreateTween();
         t.TweenProperty(_banner, "modulate:a", 1f, 0.18);
-        t.TweenInterval(0.7);
+        t.TweenInterval(hold);
         t.TweenProperty(_banner, "modulate:a", 0f, 0.35);
         t.TweenCallback(Callable.From(() => _banner.Visible = false));
     }

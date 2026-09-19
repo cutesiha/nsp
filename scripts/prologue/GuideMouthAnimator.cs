@@ -97,9 +97,6 @@ public static class GuideMouthAnimator
     // 글리치 동안 화면을 찢을 때 쓰는 난수 씨앗(프레임마다 바뀐다).
     public static int GlitchSeed { get; private set; }
 
-    // 말하는 동안 초상화가 아주 약하게 위아래로 움직인다(1px).
-    public static float BobOffset => Talking && Frame == GuideMouthFrame.Open ? 1f : 0f;
-
     public static Texture2D CurrentMouth => GuideArt.Mouth(Frame);
 
     private static int _step;

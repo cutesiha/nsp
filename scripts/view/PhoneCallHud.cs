@@ -55,6 +55,10 @@ public partial class PhoneCallHud : CanvasLayer
     private InterviewSession _session;
     private System.Collections.Generic.List<InterviewQuestion> _intents = new();
 
+    // 창 윗부분을 잡고 끌어 옮기는 손잡이(심문 창에서만 쓴다).
+    private Control _dragBar;
+    private bool _dragging;
+
     private string _employeeId = "";
     private string _dialogueEvent = DialogueRepository.EventGeneralCall;
     private string _incidentRoomId = "";
@@ -112,7 +116,7 @@ public partial class PhoneCallHud : CanvasLayer
         _leftCol.AddThemeConstantOverride("separation", 10);
         _body.AddChild(_leftCol);
 
-        _speaker = Lbl("", 22, Amber);
+        _speaker = Lbl("", 19, Amber);
         _leftCol.AddChild(_speaker);
 
         // 플레이어가 방금 던진 질문. 심문에서 "무엇을 물었는지"가 남아야 흐름이 읽힌다.
@@ -121,9 +125,10 @@ public partial class PhoneCallHud : CanvasLayer
         _playerLine.Visible = false;
         _leftCol.AddChild(_playerLine);
 
-        _message = Lbl("", 19, new Color(0.82f, 0.96f, 0.98f));
+        _message = Lbl("", 17, new Color(0.82f, 0.96f, 0.98f));
         _message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _message.CustomMinimumSize = new Vector2(0, 88);
+        // 답변 두 줄이 들어갈 만큼만. 넉넉히 잡으면 창 아래가 통째로 빈다.
+        _message.CustomMinimumSize = new Vector2(0, 54);
         _leftCol.AddChild(_message);
 
         _choices = new VBoxContainer();
@@ -131,6 +136,7 @@ public partial class PhoneCallHud : CanvasLayer
         _leftCol.AddChild(_choices);
 
         BuildEvidenceColumn();
+        BuildDragBar();
 
         _incoming = new Label
         {
@@ -146,6 +152,68 @@ public partial class PhoneCallHud : CanvasLayer
         _incoming.AddThemeColorOverride("font_outline_color", Colors.Black);
         _incoming.AddThemeConstantOverride("outline_size", 4);
         AddChild(_incoming);
+    }
+
+    // --- 창 옮기기 -------------------------------------------------------
+
+    // 실제 프로그램 창처럼, 위쪽 띠를 잡고 끌면 창이 따라온다.
+    // 심문 창은 화면을 크게 차지하므로 가리는 곳을 플레이어가 직접 치울 수 있어야 한다.
+    private void BuildDragBar()
+    {
+        _dragBar = new Control
+        {
+            AnchorLeft = 0f, AnchorRight = 1f, AnchorTop = 0f, AnchorBottom = 0f,
+            OffsetTop = 0f, OffsetBottom = DragBarHeight,
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            MouseDefaultCursorShape = Control.CursorShape.Move,
+            Visible = false,
+        };
+        _dragBar.GuiInput += OnDragBarInput;
+        _panel.AddChild(_dragBar);
+    }
+
+    private const float DragBarHeight = 36f;
+
+    private void OnDragBarInput(InputEvent e)
+    {
+        switch (e)
+        {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left } mb:
+                _dragging = mb.Pressed;
+                _dragBar.AcceptEvent();
+                break;
+            case InputEventMouseMotion mm when _dragging:
+                MovePanelBy(mm.Relative);
+                _dragBar.AcceptEvent();
+                break;
+        }
+    }
+
+    private void MovePanelBy(Vector2 delta)
+    {
+        _panel.OffsetLeft += delta.X;
+        _panel.OffsetRight += delta.X;
+        _panel.OffsetTop += delta.Y;
+        _panel.OffsetBottom += delta.Y;
+        ClampPanel();
+    }
+
+    // 창을 화면 밖으로 완전히 내보내지 못하게 한다 — 손잡이는 항상 잡을 수 있어야 한다.
+    private void ClampPanel()
+    {
+        var screen = GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero;
+        if (screen == Vector2.Zero) return;
+        var rect = _panel.GetRect();
+        const float Keep = 120f;
+        var want = new Vector2(
+            Mathf.Clamp(rect.Position.X, Keep - rect.Size.X, screen.X - Keep),
+            Mathf.Clamp(rect.Position.Y, 0f, screen.Y - DragBarHeight));
+        var fix = want - rect.Position;
+        if (fix.IsZeroApprox()) return;
+        _panel.OffsetLeft += fix.X;
+        _panel.OffsetRight += fix.X;
+        _panel.OffsetTop += fix.Y;
+        _panel.OffsetBottom += fix.Y;
     }
 
     // --- 조사 자료 열 ---------------------------------------------------
@@ -208,11 +276,10 @@ public partial class PhoneCallHud : CanvasLayer
             bool on = _session.IsSelected(ev.Id);
             var b = new Button
             {
-                Text = (on ? "▣ " : "□ ") + ev.Header + "\n"
-                       + (string.IsNullOrEmpty(ev.TimeText) ? "" : ev.TimeText + "  ") + ev.Body,
+                Text = (on ? "▣ " : "□ ") + ev.OneLine,
                 Alignment = HorizontalAlignment.Left,
-                AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                CustomMinimumSize = new Vector2(0, 52),
+                ClipText = true,
+                CustomMinimumSize = new Vector2(0, 32),
             };
             b.AddThemeFontOverride("font", _font);
             b.AddThemeFontSizeOverride("font_size", ViewFont.FS(13));
@@ -435,7 +502,7 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _session.BasicQuestions())
         {
             var captured = q;
-            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
+            _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
         _choices.AddChild(InterviewChoiceButton("통화를 종료한다.", CloseCall));
     }
@@ -459,10 +526,14 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _intents)
         {
             var captured = q;
-            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
+            _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
         _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
+
+    // 이미 물어본 질문에는 체크 표시만 붙인다 — 목록에서 사라지지는 않는다.
+    private string Mark(InterviewQuestion q) =>
+        _session != null && _session.WasAsked(q) ? "✓  " + q.Text : q.Text;
 
     private void AskInterview(InterviewQuestion q)
     {
@@ -472,7 +543,8 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        ShowPlayerLine(turn.QuestionText);
+        // 방금 내가 고른 질문을 다시 보여 주지 않는다 — 답변만 뜬다.
+        ShowPlayerLine("");
         RefreshEvidence();
         StartTyping("\"" + turn.Answer + "\"",
             _followUps.Count > 0 ? AfterMode.InterviewFollowUps : AfterMode.InterviewMenu);
@@ -572,8 +644,8 @@ public partial class PhoneCallHud : CanvasLayer
     {
         var b = new Button { Text = "  ›  " + text, Alignment = HorizontalAlignment.Left };
         b.AddThemeFontOverride("font", _font);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
-        b.CustomMinimumSize = new Vector2(0, 44);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
+        b.CustomMinimumSize = new Vector2(0, 40);
         b.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         b.AddThemeColorOverride("font_color", Cyan);
         b.AddThemeColorOverride("font_hover_color", Colors.White);
@@ -599,15 +671,16 @@ public partial class PhoneCallHud : CanvasLayer
     private Button InterviewChoiceButton(string text, System.Action onPressed)
     {
         var b = ChoiceButton(text, onPressed);
-        // 휴게시간 질문은 CRT에서 읽기 쉽도록 일반 선택지보다 한 단계 크게 둔다.
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
-        b.CustomMinimumSize = new Vector2(0, 38);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
+        b.CustomMinimumSize = new Vector2(0, 36);
         return b;
     }
 
     private void SetInterviewLayout(bool interview)
     {
         if (_evidenceCol != null) _evidenceCol.Visible = interview;
+        if (_dragBar != null) _dragBar.Visible = interview;
+        _dragging = false;
 
         if (interview)
         {
@@ -616,8 +689,9 @@ public partial class PhoneCallHud : CanvasLayer
             _panel.AnchorRight = 0.94f;
             _panel.AnchorTop = 1f;
             _panel.AnchorBottom = 1f;
-            _panel.OffsetTop = -600f;
-            _panel.OffsetBottom = -16f;
+            // 아래 96px 은 비워 둔다 — 그 자리에 「L 로그 / D 대화 기록」 버튼이 있다.
+            _panel.OffsetTop = -536f;
+            _panel.OffsetBottom = -96f;
             return;
         }
 

@@ -52,6 +52,11 @@
 #                                       (새 그림을 띄우지 않는다 — 직전 컷과 같은 image: 를 쓰면 된다)
 #                               warphold = 일그러진 그 상태로 멈춘다(신호 두절 문구를 올릴 때)
 #
+#       ── 시설 시스템 창 ──
+#       win:     <창 제목>        화면 한가운데 뜨는 시설 시스템 창(비상 차폐 등)
+#       winbig:  <큰 글자>        창 한가운데 크게
+#       winsub:  <작은 줄>        그 아래 작게
+#
 #       ── 비상 경보창 ──
 #       alert:     <한글 제목> | <영문 부제>   실제 시설 경보 패널처럼 크게 뜬다
 #       alertrow:  <항목> | <값>               여러 줄 가능. 한 줄씩 차례로 켜진다
@@ -287,7 +292,7 @@ title: INCOMING RADIO
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
-voice: owl
+voice: rabbit
 radio: true
 signal: 62
 text: 지상 관측망이 전부 끊겼습니다!
@@ -299,7 +304,7 @@ hold: 3.0
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
-voice: jellyfish
+voice: crow
 radio: true
 signal: 41
 text: 격리 구역에서 개체들이 빠져나왔어요!
@@ -312,7 +317,7 @@ fx: glitch
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
-voice: crow
+voice: cat
 radio: true
 signal: 18
 cutoff: true
@@ -337,13 +342,13 @@ hold: 3.2
 title:
 image:
 imagenote:
-overlay: 비상 차폐 가동\n120:00:00
-sub: EMERGENCY SEAL ENGAGED
+win: 비상 차폐
+winbig: 120:00:00
+winsub: EMERGENCY SEAL ENGAGED
 sfx: boom
 sfxloopstop: siren
 shake: 0
-hold: 2.4
-fx: blackout
+hold: 2.8
 
 # 플레이어가 머리를 세게 얻어맞고 책상에 엎어진다.
 # fx: impact 가 충격음(impact_blunt) → 강한 흔들림 → 쓰러지는 소리(body_fall) → 암전까지 한 번에 처리한다.
@@ -449,6 +454,29 @@ line: 제가 도와드리겠습니다.
 
 
 # ========================================================================
+# 가상 시뮬레이션 기동 — DAY 0 교육 직전 (오른쪽 CRT)
+#   이어지는 교육은 실제 근무가 아니라 시뮬레이션이다. 그 사실을 문구가 아니라
+#   "시뮬레이터가 실제로 올라가는 화면"으로 보여준다.
+# ========================================================================
+@console sim_boot
+line: NSP TRAINING SUBSYSTEM
+wait: 0.7
+line:
+line: > sim --load nightshift --mode=training
+wait: 0.9
+line: BUILDING VIRTUAL FACILITY ...
+wait: 0.8
+line:   STAFF PROFILES      OK
+wait: 0.3
+line:   FACILITY LAYOUT     OK
+wait: 0.3
+line:   SCENARIO SCRIPT     OK
+wait: 0.6
+line:
+ok: VIRTUAL SIMULATION READY
+
+
+# ========================================================================
 # DAY 0 튜토리얼 — STEP 별 GUIDE-0 안내
 # ========================================================================
 
@@ -469,6 +497,16 @@ portrait: normal
 line: 직원을 작업실에 배치하면 시설 복구 작업이 시작됩니다.
 line: 먼저 토끼를 끌어다 정비실에 놓아 보십시오.
 
+# 엉뚱하게 놓았을 때의 되짚기. 맞게 놓을 때까지 이 두 줄만 번갈아 뜬다.
+@guide tut_assign_wrong_room
+portrait: normal
+line: 토끼 직원은 정비실에 배치하십시오.
+
+@guide tut_assign_wrong_person
+portrait: sneer
+line: 눈이 잘못되셨나요?
+line: 정비실에는 토끼를 배치해 보십시오.
+
 @guide tut_assign_rest
 portrait: smile
 line: 좋습니다.
@@ -487,7 +525,7 @@ line: MONITOR 01을 확인하십시오.
 @guide tut_relocate
 portrait: normal
 line: 직원을 끌어다 방을 옮길 수 있습니다.
-line: 토끼를 {ROOM}으로 옮겨 수리하십시오.
+line: 토끼를 {ROOM}로 옮겨 수리하십시오.
 
 @guide tut_repair_done
 portrait: smile
@@ -525,12 +563,13 @@ line: 토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오
 
 @guide tut_ask_where
 portrait: normal
-line: ‘사고 당시 어디에 있었습니까?’ 를 물어보십시오.
+line: 오른쪽 「조사 자료」에 그 직원의 기록이 모여 있습니다.
+line: 토끼 직원의 이동 기록을 고른 뒤, 그 기록으로 질문하십시오.
 
 @guide tut_contradiction
 portrait: normal
-line: 시설 기록과 진술이 일치하지 않습니다.
-line: L키로 시설 기록을 확인해 보십시오.
+line: 진술은 그 자체로 증거가 되지 않습니다.
+line: L키로 시설 기록을 열어 방금 들은 말과 맞대어 보십시오.
 
 @guide tut_dialogue_log
 portrait: normal

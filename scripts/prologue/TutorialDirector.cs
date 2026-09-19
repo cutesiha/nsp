@@ -39,6 +39,9 @@ public partial class TutorialDirector : Node
 
     // STEP 6 의 모순을 만들기 위해 STEP 3 에서 토끼가 "원래 있던" 작업실을 기억해 둔다.
     private string _rabbitOriginRoomName = "";
+    // 플레이어가 토끼에게 '조사 자료로' 질문했는가(이동 기록이면 더 좋다).
+    private bool _rabbitAskedWithEvidence;
+    private bool _rabbitAskedAnything;
     private bool _rabbitAnsweredWhere;
 
     public override void _Ready()
@@ -80,6 +83,8 @@ public partial class TutorialDirector : Node
 
         // STEP 6 의 교육용 진술. 실제 로그와 어긋나는 문장을 이 후크로만 돌려준다.
         LocalDialogueGenerator.ScriptedAnswerOverride = ScriptedAnswer;
+        // 심문에서 무엇을 물었는지 듣는다 — 진행 조건 판정에만 쓴다.
+        InterviewSession.Asked += OnInterviewAsked;
 
         // ── STEP 1 : 직원 확인 ────────────────────────────────────────
         await Say("tut_intro");
@@ -87,7 +92,7 @@ public partial class TutorialDirector : Node
 
         // ── STEP 2 : 배치 ────────────────────────────────────────────
         await Say("tut_assign");
-        await Until(() => sim?.GetEmployeeState(TutorialEmployeeId)?.AssignedRoomId == AssignRoomId);
+        await WaitForTutorialAssign(sim);
         Sfx.Instance?.Play("assign", -6f);
         await Say("tut_assign_rest");
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Live);
@@ -122,8 +127,13 @@ public partial class TutorialDirector : Node
         await Say("tut_log_done");
 
         // ── STEP 5 : 전화 / 대화 ──────────────────────────────────────
+        // 벨이 먼저 울리고, 그 소리를 들은 뒤에 안내가 뜬다.
+        // (안내를 읽고 나서야 전화가 오면 순서가 거꾸로다.)
+        string caller = PickCaller();
+        RingTutorialCall(caller);
+        await Wait(TutorialCallRingLeadSeconds);
         await Say("tut_call");
-        await WaitForIncomingCallAnswered();
+        await WaitForIncomingCallAnswered(caller);
         await Until(() => PhoneCallHud.Instance?.IsOpen != true);
         await Say("tut_call_done");
 
@@ -136,7 +146,9 @@ public partial class TutorialDirector : Node
         await Until(() => PhoneCallHud.Instance?.IsOpen == true
                           && PhoneCallHud.Instance.CurrentEmployeeId == TutorialEmployeeId);
         await Say("tut_ask_where");
-        await Until(() => _rabbitAnsweredWhere);
+        // 이동 기록으로 물으면 통과. 옮긴 기록이 아예 없는 판이면 아무 질문이나 하면 된다.
+        await Until(() => _rabbitAskedWithEvidence
+                          || (string.IsNullOrEmpty(_rabbitOriginRoomName) && _rabbitAskedAnything));
         // 토끼가 실제로 방을 옮긴 기록이 있을 때만 "기록과 진술이 다르다"고 말한다.
         // (플레이어가 지시와 다르게 움직여 재배치 기록이 없으면 그 단계는 건너뛴다.)
         if (!string.IsNullOrEmpty(_rabbitOriginRoomName))
@@ -155,6 +167,42 @@ public partial class TutorialDirector : Node
 
         Finish();
         _flow?.AdvanceFromTutorial();
+    }
+
+    // 토끼가 정비실에 놓일 때까지 기다린다. 엉뚱하게 놓으면 무엇이 틀렸는지 짚어 준다.
+    // 같은 잘못을 반복해도 잔소리가 쌓이지 않게, 상태가 바뀔 때만 한 번씩 말한다.
+    private async Task WaitForTutorialAssign(FacilitySimulation sim)
+    {
+        string said = "";
+        while (IsRunning)
+        {
+            string rabbitRoom = sim?.GetEmployeeState(TutorialEmployeeId)?.AssignedRoomId ?? "";
+            if (rabbitRoom == AssignRoomId) return;
+
+            // 정비실에 엉뚱한 직원이 들어갔는가 / 토끼가 엉뚱한 방에 갔는가.
+            bool intruder = !string.IsNullOrEmpty(OtherAssignedTo(sim, AssignRoomId));
+            string want = intruder ? "tut_assign_wrong_person"
+                : !string.IsNullOrEmpty(rabbitRoom) ? "tut_assign_wrong_room"
+                : "";
+
+            if (want.Length == 0) { said = ""; await NextFrame(); continue; }
+            if (want == said) { await NextFrame(); continue; }
+
+            said = want;
+            await Say(want);
+        }
+    }
+
+    // 그 작업실에 배치된 '교육 대상이 아닌' 직원. 없으면 빈 값.
+    private string OtherAssignedTo(FacilitySimulation sim, string roomId)
+    {
+        if (sim == null || string.IsNullOrEmpty(roomId)) return "";
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            if (id == TutorialEmployeeId) continue;
+            if (sim.GetEmployeeState(id)?.AssignedRoomId == roomId) return id;
+        }
+        return "";
     }
 
     // 왼쪽 CRT 를 잠시 '영상' 재생기로 바꿔 결번자 컷씬을 틀고, 끝나면 휴게 명단으로 되돌린다.
@@ -182,26 +230,49 @@ public partial class TutorialDirector : Node
         AmbientOverlay.Instance?.SetSceneIntensity(0.1f);
     }
 
-    // 정해진 직원 한 명이 사고를 보고한다. 못 받으면(직원이 끊으면) 다시 건다 — 교육이 멈추지 않게.
-    private async Task WaitForIncomingCallAnswered()
+    // 안내가 뜨기 전에 벨을 먼저 울리는 시간.
+    private const double TutorialCallRingLeadSeconds = 1.3;
+
+    // 사고를 보고할 직원 한 명. 교육 대상(토끼)은 제외한다.
+    private string PickCaller()
     {
         var sim = FacilitySimulation.Instance;
-        string caller = "";
         foreach (var id in sim?.GetActiveEmployeeIds() ?? new System.Collections.Generic.List<string>())
         {
             if (id == TutorialEmployeeId) continue;
-            if (sim.IsOnDuty(id)) { caller = id; break; }
+            if (sim.IsOnDuty(id)) return id;
         }
+        return "";
+    }
+
+    private void RingTutorialCall(string caller)
+    {
+        if (string.IsNullOrEmpty(caller)) return;
+        if (Phone3D.Instance is { IsBusy: false })
+            Phone3D.Instance.RingIncoming(caller, DialogueRepository.EventAccidentNearby, AccidentRoomId);
+    }
+
+    // 못 받으면(직원이 끊으면) 다시 건다 — 교육이 멈추지 않게.
+    private async Task WaitForIncomingCallAnswered(string caller)
+    {
         if (string.IsNullOrEmpty(caller)) return;
 
         while (PhoneCallHud.Instance?.IsOpen != true)
         {
-            if (Phone3D.Instance is { IsBusy: false })
-                Phone3D.Instance.RingIncoming(caller, DialogueRepository.EventAccidentNearby, AccidentRoomId);
+            RingTutorialCall(caller);
             // 벨이 울리는 동안(또는 다시 걸기 전) 잠깐 기다린다.
             await Wait(1.0);
             if (!IsRunning) return;
         }
+    }
+
+    // 심문에서 플레이어가 던진 질문. 교육 진행 조건만 본다(대사에는 관여하지 않는다).
+    private void OnInterviewAsked(string employeeId, InterviewQuestion q)
+    {
+        if (employeeId != TutorialEmployeeId || q == null) return;
+        _rabbitAskedAnything = true;
+        // 조사 자료를 근거로 던진 질문이어야 "기록으로 물었다"고 본다.
+        if (!string.IsNullOrEmpty(q.EvidenceId)) _rabbitAskedWithEvidence = true;
     }
 
     // STEP 6 교육용 고정 진술. 토끼의 "사고 당시 어디에 있었나" 답변만 가로채고,
@@ -220,7 +291,9 @@ public partial class TutorialDirector : Node
     {
         IsRunning = false;
         LocalDialogueGenerator.ScriptedAnswerOverride = null;
+        InterviewSession.Asked -= OnInterviewAsked;
         if (_guide != null) _guide.LineShown -= OnGuideLine;
+        GuideCornerFace.Instance?.SetShown(false);
         _guide?.HideHologram();
         GuideSubtitleHud.Instance?.SetActive(false);
         GuideSubtitleHud.Instance?.Clear();
@@ -236,10 +309,9 @@ public partial class TutorialDirector : Node
 
     private Task Say(string guideId, System.Collections.Generic.Dictionary<string, string> replacements = null)
     {
-        // 휴게시간에는 오른쪽 CRT 가 인터뷰 화면이다 — 그 화면을 빼앗지 않는다.
-        // 그동안 GUIDE-0 의 지시는 화면 아래 자막 띠(GuideSubtitleHud)가 대신 전한다.
-        if (GameState.Instance?.CurrentPhase != GamePhase.Rest)
-            _ctl?.SetRightScreen(_ctl.GuideViewport);
+        // 교육 중에는 어떤 화면도 빼앗지 않는다. 지시는 화면 아래 자막 띠가 전하고,
+        // GUIDE-0 의 얼굴은 CCTV 화면 오른쪽 아래 구석의 작은 창으로만 뜬다.
+        GuideCornerFace.Instance?.SetShown(true);
         return PrologueDirector.ShowGuide(_guide, guideId, replacements);
     }
 

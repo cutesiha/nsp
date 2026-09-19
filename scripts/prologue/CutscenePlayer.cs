@@ -49,6 +49,8 @@ public partial class CutscenePlayer : Control
     // 코어 출력 게이지 — 영상 한가운데 아래쪽.
     private static readonly Rect2 GaugeBox = new(70f, 232f, 660f, 168f);
     // 비상 경보창 — 실제 시설 경보 패널처럼 영상 한가운데 크게 뜬다.
+    // 시설 시스템 창(비상 차폐 등) 자리 — 영상 한가운데.
+    private static readonly Rect2 SealBox = new(228f, 176f, 344f, 168f);
     private static readonly Rect2 AlertBox = new(118f, 78f, 564f, 362f);
 
     private Font _font;
@@ -73,6 +75,7 @@ public partial class CutscenePlayer : Control
     private RadioHud _radioHud;
     private GaugePanel _gauge;
     private AlertBoard _alertBoard;
+    private SealWindow _sealWindow;
     private WarpOverlay _warp;
 
     private PrologueScript.Cutscene _cutscene;
@@ -173,6 +176,7 @@ public partial class CutscenePlayer : Control
         _radioHud.Visible = false;
         _gauge.Visible = false;
         _alertBoard.Visible = false;
+        _sealWindow.Visible = false;
         _warp.Visible = false;
         _warp.Amount = 0f;
         _tint.Color = _tint.Color with { A = 0f };
@@ -379,6 +383,16 @@ public partial class CutscenePlayer : Control
     // 비상 경보창 — 제목/부제/항목들/맨 아랫줄. 항목은 한 줄씩 차례로 뜬다.
     private void SetupAlertBoard(PrologueScript.Slide s)
     {
+        bool win = !string.IsNullOrEmpty(s.WinTitle);
+        _sealWindow.Visible = win;
+        if (win)
+        {
+            _sealWindow.Title = s.WinTitle;
+            _sealWindow.Big = s.WinBig;
+            _sealWindow.Sub = s.WinSub;
+            _sealWindow.Reset();
+        }
+
         bool on = !string.IsNullOrEmpty(s.AlertTitle);
         _alertBoard.Visible = on;
         if (!on) return;
@@ -499,6 +513,7 @@ public partial class CutscenePlayer : Control
         if (_radioHud.Visible) _radioHud.Tick((float)delta);
         if (_gauge.Visible) _gauge.Tick(_slideElapsed);
         if (_alertBoard.Visible) _alertBoard.Tick(_slideElapsed);
+        if (_sealWindow.Visible) _sealWindow.Tick(_slideElapsed);
 
         ApplyFx();
         UpdateChrome();
@@ -852,6 +867,15 @@ public partial class CutscenePlayer : Control
         };
         _frame.AddChild(_gauge);
 
+        _sealWindow = new SealWindow
+        {
+            Position = SealBox.Position,
+            Size = SealBox.Size,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _frame.AddChild(_sealWindow);
+
         _alertBoard = new AlertBoard
         {
             Position = AlertBox.Position,
@@ -904,7 +928,8 @@ public partial class CutscenePlayer : Control
         _fade.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_fade);
 
-        _clickHint = MakeLabel("▶  SPACE / ENTER / 클릭", 13, new Color(0.62f, 0.72f, 0.72f),
+        // 글자 없이 삼각형 하나만 — 무엇을 눌러야 하는지는 이미 몸이 안다.
+        _clickHint = MakeLabel("▶", 15, new Color(0.62f, 0.72f, 0.72f),
             new Vector2(0f, VideoArea.Position.Y + VideoArea.Size.Y - 26f));
         _clickHint.Size = new Vector2(Canvas.X - 34f, 20f);
         _clickHint.HorizontalAlignment = HorizontalAlignment.Right;
@@ -1251,6 +1276,61 @@ public partial class CutscenePlayer : Control
             if (_footShown && !string.IsNullOrEmpty(Foot))
                 DrawString(font, new Vector2(0f, Size.Y - 30f), Foot, HorizontalAlignment.Center,
                     Size.X, ViewFont.S(24), new Color(1f, 0.36f, 0.30f, 0.55f + 0.45f * pulse));
+        }
+    }
+
+    // --- 시설 시스템 창 -------------------------------------------------------
+    // 경보(붉은 패널)와 달리 "시설이 뭔가를 실행했다"는 담담한 알림창이다.
+    // 바로 사라지지 않고 슬라이드가 끝날 때까지 그대로 떠 있는다.
+    private partial class SealWindow : Control
+    {
+        public string Title = "";
+        public string Big = "";
+        public string Sub = "";
+
+        private static readonly Color Line = new(0.62f, 0.92f, 1f);
+        private static readonly Color Deep = new(0.03f, 0.10f, 0.13f, 0.93f);
+
+        private float _t;
+
+        public void Reset() { _t = 0f; QueueRedraw(); }
+
+        public void Tick(double elapsed)
+        {
+            _t = (float)elapsed;
+            QueueRedraw();
+        }
+
+        public override void _Draw()
+        {
+            var box = new Rect2(Vector2.Zero, Size);
+            // 창이 '열리는' 짧은 순간 — 세로로 펼쳐진다.
+            float grow = Mathf.Clamp(_t / 0.18f, 0.08f, 1f);
+            var shown = new Rect2(box.Position.X, box.Position.Y + Size.Y * (1f - grow) * 0.5f,
+                Size.X, Size.Y * grow);
+
+            DrawRect(shown, Deep);
+            DrawRect(shown, Line with { A = 0.9f }, false, 2f);
+            if (grow < 1f) return;
+
+            // 제목 표시줄.
+            var font = ViewFont.Default;
+            var bar = new Rect2(shown.Position.X, shown.Position.Y, shown.Size.X, 30f);
+            DrawRect(bar, new Color(0.10f, 0.30f, 0.36f, 0.95f));
+            DrawString(font, bar.Position + new Vector2(12f, 21f), Title,
+                HorizontalAlignment.Left, shown.Size.X - 24f, ViewFont.S(16), Line);
+
+            // 가운데 큰 글자 — 아주 느리게 맥동한다.
+            float pulse = 0.82f + 0.18f * Mathf.Sin(_t * 3.4f);
+            DrawString(font, new Vector2(0f, 104f), Big, HorizontalAlignment.Center,
+                Size.X, ViewFont.S(44), new Color(0.88f, 1f, 1f, pulse));
+
+            if (!string.IsNullOrEmpty(Sub))
+                DrawString(font, new Vector2(0f, 136f), Sub, HorizontalAlignment.Center,
+                    Size.X, ViewFont.S(14), Line with { A = 0.7f });
+
+            DrawRect(new Rect2(shown.Position.X + 20f, shown.Position.Y + shown.Size.Y - 22f,
+                shown.Size.X - 40f, 1f), Line with { A = 0.3f });
         }
     }
 

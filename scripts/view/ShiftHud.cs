@@ -37,7 +37,7 @@ public partial class ShiftHud : CanvasLayer
         if (!live) return;
 
         int day = GameState.Instance?.CurrentDay ?? 1;
-        string text = $"DAY {day:00}";
+        string text = DayFeatures.DayLabel(day);
         if (_day.Text != text) _day.Text = text;
 
         _gauge?.SetProgress(GameState.Instance?.CoreProgress ?? 0f);

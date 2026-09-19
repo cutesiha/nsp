@@ -203,7 +203,8 @@ public partial class ShiftFlowController : Node
 
         _board?.SetActive(true);
         // 배치표 단계에서는 자막 띄를 위로 올린다 — 아래쪽 ‘근무 시작’ 버튼을 가리지 않게.
-        NSP.Prologue.GuideSubtitleHud.Instance?.SetTopAligned(true);
+        // 자막 띠는 항상 화면 아래 같은 자리에 둔다(단계마다 옮기면 눈이 따라가지 못한다).
+        NSP.Prologue.GuideSubtitleHud.Instance?.SetTopAligned(false);
         _ctl?.SetInputLocked(false);
         _ctl?.SetModalSurface(_board);
 
@@ -277,7 +278,8 @@ public partial class ShiftFlowController : Node
         if (_ctl != null)
         {
             _ctl.SetLeftScreen(_ctl.FacilityViewport);
-            _ctl.SetRightScreen(DayFeatures.IsTutorialDay ? _ctl.GuideViewport : _ctl.CctvViewport);
+            // 교육일에도 오른쪽은 CCTV 다 — GUIDE-0 는 그 화면 구석의 작은 창으로만 뜬다.
+            _ctl.SetRightScreen(_ctl.CctvViewport);
         }
         _stage = Stage.Shift;
     }

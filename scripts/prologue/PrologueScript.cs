@@ -57,6 +57,11 @@ public static class PrologueScript
         public string GaugeSub = "";
         public string GaugeAlert = "";
         public readonly List<float> GaugeSteps = new();
+        // 시설 시스템 창(비상 차폐 등). WinTitle 이 비어 있으면 안 그린다.
+        public string WinTitle = "";
+        public string WinBig = "";
+        public string WinSub = "";
+
         // 비상 경보창 — 빨간 경보 패널. AlertTitle 이 비어 있으면 안 그린다.
         public string AlertTitle = "";
         public string AlertSub = "";
@@ -332,6 +337,9 @@ public static class PrologueScript
                 s.AlertRows.Add((a, b));
                 return true;
             }
+            case "win": s.WinTitle = value; return true;
+            case "winbig": s.WinBig = value; return true;
+            case "winsub": s.WinSub = value; return true;
             case "alertfoot": s.AlertFoot = value; return true;
             case "sfxafter": s.SfxAfter = value; return true;
             case "sfx": s.Sfx = value; return true;

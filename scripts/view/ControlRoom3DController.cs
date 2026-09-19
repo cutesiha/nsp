@@ -222,6 +222,9 @@ public partial class ControlRoom3DController : Node3D
 
         _cctvVp = MakeViewport();
         AddScaledView(_cctvVp, new CCTVMonitorView(), MonitorCanvasSize);
+        // DAY0 교육에서 CCTV 화면 구석에 뜨는 작은 GUIDE-0 얼굴창.
+        // CCTV 뷰와 같은 캔버스에 나중에 붙어 그 위에 그려진다.
+        _cctvVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
         _reportVp = MakeViewport();
         AddScaledView(_reportVp, new ShiftReportView(), MonitorCanvasSize);

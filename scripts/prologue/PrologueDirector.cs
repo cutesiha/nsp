@@ -115,9 +115,10 @@ public partial class PrologueDirector : Node
         await Wait(1.35);
 
         // 화면이 천천히 돌아온다 — 어두워진 실제 중앙제어실.
+        // 앉았다 갑자기 일어난 것처럼, 시야가 한참 일그러졌다가 서서히 가라앉는다.
         _ctl?.ResetCameraCollapse();   // 책상에 엎어진 자세를 정상으로 되돌린다
-        _title?.FadeFromBlack(1.3f);
-        await Wait(1.5);
+        _title?.FadeFromBlack(1.6f);
+        await DizzyRecovery();
 
         // ── #3 : 어두운 제어실에서 오른쪽 CRT 하나만 '틱' 하고 켜진다 ────────
         // 모니터를 확대하지 않는다 — 실시간 운영과 같은 제어실 전체 화면에서 진행한다.
@@ -163,8 +164,9 @@ public partial class PrologueDirector : Node
         {
             var pick = await ShowMenu(guide, MainMenuId);
             if (pick == null) break;
-            // 답변이 끝나는 순간 다시 선택지로 — 여기서도 추가 클릭이 필요 없다.
-            await ShowGuide(guide, pick.GuideId, null, completeWhenTyped: true);
+            // 답변의 마지막 줄도 반드시 입력을 받고 넘어간다 — 다 찍히자마자 다음으로
+            // 넘어가면 마지막 문장을 읽을 새가 없다(특히 세 번째 답변 → DAY 0 예고).
+            await ShowGuide(guide, pick.GuideId);
             if (pick.IsFinal) break;
         }
 
@@ -172,17 +174,69 @@ public partial class PrologueDirector : Node
         await ShowGuide(guide, "g_day0_open");
         await Wait(0.3);
 
-        guide.HideHologram();
         guide.SetCompact(false);
         GuideFaceView.Instance?.SetShown(false);
         guide.LineShown -= OnGuideLine;
         GuideSubtitleHud.Instance?.SetActive(false);
         GuideSubtitleHud.Instance?.Clear();
-        _ctl?.ClearFocus();
-        _title?.FlashBanner("DAY 0   비상 관리자 교육");
-        await Wait(1.4);
+        guide.HideHologram();
+
+        // ── 가상 시뮬레이션 기동 ────────────────────────────────────────
+        // 이어지는 교육은 실제 근무가 아니라 시뮬레이션이다. "DAY 0" 이라고만 띄우면
+        // 그게 전달되지 않으므로, 오른쪽 CRT 에서 시뮬레이터를 실제로 올리는 걸 보여준다.
+        // 화면은 확대하지 않는다 — 제어실 전체를 보면서 오른쪽 CRT 가 켜지는 걸 본다.
+        _ctl?.SetRightScreen(_ctl.GuideViewport);
+        await Wait(0.45);
+        await PlayConsole(guide, "sim_boot");
+        await Wait(0.5);
+        guide.ClearConsole();
+
+        _title?.FlashBanner("가상 시뮬레이션   S T A R T", 68, 1.2);
+        await Wait(2.1);
 
         Complete();
+    }
+
+    // 의식이 돌아오는 몇 초. 노이즈·화면 일그러짐·머리 흔들림이 한꺼번에 컸다가 잦아든다.
+    // (기립성 저혈압으로 눈앞이 도는 그 느낌.)
+    private const float DizzySeconds = 4.6f;
+    private const float DizzyNoise = 0.62f;        // 시작 노이즈
+    private const float DizzyDistortion = 0.22f;   // 시작 화면 일그러짐
+
+    private readonly RandomNumberGenerator _dizzyRng = new();
+
+    private async Task DizzyRecovery()
+    {
+        float baseNoise = 0.035f;   // 평소 게임 화면의 노이즈
+        double t = 0;
+        double nextLurch = 0.35;
+
+        while (t < DizzySeconds)
+        {
+            await NextFrame();
+            double dt = GetProcessDeltaTime();
+            t += dt;
+            // 남은 어지러움. 뒤로 갈수록 가파르게 잦아든다.
+            float k = Mathf.Pow(1f - (float)(t / DizzySeconds), 2.2f);
+
+            // 숨을 쉬듯 느리게 밀려왔다 빠지는 파동을 얹는다.
+            float wave = 0.65f + 0.35f * Mathf.Sin((float)t * 2.7f);
+            _ctl?.SetScreenNoise(baseNoise + DizzyNoise * k * wave);
+            _ctl?.SetScreenDistortion(DizzyDistortion * k * wave);
+
+            // 가끔 한 번씩 크게 휘청인다.
+            nextLurch -= dt;
+            if (nextLurch <= 0 && k > 0.25f)
+            {
+                nextLurch = 0.55 + _dizzyRng.RandfRange(0.2f, 0.7f);
+                _ctl?.ShakeCamera(0.5f * k, 0.5f);
+                NSP.Ui.AmbientOverlay.Instance?.PulseNoise(0.45f * k);
+                Sfx.Instance?.Play("tinnitus", -26f + 12f * (1f - k));
+            }
+        }
+
+        _ctl?.SetScreenNoise(baseNoise);
+        _ctl?.SetScreenDistortion(0f);
     }
 
     // 제어실 전체 화면에서 진행하는 동안 오른쪽 CRT 는 멀리 있다 — 같은 문장을 화면 아래에도 띄운다.

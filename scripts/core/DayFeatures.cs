@@ -33,6 +33,10 @@ public static class DayFeatures
     // 능력치가 잠겨 있으면 실제 수치 대신 "보통"으로 읽는다.
     public static int EffectiveStat(int rawValue) => StatsEnabled ? rawValue : NeutralStatValue;
 
+    // 화면에 뜨는 날짜 표기. DAY0 은 실제 근무가 아니라 교육이므로 이름부터 다르게 부른다.
+    // ("DAY 0" 이라고만 쓰면 실제 1일차와 헷갈린다.)
+    public static string DayLabel(int day) => day <= 0 ? "가상 시뮬레이션" : $"DAY {day}";
+
     // 오늘 이 작업실을 쓰는가(배치 / 업무 발생 / 무인 사고 / 지도 표시 판정의 단일 창구).
     public static bool IsRoomActive(RoomDef def) => def == null || Day >= def.UnlockDay;
 }

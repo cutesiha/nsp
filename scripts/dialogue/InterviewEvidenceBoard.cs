@@ -55,7 +55,7 @@ public static class InterviewEvidenceBoard
             Kind = EvidenceKind.Mood,
             Header = "자가보고",
             TimeText = "",
-            Body = "오늘의 기분 : " + mood,
+            Body = mood,
             SubjectEmployeeId = id,
             MoodText = mood,
             HasTime = false,
@@ -145,7 +145,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Cctv,
                 Header = "CCTV",
                 TimeText = DialogueClock.Text(o.Time),
-                Body = $"{RoomName(o.RoomId)} / {Codename(target)} 확인",
+                Body = $"{RoomName(o.RoomId)}에서 확인",
                 SubjectEmployeeId = target,
                 AnchorTime = o.Time,
                 HasTime = true,
@@ -169,7 +169,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(s.SpeakerId) + "의 증언",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
-                Body = $"\"{RoomName(s.RoomId)}에서 {Codename(target)}를 봤습니다.\"",
+                Body = $"{Codename(s.SpeakerId)} · {RoomName(s.RoomId)}에서 봤다",
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = s.SpeakerId,
                 AnchorTime = s.AnchorTime,
@@ -188,14 +188,13 @@ public static class InterviewEvidenceBoard
         foreach (var st in PlayerKnownEvidence.StatementsBy(target))
         {
             n++;
-            string when = st.HasTime ? DialogueClock.Spoken(st.AnchorTime) + "에는 " : "";
             list.Add(new InterviewEvidence
             {
                 Id = $"claim:{n}:{st.IncidentKey}",
                 Kind = EvidenceKind.OwnStatement,
                 Header = Codename(target) + "의 진술",
                 TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",
-                Body = $"\"{when}{RoomName(st.RoomId)}에 있었습니다.\"",
+                Body = $"본인 · {RoomName(st.RoomId)}에 있었다",
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = target,
                 AnchorTime = st.AnchorTime,

@@ -1,0 +1,111 @@
+using Godot;
+using NSP.View;
+
+namespace NSP.Prologue;
+
+// DAY0 교육에서 오른쪽 CRT(모니터 2) 구석에 뜨는 작은 GUIDE-0 얼굴창.
+//
+// 교육 중에도 CCTV 는 계속 보여야 한다. 그래서 화면을 통째로 빼앗지 않고,
+// CCTV 화면 안 오른쪽 아래에 작은 창으로만 얹는다.
+// (대사 자체는 화면 아래 자막 띠 GuideSubtitleHud 가 맡는다.)
+//
+// CCTV 뷰포트의 자식으로 붙기 때문에 CCTV 가 화면에 떠 있을 때만 보인다.
+public partial class GuideCornerFace : Control
+{
+    public static GuideCornerFace Instance { get; private set; }
+
+    private static readonly Vector2 Canvas = new(800f, 600f);
+    private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+
+    // 창 전체 자리 — CCTV 화면 오른쪽 아래 구석.
+    // 아래 여백을 넉넉히 둔다 — 모니터 2 를 확대해서 보면 화면 아래 자막 띠가
+    // 이 자리까지 올라오기 때문이다.
+    private const float WinW = 176f, WinH = 196f;
+    private const float MarginX = 14f, MarginY = 62f;
+    private const float BarH = 22f;
+
+    private Font _font;
+    private Texture2D _texture;
+    private bool _mouthless;
+    private bool _shown;
+    private float _t;
+
+    public override void _Ready()
+    {
+        Instance = this;
+        _font = ViewFont.Default;
+        SetAnchorsPreset(LayoutPreset.FullRect);
+        Size = Canvas;
+        MouseFilter = MouseFilterEnum.Ignore;
+        Visible = false;
+        SetProcess(true);
+    }
+
+    public override void _ExitTree()
+    {
+        if (Instance == this) Instance = null;
+    }
+
+    public void SetPortrait(string expression, Texture2D texture, bool mouthless)
+    {
+        _texture = texture;
+        _mouthless = mouthless;
+        if (_shown) QueueRedraw();
+    }
+
+    public void SetShown(bool shown)
+    {
+        _shown = shown;
+        Visible = shown;
+        QueueRedraw();
+    }
+
+    // 입 모양이 바뀐 프레임에만 다시 그린다.
+    public void NotifyMouthChanged()
+    {
+        if (_shown) QueueRedraw();
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!_shown) return;
+        _t += (float)delta;
+        // 홀로그램 특유의 미세한 흔들림. 매 프레임 다시 그릴 필요는 없다.
+        if (Mathf.PosMod(_t, 0.2f) < delta) QueueRedraw();
+    }
+
+    public override void _Draw()
+    {
+        if (!_shown) return;
+
+        var win = new Rect2(Canvas.X - WinW - MarginX, Canvas.Y - WinH - MarginY, WinW, WinH);
+        DrawRect(win, new Color(0.04f, 0.15f, 0.18f, 0.92f));
+        DrawRect(win, Cyan with { A = 0.8f }, false, 1.5f);
+
+        var bar = new Rect2(win.Position.X, win.Position.Y, win.Size.X, BarH);
+        DrawRect(bar, new Color(0.10f, 0.32f, 0.36f, 0.95f));
+        DrawString(_font, bar.Position + new Vector2(8f, 16f), "GUIDE-0.exe",
+            HorizontalAlignment.Left, win.Size.X - 16f, ViewFont.S(11), Cyan with { A = 0.95f });
+
+        var face = new Rect2(win.Position.X + 8f, win.Position.Y + BarH + 8f,
+            win.Size.X - 16f, win.Size.Y - BarH - 16f);
+        DrawRect(face, new Color(0.02f, 0.10f, 0.13f, 0.95f));
+
+        if (_texture != null)
+        {
+            var src = _texture.GetSize();
+            if (src.X > 0f && src.Y > 0f)
+            {
+                float k = Mathf.Min(face.Size.X / src.X, face.Size.Y / src.Y);
+                var dst = src * k;
+                var at = face.Position + (face.Size - dst) * 0.5f;
+                GuideFacePaint.Draw(this, _texture, _mouthless, new Rect2(at, dst), Cyan);
+            }
+        }
+        DrawRect(face, Cyan with { A = 0.55f }, false, 1f);
+
+        // 스캔라인 — 옆의 CCTV 화면과 질감을 맞춘다.
+        for (float y = win.Position.Y + BarH; y < win.End.Y; y += 4f)
+            DrawRect(new Rect2(win.Position.X, y, win.Size.X, 1f), new Color(0.55f, 0.95f, 1f, 0.05f));
+    }
+}

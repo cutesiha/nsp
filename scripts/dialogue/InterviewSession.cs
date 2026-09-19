@@ -51,16 +51,21 @@ public sealed class InterviewSession
     // --- 질문 목록 -------------------------------------------------------
 
     // 증거 없이 물을 수 있는 기본 질문. 인터뷰의 도입부일 뿐 중심이 아니다.
+    // 이미 물어본 질문도 목록에서 빼지 않는다 — 같은 걸 다시 물어볼 수 있어야
+    // 진술을 재확인하거나 놓친 문장을 다시 읽을 수 있다. 표시만 남긴다.
     public List<InterviewQuestion> BasicQuestions() =>
-        InterviewQuestionFactory.BasicQuestions(EmployeeId).Where(q => !_asked.Contains(q.Key)).ToList();
+        InterviewQuestionFactory.BasicQuestions(EmployeeId);
 
     // 지금 고른 자료 한 장으로 물을 수 있는 것들.
     public List<InterviewQuestion> QuestionsForSelection()
     {
         var ev = EvidenceAt(_selected.Count - 1);
         if (ev == null) return new List<InterviewQuestion>();
-        return InterviewQuestionFactory.For(EmployeeId, ev).Where(q => !_asked.Contains(q.Key)).ToList();
+        return InterviewQuestionFactory.For(EmployeeId, ev);
     }
+
+    // 이미 물어본 질문인가 — 화면에서 체크 표시를 붙이는 데만 쓴다.
+    public bool WasAsked(InterviewQuestion q) => q != null && _asked.Contains(q.Key);
 
     // --- 모순 추궁 -------------------------------------------------------
 
@@ -80,11 +85,16 @@ public sealed class InterviewSession
         public List<InterviewQuestion> FollowUps = new();
     }
 
+    // 플레이어가 무엇을 물었는지 알린다. DAY0 교육이 진행 조건으로만 듣는다
+    // (게임 규칙은 이 이벤트를 쓰지 않는다).
+    public static event System.Action<string, InterviewQuestion> Asked;
+
     public Turn Ask(InterviewQuestion q)
     {
         var turn = new Turn();
         if (q == null) return turn;
         _asked.Add(q.Key);
+        Asked?.Invoke(EmployeeId, q);
         turn.QuestionText = q.Text;
 
         // 기본 질문은 기존 파이프라인이 그대로 답한다 — 잘 돌고 있는 길을 건드리지 않는다.
@@ -159,6 +169,8 @@ public sealed class InterviewSession
         {
             if (result.Count >= 2) break;
             var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent);
+            // 꼬리질문은 '방금 답변에서 이어지는 것'이라 이미 물은 건 뺀다
+            // (기본 목록과 자료 질문에는 그대로 남아 있다).
             if (string.IsNullOrEmpty(q.Text) || _asked.Contains(q.Key)) continue;
             result.Add(q);
         }

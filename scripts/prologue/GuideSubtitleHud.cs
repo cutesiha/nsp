@@ -132,9 +132,11 @@ public partial class GuideSubtitleHud : CanvasLayer
         foreach (var c in choices)
         {
             var captured = c;
-            var accent = c.Disabled ? new Color(0.30f, 0.44f, 0.48f) : new Color(0.55f, 0.95f, 1f);
+            // 이미 고른 선택지도 같은 색으로 둔다 — 어둡게 하면 글씨를 읽을 수 없다.
+            var accent = new Color(0.55f, 0.95f, 1f);
             var b = MonitorUi.Button(c.Text, accent, ViewFont.Default,
                 () => captured.OnPick?.Invoke(), ViewFont.FS(15));
+            b.AddThemeColorOverride("font_disabled_color", accent);
             b.Alignment = HorizontalAlignment.Left;
             b.Disabled = c.Disabled;
             b.CustomMinimumSize = new Vector2(0f, ChoiceHeight);

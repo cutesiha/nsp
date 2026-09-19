@@ -65,6 +65,8 @@ public partial class TitleRoomDirector : Node
     // 마우스 위치 — 실제 커서 폴링과 모션 이벤트 중 최근 것을 쓴다.
     private Vector2 _mouse;
     private Vector2 _lastPolled = new(-9999f, -9999f);
+    // 이번 프레임에 마우스가 실제로 움직였는가(호버가 커서를 가져갈 자격).
+    private bool _mouseMoved;
     private double _nextFlicker = 7.0, _nextDistant = 11.0;
     private readonly RandomNumberGenerator _rng = new();
 
@@ -156,11 +158,11 @@ public partial class TitleRoomDirector : Node
         term?.ShowMenu(true);
         await Wait(0.18);
         while (term != null && !term.MenuRevealDone) await NextFrame();
-        await Wait(0.55);
+        await Wait(0.30);
 
-        // 2) 화면이 천천히 축소되며 제어실 전체가 드러난다.
-        _ctl?.ClearFocus(1.15f);
-        await Wait(0.45);
+        // 2) 화면이 축소되며 제어실 전체가 드러난다.
+        _ctl?.ClearFocus(0.70f);
+        await Wait(0.30);
 
         // 3) 축소되는 동안 나머지 장비가 하나씩 켜진다.
         Sfx.Instance?.Play("relay_click", -7f);        // 오른쪽 모니터(직원 신원) ON
@@ -314,7 +316,7 @@ public partial class TitleRoomDirector : Node
         if (_phase is Phase.Off or Phase.Done or Phase.PoweringOn) return;
         if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
 
-        if (e is InputEventMouseMotion mm) { _mouse = mm.Position; return; }
+        if (e is InputEventMouseMotion mm) { _mouse = mm.Position; _mouseMoved = true; return; }
 
         if (e is InputEventKey { Pressed: true, Echo: false } k)
         {
@@ -398,7 +400,11 @@ public partial class TitleRoomDirector : Node
         if (_camera == null) return;
 
         Vector2 polled = GetViewport().GetMousePosition();
-        if (!polled.IsEqualApprox(_lastPolled)) { _lastPolled = polled; _mouse = polled; }
+        if (!polled.IsEqualApprox(_lastPolled)) { _lastPolled = polled; _mouse = polled; _mouseMoved = true; }
+        // 마우스가 가만히 있으면 호버가 커서를 가져가지 않는다. 그러지 않으면 방향키로
+        // 옮긴 커서를 멈춰 있는 마우스가 매 프레임 도로 끌어와 방향키가 먹통이 된다.
+        bool takeCursor = _mouseMoved;
+        _mouseMoved = false;
         Vector3 origin = _camera.ProjectRayOrigin(_mouse);
         Vector3 dir = _camera.ProjectRayNormal(_mouse);
 
@@ -412,6 +418,7 @@ public partial class TitleRoomDirector : Node
                 Sfx.Instance?.Play("tick", -16f);
                 foreach (var (id, hintText) in PropHints)
                     if (id == prop) _hint.SetLine(hintText);
+                if (takeCursor) TitleTerminalView.Instance.HoverId(prop);
             }
             else _hint.SetLine("");
         }
@@ -421,11 +428,11 @@ public partial class TitleRoomDirector : Node
             return;
         }
 
-        // 2) 왼쪽 CRT 의 명령 선택지. 클릭은 되지만 커서(▶)는 방향키로만 움직인다 —
-        //    마우스를 스치는 것만으로 선택이 바뀌면 방향키 조작이 계속 튕겨 나간다.
+        // 2) 왼쪽 CRT 의 명령 선택지. 마우스를 올리면 커서가 따라오고 클릭하면 실행된다.
         string item = TerminalItemUnderMouse();
         if (!string.IsNullOrEmpty(item))
         {
+            if (takeCursor && TitleTerminalView.Instance.HoverId(item)) Sfx.Instance?.Play("tick", -16f);
             TitleStaffIdView.Instance.SetHover(-1);
             _hint.SetLine("");
             return;

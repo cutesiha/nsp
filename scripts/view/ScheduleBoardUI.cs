@@ -194,7 +194,7 @@ public partial class ScheduleBoardUI : Control
         int day = GameState.Instance?.CurrentDay ?? 1;
 
         AddLabel(_form, $"DOC NO. NSP-04-{day:00}   FACILITY CONTROL DEPT.", new Vector2(DocLeft, 2), 11, InkDim, _body);
-        AddLabel(_form, $"DAY {day:00}", new Vector2(DocLeft, 14), 32, Ink, _serif);
+        AddLabel(_form, NSP.Core.DayFeatures.DayLabel(day), new Vector2(DocLeft, 14), 32, Ink, _serif);
         AddLabel(_form, "N I G H T   S H I F T   A S S I G N M E N T", new Vector2(DocLeft, 66), 12, InkDim, _body);
 
         // 금기가 해금되지 않은 날에는 금기 칸 자체를 싣지 않는다(빈 "특이사항 없음" 줄도 없앤다).
