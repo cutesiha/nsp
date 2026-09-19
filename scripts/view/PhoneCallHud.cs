@@ -93,7 +93,7 @@ public partial class PhoneCallHud : CanvasLayer
 
         _message = Lbl("", 19, new Color(0.82f, 0.96f, 0.98f));
         _message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _message.CustomMinimumSize = new Vector2(0, 74);
+        _message.CustomMinimumSize = new Vector2(0, 88);
         vb.AddChild(_message);
 
         _choices = new VBoxContainer();
@@ -107,7 +107,7 @@ public partial class PhoneCallHud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Ignore,
             Visible = false,
             AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.9f, AnchorBottom = 0.9f,
-            OffsetLeft = -120, OffsetRight = 120, OffsetTop = 0, OffsetBottom = 26,
+            OffsetLeft = -150, OffsetRight = 150, OffsetTop = 0, OffsetBottom = 34,
         };
         _incoming.AddThemeFontOverride("font", _font);
         _incoming.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
@@ -375,7 +375,7 @@ public partial class PhoneCallHud : CanvasLayer
         var b = new Button { Text = "  ›  " + text, Alignment = HorizontalAlignment.Left };
         b.AddThemeFontOverride("font", _font);
         b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
-        b.CustomMinimumSize = new Vector2(0, 36);
+        b.CustomMinimumSize = new Vector2(0, 44);
         b.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         b.AddThemeColorOverride("font_color", Cyan);
         b.AddThemeColorOverride("font_hover_color", Colors.White);
@@ -403,7 +403,7 @@ public partial class PhoneCallHud : CanvasLayer
         var b = ChoiceButton(text, onPressed);
         // 휴게시간 질문은 CRT에서 읽기 쉽도록 일반 선택지보다 한 단계 크게 둔다.
         b.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
-        b.CustomMinimumSize = new Vector2(0, 30);
+        b.CustomMinimumSize = new Vector2(0, 38);
         return b;
     }
 

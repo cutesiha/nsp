@@ -198,7 +198,7 @@ public partial class SettingsPanel : CanvasLayer
     {
         var l = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
         l.AddThemeColorOverride("font_color", col);
         if (minWidth > 0f) l.CustomMinimumSize = new Vector2(minWidth, 0);
         return l;
@@ -299,7 +299,7 @@ public partial class SettingsPanel : CanvasLayer
     {
         var b = new Button { Text = text, CustomMinimumSize = new Vector2(minWidth, 40) };
         b.AddThemeFontOverride("font", _body);
-        b.AddThemeFontSizeOverride("font_size", 19);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(19));
         b.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
         b.AddThemeColorOverride("font_hover_color", new Color(0.99f, 0.96f, 0.88f));
         b.AddThemeColorOverride("font_pressed_color", new Color(0.99f, 0.96f, 0.88f));

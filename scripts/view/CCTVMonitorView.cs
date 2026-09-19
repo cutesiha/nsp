@@ -123,7 +123,7 @@ public partial class CCTVMonitorView : Control
     {
         var l = new Label { Text = t };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", c);
         l.AddThemeColorOverride("font_outline_color", Colors.Black);
         l.AddThemeConstantOverride("outline_size", 3);

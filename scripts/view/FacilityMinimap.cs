@@ -160,11 +160,11 @@ public partial class FacilityMinimap : Control
         // (인원수 "● n" 표기는 아이콘이 곧 인원이라 지웠다. 아이콘과 겹쳐 읽기 힘들었다.)
         string name = def.DisplayName;
         DrawString(_font, box.Position + new Vector2(0f, 14f), name, HorizontalAlignment.Center,
-            box.Size.X, 12, inactive ? new Color(0.45f, 0.48f, 0.47f) : new Color(0.85f, 0.92f, 0.88f));
+            box.Size.X, ViewFont.S(12), inactive ? new Color(0.45f, 0.48f, 0.47f) : new Color(0.85f, 0.92f, 0.88f));
         if (inactive)
         {
             DrawString(_font, box.Position + new Vector2(0f, 32f), "비활성", HorizontalAlignment.Center,
-                box.Size.X, 11, new Color(0.42f, 0.45f, 0.44f));
+                box.Size.X, ViewFont.S(11), new Color(0.42f, 0.45f, 0.44f));
             return;
         }
 
@@ -176,13 +176,13 @@ public partial class FacilityMinimap : Control
             if (st.IsRepair)
             {
                 DrawString(_font, new Vector2(box.Position.X, y + 10f),
-                    "🔧 수리 필요", HorizontalAlignment.Center, box.Size.X, 10, new Color(1f, 0.55f, 0.3f));
+                    "🔧 수리 필요", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10), new Color(1f, 0.55f, 0.3f));
                 y += 13f;
             }
             else if (!st.Recurring)
             {
                 DrawString(_font, new Vector2(box.Position.X, y + 10f),
-                    $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, 10,
+                    $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
                     st.Remaining < 8f ? new Color(1f, 0.4f, 0.3f) : new Color(0.9f, 0.8f, 0.4f));
                 y += 13f;
             }
@@ -193,12 +193,12 @@ public partial class FacilityMinimap : Control
         }
 
         if (TabooRuleSystemAtRisk(roomId))
-            DrawString(_font, box.Position + new Vector2(0f, -4f), "⚠", HorizontalAlignment.Center, box.Size.X, 14,
+            DrawString(_font, box.Position + new Vector2(0f, -4f), "⚠", HorizontalAlignment.Center, box.Size.X, ViewFont.S(14),
                 new Color(1f, 0.75f, 0.2f));
 
         if (def.IsCoreRoom)
             DrawString(_font, new Vector2(box.Position.X, box.Position.Y - 14f),
-                $"CORE {NSP.Core.GameState.Instance.CoreProgress:0}%", HorizontalAlignment.Center, box.Size.X, 11,
+                $"CORE {NSP.Core.GameState.Instance.CoreProgress:0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
                 new Color(0.5f, 0.8f, 1f));
     }
 
@@ -255,10 +255,10 @@ public partial class FacilityMinimap : Control
         DrawCircle(p, EmpDotRadius, new Color(0f, 0f, 0f, 0.7f), false, 1.6f);
 
         // 코드네임은 아이콘 아래 — 방 이름(상자 위쪽)과 부딪히지 않는다.
-        DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 12f), def.Codename, HorizontalAlignment.Center, 60f, 11,
+        DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 12f), def.Codename, HorizontalAlignment.Center, 60f, ViewFont.S(11),
             new Color(0.95f, 0.95f, 0.8f));
         if (st.Isolated)
-            DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 23f), "[격리]", HorizontalAlignment.Center, 60f, 9,
+            DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 23f), "[격리]", HorizontalAlignment.Center, 60f, ViewFont.S(9),
                 new Color(0.9f, 0.5f, 0.9f));
     }
 

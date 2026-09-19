@@ -102,7 +102,7 @@ public partial class PauseMenu : CanvasLayer
             OffsetLeft = -58f, OffsetRight = -14f, OffsetTop = 14f, OffsetBottom = 58f,
         };
         close.AddThemeFontOverride("font", _body);
-        close.AddThemeFontSizeOverride("font_size", 24);
+        close.AddThemeFontSizeOverride("font_size", ViewFont.FS(24));
         close.AddThemeColorOverride("font_color", InkDim);
         close.AddThemeColorOverride("font_hover_color", new Color(0.98f, 0.93f, 0.82f));
         close.AddThemeColorOverride("font_pressed_color", new Color(0.98f, 0.93f, 0.82f));
@@ -298,7 +298,7 @@ public partial class PauseMenu : CanvasLayer
     {
         var l = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -310,7 +310,7 @@ public partial class PauseMenu : CanvasLayer
     {
         var b = new Button { Text = text, CustomMinimumSize = new Vector2(minWidth, 42) };
         b.AddThemeFontOverride("font", _body);
-        b.AddThemeFontSizeOverride("font_size", 20);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(20));
         b.AddThemeColorOverride("font_color", Ink);
         b.AddThemeColorOverride("font_hover_color", new Color(0.99f, 0.96f, 0.88f));
         b.AddThemeColorOverride("font_pressed_color", new Color(0.99f, 0.96f, 0.88f));

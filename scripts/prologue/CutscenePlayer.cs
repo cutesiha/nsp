@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using NSP.Core;
 using NSP.View;
@@ -10,6 +11,11 @@ namespace NSP.Prologue;
 // 실제 CCTV 시스템(CCTVMonitorView)과는 완전히 별개다 — 시뮬레이션 상태를 전혀 읽지 않고
 // PrologueScript 의 슬라이드 데이터만 재생한다. 화면은 "컴퓨터로 녹화 영상을 트는 창"처럼
 // 보이게 만든다: 제목 표시줄 · 영상 영역 · 재생바/타임코드 · 상태 표시줄.
+//
+// 정지 이미지가 슬라이드쇼처럼 보이지 않도록, 영상 영역에는 항상 다음이 걸려 있다.
+//   - 느린 줌/팬(켄 번스)  ken: off 로 끌 수 있다
+//   - CRT 주사선 + 미세 필름 노이즈
+// 컷이 바뀌는 순간의 연출(fx: cut)은 매번 무작위로 하나만 고른다 — 다 넣으면 난잡해진다.
 //
 // 아트 교체: 슬라이드의 image:(배경) / figure:(인물 일러스트) 경로에 파일이 있으면 그 이미지를
 // 쓰고, 없으면 같은 자리에 "[ IMAGE ] / [ FIGURE ] + 장면 설명" 임시 패널을 그린다.
@@ -26,6 +32,7 @@ public partial class CutscenePlayer : Control
     private static readonly Color Ink = new(0.88f, 0.92f, 0.90f);
     private static readonly Color Dim = new(0.48f, 0.56f, 0.55f);
     private static readonly Color Amber = new(0.95f, 0.76f, 0.30f);
+    private static readonly Color AlertRed = new(1f, 0.42f, 0.32f);
     private static readonly Color Chrome = new(0.105f, 0.115f, 0.135f);
 
     // --- 영상 창 레이아웃 ---------------------------------------------------
@@ -35,9 +42,14 @@ public partial class CutscenePlayer : Control
     private static readonly Rect2 StatusBar = new(10f, 542f, 780f, 28f);
     private static readonly Rect2 FigureBox = new(462f, 80f, 300f, 360f);
     private static readonly Rect2 SubtitleBox = new(26f, 382f, 748f, 96f);
+    // 무전 수신 상태 HUD — 자막 띠 바로 위 왼쪽.
+    private static readonly Rect2 RadioBox = new(26f, 286f, 316f, 88f);
+    // 코어 출력 게이지 — 영상 한가운데 아래쪽.
+    private static readonly Rect2 GaugeBox = new(70f, 232f, 660f, 168f);
 
     private Font _font;
     private Control _frame;          // 흔들림이 걸리는 영상 내용물
+    private Control _videoClip;      // 줌/팬이 영상 영역 밖으로 새지 않게 가두는 틀
     private TextureRect _image;
     private PlaceholderPanel _placeholder;
     private TextureRect _figure;
@@ -45,6 +57,7 @@ public partial class CutscenePlayer : Control
     private Label _title;
     private Label _recDot;
     private Label _overlay;
+    private Label _sub;
     private Panel _subtitleBox;
     private Label _speaker;
     private Label _text;
@@ -53,6 +66,8 @@ public partial class CutscenePlayer : Control
     private ColorRect _fade;
     private GlitchBars _glitch;
     private PlayerChrome _chrome;
+    private RadioHud _radioHud;
+    private GaugePanel _gauge;
 
     private PrologueScript.Cutscene _cutscene;
     private PrologueScript.Slide _slide;
@@ -67,15 +82,29 @@ public partial class CutscenePlayer : Control
     // 자막이 한 글자씩 드러날 때마다 화자 보이스를 울리기 위한 진행도.
     private int _spokenChars;
     private bool _radioOpen;
+    // sfxafter / cutoff 는 타이핑이 끝나는 순간 한 번만 터진다.
+    private bool _afterFired;
 
     // 재생바용 — 컷씬 전체 길이와 지금까지 흐른 시간(진짜 영상처럼 보이게).
     private double _totalSeconds;
     private double _elapsedBeforeSlide;
 
+    // --- 컷 전환 연출(무작위) ------------------------------------------------
+    private enum CutStyle { Punch, Shake, Flash, Pan, Glitch }
+    private CutStyle _cutStyle;
+    private CutStyle _lastCutStyle = CutStyle.Glitch;
+    private readonly RandomNumberGenerator _rng = new();
+
+    // --- 켄 번스(느린 줌/팬) -------------------------------------------------
+    private float _kenFrom = 1.03f, _kenTo = 1.09f;
+    private Vector2 _panFrom, _panTo;
+    private double _kenSeconds = 3.0;
+
     public override void _Ready()
     {
         Instance = this;
         _font = ViewFont.Default;
+        _rng.Randomize();
         SetAnchorsPreset(LayoutPreset.FullRect);
         Size = Canvas;
         MouseFilter = MouseFilterEnum.Stop;
@@ -105,6 +134,7 @@ public partial class CutscenePlayer : Control
         Visible = true;
         _chrome.Visible = true;
         _chrome.FileName = FileNameFor(cutsceneId);
+        _glitch.Active = true;
 
         // 전체 길이를 미리 재 둔다 — 재생바/타임코드가 진짜 영상처럼 움직이게.
         _totalSeconds = 0;
@@ -131,13 +161,21 @@ public partial class CutscenePlayer : Control
         _title.Text = "";
         _recDot.Visible = false;
         _overlay.Text = "";
+        _sub.Text = "";
         _subtitleBox.Visible = false;
         _clickHint.Visible = false;
+        _radioHud.Visible = false;
+        _gauge.Visible = false;
         _tint.Color = _tint.Color with { A = 0f };
         _fade.Color = _fade.Color with { A = 0f };
         _glitch.Amount = 0f;
+        _glitch.Active = false;
         _glitch.QueueRedraw();
         _frame.Position = Vector2.Zero;
+        _videoClip.Scale = Vector2.One;
+        _videoClip.Modulate = Colors.White;
+        _image.Scale = Vector2.One;
+        _image.Position = Vector2.Zero;
         _chrome.Visible = false;
         _chrome.Progress = 0f;
         _chrome.QueueRedraw();
@@ -161,6 +199,7 @@ public partial class CutscenePlayer : Control
         _slideElapsed = Math.Max(_slideElapsed, _typeSeconds);
         _spokenChars = _text.Text.Length;
         Sfx.Instance?.StopVoiceBlip();
+        FireAfterCues();
         CloseRadio();
     }
 
@@ -176,6 +215,7 @@ public partial class CutscenePlayer : Control
             _cutscene = null;
             _slide = null;
             IsWaitingForInput = false;
+            _glitch.Active = false;
             Finished?.Invoke();
             return;
         }
@@ -190,7 +230,9 @@ public partial class CutscenePlayer : Control
         _slideHold = s.Hold;
         _fx = s.Fx;
         _impactFallStarted = false;
+        _afterFired = false;
         _joltUntil = s.Jolt > 0f ? s.Jolt : 0.0;
+        if (_fx == PrologueScript.SlideFx.Cut) _cutStyle = PickCutStyle();
 
         // 배경 이미지: 최종 파일이 있으면 그걸, 없으면 같은 자리에 임시 패널.
         var tex = LoadImage(s.ImagePath);
@@ -212,9 +254,13 @@ public partial class CutscenePlayer : Control
         _title.Text = s.Title ?? "";
         _recDot.Visible = !string.IsNullOrEmpty(s.Title);
 
-        // 경고 문구도 자막과 같은 속도로 타이핑된다.
+        // 경고 문구도 자막과 같은 속도로 타이핑된다. 경보 카드는 붉게 띄운다.
         _overlay.Text = s.Overlay ?? "";
         _overlay.VisibleRatio = 0f;
+        _overlay.AddThemeColorOverride("font_color",
+            _fx == PrologueScript.SlideFx.Alert ? AlertRed : Amber);
+        _sub.Text = s.Sub ?? "";
+        _sub.Visible = !string.IsNullOrEmpty(s.Sub);
 
         bool hasText = !string.IsNullOrEmpty(s.Text);
         _subtitleBox.Visible = hasText;
@@ -226,6 +272,10 @@ public partial class CutscenePlayer : Control
         _typeSeconds = Math.Max(
             hasText ? PrologueTextStyle.TypeSeconds(s.Text) : 0f,
             _overlay.Text.Length > 0 ? PrologueTextStyle.TypeSeconds(s.Overlay) : 0f);
+
+        SetupKenBurns(s);
+        SetupRadioHud(s);
+        SetupGauge(s);
 
         // 화자 보이스 — 기존 직원 보이스 파일을 그대로 쓰고, 무전이면 Radio 버스로 흘린다.
         _spokenChars = 0;
@@ -240,6 +290,8 @@ public partial class CutscenePlayer : Control
         _clickHint.Visible = false;
 
         _tint.Color = TintFor(_fx) with { A = 0f };
+        _videoClip.Scale = Vector2.One;
+        _videoClip.Modulate = Colors.White;
         if (_fx != PrologueScript.SlideFx.Blackout && _fx != PrologueScript.SlideFx.Impact)
             _fade.Color = _fade.Color with { A = 0f };
 
@@ -263,6 +315,65 @@ public partial class CutscenePlayer : Control
         }
     }
 
+    // 컷마다 하나만 — 같은 연출이 두 번 연속 나오지 않게 한 번 다시 뽑는다.
+    private CutStyle PickCutStyle()
+    {
+        var pick = (CutStyle)_rng.RandiRange(0, 4);
+        if (pick == _lastCutStyle) pick = (CutStyle)(((int)pick + 1 + _rng.RandiRange(0, 3)) % 5);
+        _lastCutStyle = pick;
+        return pick;
+    }
+
+    // 정지 이미지를 아주 느리게 확대하며 좌우로 흘린다 — '슬라이드'가 아니라 '영상'처럼 보이게.
+    private void SetupKenBurns(PrologueScript.Slide s)
+    {
+        _kenSeconds = Math.Max(1.2, NominalSeconds(s) + 1.2);
+        if (!s.KenBurns || _image.Texture == null)
+        {
+            _kenFrom = _kenTo = 1f;
+            _panFrom = _panTo = Vector2.Zero;
+            ApplyKenBurns(0f);
+            return;
+        }
+        bool zoomIn = _rng.Randf() > 0.25f;   // 대체로 천천히 밀고 들어간다
+        _kenFrom = zoomIn ? 1.02f : 1.09f;
+        _kenTo = zoomIn ? 1.09f : 1.02f;
+        float drift = _rng.RandfRange(8f, 20f) * (_rng.Randf() > 0.5f ? 1f : -1f);
+        _panFrom = new Vector2(-drift * 0.5f, _rng.RandfRange(-4f, 4f));
+        _panTo = new Vector2(drift * 0.5f, _rng.RandfRange(-4f, 4f));
+        ApplyKenBurns(0f);
+    }
+
+    private void ApplyKenBurns(float t)
+    {
+        float k = Mathf.Lerp(_kenFrom, _kenTo, t);
+        _image.Scale = new Vector2(k, k);
+        _image.Position = _panFrom.Lerp(_panTo, t);
+    }
+
+    private void SetupRadioHud(PrologueScript.Slide s)
+    {
+        bool on = s.Radio && s.Signal > 0;
+        _radioHud.Visible = on;
+        if (!on) return;
+        _radioHud.Signal = s.Signal;
+        _radioHud.CallSign = string.IsNullOrEmpty(s.VoiceId) ? "UNKNOWN" : s.VoiceId.ToUpperInvariant();
+        _radioHud.Cut = false;
+    }
+
+    private void SetupGauge(PrologueScript.Slide s)
+    {
+        bool on = s.GaugeSteps.Count > 0;
+        _gauge.Visible = on;
+        if (!on) return;
+        _gauge.Title = s.GaugeTitle;
+        _gauge.SubText = s.GaugeSub;
+        _gauge.AlertText = s.GaugeAlert;
+        _gauge.Steps = s.GaugeSteps;
+        _gauge.Duration = Math.Max(1.2, s.Hold);
+        _gauge.Reset();
+    }
+
     private string _activeLoop = "";
 
     // 무전 개시/종료 "치직" + 통신 중 약한 잡음. 잡음은 아주 낮게 깔아 보이스를 덮지 않는다.
@@ -279,6 +390,20 @@ public partial class CutscenePlayer : Control
         _radioOpen = false;
         Sfx.Instance?.StopLoop("radio_static");
         Sfx.Instance?.Play("radio_click_off", -10f);
+    }
+
+    // 자막이 다 찍힌 직후에 한 번만 — 스위치 조작음, 통신 두절 치직.
+    private void FireAfterCues()
+    {
+        if (_afterFired || _slide == null) return;
+        _afterFired = true;
+        if (!string.IsNullOrEmpty(_slide.SfxAfter)) Sfx.Instance?.Play(_slide.SfxAfter, -4f);
+        if (_slide.Cutoff)
+        {
+            Sfx.Instance?.Play("radio_cut", -3f);
+            _glitch.Amount = 1f;
+            if (_radioHud.Visible) { _radioHud.Cut = true; }
+        }
     }
 
     private void StopAllLoops()
@@ -315,6 +440,8 @@ public partial class CutscenePlayer : Control
         PrologueScript.SlideFx.Cut => new Color(1f, 1f, 1f),
         PrologueScript.SlideFx.Glitch => new Color(0.75f, 0.85f, 1f),
         PrologueScript.SlideFx.Impact => new Color(0.9f, 0.1f, 0.08f),
+        PrologueScript.SlideFx.Alert => new Color(0.92f, 0.10f, 0.08f),
+        PrologueScript.SlideFx.Crt => new Color(1f, 1f, 1f),
         _ => new Color(0f, 0f, 0f),
     };
 
@@ -337,6 +464,12 @@ public partial class CutscenePlayer : Control
         }
         if (_overlay.Text.Length > 0 && _overlay.VisibleRatio < 1f)
             _overlay.VisibleRatio = PrologueTextStyle.Ratio(_overlay.Text, _slideElapsed);
+
+        if (!IsTyping()) FireAfterCues();
+
+        ApplyKenBurns((float)Mathf.Clamp(_slideElapsed / _kenSeconds, 0.0, 1.0));
+        if (_radioHud.Visible) _radioHud.Tick((float)delta);
+        if (_gauge.Visible) _gauge.Tick(_slideElapsed);
 
         ApplyFx();
         UpdateChrome();
@@ -391,6 +524,9 @@ public partial class CutscenePlayer : Control
             offset.X += Mathf.Sin(t * 95f) * 11f * decay;
         }
 
+        // 무전 신호가 약할수록 화면 노이즈가 늘어난다.
+        float radioNoise = _radioHud.Visible ? (1f - _radioHud.Signal / 100f) * 0.35f : 0f;
+
         switch (_fx)
         {
             case PrologueScript.SlideFx.Glitch:
@@ -404,9 +540,9 @@ public partial class CutscenePlayer : Control
                 _glitch.Amount = 0.2f;
                 break;
 
+            // 컷이 바뀔 때마다 무작위로 하나 — 전부 다 걸면 난잡해진다.
             case PrologueScript.SlideFx.Cut:
-                _tint.Color = _tint.Color with { A = Mathf.Max(0f, 0.5f - t * 3.2f) };
-                _glitch.Amount = 0.08f;
+                ApplyCutStyle(t, ref offset);
                 break;
 
             case PrologueScript.SlideFx.Shake:
@@ -422,6 +558,33 @@ public partial class CutscenePlayer : Control
             case PrologueScript.SlideFx.Typing:
                 _glitch.Amount = 0.08f;
                 break;
+
+            // 긴급 경보 — 화면 전체가 붉게 점멸한다.
+            case PrologueScript.SlideFx.Alert:
+                _tint.Color = _tint.Color with { A = 0.10f + 0.24f * Mathf.Max(0f, Mathf.Sin(t * 8.4f)) };
+                _glitch.Amount = 0.12f;
+                offset.X += Mathf.Sin(t * 33f) * 1.6f;
+                break;
+
+            // 조명이 나가려는 듯 밝기가 튄다.
+            case PrologueScript.SlideFx.Flicker:
+            {
+                float f = Mathf.Sin(t * 21f) * Mathf.Sin(t * 7.3f) * Mathf.Sin(t * 43f);
+                float lum = Mathf.Clamp(0.86f + f * 0.55f, 0.30f, 1.25f);
+                _videoClip.Modulate = new Color(lum, lum * 0.98f, lum * 0.96f);
+                _glitch.Amount = 0.18f;
+                break;
+            }
+
+            // 브라운관이 켜지는 순간 — 가로선이 위아래로 펼쳐지며 노이즈가 걷힌다.
+            case PrologueScript.SlideFx.Crt:
+            {
+                float open = Mathf.Clamp(t / 0.30f, 0.02f, 1f);
+                _videoClip.Scale = new Vector2(1f, Mathf.Min(1f, open * open));
+                _tint.Color = _tint.Color with { A = Mathf.Max(0f, 0.75f - t * 3.4f) };
+                _glitch.Amount = Mathf.Max(0.08f, 1f - t * 1.4f);
+                break;
+            }
 
             // 머리를 세게 맞고 → 책상에 엎어지는 연출.
             case PrologueScript.SlideFx.Impact:
@@ -452,8 +615,45 @@ public partial class CutscenePlayer : Control
                 break;
         }
 
+        _glitch.Amount = Mathf.Max(_glitch.Amount, radioNoise);
         _glitch.QueueRedraw();
         _frame.Position = offset;
+    }
+
+    private void ApplyCutStyle(float t, ref Vector2 offset)
+    {
+        switch (_cutStyle)
+        {
+            case CutStyle.Punch:
+                // 확 밀고 들어왔다가 제자리로.
+                _videoClip.Scale = Vector2.One * Mathf.Lerp(1.14f, 1f, Mathf.Clamp(t / 0.34f, 0f, 1f));
+                _glitch.Amount = 0.08f;
+                _tint.Color = _tint.Color with { A = Mathf.Max(0f, 0.35f - t * 3.5f) };
+                break;
+
+            case CutStyle.Shake:
+                offset += new Vector2(Mathf.Sin(t * 64f), Mathf.Cos(t * 51f) * 0.7f) * 9f * Mathf.Max(0f, 1f - t * 2.6f);
+                _glitch.Amount = 0.10f;
+                break;
+
+            case CutStyle.Flash:
+                _tint.Color = new Color(0.95f, 0.16f, 0.12f, Mathf.Max(0f, 0.55f - t * 3.0f));
+                _glitch.Amount = 0.10f;
+                break;
+
+            case CutStyle.Pan:
+                // 켄 번스보다 훨씬 빠른 횡이동.
+                offset.X += Mathf.Lerp(26f, 0f, Mathf.Clamp(t / 0.55f, 0f, 1f));
+                _glitch.Amount = 0.08f;
+                _tint.Color = _tint.Color with { A = Mathf.Max(0f, 0.28f - t * 3.2f) };
+                break;
+
+            default:
+                _glitch.Amount = Mathf.Max(0.12f, 0.9f - t * 3.2f);
+                offset.X += Mathf.Sin(t * 70f) * 4f * Mathf.Max(0f, 1f - t * 3f);
+                _tint.Color = new Color(0.75f, 0.85f, 1f, Mathf.Max(0f, 0.3f - t * 2.6f));
+                break;
+        }
     }
 
     // CRT 를 직접 클릭해도 넘어간다(PrologueAdvanceInput 이 화면 아무 곳이나 받아 준다).
@@ -482,24 +682,36 @@ public partial class CutscenePlayer : Control
         _frame = new Control { MouseFilter = MouseFilterEnum.Ignore, Size = Canvas, ClipContents = false };
         AddChild(_frame);
 
+        // 줌/팬이 영상 영역 밖으로 새지 않게 가두는 틀.
+        _videoClip = new Control
+        {
+            Position = VideoArea.Position,
+            Size = VideoArea.Size,
+            PivotOffset = VideoArea.Size * 0.5f,
+            ClipContents = true,
+            MouseFilter = MouseFilterEnum.Ignore,
+        };
+        _frame.AddChild(_videoClip);
+
         _placeholder = new PlaceholderPanel
         {
-            Position = VideoArea.Position + new Vector2(16f, 14f),
+            Position = new Vector2(16f, 14f),
             Size = VideoArea.Size - new Vector2(32f, 28f),
             Kind = "IMAGE",
             MouseFilter = MouseFilterEnum.Ignore,
         };
-        _frame.AddChild(_placeholder);
+        _videoClip.AddChild(_placeholder);
 
         _image = new TextureRect
         {
-            Position = VideoArea.Position,
+            Position = Vector2.Zero,
             Size = VideoArea.Size,
+            PivotOffset = VideoArea.Size * 0.5f,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
             MouseFilter = MouseFilterEnum.Ignore,
         };
-        _frame.AddChild(_image);
+        _videoClip.AddChild(_image);
 
         // 인물 일러스트 — 배경 위, 자막 위쪽에 선다.
         _figurePlaceholder = new PlaceholderPanel
@@ -524,17 +736,45 @@ public partial class CutscenePlayer : Control
         _recDot = MakeLabel("● REC", 15, new Color(0.9f, 0.25f, 0.22f), VideoArea.Position + new Vector2(14f, 12f));
         _frame.AddChild(_recDot);
 
-        _title = MakeLabel("", 16, Dim, VideoArea.Position + new Vector2(74f, 13f));
-        _title.Size = new Vector2(VideoArea.Size.X - 90f, 22f);
+        _title = MakeLabel("", 16, Dim, VideoArea.Position + new Vector2(100f, 13f));
+        _title.Size = new Vector2(VideoArea.Size.X - 116f, 22f);
         _frame.AddChild(_title);
 
-        _overlay = MakeLabel("", 30, Amber, new Vector2(VideoArea.Position.X, 226f));
-        _overlay.Size = new Vector2(VideoArea.Size.X, 60f);
+        // 한가운데 크게 뜨는 한글 주 문구 — 여러 줄(\n)을 받는다.
+        _overlay = MakeLabel("", 34, Amber, new Vector2(VideoArea.Position.X, 140f));
+        _overlay.Size = new Vector2(VideoArea.Size.X, 196f);
         _overlay.HorizontalAlignment = HorizontalAlignment.Center;
         _overlay.VerticalAlignment = VerticalAlignment.Center;
         _overlay.AddThemeColorOverride("font_outline_color", Colors.Black);
-        _overlay.AddThemeConstantOverride("outline_size", 6);
+        _overlay.AddThemeConstantOverride("outline_size", 7);
+        _overlay.AddThemeConstantOverride("line_spacing", 8);
         _frame.AddChild(_overlay);
+
+        // 그 아래 작게 깔리는 영문 보조 문구.
+        _sub = MakeLabel("", 15, new Color(0.72f, 0.76f, 0.78f), new Vector2(VideoArea.Position.X, 342f));
+        _sub.Size = new Vector2(VideoArea.Size.X, 24f);
+        _sub.HorizontalAlignment = HorizontalAlignment.Center;
+        _sub.AddThemeColorOverride("font_outline_color", Colors.Black);
+        _sub.AddThemeConstantOverride("outline_size", 5);
+        _frame.AddChild(_sub);
+
+        _gauge = new GaugePanel
+        {
+            Position = GaugeBox.Position,
+            Size = GaugeBox.Size,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _frame.AddChild(_gauge);
+
+        _radioHud = new RadioHud
+        {
+            Position = RadioBox.Position,
+            Size = RadioBox.Size,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _frame.AddChild(_radioHud);
 
         _subtitleBox = new Panel
         {
@@ -550,11 +790,11 @@ public partial class CutscenePlayer : Control
         });
         _frame.AddChild(_subtitleBox);
 
-        _speaker = MakeLabel("", 14, Amber, new Vector2(16f, 8f));
+        _speaker = MakeLabel("", 16, Amber, new Vector2(16f, 6f));
         _subtitleBox.AddChild(_speaker);
 
-        _text = MakeLabel("", 19, Ink, new Vector2(16f, 30f));
-        _text.Size = new Vector2(SubtitleBox.Size.X - 32f, 58f);
+        _text = MakeLabel("", 22, Ink, new Vector2(16f, 30f));
+        _text.Size = new Vector2(SubtitleBox.Size.X - 32f, 60f);
         _text.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _subtitleBox.AddChild(_text);
 
@@ -570,7 +810,7 @@ public partial class CutscenePlayer : Control
         _fade.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_fade);
 
-        _clickHint = MakeLabel("▶  SPACE / ENTER / 클릭", 14, new Color(0.62f, 0.72f, 0.72f),
+        _clickHint = MakeLabel("▶  SPACE / ENTER / 클릭", 15, new Color(0.62f, 0.72f, 0.72f),
             new Vector2(0f, VideoArea.Position.Y + VideoArea.Size.Y - 26f));
         _clickHint.Size = new Vector2(Canvas.X - 34f, 20f);
         _clickHint.HorizontalAlignment = HorizontalAlignment.Right;
@@ -582,7 +822,7 @@ public partial class CutscenePlayer : Control
     {
         var l = new Label { Text = text, Position = pos, MouseFilter = MouseFilterEnum.Ignore };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -607,9 +847,9 @@ public partial class CutscenePlayer : Control
             // 제목 표시줄
             DrawRect(TitleBar, Chrome);
             DrawString(font, new Vector2(12f, 21f), "▶  " + FileName + "  —  NSP MEDIA PLAYER",
-                HorizontalAlignment.Left, 600f, 15, new Color(0.72f, 0.78f, 0.82f));
+                HorizontalAlignment.Left, 600f, ViewFont.S(15), new Color(0.72f, 0.78f, 0.82f));
             DrawString(font, new Vector2(Size.X - 96f, 21f), "—   □   ✕",
-                HorizontalAlignment.Left, 90f, 15, new Color(0.55f, 0.60f, 0.65f));
+                HorizontalAlignment.Left, 90f, ViewFont.S(15), new Color(0.55f, 0.60f, 0.65f));
 
             // 영상 영역(검은 바탕) + 얇은 테두리
             DrawRect(VideoArea, Colors.Black);
@@ -618,9 +858,9 @@ public partial class CutscenePlayer : Control
             // 재생 컨트롤 바
             DrawRect(ControlBar, Chrome);
             DrawString(font, ControlBar.Position + new Vector2(14f, 30f), "▶",
-                HorizontalAlignment.Left, 24f, 18, new Color(0.80f, 0.86f, 0.90f));
+                HorizontalAlignment.Left, 24f, ViewFont.S(18), new Color(0.80f, 0.86f, 0.90f));
             DrawString(font, ControlBar.Position + new Vector2(Size.X - 84f, 30f), "🔊",
-                HorizontalAlignment.Left, 30f, 15, new Color(0.60f, 0.66f, 0.70f));
+                HorizontalAlignment.Left, 30f, ViewFont.S(15), new Color(0.60f, 0.66f, 0.70f));
 
             var track = new Rect2(ControlBar.Position + new Vector2(44f, 20f), new Vector2(ControlBar.Size.X - 216f, 6f));
             DrawRect(track, new Color(0.20f, 0.23f, 0.27f));
@@ -631,15 +871,15 @@ public partial class CutscenePlayer : Control
                 new Color(0.78f, 0.92f, 1f));
 
             DrawString(font, ControlBar.Position + new Vector2(ControlBar.Size.X - 168f, 26f),
-                $"{Clock(Elapsed)} / {Clock(Total)}", HorizontalAlignment.Left, 120f, 14,
+                $"{Clock(Elapsed)} / {Clock(Total)}", HorizontalAlignment.Left, 120f, ViewFont.S(14),
                 new Color(0.70f, 0.76f, 0.80f));
 
             // 상태 표시줄
             DrawRect(StatusBar, new Color(0.085f, 0.095f, 0.115f));
             DrawString(font, StatusBar.Position + new Vector2(12f, 19f), "재생 중",
-                HorizontalAlignment.Left, 200f, 13, new Color(0.55f, 0.72f, 0.60f));
-            DrawString(font, StatusBar.Position + new Vector2(StatusBar.Size.X - 232f, 19f),
-                "CODEC: NSP-ARCHIVE   720x480   4:3", HorizontalAlignment.Left, 230f, 12,
+                HorizontalAlignment.Left, 200f, ViewFont.S(13), new Color(0.55f, 0.72f, 0.60f));
+            DrawString(font, StatusBar.Position + new Vector2(StatusBar.Size.X - 238f, 19f),
+                "CODEC: NSP-ARCHIVE   720x480   4:3", HorizontalAlignment.Left, 236f, ViewFont.S(12),
                 new Color(0.45f, 0.50f, 0.55f));
         }
 
@@ -647,6 +887,175 @@ public partial class CutscenePlayer : Control
         {
             int s = Mathf.Max(0, Mathf.RoundToInt((float)seconds));
             return $"{s / 60:00}:{s % 60:00}";
+        }
+    }
+
+    // --- 무전 수신 상태 HUD -------------------------------------------------
+    // 누가 · 신호가 얼마나 남았는지 · 파형이 얼마나 흔들리는지를 한눈에 보여준다.
+    private partial class RadioHud : Control
+    {
+        public int Signal = 100;
+        public string CallSign = "";
+        public bool Cut;
+
+        private float _t;
+        private readonly float[] _wave = new float[46];
+        private readonly RandomNumberGenerator _rng = new();
+
+        public void Tick(float delta)
+        {
+            _t += delta;
+            // 파형을 왼쪽으로 흘리고 오른쪽 끝에 새 값을 밀어 넣는다.
+            for (int i = 0; i < _wave.Length - 1; i++) _wave[i] = _wave[i + 1];
+            float agitation = Cut ? 0.05f : Mathf.Lerp(1.0f, 0.25f, Signal / 100f);
+            float carrier = Mathf.Sin(_t * 17f) * 0.35f + Mathf.Sin(_t * 41f) * 0.2f;
+            _wave[^1] = Cut ? _rng.RandfRange(-0.05f, 0.05f)
+                            : Mathf.Clamp(carrier + _rng.RandfRange(-agitation, agitation), -1f, 1f);
+            QueueRedraw();
+        }
+
+        public override void _Draw()
+        {
+            var font = ViewFont.Default;
+            var box = new Rect2(Vector2.Zero, Size);
+            DrawRect(box, new Color(0.02f, 0.05f, 0.05f, 0.72f));
+            DrawRect(box, new Color(0.35f, 0.75f, 0.70f, 0.55f), false, 1.2f);
+
+            var head = Cut ? new Color(0.85f, 0.30f, 0.25f) : new Color(0.55f, 0.95f, 0.85f);
+            DrawString(font, new Vector2(12f, 20f), Cut ? "SIGNAL LOST" : "INCOMING RADIO",
+                HorizontalAlignment.Left, Size.X - 24f, ViewFont.S(12), head with { A = 0.9f });
+            DrawString(font, new Vector2(12f, 42f), $"{CallSign}  //  SIGNAL {Signal}%",
+                HorizontalAlignment.Left, Size.X - 24f, ViewFont.S(17), head);
+
+            // 파형.
+            var area = new Rect2(12f, 52f, Size.X - 24f, 28f);
+            DrawRect(area, new Color(0f, 0f, 0f, 0.35f));
+            float step = area.Size.X / (_wave.Length - 1);
+            var col = head with { A = 0.85f };
+            for (int i = 0; i < _wave.Length - 1; i++)
+            {
+                var a = new Vector2(area.Position.X + i * step, area.Position.Y + area.Size.Y * 0.5f - _wave[i] * area.Size.Y * 0.45f);
+                var b = new Vector2(area.Position.X + (i + 1) * step, area.Position.Y + area.Size.Y * 0.5f - _wave[i + 1] * area.Size.Y * 0.45f);
+                DrawLine(a, b, col, 1.4f);
+            }
+        }
+    }
+
+    // --- 코어 출력 게이지 ---------------------------------------------------
+    // 영어를 못 읽어도 "100% 였던 게 3% 가 됐다"가 바로 보여야 한다 — 숫자와 막대가
+    // 실제로 내려가고, 주 정보는 전부 한글이다.
+    private partial class GaugePanel : Control
+    {
+        public string Title = "";
+        public string SubText = "";
+        public string AlertText = "";
+        public IReadOnlyList<float> Steps = Array.Empty<float>();
+        public double Duration = 3.0;
+
+        private const int Cells = 20;
+        private const float Lead = 0.45f;   // 첫 값을 잠깐 보여주고 나서 내려가기 시작한다
+
+        private float _value;
+        private int _stepIndex = -1;
+        private bool _alertFired;
+        private double _alertAt = -1;
+
+        public void Reset()
+        {
+            _value = Steps.Count > 0 ? Steps[0] : 0f;
+            _stepIndex = -1;
+            _alertFired = false;
+            _alertAt = -1;
+            QueueRedraw();
+        }
+
+        public void Tick(double elapsed)
+        {
+            if (Steps.Count == 0) return;
+            int n = Steps.Count;
+            float per = (float)Math.Max(0.35, (Duration - Lead) / Math.Max(1, n - 1));
+
+            int idx;
+            if (elapsed < Lead)
+            {
+                _value = Steps[0];
+                idx = 0;
+            }
+            else
+            {
+                float k = (float)(elapsed - Lead) / per;
+                int i = Mathf.Clamp((int)k, 0, n - 1);
+                if (i >= n - 1)
+                {
+                    _value = Steps[n - 1];
+                    idx = n - 1;
+                }
+                else
+                {
+                    // 앞부분은 빠르게 떨어지고 끝에서 살짝 붙잡힌다.
+                    float f = Mathf.Clamp(k - i, 0f, 1f);
+                    _value = Mathf.Lerp(Steps[i], Steps[i + 1], 1f - (1f - f) * (1f - f));
+                    idx = i;
+                }
+            }
+
+            if (idx != _stepIndex)
+            {
+                _stepIndex = idx;
+                if (idx > 0) Sfx.Instance?.Play("gauge_tick", -8f);
+            }
+            if (!_alertFired && !string.IsNullOrEmpty(AlertText) && idx >= n - 1)
+            {
+                _alertFired = true;
+                _alertAt = elapsed;
+                Sfx.Instance?.Play("alarm", -4f);
+            }
+            QueueRedraw();
+        }
+
+        public override void _Draw()
+        {
+            var font = ViewFont.Default;
+            var box = new Rect2(Vector2.Zero, Size);
+            DrawRect(box, new Color(0.02f, 0.03f, 0.04f, 0.70f));
+            DrawRect(box, new Color(0.60f, 0.55f, 0.30f, 0.55f), false, 1.4f);
+
+            float pct = Mathf.Clamp(_value, 0f, 100f);
+            // 40% 아래부터 주황 → 빨강.
+            var col = pct > 60f ? new Color(0.55f, 0.92f, 0.70f)
+                : pct > 30f ? new Color(0.98f, 0.72f, 0.25f)
+                : new Color(1f, 0.32f, 0.24f);
+
+            DrawString(font, new Vector2(20f, 34f), Title, HorizontalAlignment.Left, Size.X - 40f,
+                ViewFont.S(22), new Color(0.92f, 0.90f, 0.82f));
+
+            // 칸 막대 — ████░░░░ 를 실제 사각형으로 그린다.
+            const float barX = 20f, barY = 52f, barH = 30f;
+            float barW = Size.X - 40f - 118f;
+            float cellW = barW / Cells;
+            int filled = Mathf.RoundToInt(pct / 100f * Cells);
+            for (int i = 0; i < Cells; i++)
+            {
+                var r = new Rect2(barX + i * cellW + 1.5f, barY, cellW - 3f, barH);
+                DrawRect(r, i < filled ? col : new Color(col.R, col.G, col.B, 0.13f));
+            }
+            DrawRect(new Rect2(barX, barY, barW, barH), new Color(0.55f, 0.55f, 0.50f, 0.45f), false, 1.2f);
+
+            // 숫자 — 게이지에서 제일 크게 읽혀야 한다.
+            DrawString(font, new Vector2(barX + barW + 14f, barY + barH - 3f), $"{Mathf.RoundToInt(pct)}%",
+                HorizontalAlignment.Right, 104f, ViewFont.S(34), col);
+
+            if (!string.IsNullOrEmpty(SubText))
+                DrawString(font, new Vector2(20f, barY + barH + 26f), SubText, HorizontalAlignment.Left,
+                    Size.X - 40f, ViewFont.S(13), new Color(0.62f, 0.66f, 0.68f));
+
+            if (_alertFired && !string.IsNullOrEmpty(AlertText))
+            {
+                // 경고는 깜빡인다 — 그래야 마지막 값이 '사고'로 읽힌다.
+                float blink = 0.55f + 0.45f * Mathf.Sin((float)(_alertAt >= 0 ? Time.GetTicksMsec() / 1000.0 : 0) * 12f);
+                DrawString(font, new Vector2(20f, Size.Y - 14f), AlertText, HorizontalAlignment.Left,
+                    Size.X - 40f, ViewFont.S(25), new Color(1f, 0.30f, 0.24f, blink));
+            }
         }
     }
 
@@ -675,28 +1084,49 @@ public partial class CutscenePlayer : Control
 
             var font = ViewFont.Default;
             DrawString(font, new Vector2(0f, Size.Y * 0.40f), $"[ {Kind} ]",
-                HorizontalAlignment.Center, Size.X, Kind == "FIGURE" ? 17 : 20,
+                HorizontalAlignment.Center, Size.X, ViewFont.S(Kind == "FIGURE" ? 17 : 20),
                 new Color(0.45f, 0.52f, 0.54f));
             if (!string.IsNullOrEmpty(Note))
                 DrawMultilineString(font, new Vector2(14f, Size.Y * 0.40f + 30f), Note,
-                    HorizontalAlignment.Center, Size.X - 28f, Kind == "FIGURE" ? 14 : 16, 4,
+                    HorizontalAlignment.Center, Size.X - 28f, ViewFont.S(Kind == "FIGURE" ? 14 : 16), 4,
                     new Color(0.58f, 0.64f, 0.66f));
         }
     }
 
-    // --- 노이즈 바(영상 영역 안에만) ----------------------------------------
+    // --- 주사선 · 필름 노이즈 · 글리치 바(영상 영역 안에만) ---------------------
+    // Active 인 동안에는 Amount 가 0 이어도 주사선과 미세 노이즈를 항상 깐다 —
+    // 정지 이미지가 '종이 슬라이드'처럼 보이지 않게 하는 핵심이다.
     private partial class GlitchBars : Control
     {
         public float Amount;
+        public bool Active;
         public Rect2 Area = new(0, 0, 800, 600);
         private readonly RandomNumberGenerator _rng = new();
 
         public override void _Draw()
         {
-            if (Amount <= 0.01f) return;
-            for (float y = Area.Position.Y; y < Area.Position.Y + Area.Size.Y; y += 3f)
-                DrawRect(new Rect2(Area.Position.X, y, Area.Size.X, 1f), new Color(0f, 0f, 0f, 0.10f));
+            if (!Active && Amount <= 0.01f) return;
 
+            // CRT 주사선.
+            for (float y = Area.Position.Y; y < Area.Position.Y + Area.Size.Y; y += 3f)
+                DrawRect(new Rect2(Area.Position.X, y, Area.Size.X, 1f), new Color(0f, 0f, 0f, 0.12f));
+
+            // 미세 필름 노이즈(항상 아주 옅게).
+            if (Active)
+            {
+                for (int i = 0; i < 90; i++)
+                {
+                    float x = _rng.RandfRange(Area.Position.X, Area.Position.X + Area.Size.X);
+                    float y = _rng.RandfRange(Area.Position.Y, Area.Position.Y + Area.Size.Y);
+                    DrawRect(new Rect2(x, y, 2f, 2f),
+                        new Color(1f, 1f, 1f, _rng.RandfRange(0.015f, 0.06f)));
+                }
+                // 세로로 천천히 흐르는 옅은 띠 하나(필름이 돌아가는 느낌).
+                float band = Area.Position.Y + Mathf.PosMod(Time.GetTicksMsec() / 26f, Area.Size.Y);
+                DrawRect(new Rect2(Area.Position.X, band, Area.Size.X, 26f), new Color(1f, 1f, 1f, 0.018f));
+            }
+
+            if (Amount <= 0.01f) return;
             int bands = Mathf.RoundToInt(Amount * 9f);
             for (int i = 0; i < bands; i++)
             {

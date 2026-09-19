@@ -7,13 +7,16 @@ using NSP.View;
 
 namespace NSP.Prologue;
 
-// 오른쪽 CRT 전용 — 관리자 권한 승계 콘솔과 GUIDE-0 안내창.
+// 오른쪽 CRT 전용 — 관리자 권한 승계 콘솔 / 승계 완료 시스템 창 / GUIDE-0 안내창.
 // GUIDE-0 는 단순 텍스트 출력이 아니라 콘솔 화면 위에 떠오르는 '홀로그램 창'이다.
 // 창 위쪽의 정사각형 칸이 GUIDE-0 의 얼굴 자리이며, 지금은 임시 초상(placeholder)이 뜬다.
 //
 // ★ 얼굴 교체:  res://assets/ui/guide0/guide0_<표정키>.png  파일을 넣기만 하면 된다.
 //   표정키는 데이터 파일(NSP_PROLOGUE_RUNTIME.md)의 portrait: 값 — 현재 normal / smile.
 //   파일이 없으면 자동으로 "GUIDE-0 PORTRAIT" 임시 박스가 대신 그려진다.
+//
+// GUIDE-0 가 말하는 동안 창 오른쪽의 보조 정보판(InfoPanel)이 같이 움직인다 — 얼굴만
+// 15초 보고 있지 않도록. 어떤 정보판을 띄울지는 데이터 파일의 panel: 이 정한다.
 public partial class GuideHologramView : Control
 {
     public static GuideHologramView Instance { get; private set; }
@@ -36,6 +39,8 @@ public partial class GuideHologramView : Control
     private HBoxContainer _icons;
     private VBoxContainer _choices;
     private Label _hint;
+    private InfoPanel _panel;
+    private SystemWindow _window;
 
     // 진행 상태
     private readonly List<string> _consoleLines = new();
@@ -48,6 +53,11 @@ public partial class GuideHologramView : Control
     private int _consoleTypedChars;
     private double _consoleTypeClock;
     private bool _consoleTypingIsOk;
+
+    // 콘솔이 끝난 뒤 잠깐 떴다 닫히는 시스템 창(권한 승계 완료).
+    private PrologueScript.WindowBlock _windowBlock;
+    private double _windowLeft;
+    private Action _windowDone;
 
     private PrologueScript.GuideBlock _guide;
     private int _beat;
@@ -107,6 +117,50 @@ public partial class GuideHologramView : Control
         }
     }
 
+    // --- 승계 완료 시스템 창 ------------------------------------------------
+
+    // 콘솔이 사라지고, 화면 한가운데 창이 떴다가 hold 초 뒤에 닫힌다.
+    // 권한 승계와 GUIDE-0 등장을 별개의 사건으로 느끼게 하는 사이 박자다.
+    public void PlayWindow(string windowId, Action onDone)
+    {
+        var block = PrologueScript.GetWindow(windowId);
+        if (block == null)
+        {
+            GD.PushWarning($"GuideHologramView: 시스템 창 '{windowId}' 를 찾지 못했습니다.");
+            onDone?.Invoke();
+            return;
+        }
+        _console.Visible = false;
+        _windowBlock = block;
+        _windowLeft = block.Hold;
+        _windowDone = onDone;
+        _window.Title = block.Title;
+        _window.Big = block.Big;
+        _window.Lines = block.Lines;
+        _window.Visible = true;
+        _window.Modulate = new Color(1f, 1f, 1f, 0f);
+        _window.Scale = new Vector2(0.92f, 0.92f);
+        _window.PivotOffset = _window.Size * 0.5f;
+        _window.QueueRedraw();
+        Sfx.Instance?.Play("window_open", -6f);
+        var t = CreateTween();
+        t.SetParallel(true);
+        t.TweenProperty(_window, "modulate:a", 1f, 0.18);
+        t.TweenProperty(_window, "scale", Vector2.One, 0.18).SetTrans(Tween.TransitionType.Back);
+    }
+
+    private void TickWindow(double delta)
+    {
+        if (_windowBlock == null) return;
+        _windowLeft -= delta;
+        if (_windowLeft > 0) return;
+        _windowBlock = null;
+        _window.Visible = false;
+        var cb = _windowDone;
+        _windowDone = null;
+        cb?.Invoke();
+    }
+
     // --- GUIDE-0 홀로그램 --------------------------------------------------
 
     public void ShowHologram()
@@ -146,6 +200,16 @@ public partial class GuideHologramView : Control
         ClearChoices();
         _icons.Visible = false;
         _hint.Visible = false;
+        SetPanel("none");
+    }
+
+    // 창 오른쪽 보조 정보판 — none / alert / authority / mission.
+    private void SetPanel(string kind)
+    {
+        string k = string.IsNullOrEmpty(kind) ? "none" : kind.Trim().ToLowerInvariant();
+        _panel.Kind = k;
+        _panel.Visible = k != "none";
+        _panel.QueueRedraw();
     }
 
     // 대사 묶음을 순서대로 보여준다. 다 끝나면 마지막 줄을 화면에 남긴 채 onDone 을 부른다
@@ -167,6 +231,7 @@ public partial class GuideHologramView : Control
         _completeWhenTyped = completeWhenTyped;
         _beat = -1;
         SetPortrait(block.StartPortrait);
+        SetPanel(block.StartPanel);
         NextBeat();
     }
 
@@ -208,9 +273,9 @@ public partial class GuideHologramView : Control
                 var cb = _menuPick;
                 _menuPick = null;
                 cb?.Invoke(captured);
-            }, 16);
+            }, ViewFont.S(16));
             b.Disabled = answered;
-            b.CustomMinimumSize = new Vector2(0f, 34f);
+            b.CustomMinimumSize = new Vector2(0f, 40f);
             _choices.AddChild(b);
         }
     }
@@ -245,6 +310,10 @@ public partial class GuideHologramView : Control
                     continue;
                 case PrologueScript.GuideBeatKind.Icons:
                     BuildEmployeeIcons();
+                    _beat++;
+                    continue;
+                case PrologueScript.GuideBeatKind.Panel:
+                    SetPanel(b.Value);
                     _beat++;
                     continue;
                 case PrologueScript.GuideBeatKind.Noise:
@@ -333,6 +402,8 @@ public partial class GuideHologramView : Control
     public override void _Process(double delta)
     {
         TickConsole(delta);
+        TickWindow(delta);
+        if (_panel.Visible) _panel.Tick(delta);
 
         // 대사는 절대 저절로 넘어가지 않는다 — 스페이스/엔터/클릭을 기다린다.
         if (_guide != null && _line.VisibleRatio < 1f)
@@ -506,7 +577,7 @@ public partial class GuideHologramView : Control
             MouseFilter = MouseFilterEnum.Ignore,
         };
         _console.AddThemeFontOverride("normal_font", _font);
-        _console.AddThemeFontSizeOverride("normal_font_size", 17);
+        _console.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(17));
         _console.AddThemeColorOverride("default_color", ConsoleInk);
         AddChild(_console);
 
@@ -522,29 +593,40 @@ public partial class GuideHologramView : Control
         _holoRoot.AddChild(_holo);
 
         // 정사각형 얼굴 창 — 여기에 최종 도트 초상화가 들어간다.
+        // (창 위쪽 28px 는 GUIDE-0.exe 제목 표시줄이 쓴다.)
         _portrait = new PortraitBox
         {
-            Position = new Vector2(312f, 74f),
-            Size = new Vector2(176f, 176f),
+            Position = new Vector2(150f, 88f),
+            Size = new Vector2(164f, 164f),
             MouseFilter = MouseFilterEnum.Ignore,
         };
         _holoRoot.AddChild(_portrait);
 
-        _name = MakeLabel("GUIDE-0", 18, Cyan, new Vector2(0f, 258f));
-        _name.Size = new Vector2(Canvas.X, 24f);
+        // 말하는 동안 같이 움직이는 보조 정보판(재난 현황 / 권한 계층도 / 목표).
+        _panel = new InfoPanel
+        {
+            Position = new Vector2(388f, 88f),
+            Size = new Vector2(296f, 164f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        _holoRoot.AddChild(_panel);
+
+        _name = MakeLabel("GUIDE-0", 18, Cyan, new Vector2(150f, 256f));
+        _name.Size = new Vector2(164f, 26f);
         _name.HorizontalAlignment = HorizontalAlignment.Center;
         _holoRoot.AddChild(_name);
 
-        _line = MakeLabel("", 20, new Color(0.88f, 0.98f, 1f), new Vector2(140f, 292f));
-        _line.Size = new Vector2(520f, 76f);
+        _line = MakeLabel("", 20, new Color(0.88f, 0.98f, 1f), new Vector2(126f, 292f));
+        _line.Size = new Vector2(548f, 84f);
         _line.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _line.HorizontalAlignment = HorizontalAlignment.Center;
         _holoRoot.AddChild(_line);
 
         _icons = new HBoxContainer
         {
-            Position = new Vector2(140f, 372f),
-            Size = new Vector2(520f, 56f),
+            Position = new Vector2(126f, 380f),
+            Size = new Vector2(548f, 56f),
             Alignment = BoxContainer.AlignmentMode.Center,
             MouseFilter = MouseFilterEnum.Ignore,
             Visible = false,
@@ -554,24 +636,34 @@ public partial class GuideHologramView : Control
 
         _choices = new VBoxContainer
         {
-            Position = new Vector2(160f, 392f),
-            Size = new Vector2(480f, 150f),
+            Position = new Vector2(148f, 382f),
+            Size = new Vector2(504f, 150f),
             MouseFilter = MouseFilterEnum.Pass,
         };
-        _choices.AddThemeConstantOverride("separation", 8);
+        _choices.AddThemeConstantOverride("separation", 7);
         _holoRoot.AddChild(_choices);
 
-        _hint = MakeLabel("클릭하여 계속", 13, new Color(0.45f, 0.62f, 0.66f), new Vector2(0f, 528f));
+        _hint = MakeLabel("클릭하여 계속", 13, new Color(0.45f, 0.62f, 0.66f), new Vector2(0f, 534f));
         _hint.Size = new Vector2(Canvas.X, 20f);
         _hint.HorizontalAlignment = HorizontalAlignment.Center;
         _holoRoot.AddChild(_hint);
+
+        // 승계 완료 창은 홀로그램과 별개로 화면 한가운데 뜬다.
+        _window = new SystemWindow
+        {
+            Position = new Vector2(196f, 188f),
+            Size = new Vector2(408f, 216f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        AddChild(_window);
     }
 
     private Label MakeLabel(string text, int size, Color col, Vector2 pos)
     {
         var l = new Label { Text = text, Position = pos, MouseFilter = MouseFilterEnum.Ignore };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -588,6 +680,16 @@ public partial class GuideHologramView : Control
             DrawRect(box, new Color(0.06f, 0.20f, 0.24f, 0.72f));
             DrawRect(box, Cyan with { A = 0.85f }, false, 2f);
             DrawRect(box.Grow(4f), Cyan with { A = 0.25f }, false, 1f);
+
+            // 제목 표시줄 — "GUIDE-0.exe 라는 작은 프로그램이 떴다"는 인상을 준다.
+            var bar = new Rect2(0f, 0f, Size.X, 28f);
+            DrawRect(bar, new Color(0.10f, 0.32f, 0.36f, 0.92f));
+            DrawRect(bar, Cyan with { A = 0.45f }, false, 1f);
+            var font = ViewFont.Default;
+            DrawString(font, new Vector2(12f, 20f), "GUIDE-0.exe", HorizontalAlignment.Left,
+                Size.X - 100f, ViewFont.S(14), Cyan with { A = 0.95f });
+            DrawString(font, new Vector2(Size.X - 84f, 20f), "—  □  ✕", HorizontalAlignment.Left,
+                80f, ViewFont.S(14), Cyan with { A = 0.55f });
 
             // 홀로그램 스캔라인.
             for (float y = 0; y < Size.Y; y += 4f)
@@ -641,14 +743,189 @@ public partial class GuideHologramView : Control
                 // 임시 초상 — 최종 도트 얼굴이 들어오면 이 블록은 그려지지 않는다.
                 var font = ViewFont.Default;
                 DrawString(font, new Vector2(0f, Size.Y * 0.44f), "GUIDE-0",
-                    HorizontalAlignment.Center, Size.X, 22, Cyan with { A = 0.9f });
+                    HorizontalAlignment.Center, Size.X, ViewFont.S(22), Cyan with { A = 0.9f });
                 DrawString(font, new Vector2(0f, Size.Y * 0.58f), "PORTRAIT",
-                    HorizontalAlignment.Center, Size.X, 15, Cyan with { A = 0.55f });
+                    HorizontalAlignment.Center, Size.X, ViewFont.S(15), Cyan with { A = 0.55f });
                 DrawString(font, new Vector2(0f, Size.Y * 0.74f), $"[{Expression}]",
-                    HorizontalAlignment.Center, Size.X, 13, Cyan with { A = 0.35f });
+                    HorizontalAlignment.Center, Size.X, ViewFont.S(13), Cyan with { A = 0.35f });
             }
 
             DrawRect(box, Cyan with { A = 0.9f }, false, 2f);
+        }
+    }
+
+    // --- 승계 완료 시스템 창 -------------------------------------------------
+    private partial class SystemWindow : Control
+    {
+        public string Title = "";
+        public string Big = "";
+        public System.Collections.Generic.IReadOnlyList<string> Lines = System.Array.Empty<string>();
+
+        public override void _Draw()
+        {
+            var font = ViewFont.Default;
+            var box = new Rect2(Vector2.Zero, Size);
+
+            DrawRect(box.Grow(3f), new Color(0f, 0f, 0f, 0.45f));
+            DrawRect(box, new Color(0.05f, 0.12f, 0.14f, 0.97f));
+            DrawRect(box, Cyan with { A = 0.9f }, false, 2f);
+
+            var bar = new Rect2(0f, 0f, Size.X, 30f);
+            DrawRect(bar, new Color(0.10f, 0.32f, 0.36f, 0.95f));
+            DrawString(font, new Vector2(14f, 21f), Title, HorizontalAlignment.Left,
+                Size.X - 70f, ViewFont.S(16), Cyan);
+            DrawString(font, new Vector2(Size.X - 30f, 21f), "✕", HorizontalAlignment.Left,
+                26f, ViewFont.S(14), Cyan with { A = 0.5f });
+
+            DrawString(font, new Vector2(0f, 108f), Big, HorizontalAlignment.Center,
+                Size.X, ViewFont.S(42), new Color(0.80f, 1f, 0.92f));
+
+            float y = 150f;
+            foreach (string l in Lines)
+            {
+                DrawString(font, new Vector2(0f, y), l, HorizontalAlignment.Center,
+                    Size.X, ViewFont.S(14), Cyan with { A = 0.72f });
+                y += 24f;
+            }
+        }
+    }
+
+    // --- 보조 정보판 --------------------------------------------------------
+    // GUIDE-0 가 말하는 동안 옆에서 같이 움직이는 판. 대사 내용과 짝을 이룬다.
+    private partial class InfoPanel : Control
+    {
+        public string Kind = "none";
+        private float _t;
+
+        public void Tick(double delta)
+        {
+            _t += (float)delta;
+            QueueRedraw();
+        }
+
+        public override void _Draw()
+        {
+            var font = ViewFont.Default;
+            var box = new Rect2(Vector2.Zero, Size);
+            DrawRect(box, new Color(0.03f, 0.14f, 0.17f, 0.80f));
+            DrawRect(box, Cyan with { A = 0.55f }, false, 1.4f);
+            for (float y = 0; y < Size.Y; y += 4f)
+                DrawRect(new Rect2(0, y, Size.X, 1f), new Color(0.55f, 0.95f, 1f, 0.04f));
+
+            switch (Kind)
+            {
+                case "alert": DrawAlert(font); break;
+                case "authority": DrawAuthority(font); break;
+                case "mission": DrawMission(font); break;
+            }
+        }
+
+        // 무슨 일이 벌어진 거지? — 재난 / 격리 붕괴 / 신원 오류.
+        private void DrawAlert(Font font)
+        {
+            var red = new Color(1f, 0.38f, 0.30f);
+            float blink = 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(_t * 3.2f));
+
+            // 경고 삼각형.
+            var c = new Vector2(34f, 40f);
+            var pts = new[] { c + new Vector2(0f, -17f), c + new Vector2(16f, 12f), c + new Vector2(-16f, 12f) };
+            DrawPolyline(new[] { pts[0], pts[1], pts[2], pts[0] }, red with { A = blink }, 2.2f);
+            DrawString(font, new Vector2(c.X - 4f, c.Y + 9f), "!", HorizontalAlignment.Left, 20f,
+                ViewFont.S(16), red with { A = blink });
+
+            DrawString(font, new Vector2(62f, 32f), "외부 대규모 재난", HorizontalAlignment.Left,
+                Size.X - 74f, ViewFont.S(16), new Color(0.94f, 0.96f, 0.98f));
+            DrawString(font, new Vector2(62f, 52f), "격리 시스템 붕괴", HorizontalAlignment.Left,
+                Size.X - 74f, ViewFont.S(16), new Color(0.94f, 0.96f, 0.98f));
+
+            DrawLine(new Vector2(16f, 70f), new Vector2(Size.X - 16f, 70f), Cyan with { A = 0.3f }, 1f);
+
+            // 직원 여섯 명 실루엣 — 하나만 붉게 깜빡인다.
+            DrawString(font, new Vector2(16f, 90f), "현장 인원 6", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(13), Cyan with { A = 0.8f });
+            int odd = (int)(_t * 0.7f) % 6;
+            for (int i = 0; i < 6; i++)
+            {
+                var p = new Vector2(20f + i * 30f, 98f);
+                bool bad = i == odd;
+                var col = bad ? red with { A = blink } : Cyan with { A = 0.75f };
+                DrawCircle(p + new Vector2(10f, 7f), 5f, col);
+                DrawRect(new Rect2(p.X + 4.5f, p.Y + 14f, 11f, 14f), col);
+            }
+
+            DrawString(font, new Vector2(16f, Size.Y - 10f), "신원 기록 불일치  1 / 6",
+                HorizontalAlignment.Left, Size.X - 32f, ViewFont.S(14), red with { A = blink });
+        }
+
+        // 나는 누구지? — 관제 담당에서 총괄 관리자로 권한이 올라간다.
+        private void DrawAuthority(Font font)
+        {
+            float pulse = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(_t * 2.4f));
+            DrawString(font, new Vector2(16f, 26f), "관리 권한 계층", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(13), Cyan with { A = 0.75f });
+
+            var dead = new Color(0.55f, 0.60f, 0.62f);
+            var upper = new Rect2(24f, 40f, Size.X - 48f, 34f);
+            DrawRect(upper, new Color(0.08f, 0.16f, 0.18f, 0.7f));
+            DrawRect(upper, dead with { A = 0.6f }, false, 1.2f);
+            DrawString(font, new Vector2(upper.Position.X + 12f, upper.Position.Y + 23f),
+                "전임 총괄 관리자", HorizontalAlignment.Left, upper.Size.X - 20f, ViewFont.S(15), dead);
+            DrawLine(new Vector2(upper.Position.X + 8f, upper.Position.Y + 17f),
+                new Vector2(upper.End.X - 8f, upper.Position.Y + 17f), new Color(0.85f, 0.3f, 0.25f, 0.8f), 1.6f);
+
+            // 아래에서 위로 올라가는 화살표.
+            float ax = Size.X * 0.5f;
+            float ay = 92f + Mathf.Sin(_t * 3.4f) * 2.5f;
+            DrawLine(new Vector2(ax, ay + 12f), new Vector2(ax, ay - 8f), Cyan with { A = pulse }, 2f);
+            DrawPolyline(new[]
+            {
+                new Vector2(ax - 6f, ay - 2f), new Vector2(ax, ay - 10f), new Vector2(ax + 6f, ay - 2f),
+            }, Cyan with { A = pulse }, 2f);
+
+            var lower = new Rect2(24f, 108f, Size.X - 48f, 46f);
+            DrawRect(lower, new Color(0.10f, 0.30f, 0.34f, 0.85f * pulse + 0.1f));
+            DrawRect(lower, Cyan with { A = 0.9f }, false, 1.8f);
+            DrawString(font, new Vector2(lower.Position.X + 12f, lower.Position.Y + 16f),
+                "관제 담당", HorizontalAlignment.Left, lower.Size.X - 20f, ViewFont.S(11),
+                Cyan with { A = 0.6f });
+            DrawString(font, new Vector2(lower.Position.X + 12f, lower.Position.Y + 39f),
+                "▶ 시설 총괄 관리자", HorizontalAlignment.Left, lower.Size.X - 20f, ViewFont.S(15),
+                new Color(0.88f, 1f, 0.96f));
+        }
+
+        // 내가 해야 할 일은? — 남은 시간과 코어 목표.
+        private void DrawMission(Font font)
+        {
+            DrawString(font, new Vector2(16f, 26f), "비상 차폐 잔여 시간", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(13), Cyan with { A = 0.78f });
+
+            // 120시간에서 아주 천천히 줄어드는 타이머(실제 게임 시간과는 무관한 연출용).
+            double total = 120 * 3600 - _t * 3.0;
+            int h = Mathf.Max(0, (int)(total / 3600));
+            int m = Mathf.Max(0, (int)(total / 60) % 60);
+            int sec = Mathf.Max(0, (int)total % 60);
+            var warn = new Color(1f, 0.72f, 0.30f);
+            DrawString(font, new Vector2(16f, 58f), $"{h:000}:{m:00}:{sec:00}", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(30), warn);
+
+            DrawLine(new Vector2(16f, 74f), new Vector2(Size.X - 16f, 74f), Cyan with { A = 0.3f }, 1f);
+
+            DrawString(font, new Vector2(16f, 98f), "봉쇄 코어 복구", HorizontalAlignment.Left,
+                Size.X - 32f, ViewFont.S(13), Cyan with { A = 0.78f });
+
+            // 3% → 목표 100%.
+            var bar = new Rect2(16f, 108f, Size.X - 32f, 20f);
+            DrawRect(bar, new Color(0f, 0f, 0f, 0.4f));
+            DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * 0.03f, bar.Size.Y)),
+                new Color(1f, 0.32f, 0.26f));
+            // 목표선이 왼쪽에서 오른쪽으로 흐른다.
+            float sweep = Mathf.PosMod(_t * 0.35f, 1f);
+            DrawRect(new Rect2(bar.Position.X + bar.Size.X * sweep, bar.Position.Y, 2f, bar.Size.Y),
+                new Color(0.55f, 1f, 0.75f, 0.55f));
+            DrawRect(bar, Cyan with { A = 0.55f }, false, 1.2f);
+
+            DrawString(font, new Vector2(16f, Size.Y - 14f), "현재 3%   ▶   목표 100%",
+                HorizontalAlignment.Left, Size.X - 32f, ViewFont.S(16), new Color(0.80f, 1f, 0.88f));
         }
     }
 

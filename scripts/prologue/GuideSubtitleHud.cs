@@ -54,6 +54,23 @@ public partial class GuideSubtitleHud : CanvasLayer
         Visible = active && !string.IsNullOrEmpty(_label.Text);
     }
 
+    // 책상 배치표처럼 화면 아래쪽에 눌러야 할 버튼(‘근무 시작’)이 있는 단계에서는
+    // 자막 띠를 화면 위로 올린다 — 지시문이 정작 눌러야 할 버튼을 가리지 않게.
+    public void SetTopAligned(bool top)
+    {
+        if (_panel == null) return;
+        if (top)
+        {
+            _panel.AnchorTop = 0f; _panel.AnchorBottom = 0f;
+            _panel.OffsetTop = 0f; _panel.OffsetBottom = 70f;
+        }
+        else
+        {
+            _panel.AnchorTop = 1f; _panel.AnchorBottom = 1f;
+            _panel.OffsetTop = -132f; _panel.OffsetBottom = -62f;
+        }
+    }
+
     public void SetLine(string text)
     {
         _label.Text = text ?? "";

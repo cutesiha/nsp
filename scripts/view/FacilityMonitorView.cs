@@ -89,7 +89,7 @@ public partial class FacilityMonitorView : Control
     {
         var l = new Label { Text = text };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -110,7 +110,7 @@ public partial class FacilityMonitorView : Control
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         bar.AddChild(_clock);
 
-        var endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, 14);
+        var endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, ViewFont.S(14));
         endBtn.Position = new Vector2(690, 6);
         endBtn.Size = new Vector2(104, 32);
         bar.AddChild(endBtn);
@@ -171,12 +171,12 @@ public partial class FacilityMonitorView : Control
             ScrollActive = false,
         };
         _inspector.AddThemeFontOverride("normal_font", _font);
-        _inspector.AddThemeFontSizeOverride("normal_font_size", 17);
+        _inspector.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(17));
         _inspector.AddThemeColorOverride("default_color", Ink);
         insPanel.AddChild(_inspector);
 
         _isolateBtn = new Button { Position = new Vector2(10, 328), Size = new Vector2(304, 36), Text = "격리", Visible = false };
-        _isolateBtn.AddThemeFontSizeOverride("font_size", 15);
+        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
         _isolateBtn.Pressed += OnIsolatePressed;
         insPanel.AddChild(_isolateBtn);
     }
@@ -199,7 +199,7 @@ public partial class FacilityMonitorView : Control
             ScrollActive = false,
         };
         _log.AddThemeFontOverride("normal_font", _font);
-        _log.AddThemeFontSizeOverride("normal_font_size", 12);
+        _log.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(12));
         _log.AddThemeColorOverride("default_color", Dim);
         panel.AddChild(_log);
     }
@@ -293,7 +293,7 @@ public partial class FacilityMonitorView : Control
         message.VerticalAlignment = VerticalAlignment.Center;
         panel.AddChild(message);
 
-        var no = MonitorUi.Button("아니오", Dim, _font, () => _endShiftConfirmation.Visible = false, 16);
+        var no = MonitorUi.Button("아니오", Dim, _font, () => _endShiftConfirmation.Visible = false, ViewFont.S(16));
         no.Position = new Vector2(125, 158);
         no.Size = new Vector2(110, 40);
         panel.AddChild(no);

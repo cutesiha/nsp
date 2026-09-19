@@ -144,7 +144,7 @@ public partial class AlertTerminalView : Control
             ClipText = true,
         };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", c);
         return l;
     }
@@ -160,7 +160,7 @@ public partial class AlertTerminalView : Control
             MouseFilter = MouseFilterEnum.Stop,
         };
         b.AddThemeFontOverride("font", font);
-        b.AddThemeFontSizeOverride("font_size", 20);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(20));
         b.AddThemeColorOverride("font_color", new Color(0.55f, 0.85f, 0.65f));
         b.AddThemeColorOverride("font_hover_color", Colors.White);
         var normal = new StyleBoxFlat

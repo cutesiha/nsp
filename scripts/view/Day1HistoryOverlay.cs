@@ -187,24 +187,24 @@ public partial class Day1HistoryOverlay : CanvasLayer
         {
             Name = "HistoryIcons",
             AnchorLeft = 1f, AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
-            OffsetLeft = -260f, OffsetRight = -20f, OffsetTop = -76f, OffsetBottom = -20f,
+            OffsetLeft = -392f, OffsetRight = -20f, OffsetTop = -80f, OffsetBottom = -20f,
             MouseFilter = Control.MouseFilterEnum.Pass,
         };
         _icons.AddThemeConstantOverride("separation", 10);
         _icons.Visible = false;
         _root.AddChild(_icons);
 
-        Button logIcon = MonitorUi.Button("L  로그", Cyan, _body, ToggleLog, 17);
+        Button logIcon = MonitorUi.Button("L  로그", Cyan, _body, ToggleLog, ViewFont.FS(17));
         logIcon.Name = "LogHistoryButton";
         logIcon.TooltipText = "DAY1 시설 로그";
-        logIcon.CustomMinimumSize = new Vector2(100, 52);
+        logIcon.CustomMinimumSize = new Vector2(134, 56);
         logIcon.MouseFilter = Control.MouseFilterEnum.Stop;
         _icons.AddChild(logIcon);
 
-        Button dialogueIcon = MonitorUi.Button("D  대화 기록", new Color(0.88f, 0.76f, 0.48f), _body, ToggleDialogue, 17);
+        Button dialogueIcon = MonitorUi.Button("D  대화 기록", new Color(0.88f, 0.76f, 0.48f), _body, ToggleDialogue, ViewFont.FS(17));
         dialogueIcon.Name = "DialogueHistoryButton";
         dialogueIcon.TooltipText = "DAY1 대화 기록";
-        dialogueIcon.CustomMinimumSize = new Vector2(110, 52);
+        dialogueIcon.CustomMinimumSize = new Vector2(216, 56);
         dialogueIcon.MouseFilter = Control.MouseFilterEnum.Stop;
         _icons.AddChild(dialogueIcon);
 
@@ -340,7 +340,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             TooltipText = "닫기",
         };
         close.AddThemeFontOverride("font", _body);
-        close.AddThemeFontSizeOverride("font_size", 22);
+        close.AddThemeFontSizeOverride("font_size", ViewFont.FS(22));
         close.AddThemeColorOverride("font_color", color);
         close.AddThemeColorOverride("font_hover_color", Colors.White);
         var normal = new StyleBoxFlat

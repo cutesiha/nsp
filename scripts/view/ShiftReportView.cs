@@ -47,7 +47,7 @@ public partial class ShiftReportView : Control
             ScrollActive = false,
         };
         _body.AddThemeFontOverride("normal_font", _font);
-        _body.AddThemeFontSizeOverride("normal_font_size", 22);
+        _body.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(22));
         _body.AddThemeColorOverride("default_color", Ink);
         AddChild(_body);
 
@@ -63,11 +63,11 @@ public partial class ShiftReportView : Control
             ScrollActive = false,
         };
         _events.AddThemeFontOverride("normal_font", _font);
-        _events.AddThemeFontSizeOverride("normal_font_size", 15);
+        _events.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(15));
         _events.AddThemeColorOverride("default_color", Dim);
         AddChild(_events);
 
-        var btn = MonitorUi.Button("계속 ▶", Ink, _font, () => ContinueRequested?.Invoke(), 17);
+        var btn = MonitorUi.Button("계속 ▶", Ink, _font, () => ContinueRequested?.Invoke(), ViewFont.S(17));
         btn.Position = new Vector2(600, 542);
         btn.Size = new Vector2(176, 44);
         AddChild(btn);
@@ -145,7 +145,7 @@ public partial class ShiftReportView : Control
     {
         var l = new Label { Text = text };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }

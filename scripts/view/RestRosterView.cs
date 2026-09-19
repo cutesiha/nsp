@@ -78,14 +78,14 @@ public partial class RestRosterView : Control
 
         _isolateBtn = new Button { Position = new Vector2(532, 476), Size = new Vector2(244, 38), Text = "격리" };
         _isolateBtn.AddThemeFontOverride("font", _font);
-        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
+        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
         _isolateBtn.Pressed += OnIsolatePressed;
         _isolateBtn.Disabled = true;
         AddChild(_isolateBtn);
 
         _nextBtn = new Button { Position = new Vector2(532, 534), Size = new Vector2(244, 44), Text = "다음 날 근무 배치 ▶" };
         _nextBtn.AddThemeFontOverride("font", _font);
-        _nextBtn.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
+        _nextBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(16));
         _nextBtn.Pressed += () => NextRequested?.Invoke();
         AddChild(_nextBtn);
     }
@@ -173,7 +173,7 @@ public partial class RestRosterView : Control
     {
         var l = new Label { Text = text };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -272,7 +272,7 @@ public partial class RestRosterView : Control
             DrawRect(table, new Color(0.20f, 0.17f, 0.13f));
             DrawRect(table, new Color(0.34f, 0.28f, 0.19f), false, 2f);
             DrawString(ViewFont.Default, table.Position + new Vector2(0, table.Size.Y * 0.5f + 5f),
-                "TABLE", HorizontalAlignment.Center, table.Size.X, ViewFont.FS(12),
+                "TABLE", HorizontalAlignment.Center, table.Size.X, ViewFont.S(12),
                 new Color(0.45f, 0.40f, 0.32f));
 
             // 왼쪽 벽 붙박이 — 커피/구급.
@@ -286,7 +286,7 @@ public partial class RestRosterView : Control
             DrawRect(locker, new Color(0.17f, 0.13f, 0.20f));
             DrawRect(locker, new Color(0.45f, 0.36f, 0.55f), false, 1.5f);
             DrawString(ViewFont.Default, locker.Position + new Vector2(0, 19f), "LOCKER",
-                HorizontalAlignment.Center, locker.Size.X, ViewFont.FS(12), new Color(0.68f, 0.58f, 0.80f));
+                HorizontalAlignment.Center, locker.Size.X, ViewFont.S(12), new Color(0.68f, 0.58f, 0.80f));
 
             // 오른쪽 벽의 인터뷰실 출입문 — 선택한 직원이 이 앞으로 간다.
             float doorH = 120f;
@@ -307,7 +307,7 @@ public partial class RestRosterView : Control
         private void DrawStringRotated(string text, Vector2 at, Color col)
         {
             var f = ViewFont.Default;
-            int fs = ViewFont.FS(11);
+            int fs = ViewFont.S(11);
             float y = at.Y;
             foreach (char c in text)
             {
@@ -399,21 +399,21 @@ public partial class RestRosterView : Control
                     DrawCircle(c, r * 0.72f, new Color(accent.R, accent.G, accent.B, alive ? 0.55f : 0.25f));
                     string initial = string.IsNullOrEmpty(def.Codename) ? "?" : def.Codename.Substring(0, 1);
                     DrawString(ViewFont.Default, c + new Vector2(-r, 10f), initial,
-                        HorizontalAlignment.Center, r * 2f, ViewFont.FS(30),
+                        HorizontalAlignment.Center, r * 2f, ViewFont.S(30),
                         alive ? Colors.White : new Color(0.6f, 0.6f, 0.6f));
                 }
 
                 // 코드네임 + 상태.
                 var nameCol = alive ? new Color(0.95f, 0.95f, 0.86f) : new Color(0.55f, 0.55f, 0.58f);
                 DrawString(ViewFont.Default, new Vector2(-14f, d + 13f), def.Codename,
-                    HorizontalAlignment.Center, d + 28f, ViewFont.FS(14), nameCol);
+                    HorizontalAlignment.Center, d + 28f, ViewFont.S(14), nameCol);
 
                 if (st is { Alive: false })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "응답 없음",
-                        HorizontalAlignment.Center, d + 28f, ViewFont.FS(11), new Color(0.9f, 0.35f, 0.35f));
+                        HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.9f, 0.35f, 0.35f));
                 else if (st is { Isolated: true })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[격리]",
-                        HorizontalAlignment.Center, d + 28f, ViewFont.FS(11), new Color(0.88f, 0.52f, 0.9f));
+                        HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.88f, 0.52f, 0.9f));
             }
         }
     }

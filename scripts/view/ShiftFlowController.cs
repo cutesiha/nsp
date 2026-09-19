@@ -190,6 +190,8 @@ public partial class ShiftFlowController : Node
         if (_arms != null) _arms.Visible = false;
 
         _board?.SetActive(true);
+        // 배치표 단계에서는 자막 띄를 위로 올린다 — 아래쪽 ‘근무 시작’ 버튼을 가리지 않게.
+        NSP.Prologue.GuideSubtitleHud.Instance?.SetTopAligned(true);
         _ctl?.SetInputLocked(false);
         _ctl?.SetModalSurface(_board);
 
@@ -231,6 +233,7 @@ public partial class ShiftFlowController : Node
         Sfx.Instance?.FadeOutMusic(0.9f); // 근무배치 BGM 페이드아웃 — 근무화면엔 BGM 없음(환경음이 대신)
 
         _ctl?.SetModalSurface(null);
+        NSP.Prologue.GuideSubtitleHud.Instance?.SetTopAligned(false);
         _board?.PlayDismiss();
         _rig?.ReturnToSeat(0.6f);
         foreach (var n in _clutter) n.Visible = true;

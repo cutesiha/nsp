@@ -15,7 +15,7 @@ public static class PrologueScript
     private const string RuntimePath = "res://docs/NSP_PROLOGUE_RUNTIME.md";
 
     // --- 컷씬 -----------------------------------------------------------
-    public enum SlideFx { None, Glitch, Cut, Siren, Shake, Blackout, Typing, Impact }
+    public enum SlideFx { None, Glitch, Cut, Siren, Shake, Blackout, Typing, Impact, Alert, Flicker, Crt }
 
     public sealed class Slide
     {
@@ -33,7 +33,11 @@ public static class PrologueScript
         public bool Radio;
         public string Text = "";
         public string Overlay = "";
+        // overlay 아래 작게 깔리는 영문 보조 문구(주 정보는 언제나 한글 overlay 다).
+        public string Sub = "";
         public string Sfx = "";
+        // 자막/문구가 다 찍힌 직후에 울리는 효과음(스위치 조작음 등).
+        public string SfxAfter = "";
         // 이 슬라이드에서 시작/중단할 반복 효과음(사이렌 등). 컷씬이 끝나면 전부 자동 중단된다.
         public string SfxLoopStart = "";
         public string SfxLoopStop = "";
@@ -42,6 +46,17 @@ public static class PrologueScript
         public float Shake;
         // 슬라이드가 뜨는 순간 좌우로 짧게 흔들리는 시간(초). 0 이면 흔들지 않는다.
         public float Jolt;
+        // 무전 수신 상태 HUD(0 이면 안 띄운다). 낮을수록 파형이 거칠고 노이즈가 늘어난다.
+        public int Signal;
+        // 대사가 다 찍히는 순간 통신이 치직 하고 끊긴다.
+        public bool Cutoff;
+        // 느린 줌/팬(켄 번스). 정지 이미지가 슬라이드처럼 보이지 않게 기본으로 켜 둔다.
+        public bool KenBurns = true;
+        // 게이지 연출 — 숫자와 막대가 실제로 내려간다. GaugeSteps 가 비어 있으면 안 그린다.
+        public string GaugeTitle = "";
+        public string GaugeSub = "";
+        public string GaugeAlert = "";
+        public readonly List<float> GaugeSteps = new();
         public SlideFx Fx = SlideFx.None;
     }
 
@@ -66,9 +81,20 @@ public static class PrologueScript
         public readonly List<ConsoleStep> Steps = new();
     }
 
+    // --- 시스템 창 ------------------------------------------------------
+    // 콘솔이 끝난 뒤 화면 한가운데 잠깐 떴다 닫히는 창(권한 승계 완료 등).
+    public sealed class WindowBlock
+    {
+        public string Id = "";
+        public string Title = "";
+        public string Big = "";
+        public readonly List<string> Lines = new();
+        public float Hold = 1.5f;
+    }
+
     // --- GUIDE-0 --------------------------------------------------------
     // 한 beat = 화면에 한 번 표시되는 단위. 대사 한 줄이거나, 초상 교체/아이콘/노이즈 지시다.
-    public enum GuideBeatKind { Line, Portrait, Icons, Noise }
+    public enum GuideBeatKind { Line, Portrait, Icons, Noise, Panel }
 
     public sealed class GuideBeat
     {
@@ -82,6 +108,8 @@ public static class PrologueScript
         public string StartPortrait = "normal";
         // GUIDE-0 전용 보이스. 데이터에서 voice: 로 덮어쓸 수 있다.
         public string VoiceId = "guide0";
+        // 블록이 열릴 때의 보조 정보판(none/alert/authority/mission). 중간에 panel: 로 바꿀 수 있다.
+        public string StartPanel = "none";
         public readonly List<GuideBeat> Beats = new();
     }
 
@@ -103,6 +131,7 @@ public static class PrologueScript
 
     private static readonly Dictionary<string, Cutscene> _cutscenes = new();
     private static readonly Dictionary<string, ConsoleBlock> _consoles = new();
+    private static readonly Dictionary<string, WindowBlock> _windows = new();
     private static readonly Dictionary<string, GuideBlock> _guides = new();
     private static readonly Dictionary<string, MenuBlock> _menus = new();
     private static readonly Dictionary<string, string> _scripted = new();
@@ -126,6 +155,12 @@ public static class PrologueScript
     {
         EnsureLoaded();
         return _consoles.GetValueOrDefault(id);
+    }
+
+    public static WindowBlock GetWindow(string id)
+    {
+        EnsureLoaded();
+        return _windows.GetValueOrDefault(id);
     }
 
     public static GuideBlock GetGuide(string id)
@@ -162,6 +197,7 @@ public static class PrologueScript
         string inheritedTitle = "";
         float inheritedShake = 0f;
         ConsoleBlock console = null;
+        WindowBlock window = null;
         GuideBlock guide = null;
         MenuBlock menu = null;
         string scriptedId = null;
@@ -181,7 +217,7 @@ public static class PrologueScript
                         cutscene = new Cutscene { Id = id };
                         _cutscenes[id] = cutscene;
                         slide = null; inheritedTitle = ""; inheritedShake = 0f;
-                        console = null; guide = null; menu = null; scriptedId = null;
+                        console = null; window = null; guide = null; menu = null; scriptedId = null;
                         continue;
                     case "@slide":
                         if (cutscene == null) continue;
@@ -191,22 +227,27 @@ public static class PrologueScript
                     case "@console":
                         console = new ConsoleBlock { Id = id };
                         _consoles[id] = console;
-                        cutscene = null; slide = null; guide = null; menu = null; scriptedId = null;
+                        cutscene = null; slide = null; window = null; guide = null; menu = null; scriptedId = null;
+                        continue;
+                    case "@window":
+                        window = new WindowBlock { Id = id };
+                        _windows[id] = window;
+                        cutscene = null; slide = null; console = null; guide = null; menu = null; scriptedId = null;
                         continue;
                     case "@guide":
                         guide = new GuideBlock { Id = id };
                         _guides[id] = guide;
-                        cutscene = null; slide = null; console = null; menu = null; scriptedId = null;
+                        cutscene = null; slide = null; console = null; window = null; menu = null; scriptedId = null;
                         continue;
                     case "@menu":
                         menu = new MenuBlock { Id = id };
                         _menus[id] = menu;
-                        cutscene = null; slide = null; console = null; guide = null; scriptedId = null;
+                        cutscene = null; slide = null; console = null; window = null; guide = null; scriptedId = null;
                         continue;
                     case "@scripted":
                         scriptedId = id;
                         _scripted[id] = "";
-                        cutscene = null; slide = null; console = null; guide = null; menu = null;
+                        cutscene = null; slide = null; console = null; window = null; guide = null; menu = null;
                         continue;
                     default:
                         continue;
@@ -218,6 +259,7 @@ public static class PrologueScript
 
             if (slide != null && ApplySlideField(slide, key, value, ref inheritedTitle, ref inheritedShake)) continue;
             if (console != null && ApplyConsoleField(console, key, value)) continue;
+            if (window != null && ApplyWindowField(window, key, value)) continue;
             if (guide != null && ApplyGuideField(guide, key, value)) continue;
             if (menu != null && ApplyMenuField(menu, key, value)) continue;
             if (scriptedId != null && key == "text") _scripted[scriptedId] = value;
@@ -258,15 +300,32 @@ public static class PrologueScript
                 inheritedShake = s.Shake;
                 return true;
             case "jolt": s.Jolt = ParseFloat(value, 0f); return true;
+            case "signal": s.Signal = Mathf.Clamp(Mathf.RoundToInt(ParseFloat(value, 0f)), 0, 100); return true;
+            case "cutoff": s.Cutoff = ParseBool(value); return true;
+            case "ken": s.KenBurns = !value.Equals("off", StringComparison.OrdinalIgnoreCase); return true;
             case "speaker": s.Speaker = value; return true;
-            case "text": s.Text = value; return true;
-            case "overlay": s.Overlay = value; return true;
+            case "text": s.Text = Unescape(value); return true;
+            case "overlay": s.Overlay = Unescape(value); return true;
+            case "sub": s.Sub = value; return true;
+            case "gauge": s.GaugeTitle = value; return true;
+            case "gaugesub": s.GaugeSub = value; return true;
+            case "gaugealert": s.GaugeAlert = value; return true;
+            case "gaugesteps":
+                s.GaugeSteps.Clear();
+                foreach (string part in value.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                    s.GaugeSteps.Add(ParseFloat(part.Trim(), 0f));
+                return true;
+            case "sfxafter": s.SfxAfter = value; return true;
             case "sfx": s.Sfx = value; return true;
             case "hold": s.Hold = ParseFloat(value, s.Hold); return true;
             case "fx": s.Fx = ParseFx(value); return true;
             default: return false;
         }
     }
+
+    // 데이터 파일에서는 줄바꿈을 역슬래시 n 두 글자로 적는다(한 줄에 한 항목이라는 규칙을 지키려고).
+    private static string Unescape(string v) =>
+        string.IsNullOrEmpty(v) ? v : v.Replace("\\n", "\n");
 
     private static bool ParseBool(string v) =>
         v.Equals("true", StringComparison.OrdinalIgnoreCase) || v == "1"
@@ -285,6 +344,9 @@ public static class PrologueScript
         "blackout" => SlideFx.Blackout,
         "typing" => SlideFx.Typing,
         "impact" => SlideFx.Impact,
+        "alert" => SlideFx.Alert,
+        "flicker" => SlideFx.Flicker,
+        "crt" => SlideFx.Crt,
         _ => SlideFx.None,
     };
 
@@ -303,6 +365,18 @@ public static class PrologueScript
         }
     }
 
+    private static bool ApplyWindowField(WindowBlock w, string key, string value)
+    {
+        switch (key)
+        {
+            case "title": w.Title = value; return true;
+            case "big": w.Big = value; return true;
+            case "line": w.Lines.Add(value); return true;
+            case "hold": w.Hold = ParseFloat(value, w.Hold); return true;
+            default: return false;
+        }
+    }
+
     private static bool ApplyGuideField(GuideBlock g, string key, string value)
     {
         switch (key)
@@ -313,7 +387,12 @@ public static class PrologueScript
                 else g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Portrait, Value = value });
                 return true;
             case "voice": g.VoiceId = value; return true;
-            case "line": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Line, Value = value }); return true;
+            case "panel":
+                // 첫 panel 은 블록이 열릴 때의 정보판, 이후 것은 대사 중간의 교체다.
+                if (g.Beats.Count == 0) g.StartPanel = value;
+                else g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Panel, Value = value });
+                return true;
+            case "line": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Line, Value = Unescape(value) }); return true;
             case "icons": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Icons, Value = value }); return true;
             case "fx": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Noise, Value = value }); return true;
             default: return false;

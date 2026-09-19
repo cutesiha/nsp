@@ -52,19 +52,30 @@ public partial class ControlRoom3DController : Node3D
         }
     }
 
+    // 책상 위 문서(배치표)는 화면을 거의 가득 채우며 비스듬히 누워 있어서, CRT 와 같은
+    // 배율로 그리면 글자가 확대되며 뭉개진다. 이 표면만 더 높은 해상도로 렌더한다.
+    // (근무 배치 단계에서만 그려지는 뷰포트라 상시 비용이 아니다.)
+    public const float DocumentSupersample = 1.45f;
+    public const float DocumentMinRenderScale = 0.85f;
+
     // 논리 캔버스 크기 → 실제 SubViewport 렌더 해상도.
-    public static Vector2I ViewportSize(Vector2I logicalSize)
+    // superSample / minRenderScale 은 문서처럼 특별히 선명해야 하는 표면만 쓴다.
+    public static float SurfaceScale(float superSample = 1f, float minRenderScale = 0f) =>
+        UiScale * Mathf.Max(RenderScale, minRenderScale) * superSample;
+
+    public static Vector2I ViewportSize(Vector2I logicalSize, float superSample = 1f, float minRenderScale = 0f)
     {
-        float k = UiScale * RenderScale;
+        float k = SurfaceScale(superSample, minRenderScale);
         return new Vector2I(
             Mathf.Max(1, Mathf.RoundToInt(logicalSize.X * k)),
             Mathf.Max(1, Mathf.RoundToInt(logicalSize.Y * k)));
     }
 
-    public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize)
+    public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize,
+        float superSample = 1f, float minRenderScale = 0f)
     {
         var frame = new Control { Size = logicalSize, MouseFilter = Control.MouseFilterEnum.Ignore };
-        float k = UiScale * RenderScale;
+        float k = SurfaceScale(superSample, minRenderScale);
         frame.Scale = new Vector2(k, k);
         vp.AddChild(frame);
         frame.AddChild(view);

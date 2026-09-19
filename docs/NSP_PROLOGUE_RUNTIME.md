@@ -6,10 +6,12 @@
 # ★ 문구를 고치고 싶으면 이 파일만 고치면 된다. 코드는 건드릴 필요가 없다.
 # ★ 컷씬 이미지도 image: 줄의 경로만 바꿔 끼우면 된다.
 #   - image: 가 비어 있거나 파일이 없으면 화면에 "[ IMAGE ] + imagenote" 임시 패널이 뜬다.
+#   - image: 와 imagenote: 를 둘 다 비우면 임시 패널 없이 '검은 화면 컷'이 된다.
 #   - 최종 일러스트가 나오면 assets/cutscene/... 에 넣고 image: 경로만 채우면 끝.
 #
 # ── 파싱 규칙 ────────────────────────────────────────────────────────────
 #   '#' 로 시작하는 줄, 빈 줄 = 무시
+#   text: / overlay: 안의 \n 은 줄바꿈으로 바뀐다.
 #
 #   @cutscene <id>      컷씬 시작. 이후 @slide 들이 이 컷씬에 순서대로 들어간다.
 #     title: <text>        영상 머리말(다음 슬라이드들이 물려받는다)
@@ -25,28 +27,52 @@
 #                               cat crow fox jellyfish owl rabbit = 기존 직원 보이스 그대로
 #       radio:     true         무전/인터컴으로 들리게 한다(앞뒤 치직 + 약한 잡음 + 무전 필터).
 #                               직원 보이스를 바꾸지 않고 Radio 버스로만 통과시킨다.
+#       signal:    <0~100>      무전 슬라이드의 좌하단 수신 상태 HUD(신호 세기 + 파형).
+#                               값이 낮을수록 파형이 거칠고 화면 노이즈가 늘어난다.
+#       cutoff:    true         대사가 다 찍히는 순간 통신이 치직 하고 끊긴다.
 #       text:      <text>       자막 한 줄 → 이 줄이 있으면 절대 자동으로 안 넘어간다
 #                               (스페이스 / 엔터 / 클릭으로만 진행)
-#       overlay:   <text>       화면 한가운데 크게 뜨는 텍스트 (EMERGENCY SEAL 등). 타이핑된다.
+#       overlay:   <text>       화면 한가운데 크게 뜨는 문구(한글 주정보). 타이핑된다.
+#       sub:       <text>       overlay 아래에 작게 깔리는 영문 보조 문구.
 #       hold:      <초>         대사가 없는 컷을 몇 초 보여줄지(타이핑이 끝난 뒤부터 센다).
 #                               0 이면 그 컷도 입력을 기다린다.
 #       sfx:       <키>         assets/audio/sfx/<키>.wav 를 슬라이드 시작에 1회 재생
+#       sfxafter:  <키>         자막/문구가 다 찍힌 직후에 1회 재생(스위치 조작음 등)
 #       sfxloop:   <키>         그 효과음을 반복 재생 시작(사이렌 등). 컷씬이 끝나면 자동 중단.
 #       sfxloopstop:<키>        반복 재생 중단
 #       shake:     <px>         화면이 계속 미세하게 떨리는 세기. 다음 슬라이드로 이어진다(0 이면 해제)
 #       jolt:      <초>         슬라이드가 뜨는 순간 좌우로 짧게 흔들리는 시간
-#       fx:        none|glitch|cut|siren|shake|blackout|typing|impact
+#       ken:       off          느린 줌/팬(켄 번스)을 끈다. 기본은 켜짐 — 정지 이미지도 살아 움직인다.
+#       fx:        none|glitch|cut|siren|shake|blackout|typing|impact|alert|flicker|crt
+#                               cut   = 컷이 바뀔 때마다 무작위로 하나(펀치 줌/흔들림/붉은 섬광/팬/글리치)
+#                               alert = 화면 전체 붉은 점멸(긴급 경보 카드)
+#                               flicker = 조명이 깜빡이듯 밝기가 튄다
+#                               crt   = 브라운관이 켜지는 순간(가로선 → 노이즈 → 영상)
+#
+#       ── 게이지(코어 출력 저하 연출) ──
+#       gauge:      <한글 제목>       예: 봉쇄 코어 출력
+#       gaugesteps: <숫자, 숫자, ...>  이 값들을 순서대로 '실제로 내려가며' 보여준다
+#       gaugesub:   <영문 보조 문구>   게이지 아래 작게
+#       gaugealert: <경고 문구>        마지막 값에 닿는 순간 붉게 터지는 한글 경고
 #
 #   @console <id>       오른쪽 CRT 의 cmd 콘솔 연출
 #     line: <text>         한 줄 출력 (값이 없으면 빈 줄)
 #     wait: <초>           다음 줄까지 대기
 #     ok:   <text>         성공 메시지(밝게 + 띠롱 효과음)
 #
+#   @window <id>        화면 한가운데 잠깐 떴다 사라지는 시스템 창
+#     title: <text>        창 제목(한글)
+#     big:   <text>        창 한가운데 크게
+#     line:  <text>        그 아래 작은 줄(여러 개 가능)
+#     hold:  <초>          창이 떠 있는 시간
+#
 #   @guide <id>         GUIDE-0 홀로그램 대사 묶음
 #     portrait: <표정키>   assets/ui/guide0/guide0_<표정키>.png 를 찾는다(없으면 임시 초상)
 #     voice: <보이스 id>   이 묶음의 타이핑 보이스(기본 guide0)
 #     line: <text>         대사 한 줄(순서대로)
 #     icons: employees     그 자리에서 직원 아이콘 6개를 띄운다
+#     panel: <종류>        창 오른쪽의 보조 정보판을 바꾼다(말하는 동안 화면이 움직이게)
+#                          none / alert(재난·신원오류) / authority(권한 계층도) / mission(차폐 잔여+코어)
 #     fx:   noise          짧은 노이즈
 #
 #   @menu <id>          GUIDE-0 선택지
@@ -65,41 +91,64 @@
 # 프롤로그 #1 — 낡은 연구소 홍보 기록 영상
 # ========================================================================
 @cutscene prologue_archive
-title: 국가특수에너지연구원 제7지하시설 기록 영상 / ARCHIVE 01
+title: 국가특수에너지연구원 제7지하시설 / ARCHIVE 01
+
+# 검은 화면 + 낮은 기계음 + 표제. 그림 없이 글자만 뜨는 컷이다.
+@slide
+title:
+image:
+imagenote:
+sfx: intro_machine
+overlay: 국가특수에너지연구원\n제7지하시설\n\n정기 안전교육 기록
+sub: ARCHIVE 01
+hold: 2.2
+fx: typing
+
+# CRT 가 켜지고 노이즈가 걷히며 흑백 기록 영상이 시작된다.
+@slide
+title: 국가특수에너지연구원 제7지하시설 / ARCHIVE 01
+image: res://assets/cutscene/prologue/archive_02_director.png
+imagenote: 연구소 총괄 관리자 클로즈업
+sfx: crt_on
+hold: 1.6
+fx: crt
+
+@slide
+image: res://assets/cutscene/prologue/archive_02_director.png
+imagenote: 연구소 총괄 관리자 클로즈업
+speaker: 총괄 관리자
+voice: director
+text: 제7지하시설 근무자 여러분, 반갑습니다.
+hold: 3.0
+
+@slide
+image: res://assets/cutscene/prologue/archive_02_director.png
+imagenote: 연구소 총괄 관리자 클로즈업
+speaker: 총괄 관리자
+voice: director
+text: 본 기록은 시설의 핵심 설비와 비상 절차를 안내하기 위해 제작되었습니다.
+hold: 4.2
 
 @slide
 image: res://assets/cutscene/prologue/archive_01_facility.png
 imagenote: 밝고 멀쩡한 시설 전경 · 연구원들 · 정상 가동 중인 코어
-sfx: crt_hum
-hold: 2.2
-fx: typing
-
-@slide
-image: res://assets/cutscene/prologue/archive_02_director.png
-figure: res://assets/cutscene/prologue/figure_director.png
-figurenote: 연구소 총괄 관리자 상반신 일러스트
-imagenote: 연구소 총괄 관리자 클로즈업
-speaker: 나레이션
+speaker: 총괄 관리자
 voice: director
 text: 국가특수에너지연구원은 미지의 개체, 통칭 ‘존재’가 발생시키는 에너지를 연구해 왔습니다.
 hold: 4.6
 
 @slide
 image: res://assets/cutscene/prologue/archive_03_habitat.png
-figure: res://assets/cutscene/prologue/figure_director.png
-figurenote: 연구소 총괄 관리자 상반신 일러스트
 imagenote: 연구동 내부 · 안정적으로 유지되는 생활 구역
-speaker: 나레이션
+speaker: 총괄 관리자
 voice: director
 text: 이 연구를 통해 우리는 외부 환경과 단절된 시설에서도 안정적인 생존 환경을 유지할 수 있었습니다.
 hold: 5.0
 
 @slide
 image: res://assets/cutscene/prologue/archive_04_core.png
-figure: res://assets/cutscene/prologue/figure_director.png
-figurenote: 연구소 총괄 관리자 상반신 일러스트
 imagenote: 봉쇄 코어 클로즈업 · 푸른 빛으로 안정 가동
-speaker: 나레이션
+speaker: 총괄 관리자
 voice: director
 text: 시설의 중심에는 생명 유지와 외부 차폐를 담당하는 봉쇄 코어가 있습니다.
 hold: 4.8
@@ -109,9 +158,9 @@ hold: 4.8
 # 프롤로그 #2 — 대재난
 # ========================================================================
 @cutscene prologue_disaster
-title: 00 지하연구시설 기록 영상 / ARCHIVE 01
+title: 국가특수에너지연구원 제7지하시설 / ARCHIVE 01
 
-# 총괄 관리자의 얼굴이 일그러지고 신호가 깨진다
+# 총괄 관리자의 얼굴이 일그러지고 신호가 깨진다.
 # shake: 는 다음 슬라이드로 계속 이어진다 — 암전 컷에서 0 으로 되돌린다.
 # sfxloop: siren 도 sfxloopstop 을 만날 때까지 계속 울린다.
 @slide
@@ -120,7 +169,7 @@ imagenote: 총괄 관리자의 얼굴이 일그러지며 화면이 찢어짐
 sfx: noise
 sfxloop: siren
 shake: 2.5
-hold: 2.6
+hold: 2.2
 fx: glitch
 
 @slide
@@ -128,87 +177,101 @@ title: SIGNAL LOST
 image: res://assets/cutscene/prologue/disaster_02_signal_lost.png
 imagenote: 완전히 깨진 화면 · 삐-- 하는 신호음
 sfx: alarm
-hold: 1.6
+hold: 1.3
 fx: siren
 
-# 빠르게 전환되는 컷들
+# ── 긴급 경보 : 붉은 점멸 + 한글 경보문 (그림 없이 글자만) ──
+@slide
+title: EMERGENCY BROADCAST
+image:
+imagenote:
+overlay: ⚠ 긴급 경보\n외부 대규모 재난 감지
+sub: EXTERNAL CATASTROPHE DETECTED
+sfx: alert_beep3
+hold: 2.0
+fx: alert
+
+@slide
+image:
+imagenote:
+overlay: ⚠ 격리 시스템 이상\n연구구역 봉쇄 실패
+sub: CONTAINMENT FAILURE
+sfx: alert_beep3
+hold: 2.0
+fx: alert
+
+# ── 빠르게 지나가는 몽타주 ──
+# fx: cut 은 컷마다 무작위로 효과 하나를 고른다(펀치 줌 / 흔들림 / 붉은 섬광 / 팬 / 글리치).
 @slide
 title: ARCHIVE 02 / EMERGENCY RECORD
 image: res://assets/cutscene/prologue/disaster_03_surface_red.png
 imagenote: 지상 관측 카메라가 붉게 물듦
 sfx: alarm
-hold: 0.75
+hold: 0.7
 fx: cut
 
 @slide
 image: res://assets/cutscene/prologue/disaster_04_lab_wreck.png
 imagenote: 연구실 파손 · 집기가 쏟아짐
 sfx: glass_shatter
-hold: 0.75
+hold: 0.7
 fx: cut
 
 @slide
 image: res://assets/cutscene/prologue/disaster_05_staff_running.png
 imagenote: 직원이 허겁지겁 복도를 뛰어감
 sfx: footsteps_run
-hold: 0.9
+hold: 0.8
 fx: cut
 
 @slide
 image: res://assets/cutscene/prologue/disaster_06_door_closing.png
 imagenote: 차폐문이 닫힘
 sfx: metal_clang
-hold: 0.75
+hold: 0.7
 fx: cut
 
 @slide
 image: res://assets/cutscene/prologue/disaster_07_cctv_shadow.png
 imagenote: CCTV 화면 가장자리를 무언가가 스쳐 지나감
 sfx: cctv_cut
-hold: 0.85
+hold: 0.8
 fx: cut
 
-@slide
-image: res://assets/cutscene/prologue/disaster_08_core_drop.png
-imagenote: 코어 출력 게이지가 급락
-sfx: power_down
-hold: 0.85
-fx: cut
-
-# 코어실 — 타이핑되는 경고
-# 09 / 11 은 일부러 그림이 없다 — 검은 화면에 경고 문구만 타이핑되는 단말기 컷이다.
+# ── 봉쇄 코어 출력 저하 : 숫자와 막대가 실제로 내려간다 ──
+# 영문은 보조 문구일 뿐이고, 플레이어가 읽어야 하는 주 정보는 전부 한글이다.
 @slide
 title: CORE CHAMBER / LIVE
-image:
-imagenote:
-sfx: sensor_beep
-overlay: EXTERNAL CATASTROPHE DETECTED
-hold: 1.9
-fx: typing
+image: res://assets/cutscene/prologue/disaster_08_core_drop.png
+imagenote: 코어실 · 출력 게이지가 급락하기 시작
+gauge: 봉쇄 코어 출력
+gaugesteps: 100, 74, 41
+gaugesub: CORE OUTPUT DROPPING
+sfx: power_down
+shake: 3.4
+hold: 3.0
+fx: flicker
 
 @slide
 image: res://assets/cutscene/prologue/disaster_10_core_breach.png
 imagenote: 코어실 · 차폐막이 깨지는 순간
-overlay: CONTAINMENT FAILURE
+gauge: 봉쇄 코어 출력
+gaugesteps: 41, 16, 3
+gaugesub: CORE OUTPUT CRITICAL
+gaugealert: ⚠ 치명적 출력 저하
 sfx: rubble_collapse
-hold: 1.9
-fx: typing
+hold: 3.4
+fx: alert
 
+# ── 직원 무전 : 신호가 점점 죽는다 ──
 @slide
-image:
-imagenote:
-overlay: CORE OUTPUT 3%
-sfx: alarm
-hold: 2.2
-fx: glitch
-
-# 무전
-@slide
+title: INCOMING RADIO
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
 voice: owl
 radio: true
+signal: 62
 text: 지상 관측망이 전부 끊겼습니다!
 sfx: noise
 jolt: 0.25
@@ -220,10 +283,12 @@ imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
 voice: jellyfish
 radio: true
+signal: 41
 text: 격리 구역에서 개체들이 빠져나왔어요!
 sfx: noise
 jolt: 0.25
 hold: 3.0
+fx: glitch
 
 @slide
 image: res://assets/cutscene/prologue/disaster_12_radio.png
@@ -231,18 +296,22 @@ imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
 voice: crow
 radio: true
+signal: 18
+cutoff: true
 text: 봉쇄 코어 출력이 비정상적으로 떨어졌습니다! 이대로 가다간--!!
 sfx: noise
-jolt: 0.25
+jolt: 0.3
 hold: 3.4
+fx: glitch
 
 @slide
+title: ARCHIVE 02 / EMERGENCY RECORD
 image: res://assets/cutscene/prologue/disaster_13_director_last.png
 imagenote: 총괄 관리자 · 마지막 지시
 speaker: 총괄 관리자
 voice: director
 text: 큰일이군. 비상 차폐를 가동해!
-sfx: switch
+sfxafter: switch
 hold: 3.2
 
 # 암전 + EMERGENCY SEAL — 여기서 사이렌과 지속 흔들림이 멈춘다.
@@ -250,7 +319,8 @@ hold: 3.2
 title:
 image:
 imagenote:
-overlay: EMERGENCY SEAL — 120:00:00
+overlay: 비상 차폐 가동\n120:00:00
+sub: EMERGENCY SEAL ENGAGED
 sfx: boom
 sfxloopstop: siren
 shake: 0
@@ -259,6 +329,7 @@ fx: blackout
 
 # 플레이어가 머리를 세게 얻어맞고 책상에 엎어진다.
 # fx: impact 가 충격음(impact_blunt) → 강한 흔들림 → 쓰러지는 소리(body_fall) → 암전까지 한 번에 처리한다.
+# 이 뒤의 '이명 → 의식 회복' 한 박자는 PrologueDirector 가 맡는다.
 @slide
 title:
 image:
@@ -292,14 +363,23 @@ wait: 0.6
 line:
 ok: SUCCESSOR AUTHORIZED
 
+# 콘솔이 사라지고 나서 잠깐 떴다 닫히는 승계 완료 창.
+# 이 창이 닫힌 뒤에야 GUIDE-0.exe 가 뜬다 — 권한 승계와 GUIDE-0 등장은 별개의 사건이다.
+@window authority_done
+title: 비상 관리자 권한 승계
+big: 완료
+line: FACILITY ADMINISTRATOR
+line: ACCESS LEVEL : 01
+hold: 1.5
+
 
 # ========================================================================
 # 프롤로그 #3 — GUIDE-0 등장
 # ========================================================================
 @guide g_intro
 portrait: normal
-line: 안녕하세요.
-line: 관리자 권한 승계가 완료되었습니다.
+panel: none
+line: 안녕하세요, 관리자님.
 line: 현재 상황에 대한 설명이 필요하십니까?
 
 # mode: all — 세 질문을 각각 한 번씩 모두 확인해야 다음 단계로 넘어간다(순서는 자유).
@@ -309,50 +389,42 @@ option: 무슨 일이 벌어진 거지? | g_what_happened
 option: 나는 누구지? | g_who_am_i
 option: 내가 해야 할 일은? | g_mission
 
+# 여기서는 120시간 이야기를 하지 않는다 — 그건 '내가 해야 할 일은?' 의 몫이다.
 @guide g_what_happened
 portrait: normal
-line: 시설 외부에서 대규모 재난이 발생했습니다.
-line: 현재 지상 환경은 생존에 적합하지 않은 상태입니다.
-line: 동시에 시설 내부에서도 격리 사고가 발생하여 봉쇄 코어가 심각하게 손상되었습니다.
-line: 현재 시설은 비상 차폐 시스템을 통해 외부 환경과 격리되어 있습니다.
-line: 하지만 비상 차폐의 유지 가능 시간은 120시간입니다.
-line: 현장 활동이 가능한 직원은 여섯 명입니다.
+panel: alert
+line: 지상에서 대규모 재난이 발생했고, 동시에 시설 내부의 격리 시스템도 붕괴했습니다.
+line: 그 과정에서 봉쇄 코어가 심각하게 손상되었습니다.
 icons: employees
-line: 직원들과 함께 봉쇄 코어를 복구해야 합니다.
+line: 현재 현장에서 활동 가능한 직원은 여섯 명입니다.
 fx: noise
-line: 다만...
-line: 직원 신원 기록 중 하나가 일치하지 않습니다.
-line: 정체불명의 개체가 직원들 사이에 포함되어 있을 가능성이 있습니다.
+line: 그리고... 그중 한 명의 신원 기록이 일치하지 않습니다.
 
 @guide g_who_am_i
 portrait: normal
-line: 관리자님께서는 사고 이전부터 본 시설의 관제 업무를 담당하고 있었습니다.
-line: 그러나 시설 전체에 대한 최종 관리 권한은 보유하고 있지 않았습니다.
-line: 기존 시설 총괄 관리자는 사고 발생 당시 사망한 것으로 확인되었습니다.
-line: 비상 관리 규정에 따라 차순위 권한자인 관리자님께 모든 시설 관리 권한이 승계되었습니다.
-line: 현재 관리자님은 이 시설의 총괄 관리자입니다.
-line: 현장 직원 여섯 명의 배치와 시설 운영, 그리고 비상 상황에 대한 최종 판단을 담당하게 됩니다.
+panel: authority
+line: 관리자님은 사고 이전까지 이 시설의 관제 업무를 담당했습니다.
+line: 전임 시설 총괄 관리자는 사고 당시 사망했습니다.
+line: 비상 승계 규정에 따라 모든 관리 권한이 관리자님께 이전되었습니다.
+line: 지금부터 직원 배치와 시설 운영의 최종 판단은 관리자님의 몫입니다.
 
+# 이 세 줄이 게임 전체 목표 그 자체다. 옆 정보판에 120:00:00 과 코어 3% → 100% 가 함께 뜬다.
 @guide g_mission
 portrait: normal
-line: 비상 차폐 시스템의 예상 유지 시간은 120시간입니다.
-line: 그전에 봉쇄 코어를 완전히 복구해야 합니다.
-line: 봉쇄 코어가 복구되지 않을 경우 시설의 차폐 및 생명 유지 기능을 더 이상 유지할 수 없습니다.
-line: 직원들을 작업실에 배치하여 시설을 복구하십시오.
-line: 시설 로그와 직원들의 진술도 확인하십시오.
-line: 현재 여섯 직원 중 정체불명의 개체가 포함되어 있을 가능성이 있습니다.
-line: 시설 복구를 방해하는 개체를 찾아내는 것 역시 관리자님의 임무입니다.
+panel: mission
+line: 비상 차폐는 앞으로 120시간만 유지됩니다.
+line: 그 안에 직원들을 지휘하여 봉쇄 코어를 100% 복구하십시오.
+line: 그리고 시설 로그와 진술을 비교해 직원들 사이에 숨어 있는 개체를 찾아내십시오.
 
 
 # ========================================================================
 # 프롤로그 #4 — DAY 0 예고
 # ========================================================================
 @guide g_day0_open
-portrait: normal
-line: 현재 상황에 대한 기본 안내가 완료되었습니다.
-line: 관리자 업무는 이번이 처음이시군요.
 portrait: smile
-line: 걱정하지 마십시오.
+panel: none
+line: 기본 안내가 완료되었습니다.
+line: 실제 관리자 업무를 익혀보시죠.
 line: 제가 도와드리겠습니다.
 
 
