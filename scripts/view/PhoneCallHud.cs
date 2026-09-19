@@ -77,7 +77,7 @@ public partial class PhoneCallHud : CanvasLayer
     public override void _Ready()
     {
         Instance = this;
-        Layer = 90;
+        Layer = 114;   // 분위기 오버레이(100) 위 — 통화창이 어두워지지 않게
         Visible = true;
         _font = ViewFont.Default;
 

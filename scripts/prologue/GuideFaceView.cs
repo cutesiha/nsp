@@ -22,6 +22,7 @@ public partial class GuideFaceView : Control
 
     private Font _font;
     private Texture2D _texture;
+    private bool _mouthless;
     private string _expression = "normal";
     private float _t;
     private double _noiseUntil;
@@ -43,11 +44,19 @@ public partial class GuideFaceView : Control
     }
 
     // GuideHologramView 가 표정을 바꿀 때 같이 불러 준다(초상 파일 탐색 규칙도 그쪽과 공유).
-    public void SetPortrait(string expression, Texture2D texture)
+    // mouthless = 입이 없는 얼굴이라 입 Overlay 를 따로 얹어야 한다.
+    public void SetPortrait(string expression, Texture2D texture, bool mouthless = false)
     {
         _expression = string.IsNullOrEmpty(expression) ? "normal" : expression;
         _texture = texture;
+        _mouthless = mouthless;
         QueueRedraw();
+    }
+
+    // 입 모양이 바뀐 프레임에만 다시 그린다(GuideMouthAnimator 가 알려 준다).
+    public void NotifyMouthChanged()
+    {
+        if (_shown) QueueRedraw();
     }
 
     public void Flash() => _noiseUntil = Time.GetTicksMsec() / 1000.0 + 0.7;
@@ -95,9 +104,10 @@ public partial class GuideFaceView : Control
             {
                 float k = Mathf.Min(FaceBox.Size.X / src.X, FaceBox.Size.Y / src.Y);
                 var dst = src * k;
-                // 흰색 도트 원본을 홀로그램 하늘색으로 물들여 그린다.
-                DrawTextureRect(_texture, new Rect2(FaceBox.Position + (FaceBox.Size - dst) * 0.5f, dst),
-                    false, Cyan);
+                var at = FaceBox.Position + (FaceBox.Size - dst) * 0.5f
+                         + new Vector2(0f, GuideMouthAnimator.BobOffset);
+                // 흰색 도트 원본을 홀로그램 하늘색으로 물들여 그린다(+ 입 Overlay).
+                GuideFacePaint.Draw(this, _texture, _mouthless, new Rect2(at, dst), Cyan);
             }
         }
         else
@@ -112,10 +122,8 @@ public partial class GuideFaceView : Control
         }
         DrawRect(FaceBox, Cyan with { A = 0.9f }, false, 2f);
 
-        DrawString(_font, new Vector2(frame.Position.X, 500f), "GUIDE-0",
+        DrawString(_font, new Vector2(frame.Position.X, 506f), "GUIDE-0",
             HorizontalAlignment.Center, frame.Size.X, ViewFont.S(22), Cyan);
-        DrawString(_font, new Vector2(frame.Position.X, 526f), "FACILITY GUIDANCE UNIT",
-            HorizontalAlignment.Center, frame.Size.X, ViewFont.S(12), Cyan with { A = 0.5f });
 
         // 홀로그램 스캔라인 + 노이즈.
         for (float y = frame.Position.Y; y < frame.End.Y; y += 4f)

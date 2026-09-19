@@ -9,8 +9,8 @@ namespace NSP.View;
 //
 // 화면 위에 메뉴 패널을 얹지 않는다(그건 기존 TitleOverlay 의 방식이고 지금은 꺼 둔다).
 // 대신 이미 있는 제어실 장비를 그대로 쓴다.
-//   왼쪽 CRT  = TitleStaffIdView  (직원 여섯 명 신원 확인 + 무작위 오류 연출)
-//   오른쪽 CRT = TitleTerminalView (표제 + 명령 선택지)
+//   왼쪽 CRT(모니터 1)  = TitleTerminalView (표제 + 명령 선택지) — 여기서 게임이 시작된다
+//   오른쪽 CRT(모니터 2) = TitleStaffIdView  (직원 여섯 명 신원 확인 + 무작위 오류 연출)
 //   책상 장비  = 전화기 / 센서 단말 / 전력 패널 → 같은 명령의 지름길
 //
 // 게임을 켜면 오른쪽 CRT 를 확대한 화면에서 시작한다. 아무 키나 누르면 그 화면에서
@@ -37,6 +37,9 @@ public partial class TitleRoomDirector : Node
 
     public event Action StartRequested;
     public bool IsRunning { get; private set; }
+
+    // 화면 오른쪽 아래에 늘 떠 있는 조작 안내. 이 한 줄만 남긴다.
+    private const string MenuHint = "↑ ↓ 이동   ENTER 확인";
 
     // 책상 장비 ↔ 명령 연결. 라벨은 화면 아래 힌트 줄에 뜬다.
     private static readonly (string Id, string Hint)[] PropHints =
@@ -114,24 +117,25 @@ public partial class TitleRoomDirector : Node
         if (_ceiling != null) _ceilBase = _ceiling.LightEnergy / 0.26f;
         if (_fill != null) _fillBase = _fill.LightEnergy / 0.3f;
 
-        _ctl.SetLeftScreen(_ctl.TitleStaffViewport);
-        _ctl.SetRightScreen(_ctl.TitleTerminalViewport);
+        _ctl.SetLeftScreen(_ctl.TitleTerminalViewport);
+        _ctl.SetRightScreen(_ctl.TitleStaffViewport);
 
-        // 뷰포트가 매 프레임 갱신되도록 전체 밝기는 올려 두고, 왼쪽 CRT 만 꺼 둔다.
+        // 뷰포트가 매 프레임 갱신되도록 전체 밝기는 올려 두고, 오른쪽 CRT 만 꺼 둔다.
         _ctl.SetScreenBrightness(1f);
-        // 왼쪽 CRT 는 아직 꺼져 있다 — 약한 노이즈만 보일 정도로.
-        _ctl.SetScreenBrightnessFor("01", 0.13f);
+        // 오른쪽 CRT(직원 신원)는 아직 꺼져 있다 — 약한 노이즈만 보일 정도로.
+        _ctl.SetScreenBrightnessFor("02", 0.13f);
         // 타이틀 동안에는 화면 노이즈를 조금 낮춘다(표제와 메뉴가 첫인상이다).
         _ctl.SetScreenNoise(0.018f);
 
         TitleStaffIdView.Instance.PowerOff();
         TitleTerminalView.Instance.ShowStandby();
 
-        // 게임 시작 순간부터 오른쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
-        _ctl.FocusMonitor(2, 0.01f);
+        // 게임 시작 순간부터 왼쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
+        _ctl.FocusMonitor(1, 0.01f);
 
+        // 대기 화면의 안내는 단말기 자체에 "[ PRESS ANY KEY ]" 로 떠 있다 — 겹쳐 쓰지 않는다.
         _hint.SetLine("");
-        _hint.SetSub("아무 키나 누르십시오");
+        _hint.SetSub("");
         _hint.ShowHud();
 
         _phase = Phase.Standby;
@@ -159,9 +163,9 @@ public partial class TitleRoomDirector : Node
         await Wait(0.45);
 
         // 3) 축소되는 동안 나머지 장비가 하나씩 켜진다.
-        Sfx.Instance?.Play("relay_click", -7f);        // 왼쪽 모니터 ON
+        Sfx.Instance?.Play("relay_click", -7f);        // 오른쪽 모니터(직원 신원) ON
         var t1 = CreateTween();
-        t1.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightnessFor("01", v)), 0.13f, 1.0f, 0.5)
+        t1.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightnessFor("02", v)), 0.13f, 1.0f, 0.5)
           .SetTrans(Tween.TransitionType.Sine);
         TitleStaffIdView.Instance?.PowerOn();
 
@@ -176,7 +180,7 @@ public partial class TitleRoomDirector : Node
         Sfx.Instance?.Play("relay_click", -12f);        // 센서 단말 ON
 
         await Wait(0.35);
-        _hint.SetSub("↑ ↓ 선택  ·  ENTER 확인  ·  책상 장비를 눌러도 됩니다");
+        _hint.SetSub(MenuHint);
         _phase = Phase.Menu;
     }
 
@@ -340,7 +344,7 @@ public partial class TitleRoomDirector : Node
                     if (TitleTerminalView.Instance.CurrentMode == TitleTerminalView.Mode.Report)
                     {
                         TitleTerminalView.Instance.ShowMenu();
-                        _hint.SetSub("↑ ↓ 선택  ·  ENTER 확인  ·  책상 장비를 눌러도 됩니다");
+                        _hint.SetSub(MenuHint);
                         GetViewport().SetInputAsHandled();
                     }
                     return;
@@ -376,7 +380,7 @@ public partial class TitleRoomDirector : Node
             case "back":
                 Sfx.Instance?.Play("relay_click", -8f);
                 TitleTerminalView.Instance.ShowMenu();
-                _hint.SetSub("↑ ↓ 선택  ·  ENTER 확인  ·  책상 장비를 눌러도 됩니다");
+                _hint.SetSub(MenuHint);
                 return;
             default:
                 Activate(id);
@@ -408,7 +412,6 @@ public partial class TitleRoomDirector : Node
                 Sfx.Instance?.Play("tick", -16f);
                 foreach (var (id, hintText) in PropHints)
                     if (id == prop) _hint.SetLine(hintText);
-                TitleTerminalView.Instance.HoverId(prop);
             }
             else _hint.SetLine("");
         }
@@ -418,19 +421,19 @@ public partial class TitleRoomDirector : Node
             return;
         }
 
-        // 2) 오른쪽 CRT 의 명령 선택지.
+        // 2) 왼쪽 CRT 의 명령 선택지. 클릭은 되지만 커서(▶)는 방향키로만 움직인다 —
+        //    마우스를 스치는 것만으로 선택이 바뀌면 방향키 조작이 계속 튕겨 나간다.
         string item = TerminalItemUnderMouse();
         if (!string.IsNullOrEmpty(item))
         {
-            if (TitleTerminalView.Instance.HoverId(item)) Sfx.Instance?.Play("tick", -16f);
             TitleStaffIdView.Instance.SetHover(-1);
             _hint.SetLine("");
             return;
         }
 
-        // 3) 왼쪽 CRT 의 직원 카드 — 마우스를 올리면 신원 한 줄이 뜬다.
+        // 3) 오른쪽 CRT 의 직원 카드 — 마우스를 올리면 신원 한 줄이 뜬다.
         int card = -1;
-        if (TryCanvasPos("01", origin, dir, out Vector2 lp))
+        if (TryCanvasPos("02", origin, dir, out Vector2 lp))
             card = TitleStaffIdView.Instance.IndexAt(lp);
         if (TitleStaffIdView.Instance.SetHover(card)) Sfx.Instance?.Play("tick", -20f);
         _hint.SetLine(card >= 0 ? TitleStaffIdView.Instance.HoverLine : "");
@@ -468,7 +471,7 @@ public partial class TitleRoomDirector : Node
         if (_camera == null) return "";
         Vector3 o = _camera.ProjectRayOrigin(_mouse);
         Vector3 d = _camera.ProjectRayNormal(_mouse);
-        return TryCanvasPos("02", o, d, out Vector2 p) ? TitleTerminalView.Instance.ItemAt(p) : "";
+        return TryCanvasPos("01", o, d, out Vector2 p) ? TitleTerminalView.Instance.ItemAt(p) : "";
     }
 
     // CRT 평면을 맞췄으면 그 화면의 '논리 캔버스' 좌표를 돌려준다.
@@ -522,9 +525,16 @@ public partial class TitleRoomDirector : Node
             root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             AddChild(root);
 
+            // 마우스를 올린 장비/직원의 한 줄 설명 — 가운데 아래.
             _line = Make(ViewFont.FS(17), new Color(0.72f, 0.86f, 0.84f), -96f);
             root.AddChild(_line);
+
+            // 조작 안내는 오른쪽 아래 구석에 작게만 둔다.
             _sub = Make(ViewFont.FS(13), new Color(0.40f, 0.48f, 0.50f), -58f);
+            _sub.HorizontalAlignment = HorizontalAlignment.Right;
+            _sub.AnchorLeft = 1f;
+            _sub.OffsetLeft = -420f;
+            _sub.OffsetRight = -28f;
             root.AddChild(_sub);
             Visible = false;
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using NSP.Core;
+using NSP.Facility;
 using NSP.View;
 
 namespace NSP.Prologue;
@@ -371,7 +372,7 @@ public partial class CutscenePlayer : Control
         _radioHud.Visible = on;
         if (!on) return;
         _radioHud.Signal = s.Signal;
-        _radioHud.CallSign = string.IsNullOrEmpty(s.VoiceId) ? "UNKNOWN" : s.VoiceId.ToUpperInvariant();
+        _radioHud.CallSign = SpeakerName(s.VoiceId);
         _radioHud.Cut = false;
     }
 
@@ -726,6 +727,22 @@ public partial class CutscenePlayer : Control
 
     // --- UI --------------------------------------------------------------
 
+    // 무전 HUD 에 뜨는 호출부호. 직원은 데이터의 한글 코드네임을 그대로 쓴다.
+    private static string SpeakerName(string voiceId)
+    {
+        if (string.IsNullOrEmpty(voiceId)) return "미상";
+        string codename = FacilitySimulation.Instance?.GetEmployeeDef(voiceId)?.Codename;
+        if (!string.IsNullOrEmpty(codename)) return codename;
+        return voiceId switch
+        {
+            "director" => "총괄 관리자",
+            "guide0" => "GUIDE-0",
+            "owl" => "올빼미", "cat" => "고양이", "jellyfish" => "해파리",
+            "rabbit" => "토끼", "crow" => "까마귀", "fox" => "여우",
+            _ => voiceId,
+        };
+    }
+
     private void BuildUi()
     {
         var bg = new ColorRect { Color = new Color(0.02f, 0.022f, 0.026f), MouseFilter = MouseFilterEnum.Ignore };
@@ -936,7 +953,8 @@ public partial class CutscenePlayer : Control
             DrawRect(ControlBar, Chrome);
             DrawString(font, ControlBar.Position + new Vector2(14f, 30f), "▶",
                 HorizontalAlignment.Left, 24f, ViewFont.S(18), new Color(0.80f, 0.86f, 0.90f));
-            DrawString(font, ControlBar.Position + new Vector2(Size.X - 84f, 30f), "🔊",
+            // 재생 시간 표기와 겹치지 않게 오른쪽 끝으로 붙인다.
+            DrawString(font, ControlBar.Position + new Vector2(Size.X - 52f, 30f), "🔊",
                 HorizontalAlignment.Left, 30f, ViewFont.S(15), new Color(0.60f, 0.66f, 0.70f));
 
             var track = new Rect2(ControlBar.Position + new Vector2(44f, 20f), new Vector2(ControlBar.Size.X - 216f, 6f));

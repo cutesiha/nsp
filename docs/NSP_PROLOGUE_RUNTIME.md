@@ -201,7 +201,7 @@ alert: 대재난 경보 | FACILITY EMERGENCY
 alertrow: CONTAINMENT | CRITICAL
 alertrow: CORE OUTPUT | !
 alertrow: FACILITY LOCKDOWN | !
-alertfoot: 즉시 대피  ·  EVACUATE IMMEDIATELY
+alertfoot: 즉시 대피
 sfx: alert_beep3
 hold: 3.0
 fx: alert

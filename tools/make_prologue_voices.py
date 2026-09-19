@@ -58,20 +58,25 @@ def noise(n):
 
 
 # ── 총괄 관리자 ──────────────────────────────────────────────────────────
-# 낮은 기음 + 한 옥타브 아래 서브. 피치가 살짝 내려앉아 "무게 있게 말을 맺는" 느낌.
-# 고역을 크게 깎아 직원들의 밝은 블립과 확실히 구분된다.
-def director_blip(f0, seconds=0.065):
+# 중후하고 굵은 저음. 기음을 남성 저역(100Hz 언저리)까지 내리고 한 옥타브 아래
+# 서브를 기음보다 크게 실어 가슴에서 울리는 느낌을 만든다.
+# 길이를 늘리고 감쇠를 늦춰 한 글자 한 글자가 묵직하게 끌린다.
+# 고역은 크게 깎아 직원들의 밝은 블립과 확실히 구분된다.
+def director_blip(f0, seconds=0.092):
     n = int(VOICE_RATE * seconds)
     out = []
     for i in range(n):
         t = i / VOICE_RATE
-        f = f0 * (1.0 - 0.10 * (t / seconds))          # 끝으로 갈수록 약간 하강
+        f = f0 * (1.0 - 0.13 * (t / seconds))          # 끝으로 갈수록 더 내려앉는다
         ph = 2 * math.pi * f * t
-        v = 0.75 * math.sin(ph) + 0.22 * math.sin(2 * ph) + 0.30 * math.sin(ph * 0.5)
-        attack = min(1.0, t / 0.004)                    # 부드러운 어택
-        decay = math.exp(-t * 34)
+        v = (0.55 * math.sin(ph)                        # 기음
+             + 0.62 * math.sin(ph * 0.5)                # 한 옥타브 아래 — 굵기의 핵심
+             + 0.20 * math.sin(ph * 0.25)               # 두 옥타브 아래 서브
+             + 0.12 * math.sin(2 * ph))                 # 아주 약한 배음(윤곽만)
+        attack = min(1.0, t / 0.007)                    # 느슨한 어택 = 무게감
+        decay = math.exp(-t * 21)                       # 길게 끌린다
         out.append(v * attack * decay)
-    return lowpass(out, 1150, VOICE_RATE)
+    return lowpass(lowpass(out, 620, VOICE_RATE), 620, VOICE_RATE)
 
 
 # ── GUIDE-0 ─────────────────────────────────────────────────────────────
@@ -122,10 +127,16 @@ def radio_static(seconds=1.6):
 
 
 if __name__ == "__main__":
+    import sys
     random.seed(20260919)
+    # 인자를 주면 그 그룹만 다시 만든다: director / guide0 / radio
+    only = sys.argv[1] if len(sys.argv) > 1 else ""
 
-    for i, f in enumerate((158.0, 172.0, 186.0), start=1):
-        write(os.path.join(VOICE_DIR, "director_%02d.wav" % i), director_blip(f), VOICE_RATE, peak=0.80)
+    if only in ("", "director"):
+        for i, f in enumerate((99.0, 108.0, 117.0), start=1):
+            write(os.path.join(VOICE_DIR, "director_%02d.wav" % i), director_blip(f), VOICE_RATE, peak=0.88)
+    if only == "director":
+        raise SystemExit(0)
 
     for i, f in enumerate((565.0, 640.0, 712.0), start=1):
         write(os.path.join(VOICE_DIR, "guide0_%02d.wav" % i), guide_blip(f), VOICE_RATE, peak=0.72)

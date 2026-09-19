@@ -283,6 +283,12 @@ public partial class GuideHologramView : Control
         ShowHologram();
         _menuPick = onPick;
         _hint.Visible = false;
+
+        // 화면 아래 자막 블록이 떠 있으면 선택지도 그 안에 둔다 — 대사와 같은 자리에서 고른다.
+        var hud = GuideSubtitleHud.Instance;
+        bool useHud = hud is { IsActive: true };
+        var hudList = useHud ? new List<GuideSubtitleHud.Choice>() : null;
+
         foreach (var opt in menu.Options)
         {
             var captured = opt;
@@ -290,7 +296,8 @@ public partial class GuideHologramView : Control
             // 이미 확인한 질문은 체크 표시 + 어두운 색으로 눌러 두고 다시 고를 수 없게 한다.
             var accent = answered ? new Color(0.30f, 0.44f, 0.48f) : Cyan;
             string label = (answered ? "✓  " : "") + captured.Label;
-            var b = MonitorUi.Button(label, accent, _font, () =>
+
+            void Pick()
             {
                 if (answered) return;
                 ClearChoices();
@@ -299,11 +306,21 @@ public partial class GuideHologramView : Control
                 var cb = _menuPick;
                 _menuPick = null;
                 cb?.Invoke(captured);
-            }, ViewFont.S(16));
+            }
+
+            if (useHud)
+            {
+                hudList.Add(new GuideSubtitleHud.Choice { Text = label, Disabled = answered, OnPick = Pick });
+                continue;
+            }
+
+            var b = MonitorUi.Button(label, accent, _font, Pick, ViewFont.S(16));
             b.Disabled = answered;
             b.CustomMinimumSize = new Vector2(0f, 40f);
             _choices.AddChild(b);
         }
+
+        if (useHud) hud.ShowChoices(hudList);
     }
 
     // mode: all 메뉴에서 모든 항목을 한 번씩 확인했는가.
@@ -319,6 +336,7 @@ public partial class GuideHologramView : Control
     private void ClearChoices()
     {
         foreach (Node c in _choices.GetChildren()) c.QueueFree();
+        GuideSubtitleHud.Instance?.ClearChoices();
     }
 
     private void NextBeat()
@@ -381,6 +399,8 @@ public partial class GuideHologramView : Control
         _lineElapsed = 0;
         _spokenChars = 0;
         Sfx.Instance?.StopVoiceBlip();
+        // 글자가 찍히기 시작하면 입도 같이 움직이기 시작한다.
+        GuideMouthAnimator.StartTalking();
         // 타이핑 속도는 프롤로그 자막과 같은 값(PrologueTextStyle)을 쓴다.
         _lineDuration = PrologueTextStyle.TypeSeconds(text);
         _hint.Visible = !_compact;
@@ -389,22 +409,16 @@ public partial class GuideHologramView : Control
     private void SetPortrait(string key)
     {
         _portrait.Expression = string.IsNullOrEmpty(key) ? "normal" : key;
-        _portrait.Texture = LoadPortrait(_portrait.Expression);
+        _portrait.Texture = GuideArt.Portrait(_portrait.Expression, out bool mouthless);
+        _portrait.Mouthless = mouthless;
         _portrait.QueueRedraw();
         // 왼쪽 CRT 의 얼굴 화면도 같은 표정으로 맞춘다.
-        GuideFaceView.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture);
+        GuideFaceView.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture, mouthless);
     }
 
-    private static Texture2D LoadPortrait(string expression)
-    {
-        // 최종 도트 초상화를 넣으면 자동으로 임시 박스를 대체한다.
-        foreach (string ext in new[] { ".png", ".webp", ".jpg" })
-        {
-            string path = $"{PortraitDir}guide0_{expression}{ext}";
-            if (ResourceLoader.Exists(path)) return GD.Load<Texture2D>(path);
-        }
-        return null;
-    }
+    // 초상 탐색 규칙은 GuideArt 한 곳에만 둔다(얼굴 화면도 같은 규칙을 쓴다).
+    private static Texture2D LoadPortrait(string expression) =>
+        GuideArt.Portrait(expression, out _);
 
     private void BuildEmployeeIcons()
     {
@@ -440,7 +454,21 @@ public partial class GuideHologramView : Control
             _lineElapsed += delta;
             _line.VisibleRatio = PrologueTextStyle.Ratio(_line.Text, _lineElapsed);
             SpeakRevealed();
-            if (_line.VisibleRatio >= 1f) OnLineTypedOut();
+            if (_line.VisibleRatio >= 1f)
+            {
+                GuideMouthAnimator.StopTalking();
+                OnLineTypedOut();
+            }
+        }
+
+        // 대사 묶음이 끝났으면 어떤 경로로 끝났든 입을 다문다.
+        if (_guide == null && GuideMouthAnimator.Talking) GuideMouthAnimator.StopTalking();
+        // 다 읽고도 넘기지 않는 동안에만 얼굴이 가끔 일그러진다.
+        GuideMouthAnimator.SetIdleWaiting(_guide != null && _line.VisibleRatio >= 1f);
+        if (GuideMouthAnimator.Tick(delta))
+        {
+            _portrait.QueueRedraw();
+            GuideFaceView.Instance?.NotifyMouthChanged();
         }
 
         float noise = Time.GetTicksMsec() / 1000.0 < _noiseUntil ? 1f : 0f;
@@ -547,6 +575,8 @@ public partial class GuideHologramView : Control
             _lineElapsed = _lineDuration;
             _spokenChars = _line.Text.Length;
             Sfx.Instance?.StopVoiceBlip();
+            // 즉시 출력 완료 — 입도 그 자리에서 멈춘다.
+            GuideMouthAnimator.StopTalking();
             return;
         }
         NextBeat();
@@ -570,13 +600,14 @@ public partial class GuideHologramView : Control
     private void SpeakRevealed()
     {
         string voice = _guide?.VoiceId ?? "";
-        if (string.IsNullOrEmpty(voice)) return;
         int shown = Mathf.RoundToInt(_line.VisibleRatio * _line.Text.Length);
         while (_spokenChars < shown)
         {
             char c = _line.Text[_spokenChars];
             _spokenChars++;
-            Sfx.Instance?.PlayVoiceBlip(voice, c);
+            // 입은 글자마다 모양을 바꾸지 않는다 — 문장부호에서 잠깐 다물 때만 쓴다.
+            GuideMouthAnimator.NoticeCharacter(c);
+            if (!string.IsNullOrEmpty(voice)) Sfx.Instance?.PlayVoiceBlip(voice, c);
         }
     }
 
@@ -751,6 +782,8 @@ public partial class GuideHologramView : Control
     {
         public Texture2D Texture;
         public string Expression = "normal";
+        // 얼굴 그림에 입이 없어 Overlay 를 얹어야 하는가.
+        public bool Mouthless;
 
         public override void _Draw()
         {
@@ -764,8 +797,9 @@ public partial class GuideHologramView : Control
                 {
                     float k = Mathf.Min(Size.X / src.X, Size.Y / src.Y);
                     var dst = src * k;
-                    // 원본은 흰색 도트 — 홀로그램 색으로 물들여 그린다.
-                    DrawTextureRect(Texture, new Rect2(box.Position + (Size - dst) * 0.5f, dst), false, Cyan);
+                    var at = box.Position + (Size - dst) * 0.5f
+                             + new Vector2(0f, GuideMouthAnimator.BobOffset);
+                    GuideFacePaint.Draw(this, Texture, Mouthless, new Rect2(at, dst), Cyan);
                 }
             }
             else
@@ -972,18 +1006,16 @@ public partial class GuideHologramView : Control
             DrawString(font, new Vector2(16f, 98f), "봉쇄 코어 복구", HorizontalAlignment.Left,
                 Size.X - 32f, ViewFont.S(13), Cyan with { A = 0.78f });
 
-            // 3% → 목표 100%.
+            // 0% → 목표 100%.
             var bar = new Rect2(16f, 108f, Size.X - 32f, 20f);
             DrawRect(bar, new Color(0f, 0f, 0f, 0.4f));
-            DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * 0.03f, bar.Size.Y)),
-                new Color(1f, 0.32f, 0.26f));
             // 목표선이 왼쪽에서 오른쪽으로 흐른다.
             float sweep = Mathf.PosMod(_t * 0.35f, 1f);
             DrawRect(new Rect2(bar.Position.X + bar.Size.X * sweep, bar.Position.Y, 2f, bar.Size.Y),
                 new Color(0.55f, 1f, 0.75f, 0.55f));
             DrawRect(bar, Cyan with { A = 0.55f }, false, 1.2f);
 
-            DrawString(font, new Vector2(16f, Size.Y - 14f), "현재 3%   ▶   목표 100%",
+            DrawString(font, new Vector2(16f, Size.Y - 14f), "현재 0%   ▶   목표 100%",
                 HorizontalAlignment.Left, Size.X - 32f, ViewFont.S(16), new Color(0.80f, 1f, 0.88f));
         }
     }

@@ -18,7 +18,7 @@ public partial class ControlRoom3DController : Node3D
     [Export] public NodePath RigPath = "PlayerSeatRig";
     // CRT 화면 UI를 짜는 논리 캔버스 크기(레이아웃 좌표계). 실제 렌더 해상도는 여기에 UiScale 을 곱한다.
     [Export] public Vector2I MonitorCanvasSize = new(800, 600);
-    [Export] public float FocusDistance = 0.62f;
+    [Export] public float FocusDistance = 0.50f;
     // 책상 위 기기(센서 단말기 / 전력 스위치) 확대용 — 화면보다 더 가까이, 살짝 위에서.
     [Export] public NodePath SensorPath = "ControlRoom/AlertTerminal";
     [Export] public NodePath PowerPanelPath = "ControlRoom/PowerSwitchPanel";

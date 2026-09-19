@@ -27,11 +27,11 @@ public partial class TitleStaffIdView : Control
     private const float GridLeft = 82f, GridTop = 150f;
     private const float CardW = 208f, CardH = 152f, GapX = 16f, GapY = 18f;
 
-    // 화면에 찍히는 영문 코드. 데이터의 한글 코드네임은 카드 아래에 작게 같이 보여준다.
-    private static readonly Dictionary<string, string> Codes = new()
+    // 데이터에 코드네임이 없을 때만 쓰는 폴백. 화면에는 한글 이름만 찍는다.
+    private static readonly Dictionary<string, string> Fallback = new()
     {
-        { "owl", "OWL" }, { "cat", "CAT" }, { "jellyfish", "JELLY" },
-        { "rabbit", "RABBIT" }, { "crow", "CROW" }, { "fox", "FOX" },
+        { "owl", "올빼미" }, { "cat", "고양이" }, { "jellyfish", "해파리" },
+        { "rabbit", "토끼" }, { "crow", "까마귀" }, { "fox", "여우" },
     };
 
     // 화면에 놓는 순서(윗줄 3명 / 아랫줄 3명). 목록에 없는 직원은 뒤에 붙는다.
@@ -40,7 +40,6 @@ public partial class TitleStaffIdView : Control
     private sealed class Card
     {
         public string Id = "";
-        public string Code = "";
         public string Codename = "";
         public Texture2D Face;
         public Color Tint = Colors.White;
@@ -105,8 +104,8 @@ public partial class TitleStaffIdView : Control
             _cards.Add(new Card
             {
                 Id = id,
-                Code = Codes.GetValueOrDefault(id, id.ToUpperInvariant()),
-                Codename = def.Codename ?? id,
+                Codename = string.IsNullOrEmpty(def.Codename)
+                    ? Fallback.GetValueOrDefault(id, id) : def.Codename,
                 Face = def.FacePortrait,
                 Tint = def.IconColor,
             });
@@ -184,8 +183,8 @@ public partial class TitleStaffIdView : Control
             // 아주 낮은 확률로 이 줄까지 깨진다(마우스를 올린 직원과 무관한 연출).
             bool garbled = _glitchIndex == _hover && _glitchUntil > 0;
             return garbled
-                ? $"{c.Code}   시설 직원 신ㅇ■▓▒▒"
-                : $"{c.Code}   시설 직원 신원 확인됨.";
+                ? $"{c.Codename}   시설 직원 신ㅇ■▓▒▒"
+                : $"{c.Codename}   시설 직원 신원 확인됨.";
         }
     }
 
@@ -345,15 +344,10 @@ public partial class TitleStaffIdView : Control
         }
         DrawRect(box, (broken ? Err : Dim) with { A = 0.6f }, false, 1f);
 
-        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 110f),
-            broken ? "████" : c.Code, HorizontalAlignment.Center, r.Size.X,
-            ViewFont.S(19), broken ? Err : hot ? Ink : Ink with { A = 0.9f });
-
-        string status = broken ? "ID ERR▒R" : c.Verified ? "VERIFIED" : "ID OK";
-        var statusCol = broken ? Err : c.Verified ? Mint : Dim;
-        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 136f),
-            $"{status}      {(broken ? "???" : c.Codename)}", HorizontalAlignment.Center, r.Size.X,
-            ViewFont.S(13), statusCol);
+        // 이름 한 줄만 둔다. 신원 오류는 이름이 깨지고 테두리가 붉어지는 것으로 읽힌다.
+        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 118f),
+            broken ? "████" : c.Codename, HorizontalAlignment.Center, r.Size.X,
+            ViewFont.S(20), broken ? Err : hot ? Ink : Ink with { A = 0.9f });
     }
 
     private void DrawFooter()
