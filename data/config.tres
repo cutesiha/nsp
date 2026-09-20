@@ -19,6 +19,7 @@ ApiMaxRetries = 1
 AiModelId = "claude-3-5-haiku-20241022"
 AiMaxTokens = 300
 EmployeeMoveSpeed = 80.0
+EmployeeMoveSpeedInShift = 64.0
 DayLengthSeconds = 180.0
 PowerBudgetTotal = 10
 PowerCostCctvWatch = 3

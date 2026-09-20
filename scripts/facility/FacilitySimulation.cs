@@ -46,7 +46,16 @@ public partial class FacilitySimulation : Node
     public FacilityWarningSystem Warnings => _warnings;
     // 오늘 이미 성공시킨 방해공작 횟수 — DAY1 은 한 번으로 제한한다.
     private int _sabotageActionsToday;
+    // 결번자가 "언제 어디서" 손을 댈지 정하는 기회 판정(이동·체류 전조를 남긴다).
+    private readonly SaboteurPlan _saboteurPlan = new();
+    public SaboteurPlan Saboteur => _saboteurPlan;
+    // 성격에 따른 정상 직원의 반응 이동 — 결번자의 이동과 똑같이 로그에 남는다.
+    private readonly EmployeeBehaviorSystem _behavior = new();
+    public EmployeeBehaviorSystem Behavior => _behavior;
     private readonly Dictionary<string, float> _patrolTimers = new();
+    // 배치표에 없는 자리에 오래 머무는 직원을 경비가 알아채기까지의 시간.
+    private readonly Dictionary<string, float> _offPostTimers = new();
+    private readonly HashSet<string> _offPostLogged = new();
     private int _killsToday = 0;
     private bool _cctvWasOperational = true;
     private bool _powerLossMurderTriggeredThisShift;
@@ -744,7 +753,11 @@ public partial class FacilitySimulation : Node
         _coreUnstableTimer = 0f;
         _warnings.Reset();
         _sabotageActionsToday = 0;
+        _saboteurPlan.Reset();
+        _behavior.Reset();
         _patrolTimers.Clear();
+        _offPostTimers.Clear();
+        _offPostLogged.Clear();
         TabooRuleSystem.Instance?.ResetRuntimeState();
         // 지난 근무의 진술·알리바이는 새 근무로 넘어오지 않는다.
         NSP.Dialogue.DialogueClaimState.ResetAll();
@@ -785,7 +798,9 @@ public partial class FacilitySimulation : Node
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
         _warnings.Tick(d, this);
+        _behavior.Tick(d, this);
         TickGuardPatrol(d);
+        TickOffPostRecords(d);
         TickCctvObservation(d);
     }
 
@@ -897,6 +912,11 @@ public partial class FacilitySimulation : Node
         // 오늘의 운영 규칙이 방해공작의 시작 시각과 횟수를 정한다.
         // DAY1 은 근무 후반에 한 번만 — 배우는 날을 사건으로 뒤덮지 않는다.
         var opsToday = OpsProfile.Today;
+
+        // 손대기 전에 실제로 그 방까지 걸어가야 한다. 이동과 체류가 여기서 일어나고,
+        // 그 기록이 나중에 플레이어가 되짚을 전조가 된다(SaboteurPlan).
+        _saboteurPlan.Tick(delta, this, saboteur, opsToday);
+
         if (opsToday != null)
         {
             if (GameState.Instance.DayTimeSeconds < opsToday.SaboteurStartSeconds) return;
@@ -935,6 +955,8 @@ public partial class FacilitySimulation : Node
         if (TickKillAttempt(saboteur, others, unwatched, delta)) return;
 
         if (!unwatched) return;   // 감시 중이면 아래 방해공작은 시도하지 않는다
+        // 대상 작업실에 실제로 도착해 충분히 머물렀고, 사람이 너무 많지 않을 때만.
+        if (!_saboteurPlan.ReadyToAct(this, saboteur, opsToday)) return;
         var cfg = Config.Instance.Data;
         if (_rng.NextDouble() >= cfg.SaboteurSabotageChance * surveillanceMult) return;
 
@@ -991,9 +1013,15 @@ public partial class FacilitySimulation : Node
         string alert = "")
     {
         _sabotageActionsToday++;
+        _saboteurPlan.OnActed(this, actor, OpsProfile.Today, roomId);
+        // 같은 방에 있었다고 모두가 설비 쪽을 보고 있는 것은 아니다 — 관찰력이 목격을 가른다.
+        var noticed = witnesses
+            .Where(w => EmployeeTraits.Get(w.EmployeeId).ObservationalAwareness
+                        >= EmployeeTraits.AwarenessForWitness)
+            .Select(w => w.EmployeeId)
+            .ToList();
         EventLog.Instance?.LogEvent(LogEventType.Sabotage, actor.EmployeeId, roomId,
-            $"⚠ {RoomName(roomId)} — {what}",
-            witnesses.Select(w => w.EmployeeId));
+            $"⚠ {RoomName(roomId)} — {what}", noticed);
 
         // 로그만 남기면 다른 화면을 보고 있을 때 그냥 지나간다 — 화면 전체로 알린다.
         // 연출은 HUD 가 알아서 돌고, 시뮬레이션은 여기서 멈추지 않는다.
@@ -1044,6 +1072,9 @@ public partial class FacilitySimulation : Node
     private void KillEmployee(string victimId, string roomId)
     {
         if (!_employeeStates.TryGetValue(victimId, out var victim)) return;
+        // 누가 죽었는지는 알리지 않는다 — 발견 경위는 기존 로그가 맡는다.
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            "■ 직원 한 명의 생체 신호가 소실되었습니다.", NSP.Ui.NoticeLevel.Critical);
 
         bool blackout = !GameState.Instance.IsCctvOperational();
 
@@ -1208,6 +1239,49 @@ public partial class FacilitySimulation : Node
         }
     }
 
+    // 경비실에 사람이 있으면, 자기 배치실이 아닌 방에 오래 머무는 직원은 기록에 남는다.
+    //
+    // 결번자 전용 장치가 아니다 — 사고를 보러 간 직원도, 대응하러 간 직원도 똑같이 남는다.
+    // 그래서 이 기록만으로는 범인을 알 수 없고, 다만 "그 시각 그 방에 누가 있었나"가
+    // 휴게시간에 대조할 수 있는 형태로 남는다. 경비실을 비우면 이 기록도 없다.
+    private const float OffPostRecordSeconds = 12f;
+
+    private void TickOffPostRecords(float delta)
+    {
+        if (!DayFeatures.AutoIncidentsEnabled) return;
+        if (OnDutyCount(GuardRoomId) <= 0 || !GameState.Instance.IsCctvOperational()) return;
+
+        foreach (var emp in _employeeStates.Values)
+        {
+            if (!emp.Alive || emp.Isolated || emp.IsMoving) continue;
+            if (string.IsNullOrEmpty(emp.AssignedRoomId)) continue;
+            if (emp.CurrentRoomId == emp.AssignedRoomId || emp.CurrentRoomId == GuardRoomId
+                || IsRoomCctvBlocked(emp.CurrentRoomId))
+            {
+                _offPostTimers[emp.EmployeeId] = 0f;
+                continue;
+            }
+
+            float t = _offPostTimers.GetValueOrDefault(emp.EmployeeId, 0f) + delta;
+            _offPostTimers[emp.EmployeeId] = t;
+            string stamp = emp.EmployeeId + "|" + emp.CurrentRoomId;
+            if (t < OffPostRecordSeconds || _offPostLogged.Contains(stamp)) continue;
+            _offPostLogged.Add(stamp);
+            RecordRoomOccupancy(emp.CurrentRoomId);
+        }
+    }
+
+    // 그 시각 그 방의 인원을 조사 자료로 남긴다(경비 순찰 기록과 같은 형식).
+    private void RecordRoomOccupancy(string roomId)
+    {
+        var occupants = GetRoomState(roomId)?.OccupantEmployeeIds ?? new List<string>();
+        if (occupants.Count == 0) return;
+        NSP.Dialogue.PlayerKnownEvidence.RecordCctvObservation(roomId, GameState.Instance.DayTimeSeconds,
+            occupants);
+        EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", GuardRoomId,
+            $"✓ 경비 순찰 기록 — {RoomName(roomId)} : {string.Join(", ", occupants.Select(Codename))}");
+    }
+
     // 사람이 있는 작업실 하나를 골라 그 시각의 인원을 기록으로 남긴다.
     private void RecordPatrolSweep(string guardRoomId)
     {
@@ -1240,6 +1314,18 @@ public partial class FacilitySimulation : Node
 
     // 그 방에 아직 수리해야 할 사고가 남아 있는가(튜토리얼 진행 판정에도 쓴다).
     public bool HasRepairPending(string roomId) => HasActiveRepair(roomId);
+
+    // 지금 시설이 실제로 고장 나 수리가 돌아가고 있는가.
+    // (떠 있는 경고는 여기 포함하지 않는다 — 경고는 자주 뜨고 금방 사라진다.)
+    public bool HasSeriousIncidentActive() =>
+        _activeTasks.Any(t => t.IsRepair && t.Status == SpawnedTaskStatus.Active);
+
+    // 개발용 사후 확인(§19). 플레이어에게는 어떤 화면으로도 보여주지 않는다.
+    public void PrintSaboteurDebug()
+    {
+        if (!OS.IsDebugBuild()) return;
+        GD.Print(_saboteurPlan.DebugSummary(this));
+    }
 
     private void TickUnstaffedAccidents(float delta)
     {
@@ -1299,6 +1385,8 @@ public partial class FacilitySimulation : Node
 
         EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
             $"🚨 {RoomName(roomId)} — {title} 대응 실패, 고장 발생");
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"⚠ {RoomName(roomId)} 기능이 정지되었습니다.", NSP.Ui.NoticeLevel.Warning);
         IncidentTracker.Open(roomId, def.AccidentName, "경고 시간 내 대응 실패",
             "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
         TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
@@ -1310,6 +1398,8 @@ public partial class FacilitySimulation : Node
     {
         EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
             $"🚨 {RoomName(roomId)} — {def.AccidentName} (무인 방치)");
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"⚠ {RoomName(roomId)}에 {def.AccidentName} 사고가 발생했습니다.", NSP.Ui.NoticeLevel.Warning);
         // 먼저 사고를 열어 둔다 — 뒤이어 적용되는 시설 손실이 이 사고의 결과로 묶인다.
         IncidentTracker.Open(roomId, def.AccidentName, "장시간 근무자 부재",
             "설비 수리 필요", def.RepairMinWorkers);
@@ -1592,6 +1682,8 @@ public partial class FacilitySimulation : Node
             IncidentTracker.Resolve(st.RoomId);
             EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", st.RoomId,
                 $"✓ {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 수리 완료 · 기능 복구");
+            NSP.Ui.FacilityAlertHud.Instance?.Notify(
+                $"✓ {RoomName(st.RoomId)} 기능이 복구되었습니다.", NSP.Ui.NoticeLevel.Info);
             // 수리가 끝났다는 건 지도에서 눈으로 찾기 어렵다 — 소리로 알린다.
             Sfx.Instance?.Play("ding", -5f);
             st.Status = SpawnedTaskStatus.Completed;

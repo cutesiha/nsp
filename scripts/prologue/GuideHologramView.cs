@@ -401,6 +401,11 @@ public partial class GuideHologramView : Control
     private void StartLine(string text)
     {
         LineShown?.Invoke(text);
+        // 교육일에는 가이드의 말도 대화 기록에 남는다(그 화면을 쓰는 법을 여기서 배운다).
+        if ((NSP.Core.GameState.Instance?.CurrentDay ?? 1) <= 0)
+            NSP.Core.DialogueHistory.Instance?.AddEntry("guide0", "GUIDE-0",
+                NSP.Core.DialogueEntryType.NpcLine, text,
+                NSP.Core.DialogueConversationType.IncomingCall);
         _line.Text = text;
         _line.VisibleRatio = 0f;
         _lineElapsed = 0;

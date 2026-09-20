@@ -115,12 +115,15 @@ public partial class ShiftFlowController : Node
     {
         if (!_wiredViews) WireLateSignals();
 
-        // 근무 시간이 다 되면(시계가 종료 시간 도달) 자동으로 근무를 종료한다.
+        // 최대 근무시간이 다 되면 필수 업무를 못 끝냈어도 근무가 끝난다(막히지 않게).
+        // 필수 업무를 끝냈다고 저절로 끝나지는 않는다 — 더 일할지는 플레이어가 고른다.
         if (_stage == Stage.Shift && GameState.Instance != null && !DayFeatures.IsTutorialDay)
         {
-            float limit = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-            if (GameState.Instance.DayTimeSeconds >= limit)
+            if (GameState.Instance.DayTimeSeconds >= DayObjectives.MaxShiftSeconds)
+            {
+                _title?.FlashBanner("근무 가능 시간이 종료되었습니다", 44, 1.1);
                 RequestEndShift();
+            }
         }
     }
 
@@ -132,6 +135,8 @@ public partial class ShiftFlowController : Node
             return;
 
         FacilityMonitorView.Instance.EndShiftRequested += RequestEndShift;
+        if (Day1HistoryOverlay.Instance != null)
+            Day1HistoryOverlay.Instance.EndShiftRequested += RequestEndShift;
         ShiftReportView.Instance.ContinueRequested += RequestRestFromReport;
         RestRosterView.Instance.NextRequested += RequestNextFromRest;
         _wiredViews = true;
@@ -295,6 +300,14 @@ public partial class ShiftFlowController : Node
 
     private async void EndShiftSequence()
     {
+        // 선택 업무는 여기서 업무평가 점수로만 바뀐다 — 다음 날 능력치나 확률에는
+        // 전혀 손대지 않는다(마지막 날 관리자 평가 등급에만 반영).
+        int earned = DayObjectives.OptionalCompleted();
+        if (earned > 0) GameState.Instance?.AddEvaluation(earned);
+
+        // 개발용 — 오늘 결번자가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
+        FacilitySimulation.Instance?.PrintSaboteurDebug();
+
         GameState.Instance?.SetPhase(GamePhase.Settlement);
         AmbientOverlay.Instance?.SetSceneIntensity(0.1f);
         // 근무 정산에는 BGM 없음 — 완료 효과음(띠링!)만.

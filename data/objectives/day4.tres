@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="DayPlanDef" load_steps=5 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; DAY4 오늘의 업무. 여기 숫자만 고치면 목표가 바뀐다(코드 수정 불필요).
+;
+; Required=true 인 업무를 전부 끝내야 '근무 종료' 를 누를 수 있다.
+; 끝내도 자동으로 끝나지는 않는다 — MaxShiftSeconds 가 다 되면 강제 종료된다.
+; 선택 업무(Required=false)는 업무평가 +1 로만 반영되고 성능 보상은 없다.
+;
+; ※ 방해공작·결번자 관련 항목은 절대 넣지 않는다. 미리 알려주면 사건이 아니게 된다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/DayPlanDef.cs" id="1_plan"]
+[ext_resource type="Script" path="res://scripts/data/DayObjectiveDef.cs" id="2_obj"]
+
+[sub_resource type="Resource" id="obj_core"]
+script = ExtResource("2_obj")
+ObjectiveId = "core"
+DisplayText = "봉쇄 코어 복구율 80% 달성"
+Type = 0
+TargetValue = 80.0
+Required = true
+TargetRooms = Array[String]([])
+
+[sub_resource type="Resource" id="obj_resolve"]
+script = ExtResource("2_obj")
+ObjectiveId = "resolve"
+DisplayText = "시설 경고 또는 고장 3회 해결"
+Type = 2
+TargetValue = 3.0
+Required = true
+TargetRooms = Array[String]([])
+
+[sub_resource type="Resource" id="obj_able"]
+script = ExtResource("2_obj")
+ObjectiveId = "able"
+DisplayText = "직원 전원 근무 가능 상태 유지"
+Type = 5
+TargetValue = 0.0
+Required = false
+TargetRooms = Array[String]([])
+
+[resource]
+script = ExtResource("1_plan")
+Day = 4
+Note = "막바지 운영 압박."
+MaxShiftSeconds = 180.0
+Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_resolve"), SubResource("obj_able")])

@@ -99,15 +99,24 @@ public partial class ShiftReportView : Control
         sb.AppendLine($"격리          {isolated}");
         sb.AppendLine($"생존          {(aliveCount < total ? "[color=#ff6a55]" : "")}{aliveCount} / {total}{(aliveCount < total ? "[/color]" : "")}");
 
-        // 오늘의 목표 복구량(data/ops/*.tres). 매일 같은 %가 오르지 않으므로
-        // "오늘 운영이 잘 됐는가"를 이 한 줄로 알려 준다.
-        float target = OpsProfile.Today?.TargetCoreGain ?? 0f;
-        if (target > 0.01f)
+        // 오늘의 업무 결과. 못 끝낸 업무가 있어도 다음 날로 넘어간다 — 다만
+        // 계속 놓치면 DAY5 까지 코어 100% 를 못 채운다는 게 그대로 보인다.
+        var lines = DayObjectives.Lines();
+        if (lines.Count > 0)
         {
-            bool met = coreDelta >= target;
-            sb.AppendLine($"\n목표 복구     {target:0.#}%  →  " +
-                          (met ? $"[color=#88ddaa]달성 ({coreDelta:0.0}%)[/color]"
-                               : $"[color=#ffb347]미달 ({coreDelta:0.0}%)[/color]"));
+            sb.AppendLine("\n[color=#8899aa]오늘의 업무[/color]");
+            foreach (var l in lines)
+            {
+                string mark = l.Required ? (l.Done ? "☑" : "□") : (l.Done ? "★" : "☆");
+                string state = l.Done
+                    ? "[color=#88ddaa]완료[/color]"
+                    : (l.Required ? "[color=#ffb347]미달성[/color]" : "[color=#8899aa]미달성[/color]");
+                sb.AppendLine($"{mark} {l.Def.DisplayText}   [color=#8899aa]{l.ProgressText}[/color]   {state}");
+            }
+            int earned = lines.Count(l => !l.Required && l.Done);
+            if (earned > 0)
+                sb.AppendLine($"[color=#88ddaa]업무평가 +{earned}[/color]" +
+                              $"   [color=#8899aa](누적 {gs.EvaluationScore})[/color]");
         }
         _body.Text = sb.ToString();
     }

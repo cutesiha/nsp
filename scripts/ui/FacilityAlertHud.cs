@@ -1,5 +1,6 @@
 using Godot;
 using NSP.Core;
+using NSP.Data;
 using NSP.View;
 
 namespace NSP.Ui;
@@ -12,9 +13,23 @@ namespace NSP.Ui;
 // 다른 이벤트에서도 그대로 쓸 수 있다:
 //     FacilityAlertHud.Instance?.ShowCriticalAlert("⚠ ...");
 //     FacilityAlertHud.Instance?.ShowCoreLoss(2.5f);
+// 시스템 알림의 중요도. 색과 표시 시간만 달라진다.
+public enum NoticeLevel { Info, Warning, Critical }
+
 public partial class FacilityAlertHud : CanvasLayer
 {
     public static FacilityAlertHud Instance { get; private set; }
+
+    // 화면 왼쪽 아래에 쌓이는 짧은 시스템 알림.
+    // Facility Log 와 역할이 다르다 — 여기는 "지금 무슨 일이 났는지"만 알리고,
+    // 시각·위치·직원 이동 같은 추리 근거는 Facility Log 가 맡는다.
+    private const int NoticeKeep = 4;
+    private const double NoticeHold = 4.0;
+    private const double NoticeHoldCritical = 6.5;
+    private const float NoticeFade = 1.2f;
+
+    private VBoxContainer _notices;
+    private readonly System.Collections.Generic.Dictionary<string, double> _noticeSeenAt = new();
 
     // 붉은 점멸 — 짧고 강하게 세 번. 길게 덮으면 플레이를 방해한다.
     private const float FlashPeak = 0.34f;
@@ -52,9 +67,69 @@ public partial class FacilityAlertHud : CanvasLayer
 
     // --- 외부에서 부르는 것 -------------------------------------------------
 
+    // 짧은 시스템 알림 한 줄. 같은 문장이 연달아 들어오면 무시한다
+    // (발전실 과열 점검이 반복돼도 진행 중인 사건 하나당 한 번만 뜬다).
+    public void Notify(string text, NoticeLevel level = NoticeLevel.Info)
+    {
+        if (_notices == null || string.IsNullOrWhiteSpace(text)) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (_noticeSeenAt.TryGetValue(text, out double at) && now - at < 8.0) return;
+        _noticeSeenAt[text] = now;
+
+        var label = new Label
+        {
+            Text = text,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            AutowrapMode = TextServer.AutowrapMode.Off,
+        };
+        label.AddThemeFontOverride("font", ViewFont.Default);
+        label.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
+        label.AddThemeColorOverride("font_color", level switch
+        {
+            NoticeLevel.Critical => new Color(1f, 0.34f, 0.30f),
+            NoticeLevel.Warning => new Color(1f, 0.74f, 0.28f),
+            _ => new Color(0.72f, 0.95f, 0.92f),
+        });
+        label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
+        label.AddThemeConstantOverride("outline_size", 5);
+        _notices.AddChild(label);
+
+        while (_notices.GetChildCount() > NoticeKeep)
+        {
+            var oldest = _notices.GetChild(0);
+            _notices.RemoveChild(oldest);
+            oldest.QueueFree();
+        }
+
+        var t = CreateTween();
+        t.TweenInterval(level == NoticeLevel.Critical ? NoticeHoldCritical : NoticeHold);
+        t.TweenProperty(label, "modulate:a", 0f, NoticeFade);
+        t.TweenCallback(Callable.From(() =>
+        {
+            if (GodotObject.IsInstanceValid(label)) label.QueueFree();
+        }));
+    }
+
+    // DAY 가 끝나면 이번 근무의 알림은 지운다(지난 사건은 Facility Log 에서 본다).
+    public void ClearNotices()
+    {
+        _noticeSeenAt.Clear();
+        if (_notices == null) return;
+        foreach (Node c in _notices.GetChildren()) { _notices.RemoveChild(c); c.QueueFree(); }
+    }
+
+    public override void _Process(double delta)
+    {
+        // 근무 중에만 남겨 둔다.
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live && _notices?.GetChildCount() > 0)
+            ClearNotices();
+    }
+
     // 중요 사건 경보. 붉은 점멸 + 상단 배너 + 경보음이 한 번에 나간다.
+    // 시스템 알림도 같이 띄운다 — 알림이 기본 전달 수단이고 연출은 추가다.
     public void ShowCriticalAlert(string message)
     {
+        Notify(message, NoticeLevel.Critical);
         RedFlash();
         Banner(message);
         // 새 오디오 파일을 만들지 않는다 — 기존 경보음을 짧게 겹쳐 쓴다.
@@ -185,5 +260,17 @@ public partial class FacilityAlertHud : CanvasLayer
         _coreLoss.AddThemeColorOverride("font_outline_color", new Color(0.12f, 0f, 0f));
         _coreLoss.AddThemeConstantOverride("outline_size", 6);
         AddChild(_coreLoss);
+
+        // 왼쪽 아래 — 기록창 버튼(오른쪽 아래)과 겹치지 않는 자리.
+        _notices = new VBoxContainer
+        {
+            AnchorTop = 1f, AnchorBottom = 1f,
+            OffsetLeft = 26f, OffsetRight = 660f,
+            OffsetTop = -186f, OffsetBottom = -26f,
+            Alignment = BoxContainer.AlignmentMode.End,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _notices.AddThemeConstantOverride("separation", 4);
+        AddChild(_notices);
     }
 }

@@ -27,7 +27,9 @@ public partial class DialogueHistory : Node
         string text, DialogueConversationType conversationType, string counterpartId = "")
     {
         // DAY2 이후 저장/탭은 이번 프로토타입 범위가 아니다.
-        if ((GameState.Instance?.CurrentDay ?? 1) != 1) return false;
+        // DAY0(교육)은 기록한다 — 튜토리얼에서 대화 기록 보는 법을 가르치기 때문이다.
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        if (day > 1) return false;
 
         string normalizedText = Normalize(text);
         if (normalizedText.Length == 0) return false;
@@ -43,7 +45,7 @@ public partial class DialogueHistory : Node
 
         _entries.Add(new DialogueHistoryEntry
         {
-            Day = 1,
+            Day = day,
             Timestamp = GameState.Instance?.DayTimeSeconds ?? 0f,
             Seq = ++_seq,
             SpeakerId = speakerId?.Trim() ?? "",

@@ -156,9 +156,16 @@ public static class FacilityLogFormatter
         if (!s.Deployed.Contains(id))
         {
             s.Deployed.Add(id);
-            if (!s.InitialRoom.ContainsKey(id)) s.InitialRoom[id] = e.RoomId;
-            s.LastRoom[id] = e.RoomId;
-            return null;
+            // 배치 자리에 도착한 것이면 초기 배치다(위에서 이미 한 줄로 냈다).
+            // 배치 자리가 아닌 곳에 처음 도착했다면 그건 근무 중 이동이다 —
+            // 제자리에서 계속 일하던 직원이 처음 자리를 뜨는 순간이 여기 걸린다.
+            string initial = s.InitialRoom.GetValueOrDefault(id, "");
+            if (string.IsNullOrEmpty(initial) || initial == e.RoomId)
+            {
+                if (!s.InitialRoom.ContainsKey(id)) s.InitialRoom[id] = e.RoomId;
+                s.LastRoom[id] = e.RoomId;
+                return null;
+            }
         }
 
         string from = s.LastRoom.GetValueOrDefault(id, "");

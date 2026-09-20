@@ -110,10 +110,11 @@ public partial class FacilityMonitorView : Control
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         bar.AddChild(_clock);
 
-        var endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, ViewFont.S(14));
-        endBtn.Position = new Vector2(690, 6);
-        endBtn.Size = new Vector2(104, 32);
-        bar.AddChild(endBtn);
+        _endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, ViewFont.S(14));
+        _endBtn.Position = new Vector2(690, 6);
+        _endBtn.Size = new Vector2(104, 32);
+        _endBtn.TooltipText = "필수 업무를 모두 끝내야 누를 수 있습니다.";
+        bar.AddChild(_endBtn);
 
         _alertLine = MakeLabel("", 15, Alert);
         _alertLine.Position = new Vector2(12, 46);
@@ -237,9 +238,14 @@ public partial class FacilityMonitorView : Control
             FacilitySimulation.Instance?.SetSurveillanceTarget(_selRoom);
     }
 
+    private Button _endBtn;
+
     private void OnEndShiftPressed()
     {
-        float limit = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        // 필수 업무를 끝내기 전에는 근무를 끝낼 수 없다(오늘의 업무 창과 같은 규칙).
+        if (!DayObjectives.CanEndShift) return;
+
+        float limit = DayObjectives.MaxShiftSeconds;
         float elapsed = GameState.Instance?.DayTimeSeconds ?? 0f;
         if (elapsed < limit)
         {
@@ -324,6 +330,13 @@ public partial class FacilityMonitorView : Control
     {
         string clock = ShiftClock(GameState.Instance?.DayTimeSeconds ?? 0f);
         if (_clock.Text != clock) _clock.Text = clock;
+
+        // 필수 업무를 끝내기 전에는 근무를 끝낼 수 없다는 걸 버튼 모양으로 보여준다.
+        if (_endBtn != null)
+        {
+            bool can = DayObjectives.CanEndShift;
+            if (_endBtn.Disabled == can) _endBtn.Disabled = !can;
+        }
         UpdateProtocol();
         UpdateInspector();
 

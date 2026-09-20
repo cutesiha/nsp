@@ -113,23 +113,33 @@ public static class InterviewScenarioTest
         GD.Print($"   안내: {r.Notice}");
     }
 
-    // ── D : 플레이어가 보지 못한 사실은 자료가 되지 않는다 ───────────────
+    // ── D : 방해공작은 "사건"으로만 자료가 된다(범인은 알려 주지 않는다) ──
     private static void TestD()
     {
-        Head("D", "목격자 없는 방해공작은 조사 자료에 뜨지 않는다");
+        Head("D", "목격자 없는 방해공작 — 사건은 남고 실행자는 새지 않는다");
         Reset();
         Deploy(new() { ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Vent,
                        ["rabbit"] = Maintenance, ["jellyfish"] = Medical, ["fox"] = Core });
-        // 내부 기록에는 남지만 아무도 보지 못했다.
+        // 내부 기록에는 실행자가 남지만 아무도 그 장면을 보지 못했다.
         Log(LogEventType.Sabotage, "cat", Core, At(20));
 
         var board = InterviewEvidenceBoard.Build("cat");
         foreach (var e in board) GD.Print($"   자료: [{e.Header}] {e.OneLine}");
-        Check(board.All(e => e.IncidentType != LogEventType.Sabotage), "방해공작이 자료로 뜨지 않는다");
-        Check(board.All(e => e.SubjectRoomId != Core), "그 작업실이 자료 어디에도 나오지 않는다");
+
+        var sab = board.FirstOrDefault(e => e.IncidentType == LogEventType.Sabotage);
+        // 시설 로그 화면에 뜬 사건이므로 조사 자료가 된다 — 플레이어가 본 것이다.
+        Check(sab != null, "방해공작 사건 자체는 사고 기록으로 뜬다");
+        if (sab == null) return;
+
+        Check(string.IsNullOrEmpty(sab.SubjectEmployeeId),
+            "그 자료는 누구의 것도 아니다(특정 직원을 가리키지 않는다)");
+        Check(sab.Position == PositionClaim.None,
+            "위치 주장이 아니므로 그것만으로 누구의 알리바이도 깨지 않는다");
+        Check(!board.Any(e => e.Kind == EvidenceKind.Movement || e.Kind == EvidenceKind.Cctv),
+            "실행자의 이동이나 CCTV 기록은 여전히 자료가 아니다");
 
         var qs = board.SelectMany(e => InterviewQuestionFactory.For("cat", e)).ToList();
-        Check(qs.All(q => !q.Text.Contains("코어")), "질문 후보에도 그 작업실이 나오지 않는다");
+        Check(qs.All(q => !q.Text.Contains("고양이")), "질문 후보가 실행자를 지목하지 않는다");
     }
 
     // ── E : 거짓 알리바이는 후속 질문에도 유지된다 ──────────────────────

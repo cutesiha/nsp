@@ -8,7 +8,11 @@ public partial class RoomDef : Resource
 {
     [Export] public string RoomId = "";
     [Export] public string DisplayName = "";
+    // 실제로 걸어서 오갈 수 있는 통로. 중앙 제어실이 모든 작업실의 허브다.
     [Export] public Array<string> ConnectedRoomIds = new();
+    // 벽 하나를 사이에 둔 옆 작업실(소리·진동이 전해지는 범위).
+    // 통로로 이어져 있지 않아도 옆방일 수 있어 따로 둔다. 비어 있으면 통로를 그대로 쓴다.
+    [Export] public Array<string> AdjacentRoomIds = new();
     [Export] public Vector2 MapPosition = Vector2.Zero;
     [Export] public bool IsCoreRoom = false;
     [Export] public bool IsRestricted = false;

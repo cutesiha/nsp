@@ -29,6 +29,11 @@ public partial class GameState : Node
     public int TotalKills { get; private set; }
     public void RegisterKill() => TotalKills++;
 
+    // 업무평가 — 선택 업무를 달성할 때마다 +1. 게임 성능에는 전혀 영향을 주지 않고
+    // 마지막 날의 관리자 평가 등급에만 반영된다.
+    public int EvaluationScore { get; private set; }
+    public void AddEvaluation(int amount) => EvaluationScore = Math.Max(0, EvaluationScore + amount);
+
     private readonly Random _rng = new();
 
     // ── 전력 패널(LIGHTING / CCTV / SENSOR) ────────────────────────────
@@ -225,6 +230,7 @@ public partial class GameState : Node
         Result = GameResult.None;
         SaboteurEmployeeId = "";
         TotalKills = 0;
+        EvaluationScore = 0;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON
         ResetFacilityFaults();
     }

@@ -22,6 +22,8 @@ public static class PlayerKnownEvidence
     // 어떤 직원이 "사건 당시 나는 여기 있었다"고 말한 내용.
     public sealed class LocationStatement
     {
+        // 어느 근무의 자료인가. 휴게시간 조사 자료는 항상 오늘 것만 본다.
+        public int Day = 1;
         public string SpeakerId = "";
         public string IncidentKey = "";
         public string RoomId = "";
@@ -34,6 +36,7 @@ public static class PlayerKnownEvidence
     // 어떤 직원이 "그 사람을 여기서 봤다"고 말한 내용.
     public sealed class SightingStatement
     {
+        public int Day = 1;
         public string SpeakerId = "";
         public string SubjectId = "";
         public string RoomId = "";
@@ -55,6 +58,7 @@ public static class PlayerKnownEvidence
     // 곧 "관리자가 직접 눈으로 본 사실"이 된다.
     public sealed class CctvObservation
     {
+        public int Day = 1;
         public string RoomId = "";
         public float Time;
         public List<string> Occupants = new();
@@ -63,6 +67,24 @@ public static class PlayerKnownEvidence
     private static readonly List<LocationStatement> _locations = new();
     private static readonly List<SightingStatement> _sightings = new();
     private static readonly List<CctvObservation> _cctv = new();
+    // 플레이어가 손으로 찍어 둔 「중요」 표시. 게임이 판정하지 않는다 — 순전히 메모다.
+    private static readonly HashSet<string> _starred = new();
+
+    // 지금 보고 있는 근무. 지난 DAY 의 자료는 조사 자료에 섞이지 않는다.
+    private static int Today => GameState.Instance?.CurrentDay ?? 1;
+
+    // --- 중요 표시 ------------------------------------------------------
+
+    public static bool IsStarred(string evidenceId) =>
+        !string.IsNullOrEmpty(evidenceId) && _starred.Contains(evidenceId);
+
+    public static void ToggleStar(string evidenceId)
+    {
+        if (string.IsNullOrEmpty(evidenceId)) return;
+        if (!_starred.Remove(evidenceId)) _starred.Add(evidenceId);
+    }
+
+    public static int StarredCount => _starred.Count;
 
     // --- 진술 기록 ------------------------------------------------------
 
@@ -70,7 +92,8 @@ public static class PlayerKnownEvidence
         float anchorTime = -1f)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(roomId)) return;
-        var found = _locations.FirstOrDefault(x => x.SpeakerId == speakerId && x.IncidentKey == incidentKey);
+        var found = _locations.FirstOrDefault(x => x.Day == Today
+            && x.SpeakerId == speakerId && x.IncidentKey == incidentKey);
         if (found != null)
         {
             found.RoomId = roomId;
@@ -80,6 +103,7 @@ public static class PlayerKnownEvidence
         }
         _locations.Add(new LocationStatement
         {
+            Day = Today,
             SpeakerId = speakerId, IncidentKey = incidentKey ?? "", RoomId = roomId, StatedExactTime = exactTime,
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
         });
@@ -89,8 +113,18 @@ public static class PlayerKnownEvidence
     public static void RecordCctvObservation(string roomId, float time, IEnumerable<string> occupants)
     {
         if (string.IsNullOrEmpty(roomId)) return;
+
+        // 같은 방을 계속 보고 있으면 3초마다 같은 기록이 쌓여 조사 자료가 넘쳐난다.
+        // 인원 구성이 바뀔 때만 새 기록을 남긴다 — "혼자 있었다" 한 줄, 그 방에 누가
+        // 더 들어온 순간 한 줄. 플레이어가 본 장면의 수가 아니라 장면의 종류를 남긴다.
+        var now = occupants != null ? new List<string>(occupants) : new List<string>();
+        now.Sort(System.StringComparer.Ordinal);
+        var last = _cctv.LastOrDefault(o => o.Day == Today && o.RoomId == roomId);
+        if (last != null && SameCrew(last.Occupants, now)) return;
+
         _cctv.Add(new CctvObservation
         {
+            Day = Today,
             RoomId = roomId,
             Time = time,
             Occupants = occupants != null ? new List<string>(occupants) : new List<string>(),
@@ -103,7 +137,8 @@ public static class PlayerKnownEvidence
     public static string CctvSeenRoomOf(string employeeId, float aroundTime, float window)
     {
         foreach (var o in _cctv)
-            if (Mathf.Abs(o.Time - aroundTime) <= window && o.Occupants.Contains(employeeId))
+            if (o.Day == Today && Mathf.Abs(o.Time - aroundTime) <= window
+                && o.Occupants.Contains(employeeId))
                 return o.RoomId;
         return "";
     }
@@ -113,7 +148,7 @@ public static class PlayerKnownEvidence
     {
         if (string.IsNullOrEmpty(roomId)) return false;
         foreach (var o in _cctv)
-            if (o.RoomId == roomId && Mathf.Abs(o.Time - aroundTime) <= window
+            if (o.Day == Today && o.RoomId == roomId && Mathf.Abs(o.Time - aroundTime) <= window
                 && !o.Occupants.Contains(employeeId))
                 return true;
         return false;
@@ -121,12 +156,28 @@ public static class PlayerKnownEvidence
 
     public static int CctvObservationCount => _cctv.Count;
 
+    private static bool SameCrew(List<string> a, List<string> b)
+    {
+        if (a.Count != b.Count) return false;
+        var sorted = new List<string>(a);
+        sorted.Sort(System.StringComparer.Ordinal);
+        for (int i = 0; i < sorted.Count; i++)
+            if (sorted[i] != b[i]) return false;
+        return true;
+    }
+
+    // 그 작업실의 위치 기록(CCTV 시청 또는 경비 순찰)이 하나라도 남았는가.
+    public static bool HasRoomRecord(string roomId) =>
+        !string.IsNullOrEmpty(roomId) && _cctv.Any(o => o.Day == Today && o.RoomId == roomId);
+
     public static void RecordSighting(string speakerId, string subjectId, string roomId, float anchorTime = -1f)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId)) return;
-        if (_sightings.Any(x => x.SpeakerId == speakerId && x.SubjectId == subjectId && x.RoomId == roomId)) return;
+        if (_sightings.Any(x => x.Day == Today && x.SpeakerId == speakerId
+            && x.SubjectId == subjectId && x.RoomId == roomId)) return;
         _sightings.Add(new SightingStatement
         {
+            Day = Today,
             SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "",
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
         });
@@ -136,15 +187,16 @@ public static class PlayerKnownEvidence
 
     // 이 직원이 그 사건에 대해 스스로 말한 위치.
     public static LocationStatement OwnClaim(string employeeId, string incidentKey) =>
-        _locations.FirstOrDefault(x => x.SpeakerId == employeeId && x.IncidentKey == incidentKey);
+        _locations.FirstOrDefault(x => x.Day == Today
+            && x.SpeakerId == employeeId && x.IncidentKey == incidentKey);
 
     // 다른 직원이 이 직원을 봤다고 말한 기록.
     public static IEnumerable<SightingStatement> SightingsOf(string employeeId) =>
-        _sightings.Where(x => x.SubjectId == employeeId && x.SpeakerId != employeeId);
+        _sightings.Where(x => x.Day == Today && x.SubjectId == employeeId && x.SpeakerId != employeeId);
 
     // 이 직원이 다른 직원을 봤다고 말한 기록.
     public static IEnumerable<SightingStatement> SightingsBy(string employeeId) =>
-        _sightings.Where(x => x.SpeakerId == employeeId);
+        _sightings.Where(x => x.Day == Today && x.SpeakerId == employeeId);
 
     // 시설 로그 화면에 실제로 떴던 이 직원의 이동. 화면에 뜨지 않은 이동은 여기 없다.
     public static List<VisibleMove> VisibleMoves(string employeeId, int day)
@@ -166,16 +218,17 @@ public static class PlayerKnownEvidence
 
     // 이 직원이 관리자에게 한 모든 위치 진술(최근 순).
     public static IReadOnlyList<LocationStatement> StatementsBy(string employeeId) =>
-        _locations.Where(x => x.SpeakerId == employeeId).ToList();
+        _locations.Where(x => x.Day == Today && x.SpeakerId == employeeId).ToList();
 
     // 관리자가 CCTV 로 이 직원을 실제로 본 모든 순간(최근 순).
     public static IReadOnlyList<CctvObservation> CctvSightingsOf(string employeeId) =>
-        _cctv.Where(o => o.Occupants.Contains(employeeId)).ToList();
+        _cctv.Where(o => o.Day == Today && o.Occupants.Contains(employeeId)).ToList();
 
     public static void ResetAll()
     {
         _locations.Clear();
         _sightings.Clear();
         _cctv.Clear();
+        _starred.Clear();
     }
 }

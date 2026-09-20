@@ -6,8 +6,9 @@
 script = ExtResource("1_room")
 RoomId = "power_room"
 DisplayName = "발전실"
-ConnectedRoomIds = Array[String](["guard_room", "central_office", "vent_room"])
-MapPosition = Vector2(60, 220)
+ConnectedRoomIds = Array[String](["central_office"])
+AdjacentRoomIds = Array[String](["guard_room", "vent_room"])
+MapPosition = Vector2(90, 170)
 IsCoreRoom = false
 ManagedResource = 1
 AccidentName = "발전기 과열"

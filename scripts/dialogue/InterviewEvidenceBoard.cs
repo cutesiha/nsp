@@ -33,11 +33,53 @@ public static class InterviewEvidenceBoard
         AddTestimonies(list, targetEmployeeId);
         AddOwnStatements(list, targetEmployeeId);
 
-        // 시간이 없는 자료(기분)는 항상 맨 위에 둔다 — 근무 전에 적어 낸 것이므로.
-        return list
-            .OrderBy(e => e.HasTime ? 1 : 0)
-            .ThenBy(e => e.AnchorTime)
-            .ToList();
+        foreach (var e in list) e.Day = day;
+        return Sort(list);
+    }
+
+    // 오늘 확보한 자료 전부(다른 직원 것 포함). 질문에는 쓸 수 없고 읽기용이다 —
+    // "지금 이 사람 것만" 과 "전체 흐름" 을 같은 화면에서 오갈 수 있게 한다.
+    public static List<InterviewEvidence> BuildAll(string targetEmployeeId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var list = Build(targetEmployeeId);
+        if (sim == null) return list;
+
+        var seen = new HashSet<string>(list.Select(e => e.Id));
+        foreach (string id in sim.GetActiveEmployeeIds())
+        {
+            if (id == targetEmployeeId) continue;
+            foreach (var e in Build(id))
+            {
+                if (!seen.Add(e.Id)) continue;   // 사고 기록처럼 주인이 없는 자료는 한 번만
+                list.Add(e);
+            }
+        }
+        return Sort(list);
+    }
+
+    // 시간이 없는 자료(기분)는 항상 맨 위에 둔다 — 근무 전에 적어 낸 것이므로.
+    private static List<InterviewEvidence> Sort(List<InterviewEvidence> list) => list
+        .OrderBy(e => e.HasTime ? 1 : 0)
+        .ThenBy(e => e.AnchorTime)
+        .ThenBy(e => e.Id, System.StringComparer.Ordinal)
+        .ToList();
+
+    // 고른 자료와 같은 시간대(±EvidenceContradiction.WindowMinutes)의 다른 자료들.
+    //
+    // "이 자료들이 단서다" 라고 알려 주는 기능이 아니다. 사건 하나를 고르면 그 전후를
+    // 같이 보고 싶다는 것뿐이고, 판단은 여전히 플레이어가 한다.
+    public static HashSet<string> SameWindow(IEnumerable<InterviewEvidence> board, InterviewEvidence focus)
+    {
+        var ids = new HashSet<string>();
+        if (board == null || focus == null || !focus.HasTime) return ids;
+        float window = EvidenceContradiction.WindowMinutes * DialogueClock.SecondsPerMinute;
+        foreach (var e in board)
+        {
+            if (e == focus || !e.HasTime) continue;
+            if (Mathf.Abs(e.AnchorTime - focus.AnchorTime) <= window) ids.Add(e.Id);
+        }
+        return ids;
     }
 
     public static InterviewEvidence Find(IEnumerable<InterviewEvidence> board, string id) =>
@@ -77,7 +119,7 @@ public static class InterviewEvidenceBoard
             {
                 list.Add(new InterviewEvidence
                 {
-                    Id = $"move:{n}",
+                    Id = $"move:{target}:{n}",
                     Kind = EvidenceKind.Movement,
                     Header = "시설 로그",
                     TimeText = DialogueClock.Text(r.Timestamp),
@@ -117,9 +159,12 @@ public static class InterviewEvidenceBoard
     }
 
     // 화면 로그 한 줄이 "사고"인가. 이동/격리/스트레스 경고는 사고가 아니다.
+    // 방해공작 줄도 포함한다 — 플레이어가 화면에서 본 사건이므로 조사 자료가 된다.
+    // (그 줄에는 범인 이름이 없다. FacilityLogFormatter 가 이미 지워서 내보낸다.)
     private static bool IsIncidentRow(DisplayLogEntry r) =>
         r.SourceEventType is LogEventType.TaskFailed or LogEventType.PowerOutage
-            or LogEventType.TabooViolation or LogEventType.CctvDisconnect or LogEventType.Death;
+            or LogEventType.TabooViolation or LogEventType.CctvDisconnect or LogEventType.Death
+            or LogEventType.Sabotage;
 
     // 화면 줄에는 RoomId 가 직접 실려 있지 않다. EventLog 에서 같은 시각·같은 종류의
     // 사건을 찾아 방만 가져온다(문장은 화면에 뜬 것을 그대로 쓴다).
@@ -139,9 +184,9 @@ public static class InterviewEvidenceBoard
         foreach (var o in PlayerKnownEvidence.CctvSightingsOf(target))
         {
             n++;
-            list.Add(new InterviewEvidence
+            var ev = new InterviewEvidence
             {
-                Id = $"cctv:{n}:{o.Time:0.0}",
+                Id = $"cctv:{target}:{n}:{o.Time:0.0}",
                 Kind = EvidenceKind.Cctv,
                 Header = "CCTV",
                 TimeText = DialogueClock.Text(o.Time),
@@ -151,7 +196,9 @@ public static class InterviewEvidenceBoard
                 HasTime = true,
                 Position = PositionClaim.AtRoom,
                 SubjectRoomId = o.RoomId,
-            });
+            };
+            ev.RelatedEmployeeIds.AddRange(o.Occupants.Where(x => x != target));
+            list.Add(ev);
         }
     }
 
@@ -165,7 +212,7 @@ public static class InterviewEvidenceBoard
             n++;
             list.Add(new InterviewEvidence
             {
-                Id = $"say:{n}:{s.SpeakerId}",
+                Id = $"say:{target}:{n}:{s.SpeakerId}",
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(s.SpeakerId) + "의 증언",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
@@ -176,6 +223,7 @@ public static class InterviewEvidenceBoard
                 HasTime = s.HasTime,
                 Position = PositionClaim.AtRoom,
                 SubjectRoomId = s.RoomId,
+                RelatedEmployeeIds = { s.SpeakerId },
             });
         }
     }
@@ -190,7 +238,7 @@ public static class InterviewEvidenceBoard
             n++;
             list.Add(new InterviewEvidence
             {
-                Id = $"claim:{n}:{st.IncidentKey}",
+                Id = $"claim:{target}:{n}:{st.IncidentKey}",
                 Kind = EvidenceKind.OwnStatement,
                 Header = Codename(target) + "의 진술",
                 TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",

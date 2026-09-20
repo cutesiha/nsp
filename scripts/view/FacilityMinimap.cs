@@ -22,17 +22,17 @@ public partial class FacilityMinimap : Control
     private const float EmpDotRadius = 10f;
 
     // 방 배치 (미니맵 정규화 좌표). 사용자 스케치의 구조.
+    // 환기실 / 의무실은 이번 버전에서 쓰지 않으므로 지도에 올리지 않는다
+    // (데이터와 기능은 그대로 남아 있다 — 해금되면 여기 한 줄만 다시 넣으면 된다).
     private static readonly Dictionary<string, Vector2> Layout = new()
     {
-        ["core_room"] = new(0.50f, 0.12f),
-        ["guard_room"] = new(0.23f, 0.30f),
-        ["storage_room"] = new(0.77f, 0.30f),
-        ["power_room"] = new(0.19f, 0.50f),
+        ["core_room"] = new(0.50f, 0.13f),
+        ["power_room"] = new(0.17f, 0.32f),
+        ["storage_room"] = new(0.83f, 0.32f),
         ["central_office"] = new(0.50f, 0.50f),
-        ["maintenance_room"] = new(0.81f, 0.50f),
-        ["vent_room"] = new(0.28f, 0.72f),
-        ["medical_room"] = new(0.72f, 0.72f),
-        ["isolation_room"] = new(0.50f, 0.90f),
+        ["guard_room"] = new(0.17f, 0.70f),
+        ["maintenance_room"] = new(0.83f, 0.70f),
+        ["isolation_room"] = new(0.50f, 0.88f),
     };
 
     // 방 이름(위) / 직원 아이콘(가운데) / 직원 코드네임(아래)이 서로 안 겹치도록 잡은 크기.
@@ -375,7 +375,7 @@ public partial class FacilityMinimap : Control
             var st = sim.GetEmployeeState(id);
             if (st == null) continue;
             float d = st.Position.DistanceTo(pos);
-            if (d <= EmpDotRadius + 5f && d < bestDist) { best = id; bestDist = d; }
+            if (d <= EmpDotRadius + 10f && d < bestDist) { best = id; bestDist = d; }
         }
         return best;
     }
@@ -386,6 +386,21 @@ public partial class FacilityMinimap : Control
             if (BoxOf(roomId).HasPoint(pos))
                 return roomId;
         return null;
+    }
+
+    // 상자를 살짝 벗어난 곳에 놓아도 가장 가까운 작업실로 들어간다.
+    private string NearestRoom(Vector2 pos)
+    {
+        string best = null;
+        float bestDist = 70f;
+        foreach (var roomId in Layout.Keys)
+        {
+            float d = CenterOf(roomId).DistanceTo(pos);
+            if (d >= bestDist) continue;
+            bestDist = d;
+            best = roomId;
+        }
+        return best;
     }
 
     // --- 직원 끌어다 놓기 (수동 구현) --------------------------------------
@@ -426,13 +441,15 @@ public partial class FacilityMinimap : Control
     private void DropEmployee(Vector2 pos)
     {
         var sim = FacilitySimulation.Instance;
-        string roomId = RoomAt(pos);
+        string roomId = RoomAt(pos) ?? NearestRoom(pos);
         if (sim == null || roomId == null) { OnEmployeeSelected?.Invoke(_dragEmp); return; }
 
         var emp = sim.GetEmployeeState(_dragEmp);
         if (emp == null || !emp.Alive || emp.Isolated) return;
         if (emp.AssignedRoomId == roomId) return;
-        if (!sim.CanAssignToRoom(roomId)) return;
+        // 근무 중 재배치는 근무표 정원(RoomSlotCapacity)에 묶이지 않는다.
+        // 사고가 나면 한 방에 셋을 몰아넣어야 할 때가 있고, 그게 이 게임의 조작이다.
+        if (!sim.IsRoomActive(roomId)) return;
 
         // ClearAssignment 없이 바로 재배치 — AssignToRoom 이 이동까지 처리한다.
         sim.AssignToRoom(_dragEmp, roomId);

@@ -92,11 +92,14 @@ public static class InterviewReplyPlanner
             case InterviewIntent.AskMoveReason:
                 f.Topic = ReplyTopic.MoveReason;
                 FillMoveReason(f, q, id, day, truthful);
+                // "그 방으로 갔다"는 것을 스스로 인정한 진술이다.
+                RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t);
                 break;
 
             case InterviewIntent.AskPresenceReason:
                 f.Topic = ReplyTopic.PresenceReason;
                 FillPresenceReason(f, q, id, day, t, truthful);
+                RecordClaim(id, ctx.ClaimKey, truthful ? q.SubjectRoomId : plan.RoomId, t);
                 break;
 
             case InterviewIntent.AskWhoWasPresent:
@@ -108,6 +111,8 @@ public static class InterviewReplyPlanner
                 f.Variant = others.Count > 0 ? "with" : "alone";
                 f.Set("who", others.Count > 0 ? Codename(others[0]) : "");
                 f.Set("room", RoomName(room));
+                // "그 시각 그 방에서 저 사람과 함께 있었다" — 상대의 위치까지 걸린 진술이다.
+                if (others.Count > 0) RecordSighting(id, others[0], room, t);
                 break;
             }
 
@@ -175,6 +180,7 @@ public static class InterviewReplyPlanner
                 var others = DialogueContextBuilder.OccupantsAt(plan.RoomId, day, t, id);
                 f.Variant = others.Count > 0 ? "someone" : "none";
                 f.Set("who", others.Count > 0 ? Codename(others[0]) : "");
+                if (others.Count > 0) RecordSighting(id, others[0], plan.RoomId, t);
                 break;
             }
 
@@ -206,6 +212,8 @@ public static class InterviewReplyPlanner
                 f.Topic = ReplyTopic.Restate;
                 f.Variant = "same";
                 f.Set("room", RoomName(plan.RoomId));
+                // 같은 주장을 되풀이하는 것이므로 진술 자료도 그대로 유지된다.
+                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
                 break;
 
             case InterviewIntent.AskMoodReason:
@@ -359,10 +367,21 @@ public static class InterviewReplyPlanner
     }
 
     // 직원이 관리자에게 말한 위치는 그대로 플레이어의 자료가 된다.
+    //
+    // 모든 대사를 자료로 만들지는 않는다(기분·소감·되묻기는 남기지 않는다).
+    // 여기 들어오는 것은 "언제 · 어디" 가 붙은 주장뿐이고, 그래야 나중에 로그·CCTV 와
+    // 맞대어 볼 수 있다.
     private static void RecordClaim(string employeeId, string claimKey, string roomId, float time)
     {
-        if (string.IsNullOrEmpty(roomId)) return;
+        if (string.IsNullOrEmpty(roomId) || time < 0f) return;
         PlayerKnownEvidence.RecordLocationStatement(employeeId, claimKey, roomId, true, time);
+    }
+
+    // "그 사람을 거기서 봤다" 는 말도 자료가 된다 — 다른 직원을 심문할 때 그대로 쓴다.
+    private static void RecordSighting(string speakerId, string subjectId, string roomId, float time)
+    {
+        if (string.IsNullOrEmpty(subjectId) || string.IsNullOrEmpty(roomId)) return;
+        PlayerKnownEvidence.RecordSighting(speakerId, subjectId, roomId, time);
     }
 
     private static string RoomName(string roomId) => InterviewEvidenceBoard.RoomName(roomId);

@@ -143,7 +143,17 @@ public static class DialogueContextBuilder
         var sim = FacilitySimulation.Instance;
         var a = sim?.GetRoomDef(roomA);
         var b = sim?.GetRoomDef(roomB);
-        return (a?.ConnectedRoomIds.Contains(roomB) ?? false) || (b?.ConnectedRoomIds.Contains(roomA) ?? false);
+        // "옆방"은 통로 연결과 다르다 — 모든 방이 중앙 제어실로만 이어져 있어도
+        // 벽을 맞댄 방끼리는 소리가 넘어간다. 옆방 목록이 비어 있으면 통로로 판단한다.
+        return Near(a, roomB) || Near(b, roomA);
+
+        static bool Near(NSP.Data.RoomDef def, string other)
+        {
+            if (def == null) return false;
+            return def.AdjacentRoomIds.Count > 0
+                ? def.AdjacentRoomIds.Contains(other)
+                : def.ConnectedRoomIds.Contains(other);
+        }
     }
 
     // --- 인지 수준 ------------------------------------------------------
@@ -154,7 +164,13 @@ public static class DialogueContextBuilder
             return KnowledgeLevel.Direct;
         string where = RoomAt(employeeId, e.Day, e.GameTimeSeconds);
         if (!string.IsNullOrEmpty(where) && where == e.RoomId) return KnowledgeLevel.Direct;
-        return IsAdjacent(where, e.RoomId) ? KnowledgeLevel.Indirect : KnowledgeLevel.None;
+        // 벽 너머의 일은 아무나 알아차리지 못한다 — 관찰력이 낮으면 "몰랐다"가 사실이다.
+        // (없는 목격을 만들지 않기 위한 문지기. 캐릭터 차이가 증언의 양을 가른다.)
+        if (!IsAdjacent(where, e.RoomId)) return KnowledgeLevel.None;
+        return NSP.Facility.EmployeeTraits.Get(employeeId).ObservationalAwareness
+               >= NSP.Facility.EmployeeTraits.AwarenessForIndirect
+            ? KnowledgeLevel.Indirect
+            : KnowledgeLevel.None;
     }
 
     // --- 사건 분류 ------------------------------------------------------

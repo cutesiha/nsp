@@ -23,8 +23,17 @@ public partial class PrologueAdvanceInput : Node
         bool byClick = e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left };
         if (!byKey && !byClick) return;
 
-        // 통화 HUD / 로그 창이 떠 있으면 그쪽 입력이 우선이다.
-        if (PhoneCallHud.Instance?.IsOpen == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+        // 로그 창이 떠 있으면 그쪽 입력이 우선이다.
+        if (Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+
+        // 통화창이 떠 있어도 대사는 넘길 수 있어야 한다 — 휴게시간 교육은 통화창을 켜 둔 채
+        // 가이드가 계속 말한다. 창 위를 클릭했을 때만 통화창 몫으로 넘긴다.
+        if (PhoneCallHud.Instance?.IsOpen == true)
+        {
+            if (byKey) return;
+            var mouse = (e as InputEventMouseButton)?.GlobalPosition ?? Vector2.Zero;
+            if (PhoneCallHud.Instance.ContainsPoint(mouse)) return;
+        }
 
         // 벨이 울리는 동안에는 클릭을 먹지 않는다. 그러지 않으면 대사가 아직 흐르는 중에
         // 수화기를 눌러도 "대사 넘기기"로만 먹혀 전화를 받을 수 없다(키로는 그대로 넘어간다).

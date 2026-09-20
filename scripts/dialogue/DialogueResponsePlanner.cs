@@ -388,6 +388,32 @@ public static class DialogueResponsePlanner
 
         if (plan.Emotion != EmotionKind.None && GD.Randf() > profile.EmotionChance)
             plan.Emotion = EmotionKind.None;
+
+        ApplyImitationSlip(ctx, plan, profile);
+    }
+
+    // 결번자는 그 직원의 성격을 흉내 내지만 완벽하지는 않다.
+    // 사람을 통째로 바꾸지 않고, 그 사람답지 않은 아주 작은 어긋남 하나만 남긴다.
+    // (주장 자체는 DialogueClaimState 가 쥐고 있으므로 여기서 바뀌지 않는다 — 말투만 흔들린다.)
+    private const float ImitationSlipChance = 0.3f;
+
+    private static void ApplyImitationSlip(DialogueContext ctx, DialogueResponsePlan plan,
+        DialogueVoiceProfile profile)
+    {
+        if (!ctx.IsSaboteur) return;
+        if (plan.Deception is DeceptionMode.None or DeceptionMode.Truth) return;
+        if (GD.Randf() >= ImitationSlipChance) return;
+
+        var traits = NSP.Facility.EmployeeTraits.Get(ctx.EmployeeId);
+        // 평소 본 것과 추측을 구분하던 사람이, 확인하지 않은 내용을 단정해 버린다.
+        if (profile.SeparatesGuess && plan.Certainty != Certainty.High)
+        {
+            plan.Certainty = Certainty.High;
+            return;
+        }
+        // 평소 시각을 정확히 대던 사람이 갑자기 시간을 흐린다.
+        if (traits.StatementPrecision >= 3 && plan.Time != TimeRef.None)
+            plan.Time = TimeRef.Vague;
     }
 
     private static EmotionKind EmotionOf(LogEventType type) => type switch

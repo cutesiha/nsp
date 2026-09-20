@@ -94,6 +94,9 @@ public sealed class FacilityWarningSystem
                 Close(w, now, sim);
                 EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", w.RoomId,
                     $"✓ {sim.RoomDisplayName(w.RoomId)} — {w.Title} 안정화 성공");
+                NSP.Ui.FacilityAlertHud.Instance?.Notify("✓ " +
+                    NSP.Dialogue.KoreanParticle.Subject(sim.RoomDisplayName(w.RoomId)) + " 안정화되었습니다.",
+                    NSP.Ui.NoticeLevel.Info);
                 Sfx.Instance?.Play("task_done", -6f);
                 continue;
             }
@@ -189,6 +192,10 @@ public sealed class FacilityWarningSystem
 
         EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", w.RoomId,
             $"⚠ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 {w.RequiredStaff}명 필요");
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"⚠ {sim.RoomDisplayName(w.RoomId)}에서 " +
+            NSP.Dialogue.KoreanParticle.Subject(w.Title) + " 감지되었습니다.", NSP.Ui.NoticeLevel.Warning);
         Sfx.Instance?.Play("alert_beep3", -8f);
+        // 경고 단계에서는 직원이 스스로 움직이지 않는다 — 누구를 보낼지는 관리자가 정한다.
     }
 }

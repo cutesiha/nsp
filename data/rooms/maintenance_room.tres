@@ -6,8 +6,9 @@
 script = ExtResource("1_room")
 RoomId = "maintenance_room"
 DisplayName = "정비실"
-ConnectedRoomIds = Array[String](["storage_room", "central_office", "medical_room"])
-MapPosition = Vector2(380, 220)
+ConnectedRoomIds = Array[String](["central_office"])
+AdjacentRoomIds = Array[String](["storage_room", "medical_room"])
+MapPosition = Vector2(450, 370)
 IsCoreRoom = false
 UnlockDay = 0
 ManagedResource = 3

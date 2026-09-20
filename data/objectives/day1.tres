@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="DayPlanDef" load_steps=5 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; DAY1 오늘의 업무. 여기 숫자만 고치면 목표가 바뀐다(코드 수정 불필요).
+;
+; Required=true 인 업무를 전부 끝내야 '근무 종료' 를 누를 수 있다.
+; 끝내도 자동으로 끝나지는 않는다 — MaxShiftSeconds 가 다 되면 강제 종료된다.
+; 선택 업무(Required=false)는 업무평가 +1 로만 반영되고 성능 보상은 없다.
+;
+; ※ 방해공작·결번자 관련 항목은 절대 넣지 않는다. 미리 알려주면 사건이 아니게 된다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/DayPlanDef.cs" id="1_plan"]
+[ext_resource type="Script" path="res://scripts/data/DayObjectiveDef.cs" id="2_obj"]
+
+[sub_resource type="Resource" id="obj_core"]
+script = ExtResource("2_obj")
+ObjectiveId = "core"
+DisplayText = "봉쇄 코어 복구율 18% 달성"
+Type = 0
+TargetValue = 18.0
+Required = true
+TargetRooms = Array[String]([])
+
+[sub_resource type="Resource" id="obj_warn"]
+script = ExtResource("2_obj")
+ObjectiveId = "warn"
+DisplayText = "시설 경고 1회 안정화"
+Type = 1
+TargetValue = 1.0
+Required = true
+TargetRooms = Array[String]([])
+
+[sub_resource type="Resource" id="obj_nobreak"]
+script = ExtResource("2_obj")
+ObjectiveId = "nobreak"
+DisplayText = "시설 고장 없이 근무 완료"
+Type = 3
+TargetValue = 0.0
+Required = false
+TargetRooms = Array[String]([])
+
+[resource]
+script = ExtResource("1_plan")
+Day = 1
+Note = "기본 운영 루프(코어 복구 + 경고 대응)를 익히는 날."
+MaxShiftSeconds = 180.0
+Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_warn"), SubResource("obj_nobreak")])

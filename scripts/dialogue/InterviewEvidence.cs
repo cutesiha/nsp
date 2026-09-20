@@ -31,6 +31,16 @@ public sealed class InterviewEvidence
     // 화면/질문/테스트가 자료를 가리키는 고유 키. 같은 자료는 같은 Id 로 다시 만들어진다.
     public string Id = "";
     public EvidenceKind Kind;
+    // 어느 근무의 자료인가. 조사 자료는 항상 오늘 것만 모은다.
+    public int Day = 1;
+
+    // 이 자료가 플레이어에게 실제로 보인 적이 있는가.
+    // 조사 자료에 들어오는 순간 항상 true 다 — false 인 자료를 만들지 않는 것이
+    // 이 시스템의 유일한 규칙이고, 값은 그 규칙을 테스트가 확인할 수 있게 남겨 둔다.
+    public bool PlayerObserved = true;
+
+    // 이 자료에 함께 등장하는 직원들(같은 방에 있던 인원, 증언자 등).
+    public readonly System.Collections.Generic.List<string> RelatedEmployeeIds = new();
 
     // --- 카드 표시 ---------------------------------------------------
     public string Header = "";      // "시설 로그" / "CCTV" / "까마귀의 증언"

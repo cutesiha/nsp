@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="DayPlanDef" load_steps=5 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; DAY5 오늘의 업무. 여기 숫자만 고치면 목표가 바뀐다(코드 수정 불필요).
+;
+; Required=true 인 업무를 전부 끝내야 '근무 종료' 를 누를 수 있다.
+; 끝내도 자동으로 끝나지는 않는다 — MaxShiftSeconds 가 다 되면 강제 종료된다.
+; 선택 업무(Required=false)는 업무평가 +1 로만 반영되고 성능 보상은 없다.
+;
+; ※ 방해공작·결번자 관련 항목은 절대 넣지 않는다. 미리 알려주면 사건이 아니게 된다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/DayPlanDef.cs" id="1_plan"]
+[ext_resource type="Script" path="res://scripts/data/DayObjectiveDef.cs" id="2_obj"]
+
+[sub_resource type="Resource" id="obj_core"]
+script = ExtResource("2_obj")
+ObjectiveId = "core"
+DisplayText = "봉쇄 코어 복구율 100% 달성"
+Type = 0
+TargetValue = 100.0
+Required = true
+TargetRooms = Array[String]([])
+
+[sub_resource type="Resource" id="obj_rooms"]
+script = ExtResource("2_obj")
+ObjectiveId = "rooms"
+DisplayText = "근무 종료 시 코어실·발전실 정상 가동"
+Type = 4
+TargetValue = 0.0
+Required = true
+TargetRooms = Array[String](["core_room", "power_room"])
+
+[sub_resource type="Resource" id="obj_alive"]
+script = ExtResource("2_obj")
+ObjectiveId = "alive"
+DisplayText = "직원 전원 생존"
+Type = 6
+TargetValue = 0.0
+Required = false
+TargetRooms = Array[String]([])
+
+[resource]
+script = ExtResource("1_plan")
+Day = 5
+Note = "봉쇄 코어 100% 복구 — 이 날의 목표는 하나뿐이다."
+MaxShiftSeconds = 180.0
+Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_rooms"), SubResource("obj_alive")])

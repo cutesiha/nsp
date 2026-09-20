@@ -3,6 +3,18 @@ using System.Linq;
 
 namespace NSP.Dialogue;
 
+// 조사 자료 목록의 분류. 복잡한 검색은 필요 없다 — DAY1 의 자료 수는 많지 않다.
+public enum EvidenceFilter
+{
+    All,
+    Log,        // 이동 기록
+    Incident,   // 사고 기록
+    Cctv,
+    Statement,  // 증언 + 이 직원의 이전 진술
+    Mood,
+    Starred,    // 플레이어가 ★ 로 찍어 둔 것
+}
+
 // 휴게시간 심문 한 건의 진행 상태.
 //
 // UI(PhoneCallHud)는 여기에만 말을 건다. 조사 자료를 고르고, 질문을 고르고, 두 장을
@@ -11,6 +23,11 @@ public sealed class InterviewSession
 {
     public string EmployeeId { get; }
     public List<InterviewEvidence> Board { get; private set; } = new();
+
+    // 화면 목록의 상태. 규칙이 아니라 보기 방식이므로 세션이 들고 있는다.
+    public EvidenceFilter Filter { get; set; } = EvidenceFilter.All;
+    // 전원 보기 — 다른 직원의 자료까지 읽을 수 있다(질문에는 쓰지 못한다).
+    public bool ShowEveryone { get; private set; }
 
     // 플레이어가 지금 고른 자료(최대 2장). 순서는 고른 순서.
     private readonly List<string> _selected = new();
@@ -24,7 +41,52 @@ public sealed class InterviewSession
     }
 
     // 답변이 새 진술을 남기면 자료가 늘어난다 — 한 턴이 끝날 때마다 다시 만든다.
-    public void Refresh() => Board = InterviewEvidenceBoard.Build(EmployeeId);
+    public void Refresh() => Board = ShowEveryone
+        ? InterviewEvidenceBoard.BuildAll(EmployeeId)
+        : InterviewEvidenceBoard.Build(EmployeeId);
+
+    public void SetScope(bool everyone)
+    {
+        if (ShowEveryone == everyone) return;
+        ShowEveryone = everyone;
+        // 보기를 바꿔도 고른 자료는 그대로 둔다 — 목록에서 사라졌을 때만 정리한다.
+        Refresh();
+        _selected.RemoveAll(id => InterviewEvidenceBoard.Find(Board, id) == null);
+    }
+
+    // --- 목록 정리 -------------------------------------------------------
+
+    // 지금 화면에 그릴 자료. 시간순은 Board 가 이미 맞춰 두었다.
+    public List<InterviewEvidence> Visible() => Board.Where(Passes).ToList();
+
+    private bool Passes(InterviewEvidence e) => Filter switch
+    {
+        EvidenceFilter.Log => e.Kind == EvidenceKind.Movement,
+        EvidenceFilter.Incident => e.Kind == EvidenceKind.Incident,
+        EvidenceFilter.Cctv => e.Kind == EvidenceKind.Cctv,
+        EvidenceFilter.Statement => e.Kind is EvidenceKind.Testimony or EvidenceKind.OwnStatement,
+        EvidenceFilter.Mood => e.Kind == EvidenceKind.Mood,
+        EvidenceFilter.Starred => PlayerKnownEvidence.IsStarred(e.Id),
+        _ => true,
+    };
+
+    // 이 자료로 지금 이 직원에게 물을 수 있는가.
+    // 사고 기록은 주인이 없으므로 누구에게나 쓸 수 있고, 다른 직원의 자료는 읽기 전용이다.
+    public bool CanUse(InterviewEvidence e) =>
+        e != null && (string.IsNullOrEmpty(e.SubjectEmployeeId) || e.SubjectEmployeeId == EmployeeId);
+
+    // --- 중요 표시(플레이어의 메모) ----------------------------------------
+
+    public bool IsStarred(string evidenceId) => PlayerKnownEvidence.IsStarred(evidenceId);
+    public void ToggleStar(string evidenceId) => PlayerKnownEvidence.ToggleStar(evidenceId);
+
+    // 마지막으로 고른 자료와 같은 시간대의 자료들. 화면에서 살짝 밝게 보여 주기만 한다 —
+    // 무엇이 단서인지는 알려 주지 않는다.
+    public HashSet<string> SameWindowIds()
+    {
+        var focus = EvidenceAt(_selected.Count - 1);
+        return InterviewEvidenceBoard.SameWindow(Board, focus);
+    }
 
     public string Greeting() => LocalDialogueGenerator.InterviewGreeting(EmployeeId);
 
@@ -39,6 +101,8 @@ public sealed class InterviewSession
     {
         if (string.IsNullOrEmpty(evidenceId)) return;
         if (_selected.Remove(evidenceId)) return;
+        // 다른 직원의 자료는 읽기 전용이다.
+        if (!CanUse(InterviewEvidenceBoard.Find(Board, evidenceId))) return;
         _selected.Add(evidenceId);
         while (_selected.Count > 2) _selected.RemoveAt(0);
     }
