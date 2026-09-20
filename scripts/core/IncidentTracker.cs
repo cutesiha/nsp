@@ -25,6 +25,10 @@ public static class IncidentTracker
     // 마지막으로 사고가 하나 끝난(또는 시작된) 시각 — DAY1 동시 사고 제한에 쓴다.
     public static float LastIncidentAt { get; private set; } = -999f;
 
+    // 이번 근무에서 실제로 '발생한' 사고 건수(정산 표시와 검증용).
+    // 사고의 파생 결과나 주기적 손실 로그는 여기 들어오지 않는다.
+    public static int OpenedCount { get; private set; }
+
     // 사고 발생. 같은 방에 이미 열린 사고가 있으면 새로 만들지 않는다.
     public static IncidentDisplayData Open(string roomId, string title, string cause,
         string actionHint, int repairWorkers)
@@ -46,6 +50,7 @@ public static class IncidentTracker
         };
         _active.Add(data);
         LastIncidentAt = Now;
+        OpenedCount++;
         return data;
     }
 
@@ -106,6 +111,7 @@ public static class IncidentTracker
         _recent.Clear();
         _serial = 0;
         LastIncidentAt = -999f;
+        OpenedCount = 0;
     }
 
     private static void AddLine(IncidentDisplayData data, string line)

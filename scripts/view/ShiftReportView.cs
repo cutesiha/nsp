@@ -41,7 +41,7 @@ public partial class ShiftReportView : Control
         _body = new RichTextLabel
         {
             Position = new Vector2(24, 70),
-            Size = new Vector2(752, 220),
+            Size = new Vector2(752, 440),
             BbcodeEnabled = true,
             ScrollActive = false,
         };
@@ -74,7 +74,8 @@ public partial class ShiftReportView : Control
         var entries = EventLog.Instance?.GetAllEntries() ?? new System.Collections.Generic.List<LogEntry>();
         int taboo = entries.Count(e => e.EventType == LogEventType.TabooViolation);
         int sabotage = entries.Count(e => e.EventType == LogEventType.Sabotage);
-        int incidents = entries.Count(e => e.EventType is LogEventType.TaskFailed or LogEventType.PowerOutage or LogEventType.CctvDisconnect) + sabotage;
+        // 실제로 '발생한' 사고 건수. 사고의 파생 결과나 주기적 손실 로그는 세지 않는다.
+        int incidents = IncidentTracker.OpenedCount;
         var roster = sim.GetActiveEmployeeIds();
         int isolated = roster.Count(id => sim.GetEmployeeState(id)?.Isolated == true);
         int aliveCount = roster.Count(id => sim.GetEmployeeState(id)?.Alive ?? false);
@@ -87,10 +88,27 @@ public partial class ShiftReportView : Control
         sb.AppendLine($"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} — SHIFT COMPLETE[/font_size]\n");
         sb.AppendLine($"CORE        {Signed(coreDelta):0.0}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
         sb.AppendLine($"MATERIAL    {Signed(materialsDelta)}   [color=#8899aa](현재 {gs.Materials})[/color]\n");
+        // 이번 근무의 경고 대응 성적 — 배치 판단이 실제로 통했는지가 여기서 드러난다.
+        var warn = FacilitySimulation.Instance?.Warnings;
+        if (warn != null && warn.Raised > 0)
+            sb.AppendLine($"경고          {warn.Raised}건 " +
+                          $"[color=#88ddaa]막음 {warn.Prevented}[/color] · " +
+                          $"{(warn.Failed > 0 ? $"[color=#ff6a55]놓침 {warn.Failed}[/color]" : "놓침 0")}");
         sb.AppendLine($"사고          {incidents}");
         sb.AppendLine($"금기 위반     {(taboo > 0 ? $"[color=#ff6a55]{taboo}[/color]" : "0")}");
         sb.AppendLine($"격리          {isolated}");
         sb.AppendLine($"생존          {(aliveCount < total ? "[color=#ff6a55]" : "")}{aliveCount} / {total}{(aliveCount < total ? "[/color]" : "")}");
+
+        // 오늘의 목표 복구량(data/ops/*.tres). 매일 같은 %가 오르지 않으므로
+        // "오늘 운영이 잘 됐는가"를 이 한 줄로 알려 준다.
+        float target = OpsProfile.Today?.TargetCoreGain ?? 0f;
+        if (target > 0.01f)
+        {
+            bool met = coreDelta >= target;
+            sb.AppendLine($"\n목표 복구     {target:0.#}%  →  " +
+                          (met ? $"[color=#88ddaa]달성 ({coreDelta:0.0}%)[/color]"
+                               : $"[color=#ffb347]미달 ({coreDelta:0.0}%)[/color]"));
+        }
         _body.Text = sb.ToString();
     }
 

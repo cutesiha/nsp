@@ -26,8 +26,9 @@ public partial class GuideHologramView : Control
 
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
-    // 이미 확인한 선택지의 색 — 같은 하늘색 계열을 연하게 뺀 값.
-    private static readonly Color AnsweredInk = new(0.46f, 0.60f, 0.64f);
+    // 이미 확인한 선택지의 색 — 같은 하늘색에서 아주 살짝만 뺀 값.
+    // (회색 쪽으로 많이 빼면 어두운 배경에서 글자가 사라진다.)
+    private static readonly Color AnsweredInk = new(0.48f, 0.82f, 0.88f);
     private static readonly Color ConsoleInk = new(0.62f, 0.92f, 0.78f);
     private static readonly Color ConsoleOk = new(0.75f, 1f, 0.6f);
 

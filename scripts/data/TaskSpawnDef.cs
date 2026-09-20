@@ -21,4 +21,8 @@ public partial class TaskSpawnDef : Resource
 
     // 선택 필드. 비우면 TaskDef.RoomId 를 사용한다. 검증·가독성용으로만 채운다.
     [Export] public string RoomId = "";
+
+    // 이 스폰이 실제로 발생하는 날. 0 이면 모든 날.
+    // (DAY1 에서 빼고 싶은 업무는 지우지 말고 여기에 해금 날짜를 적는다.)
+    [Export] public int Day = 0;
 }

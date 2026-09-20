@@ -192,6 +192,15 @@ public partial class FacilityMinimap : Control
             }
         }
 
+        // 아직 사고가 아닌 경고 — 남은 시간과 필요한 인원을 방 위에 띄운다.
+        // 수리 막대가 이미 그 자리를 쓰고 있으면 그쪽이 우선이다(이미 고장 난 방이다).
+        if (st is not { Status: SpawnedTaskStatus.Active, IsRepair: true })
+        {
+            var risk = NSP.Core.IncidentBoard.ForRoom(roomId);
+            if (risk is { State: NSP.Core.IncidentState.Warning } && risk.WarningRemainingSeconds >= 0f)
+                DrawWarningBar(box, sim, roomId, risk);
+        }
+
         if (TabooRuleSystemAtRisk(roomId))
             DrawString(_font, box.Position + new Vector2(0f, -4f), "⚠", HorizontalAlignment.Center, box.Size.X, ViewFont.S(14),
                 new Color(1f, 0.75f, 0.2f));
@@ -223,6 +232,36 @@ public partial class FacilityMinimap : Control
         DrawString(_font, new Vector2(bar.Position.X, bar.Position.Y + 12f),
             working ? "수 리 중" : "수리 필요", HorizontalAlignment.Center, bar.Size.X,
             ViewFont.S(10), new Color(1f, 0.94f, 0.92f, a));
+    }
+
+    // 경고 표시 — 방 바로 위에 남은 시간 막대와 "몇 초 · 현재/필요 인원".
+    // 이 막대가 차 있는 동안에는 아직 사고가 아니다. 인원을 채우면 그대로 사라진다.
+    private void DrawWarningBar(Rect2 box, FacilitySimulation sim, string roomId,
+        NSP.Core.IncidentDisplayData risk)
+    {
+        const float BarH = 15f;
+        float top = Mathf.Max(box.Position.Y - BarH - 2f, 1f);
+        var bar = new Rect2(box.Position.X + 4f, top, box.Size.X - 8f, BarH);
+
+        // 남은 시간이 줄어드는 만큼 막대가 빈다.
+        float total = risk.WarningTotalSeconds > 0f ? risk.WarningTotalSeconds : 20f;
+        float ratio = Mathf.Clamp(risk.WarningRemainingSeconds / total, 0f, 1f);
+        DrawRect(bar, new Color(0.18f, 0.12f, 0.02f, 0.96f));
+        DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * ratio, BarH)),
+            new Color(0.95f, 0.62f, 0.12f));
+        DrawRect(bar, new Color(1f, 0.78f, 0.35f, 0.85f), false, 1f);
+
+        int here = sim.OnDutyCount(roomId);
+        int need = Mathf.Max(1, risk.RepairWorkers);
+        float a = 0.7f + 0.3f * Mathf.Sin(Time.GetTicksMsec() / 150f);
+        // 글자가 막대의 채워진 쪽과 빈 쪽에 걸쳐 놓이므로, 어두운 그림자를 먼저 깔고
+        // 밝은 글자를 얹어 양쪽 배경에서 모두 읽히게 한다.
+        string text = $"⚠ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
+        var at = new Vector2(bar.Position.X, bar.Position.Y + 12f);
+        DrawString(_font, at + new Vector2(1f, 1f), text, HorizontalAlignment.Center,
+            bar.Size.X, ViewFont.S(10), new Color(0.08f, 0.05f, 0f, 0.9f));
+        DrawString(_font, at, text, HorizontalAlignment.Center,
+            bar.Size.X, ViewFont.S(10), new Color(1f, 0.96f, 0.86f, a));
     }
 
     // 끌고 있는 동안 대상 작업실을 밝히고, 커서 자리에 직원 색 점을 따라 그린다.

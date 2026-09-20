@@ -6,10 +6,12 @@ namespace NSP.Core;
 // FacilityLogFormatter 가 원본을 해석해 만들어 낸다. 저장되지 않는 표시 전용 데이터다.
 public enum DisplayLogSeverity
 {
-    Normal,   // 운영 기록 — 재배치, 격리, 상황 안내
-    Warning,  // 주의 — 사고 예고, 설비 이상, 자재 부족, 목격
-    Critical, // 위험 — 금기 위반, 전력 손실, 사망, 업무 불능
-    Recovery, // 복구 완료
+    Normal,   // 운영 기록 — 최초 배치, 격리, 순찰, 상황 안내
+    Move,     // 직원 이동 — 어디서 어디로 갔는가(추리의 뼈대)
+    Warning,  // 주의 — 지금 대응하면 막을 수 있는 경고, 자재 부족
+    Critical, // 위험 — 실제 고장, 금기 위반, 전력 손실, 사망
+    Sabotage, // 방해공작 — 다른 무엇보다 먼저 눈에 들어와야 한다
+    Recovery, // 복구 / 안정화 완료
 }
 
 public sealed class DisplayLogEntry

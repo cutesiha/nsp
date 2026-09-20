@@ -399,12 +399,33 @@ public partial class ScheduleBoardUI : Control
             }
         }
 
-        int headcount = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
-        Color headcountColor = headcount >= 2 ? HeadcountBlue : HeadcountBrown;
-        var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, y), 15, headcountColor, _body);
-        headcountLabel.AddThemeColorOverride("font_outline_color", headcountColor.Darkened(0.18f));
-        headcountLabel.AddThemeConstantOverride("outline_size", 1);
-        y += 24f;
+        // 오늘 이 방은 인원수에 따라 무엇이 달라지는가(data/ops/*.tres 의 RoleNote).
+        // 이 줄이 없으면 "한 명씩 고루 넣기"가 유일한 배치가 되어 버린다.
+        var ops = NSP.Core.OpsProfile.Room(roomId);
+        if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
+        {
+            int now = sim.OnDutyCount(roomId);
+            var head = AddLabel(_info, $"인원별 효과   (현재 {now}명)", new Vector2(px, y), 15, HeadcountBlue, _body);
+            head.AddThemeColorOverride("font_outline_color", HeadcountBlue.Darkened(0.18f));
+            head.AddThemeConstantOverride("outline_size", 1);
+            y += 22f;
+            // 아래 설명이 쓸 자리를 남겨야 하므로 세 줄까지만 싣는다.
+            foreach (string line in ops.RoleNote.Split(" / ").Take(3))
+            {
+                AddLabel(_info, "· " + line.Trim(), new Vector2(px + 4f, y), 13, HeadcountBrown, _body);
+                y += 18f;
+            }
+            y += 6f;
+        }
+        else
+        {
+            int headcount = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
+            Color headcountColor = headcount >= 2 ? HeadcountBlue : HeadcountBrown;
+            var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, y), 15, headcountColor, _body);
+            headcountLabel.AddThemeColorOverride("font_outline_color", headcountColor.Darkened(0.18f));
+            headcountLabel.AddThemeConstantOverride("outline_size", 1);
+            y += 24f;
+        }
 
         string desc = FirstSentence(RoomDetailCard.Descriptions.GetValueOrDefault(roomId, ""));
         // 능력 목록이 두 줄로 늘어난 만큼 설명이 쓸 수 있는 높이가 줄어든다.

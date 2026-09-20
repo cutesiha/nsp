@@ -630,13 +630,17 @@ public partial class PhoneCallHud : CanvasLayer
         StartTyping("\"" + c.Reply + "\"", AfterMode.EndOnly);
     }
 
+    // 관리자의 말도 "누구와의 통화였는가"를 함께 남긴다 — 대화 기록에서 직원별로
+    // 골라 볼 때 질문과 대답이 갈라지지 않게 하기 위해서다.
     private void RecordPlayer(string text, DialogueConversationType conversationType) =>
-        DialogueHistory.Instance?.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice, text, conversationType);
+        DialogueHistory.Instance?.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice,
+            text, conversationType, _employeeId);
 
     private void RecordNpc(string text, DialogueEntryType entryType, DialogueConversationType conversationType)
     {
         var def = FacilitySimulation.Instance?.GetEmployeeDef(_employeeId);
-        DialogueHistory.Instance?.AddEntry(_employeeId, def?.Codename ?? _employeeId, entryType, text, conversationType);
+        DialogueHistory.Instance?.AddEntry(_employeeId, def?.Codename ?? _employeeId, entryType,
+            text, conversationType, _employeeId);
     }
 
     private void BuildEndOnly()

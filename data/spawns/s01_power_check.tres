@@ -2,10 +2,11 @@
 
 [ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
 
-; DAY1 고정 발생 — 발전기 점검.
-; TaskDef 의 MinWorkersToProgress 가 2 라서 근무자가 1명이면 게이지가 전혀 차지 않고,
-; TimeLimitSeconds(24초) 가 지나면 반드시 발전실 사고가 난다.
-; 2명을 넣으면 점검은 끝나지만 DAY1 금기(발전실 2명 금지)에 걸린다 — 이 딜레마가 DAY1 의 핵심.
+; 발전기 점검 — 근무자 2명을 요구하는 고정 업무.
+;
+; DAY1 에서는 쓰지 않는다(Day = 2). 이 업무가 있으면 "발전실에는 무조건 2명"이 정답이 되어
+; 배치에서 고를 것이 사라지기 때문이다. DAY1 의 발전실 압박은 인원수에 따른 과열 경고
+; (data/ops/day1.tres 의 power_room)가 대신한다.
 
 [resource]
 script = ExtResource("1_spawn")
@@ -13,3 +14,4 @@ TaskId = "power_generator_check"
 SpawnAtSeconds = 4.0
 Recurring = false
 RoomId = "power_room"
+Day = 2

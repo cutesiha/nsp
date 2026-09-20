@@ -196,7 +196,10 @@ public static class PrologueScript
     {
         if (!FileAccess.FileExists(RuntimePath))
         {
-            GD.PushWarning($"PrologueScript: {RuntimePath} 를 찾지 못했습니다.");
+            GD.PushError($"PrologueScript: {RuntimePath} 를 찾지 못했습니다. " +
+                "프롤로그와 튜토리얼이 통째로 건너뛰어집니다. " +
+                "내보내기 빌드라면 export_presets.cfg 의 include_filter 에 이 파일이 있는지 확인하십시오 " +
+                "(.md 는 리소스가 아니라 자동으로 담기지 않습니다).");
             return;
         }
         using var f = FileAccess.Open(RuntimePath, FileAccess.ModeFlags.Read);

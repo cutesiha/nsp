@@ -23,6 +23,8 @@ public sealed class IncidentDisplayData
     public string CauseText = "";
     // 사고까지 남은 시간(초). 음수면 카운트다운 없음.
     public float WarningRemainingSeconds = -1f;
+    // 그 카운트다운의 전체 길이(초). 화면이 막대를 채우는 데 쓴다.
+    public float WarningTotalSeconds = -1f;
     // 방치했을 때 / 이미 발생했을 때의 결과. Root 사고 하나에 파생 결과가 모인다.
     public readonly List<string> ConsequenceLines = new();
     // 지금 무엇을 할 수 있는가. 판단은 플레이어가 한다 — 누구를 보내라고 지시하지 않는다.

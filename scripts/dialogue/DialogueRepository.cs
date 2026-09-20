@@ -75,7 +75,8 @@ public static class DialogueRepository
     {
         if (!FileAccess.FileExists(RuntimePath))
         {
-            GD.PushWarning($"DialogueRepository: {RuntimePath} 를 찾지 못했습니다. 폴백 대사를 사용합니다.");
+            GD.PushError($"DialogueRepository: {RuntimePath} 를 찾지 못했습니다. 폴백 대사를 사용합니다. " +
+                "내보내기 빌드라면 export_presets.cfg 의 include_filter 를 확인하십시오.");
             return;
         }
 

@@ -41,6 +41,12 @@ public partial class FacilitySimulation : Node
     private DailyMoodSystem _dailyMoods;
     private DailyMoodSystem Moods => _dailyMoods ??= new DailyMoodSystem();
     private float _saboteurDecisionTimer = 0f;
+    // 사고가 나기 전에 대응할 시간을 주는 경고 시스템(data/ops/*.tres 가 수치를 쥔다).
+    private readonly FacilityWarningSystem _warnings = new();
+    public FacilityWarningSystem Warnings => _warnings;
+    // 오늘 이미 성공시킨 방해공작 횟수 — DAY1 은 한 번으로 제한한다.
+    private int _sabotageActionsToday;
+    private readonly Dictionary<string, float> _patrolTimers = new();
     private int _killsToday = 0;
     private bool _cctvWasOperational = true;
     private bool _powerLossMurderTriggeredThisShift;
@@ -64,6 +70,9 @@ public partial class FacilitySimulation : Node
 
     public override void _Ready()
     {
+        // 중요 사건 경보 연출(붉은 점멸 + 상단 배너). 화면 위에만 얹히므로
+        // 어느 씬에서 근무하든 같은 방식으로 뜬다.
+        AddChild(new NSP.Ui.FacilityAlertHud());
         LoadDefinitions("res://data/employees/", _employeeDefs, d => d.EmployeeId);
         LoadDefinitions("res://data/rooms/", _roomDefs, d => d.RoomId);
         LoadDefinitions("res://data/tasks/", _taskDefs, d => d.TaskId);
@@ -275,6 +284,8 @@ public partial class FacilitySimulation : Node
     // 로그 표시용 — 내부 id 대신 플레이어가 보는 코드네임/방 이름으로 남기기 위한 헬퍼.
     private string Codename(string employeeId) => _employeeDefs.GetValueOrDefault(employeeId)?.Codename ?? employeeId;
     private string RoomName(string roomId) => _roomDefs.GetValueOrDefault(roomId)?.DisplayName ?? roomId;
+    // 같은 이름을 경고 시스템·정산 화면도 쓴다.
+    public string RoomDisplayName(string roomId) => RoomName(roomId);
 
     public bool IsSaboteurIsolated()
     {
@@ -731,6 +742,9 @@ public partial class FacilitySimulation : Node
         }
         _ventStressTimer = 0f;
         _coreUnstableTimer = 0f;
+        _warnings.Reset();
+        _sabotageActionsToday = 0;
+        _patrolTimers.Clear();
         TabooRuleSystem.Instance?.ResetRuntimeState();
         // 지난 근무의 진술·알리바이는 새 근무로 넘어오지 않는다.
         NSP.Dialogue.DialogueClaimState.ResetAll();
@@ -770,6 +784,8 @@ public partial class FacilitySimulation : Node
         TickVentilationFault(d);
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
+        _warnings.Tick(d, this);
+        TickGuardPatrol(d);
         TickCctvObservation(d);
     }
 
@@ -792,6 +808,9 @@ public partial class FacilitySimulation : Node
             GD.PushWarning($"FacilitySimulation: spawn references unknown task '{def.TaskId}'");
             return;
         }
+        // 오늘 해당하지 않는 스폰은 건너뛴다(TaskSpawnDef.Day).
+        if (def.Day > 0 && def.Day != (GameState.Instance?.CurrentDay ?? 1)) return;
+
         string roomId = !string.IsNullOrEmpty(def.RoomId) ? def.RoomId : taskDef.RoomId;
 
         // 오늘 잠겨 있는 작업실(환기실/의무실 등)에는 배치 자체가 불가능하므로 업무도 띄우지 않는다.
@@ -841,6 +860,8 @@ public partial class FacilitySimulation : Node
         if (_powerLossMurderTriggeredThisShift
             || _killsToday >= Config.Instance.Data.MurderMaxPerDay)
             return;
+        // 오늘의 운영 규칙이 살인을 허용하는가(DAY1 은 운영을 배우는 날이라 꺼 둔다).
+        if (!(OpsProfile.Today?.AllowMurder ?? true)) return;
 
         bool cctvCut = !GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
         bool mapLightingCut = !GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting);
@@ -873,6 +894,16 @@ public partial class FacilitySimulation : Node
         if (!_employeeStates.TryGetValue(saboteurId, out var saboteur) || !saboteur.Alive || saboteur.Isolated)
             return;
 
+        // 오늘의 운영 규칙이 방해공작의 시작 시각과 횟수를 정한다.
+        // DAY1 은 근무 후반에 한 번만 — 배우는 날을 사건으로 뒤덮지 않는다.
+        var opsToday = OpsProfile.Today;
+        if (opsToday != null)
+        {
+            if (GameState.Instance.DayTimeSeconds < opsToday.SaboteurStartSeconds) return;
+            if (opsToday.MaxSabotageActionsPerDay > 0
+                && _sabotageActionsToday >= opsToday.MaxSabotageActionsPerDay) return;
+        }
+
         _saboteurDecisionTimer += delta;
         if (_saboteurDecisionTimer < Config.Instance.Data.SaboteurDecisionIntervalSeconds)
             return;
@@ -895,9 +926,9 @@ public partial class FacilitySimulation : Node
         bool blackoutChaos = !GameState.Instance.IsCctvOperational()
                              && !GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting);
 
-        // 경비실에 근무자가 있으면 방해공작 성공 확률이 40% 낮아진다.
-        float surveillanceMult = OnDutyCount(GuardRoomId) > 0
-            ? Config.Instance.Data.SurveillanceSaboteurChanceMultiplier : 1f;
+        // 경비실 인원이 많을수록 방해공작이 어려워진다.
+        // 인원수별 배율은 data/ops/*.tres 의 RoomOpsDef.SabotageChance 에 있다.
+        float surveillanceMult = RoomStaffing.SabotageChanceMultiplier();
 
         // ── ⑥ 조건부 살인 : 단둘 + 미감시 + 제3자 없음 → 8초간 범행 시도 ──────────
         // 조건이 유지되는 동안에만 타이머가 흐르고, 하나라도 깨지면 즉시 중단된다.
@@ -913,7 +944,8 @@ public partial class FacilitySimulation : Node
         if (here == PowerRoomId && !GameState.Instance.IsPowerAccidentActive())
         {
             GameState.Instance.TriggerPowerAccident(cfg.SabotagePowerLoss);
-            LogSabotage(saboteur, here, others, $"전력 계통 이상 — 최대 전력 -{cfg.SabotagePowerLoss} (원인 불명)");
+            LogSabotage(saboteur, here, others, $"전력 계통 이상 — 최대 전력 -{cfg.SabotagePowerLoss} (원인 불명)",
+                "⚠ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
             return;
         }
 
@@ -921,7 +953,8 @@ public partial class FacilitySimulation : Node
         if (here is MaintenanceRoomId or StorageRoomId && GameState.Instance.Materials > 0)
         {
             GameState.Instance.AddMaterials(-cfg.SabotageMaterialLoss);
-            LogSabotage(saboteur, here, others, $"자재 {cfg.SabotageMaterialLoss}개 분실 (기록 없음)");
+            LogSabotage(saboteur, here, others, $"자재 {cfg.SabotageMaterialLoss}개 분실 (기록 없음)",
+                "⚠ 시설 자재가 기록 없이 사라졌습니다!");
             return;
         }
 
@@ -930,7 +963,10 @@ public partial class FacilitySimulation : Node
         {
             float loss = blackoutChaos ? cfg.SabotageCoreLossBlackout : cfg.SabotageCoreLoss;
             GameState.Instance.AddCoreProgress(-loss, "복구 작업 방해");
-            LogSabotage(saboteur, here, others, $"봉쇄 코어 복구율 -{loss:0}% (원인 불명)");
+            LogSabotage(saboteur, here, others, $"봉쇄 코어 복구율 -{loss:0}% (원인 불명)",
+                "⚠ 봉쇄 코어 복구율이 비정상적으로 감소했습니다!");
+            // 깎인 양을 게이지 아래에 잠깐 띄운다 — "내가 쌓은 게 줄었다"가 보여야 한다.
+            NSP.Ui.FacilityAlertHud.Instance?.ShowCoreLoss(loss);
             return;
         }
 
@@ -940,7 +976,8 @@ public partial class FacilitySimulation : Node
         {
             hereState.CctvBlockedUntil = GameState.Instance.DayTimeSeconds + cfg.SabotageCctvBlockSeconds;
             LogSabotage(saboteur, here, others,
-                $"CCTV 신호 교란 — {cfg.SabotageCctvBlockSeconds:0}초간 화면 없음");
+                $"CCTV 신호 교란 — {cfg.SabotageCctvBlockSeconds:0}초간 화면 없음",
+                "⚠ 감시 계통이 인위적으로 차단되었습니다!");
         }
 
         // 배치된 직원은 관리자의 재배치 또는 실제 시설 문제(격리/대피) 없이는
@@ -950,11 +987,18 @@ public partial class FacilitySimulation : Node
 
     // 방해공작 흔적. 실행자 id 는 남기되 로그 문구에는 이름을 쓰지 않는다 —
     // 플레이어는 "무슨 일이 있었는지"만 보고, 누구인지는 로그/CCTV/진술 교차로 좁혀야 한다.
-    private void LogSabotage(EmployeeState actor, string roomId, List<EmployeeState> witnesses, string what)
+    private void LogSabotage(EmployeeState actor, string roomId, List<EmployeeState> witnesses, string what,
+        string alert = "")
     {
+        _sabotageActionsToday++;
         EventLog.Instance?.LogEvent(LogEventType.Sabotage, actor.EmployeeId, roomId,
             $"⚠ {RoomName(roomId)} — {what}",
             witnesses.Select(w => w.EmployeeId));
+
+        // 로그만 남기면 다른 화면을 보고 있을 때 그냥 지나간다 — 화면 전체로 알린다.
+        // 연출은 HUD 가 알아서 돌고, 시뮬레이션은 여기서 멈추지 않는다.
+        NSP.Ui.FacilityAlertHud.Instance?.ShowCriticalAlert(
+            string.IsNullOrEmpty(alert) ? "⚠ 시설 설비에서 인위적인 손상 흔적이 감지되었습니다!" : alert);
     }
 
     // ⑥ 조건부 살인. 조건이 계속 유지되는 동안 KillAttemptSeconds 만큼 쌓여야 성공한다.
@@ -966,7 +1010,9 @@ public partial class FacilitySimulation : Node
 
         bool alone = others.Count == 1;                       // 단둘 (제3자 없음)
         bool allowed = _killsToday < cfg.MurderMaxPerDay
-                       && GameState.Instance.TotalKills < cfg.MurderMaxTotal;
+                       && GameState.Instance.TotalKills < cfg.MurderMaxTotal
+                       // 오늘의 운영 규칙이 살인을 허용하는가(DAY1 은 꺼 둔다).
+                       && (OpsProfile.Today?.AllowMurder ?? true);
 
         if (!alone || !unwatched || !allowed)
         {
@@ -1142,6 +1188,43 @@ public partial class FacilitySimulation : Node
             GetRoomState(room)?.OccupantEmployeeIds);
     }
 
+    // 경비실에 인원이 충분하면 주기적으로 순찰 기록이 남는다.
+    // "그 시각 그 방에 누가 있었다"는 사실만 남기고 범인은 절대 지목하지 않는다 —
+    // 휴게시간 조사 자료의 '질'을 올리는 장치다(기록이 많을수록 모순을 찾기 쉬워진다).
+    private void TickGuardPatrol(float delta)
+    {
+        if (!DayFeatures.AutoIncidentsEnabled) return;
+        foreach (var ops in OpsProfile.AllRooms())
+        {
+            float period = OpsProfile.Curve(ops.PatrolIntervalSeconds, OnDutyCount(ops.RoomId), 0f);
+            if (period <= 0f) { _patrolTimers[ops.RoomId] = 0f; continue; }
+            // 그 방이 고장 났거나 CCTV 계통이 죽어 있으면 기록이 남지 않는다.
+            if (HasActiveRepair(ops.RoomId) || !GameState.Instance.IsCctvOperational()) continue;
+
+            float t = _patrolTimers.GetValueOrDefault(ops.RoomId, 0f) + delta;
+            if (t < period) { _patrolTimers[ops.RoomId] = t; continue; }
+            _patrolTimers[ops.RoomId] = 0f;
+            RecordPatrolSweep(ops.RoomId);
+        }
+    }
+
+    // 사람이 있는 작업실 하나를 골라 그 시각의 인원을 기록으로 남긴다.
+    private void RecordPatrolSweep(string guardRoomId)
+    {
+        var rooms = _roomStates.Keys
+            .Where(id => id != guardRoomId && !IsRoomCctvBlocked(id) && OnDutyCount(id) > 0)
+            .ToList();
+        if (rooms.Count == 0) return;
+
+        string pick = rooms[_rng.Next(rooms.Count)];
+        var occupants = GetRoomState(pick)?.OccupantEmployeeIds ?? new List<string>();
+        NSP.Dialogue.PlayerKnownEvidence.RecordCctvObservation(pick, GameState.Instance.DayTimeSeconds, occupants);
+        // 누가 있었는지까지 적어야 나중에 심문에서 근거가 된다.
+        string who = string.Join(", ", occupants.Select(Codename));
+        EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", guardRoomId,
+            $"✓ 경비 순찰 기록 — {RoomName(pick)} : {who}");
+    }
+
     // DAY0 교육에서 GUIDE-0 가 정해진 시점에 일으키는 사고. 일반 사고와 완전히 같은 경로를
     // 지나므로(수리 업무 · 로그 · 경고 단말기) 플레이어가 배우는 내용이 본편과 동일하다.
     // minWorkers > 0 이면 그 사고의 수리 최소 인원을 그 값으로 덮어쓴다. 교육에서는
@@ -1175,9 +1258,10 @@ public partial class FacilitySimulation : Node
 
             if (OnDutyCount(roomId) > 0) { room.UnstaffedTimer = 0f; continue; }
 
-            float limit = def.UnstaffedAccidentSeconds > 0f
-                ? def.UnstaffedAccidentSeconds
-                : cfg.UnstaffedAccidentSecondsDefault;
+            // 오늘 이 방은 비워 둬도 되는가. 0 이하면 무인 사고가 나지 않는다
+            // (저장고·경비실이 그렇다 — 대신 다른 방식으로 손해를 본다).
+            float limit = RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
+            if (limit <= 0f) { room.UnstaffedTimer = 0f; continue; }
 
             room.UnstaffedTimer += delta;
             if (room.UnstaffedTimer < limit) continue;
@@ -1205,6 +1289,22 @@ public partial class FacilitySimulation : Node
     private bool HasActiveRepair(string roomId) =>
         _activeTasks.Any(t => t.RoomId == roomId && t.IsRepair && t.Status == SpawnedTaskStatus.Active);
 
+    // 경고에 제때 대응하지 못했다 → 실제 고장. 무인 방치 사고와 완전히 같은 경로를 쓰므로
+    // 수리 업무 · 시설 로그 · 경고 단말기 · 미니맵이 지금까지와 똑같이 동작한다.
+    public void TriggerWarningFailure(string roomId, string title)
+    {
+        var def = _roomDefs.GetValueOrDefault(roomId);
+        if (def == null || def.AccidentConsequence == RoomAccidentNone) return;
+        if (HasActiveRepair(roomId)) return;
+
+        EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
+            $"🚨 {RoomName(roomId)} — {title} 대응 실패, 고장 발생");
+        IncidentTracker.Open(roomId, def.AccidentName, "경고 시간 내 대응 실패",
+            "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
+        TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
+        AddRepairTask(roomId, def, 0);
+    }
+
     // 사고 발생 — 결과를 적용하고, 그 방에 수리 업무를 띄운다.
     private void TriggerRoomAccident(string roomId, RoomDef def, int minWorkersOverride = 0)
     {
@@ -1214,7 +1314,12 @@ public partial class FacilitySimulation : Node
         IncidentTracker.Open(roomId, def.AccidentName, "장시간 근무자 부재",
             "설비 수리 필요", def.RepairMinWorkers);
         TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
+        AddRepairTask(roomId, def, minWorkersOverride);
+    }
 
+    // 그 방에 수리 업무를 띄운다. 수리가 걸려 있는 동안 그 방의 평소 업무는 멈춘다.
+    private void AddRepairTask(string roomId, RoomDef def, int minWorkersOverride)
+    {
         _activeTasks.Add(new SpawnedTask
         {
             TaskId = def.RepairTaskId,
@@ -1223,8 +1328,10 @@ public partial class FacilitySimulation : Node
             IsRepair = true,
             Status = SpawnedTaskStatus.Active,
             TimeLimitSeconds = float.MaxValue,
-            GaugeRequired = Mathf.Max(1f, def.RepairSeconds),
-            MinWorkersOverride = Mathf.Max(1, minWorkersOverride > 0 ? minWorkersOverride : def.RepairMinWorkers),
+            GaugeRequired = RoomStaffing.RepairSeconds(roomId, def),
+            MinWorkersOverride = minWorkersOverride > 0
+                ? minWorkersOverride
+                : RoomStaffing.RepairMinWorkers(roomId, def),
         });
     }
 
@@ -1294,12 +1401,15 @@ public partial class FacilitySimulation : Node
 
     private void ArriveAtRoom(EmployeeState emp)
     {
+        // 아직 갈 길이 남아 있으면 이 방은 목적지가 아니라 통로다.
+        // (AdvanceToNextWaypoint 는 이 함수 뒤에 불리므로 여기서는 남은 경유지가 그대로 있다.)
+        bool passing = emp.PathQueue.Count > 0;
         string previousRoom = emp.CurrentRoomId;
         if (previousRoom != emp.TargetRoomId)
         {
             RemoveOccupant(previousRoom, emp.EmployeeId);
             EventLog.Instance?.LogEvent(LogEventType.RoomExit, emp.EmployeeId, previousRoom, $"{Codename(emp.EmployeeId)} - {RoomName(previousRoom)} 퇴장",
-                GetOtherOccupants(previousRoom, emp.EmployeeId));
+                GetOtherOccupants(previousRoom, emp.EmployeeId), passing);
 
             LogNeglectIfRoomLeftEmptyMidTask(previousRoom, emp.EmployeeId);
         }
@@ -1309,8 +1419,9 @@ public partial class FacilitySimulation : Node
         if (emp.Isolated || !string.IsNullOrEmpty(emp.AssignedRoomId))
             AddOccupant(emp.CurrentRoomId, emp.EmployeeId);
 
-        EventLog.Instance?.LogEvent(LogEventType.RoomEnter, emp.EmployeeId, emp.CurrentRoomId, $"{Codename(emp.EmployeeId)} - {RoomName(emp.CurrentRoomId)} 입장",
-            GetOtherOccupants(emp.CurrentRoomId, emp.EmployeeId));
+        EventLog.Instance?.LogEvent(LogEventType.RoomEnter, emp.EmployeeId, emp.CurrentRoomId,
+            $"{Codename(emp.EmployeeId)} - {RoomName(emp.CurrentRoomId)} {(passing ? "통과" : "입장")}",
+            GetOtherOccupants(emp.CurrentRoomId, emp.EmployeeId), passing);
 
         // 배치된 자리에 처음 도착 = 초기 배치 완료. 이후 이동은 근무 중 저속으로 걷는다.
         if (!emp.InitialDeployDone && emp.CurrentRoomId == emp.AssignedRoomId)
@@ -1389,6 +1500,11 @@ public partial class FacilitySimulation : Node
                 continue;
             }
 
+            // 그 방에 고장이 나 있으면 그 방 인원은 전부 수리에 묶인다 — 평소 업무도,
+            // 제한시간도 수리가 끝날 때까지 멈춘다. 사고 하나가 "어느 방에서 사람을 뺄까"가
+            // 되는 이유가 바로 이것이다.
+            if (!st.IsRepair && HasActiveRepair(st.RoomId)) { st.Progressing = false; continue; }
+
             st.Elapsed += delta;
             st.Progressing = false;
 
@@ -1400,7 +1516,7 @@ public partial class FacilitySimulation : Node
                 .ToList();
 
             bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress
-                && GameState.Instance.Materials < Config.Instance.Data.MaterialsPerCoreGauge;
+                && GameState.Instance.Materials < RoomStaffing.CoreMaterialCost();
 
             // 자재가 없어 코어 복구가 멈추거나 다시 도는 순간만 기록한다(매 틱 기록 금지).
             if (blockedByMaterials != st.MaterialsBlockedLogged && workers.Count > 0)
@@ -1431,13 +1547,18 @@ public partial class FacilitySimulation : Node
                 st.Progressing = workers.Count >= minWorkers && !blockedByMaterials;
                 if (st.Progressing)
                 {
-                    // 1초에 (기본 속도 × 기술 배율 × 스트레스 배율) 만큼 게이지가 찬다.
-                    // 기본 속도가 1이므로 GaugeRequired 값이 곧 "기술2·정상 스트레스 1명 기준 초"다.
+                    // 1초에 (기본 속도 × 인원 효율 × 인원 평균 능력 × 발전 안정도) 만큼 찬다.
+                    // 머릿수를 그대로 더하지 않는 것이 핵심이다 — 세 번째 사람부터 증가폭이
+                    // 줄어야 "한 명 더 넣을까, 다른 방에 둘까"가 선택이 된다.
+                    // 인원수별 배율은 data/ops/*.tres 의 RoomOpsDef.Efficiency 에 있다.
                     float baseRate = Config.Instance.Data.BaseTaskWorkRate;
                     // 금기 위반 페널티(업무 속도 감소)가 걸려 있으면 여기서 같이 곱해진다.
                     float tabooPenalty = TabooRuleSystem.Instance?.WorkPenaltyMultiplier ?? 1f;
-                    float rate = workers.Sum(w => baseRate * TechWorkMultiplier(w.EmployeeId) * StressWorkRate(w))
-                                 * tabooPenalty;
+                    float crew = (float)workers.Average(w => TechWorkMultiplier(w.EmployeeId) * StressWorkRate(w));
+                    // 발전이 불안정하면 시설 전체가 느려진다. 다만 수리에는 걸지 않는다 —
+                    // 고장 난 방을 고치는 일까지 느려지면 회복 자체가 불가능해진다.
+                    float facility = st.IsRepair ? 1f : RoomStaffing.FacilityOutput();
+                    float rate = baseRate * RoomStaffing.Efficiency(st.RoomId) * crew * facility * tabooPenalty;
                     st.Gauge += rate * delta;
                 }
             }
@@ -1530,7 +1651,8 @@ public partial class FacilitySimulation : Node
                     badge += " · ⚠ 코어 출력 불안정 — 복구 정지";
                     break;
                 }
-                int consumed = Config.Instance.Data.MaterialsPerCoreGauge;
+                // 저장고 인원이 자재 소모량을 바꾼다(비워 두면 낭비가 늘어난다).
+                int consumed = RoomStaffing.CoreMaterialCost();
                 GameState.Instance.AddMaterials(-consumed);
                 GameState.Instance.AddCoreProgress(task.EffectAmount, task.DisplayName);
                 badge += $" · 코어 +{task.EffectAmount:0}% · 📦 자재 -{consumed}";

@@ -20,8 +20,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
     // 시설 로그의 중요도 색. 경고 단말기(AlertTerminalView)와 같은 팔레트를 쓴다.
     private static readonly Color LogNormal = new(0.82f, 0.96f, 0.98f);
-    private static readonly Color LogWarning = new(0.95f, 0.80f, 0.25f);
-    private static readonly Color LogCritical = new(1f, 0.40f, 0.20f);
+    private static readonly Color LogMove = new(0.45f, 0.92f, 0.88f);
+    private static readonly Color LogWarning = new(0.98f, 0.70f, 0.20f);
+    private static readonly Color LogCritical = new(1f, 0.44f, 0.26f);
+    private static readonly Color LogSabotage = new(1f, 0.26f, 0.24f);
     private static readonly Color LogRecovery = new(0.40f, 0.95f, 0.50f);
     private static readonly Color LogTime = new(0.45f, 0.66f, 0.72f);
 
@@ -49,6 +51,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 화면용으로 해석된 로그. EventLog 원본은 그대로 두고 여기에만 요약본을 만든다.
     private List<DisplayLogEntry> _displayLog = new();
     private int _dialogueRendered;
+    // 대화 기록에서 지금 골라 둔 직원들. 비어 있으면 전부 보여준다.
+    private readonly HashSet<string> _dialogueFilter = new();
+    private HBoxContainer _dialogueTabs;
     private bool _logStick;
     private bool _dialogueStick;
     private double _logOldScroll;
@@ -301,10 +306,20 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _dialoguePanel.AddChild(title);
         _dialoguePanel.AddChild(CloseButton(true));
 
+        // 직원별로 골라 보는 줄. 아무것도 고르지 않으면 전체 기록이 그대로 뜬다.
+        _dialogueTabs = new HBoxContainer
+        {
+            AnchorRight = 1f,
+            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 106f, OffsetBottom = 150f,
+            MouseFilter = Control.MouseFilterEnum.Pass,
+        };
+        _dialogueTabs.AddThemeConstantOverride("separation", 6);
+        _dialoguePanel.AddChild(_dialogueTabs);
+
         var rule = new HSeparator
         {
             AnchorRight = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 105f, OffsetBottom = 107f,
+            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 158f, OffsetBottom = 160f,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         rule.AddThemeColorOverride("separator", new Color(0.38f, 0.29f, 0.16f, 0.75f));
@@ -313,7 +328,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _dialogueScroll = new ScrollContainer
         {
             AnchorRight = 1f, AnchorBottom = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 122f, OffsetBottom = -34f,
+            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 172f, OffsetBottom = -34f,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
             VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
             MouseFilter = Control.MouseFilterEnum.Stop,
@@ -371,13 +386,88 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     private void RebuildDialogue()
     {
+        BuildDialogueTabs();
         ClearRows(_dialogueRows);
         _dialogueRendered = 0;
-        foreach (var entry in DialogueHistory.Instance?.GetAllEntries().Where(e => e.Day == 1)
-                     ?? Enumerable.Empty<DialogueHistoryEntry>())
+        // 기록된 차례 그대로 내려 쓴다 — 다시 정렬하지 않는다.
+        foreach (var entry in DialogueHistory.Instance?.GetAllEntries() ?? Enumerable.Empty<DialogueHistoryEntry>())
+        {
+            if (entry.Day != 1 || !PassesFilter(entry)) continue;
             AppendDialogueRow(entry);
-        if (_dialogueRendered == 0) AddEmpty(_dialogueRows, "아직 기록된 대화가 없습니다.", InkDim);
+        }
+        if (_dialogueRendered == 0)
+            AddEmpty(_dialogueRows, _dialogueFilter.Count > 0
+                ? "고른 직원과의 대화 기록이 없습니다."
+                : "아직 기록된 대화가 없습니다.", InkDim);
         QueueDialogueScroll(true, 0);
+    }
+
+    // 고른 직원이 없으면 전부, 있으면 그 직원들과 오간 대화만.
+    private bool PassesFilter(DialogueHistoryEntry e)
+    {
+        if (_dialogueFilter.Count == 0) return true;
+        foreach (string id in _dialogueFilter)
+            if (DialogueHistory.Involves(e, id)) return true;
+        return false;
+    }
+
+    // 직원 이름 버튼 줄. 각자의 고유색으로 칠하고, 누르면 켜지고 다시 누르면 꺼진다.
+    private void BuildDialogueTabs()
+    {
+        if (_dialogueTabs == null) return;
+        foreach (Node c in _dialogueTabs.GetChildren()) { _dialogueTabs.RemoveChild(c); c.QueueFree(); }
+
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return;
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            var def = sim.GetEmployeeDef(id);
+            if (def == null) continue;
+            string captured = id;
+            bool on = _dialogueFilter.Contains(id);
+            _dialogueTabs.AddChild(SpeakerTab(def.Codename, def.IconColor, on, () =>
+            {
+                if (!_dialogueFilter.Remove(captured)) _dialogueFilter.Add(captured);
+                RebuildDialogue();
+            }));
+        }
+    }
+
+    // 종이 위에 찍힌 이름표처럼 보이게 한다. 켜지면 그 직원 색으로 칠해진다.
+    private Button SpeakerTab(string label, Color own, bool on, System.Action onPressed)
+    {
+        // 밝은 고유색은 종이 위에서 흐려진다 — 잉크 쪽으로 섞어 글자가 읽히게 한다.
+        Color ink = own.Lerp(Ink, 0.45f);
+        var b = new Button
+        {
+            Text = label,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, 38),
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            ToggleMode = false,
+        };
+        b.AddThemeFontOverride("font", _body);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
+        b.AddThemeColorOverride("font_color", on ? Paper : ink);
+        b.AddThemeColorOverride("font_hover_color", on ? Paper : InkRed);
+        b.AddThemeColorOverride("font_pressed_color", on ? Paper : InkRed);
+
+        var normal = new StyleBoxFlat
+        {
+            BgColor = on ? ink : new Color(ink.R, ink.G, ink.B, 0.10f),
+            BorderColor = ink with { A = on ? 1f : 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = on ? 3 : 1,
+            CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3,
+            ContentMarginLeft = 6, ContentMarginRight = 6, ContentMarginTop = 4, ContentMarginBottom = 4,
+        };
+        var hover = (StyleBoxFlat)normal.Duplicate();
+        hover.BgColor = on ? ink : new Color(ink.R, ink.G, ink.B, 0.26f);
+        b.AddThemeStyleboxOverride("normal", normal);
+        b.AddThemeStyleboxOverride("hover", hover);
+        b.AddThemeStyleboxOverride("pressed", hover);
+        b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        b.Pressed += () => onPressed();
+        return b;
     }
 
     // 원본 기록 하나가 화면 로그 0줄이 될 수도, 여러 줄이 될 수도 있다.
@@ -402,6 +492,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (_mode != WindowMode.Dialogue) return;
         var entry = DialogueHistory.Instance?.GetAllEntries().LastOrDefault();
         if (entry == null || entry.Day != 1) return;
+        if (!PassesFilter(entry)) return;
         bool stick = IsAtBottom(_dialogueScroll);
         double old = _dialogueScroll.GetVScrollBar().Value;
         if (_dialogueRendered == 0) ClearRows(_dialogueRows);
@@ -444,18 +535,21 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 직원 개인의 행동이면 그 직원의 고유색(IconColor), 시설 사건이면 중요도 색.
     private static Color BodyColor(DisplayLogEntry row)
     {
+        // 중요한 사건은 직원 고유색에 묻히면 안 된다 — 중요도 색이 항상 이긴다.
+        switch (row.Severity)
+        {
+            case DisplayLogSeverity.Warning: return LogWarning;
+            case DisplayLogSeverity.Critical: return LogCritical;
+            case DisplayLogSeverity.Sabotage: return LogSabotage;
+            case DisplayLogSeverity.Recovery: return LogRecovery;
+        }
+        // 배치·이동은 누구의 줄인지가 먼저 읽혀야 하므로 그 직원의 고유색으로 쓴다.
         if (!string.IsNullOrEmpty(row.RelatedEmployeeId))
         {
             var def = FacilitySimulation.Instance?.GetEmployeeDef(row.RelatedEmployeeId);
             if (def != null) return Readable(def.IconColor);
         }
-        return row.Severity switch
-        {
-            DisplayLogSeverity.Warning => LogWarning,
-            DisplayLogSeverity.Critical => LogCritical,
-            DisplayLogSeverity.Recovery => LogRecovery,
-            _ => LogNormal,
-        };
+        return row.Severity == DisplayLogSeverity.Move ? LogMove : LogNormal;
     }
 
     // 까마귀처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
@@ -470,8 +564,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     private static string Marker(DisplayLogSeverity severity) => severity switch
     {
+        DisplayLogSeverity.Move => "→",
         DisplayLogSeverity.Warning => "⚠",
-        DisplayLogSeverity.Critical => "■",
+        DisplayLogSeverity.Critical => "⚠",
+        DisplayLogSeverity.Sabotage => "■",
         DisplayLogSeverity.Recovery => "✓",
         _ => "·",
     };
