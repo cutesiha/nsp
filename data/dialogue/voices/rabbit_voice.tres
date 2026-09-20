@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
+
+; 반응이 빠르고 덧붙이는 말이 많다 · 느낌표는 한 답변에 하나까지
+; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
+
+[ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
+
+[resource]
+script = ExtResource("1_voice")
+EmployeeId = "rabbit"
+Formal = false
+Talkativeness = 0.7
+MaxSentences = 3
+QuestionEchoChance = 0.3
+VolunteerInfoChance = 0.65
+BackQuestionChance = 0.1
+ReactionIntensity = 0.4
+HedgeChance = 0.1
+Directness = 0.35
+ExclamationChance = 0.45
+PauseChance = 0.05
+MaxExclamations = 1

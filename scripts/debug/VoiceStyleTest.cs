@@ -1,0 +1,261 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using Godot;
+using NSP.Core;
+using NSP.Data;
+using NSP.Dialogue;
+using NSP.Facility;
+
+namespace NSP.Debug;
+
+// 캐릭터 화법 품질 검증 (Test A~I) + 6명 비교 샘플 출력.
+//
+//   godot --headless --path . scenes/debug/VoiceStyleTest.tscn --quit-after 900
+//
+// 사실이 맞는지는 DialogueScenarioTest 가 본다. 여기서 보는 것은 하나다 —
+// "사람이 이렇게 말하는가, 그리고 여섯 명이 서로 다르게 말하는가".
+public partial class VoiceStyleTest : Node
+{
+    private const int Samples = 20;
+    private static readonly string[] Ids = { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" };
+
+    private const string Power = "power_room";
+    private const string Storage = "storage_room";
+    private const string Maintenance = "maintenance_room";
+    private const string Guard = "guard_room";
+    private const string Core = "core_room";
+
+    private int _pass, _fail;
+
+    public override void _Ready()
+    {
+        if (FacilitySimulation.Instance == null) { GD.PrintErr("FacilitySimulation 없음"); return; }
+        CallDeferred(nameof(RunAll));
+    }
+
+    private void RunAll()
+    {
+        GD.Print("################ 캐릭터 화법 검증 ################");
+        Setup();
+
+        PrintCompare("이상현상은 없었습니까?", DialogueQuestions.Anomaly);
+        PrintCompare("그때 어디에 있었습니까?", DialogueQuestions.Where);
+        PrintCompare("수상한 행동을 한 사람을 봤습니까?", DialogueQuestions.Suspicious);
+        PrintCompare("확실합니까?", DialogueQuestions.FollowUpPrefix + FollowUpIntent.AskCertainty);
+        PrintCompare("당신을 의심하고 있습니다.", DialogueQuestions.Accuse);
+        PrintCompare("그렇다면 어떻게 설명하시겠습니까?",
+            DialogueQuestions.FollowUpPrefix + FollowUpIntent.AskDefense);
+        PrintRepeat();
+
+        var corpus = Collect();
+        CheckA(corpus);
+        CheckB(corpus);
+        CheckC(corpus);
+        CheckD(corpus);
+        CheckE(corpus);
+        CheckF(corpus);
+        CheckG();
+        CheckH(corpus);
+
+        GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
+    }
+
+    // --- 샘플 출력 ---------------------------------------------------------
+
+    private void PrintCompare(string title, string questionId)
+    {
+        GD.Print($"\n===== Q: {title} =====");
+        foreach (string id in Ids)
+        {
+            var lines = new List<string>();
+            for (int i = 0; i < 3; i++) lines.Add(Answer(id, questionId));
+            GD.Print($"  {Codename(id),-4} : {lines[0]}");
+            GD.Print($"       ↳ {lines[1]}");
+            GD.Print($"       ↳ {lines[2]}");
+        }
+    }
+
+    // 같은 질문을 다시 받았을 때.
+    private void PrintRepeat()
+    {
+        GD.Print("\n===== 같은 질문을 다시 받았을 때 (Q: 이상현상은 없었습니까?) =====");
+        foreach (string id in Ids)
+        {
+            Answer(id, DialogueQuestions.Anomaly);
+            GD.Print($"  {Codename(id),-4} : {Answer(id, DialogueQuestions.Anomaly, repeat: true)}");
+        }
+    }
+
+    // --- 표본 --------------------------------------------------------------
+
+    private Dictionary<string, List<string>> Collect()
+    {
+        var corpus = new Dictionary<string, List<string>>();
+        string[] questions =
+        {
+            DialogueQuestions.Anomaly, DialogueQuestions.Where, DialogueQuestions.Suspicious,
+            DialogueQuestions.Opinion, DialogueQuestions.Accuse, DialogueQuestions.GeneralStatus,
+        };
+        foreach (string id in Ids)
+        {
+            var list = new List<string>();
+            for (int i = 0; i < Samples; i++)
+                list.Add(Answer(id, questions[i % questions.Length]));
+            corpus[id] = list;
+        }
+        return corpus;
+    }
+
+    private string Answer(string id, string questionId, bool repeat = false)
+    {
+        var ctx = DialogueContextBuilder.Build(id, DialogueConversationKind.Interview, questionId, "", null);
+        ctx.IsRepeat = repeat;
+        ctx.TargetEmployeeId = id == "cat" ? "owl" : "cat";
+        var plan = DialogueResponsePlanner.Plan(ctx);
+        return KoreanDialogueComposer.Compose(ctx, plan);
+    }
+
+    // --- Test A~I ----------------------------------------------------------
+
+    private void CheckA(Dictionary<string, List<string>> corpus)
+    {
+        int yes = corpus["rabbit"].Count(t => t.StartsWith("네!") || t.StartsWith("네,") || t.StartsWith("네."));
+        GD.Print($"\n[A] 토끼 {Samples}개 중 '네'로 시작 {yes}개");
+        Check(yes <= Samples / 5, "A 토끼가 대부분 '네!'로 시작하지 않는다");
+    }
+
+    private void CheckB(Dictionary<string, List<string>> corpus)
+    {
+        int that = corpus["cat"].Count(t => t.StartsWith("그거요"));
+        GD.Print($"[B] 고양이 {Samples}개 중 '그거요?' 시작 {that}개");
+        Check(that <= 1, "B 고양이가 '그거요?'만 반복하지 않는다");
+    }
+
+    private void CheckC(Dictionary<string, List<string>> corpus)
+    {
+        float crow = Avg(corpus["crow"]), rabbit = Avg(corpus["rabbit"]), fox = Avg(corpus["fox"]);
+        float owl = Avg(corpus["owl"]), cat = Avg(corpus["cat"]), jelly = Avg(corpus["jellyfish"]);
+        GD.Print($"[C] 평균 길이 — 까마귀 {crow:0.0} / 고양이 {cat:0.0} / 해파리 {jelly:0.0} / " +
+                 $"올빼미 {owl:0.0} / 여우 {fox:0.0} / 토끼 {rabbit:0.0}");
+        Check(crow < rabbit && crow < fox, "C 까마귀가 토끼·여우보다 짧게 말한다");
+    }
+
+    private void CheckD(Dictionary<string, List<string>> corpus)
+    {
+        int jelly = corpus["jellyfish"].Count(Hedged);
+        int crow = corpus["crow"].Count(Hedged);
+        GD.Print($"[D] 확신 낮추는 표현 — 해파리 {jelly}개 / 까마귀 {crow}개");
+        Check(jelly > crow, "D 해파리가 까마귀보다 자주 확신을 낮춘다");
+    }
+
+    private void CheckE(Dictionary<string, List<string>> corpus)
+    {
+        int fox = corpus["fox"].Count(t => t.Contains("?"));
+        GD.Print($"[E] 여우 {Samples}개 중 되묻는 답변 {fox}개");
+        Check(fox >= 1 && fox <= Samples * 3 / 4, "E 여우는 가끔 되묻지만 매번은 아니다");
+    }
+
+    // 올빼미는 확인하지 않은 것을 단정하지 않는다 — 벽 너머로 들은 사건을 물었을 때
+    // "봤습니다" 라고 말하면 안 되고, 직접 보지 못했다는 사실이 답변에 남아야 한다.
+    private void CheckF(Dictionary<string, List<string>> corpus)
+    {
+        int scoped = 0, claimed = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            string a = Answer("owl", DialogueQuestions.Anomaly);
+            if (a.Contains("직접") || a.Contains("확인") || a.Contains("범위") || a.Contains("소리")
+                || a.Contains("보고")) scoped++;
+            if (a.Contains("봤습니다") && !a.Contains("직접 보")) claimed++;
+        }
+        GD.Print($"[F] 올빼미 12개 중 확인 범위를 밝힌 답변 {scoped}개 · 단정한 답변 {claimed}개");
+        Check(claimed == 0, "F 올빼미가 확인하지 않은 것을 단정하지 않는다");
+        Check(scoped >= 6, "F 올빼미가 자기 확인 범위를 밝힌다");
+    }
+
+    private void CheckG()
+    {
+        // 같은 질문을 연달아 5번 — 같은 문장/같은 시작이 반복되면 안 된다.
+        // 위치 질문은 답이 곧 방 이름이라 시작이 같을 수밖에 없다 —
+        // 표현이 갈릴 여지가 있는 질문으로 본다.
+        foreach (string id in Ids)
+        {
+            var five = new List<string>();
+            for (int i = 0; i < 5; i++) five.Add(Answer(id, DialogueQuestions.Anomaly));
+            int distinct = five.Distinct().Count();
+            int maxDup = five.GroupBy(t => t).Max(g => g.Count());
+            GD.Print($"[G] {Codename(id),-4} 5연속 — 서로 다른 문장 {distinct}개, 같은 문장 최대 {maxDup}회");
+            Check(distinct >= 3 && maxDup <= 2, $"G {Codename(id)} 가 같은 문장을 되풀이하지 않는다");
+        }
+    }
+
+    private static readonly Regex DoubleYes = new(@"(네|예)[.!,]\s*(네|예)", RegexOptions.Compiled);
+
+    private void CheckH(Dictionary<string, List<string>> corpus)
+    {
+        var bad = corpus.SelectMany(kv => kv.Value).Where(t => DoubleYes.IsMatch(t)).ToList();
+        int tooMany = corpus.SelectMany(kv => kv.Value).Count(t => t.Count(c => c == '!') > 1);
+        GD.Print($"[H] '네! 네!' {bad.Count}건 · 느낌표 2개 이상 {tooMany}건");
+        foreach (string b in bad.Take(3)) GD.Print("     " + b);
+        Check(bad.Count == 0, "H 한 답변에 같은 긍정이 두 번 나오지 않는다");
+        Check(tooMany == 0, "H 한 답변에 느낌표가 두 개 이상 붙지 않는다");
+    }
+
+    // --- 도우미 ------------------------------------------------------------
+
+    private static bool Hedged(string t) =>
+        t.Contains("확실") || t.Contains("같아요") || t.Contains("잘 모르") || t.Contains("수도 있")
+        || t.Contains("아마") || t.Contains("싶은데");
+
+    private static float Avg(List<string> list) => list.Count == 0 ? 0f : (float)list.Average(t => t.Length);
+
+    private static string Codename(string id) =>
+        FacilitySimulation.Instance?.GetEmployeeDef(id)?.Codename ?? id;
+
+    private void Check(string label, bool ok) => Check(ok, label);
+
+    private void Check(bool ok, string label)
+    {
+        GD.Print(ok ? $"   PASS  {label}" : $"   FAIL  {label}");
+        if (ok) _pass++; else _fail++;
+    }
+
+    // 여섯 명이 같은 사실을 갖도록 만든다 — 차이가 오직 말투에서만 나오게.
+    private static void Setup()
+    {
+        GameState.Instance.ResetRun(1);
+        EventLog.Instance.ClearAll();
+        GameState.Instance.SetSaboteur("");
+        DialogueClaimState.ResetAll();
+        FacilitySimulation.Instance.RollDailyMoods();
+
+        var rooms = new Dictionary<string, string>
+        {
+            ["owl"] = Guard, ["cat"] = Storage, ["jellyfish"] = Maintenance,
+            ["rabbit"] = Maintenance, ["crow"] = Core, ["fox"] = Core,
+        };
+        var sim = FacilitySimulation.Instance;
+        foreach (var kv in rooms)
+        {
+            var st = sim.GetEmployeeState(kv.Key);
+            if (st == null) continue;
+            st.AssignedRoomId = kv.Value;
+            st.CurrentRoomId = kv.Value;
+            st.Alive = true;
+            st.Isolated = false;
+        }
+        foreach (var kv in rooms) Log(LogEventType.TaskStart, kv.Key, kv.Value, 1f);
+        // 아무도 보지 못한 곳에서 사고가 하나 났다 — 전원이 같은 사실을 갖는다.
+        Log(LogEventType.TaskFailed, "", Power, 40f);
+    }
+
+    private static void Log(LogEventType type, string actor, string room, float at)
+    {
+        EventLog.Instance.Log(new LogEntry
+        {
+            Day = 1, GameTimeSeconds = at, EventType = type, ActorEmployeeId = actor, RoomId = room,
+            Description = $"(테스트 {type} {room} {at:0.0})",
+            WitnessEmployeeIds = new List<string>(),
+        });
+    }
+}

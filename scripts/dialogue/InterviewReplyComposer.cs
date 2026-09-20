@@ -69,13 +69,24 @@ public static class InterviewReplyComposer
                                                         && !string.IsNullOrEmpty(v))).ToArray();
         if (usable.Length == 0) return "…";
 
-        // 같은 직원에게 같은 문장이 연달아 나오지 않게 한 번 더 뽑아 본다.
-        string text = "";
-        for (int i = 0; i < 4; i++)
-        {
-            text = Fill(usable[(int)(GD.Randi() % (uint)usable.Length)], frame.Vars);
-            if (!DialogueClaimState.WasRecent(frame.EmployeeId, text)) break;
-        }
+        // 최근에 쓴 템플릿과 반응어를 피해서 고른다 — 문자열이 달라도 같은 말버릇이면
+        // 사람 귀에는 반복이다(KoreanDialogueComposer 와 같은 기억을 공유한다).
+        var indexed = usable.Select((t, i) => (Text: t, Id: $"iv|{frame.EmployeeId}|{frame.Slot}|{i}")).ToList();
+        var fresh = indexed
+            .Where(x => !DialoguePatternMemory.TemplateUsedRecently(frame.EmployeeId, x.Id))
+            .Where(x => !DialoguePatternMemory.MarkerUsedRecently(frame.EmployeeId,
+                DialoguePatternMemory.MarkerOf(x.Text)))
+            .ToList();
+        if (fresh.Count == 0)
+            fresh = indexed.Where(x => !DialoguePatternMemory.TemplateUsedRecently(frame.EmployeeId, x.Id)).ToList();
+        if (fresh.Count == 0) fresh = indexed;
+
+        var picked = fresh[(int)(GD.Randi() % (uint)fresh.Count)];
+        string text = Fill(picked.Text, frame.Vars);
+        text = DialogueNaturalnessFilter.Clean(text, MaxExclamations(frame.EmployeeId));
+
+        DialoguePatternMemory.RememberTemplate(frame.EmployeeId, picked.Id);
+        DialoguePatternMemory.RememberSurface(frame.EmployeeId, text);
         DialogueClaimState.Remember(frame.EmployeeId, text);
         return text;
     }
@@ -90,6 +101,9 @@ public static class InterviewReplyComposer
 
     private static bool Formal(string employeeId) =>
         DialogueVoiceProfiles.Get(employeeId).Register == SpeechRegister.Formal;
+
+    private static int MaxExclamations(string employeeId) =>
+        DialogueVoices.Get(employeeId).MaxExclamations;
 
     private static readonly Regex TokenPattern = new(@"\{(\w+)\}", RegexOptions.Compiled);
 

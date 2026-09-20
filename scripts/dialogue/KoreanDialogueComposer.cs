@@ -8,28 +8,28 @@ using NSP.Facility;
 
 namespace NSP.Dialogue;
 
-// 계획(DialogueResponsePlan)을 실제 한국어 문장으로 조립한다.
+// 계획(DialogueResponsePlan)을 실제 한국어 문장으로 만든다.
 //
-// 완성된 문장을 통째로 고르는 방식이 아니다. 대답은 다음 조각들의 부분집합이며,
-// 어떤 조각을 몇 개 쓸지는 캐릭터의 DialogueVoiceProfile 이 정한다.
+// V2 — 조각마다 주사위를 굴려 이어 붙이던 방식을 버렸다. 그 방식은 조각 하나하나가
+// 자연스러워도 이어 붙인 결과가 사람 말이 아니게 되는 일이 잦았다("그거요? 없었어요.").
 //
-//   [반응] [핵심 답변] [보정] [보조 정보] [감정] [끝맺음]
+// 지금은 순서가 다르다.
+//   1) DialogueResponsePlanner 가 "무슨 사실을 말할지"를 정하고 (여기서 바뀌지 않는다)
+//   2) DialogueUtterancePlanner 가 "어떤 모양으로 말할지"(발화 형태·상황 톤)를 정하고
+//   3) 이 클래스가 그 형태가 요구하는 자리만 캐릭터 문장으로 채우고
+//   4) DialogueNaturalnessFilter 가 마지막으로 사람이 하지 않는 말을 걷어낸다.
+//
+// 캐릭터 차이는 확률이 아니라 문장 자체에 들어 있다. 같은 사실을 여섯 명이 각자의
+// 문장으로 말하고, 말투 수치는 data/dialogue/voices/*.tres 에서 조정한다.
 //
 // 사건 이름은 LogEntry.Description 을 쓰지 않고 EventType 에서 사람이 말하는 표현으로
 // 다시 만든다. 간접 인지일 때는 감각(소리·진동·불빛) 표현만 쓰며 원인을 말하지 않는다.
 public static class KoreanDialogueComposer
 {
-    private sealed class Part
-    {
-        public string Text = "";
-        public int DropOrder;   // 길이 제한에 걸리면 큰 값부터 버린다
-        public bool Keep;       // 사실 정확성에 필요한 조각 — 버리지 않는다
-    }
-
     public static string Compose(DialogueContext ctx, DialogueResponsePlan plan)
     {
         string result = "";
-        // 직전 대사와 완전히 같은 문장이 나오면 다시 조립한다.
+        // 같은 문장이 연달아 나오면 다시 만들어 본다.
         for (int attempt = 0; attempt < 6; attempt++)
         {
             result = Build(ctx, plan);
@@ -38,79 +38,105 @@ public static class KoreanDialogueComposer
         }
         if (string.IsNullOrEmpty(result)) result = "…";
         DialogueClaimState.Remember(ctx.EmployeeId, result);
+        DialoguePatternMemory.RememberSurface(ctx.EmployeeId, result);
         return result;
     }
 
     private static string Build(DialogueContext ctx, DialogueResponsePlan plan)
     {
-        var p = DialogueVoiceProfiles.Get(ctx.EmployeeId);
-        string style = p.EmployeeId;
-        var vars = Vars(ctx, plan, p);
+        var voice = DialogueVoices.Get(ctx.EmployeeId);
+        string style = ctx.EmployeeId;
+        var vars = Vars(ctx, plan, voice);
 
-        string core = Pick(style, CoreSlot(plan), vars);
+        var up = DialogueUtterancePlanner.Plan(ctx, plan, voice, vars, CoreSlot(plan));
+
+        string core = Pick(style, up.CoreSlot, vars);
         if (string.IsNullOrEmpty(core)) core = Pick(style, "noanomaly", vars);
+        if (string.IsNullOrEmpty(core)) return "";
+        if (!string.IsNullOrEmpty(up.TimeWord) && !HasTimeWord(core))
+            core = up.TimeWord + " " + core;
 
-        // 시간 표현은 기본적으로 붙이지 않는다. 붙이더라도 핵심 답변 앞 한 번뿐이다.
-        string time = TimeWord(plan, p);
-        if (!string.IsNullOrEmpty(time) && !HasTimeWord(core))
-            core = time + " " + core;
+        var lines = new List<string>();
 
-        var parts = new List<Part> { new() { Text = core, Keep = true, DropOrder = 0 } };
-
-        // 지시에 대한 대답과 통화 신고는 짧게 끝낸다.
-        bool terse = plan.Core is CoreKind.DispatchAccept or CoreKind.DispatchDecline
-            or CoreKind.IncidentReport;
-        bool noCloser = terse;
-
-        string opener = terse ? ""
-            : plan.IsRepeat ? Pick(style, "opener.repeat", vars)
-            : Roll(p.OpenerChance) ? Pick(style, "opener", vars) : "";
-        // 핵심 답변이 같은 말로 시작하면("네." + "네. 자리를 …", "저, 네…" + "저, 저요…?")
-        // 같은 말이 두 번 나오므로 반응을 뺀다.
-        if (!string.IsNullOrEmpty(opener) && opener.Length >= 2 && core.StartsWith(opener[..2]))
-            opener = "";
-
-        // 사실 정확성 보정 — 간접 목격 / 원인 불명. 길이 제한과 무관하게 남는다.
-        if (plan.NeedsIndirectCaveat)
-            parts.Add(new Part { Text = Pick(style, "caveat.indirect", vars), Keep = true, DropOrder = 1 });
-        if (plan.NeedsUnknownCauseCaveat)
-            parts.Add(new Part { Text = Pick(style, "caveat.cause", vars), Keep = true, DropOrder = 1 });
-
-        string support = SupportClause(ctx, plan, p, vars, core);
-        string emotion = plan.Emotion != EmotionKind.None ? Pick(style, EmotionSlot(plan.Emotion), vars) : "";
-        // 되묻는 성격(여우)은 끝맺음 대신 질문을 되돌린다.
-        string closerSlot = p.AsksBack && Roll(0.55f) ? "closer.back" : "closer";
-        string closer = !noCloser && Roll(p.CloserChance) ? Pick(style, closerSlot, vars) : "";
-
-        if (!string.IsNullOrEmpty(support)) parts.Add(new Part { Text = support, DropOrder = 2 });
-        if (!string.IsNullOrEmpty(emotion)) parts.Add(new Part { Text = emotion, DropOrder = 3 });
-        if (!string.IsNullOrEmpty(closer)) parts.Add(new Part { Text = closer, DropOrder = 4 });
-
-        // 조각 수 제한 — 까마귀는 2개, 올빼미·토끼는 3개까지.
-        int max = Mathf.Max(1, p.MaxParts - (string.IsNullOrEmpty(opener) ? 0 : 1));
-        while (parts.Count > max)
+        // ── 핵심 앞에 오는 자리 — 형태가 하나만 허용한다 ────────────────
+        switch (up.Shape)
         {
-            var victim = parts.Where(x => !x.Keep).OrderByDescending(x => x.DropOrder).FirstOrDefault();
-            if (victim == null) break;
-            parts.Remove(victim);
+            case UtteranceShape.TopicEchoCore:
+                if (!OpensWithQuestion(core)) Add(lines, up.EchoText, core);
+                break;
+            case UtteranceShape.ReactionCore:
+                Add(lines, Pick(style, up.ReactionSlot, vars), core);
+                break;
+            case UtteranceShape.RepeatCore:
+                Add(lines, Pick(style, up.RepeatSlot, vars), core);
+                break;
         }
 
-        var ordered = new List<string>();
-        // 감정이 먼저 튀어나오는 캐릭터(토끼·해파리)는 반응을 핵심 답변 앞으로 뺀다.
-        var emotionPart = parts.FirstOrDefault(x => x.Text == emotion && !string.IsNullOrEmpty(emotion));
-        if (p.ReactionFirst && emotionPart != null)
-        {
-            parts.Remove(emotionPart);
-            if (!string.IsNullOrEmpty(opener)) ordered.Add(opener);
-            ordered.Add(emotionPart.Text);
-        }
-        else if (!string.IsNullOrEmpty(opener))
-        {
-            ordered.Add(opener);
-        }
-        ordered.AddRange(parts.Select(x => x.Text));
+        // 앞말이 핵심 문장과 같은 말로 시작하면 빼 버린다("네." + "네, 자리를 …").
+        if (lines.Count == 1 && core.Length >= 2 && lines[0].StartsWith(core[..2]))
+            lines.Clear();
 
-        return Finalize(string.Join(" ", ordered.Where(s => !string.IsNullOrWhiteSpace(s))));
+        int coreIndex = lines.Count;
+        lines.Add(core);
+
+        // ── 사실 정확성 보정 — 형태와 무관하게 남는다 ───────────────────
+        foreach (string slot in up.CaveatSlots)
+            Add(lines, Pick(style, slot, vars), core);
+
+        // ── 덧붙이는 한 마디 ───────────────────────────────────────────
+        // 핵심이 이미 그 정보를 담고 있으면 붙이지 않는다(§ 같은 말 두 번 금지).
+        if (!string.IsNullOrEmpty(up.ExtraSlot) && !AlreadyCovered(up.ExtraSlot, core))
+            Add(lines, Pick(style, up.ExtraSlot, vars), core, lines);
+
+        if (up.Shape == UtteranceShape.CoreBackQuestion)
+            Add(lines, Pick(style, up.BackQuestionSlot, vars), core, lines);
+
+        // ── 문장 수 상한 — 핵심과 보정은 남기고 뒤에서부터 줄인다 ────────
+        // 핵심 문장은 무슨 일이 있어도 남는다(까마귀처럼 상한이 1인 캐릭터에서
+        // 되받기만 남고 답이 사라지는 사고를 막는다).
+        int keep = 1 + up.CaveatSlots.Count;
+        int limit = Mathf.Max(keep, up.MaxSentences);
+        while (lines.Count > limit && lines.Count - 1 > coreIndex)
+            lines.RemoveAt(lines.Count - 1);
+        while (lines.Count > limit && coreIndex > 0)
+        {
+            lines.RemoveAt(0);
+            coreIndex--;
+        }
+
+        string text = Finalize(string.Join(" ", lines));
+        return DialogueNaturalnessFilter.Clean(text, up.MaxExclamations);
+    }
+
+    // 핵심 문장이 이미 되물으며 시작하는가("제가요? …"). 그렇다면 주제 되받기는 군더더기다.
+    private static bool OpensWithQuestion(string core)
+    {
+        int q = core.IndexOf('?');
+        return q >= 0 && q <= 6;
+    }
+
+    // 이 덧붙임이 담는 정보를 핵심 문장이 이미 담고 있는가.
+    // 문장 비교로는 잡히지 않는 "의미 중복"을 슬롯 이름 단위로 먼저 걸러낸다.
+    private static bool AlreadyCovered(string extraSlot, string core) => extraSlot switch
+    {
+        "support.task" or "support.taskname" => MentionsWork(core),
+        "volunteer.noanomaly" => core.Contains("말씀드렸") || core.Contains("보고"),
+        "volunteer.nosight" => core.Contains("지목") || core.Contains("몰아가"),
+        "support.hedge" => core.Contains("확실") || core.Contains("같아요") || core.Contains("수도 있"),
+        _ => false,
+    };
+
+    // 같은 뜻을 두 번 말하지 않는다. 핵심(그리고 이미 담긴 문장)과 겹치면 붙이지 않는다.
+    private static void Add(List<string> lines, string text, string core, List<string> existing = null)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        if (DialogueNaturalnessFilter.Repeats(core, text)) return;
+        // 같은 종결 어미가 연달아 나오면 한 가지 말버릇만 반복하는 것처럼 들린다.
+        if (core.EndsWith("죠.") && text.EndsWith("죠.")) return;
+        if (existing != null)
+            foreach (string line in existing)
+                if (DialogueNaturalnessFilter.Repeats(line, text)) return;
+        lines.Add(text);
     }
 
     // --- 슬롯 결정 ------------------------------------------------------
@@ -147,55 +173,6 @@ public static class KoreanDialogueComposer
         _ => "noanomaly",
     };
 
-    private static string EmotionSlot(EmotionKind e) => e switch
-    {
-        EmotionKind.Alarm => "emotion.alarm",
-        EmotionKind.Fear => "emotion.fear",
-        EmotionKind.Annoyance => "emotion.annoy",
-        EmotionKind.Amused => "emotion.amused",
-        _ => "emotion.composed",
-    };
-
-    // 보조 정보는 "무엇을 더 말할까"의 결과다. 방해자의 전략이 여기서 문장이 된다.
-    private static string SupportClause(DialogueContext ctx, DialogueResponsePlan plan,
-        DialogueVoiceProfile p, Dictionary<string, string> vars, string core)
-    {
-        string style = p.EmployeeId;
-
-        switch (plan.Deception)
-        {
-            case DeceptionMode.Justify when plan.Core == CoreKind.SelfLocation:
-                return Pick(style, "support.justify", vars);
-            case DeceptionMode.Minimize when plan.Core == CoreKind.SelfLocation:
-                return Pick(style, "support.minimize", vars);
-            // 추궁 대응 문장 자체가 이미 회피라 "기억이 안 난다"를 두 번 붙이지 않는다.
-            case DeceptionMode.Vague when plan.Core != CoreKind.ChallengeResponse:
-                return Pick(style, "support.vague", vars);
-            case DeceptionMode.Redirect when !string.IsNullOrEmpty(vars["who"]):
-                return Pick(style, "support.redirect", vars);
-        }
-
-        if (!plan.AllowSupport) return "";
-        // 핵심 답변이 이미 "일하고 있었다"를 담고 있으면 같은 말을 두 번 하지 않는다.
-        if (plan.MentionTask && plan.Core == CoreKind.SelfLocation && !MentionsWork(core))
-            return Pick(style, "support.task", vars);
-        if (plan.Core == CoreKind.Opinion && plan.AllowSupport && Roll(p.SupportChance))
-            return Pick(style, "support.seen", vars);
-        bool hedgeable = plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect
-            or CoreKind.SuspiciousSighting or CoreKind.Opinion;
-        bool alreadyHedged = plan.NeedsIndirectCaveat || plan.NeedsUnknownCauseCaveat;
-        if (hedgeable && !alreadyHedged && (plan.Certainty == Certainty.Low || Roll(p.HedgeChance)))
-        {
-            string hedge = Pick(style, "support.hedge", vars);
-            if (!string.IsNullOrEmpty(hedge)) return hedge;
-        }
-        if (plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect && Roll(p.SupportChance))
-            return Pick(style, "support.nothing", vars);
-        if (plan.Core == CoreKind.StatusReport && plan.MentionTask && !string.IsNullOrEmpty(vars["task"]))
-            return Pick(style, "support.taskname", vars);
-        return "";
-    }
-
     // --- 변수 ------------------------------------------------------------
 
     private static readonly string[] WorkWords = { "일 하", "일하", "근무", "업무", "작업" };
@@ -203,7 +180,7 @@ public static class KoreanDialogueComposer
     private static bool MentionsWork(string text) => WorkWords.Any(text.Contains);
 
     private static Dictionary<string, string> Vars(DialogueContext ctx, DialogueResponsePlan plan,
-        DialogueVoiceProfile p)
+        NSP.Data.DialogueVoiceDef voice)
     {
         string iroom = RoomName(plan.IncidentRoomId);
         return new Dictionary<string, string>
@@ -220,16 +197,16 @@ public static class KoreanDialogueComposer
             // 꼬리질문 답변에 등장하는 보조 대상.
             ["droom"] = RoomName(plan.DetailRoomId),
             ["dname"] = Codename(plan.DetailName),
-            ["what"] = IncidentClause(plan.IncidentType, KnowledgeLevel.Direct, p),
-            ["sound"] = IncidentClause(plan.IncidentType, KnowledgeLevel.Indirect, p),
+            ["what"] = IncidentClause(plan.IncidentType, KnowledgeLevel.Direct, voice),
+            ["sound"] = IncidentClause(plan.IncidentType, KnowledgeLevel.Indirect, voice),
         };
     }
 
     // 사건을 사람이 말하는 표현으로. 직접 목격이면 원인/장면까지, 간접이면 감각까지만.
-    private static string IncidentClause(LogEventType type, KnowledgeLevel k, DialogueVoiceProfile p)
+    private static string IncidentClause(LogEventType type, KnowledgeLevel k, NSP.Data.DialogueVoiceDef voice)
     {
         string[] stems = k == KnowledgeLevel.Direct ? DirectStems(type) : IndirectStems(type);
-        return Choose(stems) + p.PastEnding + ".";
+        return Choose(stems) + (voice.Formal ? "습니다" : "어요") + ".";
     }
 
     private static string[] DirectStems(LogEventType type) => type switch
@@ -268,20 +245,13 @@ public static class KoreanDialogueComposer
         return Choose(options.ToArray());
     }
 
-    private static string TimeWord(DialogueResponsePlan plan, DialogueVoiceProfile p) => plan.Time switch
-    {
-        TimeRef.Vague => Choose(new[] { "그때", "아까", "조금 전", "그쯤" }),
-        TimeRef.Exact => ClockText(plan.IncidentTimeSeconds) + (p.Register == SpeechRegister.Formal ? "경" : "쯤"),
-        _ => "",
-    };
-
     // 이미 시점을 품고 있는 문장에는 시간 표현을 덧대지 않는다("아까 계속 …" 방지).
     private static bool HasTimeWord(string s) =>
         s.Contains("그때") || s.Contains("아까") || s.Contains("조금 전") || s.Contains("그쯤")
         || s.StartsWith("계속");
 
     // 근무 시계(0초 = 22:00)를 실제 시각 표기로.
-    private static string ClockText(float seconds)
+    internal static string ClockText(float seconds)
     {
         float length = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
         int totalMinutes = 22 * 60 + Mathf.FloorToInt(seconds * (360f / Mathf.Max(1f, length)));
@@ -311,15 +281,37 @@ public static class KoreanDialogueComposer
 
     // 값이 비어 있는 변수를 요구하는 문장은 후보에서 제외한다 —
     // "{who} 씨를 봤어요" 가 "씨를 봤어요" 로 새어 나가지 않게 하는 장치.
+    // 이 슬롯에서 문장 하나를 고른다.
+    //
+    // 문자열이 달라도 같은 말버릇이면 사람 귀에는 반복이다. 그래서
+    //   · 최근에 쓴 템플릿(슬롯 안 몇 번째 문장인지)
+    //   · 최근에 쓴 시작 반응어("네", "아", "글쎄요" …)
+    // 를 피해서 고른다. 피할 수 없으면(후보가 하나뿐이면) 그냥 쓴다.
     private static string Pick(string style, string slot, Dictionary<string, string> vars)
     {
+        if (string.IsNullOrEmpty(slot)) return "";
         var pool = Pools.GetValueOrDefault($"{style}|{slot}") ?? Pools.GetValueOrDefault($"any|{slot}");
         if (pool == null || pool.Length == 0) return "";
 
-        var usable = pool.Where(t => Tokens(t).All(k => vars.TryGetValue(k, out var v) && !string.IsNullOrEmpty(v))).ToArray();
-        if (usable.Length == 0) return "";
+        var usable = pool
+            .Select((t, i) => (Text: t, Id: $"{style}|{slot}|{i}"))
+            .Where(x => Tokens(x.Text).All(k => vars.TryGetValue(k, out var v) && !string.IsNullOrEmpty(v)))
+            .ToList();
+        if (usable.Count == 0) return "";
 
-        string text = Choose(usable);
+        var fresh = usable
+            .Where(x => !DialoguePatternMemory.TemplateUsedRecently(style, x.Id))
+            .Where(x => !DialoguePatternMemory.MarkerUsedRecently(style,
+                DialoguePatternMemory.MarkerOf(x.Text)))
+            .ToList();
+        if (fresh.Count == 0)
+            fresh = usable.Where(x => !DialoguePatternMemory.TemplateUsedRecently(style, x.Id)).ToList();
+        if (fresh.Count == 0) fresh = usable;
+
+        var chosen = fresh[(int)(GD.Randi() % (uint)fresh.Count)];
+        DialoguePatternMemory.RememberTemplate(style, chosen.Id);
+
+        string text = chosen.Text;
         foreach (var kv in vars) text = text.Replace("{" + kv.Key + "}", kv.Value);
         return text;
     }
@@ -349,12 +341,12 @@ public static class KoreanDialogueComposer
     private static readonly Dictionary<string, string[]> Pools = new()
     {
         // ── 핵심: 사건 당시 내 위치 ────────────────────────────────────
-        ["owl|selfloc"] = new[] { "{room}에 있었습니다.", "{room}에서 근무 중이었습니다.", "{room}입니다. 배치받은 자리 그대로였습니다." },
-        ["cat|selfloc"] = new[] { "{room}이요/요.", "{room}에 있었어요.", "{room}이요/요. 계속 거기 있었고요." },
-        ["jellyfish|selfloc"] = new[] { "{room}에 있었어요.", "{room}이요/요... 거기 있었어요.", "저는 {room}에 있었어요." },
-        ["rabbit|selfloc"] = new[] { "{room}이었/였어요!", "{room}에 있었어요!", "{room}에서 일하고 있었어요!" },
-        ["crow|selfloc"] = new[] { "{room}에 있었습니다.", "{room}입니다.", "계속 {room}에 있었습니다." },
-        ["fox|selfloc"] = new[] { "{room}에 있었죠.", "{room}이요/요? 거기 있었는데요.", "{room}에서 제 일 하고 있었죠." },
+        ["owl|selfloc"] = new[] { "{room}에 있었습니다.", "{room}에서 근무 중이었습니다.", "{room}입니다. 배치받은 자리 그대로였습니다.", "{room}입니다. 기록을 확인하셔도 됩니다." },
+        ["cat|selfloc"] = new[] { "{room}에 있었어요.", "{room}이요/요. 계속 거기 있었고요.", "{room}이죠/죠. 옮긴 적 없어요.", "{room}에요. 그 시간엔 거기밖에 없었어요." },
+        ["jellyfish|selfloc"] = new[] { "{room}에 있었어요.", "저는 {room}에 있었어요. 계속요.", "{room}에요... 거기서 안 나갔어요.", "{room}이요/요. 자리 지키고 있었어요." },
+        ["rabbit|selfloc"] = new[] { "{room}에 있었어요!", "{room}이요/요. 거기서 계속 일하고 있었어요.", "{room}에서 일하고 있었어요. 쭉이요.", "{room}이죠/죠. 그 시간엔 거기 있었어요." },
+        ["crow|selfloc"] = new[] { "{room}입니다.", "{room}에 있었습니다.", "계속 {room}입니다.", "{room}. 이동 없었습니다." },
+        ["fox|selfloc"] = new[] { "{room}에 있었죠.", "{room}이요/요. 거기서 제 일 하고 있었는데요.", "{room}이었/였어요. 딱히 특별할 건 없었고요.", "{room}이죠/죠. 왜, 다르게 나와 있나요?" },
 
         // ── 핵심: 직접 본 사건 ─────────────────────────────────────────
         ["owl|incident.direct"] = new[] { "{iroom}에서 {what}", "{iroom} 쪽입니다. {what}" },
@@ -373,27 +365,27 @@ public static class KoreanDialogueComposer
         ["fox|incident.indirect"] = new[] { "{iroom} 쪽에서 {sound}", "{iroom} 쪽이었/였죠. {sound}" },
 
         // ── 핵심: 아는 이상 없음 ───────────────────────────────────────
-        ["owl|noanomaly"] = new[] { "특별한 건 없었습니다.", "제가 있던 곳에서는 이상을 확인하지 못했습니다." },
-        ["cat|noanomaly"] = new[] { "없었어요.", "제가 본 건 없어요.", "별일 없었어요." },
-        ["jellyfish|noanomaly"] = new[] { "저는... 특별한 건 못 봤어요.", "아뇨, 아무것도 못 봤어요." },
-        ["rabbit|noanomaly"] = new[] { "없었어요!", "저는 못 봤어요. 있었으면 바로 말씀드렸을 거예요!" },
-        ["crow|noanomaly"] = new[] { "없습니다.", "확인한 이상은 없습니다." },
-        ["fox|noanomaly"] = new[] { "글쎄요~ 제가 있던 쪽은 조용했는데요.", "딱히요. 있었으면 진작 말씀드렸겠죠." },
+        ["owl|noanomaly"] = new[] { "제가 확인한 범위에서는 특별한 이상이 없었습니다.", "특별한 건 없었습니다.", "제가 있던 곳에서는 이상을 확인하지 못했습니다.", "확인된 건 없습니다. 있었다면 바로 보고드렸을 겁니다." },
+        ["cat|noanomaly"] = new[] { "없었는데요.", "제가 본 건 없어요.", "딱히요.", "없었어요. 적어도 제 쪽에서는요.", "있었으면 먼저 말씀드렸겠죠." },
+        ["jellyfish|noanomaly"] = new[] { "저는 못 봤어요. 별일 없었던 것 같아요.", "아뇨, 특별한 건 못 봤어요.", "제가 본 건 없어요. 소리도 딱히 없었고요.", "음... 없었어요. 조용했어요." },
+        ["rabbit|noanomaly"] = new[] { "없었어요! 있었으면 바로 말씀드렸을 텐데요.", "저는 못 봤어요.", "딱히 없었어요. 오늘은 생각보다 조용하던데요?", "없었던 것 같은데요? 제가 놓친 게 아니라면요." },
+        ["crow|noanomaly"] = new[] { "없습니다.", "확인된 이상은 없습니다.", "특이사항 없습니다." },
+        ["fox|noanomaly"] = new[] { "글쎄요. 제가 있던 쪽은 조용했는데요.", "딱히요. 있었으면 진작 말씀드렸겠죠.", "제 눈에 띈 건 없었어요.", "없었어요. 뭔가 들으신 게 있으신가요?" },
 
         // ── 핵심: 실제로 목격한 다른 직원 ───────────────────────────────
         ["owl|sight"] = new[] { "{who} 직원의 행동이 평소와 달랐습니다.", "{sroom}에서 {who} 직원이 이상하게 움직이는 걸 봤습니다." },
         ["cat|sight"] = new[] { "{who} 씨요. 행동이 좀 이상했어요.", "{sroom}에서 {who} 씨가 뭔가 하고 있던데요." },
         ["jellyfish|sight"] = new[] { "{who} 씨가... 조금 이상해 보였어요.", "{sroom}에서 {who} 씨를 봤는데요, 평소랑 달랐어요." },
-        ["rabbit|sight"] = new[] { "{who} 씨요! 좀 이상했어요.", "{sroom}에서 {who} 씨가 뭔가 하고 있었어요!" },
+        ["rabbit|sight"] = new[] { "{who} 씨요. 좀 이상했어요.", "{sroom}에서 {who} 씨가 뭔가 하고 있었어요!", "{who} 씨가 평소랑 좀 달랐어요. 그래서 저도 한 번 더 봤어요.", "{sroom} 쪽이요. {who} 씨였어요." },
         ["crow|sight"] = new[] { "{who}. 행동이 비정상이었습니다.", "{sroom}에서 {who} 직원을 봤습니다." },
         ["fox|sight"] = new[] { "{who} 씨가 좀 재미있는 걸 하고 있던데요.", "{sroom}에서 {who} 씨를 봤죠. 뭘 하는진 모르겠지만요." },
 
         // ── 핵심: 목격 없음 ────────────────────────────────────────────
         ["owl|nosight"] = new[] { "확인되지 않은 사람을 지목할 생각은 없습니다.", "그런 장면은 보지 못했습니다." },
-        ["cat|nosight"] = new[] { "못 봤어요.", "없어요. 아무나 찍고 싶진 않은데요." },
-        ["jellyfish|nosight"] = new[] { "아뇨... 다른 분을 볼 여유가 없었어요.", "저는 못 봤어요." },
-        ["rabbit|nosight"] = new[] { "아뇨! 제가 본 사람 중엔 없었어요.", "못 봤어요!" },
-        ["crow|nosight"] = new[] { "목격하지 못했습니다.", "없습니다." },
+        ["cat|nosight"] = new[] { "못 봤어요.", "없어요. 아무나 찍고 싶진 않은데요.", "제가 본 사람 중엔 없어요.", "글쎄요. 그렇게 보인 사람은 없었어요." },
+        ["jellyfish|nosight"] = new[] { "아뇨, 다른 분을 볼 여유가 없었어요.", "저는 못 봤어요.", "그런 건... 못 봤어요. 제가 잘 못 봤을 수도 있지만요.", "아뇨. 제 앞에 있는 것만 보고 있어서요." },
+        ["rabbit|nosight"] = new[] { "아뇨, 제가 본 사람 중엔 없었어요.", "못 봤어요. 봤으면 제가 가만히 있었겠어요?", "그런 사람은 없었는데요.", "저는 못 봤어요. 계속 제 자리에 있어서요." },
+        ["crow|nosight"] = new[] { "목격하지 못했습니다.", "없습니다.", "판단할 근거가 없습니다." },
         ["fox|nosight"] = new[] { "딱히요. 애매한 걸로 사람 몰아가긴 싫어서요.", "본 건 없는데요. 왜, 짚이는 데라도 있으세요?" },
 
         // ── 핵심: 다른 직원 평가 ───────────────────────────────────────
@@ -408,7 +400,7 @@ public static class KoreanDialogueComposer
         ["owl|deny"] = new[] { "저는 아닙니다. 기록부터 확인해주십시오.", "그렇게 보실 수는 있습니다. 다만 근거를 함께 봐주십시오." },
         ["cat|deny"] = new[] { "저 아니에요.", "저 아니에요. 시간 낭비하지 마세요." },
         ["jellyfish|deny"] = new[] { "저, 저요...? 아니에요.", "제가요? 정말 아무것도 안 했어요." },
-        ["rabbit|deny"] = new[] { "네?! 저 아니에요!", "저 진짜 아니에요. 확인해보시면 아실 거예요!" },
+        ["rabbit|deny"] = new[] { "네?! 저요?", "저 아니에요. 확인해보시면 아실 거예요.", "제가요? 진짜 아닌데요.", "아니에요! 저 계속 제 자리에 있었어요." },
         ["crow|deny"] = new[] { "아닙니다.", "아닙니다. 기록을 확인하십시오." },
         ["fox|deny"] = new[] { "저를요? 어떤 근거인지부터 듣고 싶은데요.", "설마 이런 상황에 저부터 의심하시는 건 아니죠?" },
 
@@ -416,7 +408,7 @@ public static class KoreanDialogueComposer
         ["owl|deny.evidence"] = new[] { "그 기록이 저를 가리키는 건 압니다. 제가 한 일은 아닙니다.", "제 동선이 이상하게 보였다면 설명드리겠습니다." },
         ["cat|deny.evidence"] = new[] { "그거 때문이죠? 그건 설명할 수 있어요.", "기록만 보면 그렇게 보이겠네요. 그래도 저 아니에요." },
         ["jellyfish|deny.evidence"] = new[] { "그, 그게... 보이신 것처럼은 아니에요.", "제가 거기 있었던 건 맞는데요... 그건 아니에요." },
-        ["rabbit|deny.evidence"] = new[] { "아, 그거 보셨구나. 근데 그거 오해예요!", "제가 움직인 건 맞아요! 근데 그런 건 아니에요." },
+        ["rabbit|deny.evidence"] = new[] { "그거 보셨구나. 근데 그건 오해예요.", "제가 움직인 건 맞아요. 근데 그런 건 아니에요!", "그 기록 말씀이시죠? 그건 이유가 있었어요." },
         ["crow|deny.evidence"] = new[] { "그 기록은 압니다. 제가 한 일은 아닙니다.", "동선은 인정합니다. 나머지는 아닙니다." },
         ["fox|deny.evidence"] = new[] { "그 기록 말씀이시죠? 보이는 것만큼 단순하진 않아요.", "제가 좀 눈에 띄었나 보네요. 그래도 아닙니다." },
 
@@ -424,7 +416,7 @@ public static class KoreanDialogueComposer
         ["owl|status.ok"] = new[] { "지금까지는 문제 없습니다.", "예정대로 진행 중입니다." },
         ["cat|status.ok"] = new[] { "별문제 없어요.", "잘 되고 있어요." },
         ["jellyfish|status.ok"] = new[] { "지금은... 괜찮아요.", "네, 하고 있어요." },
-        ["rabbit|status.ok"] = new[] { "잘 되고 있어요!", "네! 순조로워요!" },
+        ["rabbit|status.ok"] = new[] { "잘 되고 있어요!", "순조로워요. 지금까진 별일 없어요.", "괜찮아요. 하던 대로 하고 있어요." },
         ["crow|status.ok"] = new[] { "정상 진행 중입니다.", "특이사항 없습니다." },
         ["fox|status.ok"] = new[] { "순조롭습니다.", "걱정하실 정도는 아니에요." },
 
@@ -469,7 +461,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|comply"] = new[] { "죄, 죄송해요. 더 집중할게요...", "네... 신경 쓸게요." },
         ["rabbit|comply"] = new[] { "앗, 네! 제대로 할게요!", "알겠어요! 딴짓 안 할게요!" },
         ["crow|comply"] = new[] { "알겠습니다.", "그렇게 하겠습니다." },
-        ["fox|comply"] = new[] { "네, 네. 관리자님께 찍히기 전에 성실하게 해야겠네요.", "알겠습니다~ 잔소리는 여기까지만 하시죠." },
+        ["fox|comply"] = new[] { "알겠어요. 관리자님께 찍히기 전에 성실하게 해야겠네요.", "알겠습니다. 잔소리는 여기까지만 하시죠." },
 
         // ── 핵심: 수신 전화 첫 대사(사고 신고) ───────────────────────────
         ["owl|report.direct"] = new[] { "관리자님, {iroom}에서 {what} 제가 확인하러 가도 괜찮겠습니까?", "관리자님, {iroom} 상황을 보고드립니다. {what} 지시 부탁드립니다." },
@@ -504,21 +496,18 @@ public static class KoreanDialogueComposer
         ["rabbit|decline"] = new[] { "아... 네. 근데 진짜 괜찮은 거죠?", "알겠어요! 여기 있을게요!" },
         ["crow|accept"] = new[] { "확인하겠습니다.", "이동합니다." },
         ["crow|decline"] = new[] { "알겠습니다. 대기합니다.", "알겠습니다." },
-        ["fox|accept"] = new[] { "네~ 다녀올게요. 이런 건 익숙해서.", "알겠어요. 금방 보고 오죠." },
+        ["fox|accept"] = new[] { "다녀올게요. 이런 건 익숙해서.", "알겠어요. 금방 보고 오죠." },
         ["fox|decline"] = new[] { "알겠습니다. 저야 편하죠.", "네. 그럼 여기 있을게요." },
 
         // ── 반응(문장 앞) ──────────────────────────────────────────────
-        ["owl|opener"] = new[] { "네.", "확인했습니다." },
-        ["cat|opener"] = new[] { "그거요?", "네." },
-        ["jellyfish|opener"] = new[] { "아...", "저, 네...", "네, 네..." },
-        ["rabbit|opener"] = new[] { "아, 네!", "어...!" },
-        ["crow|opener"] = new[] { "네." },
-        ["fox|opener"] = new[] { "아~", "네에.", "음~" },
+        // 질문과 무관한 범용 반응("네." "그거요?" "아, 네!")은 V2 에서 제거했다.
+        // 주제 되받기는 DialogueUtterancePlanner 가 질문에서 직접 만들고,
+        // 놀람 반응은 아래 react.* / emotion.* 를 상황이 맞을 때만 쓴다.
 
         ["owl|opener.repeat"] = new[] { "말씀드린 대로입니다.", "다시 말씀드리면," },
-        ["cat|opener.repeat"] = new[] { "아까 말했잖아요.", "또요?" },
-        ["jellyfish|opener.repeat"] = new[] { "네... 아까 말씀드린 것처럼요.", "저, 아까랑 같은데요..." },
-        ["rabbit|opener.repeat"] = new[] { "네! 아까 말한 그대로예요.", "아까도 말했는데요!" },
+        ["cat|opener.repeat"] = new[] { "아까도 말씀드렸잖아요.", "또요?", "같은 걸 또 물으시네요." },
+        ["jellyfish|opener.repeat"] = new[] { "아까 말씀드린 것처럼요,", "저, 아까랑 같은데요...", "음... 답은 같아요." },
+        ["rabbit|opener.repeat"] = new[] { "아까 말씀드린 거랑 같아요.", "음, 아까도 말씀드렸는데요.", "다시 말씀드리면요," },
         ["crow|opener.repeat"] = new[] { "말씀드린 대로입니다.", "같습니다." },
         ["fox|opener.repeat"] = new[] { "아까랑 같은 답인데요.", "다시 여쭤보시네요." },
 
@@ -562,9 +551,11 @@ public static class KoreanDialogueComposer
         ["fox|support.nothing"] = new[] { "그거 말곤 조용했어요." },
 
         // ── 보조: 단서 붙이기 ───────────────────────────────────────────
-        ["owl|support.hedge"] = new[] { "확실하지 않은 부분은 말씀드리지 않겠습니다." },
-        ["jellyfish|support.hedge"] = new[] { "제가 잘못 본 걸 수도 있어요.", "확실하진 않아요..." },
-        ["rabbit|support.hedge"] = new[] { "제 생각엔 그래요!" },
+        ["owl|support.hedge"] = new[] { "확실하지 않은 부분은 말씀드리지 않겠습니다.", "여기까지가 제가 확인한 범위입니다." },
+        ["cat|support.hedge"] = new[] { "확실한 건 아니고요." },
+        ["crow|support.hedge"] = new[] { "추측입니다." },
+        ["jellyfish|support.hedge"] = new[] { "제가 잘못 본 걸 수도 있어요.", "확실하진 않아요.", "잠깐 본 거라서 확신은 못 하겠어요.", "제 느낌일 수도 있고요..." },
+        ["rabbit|support.hedge"] = new[] { "제 생각엔 그래요.", "근데 제가 본 게 전부는 아니니까요." },
         ["fox|support.hedge"] = new[] { "제가 보고 있던 범위 안에서만요." },
 
         // ── 보조: 방해자 전략 ───────────────────────────────────────────
@@ -674,7 +665,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|witness.alone"] = new[] { "없어요... 혼자 있어서요.", "그, 그건 없어요..." },
         ["rabbit|witness.alone"] = new[] { "없어요! 혼자 있었거든요.", "아... 없네요." },
         ["crow|witness.alone"] = new[] { "없습니다.", "증인 없습니다." },
-        ["fox|witness.alone"] = new[] { "없네요. 하필 혼자였어서.", "그건 없어요. 곤란하게 됐네요~" },
+        ["fox|witness.alone"] = new[] { "없네요. 하필 혼자였어서.", "그건 없어요. 곤란하게 됐네요." },
 
         ["owl|witness.with"] = new[] { "{dname} 직원이 확인해 줄 수 있습니다.", "{dname} 직원에게 물어보시면 됩니다." },
         ["cat|witness.with"] = new[] { "{dname} 씨한테 물어보세요.", "{dname} 씨가 봤어요." },
@@ -719,7 +710,7 @@ public static class KoreanDialogueComposer
         ["jellyfish|certain.unsure"] = new[] { "그건... 잘 모르겠어요.", "제가 잘못 안 걸 수도 있어요..." },
         ["rabbit|certain.unsure"] = new[] { "음... 그건 잘 모르겠어요.", "확실하진 않아요!" },
         ["crow|certain.unsure"] = new[] { "단정할 수 없습니다.", "확인 못 했습니다." },
-        ["fox|certain.unsure"] = new[] { "글쎄요~ 장담은 못 하겠는데요.", "거기까진 모르죠. 제가 전부 볼 순 없잖아요." },
+        ["fox|certain.unsure"] = new[] { "글쎄요. 장담은 못 하겠는데요.", "거기까진 모르죠. 제가 전부 볼 순 없잖아요." },
 
         // 구체적으로 어떤 상황이었는가
         ["owl|detail.direct"] = new[] { "{iroom}에서 {what}", "가까이에서 봤습니다. {what}" },
@@ -803,6 +794,36 @@ public static class KoreanDialogueComposer
         ["crow|challenge.evasive"] = new[] { "그 부분은 기억나지 않습니다.", "말할 만한 일이 아니었습니다." },
         ["fox|challenge.evasive"] = new[] { "기록이 그렇다면 그런 거겠죠. 저는 기억이 좀 다르네요.", "굳이 말할 일이라고 생각을 못 했어요." },
 
+        // ── 추궁받았을 때의 첫 반응(ChallengeResponse 전용) ──────────────
+        ["owl|react.accused"] = new[] { "잠시만요.", "확인하겠습니다." },
+        ["cat|react.accused"] = new[] { "저요?", "잠깐만요." },
+        ["jellyfish|react.accused"] = new[] { "저, 저요...?", "네...?" },
+        ["rabbit|react.accused"] = new[] { "네?! 저요?", "어, 잠깐만요." },
+        ["crow|react.accused"] = new[] { "말씀하십시오." },
+        ["fox|react.accused"] = new[] { "저를요?", "이거 좀 곤란한데요." },
+
+        // ── 묻지 않았지만 이 사람이라면 덧붙일 법한 한 마디 ───────────────
+        ["owl|volunteer.noanomaly"] = new[] { "이상이 있었다면 바로 보고드렸을 겁니다.", "다만 제가 못 본 구역까지 장담드리지는 못합니다." },
+        ["cat|volunteer.noanomaly"] = new[] { "있었으면 진작 말씀드렸어요.", "제가 못 본 데까지는 모르겠지만요." },
+        ["jellyfish|volunteer.noanomaly"] = new[] { "제가 못 본 걸 수도 있어요...", "조용했어요. 정말요." },
+        ["rabbit|volunteer.noanomaly"] = new[] { "있었으면 바로 전화드렸을 거예요.", "오늘은 좀 조용한 편이었어요.", "필요하면 제가 한번 더 돌아볼까요?" },
+        ["crow|volunteer.noanomaly"] = new[] { "기록에도 남은 것이 없습니다." },
+        ["fox|volunteer.noanomaly"] = new[] { "뭔가 들으신 게 있으시면 말씀해주세요.", "제 쪽은 그랬다는 얘기예요." },
+
+        ["owl|volunteer.nosight"] = new[] { "확인되지 않은 사람을 지목할 수는 없습니다." },
+        ["cat|volunteer.nosight"] = new[] { "괜히 사람 이름 대고 싶진 않아요." },
+        ["jellyfish|volunteer.nosight"] = new[] { "괜히 누굴 의심하고 싶진 않아서요..." },
+        ["rabbit|volunteer.nosight"] = new[] { "근데 저도 좀 궁금하긴 해요.", "누가 이상했는지 아시면 제가 가서 볼게요." },
+        ["crow|volunteer.nosight"] = new[] { "추측으로 말하지 않겠습니다." },
+        ["fox|volunteer.nosight"] = new[] { "애매한 걸로 사람 몰아가긴 싫어서요." },
+
+        ["owl|volunteer.sight"] = new[] { "판단은 관리자님께 맡기겠습니다." },
+        ["cat|volunteer.sight"] = new[] { "그 이상은 저도 몰라요." },
+        ["jellyfish|volunteer.sight"] = new[] { "제가 잘못 본 걸 수도 있어요." },
+        ["rabbit|volunteer.sight"] = new[] { "그래서 저도 한 번 더 쳐다봤어요.", "뭔가 이상하다 싶었어요." },
+        ["crow|volunteer.sight"] = new[] { "판단은 하지 않겠습니다." },
+        ["fox|volunteer.sight"] = new[] { "뭘 하고 있었는진 저도 모르죠." },
+
         // ── 끝맺음 ─────────────────────────────────────────────────────
         ["owl|closer"] = new[] { "필요하시면 기록을 확인해주십시오." },
         ["cat|closer"] = new[] { "더 물어보실 거 있어요?" },
@@ -817,5 +838,8 @@ public static class KoreanDialogueComposer
             "그런데 그걸 왜 궁금해하시는지가 더 궁금한데요.",
             "관리자님은 어떻게 보시는데요?",
         },
+        ["cat|closer.back"] = new[] { "왜요, 뭐 나온 거 있어요?", "그게 왜 문제가 되는데요?" },
+        ["rabbit|closer.back"] = new[] { "왜요? 뭔가 나왔어요?", "제가 더 확인해볼까요?" },
+        ["jellyfish|closer.back"] = new[] { "제가... 뭔가 잘못한 건가요?" },
     };
 }

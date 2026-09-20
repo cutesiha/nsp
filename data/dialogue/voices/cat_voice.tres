@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
+
+; 핵심부터 짧게 · 군더더기 없음 · 필요할 때만 퉁명스럽다
+; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
+
+[ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
+
+[resource]
+script = ExtResource("1_voice")
+EmployeeId = "cat"
+Formal = false
+Talkativeness = 0.3
+MaxSentences = 2
+QuestionEchoChance = 0.35
+VolunteerInfoChance = 0.25
+BackQuestionChance = 0.05
+ReactionIntensity = 0.15
+HedgeChance = 0.05
+Directness = 0.8
+ExclamationChance = 0.0
+PauseChance = 0.0
+MaxExclamations = 0

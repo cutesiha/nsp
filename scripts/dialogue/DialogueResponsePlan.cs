@@ -63,6 +63,9 @@ public sealed class DialogueResponsePlan
     // 방해자가 원인을 아는 척하지 않기 위한 보정.
     public bool NeedsUnknownCauseCaveat;
 
+    // 이미 붙는 보정이 없는가. 같은 뜻의 말을 두 번 붙이지 않으려고 본다.
+    public bool CaveatFree => !NeedsIndirectCaveat && !NeedsUnknownCauseCaveat;
+
     public string RoomId = "";          // 핵심 답변에 등장하는 작업실
     public string IncidentRoomId = "";
     public LogEventType IncidentType;
