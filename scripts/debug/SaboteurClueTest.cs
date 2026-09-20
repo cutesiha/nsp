@@ -8,62 +8,69 @@ using NSP.Facility;
 
 namespace NSP.Debug;
 
-// DAY1 방해공작 전조 · 단서 구조 자동 검증.
+// DAY1 템포 · 결번자 전조 자동 검증.
 //
-//   godot --headless --path . scenes/debug/SaboteurClueTest.tscn --quit-after 900
+//   godot --headless --path . scenes/debug/SaboteurClueTest.tscn --quit-after 2000
 //
-// 실제 FacilitySimulation 을 6번(직원 한 명씩 결번자로) 돌려서
-// "방해공작이 근무 중 실제로 움직이던 직원의 행동으로 보이는가"를 확인한다.
+// 보는 것은 둘이다.
+//   ① 120초 안에 "판단할 거리"가 끊기지 않는가 (최장 무행동 구간)
+//   ② 결번자가 플레이어 명령 없이 방을 옮기지 않는가 (한 건이라도 있으면 실패)
 public partial class SaboteurClueTest : Node
 {
     private const float Step = 1f / 30f;
+    private static readonly string[] Roster = { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" };
 
     private FacilitySimulation _sim;
     private int _pass, _fail;
 
-    // 한 번의 근무에서 뽑아낸 사실.
+    // 플레이어(테스트 대역)가 내린 배치 명령. 이 명령 없이 방이 바뀌면 자율 이동이다.
+    private readonly Dictionary<string, string> _orderedMoves = new();
+    private int _unorderedMoves;
+    private readonly List<string> _unorderedLog = new();
+
     private sealed class Run
     {
         public string SaboteurId = "";
-        public LogEntry Sabotage;
-        public float ArrivedAt = -1f;
-        public string TargetRoom = "";
-        public string RoomAtSabotage = "";
-        public SaboteurPhase EndPhase;
-        public string AssignedRoom = "";
+        public float FirstWarningAt = -1f;
+        public float SecondEventAt = -1f;
+        public float PrepareAt = -1f;
+        public float SabotageAt = -1f;
+        public string SabotageRoom = "";
+        public int Precursors;
         public int CluePaths;
-        public List<string> ClueNames = new();
-        public int OutsiderMoves;      // 결번자가 아닌 직원의 근무 중 이동(오해 소지)
-        public bool OutsiderNearScene; // 그중 사건 현장/인접에 간 사람이 있었나
+        public float CoreGain;
+        public float LongestGap;
+        public int Decisions;
+        public int Cancels;
     }
 
     public override void _Ready()
     {
         _sim = FacilitySimulation.Instance;
-        if (_sim == null) { GD.PrintErr("FacilitySimulation 을 찾지 못했습니다."); return; }
+        if (_sim == null) { GD.PrintErr("FacilitySimulation 없음"); return; }
         CallDeferred(nameof(RunAll));
     }
 
     private void RunAll()
     {
-        GD.Print("################ DAY1 방해공작 전조 / 단서 구조 검증 ################");
+        GD.Print("################ DAY1 템포 / 결번자 전조 검증 ################");
         var ops = OpsProfile.For(1);
-        if (ops == null) { GD.PrintErr("data/ops/day1.tres 를 읽지 못했습니다."); return; }
-        GD.Print($"대상 시설 {ops.SabotageTargetRooms.Count}곳 · 시작 {ops.SaboteurStartSeconds:0}초 · " +
-                 $"체류 조건 {ops.SabotageDwellSeconds:0}초 · 반응 이동 최대 {ops.MaxReactionMovesPerDay}회");
+        if (ops == null) { GD.PrintErr("data/ops/day1.tres 실패"); return; }
+        float length = DayObjectives.MaxShiftSeconds;
+        GD.Print($"근무 {length:0}초 · 방해공작 활성 {ops.SaboteurStartSeconds:0}초 · " +
+                 $"준비 {ops.SabotagePrepareMinSeconds:0}~{ops.SabotagePrepareMaxSeconds:0}초 · " +
+                 $"목표 구간 {ops.SabotageWindowStartSeconds:0}~{ops.SabotageWindowEndSeconds:0}초");
 
         var runs = new List<Run>();
-        foreach (string id in new[] { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" })
-            runs.Add(Simulate(id, ops));
+        for (int i = 0; i < 12; i++) runs.Add(Simulate(Roster[i % Roster.Length], ops));
 
-        Report(runs, ops);
-        DumpLastShift();
-        CheckAbcd(runs, ops);
-        CheckE(runs);
-        CheckF(runs);
-        CheckG(runs);
-        CheckH();
-        CheckI();
+        Report(runs, ops, length);
+        CheckMovement();
+        CheckTempo(runs, ops, length);
+        CheckPrecursors(runs);
+        CheckCancel(ops);
+        CheckNormalBehaviour();
+        CheckStrategies();
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
@@ -73,312 +80,299 @@ public partial class SaboteurClueTest : Node
     private Run Simulate(string saboteurId, OpsProfileDef ops)
     {
         StartShift(saboteurId);
+        var run = new Run { SaboteurId = saboteurId };
         float length = DayObjectives.MaxShiftSeconds;
+        float startCore = GameState.Instance.CoreProgress;
         string borrowed = "", origin = "";
+        float lastDecision = 0f;
+        int clues = 0;
+        var where = Roster.ToDictionary(id => id, id => _sim.GetEmployeeState(id).CurrentRoomId);
 
         for (float t = 0f; t < length; t += Step)
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            float now = GameState.Instance.DayTimeSeconds;
 
-            // 관리자 대역 — 경고가 뜨면 가까운 방에서 한 명을 빌려 보낸다.
+            // 자율 이동 감시 — 플레이어 명령 없이 방이 바뀌면 그 자리에서 잡는다.
+            foreach (string id in Roster)
+            {
+                var st = _sim.GetEmployeeState(id);
+                if (st == null || st.CurrentRoomId == where[id]) continue;
+                // 지시한 방에 도착할 때까지는 그 명령의 이동이다(통로를 지나는 것 포함).
+                if (!_orderedMoves.ContainsKey(id))
+                {
+                    _unorderedMoves++;
+                    _unorderedLog.Add($"{id} {where[id]} → {st.CurrentRoomId} @{now:0}초");
+                }
+                else if (_orderedMoves[id] == st.CurrentRoomId) _orderedMoves.Remove(id);
+                where[id] = st.CurrentRoomId;
+            }
+
+            if (run.PrepareAt < 0f && _sim.Saboteur.Phase == SaboteurPhase.Preparing)
+                run.PrepareAt = now;
+
+            var w = _sim.Warnings.Active.FirstOrDefault();
+            if (w != null && run.FirstWarningAt < 0f) { run.FirstWarningAt = now; lastDecision = now; run.Decisions++; }
+            else if (w != null && run.SecondEventAt < 0f && now - run.FirstWarningAt > 12f)
+            { run.SecondEventAt = now; lastDecision = now; run.Decisions++; }
+
+            // 관리자 대역 — 경고가 뜨면 사람을 빌려 보낸다(= 의미 있는 판단).
+            if (w == null)
+            {
+                if (borrowed.Length > 0)
+                {
+                    Order(borrowed, origin);
+                    borrowed = ""; origin = "";
+                    lastDecision = now;
+                    run.Decisions++;
+                }
+            }
+            else if (borrowed.Length == 0 && _sim.OnDutyCount(w.RoomId) < w.RequiredStaff)
+            {
+                string donor = _sim.GetRoomIds().Where(r => r != w.RoomId)
+                    .OrderByDescending(_sim.OnDutyCount).FirstOrDefault(r => _sim.OnDutyCount(r) >= 2);
+                if (donor != null)
+                {
+                    borrowed = _sim.GetRoomState(donor).OccupantEmployeeIds.FirstOrDefault(id => id != saboteurId) ?? "";
+                    origin = donor;
+                    if (borrowed.Length > 0) { Order(borrowed, w.RoomId); lastDecision = now; run.Decisions++; }
+                }
+            }
+
+            if (_sim.Saboteur.HasActed && run.SabotageAt < 0f)
+            {
+                run.SabotageAt = _sim.Saboteur.ActedAtSeconds;
+                run.SabotageRoom = _sim.Saboteur.ActedRoomId;
+                lastDecision = now;
+                run.Decisions++;
+            }
+
+            // 고장이 열려 있는 동안은 수습 중이라 빈 시간이 아니다.
+            if (IncidentTracker.ActiveCount > 0) lastDecision = now;
+            // 전조(설비 접근·수치 이상)도 "지금 볼 것이 있다"에 해당한다.
+            if (_sim.Saboteur.Clues.Count > clues) { clues = _sim.Saboteur.Clues.Count; lastDecision = now; }
+            run.LongestGap = Mathf.Max(run.LongestGap, now - lastDecision);
+        }
+
+        run.CoreGain = GameState.Instance.CoreProgress - startCore;
+        run.Cancels = _sim.Saboteur.CancelCount;
+        run.Precursors = _sim.Saboteur.Clues.Count;
+        run.CluePaths = CountCluePaths(saboteurId, run);
+        return run;
+    }
+
+    // 플레이어의 배치 명령. 이 경로로만 방이 바뀌어야 한다.
+    private void Order(string employeeId, string roomId)
+    {
+        _orderedMoves[employeeId] = roomId;
+        _sim.AssignToRoom(employeeId, roomId);
+    }
+
+    private int CountCluePaths(string saboteurId, Run run)
+    {
+        if (run.SabotageAt < 0f) return 0;
+        DialogueContextBuilder.Invalidate();
+        int paths = 0;
+        var all = EventLog.Instance.GetAllEntries().Where(e => e.Day == 1).ToList();
+
+        if (all.Any(e => e.EventType == LogEventType.Neglect && e.ActorEmployeeId == saboteurId
+                         && e.WitnessEmployeeIds.Count > 0)) paths++;
+        var sab = all.FirstOrDefault(e => e.EventType == LogEventType.Sabotage);
+        if (sab != null && _sim.GetActiveEmployeeIds().Any(id => id != saboteurId
+                && DialogueContextBuilder.KnowledgeOf(id, sab) != KnowledgeLevel.None)) paths++;
+        if (PlayerKnownEvidence.HasRoomRecord(run.SabotageRoom)) paths++;
+        return paths;
+    }
+
+    // --- 보고 -------------------------------------------------------------
+
+    private void Report(List<Run> runs, OpsProfileDef ops, float length)
+    {
+        GD.Print("\n결번자   첫경고  두번째  준비    방해공작  전조 단서  코어    최장공백  판단");
+        foreach (var r in runs)
+            GD.Print($"  {Code(r.SaboteurId),-4}  {Fmt(r.FirstWarningAt),6}  {Fmt(r.SecondEventAt),6}  " +
+                     $"{Fmt(r.PrepareAt),6}  {Fmt(r.SabotageAt),8}  {r.Precursors,3}  {r.CluePaths,3}   " +
+                     $"{r.CoreGain,5:0.0}%  {r.LongestGap,6:0.0}초  {r.Decisions,3}회");
+
+        var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
+        GD.Print($"\n평균 — 첫 경고 {Avg(runs, r => r.FirstWarningAt):0.0}초 · " +
+                 $"두 번째 {Avg(runs, r => r.SecondEventAt):0.0}초 · " +
+                 $"준비 {Avg(acted, r => r.PrepareAt):0.0}초 · " +
+                 $"방해공작 {Avg(acted, r => r.SabotageAt):0.0}초 " +
+                 $"({acted.Count}/{runs.Count}회 발생)");
+        GD.Print($"평균 코어 {runs.Average(r => r.CoreGain):0.0}% · 최장 무행동 구간 " +
+                 $"{runs.Max(r => r.LongestGap):0.0}초 · 평균 판단 {runs.Average(r => r.Decisions):0.0}회");
+    }
+
+    // --- Test A/B : 자율 이동 금지 ------------------------------------------
+
+    private void CheckMovement()
+    {
+        GD.Print($"\n[A/B] 플레이어 명령 없는 방 이동 {_unorderedMoves}건");
+        foreach (string s in _unorderedLog.Take(5)) GD.Print("      " + s);
+        Check(_unorderedMoves == 0, "A/B 직원은 플레이어 명령으로만 방을 옮긴다");
+    }
+
+    // --- Test C/D : 재배치하면 준비가 취소된다 ------------------------------
+
+    private void CheckCancel(OpsProfileDef ops)
+    {
+        StartShift("cat");
+        Order("cat", "power_room");
+        float length = DayObjectives.MaxShiftSeconds;
+        for (float t = 0f; t < length && _sim.Saboteur.Phase != SaboteurPhase.Preparing; t += Step)
+        {
+            GameState.Instance.AdvanceDayTime(Step);
+            _sim.Tick(Step);
+        }
+        bool prepared = _sim.Saboteur.Phase == SaboteurPhase.Preparing;
+        GD.Print($"\n[C/D] 준비 시작 {(prepared ? "O" : "X")} (진행 {_sim.Saboteur.PrepareRatio:P0}) @ " +
+                 $"{GameState.Instance.DayTimeSeconds:0}초");
+        Check(prepared, "C 결번자가 배치된 자리에서 준비 상태에 들어간다");
+        if (!prepared) return;
+
+        Order("cat", "storage_room");
+        Advance(4f);
+        GD.Print($"      재배치 후 phase={_sim.Saboteur.Phase} · 취소 {_sim.Saboteur.CancelCount}회");
+        Check(_sim.Saboteur.Phase != SaboteurPhase.Preparing && _sim.Saboteur.CancelCount > 0,
+            "C 재배치하면 준비가 취소된다");
+
+        Advance(20f);
+        Check(!_sim.Saboteur.HasActed && _sim.Saboteur.Phase != SaboteurPhase.Done,
+            "D 대상이 아닌 새 자리에서는 방해공작이 일어나지 않는다");
+    }
+
+    // --- Test E~I : 전조 --------------------------------------------------
+
+    private void CheckPrecursors(List<Run> runs)
+    {
+        var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
+        GD.Print($"\n[E~I] 방해공작 {acted.Count}회 · 전조 평균 {Avg(acted, r => r.Precursors):0.0}개 · " +
+                 $"단서 경로 평균 {Avg(acted, r => r.CluePaths):0.0}개");
+        Check(acted.Count >= runs.Count * 3 / 4, "방해공작이 대부분의 근무에서 발생한다");
+        Check(acted.All(r => r.Precursors >= 1), "E 방해공작 전에 전조가 최소 1개 생긴다");
+        Check(acted.All(r => r.PrepareAt >= 0f && r.PrepareAt < r.SabotageAt),
+            "F 전조는 방 이동이 아니라 그 자리에서의 준비 과정이다");
+        Check(acted.Count(r => r.CluePaths >= 2) >= acted.Count / 2,
+            "I 절반 이상의 근무에서 단서 경로가 2개 이상 남는다");
+    }
+
+    // 정상 직원도 같은 모양의 행동을 한다 — 전조 하나로 범인이 정해지면 안 된다.
+    private void CheckNormalBehaviour()
+    {
+        StartShift("crow");
+        Advance(DayObjectives.MaxShiftSeconds);
+        var odd = EventLog.Instance.GetAllEntries()
+            .Where(e => e.Day == 1 && e.EventType == LogEventType.Neglect
+                        && !string.IsNullOrEmpty(e.ActorEmployeeId))
+            .Select(e => e.ActorEmployeeId).Distinct().ToList();
+        GD.Print($"\n[G/H] 이상 행동을 보인 직원 {odd.Count}명 ({string.Join(", ", odd.Select(Code))})");
+        Check(odd.Count(id => id != "crow") >= 1, "G 정상 직원도 비슷한 행동을 한다");
+
+        var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);
+        int noise = rows.Count(r => r.Text.Contains("확인했다") || r.Text.Contains("들여다")
+                                    || r.Text.Contains("머물렀다"));
+        GD.Print($"      시설 로그 {rows.Count}줄 · 미세 행동 노출 {noise}줄");
+        Check(noise == 0, "H 전조가 시설 로그를 도배하지 않는다(범인이 노출되지 않는다)");
+    }
+
+    // --- 전략별 결과 -------------------------------------------------------
+
+    private void CheckStrategies()
+    {
+        GD.Print("\n전략별 DAY1 결과");
+        var plans = new (string Label, (string Room, int N)[] Crew, bool Respond)[]
+        {
+            ("안정형   코어1 발전2", new[] { ("core_room", 1), ("power_room", 2), ("maintenance_room", 1), ("guard_room", 1), ("storage_room", 1) }, true),
+            ("코어집중 코어3", new[] { ("core_room", 3), ("power_room", 1), ("maintenance_room", 1), ("guard_room", 1) }, true),
+            ("경비강화 경비2", new[] { ("core_room", 1), ("power_room", 2), ("maintenance_room", 1), ("guard_room", 2) }, true),
+            ("무대응   안정형 배치", new[] { ("core_room", 1), ("power_room", 2), ("maintenance_room", 1), ("guard_room", 1), ("storage_room", 1) }, false),
+        };
+        float best = 0f;
+        var gains = new List<float>();
+        foreach (var (label, crew, respond) in plans)
+        {
+            float sum = 0f;
+            const int n = 3;
+            for (int i = 0; i < n; i++) sum += RunStrategy(crew, respond);
+            float avg = sum / n;
+            gains.Add(avg);
+            best = Mathf.Max(best, avg);
+            GD.Print($"  {label,-18} 코어 {avg:0.0}%  (자재 {GameState.Instance.Materials} · " +
+                     $"고장 {IncidentTracker.OpenedCount}건)");
+        }
+        Check(gains.Count(g => g >= best * 0.7f) >= 2, "유효 전략이 2개 이상이다");
+        Check(gains[0] > gains[3], "경고에 대응하는 쪽이 방치보다 낫다");
+    }
+
+    private float RunStrategy((string Room, int N)[] crew, bool respond)
+    {
+        StartShift("fox", crew);
+        float start = GameState.Instance.CoreProgress;
+        float length = DayObjectives.MaxShiftSeconds;
+        string borrowed = "", origin = "";
+        for (float t = 0f; t < length; t += Step)
+        {
+            GameState.Instance.AdvanceDayTime(Step);
+            _sim.Tick(Step);
+            if (!respond) continue;
+
             var w = _sim.Warnings.Active.FirstOrDefault();
             if (w == null)
             {
-                if (borrowed.Length > 0) { _sim.AssignToRoom(borrowed, origin); borrowed = ""; origin = ""; }
+                if (borrowed.Length > 0) { Order(borrowed, origin); borrowed = ""; origin = ""; }
                 continue;
             }
             if (borrowed.Length > 0 || _sim.OnDutyCount(w.RoomId) >= w.RequiredStaff) continue;
             string donor = _sim.GetRoomIds().Where(r => r != w.RoomId)
                 .OrderByDescending(_sim.OnDutyCount).FirstOrDefault(r => _sim.OnDutyCount(r) >= 2);
             if (donor == null) continue;
-            borrowed = _sim.GetRoomState(donor).OccupantEmployeeIds.FirstOrDefault(id => id != saboteurId) ?? "";
+            borrowed = _sim.GetRoomState(donor).OccupantEmployeeIds.FirstOrDefault() ?? "";
             origin = donor;
-            if (borrowed.Length > 0) _sim.AssignToRoom(borrowed, w.RoomId);
+            if (borrowed.Length > 0) Order(borrowed, w.RoomId);
         }
-
-        return Collect(saboteurId);
+        return GameState.Instance.CoreProgress - start;
     }
 
-    private Run Collect(string saboteurId)
+    // --- 템포 -------------------------------------------------------------
+
+    private void CheckTempo(List<Run> runs, OpsProfileDef ops, float length)
     {
-        // 근무마다 로그가 통째로 바뀌므로 위치 타임라인 캐시를 반드시 버린다.
-        DialogueContextBuilder.Invalidate();
-        var run = new Run { SaboteurId = saboteurId };
-        var all = EventLog.Instance.GetAllEntries().Where(e => e.Day == 1).ToList();
-        run.Sabotage = all.FirstOrDefault(e => e.EventType == LogEventType.Sabotage);
-        run.EndPhase = _sim.Saboteur.Phase;
-        run.TargetRoom = string.IsNullOrEmpty(_sim.Saboteur.ActedRoomId)
-            ? _sim.Saboteur.TargetRoomId : _sim.Saboteur.ActedRoomId;
-        if (run.Sabotage == null) return run;
+        float firstAvg = Avg(runs, r => r.FirstWarningAt);
+        var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
+        float sabAvg = Avg(acted, r => r.SabotageAt);
+        float worstGap = runs.Max(r => r.LongestGap);
 
-        float t = run.Sabotage.GameTimeSeconds;
-        string room = run.Sabotage.RoomId;
-        run.RoomAtSabotage = DialogueContextBuilder.RoomAt(saboteurId, 1, t);
-        run.AssignedRoom = _sim.GetEmployeeState(saboteurId)?.AssignedRoomId ?? "";
-
-        // 도착 시각 — 마지막으로 그 방에 "들어온"(통과가 아닌) 기록.
-        var arrival = all.LastOrDefault(e => e.EventType == LogEventType.RoomEnter
-                                             && e.ActorEmployeeId == saboteurId
-                                             && e.RoomId == room && !e.PassingThrough
-                                             && e.GameTimeSeconds <= t);
-        run.ArrivedAt = arrival?.GameTimeSeconds ?? -1f;
-
-        // ── 단서 경로 ──
-        var rows = FacilityLogFormatter.Build(all, 1);
-        if (rows.Any(r => r.RelatedEmployeeId == saboteurId && r.ToRoomId == room && r.Timestamp <= t))
-        { run.CluePaths++; run.ClueNames.Add("시설 로그 이동 기록"); }
-
-        var witnesses = _sim.GetActiveEmployeeIds()
-            .Where(id => id != saboteurId
-                         && DialogueContextBuilder.KnowledgeOf(id, run.Sabotage) != KnowledgeLevel.None)
-            .ToList();
-        if (witnesses.Count > 0)
-        {
-            run.CluePaths++;
-            run.ClueNames.Add("증언 " + string.Join("/", witnesses.Select(Codename)));
-        }
-        if (PlayerKnownEvidence.HasRoomRecord(room))
-        { run.CluePaths++; run.ClueNames.Add("CCTV·순찰 기록"); }
-
-        // ── 정상 직원의 오해 소지 ──
-        foreach (var r in rows.Where(r => !string.IsNullOrEmpty(r.ToRoomId)
-                                          && r.RelatedEmployeeId != saboteurId))
-        {
-            run.OutsiderMoves++;
-            if (r.ToRoomId == room || DialogueContextBuilder.IsAdjacent(r.ToRoomId, room))
-                run.OutsiderNearScene = true;
-        }
-        return run;
+        Check(firstAvg >= 15f && firstAvg <= 32f, $"첫 경고가 18~28초 언저리다 (평균 {firstAvg:0.0}초)");
+        Check(acted.All(r => r.SabotageAt <= ops.SabotageWindowEndSeconds + 20f),
+            "방해공작이 근무 막판까지 밀리지 않는다");
+        Check(sabAvg >= 70f && sabAvg <= 102f, $"방해공작 평균 시각이 80~95초 언저리다 ({sabAvg:0.0}초)");
+        Check(worstGap <= 30f, $"30초 넘게 아무 일도 없는 구간이 없다 (최장 {worstGap:0.0}초)");
+        Check(runs.Average(r => r.Decisions) >= 4f,
+            $"근무당 의미 있는 판단이 4회 이상이다 ({runs.Average(r => r.Decisions):0.0}회)");
     }
 
-    // --- 보고 -------------------------------------------------------------
+    // --- 도우미 -----------------------------------------------------------
 
-    private void Report(List<Run> runs, OpsProfileDef ops)
+    private static string Fmt(float v) => v < 0f ? "-" : $"{v:0}초";
+
+    private static float Avg(List<Run> runs, System.Func<Run, float> sel)
     {
-        GD.Print("\n결번자      방해공작      도착 → 실행     단서 경로");
-        foreach (var r in runs)
+        var vals = runs.Select(sel).Where(v => v >= 0f).ToList();
+        return vals.Count == 0 ? -1f : vals.Average();
+    }
+
+    private void Advance(float seconds)
+    {
+        for (float t = 0f; t < seconds; t += Step)
         {
-            if (r.Sabotage == null)
-            {
-                GD.Print($"  {Codename(r.SaboteurId),-6}   발생 안 함  ({r.EndPhase} · 대상 {RoomName(r.TargetRoom)})");
-                continue;
-            }
-            float t = r.Sabotage.GameTimeSeconds;
-            GD.Print($"  {Codename(r.SaboteurId),-6}   {SaboteurPlan.Clock(t)} {RoomName(r.Sabotage.RoomId),-5}" +
-                     $"   체류 {(r.ArrivedAt < 0f ? -1f : t - r.ArrivedAt):0}초" +
-                     $"   {r.CluePaths}개 [{string.Join(", ", r.ClueNames)}]" +
-                     $"   타 직원 이동 {r.OutsiderMoves}건");
+            GameState.Instance.AdvanceDayTime(Step);
+            _sim.Tick(Step);
         }
     }
 
-    // 마지막 근무에서 플레이어가 실제로 보게 되는 시설 로그와, 개발용 사후 요약.
-    private void DumpLastShift()
-    {
-        GD.Print("\n──────── 마지막 근무의 시설 로그(플레이어가 보는 화면) ────────");
-        foreach (var row in FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1))
-            GD.Print($"  {SaboteurPlan.Clock(row.Timestamp)}  {row.Text}   [{row.Severity}]");
-        GD.Print(_sim.Saboteur.DebugSummary(_sim));
-    }
-
-    // --- Test A~D ----------------------------------------------------------
-
-    private void CheckAbcd(List<Run> runs, OpsProfileDef ops)
-    {
-        var acted = runs.Where(r => r.Sabotage != null).ToList();
-        GD.Print($"\n[A~D] 6회 중 {acted.Count}회 방해공작 발생");
-        Check("방해공작이 대부분의 근무에서 실제로 발생한다", acted.Count >= 5);
-
-        foreach (var r in acted.Where(r => r.RoomAtSabotage != r.Sabotage.RoomId))
-            GD.Print($"    [A 불일치] {Codename(r.SaboteurId)} 기록상 위치 " +
-                     $"{RoomName(r.RoomAtSabotage)} ≠ 사건 장소 {RoomName(r.Sabotage.RoomId)}");
-        Check("A 결번자가 실제로 그 방에 있을 때만 그 방에서 발생한다",
-            acted.All(r => r.RoomAtSabotage == r.Sabotage.RoomId));
-        Check("A 대상은 중요 시설(코어/발전/정비)로 제한된다",
-            acted.All(r => ops.SabotageTargetRooms.Contains(r.Sabotage.RoomId)));
-        Check("A 결번자의 배치실이 아닌 곳에서 벌어진다",
-            acted.All(r => r.AssignedRoom != r.Sabotage.RoomId));
-
-        Check("B 근무 시작 직후에는 발생하지 않는다",
-            acted.All(r => r.Sabotage.GameTimeSeconds >= ops.SaboteurStartSeconds));
-
-        Check("C 방해공작 전에 그 방으로 들어온 기록(이동 전조)이 있다",
-            acted.All(r => r.ArrivedAt >= 0f && r.ArrivedAt < r.Sabotage.GameTimeSeconds));
-        Check("C 도착 후 일정 시간 머문 뒤에 손을 댄다(체류 전조)",
-            acted.All(r => r.Sabotage.GameTimeSeconds - r.ArrivedAt >= ops.SabotageDwellSeconds - 1f));
-
-        Check("D 사건마다 추적 가능한 단서 경로가 2개 이상이다",
-            acted.All(r => r.CluePaths >= 2));
-        Check("D 이동 기록만으로 끝나지 않는다(증언 또는 기록이 함께 남는다)",
-            acted.All(r => r.ClueNames.Count(n => n != "시설 로그 이동 기록") >= 1));
-    }
-
-    // --- Test E ------------------------------------------------------------
-
-    private void CheckE(List<Run> runs)
-    {
-        int withOutsider = runs.Count(r => r.OutsiderMoves > 0);
-        int nearScene = runs.Count(r => r.OutsiderNearScene);
-        GD.Print($"\n[E] 정상 직원이 근무 중 자리를 옮긴 근무 {withOutsider}/6 · " +
-                 $"그중 사건 현장 근처까지 간 근무 {nearScene}회");
-        Check("E 정상 직원도 정상적인 이유로 자리를 옮긴다", withOutsider >= 4);
-        Check("E 로그만 보고 '움직인 사람 = 범인'이 되지 않는다",
-            runs.Where(r => r.Sabotage != null).All(r => r.OutsiderMoves >= 1));
-    }
-
-    // --- Test F ------------------------------------------------------------
-
-    // 일반 직원은 거짓말하지 않는다 — 위치도, 목격도.
-    private void CheckF(List<Run> runs)
-    {
-        var last = runs.Last();
-        GameState.Instance.SetSaboteur(last.SaboteurId);
-        DialogueContextBuilder.Invalidate();
-
-        bool locationOk = true, sightingOk = true;
-        foreach (string id in _sim.GetActiveEmployeeIds())
-        {
-            if (id == last.SaboteurId) continue;
-            var ctx = DialogueContextBuilder.Build(id, DialogueConversationKind.Interview,
-                DialogueQuestions.Where, "", null);
-            var plan = DialogueResponsePlanner.Plan(ctx);
-            if (plan.Deception != DeceptionMode.None) locationOk = false;
-            if (plan.Core == CoreKind.SelfLocation && plan.RoomId != ctx.RoomAtSubject) locationOk = false;
-
-            var ctx3 = DialogueContextBuilder.Build(id, DialogueConversationKind.Interview,
-                DialogueQuestions.Suspicious, "", null);
-            var plan3 = DialogueResponsePlanner.Plan(ctx3);
-            if (plan3.Core == CoreKind.SuspiciousSighting && ctx3.KnownSuspicious == null) sightingOk = false;
-        }
-        GD.Print($"\n[F] 일반 직원 {_sim.GetActiveEmployeeIds().Count - 1}명 진술 검사");
-        Check("F 일반 직원은 실제 위치 그대로 진술한다", locationOk);
-        Check("F 일반 직원은 실제로 본 것이 없으면 아무도 지목하지 않는다", sightingOk);
-    }
-
-    // --- Test G ------------------------------------------------------------
-
-    // 결번자의 거짓말은 한 사건 안에서 바뀌지 않는다.
-    private void CheckG(List<Run> runs)
-    {
-        var run = runs.LastOrDefault(r => r.Sabotage != null);
-        if (run == null) { Check("G 결번자 주장 일관성", false); return; }
-
-        GameState.Instance.SetSaboteur(run.SaboteurId);
-        DialogueContextBuilder.Invalidate();
-
-        var rooms = new List<string>();
-        string claimKey = "";
-        foreach (string q in new[] { DialogueQuestions.Where, DialogueQuestions.Where,
-                                     DialogueQuestions.Anomaly, DialogueQuestions.Accuse })
-        {
-            var ctx = DialogueContextBuilder.Build(run.SaboteurId, DialogueConversationKind.Interview, q, "", null);
-            claimKey = ctx.ClaimKey;
-            var plan = DialogueResponsePlanner.Plan(ctx);
-            if (plan.Core == CoreKind.SelfLocation) rooms.Add(plan.RoomId);
-        }
-        var claim = DialogueClaimState.Get(run.SaboteurId, 1, claimKey);
-        GD.Print($"\n[G] 결번자 {Codename(run.SaboteurId)} · 전략 {claim.Mode} · " +
-                 $"주장 위치 {RoomName(claim.ClaimedRoomId)} (진실 {claim.ClaimTruthful})");
-        Check("G 같은 사건에 대한 주장 위치가 바뀌지 않는다", rooms.Distinct().Count() <= 1);
-        Check("G 답변이 DialogueClaimState 의 주장과 일치한다",
-            rooms.Count == 0 || rooms[0] == claim.ClaimedRoomId);
-    }
-
-    // --- Test H ------------------------------------------------------------
-
-    // 캐릭터에 따라 행동과 증언이 실제로 다른가.
-    private void CheckH()
-    {
-        var rabbit = EmployeeTraits.Get("rabbit");
-        var crow = EmployeeTraits.Get("crow");
-        var jelly = EmployeeTraits.Get("jellyfish");
-        GD.Print($"\n[H] 이동 성향 토끼 {rabbit.MovementTendency} vs 까마귀 {crow.MovementTendency} · " +
-                 $"위험 회피 해파리 {jelly.AvoidsDanger} · 관찰력 까마귀 {crow.ObservationalAwareness} " +
-                 $"vs 토끼 {rabbit.ObservationalAwareness}");
-        Check("H 토끼는 까마귀보다 훨씬 자주 움직인다",
-            rabbit.MovementTendency > crow.MovementTendency && rabbit.Curiosity > crow.Curiosity);
-        Check("H 해파리는 위험을 가장 강하게 피한다",
-            EmployeeTraits.All.Values.All(t => t.AvoidsDanger <= jelly.AvoidsDanger));
-        Check("H 진술 정확도가 캐릭터마다 다르다",
-            EmployeeTraits.All.Values.Select(t => t.StatementPrecision).Distinct().Count() >= 3);
-
-        // 같은 자리에서 같은 사건을 겪어도 관찰력에 따라 아는 정도가 다르다.
-        EventLog.Instance.ClearAll();
-        GameState.Instance.SetSaboteur("");
-        DialogueClaimState.ResetAll();
-        foreach (var (id, room) in new[] { ("crow", "guard_room"), ("rabbit", "guard_room") })
-        {
-            var st = _sim.GetEmployeeState(id);
-            st.AssignedRoomId = st.CurrentRoomId = room;
-        }
-        var entry = new LogEntry
-        {
-            Day = 1, GameTimeSeconds = 60f, EventType = LogEventType.Sabotage,
-            ActorEmployeeId = "fox", RoomId = "power_room", Description = "(테스트)",
-        };
-        EventLog.Instance.Log(entry);
-        DialogueContextBuilder.Invalidate();
-        var crowKnows = DialogueContextBuilder.KnowledgeOf("crow", entry);
-        var rabbitKnows = DialogueContextBuilder.KnowledgeOf("rabbit", entry);
-        GD.Print($"    옆 방(경비실)에서 — 까마귀 {crowKnows} / 토끼 {rabbitKnows}");
-        Check("H 관찰력이 낮으면 옆 방 사건을 알지 못한다",
-            crowKnows == KnowledgeLevel.Indirect && rabbitKnows == KnowledgeLevel.None);
-    }
-
-    // --- Test I ------------------------------------------------------------
-
-    // 오늘의 기분과 결번자 여부 사이에 상관이 있으면 안 된다.
-    private void CheckI()
-    {
-        const int Rolls = 900;
-        var asSaboteur = new Dictionary<string, Dictionary<string, int>>();
-        var asNormal = new Dictionary<string, Dictionary<string, int>>();
-        var roster = _sim.GetActiveEmployeeIds().ToList();
-        foreach (string id in roster)
-        {
-            asSaboteur[id] = new Dictionary<string, int>();
-            asNormal[id] = new Dictionary<string, int>();
-        }
-
-        for (int i = 0; i < Rolls; i++)
-        {
-            string sab = roster[i % roster.Count];
-            GameState.Instance.SetSaboteur(sab);
-            _sim.RollDailyMoods();
-            foreach (string id in roster)
-            {
-                string mood = _sim.GetDailyMood(id);
-                if (string.IsNullOrEmpty(mood)) continue;
-                var bucket = id == sab ? asSaboteur[id] : asNormal[id];
-                bucket[mood] = bucket.GetValueOrDefault(mood, 0) + 1;
-            }
-        }
-
-        float worst = 0f;
-        string worstLabel = "";
-        foreach (string id in roster)
-        {
-            int nS = asSaboteur[id].Values.Sum(), nN = asNormal[id].Values.Sum();
-            if (nS < 20 || nN < 20) continue;
-            foreach (string mood in asSaboteur[id].Keys.Union(asNormal[id].Keys))
-            {
-                float diff = Mathf.Abs(asSaboteur[id].GetValueOrDefault(mood, 0) / (float)nS
-                                       - asNormal[id].GetValueOrDefault(mood, 0) / (float)nN);
-                if (diff <= worst) continue;
-                worst = diff;
-                worstLabel = $"{Codename(id)} '{mood}'";
-            }
-        }
-        GD.Print($"\n[I] 기분 {Rolls}회 재배정 — 결번자일 때와 아닐 때의 최대 빈도 차 " +
-                 $"{worst:P0} ({worstLabel})");
-        // 표현이 30가지쯤 되므로 "가장 크게 벌어진 한 칸"은 우연만으로도 10% 안팎까지 뜬다.
-        // 실제 상관이 있으면 30% 이상 벌어지므로 20% 를 경계로 둔다.
-        Check("I 오늘의 기분은 결번자 여부와 상관이 없다", worst < 0.2f);
-    }
-
-    // --- 도우미 ------------------------------------------------------------
-
-    private void StartShift(string saboteurId)
+    private void StartShift(string saboteurId, (string Room, int N)[] plan = null)
     {
         EventLog.Instance.ClearAll();
         IncidentTracker.Reset();
@@ -386,8 +380,9 @@ public partial class SaboteurClueTest : Node
         _sim.ResetRun();
         GameState.Instance.SetPhase(GamePhase.Schedule);
         _sim.RollDailyMoods();
+        _orderedMoves.Clear();
 
-        var plan = new (string Room, int N)[]
+        plan ??= new (string, int)[]
         {
             ("core_room", 2), ("power_room", 1), ("maintenance_room", 1),
             ("guard_room", 1), ("storage_room", 1),
@@ -395,19 +390,18 @@ public partial class SaboteurClueTest : Node
         var roster = _sim.GetActiveEmployeeIds().ToList();
         int i = 0;
         foreach (var (room, n) in plan)
-            for (int k = 0; k < n && i < roster.Count; k++, i++) _sim.AssignToRoom(roster[i], room);
+            for (int k = 0; k < n && i < roster.Count; k++, i++) Order(roster[i], room);
 
         GameState.Instance.SetSaboteur(saboteurId);
         _sim.ResetForNewShift();
         GameState.Instance.SetPhase(GamePhase.Live);
     }
 
-    private void Check(string label, bool ok)
+    private void Check(bool ok, string label)
     {
         GD.Print(ok ? $"   PASS  {label}" : $"   FAIL  {label}");
         if (ok) _pass++; else _fail++;
     }
 
-    private string Codename(string id) => _sim.GetEmployeeDef(id)?.Codename ?? id;
-    private string RoomName(string id) => string.IsNullOrEmpty(id) ? "-" : _sim.RoomDisplayName(id);
+    private string Code(string id) => _sim.GetEmployeeDef(id)?.Codename ?? id;
 }

@@ -35,6 +35,7 @@ public sealed class FacilityWarningSystem
     private readonly Dictionary<string, float> _nextCheckAt = new();
     private readonly Dictionary<string, float> _cooldownUntil = new();
     private readonly HashSet<ScheduledWarningDef> _firedSchedule = new();
+    private readonly Dictionary<ScheduledWarningDef, float> _scheduleAt = new();
     private readonly Random _rng = new();
     private float _gapUntil;
 
@@ -53,6 +54,7 @@ public sealed class FacilityWarningSystem
         _nextCheckAt.Clear();
         _cooldownUntil.Clear();
         _firedSchedule.Clear();
+        _scheduleAt.Clear();
         _gapUntil = 0f;
         Raised = Prevented = Failed = 0;
     }
@@ -125,7 +127,16 @@ public sealed class FacilityWarningSystem
     {
         foreach (var s in profile.ScheduledWarnings)
         {
-            if (s == null || _firedSchedule.Contains(s) || now < s.AtSeconds) continue;
+            if (s == null || _firedSchedule.Contains(s)) continue;
+            // 같은 초에 매번 뜨면 대본처럼 보인다 — 사건은 보장하되 시각만 흔든다.
+            if (!_scheduleAt.TryGetValue(s, out float at))
+            {
+                at = s.AtSeconds + (s.JitterSeconds > 0f
+                    ? (float)(_rng.NextDouble() * 2.0 - 1.0) * s.JitterSeconds
+                    : 0f);
+                _scheduleAt[s] = at = Mathf.Max(1f, at);
+            }
+            if (now < at) continue;
             _firedSchedule.Add(s);
 
             var ops = OpsProfile.Room(s.RoomId);

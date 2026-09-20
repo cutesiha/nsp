@@ -279,6 +279,9 @@ public partial class GameState : Node
     public void GoToNextDay()
     {
         CurrentDay += 1;
+        // 가상 시뮬레이션(DAY0)에서 올린 복구율은 실적이 아니라 연습이다.
+        // 실제 근무 첫날은 반드시 0% 에서 시작한다.
+        if (CurrentDay == 1) CoreProgress = 0f;
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;
         RepairPowerAccident();

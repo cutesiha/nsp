@@ -45,14 +45,14 @@ public partial class OpsProfileDef : Resource
     // 결번자가 노릴 수 있는 중요 시설. 비워 두면 예전 방식(현재 있는 방에서 바로 실행).
     // 결번자가 실제로 그 방까지 걸어가야만 그 방에서 사고가 난다.
     [Export] public Godot.Collections.Array<string> SabotageTargetRooms = new();
-    // SaboteurStartSeconds 보다 이만큼 먼저 자리를 뜨기 시작한다(걸어갈 시간).
-    [Export] public float SabotageApproachLeadSeconds = 14f;
-    // 대상 작업실에서 이만큼 머문 뒤에야 손을 댄다 — 체류 자체가 전조가 된다.
-    [Export] public float SabotageDwellSeconds = 10f;
-    // 같은 방에 이 인원보다 많으면 시도하지 않는다.
-    [Export] public int SabotageMaxOthersInRoom = 1;
-    // 저지른 뒤 원래 자리로 돌아가기까지의 시간(초).
-    [Export] public float SaboteurReturnSeconds = 8f;
+    // 배치된 자리에 이만큼 자리를 잡아야 기회가 열린다.
+    [Export] public float SabotageSettleSeconds = 6f;
+    // 준비(전조가 새어 나오는 구간)에 걸리는 시간. 인원·경비에 따라 늘어난다.
+    [Export] public float SabotagePrepareMinSeconds = 10f;
+    [Export] public float SabotagePrepareMaxSeconds = 16f;
+    // 실제 방해공작이 일어나길 바라는 구간(초). 시작 전에는 준비만 한다.
+    [Export] public float SabotageWindowStartSeconds = 78f;
+    [Export] public float SabotageWindowEndSeconds = 96f;
 
     // ── 정상 직원의 반응 이동(EmployeeBehaviorSystem) ──────────────────
     // 사고가 났을 때 성격에 따라 자리를 뜨는 최대 인원. 로그가 복잡해지지 않게 제한한다.

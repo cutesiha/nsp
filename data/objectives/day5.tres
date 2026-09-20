@@ -44,5 +44,5 @@ TargetRooms = Array[String]([])
 script = ExtResource("1_plan")
 Day = 5
 Note = "봉쇄 코어 100% 복구 — 이 날의 목표는 하나뿐이다."
-MaxShiftSeconds = 180.0
+MaxShiftSeconds = 120.0
 Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_rooms"), SubResource("obj_alive")])

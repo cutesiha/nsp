@@ -44,5 +44,5 @@ TargetRooms = Array[String]([])
 script = ExtResource("1_plan")
 Day = 1
 Note = "기본 운영 루프(코어 복구 + 경고 대응)를 익히는 날."
-MaxShiftSeconds = 180.0
+MaxShiftSeconds = 120.0
 Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_warn"), SubResource("obj_nobreak")])

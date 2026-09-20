@@ -31,6 +31,8 @@ public static class RoomStaffing
                 mult *= Mathf.Max(0.05f, ops.OutputWhileBroken);
             else
                 mult *= OpsProfile.Curve(ops.FacilityOutput, Count(ops.RoomId));
+            // 미세 이상이 도는 동안은 출력이 살짝 내려앉는다(100% → 94% → 100%).
+            if (Sim != null && Sim.HasMicroFault(ops.RoomId)) mult *= 0.94f;
         }
         return mult;
     }

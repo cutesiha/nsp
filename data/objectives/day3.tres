@@ -44,5 +44,5 @@ TargetRooms = Array[String](["core_room", "power_room"])
 script = ExtResource("1_plan")
 Day = 3
 Note = "예방뿐 아니라 실제 사고 대응까지 포함한다."
-MaxShiftSeconds = 180.0
+MaxShiftSeconds = 120.0
 Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_resolve"), SubResource("obj_rooms")])

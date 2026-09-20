@@ -8,6 +8,8 @@ namespace NSP.Data;
 public partial class ScheduledWarningDef : Resource
 {
     [Export] public float AtSeconds = 30f;
+    // 매번 똑같은 초에 뜨면 대본처럼 느껴진다. ±이 값 안에서 흔들린다(사건 자체는 보장).
+    [Export] public float JitterSeconds = 0f;
     [Export] public string RoomId = "";
     // 0 이하면 그 방의 RoomOpsDef 값을 쓴다.
     [Export] public int RequiredStaff = 0;

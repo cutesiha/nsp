@@ -207,8 +207,17 @@ public partial class FacilityMinimap : Control
 
         if (def.IsCoreRoom)
             DrawString(_font, new Vector2(box.Position.X, box.Position.Y - 14f),
-                $"CORE {NSP.Core.GameState.Instance.CoreProgress:0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
+                $"CORE {sim.CoreProgressPreview():0.0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
                 new Color(0.5f, 0.8f, 1f));
+
+        // 지금 이 인원이면 무엇이 달라지는가. 사람을 옮기는 즉시 이 줄이 바뀐다.
+        string effect = sim.StaffingEffectLine(roomId);
+        if (!string.IsNullOrEmpty(effect))
+            DrawString(_font, box.Position + new Vector2(0f, box.Size.Y - 4f), effect,
+                HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
+                effect.Contains("불안정") || effect.Contains("정지")
+                    ? new Color(1f, 0.72f, 0.35f)
+                    : new Color(0.62f, 0.78f, 0.72f));
     }
 
     // 사고 수리 표시 — 방 바로 위에 붉은 진행 막대 한 줄. 글자는 막대 안에 넣는다.
