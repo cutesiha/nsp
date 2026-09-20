@@ -67,6 +67,8 @@ public partial class Phone3D : Node3D
     private double _autoPickupAt = -1;
 
     public bool IsBusy => _state != PhoneState.Idle;
+    // 지금 벨이 울리는 중인가. 대사 진행 입력이 수화기 클릭을 가로채지 않게 하는 데 쓴다.
+    public bool IsRinging => _state == PhoneState.Ringing;
 
     public override void _Ready()
     {

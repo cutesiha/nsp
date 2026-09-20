@@ -40,6 +40,8 @@ public partial class TitleRoomDirector : Node
 
     // 화면 오른쪽 아래에 늘 떠 있는 조작 안내. 이 한 줄만 남긴다.
     private const string MenuHint = "↑ ↓ 이동   ENTER 확인";
+    // 확인 창(예/아니오)은 선택지가 가로로 놓인다 — 안내도 좌우로 바꾼다.
+    private const string ConfirmHint = "← → 선택   ENTER 확인   ESC 취소";
 
     // 책상 장비 ↔ 명령 연결. 라벨은 화면 아래 힌트 줄에 뜬다.
     private static readonly (string Id, string Hint)[] PropHints =
@@ -194,7 +196,7 @@ public partial class TitleRoomDirector : Node
         Sfx.Instance?.Play("relay_click", -6f);
         switch (id)
         {
-            case "start": _ = StartShiftAsync(); break;
+            case "start": ShowStartConfirm(); break;
             case "archive": _ = ArchiveAsync(); break;
             case "config": OpenSettings(); break;
             case "quit": ShowShutdownConfirm(); break;
@@ -262,12 +264,21 @@ public partial class TitleRoomDirector : Node
         _settings.Open();
     }
 
+    // 근무 개시 — 시스템 종료와 같은 확인 창을 한 번 거친다.
+    private void ShowStartConfirm()
+    {
+        var term = TitleTerminalView.Instance;
+        term.BeginReport("BEGIN NIGHT SHIFT?", ("go", "예"), ("no", "아니오"));
+        term.PushLine("근무를 개시하시겠습니까?", 1);
+        _hint.SetSub(ConfirmHint);
+    }
+
     private void ShowShutdownConfirm()
     {
         var term = TitleTerminalView.Instance;
         term.BeginReport("SHUT DOWN SYSTEM?", ("yes", "예"), ("no", "아니오"));
         term.PushLine("시스템을 종료하시겠습니까?", 2);
-        _hint.SetSub("ESC 로 취소");
+        _hint.SetSub(ConfirmHint);
     }
 
     // 종료 — 장비가 하나씩 꺼지고 SYSTEM OFFLINE.
@@ -330,11 +341,11 @@ public partial class TitleRoomDirector : Node
 
             switch (k.Keycode)
             {
-                case Key.Up or Key.W:
+                case Key.Up or Key.W or Key.Left or Key.A:
                     if (TitleTerminalView.Instance.MoveCursor(-1)) Sfx.Instance?.Play("tick", -16f);
                     GetViewport().SetInputAsHandled();
                     return;
-                case Key.Down or Key.S:
+                case Key.Down or Key.S or Key.Right or Key.D:
                     if (TitleTerminalView.Instance.MoveCursor(1)) Sfx.Instance?.Play("tick", -16f);
                     GetViewport().SetInputAsHandled();
                     return;
@@ -377,6 +388,7 @@ public partial class TitleRoomDirector : Node
     {
         switch (id)
         {
+            case "go": _ = StartShiftAsync(); return;
             case "yes": _ = ShutdownAsync(); return;
             case "no":
             case "back":
@@ -540,7 +552,7 @@ public partial class TitleRoomDirector : Node
             _sub = Make(ViewFont.FS(13), new Color(0.40f, 0.48f, 0.50f), -58f);
             _sub.HorizontalAlignment = HorizontalAlignment.Right;
             _sub.AnchorLeft = 1f;
-            _sub.OffsetLeft = -420f;
+            _sub.OffsetLeft = -640f;
             _sub.OffsetRight = -28f;
             root.AddChild(_sub);
             Visible = false;

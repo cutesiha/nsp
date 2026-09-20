@@ -26,6 +26,8 @@ public partial class GuideHologramView : Control
 
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+    // 이미 확인한 선택지의 색 — 같은 하늘색 계열을 연하게 뺀 값.
+    private static readonly Color AnsweredInk = new(0.46f, 0.60f, 0.64f);
     private static readonly Color ConsoleInk = new(0.62f, 0.92f, 0.78f);
     private static readonly Color ConsoleOk = new(0.75f, 1f, 0.6f);
 
@@ -219,7 +221,9 @@ public partial class GuideHologramView : Control
         // 얼굴이 빠진 만큼 정보판을 크게 키워 가운데에 놓는다.
         _panel.Position = on ? new Vector2(178f, 104f) : new Vector2(388f, 88f);
         _panel.Scale = on ? new Vector2(1.5f, 1.5f) : Vector2.One;
-        _icons.Position = on ? new Vector2(126f, 368f) : new Vector2(126f, 380f);
+        // 아이콘은 압축 모드에서 더 크고 조금 더 아래에 놓인다(정보판과 겹치지 않게).
+        _icons.Position = on ? new Vector2(126f, 398f) : new Vector2(126f, 380f);
+        _icons.Size = new Vector2(548f, on ? 78f : 56f);
         _choices.Position = on ? new Vector2(148f, 376f) : new Vector2(148f, 382f);
     }
 
@@ -293,8 +297,9 @@ public partial class GuideHologramView : Control
         {
             var captured = opt;
             bool answered = _answeredOptions.Contains(captured.GuideId);
-            // 이미 확인한 질문은 체크 표시만 붙인다. 색을 어둡게 하면 글씨가 아예 안 보인다.
-            var accent = Cyan;
+            // 이미 확인한 질문은 체크 표시 + 연한 색. 너무 어둡게 하면 글씨가 안 보이므로
+            // 밝기는 남기고 채도만 뺀다.
+            var accent = answered ? AnsweredInk : Cyan;
             string label = (answered ? "✓  " : "") + captured.Label;
 
             void Pick()
@@ -315,6 +320,7 @@ public partial class GuideHologramView : Control
             }
 
             var b = MonitorUi.Button(label, accent, _font, Pick, ViewFont.S(16));
+            b.AddThemeColorOverride("font_disabled_color", accent);
             b.Disabled = answered;
             b.CustomMinimumSize = new Vector2(0f, 40f);
             _choices.AddChild(b);
@@ -414,12 +420,15 @@ public partial class GuideHologramView : Control
         _portrait.QueueRedraw();
         // 왼쪽 CRT 의 얼굴 화면과 교육용 구석 창도 같은 표정으로 맞춘다.
         GuideFaceView.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture, mouthless);
-        GuideCornerFace.Instance?.SetPortrait(_portrait.Expression, _portrait.Texture, mouthless);
+        GuideCornerFace.SetPortraitAll(_portrait.Expression, _portrait.Texture, mouthless);
     }
 
     // 초상 탐색 규칙은 GuideArt 한 곳에만 둔다(얼굴 화면도 같은 규칙을 쓴다).
     private static Texture2D LoadPortrait(string expression) =>
         GuideArt.Portrait(expression, out _);
+
+    // 압축 모드(프롤로그 브리핑)에서는 아이콘이 화면의 주인공이라 더 크게 그린다.
+    private float IconSide => _compact ? 70f : 52f;
 
     private void BuildEmployeeIcons()
     {
@@ -432,7 +441,7 @@ public partial class GuideHologramView : Control
             if (def == null) continue;
             _icons.AddChild(new EmployeeIcon
             {
-                CustomMinimumSize = new Vector2(52f, 52f),
+                CustomMinimumSize = new Vector2(IconSide, IconSide),
                 Tex = def.FacePortrait,
                 Tint = def.IconColor,
                 MouseFilter = MouseFilterEnum.Ignore,
@@ -470,7 +479,7 @@ public partial class GuideHologramView : Control
         {
             _portrait.QueueRedraw();
             GuideFaceView.Instance?.NotifyMouthChanged();
-            GuideCornerFace.Instance?.NotifyMouthChanged();
+            GuideCornerFace.NotifyMouthChangedAll();
         }
 
         float noise = Time.GetTicksMsec() / 1000.0 < _noiseUntil ? 1f : 0f;
@@ -582,6 +591,24 @@ public partial class GuideHologramView : Control
             return;
         }
         NextBeat();
+    }
+
+    // 플레이어가 안내를 다 읽기 전에 먼저 행동했을 때(L키를 누르거나 전화를 받았을 때).
+    // 마지막으로 뜬 줄은 화면에 그대로 남기고, 이 묶음만 완료로 닫는다.
+    public void FinishGuideNow()
+    {
+        if (_guide == null) return;
+        _line.VisibleRatio = 1f;
+        _lineElapsed = _lineDuration;
+        _spokenChars = _line.Text.Length;
+        Sfx.Instance?.StopVoiceBlip();
+        GuideMouthAnimator.StopTalking();
+        _hint.Visible = false;
+        _guide = null;
+        _completeWhenTyped = false;
+        var done = _guideDone;
+        _guideDone = null;
+        done?.Invoke();
     }
 
     // 마지막 대사의 타이핑이 끝난 순간 — completeWhenTyped 모드면 여기서 바로 완료 처리한다.

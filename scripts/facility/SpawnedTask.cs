@@ -39,6 +39,10 @@ public class SpawnedTask
     // 자재가 없어 멈춰 있다고 이미 기록했는가. 상태가 바뀔 때만 한 번씩 로그를 남긴다.
     public bool MaterialsBlockedLogged;
 
+    // 이번 틱에 실제로 게이지가 찼는가(최소 인원을 채웠고 자재도 막히지 않음).
+    // 화면 표시 전용 — 시뮬레이션 판정에는 쓰지 않는다.
+    public bool Progressing;
+
     public float Remaining => System.Math.Max(0f, TimeLimitSeconds - Elapsed);
     public float Ratio => GaugeRequired > 0f ? Gauge / GaugeRequired : 0f;
 }

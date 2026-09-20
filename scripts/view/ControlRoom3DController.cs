@@ -234,6 +234,8 @@ public partial class ControlRoom3DController : Node3D
 
         _interviewVp = MakeViewport();
         AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize);
+        // 휴게시간에도 교육이 이어진다 — 여기에도 같은 얼굴창을 얹는다.
+        _interviewVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
         _cutsceneVp = MakeViewport();
         AddScaledView(_cutsceneVp, new NSP.Prologue.CutscenePlayer(), MonitorCanvasSize);

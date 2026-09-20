@@ -208,10 +208,10 @@ public partial class TitleTerminalView : Control
             return new Rect2(ItemLeft, ItemTop + i * ItemStep - 36f, ItemWidth, 46f);
 
         // Report 모드의 선택지는 아래쪽에 가로로 늘어놓는다.
-        float w = 170f;
+        float w = 196f;
         float total = _reportItems.Length * w;
         float x = (Canvas.X - total) * 0.5f + i * w;
-        return new Rect2(x, 494f, w, 44f);
+        return new Rect2(x, 488f, w, 52f);
     }
 
     // --- tick ---------------------------------------------------------------
@@ -369,7 +369,7 @@ public partial class TitleTerminalView : Control
         if (!string.IsNullOrEmpty(_reportTitle))
         {
             DrawString(_font, new Vector2(60f, 110f), _reportTitle, HorizontalAlignment.Left,
-                Canvas.X - 120f, ViewFont.S(20), Mint);
+                Canvas.X - 120f, ViewFont.S(24), Mint);
             Rule(128f);
         }
 
@@ -379,10 +379,10 @@ public partial class TitleTerminalView : Control
             var (text, style) = _report[i];
             if (i == _report.Count - 1 && _typedChars < text.Length) text = text[.._typedChars];
             var col = style switch { 1 => Mint, 2 => Err, 3 => Dim, _ => Ink };
-            int size = style == 1 ? ViewFont.S(24) : ViewFont.S(17);
+            int size = style == 1 ? ViewFont.S(30) : ViewFont.S(21);
             DrawString(_font, new Vector2(60f, y), text, HorizontalAlignment.Left,
                 Canvas.X - 120f, size, col);
-            y += style == 1 ? 44f : 32f;
+            y += style == 1 ? 52f : 38f;
         }
 
         // 마지막 줄 끝의 깜빡이는 커서.
@@ -395,9 +395,9 @@ public partial class TitleTerminalView : Control
             var r = ItemRect(i);
             if (on) DrawRect(r, Mint with { A = 0.12f });
             DrawRect(r, (on ? Mint : Dim) with { A = on ? 0.8f : 0.35f }, false, 1.2f);
-            DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 29f),
+            DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 34f),
                 (on ? "> " : "  ") + _reportItems[i].Label, HorizontalAlignment.Center, r.Size.X,
-                ViewFont.S(18), on ? Ink : Dim);
+                ViewFont.S(22), on ? Ink : Dim);
         }
     }
 

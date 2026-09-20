@@ -26,6 +26,10 @@ public partial class PrologueAdvanceInput : Node
         // 통화 HUD / 로그 창이 떠 있으면 그쪽 입력이 우선이다.
         if (PhoneCallHud.Instance?.IsOpen == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
 
+        // 벨이 울리는 동안에는 클릭을 먹지 않는다. 그러지 않으면 대사가 아직 흐르는 중에
+        // 수화기를 눌러도 "대사 넘기기"로만 먹혀 전화를 받을 수 없다(키로는 그대로 넘어간다).
+        if (byClick && Phone3D.Instance?.IsRinging == true) return;
+
         if (CutscenePlayer.Instance is { IsWaitingForInput: true } cut)
         {
             cut.RequestAdvance();

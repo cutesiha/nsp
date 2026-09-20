@@ -49,7 +49,8 @@ public partial class PhoneCallHud : CanvasLayer
     private VBoxContainer _leftCol;
     private VBoxContainer _evidenceCol;
     private VBoxContainer _evidenceList;
-    private Label _evidenceHint;
+    private HBoxContainer _evidenceActions;
+    private VBoxContainer _tail;
     private Button _askBtn;
     private Button _confrontBtn;
     private InterviewSession _session;
@@ -134,6 +135,27 @@ public partial class PhoneCallHud : CanvasLayer
         _choices = new VBoxContainer();
         _choices.AddThemeConstantOverride("separation", 7);
         _leftCol.AddChild(_choices);
+
+        // 「선택한 자료로 질문 / 두 자료 비교」 — 심문에서만 뜨고, 늘 마지막 줄
+        // ("통화를 종료한다") 바로 위에 붙는다.
+        _evidenceActions = new HBoxContainer { Visible = false };
+        _evidenceActions.AddThemeConstantOverride("separation", 8);
+        _leftCol.AddChild(_evidenceActions);
+
+        _askBtn = ChoiceButton("선택한 자료로 질문", OnAskWithEvidence);
+        _askBtn.CustomMinimumSize = new Vector2(0, 38);
+        _askBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _evidenceActions.AddChild(_askBtn);
+
+        _confrontBtn = ChoiceButton("두 자료를 비교 / 모순 추궁", OnConfront);
+        _confrontBtn.CustomMinimumSize = new Vector2(0, 38);
+        _confrontBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _evidenceActions.AddChild(_confrontBtn);
+
+        // 맨 아래 한 줄(통화를 종료한다 / 다른 질문을 한다)은 따로 둔다 — 위 두 칸이
+        // 어떻게 바뀌든 이 줄은 항상 제일 밑이다.
+        _tail = new VBoxContainer();
+        _leftCol.AddChild(_tail);
 
         BuildEvidenceColumn();
         BuildDragBar();
@@ -251,17 +273,6 @@ public partial class PhoneCallHud : CanvasLayer
         _evidenceList.AddThemeConstantOverride("separation", 5);
         scroll.AddChild(_evidenceList);
 
-        _evidenceHint = Lbl("", 13, new Color(0.62f, 0.72f, 0.76f));
-        _evidenceHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _evidenceCol.AddChild(_evidenceHint);
-
-        _askBtn = ChoiceButton("선택한 자료로 질문", OnAskWithEvidence);
-        _askBtn.CustomMinimumSize = new Vector2(0, 38);
-        _evidenceCol.AddChild(_askBtn);
-
-        _confrontBtn = ChoiceButton("두 자료를 비교 / 모순 추궁", OnConfront);
-        _confrontBtn.CustomMinimumSize = new Vector2(0, 38);
-        _evidenceCol.AddChild(_confrontBtn);
     }
 
     // 자료 카드를 다시 그린다. 답변으로 새 진술이 남으면 카드가 늘어난다.
@@ -310,12 +321,6 @@ public partial class PhoneCallHud : CanvasLayer
         int picked = _session.Selected.Count;
         _askBtn.Disabled = picked == 0;
         _confrontBtn.Disabled = picked != 2;
-        _evidenceHint.Text = picked switch
-        {
-            0 => "자료를 고르면 그 기록을 물을 수 있습니다.",
-            1 => "한 장 더 고르면 맞대어 볼 수 있습니다.",
-            _ => "두 자료를 맞대어 모순을 제시합니다.",
-        };
     }
 
     private Label Lbl(string t, int size, Color c)
@@ -475,7 +480,7 @@ public partial class PhoneCallHud : CanvasLayer
             int idx = i;
             _choices.AddChild(ChoiceButton(qs[i].Question, () => OnGeneralQuestion(idx)));
         }
-        _choices.AddChild(ChoiceButton("통화를 종료한다.", CloseCall));
+        AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
     }
 
     private void OnGeneralQuestion(int idx)
@@ -504,7 +509,7 @@ public partial class PhoneCallHud : CanvasLayer
             var captured = q;
             _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
-        _choices.AddChild(InterviewChoiceButton("통화를 종료한다.", CloseCall));
+        AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall));
     }
 
     // 「선택한 자료로 질문」 — 고른 자료로 물을 수 있는 것들을 왼쪽에 펼친다.
@@ -528,7 +533,7 @@ public partial class PhoneCallHud : CanvasLayer
             var captured = q;
             _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
-        _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
     // 이미 물어본 질문에는 체크 표시만 붙인다 — 목록에서 사라지지는 않는다.
@@ -560,7 +565,7 @@ public partial class PhoneCallHud : CanvasLayer
             var captured = q;
             _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
         }
-        _choices.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
     // 「두 자료를 비교」 — 모순인지 아닌지는 여기서 처음 밝혀진다.
@@ -637,7 +642,7 @@ public partial class PhoneCallHud : CanvasLayer
     private void BuildEndOnly()
     {
         ClearChoices();
-        _choices.AddChild(ChoiceButton("통화를 종료한다.", CloseCall));
+        AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
     }
 
     private Button ChoiceButton(string text, System.Action onPressed)
@@ -660,9 +665,16 @@ public partial class PhoneCallHud : CanvasLayer
         var hover = (StyleBoxFlat)normal.Duplicate();
         hover.BgColor = new Color(0.14f, 0.32f, 0.36f, 0.7f);
         hover.BorderColor = Cyan;
+        // 아직 고를 수 없는 버튼(자료 미선택 등)도 글씨는 읽혀야 한다.
+        // 엔진 기본 비활성색은 바탕과 거의 같은 회색이라 글자가 사라져 버렸다.
+        var off = (StyleBoxFlat)normal.Duplicate();
+        off.BgColor = new Color(0.05f, 0.09f, 0.11f, 0.45f);
+        off.BorderColor = Cyan with { A = 0.18f };
+        b.AddThemeColorOverride("font_disabled_color", new Color(0.46f, 0.62f, 0.68f));
         b.AddThemeStyleboxOverride("normal", normal);
         b.AddThemeStyleboxOverride("hover", hover);
         b.AddThemeStyleboxOverride("pressed", hover);
+        b.AddThemeStyleboxOverride("disabled", off);
         b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         b.Pressed += () => onPressed();
         return b;
@@ -676,9 +688,38 @@ public partial class PhoneCallHud : CanvasLayer
         return b;
     }
 
+    // 「L 로그 / D 대화 기록」 버튼이 쓰는 화면 아래 자리. 여기까지만 내려온다.
+    private const float InterviewBottomGap = 86f;
+    private const float InterviewMinHeight = 300f;
+    private const float InterviewMaxHeight = 486f;
+
+    private bool _fitQueued;
+
+    // 창 높이를 내용에 맞춘다 — 아래는 「L 로그 / D 대화 기록」 위에 고정하고 위만 늘린다.
+    // (고정 높이로 두면 선택지가 적을 때 창 아래가 통째로 비어 보였다.)
+    //
+    // 높이는 컨테이너에 묻지 않고 실제로 놓인 자리를 읽는다 — 자동 줄바꿈이 켜진
+    // 라벨/버튼은 최소 높이를 "가장 좁게 접었을 때"로 보고해서 엉뚱하게 커진다.
+    // 그래서 자식 정렬이 끝난 다음 프레임에 맨 아랫줄의 바닥을 잰다.
+    private async void FitInterviewHeight()
+    {
+        if (_fitQueued) return;
+        _fitQueued = true;
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        _fitQueued = false;
+
+        if (!IsInstanceValid(this) || _panel == null || _tail == null) return;
+        if (_evidenceCol == null || !_evidenceCol.Visible) return;
+
+        float need = _tail.Position.Y + _tail.Size.Y + 16f;
+        _panel.OffsetTop = _panel.OffsetBottom - Mathf.Clamp(need, InterviewMinHeight, InterviewMaxHeight);
+    }
+
     private void SetInterviewLayout(bool interview)
     {
         if (_evidenceCol != null) _evidenceCol.Visible = interview;
+        if (_evidenceActions != null) _evidenceActions.Visible = interview;
         if (_dragBar != null) _dragBar.Visible = interview;
         _dragging = false;
 
@@ -689,9 +730,9 @@ public partial class PhoneCallHud : CanvasLayer
             _panel.AnchorRight = 0.94f;
             _panel.AnchorTop = 1f;
             _panel.AnchorBottom = 1f;
-            // 아래 96px 은 비워 둔다 — 그 자리에 「L 로그 / D 대화 기록」 버튼이 있다.
-            _panel.OffsetTop = -536f;
-            _panel.OffsetBottom = -96f;
+            _panel.OffsetBottom = -InterviewBottomGap;
+            _panel.OffsetTop = -InterviewMaxHeight;
+            FitInterviewHeight();
             return;
         }
 
@@ -705,7 +746,15 @@ public partial class PhoneCallHud : CanvasLayer
 
     private void ClearChoices()
     {
-        foreach (var c in _choices.GetChildren()) c.QueueFree();
+        foreach (var c in _choices.GetChildren()) { _choices.RemoveChild(c); c.QueueFree(); }
+        foreach (var c in _tail.GetChildren()) { _tail.RemoveChild(c); c.QueueFree(); }
+    }
+
+    // 목록의 맨 아래 한 줄. 조사 자료 버튼 두 칸보다 항상 아래에 놓인다.
+    private void AddTail(Button b)
+    {
+        _tail.AddChild(b);
+        FitInterviewHeight();
     }
 
     private void CloseCall()

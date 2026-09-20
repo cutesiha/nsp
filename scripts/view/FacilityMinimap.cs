@@ -168,28 +168,28 @@ public partial class FacilityMinimap : Control
             return;
         }
 
-        // 발생 업무: 남은 시간 + 게이지
+        // 발생 업무: 남은 시간 + 게이지.
+        // 평소 작업은 방 '아래' 파란 게이지, 사고 수리는 방 '위' 빨간 게이지로 완전히
+        // 갈라 놓는다 — 한 눈에 "지금 고치는 중인 방"을 찾을 수 있어야 한다.
         var st = sim.GetPrimarySpawnedTask(roomId);
         if (st is { Status: SpawnedTaskStatus.Active })
         {
-            float y = box.Position.Y + box.Size.Y + 4f;
-            if (st.IsRepair)
+            if (st.IsRepair) DrawRepairBar(box, st);
+            else
             {
-                DrawString(_font, new Vector2(box.Position.X, y + 10f),
-                    "🔧 수리 필요", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10), new Color(1f, 0.55f, 0.3f));
-                y += 13f;
+                float y = box.Position.Y + box.Size.Y + 4f;
+                if (!st.Recurring)
+                {
+                    DrawString(_font, new Vector2(box.Position.X, y + 10f),
+                        $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
+                        st.Remaining < 8f ? new Color(1f, 0.4f, 0.3f) : new Color(0.9f, 0.8f, 0.4f));
+                    y += 13f;
+                }
+                var barBg = new Rect2(box.Position.X + 6f, y, box.Size.X - 12f, 4f);
+                DrawRect(barBg, new Color(0.1f, 0.1f, 0.1f));
+                DrawRect(new Rect2(barBg.Position, new Vector2(barBg.Size.X * Mathf.Clamp(st.Ratio, 0f, 1f), 4f)),
+                    new Color(0.4f, 0.75f, 0.92f));
             }
-            else if (!st.Recurring)
-            {
-                DrawString(_font, new Vector2(box.Position.X, y + 10f),
-                    $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
-                    st.Remaining < 8f ? new Color(1f, 0.4f, 0.3f) : new Color(0.9f, 0.8f, 0.4f));
-                y += 13f;
-            }
-            var barBg = new Rect2(box.Position.X + 6f, y, box.Size.X - 12f, 4f);
-            DrawRect(barBg, new Color(0.1f, 0.1f, 0.1f));
-            DrawRect(new Rect2(barBg.Position, new Vector2(barBg.Size.X * Mathf.Clamp(st.Ratio, 0f, 1f), 4f)),
-                new Color(0.4f, 0.75f, 0.92f));
         }
 
         if (TabooRuleSystemAtRisk(roomId))
@@ -200,6 +200,29 @@ public partial class FacilityMinimap : Control
             DrawString(_font, new Vector2(box.Position.X, box.Position.Y - 14f),
                 $"CORE {NSP.Core.GameState.Instance.CoreProgress:0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
                 new Color(0.5f, 0.8f, 1f));
+    }
+
+    // 사고 수리 표시 — 방 바로 위에 붉은 진행 막대 한 줄. 글자는 막대 안에 넣는다.
+    // (위아래 방 사이가 12px 뿐이라 막대와 글자를 따로 쌓으면 윗방을 덮는다.)
+    // 아무도 붙어 있지 않아 게이지가 멈춰 있으면 "수리 필요"로 바꿔 부른다.
+    private void DrawRepairBar(Rect2 box, SpawnedTask st)
+    {
+        const float BarH = 15f;
+        bool working = st.Progressing;
+        // 맨 윗줄(코어실)은 위쪽 여백이 13px 뿐이라 그대로 두면 화면 밖으로 나간다.
+        float top = Mathf.Max(box.Position.Y - BarH - 2f, 1f);
+
+        var bar = new Rect2(box.Position.X + 4f, top, box.Size.X - 8f, BarH);
+        DrawRect(bar, new Color(0.17f, 0.05f, 0.05f, 0.96f));
+        DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * Mathf.Clamp(st.Ratio, 0f, 1f), BarH)),
+            new Color(0.84f, 0.17f, 0.14f));
+        DrawRect(bar, new Color(1f, 0.48f, 0.40f, 0.8f), false, 1f);
+
+        // 수리 중일 때만 글자가 맥동한다 — 멈춰 있으면 가만히 떠 있다.
+        float a = working ? 0.75f + 0.25f * Mathf.Sin(Time.GetTicksMsec() / 170f) : 1f;
+        DrawString(_font, new Vector2(bar.Position.X, bar.Position.Y + 12f),
+            working ? "수 리 중" : "수리 필요", HorizontalAlignment.Center, bar.Size.X,
+            ViewFont.S(10), new Color(1f, 0.94f, 0.92f, a));
     }
 
     // 끌고 있는 동안 대상 작업실을 밝히고, 커서 자리에 직원 색 점을 따라 그린다.

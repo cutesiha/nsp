@@ -23,6 +23,9 @@ public static class DialogueRepository
     public const string EventInterviewSuspected = "interview_suspected";
     // 플레이어가 먼저 거는 일반 통화.
     public const string EventGeneralCall = "general_call";
+    // 가상 시뮬레이션(교육) 전용 고정 통화 — 수리를 끝낸 직원이 복귀를 묻는다.
+    // 생성기를 태우지 않고 대사 파일의 문장을 그대로 쓴다.
+    public const string EventTutorialRepairDone = "tutorial_repair_done";
 
     public sealed class Choice
     {

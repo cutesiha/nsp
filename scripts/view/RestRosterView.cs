@@ -188,7 +188,7 @@ public partial class RestRosterView : Control
         public event Action<string> EmployeeSelected;
 
         private const float WallThickness = 16f;
-        private const float IconSize = 84f;
+        private const float IconSize = 100f;
 
         private readonly List<EmployeeIcon> _icons = new();
         private string _selectedId = "";
@@ -406,7 +406,7 @@ public partial class RestRosterView : Control
                 // 코드네임 + 상태.
                 var nameCol = alive ? new Color(0.95f, 0.95f, 0.86f) : new Color(0.55f, 0.55f, 0.58f);
                 DrawString(ViewFont.Default, new Vector2(-14f, d + 13f), def.Codename,
-                    HorizontalAlignment.Center, d + 28f, ViewFont.S(14), nameCol);
+                    HorizontalAlignment.Center, d + 28f, ViewFont.S(17), nameCol);
 
                 if (st is { Alive: false })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "응답 없음",

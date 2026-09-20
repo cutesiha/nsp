@@ -24,7 +24,6 @@ public partial class ShiftReportView : Control
 
     private Font _font;
     private RichTextLabel _body;
-    private RichTextLabel _events;
 
     public override void _Ready()
     {
@@ -51,25 +50,12 @@ public partial class ShiftReportView : Control
         _body.AddThemeColorOverride("default_color", Ink);
         AddChild(_body);
 
-        var evHead = MakeLabel("주요 사건", 14, Dim);
-        evHead.Position = new Vector2(24, 300);
-        AddChild(evHead);
+        // '주요 사건' 목록은 없앴다 — 같은 내용이 L 키 시설 로그에 그대로 남아 있고,
+        // 여기서는 숫자만 보고 넘어가는 편이 읽기 쉽다.
 
-        _events = new RichTextLabel
-        {
-            Position = new Vector2(24, 326),
-            Size = new Vector2(752, 130),
-            BbcodeEnabled = true,
-            ScrollActive = false,
-        };
-        _events.AddThemeFontOverride("normal_font", _font);
-        _events.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(15));
-        _events.AddThemeColorOverride("default_color", Dim);
-        AddChild(_events);
-
-        var btn = MonitorUi.Button("계속 ▶", Ink, _font, () => ContinueRequested?.Invoke(), ViewFont.S(17));
-        btn.Position = new Vector2(600, 542);
-        btn.Size = new Vector2(176, 44);
+        var btn = MonitorUi.Button("계속 ▶", Ink, _font, () => ContinueRequested?.Invoke(), ViewFont.S(23));
+        btn.Position = new Vector2(548, 522);
+        btn.Size = new Vector2(228, 60);
         AddChild(btn);
     }
 
@@ -98,7 +84,7 @@ public partial class ShiftReportView : Control
         int materialsDelta = gs.Materials - materialsAtStart;
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[font_size=26]DAY {gs.CurrentDay} — SHIFT COMPLETE[/font_size]\n");
+        sb.AppendLine($"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} — SHIFT COMPLETE[/font_size]\n");
         sb.AppendLine($"CORE        {Signed(coreDelta):0.0}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
         sb.AppendLine($"MATERIAL    {Signed(materialsDelta)}   [color=#8899aa](현재 {gs.Materials})[/color]\n");
         sb.AppendLine($"사고          {incidents}");
@@ -106,34 +92,10 @@ public partial class ShiftReportView : Control
         sb.AppendLine($"격리          {isolated}");
         sb.AppendLine($"생존          {(aliveCount < total ? "[color=#ff6a55]" : "")}{aliveCount} / {total}{(aliveCount < total ? "[/color]" : "")}");
         _body.Text = sb.ToString();
-
-        var evsb = new StringBuilder();
-        var notable = entries
-            .Where(e => e.EventType is LogEventType.TabooViolation or LogEventType.Death or LogEventType.Sabotage
-                or LogEventType.TaskFailed or LogEventType.PowerOutage or LogEventType.CctvDisconnect)
-            .TakeLast(3);
-        bool any = false;
-        foreach (var e in notable)
-        {
-            any = true;
-            evsb.AppendLine($"{Clock(e.GameTimeSeconds)}  {Strip(e.Description)}");
-        }
-        _events.Text = any ? evsb.ToString() : "- 특이 사건 없음";
     }
 
     private static string Signed(float v) => v >= 0 ? $"+{v:0.0}" : v.ToString("0.0");
     private static string Signed(int v) => v >= 0 ? $"+{v}" : v.ToString();
-    private static string Strip(string s) => s.Replace("⚠", "").Replace("🚨", "").Trim();
-
-    private static string Clock(float s)
-    {
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMin = 22 * 60 + Mathf.FloorToInt(s * (360f / Mathf.Max(1f, shiftLength)));
-        int h = (totalMin / 60) % 24;
-        int m = totalMin % 60;
-        return $"{h:00}:{m:00}";
-    }
-
     private static ColorRect Rect(Color c)
     {
         var r = new ColorRect { Color = c, MouseFilter = MouseFilterEnum.Ignore };

@@ -1390,6 +1390,7 @@ public partial class FacilitySimulation : Node
             }
 
             st.Elapsed += delta;
+            st.Progressing = false;
 
             var room = _roomStates.GetValueOrDefault(st.RoomId);
             // 기절(스트레스 46+)한 직원은 방에 있어도 업무 인원으로 세지 않는다.
@@ -1427,7 +1428,8 @@ public partial class FacilitySimulation : Node
                 // 최소 필요 인원 미만이면 게이지가 전혀 차지 않는다 — DAY1 발전기 점검(2명 필요)이
                 // DAY1 금기(발전실 2명 금지)와 반드시 충돌하도록 만드는 지점.
                 int minWorkers = st.MinWorkersOverride > 0 ? st.MinWorkersOverride : Mathf.Max(1, taskDef.MinWorkersToProgress);
-                if (workers.Count >= minWorkers && !blockedByMaterials)
+                st.Progressing = workers.Count >= minWorkers && !blockedByMaterials;
+                if (st.Progressing)
                 {
                     // 1초에 (기본 속도 × 기술 배율 × 스트레스 배율) 만큼 게이지가 찬다.
                     // 기본 속도가 1이므로 GaugeRequired 값이 곧 "기술2·정상 스트레스 1명 기준 초"다.
@@ -1469,6 +1471,8 @@ public partial class FacilitySimulation : Node
             IncidentTracker.Resolve(st.RoomId);
             EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", st.RoomId,
                 $"✓ {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 수리 완료 · 기능 복구");
+            // 수리가 끝났다는 건 지도에서 눈으로 찾기 어렵다 — 소리로 알린다.
+            Sfx.Instance?.Play("ding", -5f);
             st.Status = SpawnedTaskStatus.Completed;
         }
         else if (completed)

@@ -418,12 +418,13 @@ option: 내가 해야 할 일은? | g_mission
 portrait: normal
 panel: alert
 line: 지상에서 대규모 재난이 발생했고, 동시에 시설 내부의 격리 시스템도 붕괴했습니다.
-line: 그 과정에서 봉쇄 코어가 심각하게 손상되었습니다.
+line: 그 과정에서 생명 유지 장치인 봉쇄 코어가 심각하게 손상되었습니다.
 icons: employees
 line: 현재 현장에서 활동 가능한 직원은 여섯 명입니다.
 fx: noise
 portrait: sneer
-line: 그리고... 그중 한 명의 신원 기록이 일치하지 않습니다.
+line: 그리고... 직원들 사이에 숨어 우리를 방해하려는 정체불명의 개체가 확인되었습니다. 
+line: 시설을 복구하며 이를 알아내는 것이 당신의 과제이겠군요.
 
 @guide g_who_am_i
 portrait: normal
@@ -449,8 +450,7 @@ line: 그리고 시설 로그와 진술을 비교해 직원들 사이에 숨어 
 portrait: smile
 panel: none
 line: 기본 안내가 완료되었습니다.
-line: 실제 관리자 업무를 익혀보시죠.
-line: 제가 도와드리겠습니다.
+line: 실제 관리자 업무를 익혀보시죠. 제가 도와드리겠습니다.
 
 
 # ========================================================================
@@ -488,8 +488,7 @@ line: 먼저 현장 직원들을 확인하십시오.
 
 @guide tut_mood
 portrait: normal
-line: 오늘의 기분은 직원들이 직접 작성한 것입니다.
-line: 배치할 때 참고할 수 있습니다.
+line: 오늘의 기분은 직원들이 직접 작성한 것입니다. 배치할 때 참고할 수 있습니다.
 
 # STEP 2 — 배치
 @guide tut_assign
@@ -504,28 +503,24 @@ line: 토끼 직원은 정비실에 배치하십시오.
 
 @guide tut_assign_wrong_person
 portrait: sneer
-line: 눈이 잘못되셨나요?
-line: 정비실에는 토끼를 배치해 보십시오.
+line: 눈이 잘못되셨나요? 정비실에는 토끼를 배치해 보십시오.
 
 @guide tut_assign_rest
 portrait: smile
-line: 좋습니다.
-line: 남은 직원도 배치한 뒤 ‘근무 시작’을 누르십시오.
+line: 좋습니다. 남은 직원도 배치한 뒤 ‘근무 시작’을 누르십시오.
 
 @guide tut_shift_start
 portrait: normal
-line: 봉쇄 코어 복구율이 상승하고 있습니다.
+line: 직원들이 시설 복구 작업을 하고 있습니다.
 
 # STEP 3 — 사고
 @guide tut_incident
 portrait: normal
-line: 작업실에 문제가 발생했습니다.
-line: MONITOR 01을 확인하십시오.
+line: 작업실에 문제가 발생했습니다. 왼쪽 모니터를 확인하십시오.
 
 @guide tut_relocate
 portrait: normal
-line: 직원을 끌어다 방을 옮길 수 있습니다.
-line: 토끼를 {ROOM}로 옮겨 수리하십시오.
+line: 직원을 끌어다 방을 옮길 수 있습니다. 토끼를 {ROOM}로 옮겨 수리하십시오.
 
 @guide tut_repair_done
 portrait: smile
@@ -547,18 +542,21 @@ line: 직원에게 전화가 왔습니다. 수화기를 들어 보십시오.
 
 @guide tut_call_done
 portrait: normal
-line: 직원의 진술은 시설 기록과 일치하지 않을 수도 있습니다.
-line: 불일치가 발견되면 그 원인을 확인하십시오.
+line: 직원에게 직접 전화를 걸 수도 있고, 직원이 먼저 걸 수도 있습니다.
+portrait: sneer
+line: 다만 직원의 모든 진술이 진실일 거란 보장은 없습니다.
 
 # STEP 6 — 기록 비교
 @guide tut_endshift
 portrait: normal
-line: 이제 근무를 종료해 보십시오.
-line: MONITOR 01 오른쪽 위의 ‘근무 종료’를 누르십시오.
+line: 이제 근무를 종료해 보십시오. 왼쪽 모니터 오른쪽 위의 ‘근무 종료’를 누르십시오.
 
 @guide tut_rest
 portrait: normal
-line: 다음은 교육용 사례를 보여드리겠습니다.
+line: 근무를 종료하고 나서, 직원들을 심문할 수 있습니다.
+portrait: sneer
+line: 우리를 방해하려는... 그 정체불명의 개체를 추리해야 합니다.
+portrait: normal
 line: 토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오.
 
 @guide tut_ask_where
@@ -575,16 +573,13 @@ line: L키로 시설 기록을 열어 방금 들은 말과 맞대어 보십시�
 portrait: normal
 line: D키를 눌러 이전 진술을 확인할 수 있습니다.
 
-# STEP 7 — 종료 + 결번자
+# STEP 7 — 종료
 @guide tut_complete
 portrait: smile
 line: 관리자 교육이 성공적으로 완료되었습니다.
-
-@guide tut_after_ghost
-portrait: normal
-line: ...
-line: ...영상 오류입니다.
+line: 가상 시뮬레이션이 완료되었습니다.
 line: 그럼 이제, DAY 1 근무를 시작합니다.
+line: 행운을 빌어요.
 
 # STEP 6 — 토끼의 고정 진술(교육용 모순). {FROM_ROOM} = 로그에 남은 원래 작업실.
 @scripted tut_rabbit_where
@@ -592,7 +587,10 @@ text: 그 시간에는 계속 {FROM_ROOM}에 있었어요. 한 번도 안 나갔
 
 
 # ========================================================================
-# STEP 7 — 결번자 영상 (왼쪽 모니터에서 재생되는 ‘영상’. 실제 CCTV 시스템 아님)
+# 결번자 영상 (왼쪽 모니터에서 재생되는 ‘영상’. 실제 CCTV 시스템 아님)
+#
+# ※ 지금은 어디서도 재생하지 않는다. 교육 마지막에 붙어 있었지만
+#    "가상 시뮬레이션 종료 → DAY 1" 흐름을 끊어서 뺐다. 데이터는 남겨 둔다.
 # ========================================================================
 @cutscene outage_ghost
 title: ARCHIVE ??? / PLAYBACK

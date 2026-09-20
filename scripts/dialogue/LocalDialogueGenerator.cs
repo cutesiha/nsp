@@ -166,6 +166,9 @@ public static class LocalDialogueGenerator
     // IncomingCallDirector 의 출동 판정이 이 순서에 의존하므로 절대 뒤집지 않는다.
     public static CallLine BuildIncomingCall(string employeeId, string dialogueEvent, string roomId)
     {
+        // 교육용 고정 통화는 생성하지 않는다 — 대사 파일의 문장을 그대로 쓴다.
+        if (dialogueEvent == DialogueRepository.EventTutorialRepairDone) return null;
+
         var subject = FindEventSubject(employeeId, dialogueEvent, roomId);
         var line = new CallLine();
 

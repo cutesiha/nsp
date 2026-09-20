@@ -132,8 +132,9 @@ public partial class GuideSubtitleHud : CanvasLayer
         foreach (var c in choices)
         {
             var captured = c;
-            // 이미 고른 선택지도 같은 색으로 둔다 — 어둡게 하면 글씨를 읽을 수 없다.
-            var accent = new Color(0.55f, 0.95f, 1f);
+            // 이미 고른 선택지는 연한 하늘색. 밝기는 남기고 채도만 빼서, 끝난 것으로
+            // 보이되 글씨는 그대로 읽히게 한다.
+            var accent = c.Disabled ? new Color(0.46f, 0.60f, 0.64f) : new Color(0.55f, 0.95f, 1f);
             var b = MonitorUi.Button(c.Text, accent, ViewFont.Default,
                 () => captured.OnPick?.Invoke(), ViewFont.FS(15));
             b.AddThemeColorOverride("font_disabled_color", accent);

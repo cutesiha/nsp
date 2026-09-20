@@ -39,7 +39,12 @@ public partial class PrologueDirector : Node
         Instance = this;
         _ctl = GetNodeOrNull<ControlRoom3DController>(ControllerPath);
         _title = GetNodeOrNull<TitleOverlay>(TitleOverlayPath);
+        // 기절에서 깨어날 때 화면 전체를 덮는 어지러움 오버레이.
+        _dizzy = new DizzyOverlay();
+        AddChild(_dizzy);
     }
+
+    private DizzyOverlay _dizzy;
 
     public override void _ExitTree()
     {
@@ -117,7 +122,9 @@ public partial class PrologueDirector : Node
         // 화면이 천천히 돌아온다 — 어두워진 실제 중앙제어실.
         // 앉았다 갑자기 일어난 것처럼, 시야가 한참 일그러졌다가 서서히 가라앉는다.
         _ctl?.ResetCameraCollapse();   // 책상에 엎어진 자세를 정상으로 되돌린다
-        _title?.FadeFromBlack(1.6f);
+        // 암전은 빨리 걷는다 — 어지러움이 다 가라앉은 뒤에 화면이 나타나면 그냥 자고
+        // 일어난 것처럼 평온해 보인다. 눈을 뜬 순간이 제일 심해야 한다.
+        _title?.FadeFromBlack(0.8f);
         await DizzyRecovery();
 
         // ── #3 : 어두운 제어실에서 오른쪽 CRT 하나만 '틱' 하고 켜진다 ────────
@@ -197,11 +204,12 @@ public partial class PrologueDirector : Node
         Complete();
     }
 
-    // 의식이 돌아오는 몇 초. 노이즈·화면 일그러짐·머리 흔들림이 한꺼번에 컸다가 잦아든다.
+    // 의식이 돌아오는 몇 초. 시야가 출렁이고 상이 겹치고 노이즈가 끓다가 서서히 풀린다.
     // (기립성 저혈압으로 눈앞이 도는 그 느낌.)
-    private const float DizzySeconds = 4.6f;
-    private const float DizzyNoise = 0.62f;        // 시작 노이즈
-    private const float DizzyDistortion = 0.22f;   // 시작 화면 일그러짐
+    private const float DizzySeconds = 6.0f;       // 전체 길이
+    private const float DizzyHoldSeconds = 1.1f;   // 이만큼은 최대치로 버틴 뒤 풀리기 시작한다
+    private const float DizzyNoise = 0.62f;        // CRT 표면 노이즈(오버레이와 별개)
+    private const float DizzyDistortion = 0.22f;   // CRT 표면 일그러짐
 
     private readonly RandomNumberGenerator _dizzyRng = new();
 
@@ -209,32 +217,35 @@ public partial class PrologueDirector : Node
     {
         float baseNoise = 0.035f;   // 평소 게임 화면의 노이즈
         double t = 0;
-        double nextLurch = 0.35;
+        double nextLurch = 0.25;
 
         while (t < DizzySeconds)
         {
             await NextFrame();
             double dt = GetProcessDeltaTime();
             t += dt;
-            // 남은 어지러움. 뒤로 갈수록 가파르게 잦아든다.
-            float k = Mathf.Pow(1f - (float)(t / DizzySeconds), 2.2f);
+            // 남은 어지러움. 한동안 최대치로 버티다가 뒤로 갈수록 가파르게 잦아든다.
+            double past = Mathf.Max(0.0, t - DizzyHoldSeconds);
+            float k = Mathf.Pow(1f - (float)(past / (DizzySeconds - DizzyHoldSeconds)), 2.0f);
 
             // 숨을 쉬듯 느리게 밀려왔다 빠지는 파동을 얹는다.
             float wave = 0.65f + 0.35f * Mathf.Sin((float)t * 2.7f);
+            _dizzy?.SetAmount(k * (0.72f + 0.28f * wave));
             _ctl?.SetScreenNoise(baseNoise + DizzyNoise * k * wave);
             _ctl?.SetScreenDistortion(DizzyDistortion * k * wave);
 
             // 가끔 한 번씩 크게 휘청인다.
             nextLurch -= dt;
-            if (nextLurch <= 0 && k > 0.25f)
+            if (nextLurch <= 0 && k > 0.18f)
             {
-                nextLurch = 0.55 + _dizzyRng.RandfRange(0.2f, 0.7f);
-                _ctl?.ShakeCamera(0.5f * k, 0.5f);
+                nextLurch = 0.45 + _dizzyRng.RandfRange(0.15f, 0.6f);
+                _ctl?.ShakeCamera(0.9f * k, 0.5f);
                 NSP.Ui.AmbientOverlay.Instance?.PulseNoise(0.45f * k);
                 Sfx.Instance?.Play("tinnitus", -26f + 12f * (1f - k));
             }
         }
 
+        _dizzy?.Clear();
         _ctl?.SetScreenNoise(baseNoise);
         _ctl?.SetScreenDistortion(0f);
     }

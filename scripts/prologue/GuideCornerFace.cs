@@ -12,7 +12,40 @@ namespace NSP.Prologue;
 // CCTV 뷰포트의 자식으로 붙기 때문에 CCTV 가 화면에 떠 있을 때만 보인다.
 public partial class GuideCornerFace : Control
 {
-    public static GuideCornerFace Instance { get; private set; }
+    // 화면(CCTV / 휴게 심문)마다 하나씩 붙는다 — 어느 화면이 떠 있든 얼굴이 유지되게.
+    private static readonly System.Collections.Generic.List<GuideCornerFace> All = new();
+
+    // 떠 있는 모든 얼굴창을 한꺼번에 켜고 끈다.
+    public static void ShowAll(bool shown)
+    {
+        foreach (var f in All) if (GodotObject.IsInstanceValid(f)) f.SetShown(shown);
+    }
+
+    public static void SetPortraitAll(string expression, Texture2D texture, bool mouthless)
+    {
+        foreach (var f in All) if (GodotObject.IsInstanceValid(f)) f.SetPortrait(expression, texture, mouthless);
+    }
+
+    public static void NotifyMouthChangedAll()
+    {
+        foreach (var f in All) if (GodotObject.IsInstanceValid(f)) f.NotifyMouthChanged();
+    }
+
+    // 휴게시간에는 심문 창이 화면 아래를 덮는다 — 그럴 땐 얼굴창을 화면 위쪽으로 옮긴다.
+    // (자막 띠를 위로 올리는 것과 같은 이유다. 아래에 두면 통째로 가려진다.)
+    public static void SetLifted(bool lifted)
+    {
+        if (_lifted == lifted) return;
+        _lifted = lifted;
+        foreach (var f in All) if (GodotObject.IsInstanceValid(f)) f.QueueRedraw();
+    }
+
+    private static bool _lifted;
+
+    // 마지막으로 켜진 상태 — 화면을 바꿔 끼운 뒤에도 같은 얼굴로 되살린다.
+    private static bool _shownAll;
+    private static Texture2D _lastTexture;
+    private static bool _lastMouthless;
 
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
@@ -23,6 +56,8 @@ public partial class GuideCornerFace : Control
     private const float WinW = 176f, WinH = 196f;
     private const float MarginX = 14f, MarginY = 62f;
     private const float BarH = 22f;
+    // 위로 올렸을 때의 자리(화면 위쪽 정보 줄 아래).
+    private const float LiftedY = 46f;
 
     private Font _font;
     private Texture2D _texture;
@@ -32,22 +67,28 @@ public partial class GuideCornerFace : Control
 
     public override void _Ready()
     {
-        Instance = this;
+        All.Add(this);
         _font = ViewFont.Default;
         SetAnchorsPreset(LayoutPreset.FullRect);
         Size = Canvas;
         MouseFilter = MouseFilterEnum.Ignore;
-        Visible = false;
+        // 나중에 만들어진 창도 지금 상태를 그대로 물려받는다.
+        _texture = _lastTexture;
+        _mouthless = _lastMouthless;
+        _shown = _shownAll;
+        Visible = _shownAll;
         SetProcess(true);
     }
 
     public override void _ExitTree()
     {
-        if (Instance == this) Instance = null;
+        All.Remove(this);
     }
 
     public void SetPortrait(string expression, Texture2D texture, bool mouthless)
     {
+        _lastTexture = texture;
+        _lastMouthless = mouthless;
         _texture = texture;
         _mouthless = mouthless;
         if (_shown) QueueRedraw();
@@ -55,6 +96,7 @@ public partial class GuideCornerFace : Control
 
     public void SetShown(bool shown)
     {
+        _shownAll = shown;
         _shown = shown;
         Visible = shown;
         QueueRedraw();
@@ -78,7 +120,8 @@ public partial class GuideCornerFace : Control
     {
         if (!_shown) return;
 
-        var win = new Rect2(Canvas.X - WinW - MarginX, Canvas.Y - WinH - MarginY, WinW, WinH);
+        float winY = _lifted ? LiftedY : Canvas.Y - WinH - MarginY;
+        var win = new Rect2(Canvas.X - WinW - MarginX, winY, WinW, WinH);
         DrawRect(win, new Color(0.04f, 0.15f, 0.18f, 0.92f));
         DrawRect(win, Cyan with { A = 0.8f }, false, 1.5f);
 

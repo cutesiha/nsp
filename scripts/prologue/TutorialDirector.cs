@@ -5,7 +5,6 @@ using NSP.Core;
 using NSP.Data;
 using NSP.Dialogue;
 using NSP.Facility;
-using NSP.Ui;
 using NSP.View;
 
 namespace NSP.Prologue;
@@ -21,7 +20,6 @@ public partial class TutorialDirector : Node
 {
     public static TutorialDirector Instance { get; private set; }
 
-    [Export] public NodePath ControllerPath = "..";
     [Export] public NodePath ShiftFlowPath = "../ShiftFlowController";
 
     // 교육에 쓰는 고정 배역/장소. 데이터(UnlockDay)와 짝을 이룬다.
@@ -33,7 +31,6 @@ public partial class TutorialDirector : Node
 
     public bool IsRunning { get; private set; }
 
-    private ControlRoom3DController _ctl;
     private ShiftFlowController _flow;
     private GuideHologramView _guide;
 
@@ -47,7 +44,6 @@ public partial class TutorialDirector : Node
     public override void _Ready()
     {
         Instance = this;
-        _ctl = GetNodeOrNull<ControlRoom3DController>(ControllerPath);
         _flow = GetNodeOrNull<ShiftFlowController>(ShiftFlowPath);
     }
 
@@ -85,6 +81,8 @@ public partial class TutorialDirector : Node
         LocalDialogueGenerator.ScriptedAnswerOverride = ScriptedAnswer;
         // 심문에서 무엇을 물었는지 듣는다 — 진행 조건 판정에만 쓴다.
         InterviewSession.Asked += OnInterviewAsked;
+        if (PhoneCallHud.Instance != null)
+            PhoneCallHud.Instance.EventChoiceMade += OnTutorialCallChoice;
 
         // ── STEP 1 : 직원 확인 ────────────────────────────────────────
         await Say("tut_intro");
@@ -122,18 +120,18 @@ public partial class TutorialDirector : Node
         await Say("tut_repair_done");
 
         // ── STEP 4 : 시설 로그 ────────────────────────────────────────
-        await Say("tut_log");
-        await Until(() => Day1HistoryOverlay.Instance?.IsLogOpen == true);
+        await SayThen("tut_log", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
         await Say("tut_log_done");
 
         // ── STEP 5 : 전화 / 대화 ──────────────────────────────────────
         // 벨이 먼저 울리고, 그 소리를 들은 뒤에 안내가 뜬다.
         // (안내를 읽고 나서야 전화가 오면 순서가 거꾸로다.)
-        string caller = PickCaller();
-        RingTutorialCall(caller);
+        // 거는 사람은 방금 수리를 끝낸 토끼다 — 교육에서 유일하게 정해진 통화.
+        RingTutorialCall(TutorialEmployeeId);
         await Wait(TutorialCallRingLeadSeconds);
-        await Say("tut_call");
-        await WaitForIncomingCallAnswered(caller);
+        // 안내가 흐르는 도중에 수화기를 들어도 곧바로 통화로 넘어간다.
+        await SayThen("tut_call", () => PhoneCallHud.Instance?.IsOpen == true);
+        await WaitForIncomingCallAnswered(TutorialEmployeeId);
         await Until(() => PhoneCallHud.Instance?.IsOpen != true);
         await Say("tut_call_done");
 
@@ -145,24 +143,25 @@ public partial class TutorialDirector : Node
         await Say("tut_rest");
         await Until(() => PhoneCallHud.Instance?.IsOpen == true
                           && PhoneCallHud.Instance.CurrentEmployeeId == TutorialEmployeeId);
-        await Say("tut_ask_where");
+        // 심문 창이 화면 아래를 통째로 차지한다 — 지시문도 얼굴창도 위로 올라가야 보인다.
+        GuideSubtitleHud.Instance?.SetTopAligned(true);
+        GuideCornerFace.SetLifted(true);
+
         // 이동 기록으로 물으면 통과. 옮긴 기록이 아예 없는 판이면 아무 질문이나 하면 된다.
-        await Until(() => _rabbitAskedWithEvidence
+        await SayThen("tut_ask_where", () => _rabbitAskedWithEvidence
                           || (string.IsNullOrEmpty(_rabbitOriginRoomName) && _rabbitAskedAnything));
         // 토끼가 실제로 방을 옮긴 기록이 있을 때만 "기록과 진술이 다르다"고 말한다.
         // (플레이어가 지시와 다르게 움직여 재배치 기록이 없으면 그 단계는 건너뛴다.)
         if (!string.IsNullOrEmpty(_rabbitOriginRoomName))
-        {
-            await Say("tut_contradiction");
-            await Until(() => Day1HistoryOverlay.Instance?.IsLogOpen == true);
-        }
-        await Say("tut_dialogue_log");
-        await Until(() => Day1HistoryOverlay.Instance?.IsDialogueOpen == true);
+            await SayThen("tut_contradiction", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
+        await SayThen("tut_dialogue_log", () => Day1HistoryOverlay.Instance?.IsDialogueOpen == true);
 
-        // ── STEP 7 : 교육 종료 + 결번자 영상 ──────────────────────────
+        // ── STEP 7 : 교육 종료 ────────────────────────────────────────
+        // 대화 기록까지 확인한 뒤 통화를 끊어야 교육이 끝난다.
+        await Until(() => PhoneCallHud.Instance?.IsOpen != true);
+        GuideSubtitleHud.Instance?.SetTopAligned(false);   // 마무리 대사는 원래 자리로
+        GuideCornerFace.SetLifted(false);
         await Say("tut_complete");
-        await PlayGhostVideo();
-        await Say("tut_after_ghost");
         await Wait(0.6);
 
         Finish();
@@ -205,51 +204,23 @@ public partial class TutorialDirector : Node
         return "";
     }
 
-    // 왼쪽 CRT 를 잠시 '영상' 재생기로 바꿔 결번자 컷씬을 틀고, 끝나면 휴게 명단으로 되돌린다.
-    // 실제 CCTV 시스템과는 무관한 이벤트 영상이다.
-    private async Task PlayGhostVideo()
-    {
-        var player = CutscenePlayer.Instance;
-        if (player == null || _ctl == null) return;
-
-        AmbientOverlay.Instance?.SetSceneIntensity(1f);
-        _ctl.SetScreenNoise(0.35f);
-        _ctl.SetLeftScreen(_ctl.CutsceneViewport);
-        await Wait(0.2);
-
-        var tcs = new TaskCompletionSource();
-        void Handler() { player.Finished -= Handler; tcs.TrySetResult(); }
-        player.Finished += Handler;
-        player.Play("outage_ghost");
-        await tcs.Task;
-
-        await Wait(0.5);
-        player.Clear();
-        _ctl.SetScreenNoise(0.020f);
-        _ctl.SetLeftScreen(_ctl.RestRosterViewport);
-        AmbientOverlay.Instance?.SetSceneIntensity(0.1f);
-    }
-
     // 안내가 뜨기 전에 벨을 먼저 울리는 시간.
     private const double TutorialCallRingLeadSeconds = 1.3;
-
-    // 사고를 보고할 직원 한 명. 교육 대상(토끼)은 제외한다.
-    private string PickCaller()
-    {
-        var sim = FacilitySimulation.Instance;
-        foreach (var id in sim?.GetActiveEmployeeIds() ?? new System.Collections.Generic.List<string>())
-        {
-            if (id == TutorialEmployeeId) continue;
-            if (sim.IsOnDuty(id)) return id;
-        }
-        return "";
-    }
 
     private void RingTutorialCall(string caller)
     {
         if (string.IsNullOrEmpty(caller)) return;
         if (Phone3D.Instance is { IsBusy: false })
-            Phone3D.Instance.RingIncoming(caller, DialogueRepository.EventAccidentNearby, AccidentRoomId);
+            Phone3D.Instance.RingIncoming(caller, DialogueRepository.EventTutorialRepairDone, AccidentRoomId);
+    }
+
+    // "그렇게 하십시오" 를 고르면 토끼는 말한 대로 정비실로 돌아간다.
+    // (말만 하고 실제로는 그대로 서 있으면 다음 단계의 기록 비교가 거짓말이 된다.)
+    private void OnTutorialCallChoice(string employeeId, string dialogueEvent, int choiceIndex)
+    {
+        if (dialogueEvent != DialogueRepository.EventTutorialRepairDone) return;
+        if (employeeId != TutorialEmployeeId || choiceIndex != 0) return;
+        FacilitySimulation.Instance?.AssignToRoom(TutorialEmployeeId, AssignRoomId);
     }
 
     // 못 받으면(직원이 끊으면) 다시 건다 — 교육이 멈추지 않게.
@@ -292,9 +263,13 @@ public partial class TutorialDirector : Node
         IsRunning = false;
         LocalDialogueGenerator.ScriptedAnswerOverride = null;
         InterviewSession.Asked -= OnInterviewAsked;
+        if (PhoneCallHud.Instance != null)
+            PhoneCallHud.Instance.EventChoiceMade -= OnTutorialCallChoice;
         if (_guide != null) _guide.LineShown -= OnGuideLine;
-        GuideCornerFace.Instance?.SetShown(false);
+        GuideCornerFace.ShowAll(false);
+        GuideCornerFace.SetLifted(false);
         _guide?.HideHologram();
+        GuideSubtitleHud.Instance?.SetTopAligned(false);
         GuideSubtitleHud.Instance?.SetActive(false);
         GuideSubtitleHud.Instance?.Clear();
         RestRosterView.Instance?.SetNextEnabled(true);
@@ -311,8 +286,21 @@ public partial class TutorialDirector : Node
     {
         // 교육 중에는 어떤 화면도 빼앗지 않는다. 지시는 화면 아래 자막 띠가 전하고,
         // GUIDE-0 의 얼굴은 CCTV 화면 오른쪽 아래 구석의 작은 창으로만 뜬다.
-        GuideCornerFace.Instance?.SetShown(true);
+        GuideCornerFace.ShowAll(true);
         return PrologueDirector.ShowGuide(_guide, guideId, replacements);
+    }
+
+    // 안내를 다 읽기 전에 플레이어가 먼저 행동해도 그대로 다음으로 넘어간다.
+    // ("L키를 눌러 보십시오" 라고 해 놓고 정작 그 안내 중의 L키를 무시하면 안 된다.)
+    private async Task SayThen(string guideId, Func<bool> done,
+        System.Collections.Generic.Dictionary<string, string> replacements = null)
+    {
+        var say = Say(guideId, replacements);
+        while (IsRunning && IsInstanceValid(this) && !done() && !say.IsCompleted)
+            await NextFrame();
+        // 행동이 먼저였다면 남은 안내는 마지막 줄만 남기고 여기서 닫는다.
+        if (!say.IsCompleted) _guide?.FinishGuideNow();
+        await Until(done);
     }
 
     private async Task NextFrame() =>
