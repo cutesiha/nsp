@@ -209,12 +209,14 @@ public static class DialogueContextBuilder
     }
 
     // 이 직원이 실제로 알고 있는 사건 중 가장 최근 것(일반 통화 "이상현상" 질문용).
-    public static LogEntry MostRecentKnownIncident(string employeeId, int day)
+    // excludeOwnActs: 자기가 한 방해공작은 "겪은 사고"로 꺼내지 않는다(결번자가 스스로 화제에 올리지 않게).
+    public static LogEntry MostRecentKnownIncident(string employeeId, int day, bool excludeOwnActs = false)
     {
         var log = EventLog.Instance;
         if (log == null) return null;
         return log.GetAllEntries()
             .Where(e => e.Day == day && IsIncident(e.EventType)
+                        && !(excludeOwnActs && e.ActorEmployeeId == employeeId)
                         && KnowledgeOf(employeeId, e) != KnowledgeLevel.None)
             .OrderByDescending(e => e.GameTimeSeconds)
             .FirstOrDefault();

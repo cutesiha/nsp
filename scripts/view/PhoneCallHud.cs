@@ -520,6 +520,8 @@ public partial class PhoneCallHud : CanvasLayer
                      ?? FallbackEvent(_dialogueEvent, employeeId);
             if (_event != null && !string.IsNullOrEmpty(_event.Opening))
             {
+                // 근무 기억용 구조화 기록 — "그래서 바로 관리자님께 전화드렸잖아요".
+                CallMemoryLog.Record(employeeId, CallRecordKind.Reported, _incidentRoomId, _dialogueEvent);
                 RecordNpc(_event.Opening, DialogueEntryType.NpcLine, DialogueConversationType.IncomingCall);
                 StartTyping("\"" + _event.Opening + "\"", AfterMode.EventChoices);
                 return;
@@ -528,6 +530,10 @@ public partial class PhoneCallHud : CanvasLayer
         }
 
         _event = null;
+        // 관리자가 먼저 건 통화일 때만. (직원이 건 전화가 대사 부족으로 일반 통화로 넘어온 경우는 아니다.)
+        if (string.IsNullOrEmpty(dialogueEvent) || dialogueEvent == DialogueRepository.EventGeneralCall)
+            CallMemoryLog.Record(employeeId, CallRecordKind.ManagerCalled,
+                FacilitySimulation.Instance?.GetEmployeeState(employeeId)?.CurrentRoomId ?? "");
         string generalGreeting = LocalDialogueGenerator.GeneralGreeting(employeeId);
         RecordNpc(generalGreeting, DialogueEntryType.NpcLine, DialogueConversationType.OutgoingCall);
         StartTyping("\"" + generalGreeting + "\"", AfterMode.GeneralQuestions);
@@ -745,6 +751,10 @@ public partial class PhoneCallHud : CanvasLayer
     private void OnEventChoice(LocalDialogueGenerator.CallChoice c, int index)
     {
         ClearChoices();
+        // 사고·비명 통화의 첫 선택지는 "확인하러 가라", 둘째는 "대기하라"(IncomingCallDirector 와 같은 규약).
+        if (_dialogueEvent is DialogueRepository.EventAccidentNearby or DialogueRepository.EventScreamNextRoom)
+            CallMemoryLog.Record(_employeeId, index == 0 ? CallRecordKind.OrderedGo : CallRecordKind.OrderedStay,
+                _incidentRoomId, _dialogueEvent);
         RecordPlayer(c.Text, DialogueConversationType.IncomingCall);
         RecordNpc(c.Reply, DialogueEntryType.NpcResponse, DialogueConversationType.IncomingCall);
         EmitSignal(SignalName.EventChoiceMade, _employeeId, _dialogueEvent, index);

@@ -376,6 +376,8 @@ public partial class IncomingCallDirector : Node
 
     private void OnCallMissed(string employeeId, string dialogueEvent)
     {
+        // 근무 기억용 — "전화드렸는데 안 받으셨어요".
+        CallMemoryLog.Record(employeeId, CallRecordKind.Missed, _active?.RoomId ?? "", dialogueEvent);
         // 전화를 안 받은 것도 "확인 지시를 안 한" 것으로 본다 → 다른 직원이 2차로 건다.
         if (_active != null && IsDispatchEvent(_active.DialogueEvent))
         {

@@ -10,10 +10,12 @@ namespace NSP.Dialogue;
 
 // 로컬 동적 대사 생성기의 진입점.
 //
-//   게임의 사실 → DialogueContextBuilder → DialogueResponsePlanner → KoreanDialogueComposer
+//   게임의 사실 → DialogueContextBuilder → DialogueResponsePlanner
+//              → (ShiftMemory 근무 기억) → KoreanDialogueComposer → DialogueComposer
 //
 // 외부 API를 전혀 쓰지 않으며, 여기서 나가는 모든 문장은 실제 게임 데이터에서 나온다.
-// 인터뷰 / 일반 통화 / 수신 전화가 모두 같은 파이프라인을 탄다.
+// 인터뷰 / 일반 통화 / 수신 전화가 모두 같은 파이프라인을 타고, 문장 틀은 전부
+// data/dialogue/lines/*.txt 에 있다.
 public static class LocalDialogueGenerator
 {
     public const string EventDay1Interview = "day1_local_interview";
@@ -33,16 +35,16 @@ public static class LocalDialogueGenerator
     public static string OpinionTargetId(string employeeId) => OpinionTargets.GetValueOrDefault(employeeId, "");
 
     // 선택지가 열리기 전의 짧은 인사. 사실을 담지 않으므로 캐릭터 말투만 고정으로 둔다.
-    public static string InterviewGreeting(string employeeId) => employeeId switch
+    public static string InterviewGreeting(string employeeId) => Line(employeeId, "greet.interview", "네, 말씀하세요.");
+
+    // 대사 뱅크에서 한 줄. 없으면 폴백.
+    private static string Line(string employeeId, string slot, string fallback)
     {
-        "rabbit" => "네, 관리자님! 무슨 일이에요?",
-        "fox" => "네~ 관리자님. 저 찾으셨어요?",
-        "cat" => "네. 왜 부르셨어요?",
-        "wolf" => "네. 말씀하십시오.",
-        "dog" => "네, 관리자님. 무슨 일 있으세요?",
-        "sheep" => "아, 네. 관리자님, 부르셨어요?",
-        _ => "네, 말씀하세요.",
-    };
+        var f = new ReplyFrame { EmployeeId = employeeId, CustomSlot = slot, MaxSentences = 1 };
+        string text = DialogueLineBank.Has(employeeId, slot, DialogueVoices.Get(employeeId).Formal)
+            ? DialogueComposer.Compose(f) : "";
+        return string.IsNullOrEmpty(text) || text == "…" ? fallback : text;
+    }
 
     // --- 인터뷰 --------------------------------------------------------
 
@@ -63,10 +65,15 @@ public static class LocalDialogueGenerator
         if (!string.IsNullOrEmpty(scripted))
             return new InterviewTurn { Answer = scripted };
 
-        var ctx = Context(employeeId, DialogueConversationKind.Interview, questionId, "", null);
+        // "오늘 이상한 점?" 은 하루의 대표 사고가 아니라 이 직원이 실제로 겪은 가장 최근 사고로 답한다.
+        // (대표 사고 하나에 묶으면, 발전실 사고를 직접 수습한 직원이 "이상 없었습니다" 라고 말하게 된다.)
+        LogEntry subject = questionId == DialogueQuestions.Anomaly
+            ? DialogueContextBuilder.MostRecentKnownIncident(employeeId, DialogueContextBuilder.Day(), excludeOwnActs: true)
+            : null;
+        var ctx = Context(employeeId, DialogueConversationKind.Interview, questionId, "", subject);
         MarkAsked(ctx, questionId);
         var plan = DialogueResponsePlanner.Plan(ctx);
-        string answer = KoreanDialogueComposer.Compose(ctx, plan);
+        string answer = KoreanDialogueComposer.Compose(ctx, plan, Recall(ctx, plan));
         // 꼬리질문은 "이번 답변을 듣기 전까지 플레이어가 알던 것"으로 판단한다.
         // 그래서 증거 기록은 후보를 만든 뒤에 한다.
         var follows = FollowUpQuestionGenerator.Generate(ctx, plan);
@@ -124,7 +131,8 @@ public static class LocalDialogueGenerator
 
     // --- 플레이어가 거는 일반 통화 ---------------------------------------
 
-    public static string GeneralGreeting(string employeeId) => DialogueRepository.Greeting(employeeId);
+    public static string GeneralGreeting(string employeeId) =>
+        Line(employeeId, "greet.call", DialogueRepository.Greeting(employeeId));
 
     // 질문 텍스트는 기존 구조(docs/NSP_DIALOGUE_RUNTIME.md)를 그대로 쓰고, 대답만 현재 상태에서 만든다.
     public static string GeneralAnswer(string employeeId, int index)
@@ -145,7 +153,7 @@ public static class LocalDialogueGenerator
         var ctx = Context(employeeId, DialogueConversationKind.OutgoingCall, questionId, "", subject);
         MarkAsked(ctx, questionId);
         var plan = DialogueResponsePlanner.Plan(ctx);
-        return KoreanDialogueComposer.Compose(ctx, plan);
+        return KoreanDialogueComposer.Compose(ctx, plan, Recall(ctx, plan));
     }
 
     // --- 직원이 거는 수신 전화 -------------------------------------------
@@ -218,16 +226,7 @@ public static class LocalDialogueGenerator
         return KoreanDialogueComposer.Compose(ctx, plan);
     }
 
-    private static string CallPrefix(string employeeId) => employeeId switch
-    {
-        "dog" => "관리자님, 말씀드릴 게 있어요.",
-        "cat" => "관리자님. 하나 보고할게요.",
-        "sheep" => "저, 관리자님... 이거 말씀드려야 할 것 같아서요.",
-        "rabbit" => "관리자님! 이거 보셨어요?",
-        "wolf" => "보고드립니다.",
-        "fox" => "관리자님, 잠깐만요.",
-        _ => "관리자님.",
-    };
+    private static string CallPrefix(string employeeId) => Line(employeeId, "call.prefix", "관리자님.");
 
     // 이 전화가 다루는 사건. 실제 로그에서만 찾는다 — 없으면 전화 대사를 만들지 않는다.
     private static LogEntry FindEventSubject(string employeeId, string dialogueEvent, string roomId)
@@ -263,6 +262,62 @@ public static class LocalDialogueGenerator
         var ctx = DialogueContextBuilder.Build(employeeId, kind, questionId, eventId, subject);
         ctx.TargetEmployeeId = OpinionTargetId(employeeId);
         return ctx;
+    }
+
+    // --- 근무 기억 ---------------------------------------------------------
+
+    // 이 답변 뒤에 덧붙일 기억을 고른다. 질문 종류가 "무엇을 떠올릴지"를 정하고,
+    // 결번자가 거짓 알리바이를 대는 중이면 주장한 방을 기준으로만 떠올린다.
+    private static RecallResult Recall(DialogueContext ctx, DialogueResponsePlan plan)
+    {
+        var topic = ctx.QuestionId switch
+        {
+            DialogueQuestions.ShiftReview => RecallTopic.ShiftReview,
+            // 아는 사고가 없다는 답에는 "그쯤" 같은 기억을 붙이지 않는다 — 가리킬 시각이 없다.
+            DialogueQuestions.Anomaly or DialogueQuestions.GeneralAnomaly
+                when plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect => RecallTopic.Anomaly,
+            DialogueQuestions.Suspicious when plan.Core == CoreKind.NoSighting => RecallTopic.Suspicious,
+            DialogueQuestions.Where => RecallTopic.Location,
+            DialogueQuestions.Accuse => RecallTopic.Accuse,
+            DialogueQuestions.GeneralStatus => RecallTopic.Status,
+            _ => RecallTopic.None,
+        };
+        if (topic == RecallTopic.None) return null;
+
+        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
+        bool lying = ctx.IsSaboteur && !claim.ClaimTruthful && !string.IsNullOrEmpty(claim.ClaimedRoomId);
+        string room = lying ? claim.ClaimedRoomId
+            : !string.IsNullOrEmpty(plan.RoomId) && topic == RecallTopic.Location ? plan.RoomId
+            : ctx.RoomAtSubject;
+
+        var req = new RecallRequest
+        {
+            EmployeeId = ctx.EmployeeId,
+            Day = ctx.CurrentDay,
+            Topic = topic,
+            IsSaboteur = ctx.IsSaboteur,
+            Lying = lying,
+            IsRepeat = ctx.IsRepeat,
+            SubjectIncidentKey = ctx.Subject?.Key ?? "",
+            AnchorRoom = room ?? "",
+            AnchorTime = topic switch
+            {
+                // 하루 전체를 돌아보는 질문은 시각에 묶지 않는다.
+                RecallTopic.ShiftReview or RecallTopic.Suspicious => -1f,
+                // 근무 중 통화는 "방금 전" 을 떠올린다.
+                RecallTopic.Status => ctx.CurrentGameTime,
+                _ => ctx.HasSubjectTime ? ctx.SubjectTime : -1f,
+            },
+        };
+        if (topic == RecallTopic.Status)
+            req.AnchorRoom = string.IsNullOrEmpty(ctx.CurrentRoomId) ? ctx.AssignedRoomId : ctx.CurrentRoomId;
+        // 휴게시간 "오늘 근무" 답의 핵심이 이미 오늘 겪은 사고를 말한다.
+        if (topic == RecallTopic.ShiftReview && plan.StatusNote == "busy")
+        {
+            req.Covered.Add(MemoryKind.IncidentHere);
+            req.Covered.Add(MemoryKind.IncidentHeard);
+        }
+        return ShiftMemory.Recall(req);
     }
 
     // 같은 질문을 다시 받았는지 기록한다. 핵심 주장은 그대로 두고 표현만 바뀐다.

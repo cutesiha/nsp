@@ -81,6 +81,10 @@ public static class InterviewReplyPlanner
         bool truthful = !ctx.IsSaboteur || claim.ClaimTruthful;
 
         var f = new ReplyFrame { EmployeeId = id };
+        // 근무 기억 — 이 답변 뒤에 무엇을 떠올릴지(주제), 어느 방 기준인지, 핵심이 이미 말한 것.
+        var memTopic = RecallTopic.None;
+        string memRoom = "";
+        var covered = new List<MemoryKind>();
         f.Set("time", DialogueClock.Spoken(t));
         f.Set("from", RoomName(q.FromRoomId));
         f.Set("to", RoomName(q.ToRoomId));
@@ -92,6 +96,11 @@ public static class InterviewReplyPlanner
             case InterviewIntent.AskMoveReason:
                 f.Topic = ReplyTopic.MoveReason;
                 FillMoveReason(f, q, id, day, truthful);
+                memTopic = RecallTopic.Movement;
+                memRoom = truthful ? q.ToRoomId : plan.RoomId;
+                covered.Add(MemoryKind.Relocated);
+                covered.Add(MemoryKind.Dispatched);
+                if (f.Variant is "task" or "repair") covered.Add(MemoryKind.Worked);
                 // "그 방으로 갔다"는 것을 스스로 인정한 진술이다.
                 RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t);
                 break;
@@ -99,6 +108,9 @@ public static class InterviewReplyPlanner
             case InterviewIntent.AskPresenceReason:
                 f.Topic = ReplyTopic.PresenceReason;
                 FillPresenceReason(f, q, id, day, t, truthful);
+                memTopic = RecallTopic.Presence;
+                memRoom = truthful ? q.SubjectRoomId : plan.RoomId;
+                if (f.Variant == "task") covered.Add(MemoryKind.Worked);
                 RecordClaim(id, ctx.ClaimKey, truthful ? q.SubjectRoomId : plan.RoomId, t);
                 break;
 
@@ -113,6 +125,9 @@ public static class InterviewReplyPlanner
                 f.Set("room", RoomName(room));
                 // "그 시각 그 방에서 저 사람과 함께 있었다" — 상대의 위치까지 걸린 진술이다.
                 if (others.Count > 0) RecordSighting(id, others[0], room, t);
+                memTopic = RecallTopic.Presence;
+                memRoom = room;
+                covered.Add(MemoryKind.Companion);
                 break;
             }
 
@@ -137,6 +152,9 @@ public static class InterviewReplyPlanner
                     : kind == "task" ? "task" : "check";
                 f.Set("task", task);
                 f.Set("room", RoomName(room));
+                memTopic = RecallTopic.Presence;
+                memRoom = room;
+                covered.Add(MemoryKind.Worked);
                 break;
             }
 
@@ -150,6 +168,8 @@ public static class InterviewReplyPlanner
                 f.Variant = level == KnowledgeLevel.Direct ? "direct"
                     : level == KnowledgeLevel.Indirect ? "indirect" : "none";
                 f.Set("room", RoomName(q.SubjectRoomId));
+                memTopic = RecallTopic.Anomaly;
+                memRoom = truthful ? ctx.RoomAtSubject : plan.RoomId;
                 break;
             }
 
@@ -157,6 +177,8 @@ public static class InterviewReplyPlanner
                 f.Topic = ReplyTopic.WhereAtIncident;
                 f.Variant = "any";
                 f.Set("room", RoomName(plan.RoomId));
+                memTopic = RecallTopic.Location;
+                memRoom = plan.RoomId;
                 // 이 답변은 그대로 '이 직원의 진술' 자료가 된다.
                 RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
                 break;
@@ -171,6 +193,10 @@ public static class InterviewReplyPlanner
                 else if (!string.IsNullOrEmpty(prev) && prev != room) { f.Variant = "moved"; f.Set("prev", RoomName(prev)); }
                 else f.Variant = "plain";
                 f.Set("room", RoomName(room));
+                memTopic = RecallTopic.Presence;
+                memRoom = room;
+                if (f.Variant == "task") covered.Add(MemoryKind.Worked);
+                if (f.Variant == "moved") covered.Add(MemoryKind.Relocated);
                 break;
             }
 
@@ -205,6 +231,8 @@ public static class InterviewReplyPlanner
                 f.Variant = matches ? "admit" : "deny";
                 f.Set("room", RoomName(matches ? q.SubjectRoomId : plan.RoomId));
                 RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                memTopic = RecallTopic.Location;
+                memRoom = plan.RoomId;
                 break;
             }
 
@@ -214,6 +242,8 @@ public static class InterviewReplyPlanner
                 f.Set("room", RoomName(plan.RoomId));
                 // 같은 주장을 되풀이하는 것이므로 진술 자료도 그대로 유지된다.
                 RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                memTopic = RecallTopic.Location;
+                memRoom = plan.RoomId;
                 break;
 
             case InterviewIntent.AskMoodReason:
@@ -268,16 +298,37 @@ public static class InterviewReplyPlanner
                 f.Variant = "any";
                 break;
         }
+
+        if (memTopic != RecallTopic.None)
+        {
+            var req = new RecallRequest
+            {
+                EmployeeId = id, Day = day, Topic = memTopic,
+                AnchorTime = q.HasAnchorTime ? q.AnchorTime : -1f,
+                AnchorRoom = memRoom ?? "",
+                IsSaboteur = ctx.IsSaboteur,
+                Lying = ctx.IsSaboteur && !truthful,
+                SubjectIncidentKey = q.IncidentKey ?? "",
+            };
+            foreach (var k in covered) req.Covered.Add(k);
+            var mem = ShiftMemory.Recall(req);
+            f.Addenda.AddRange(mem.Addenda);
+        }
         return f;
     }
 
     // --- 사실 조회 -------------------------------------------------------
 
-    // 질문이 가리키는 작업실. 없으면 그 시각의 실제(또는 주장된) 위치.
+    // 질문이 가리키는 "이 직원이 있던" 작업실. 없으면 그 시각의 실제 위치.
+    //
+    // 사고 자료의 SubjectRoomId 는 "사고가 난 방"이지 이 직원이 있던 방이 아니다.
+    // 예전에는 그 값을 그대로 써서, 경비실에 있던 직원이 "그때 같이 있던 사람"을 물으면
+    // 사고 난 저장고의 인원을 대는(그리고 그게 증언 자료로 남는) 사고가 났다.
     private static string AnchorRoom(InterviewQuestion q, DialogueContext ctx)
     {
         if (!string.IsNullOrEmpty(q.ToRoomId)) return q.ToRoomId;
-        if (!string.IsNullOrEmpty(q.SubjectRoomId)) return q.SubjectRoomId;
+        bool incidentRoom = !string.IsNullOrEmpty(q.IncidentKey);
+        if (!incidentRoom && !string.IsNullOrEmpty(q.SubjectRoomId)) return q.SubjectRoomId;
         return string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
     }
 
@@ -285,6 +336,11 @@ public static class InterviewReplyPlanner
     private static void FillMoveReason(ReplyFrame f, InterviewQuestion q, string id, int day, bool truthful)
     {
         if (q.PlayerOrderedMove) { f.Variant = "ordered"; return; }
+        // 관리자가 전화로 "확인하러 가라"고 해서 옮긴 이동 — 통화 기록에서만 찾는다.
+        float window = ShiftMemory.RecallWindowMinutes * DialogueClock.SecondsPerMinute;
+        if (CallMemoryLog.For(id, day).Any(r => r.Kind == CallRecordKind.OrderedGo && r.RoomId == q.ToRoomId
+                                                && r.Time <= q.AnchorTime + 1f && r.Time >= q.AnchorTime - window))
+        { f.Variant = "dispatched"; return; }
 
         var (kind, task) = WorkAt(id, day, q.ToRoomId, q.AnchorTime);
         if (kind == "repair") { f.Variant = "repair"; return; }
@@ -328,30 +384,8 @@ public static class InterviewReplyPlanner
 
         // 업무 이름을 못 집어내면 "무슨 업무였는지는 말하지 않는다" 로 떨어진다.
         // 빈 이름을 그대로 넘기면 {task} 자리가 비어 문장 후보가 통째로 사라진다.
-        string name = TaskNameFrom(start.Description);
+        string name = ShiftMemory.TaskNameFrom(start.Description);
         return string.IsNullOrEmpty(name) ? ("check", "") : ("task", name);
-    }
-
-    // 로그 원문에서 업무 이름을 집어낸다.
-    // 문장 형식("🔧 늑대 환기실 도착 / 환기구 청소 시작")에 기대지 않고, 먼저 실제
-    // TaskDef 이름과 대조한다 — 로그 문구가 바뀌어도 대사가 깨지지 않게.
-    private static string TaskNameFrom(string description)
-    {
-        string d = (description ?? "").Replace("⚙", "").Replace("🔧", "").Trim();
-        if (d.Length == 0) return "";
-
-        var sim = FacilitySimulation.Instance;
-        if (sim != null)
-            foreach (var def in sim.GetTaskDefs())
-                if (!string.IsNullOrEmpty(def?.DisplayName) && d.Contains(def.DisplayName))
-                    return def.DisplayName;
-
-        int slash = d.LastIndexOf(" / ", System.StringComparison.Ordinal);
-        if (slash < 0) return "";
-        d = d[(slash + 3)..].Trim();
-        foreach (string tail in new[] { " 시작", " 수행", " 진행" })
-            if (d.EndsWith(tail)) d = d[..^tail.Length].Trim();
-        return d;
     }
 
     // 주장한 방에서 그 사건을 어디까지 알 수 있는가(거짓 알리바이의 일관성).

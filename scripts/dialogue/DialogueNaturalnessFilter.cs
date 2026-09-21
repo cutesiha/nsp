@@ -62,7 +62,8 @@ public static class DialogueNaturalnessFilter
         if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
         string x = Core(a), y = Core(b);
         if (x.Length == 0 || y.Length == 0) return false;
-        if (x.Contains(y) || y.Contains(x)) return true;
+        // 알맹이가 한두 글자면("저요?" → "저") 포함 관계가 우연히 성립한다 — 세 글자부터 본다.
+        if ((y.Length >= 3 && x.Contains(y)) || (x.Length >= 3 && y.Contains(x))) return true;
         // 앞머리가 길게 겹치면 사람 귀에는 같은 말이다.
         // ("뭔가 들으신 게 있으신가요" / "뭔가 들으신 게 있으시면 말씀해주세요")
         int same = 0;

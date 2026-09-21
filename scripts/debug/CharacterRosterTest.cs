@@ -68,6 +68,12 @@ public partial class CharacterRosterTest : Node
                   && def.FacePortrait != null,
                 $"{id} 데이터·스탠딩·얼굴 로드 ({def?.Codename})");
         }
+        // 대사 뱅크(data/dialogue/lines)가 6명 모두의 문장을 갖고 있고, 조사 표기 오류가 없다.
+        foreach (string p in DialogueLineBank.Problems.Take(5)) GD.Print("   뱅크: " + p);
+        Check(DialogueLineBank.Problems.Count == 0, $"대사 뱅크 조사·형식 오류 없음 ({DialogueLineBank.Problems.Count}건)");
+        Check(Final.All(id => DialogueLineBank.Keys.Any(k => k == $"{id}|selfloc")
+                              && DialogueLineBank.Keys.Any(k => k == $"{id}|mem.with")),
+            "6명 모두 자기 대사 파일(핵심 + 근무 기억)이 있다");
         // 대사·성향 표도 같은 6명을 안다.
         Check(Final.All(id => DialogueVoices.Get(id).EmployeeId == id), "말투(voice .tres) 6명 전부 로드");
         Check(Final.All(id => EmployeeTraits.All.ContainsKey(id)) && EmployeeTraits.All.Count == 6,

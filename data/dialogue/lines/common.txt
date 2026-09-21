@@ -1,0 +1,494 @@
+# 공통 문장 — 캐릭터 파일에 같은 슬롯이 없을 때만 쓰인다.
+# @char fml = 격식체(…습니다) 캐릭터 공통 / @char sft = 해요체 캐릭터 공통 / @char any = 모두
+# 형식: '## 슬롯' 아래에 '- 문장'. 변수 뒤 조사는 반드시 '은/는' 처럼 슬래시로 쓴다.
+
+@char fml
+
+# ── 증거 기반 심문 공통 ──
+## MoveReason.plain
+- 특별한 이유는 없었습니다. 잠시 자리를 옮긴 것뿐입니다.
+- {to}에 잠깐 들렀다가 돌아왔습니다.
+
+## PresenceReason.task
+- {room}에서 {task}을/를 하고 있었습니다.
+- {task} 때문에 계속 {room}에 있었습니다.
+
+## PresenceReason.assigned
+- {room}이/가 제 배치 자리였습니다.
+- 거기가 오늘 제 자리입니다. 계속 {room}에 있었습니다.
+
+## PresenceReason.check
+- {room} 상태를 확인하고 있었습니다.
+- 이상이 없는지 보러 {room}에 들어가 있었습니다.
+
+## PresenceReason.evasive
+- …거기 있었던 건 맞습니다. 이유는 지금 설명하기 어렵습니다.
+- 잠깐 지나간 것뿐입니다.
+
+## NextLocation.moved
+- 일을 마치고 {next}으로/로 이동했습니다.
+- {next}으로/로 갔습니다. 그 뒤로는 계속 거기 있었습니다.
+
+## NextLocation.stayed
+- 그 뒤로는 계속 {room}에 있었습니다.
+- 옮기지 않았습니다. 근무가 끝날 때까지 그 자리였습니다.
+
+## NextLocation.evasive
+- …그 뒤의 동선은 정확히 말씀드리기 어렵습니다.
+- 몇 군데 돌았습니다. 순서까지는 기억나지 않습니다.
+
+## ActionThere.task
+- {task}을/를 처리했습니다.
+- {room}에서 {task}을/를 끝내고 나왔습니다.
+
+## ActionThere.repair
+- 고장난 설비를 손봤습니다.
+- {room} 수리 작업을 했습니다.
+
+## ActionThere.check
+- 계기와 설비 상태만 확인하고 나왔습니다.
+- 특별히 한 건 없습니다. 상태만 봤습니다.
+
+## ActionThere.evasive
+- …특별히 기억에 남는 건 없습니다.
+- 잠깐 있다 나왔습니다. 그게 전부입니다.
+
+## IncidentKnown.none
+- 그 사고는 지금 처음 듣습니다.
+- 몰랐습니다. 제가 있던 쪽에서는 아무 신호도 없었습니다.
+
+## BeforeIncident.task
+- {room}에서 {task}을/를 하고 있었습니다.
+- 그 직전까지 {task} 중이었습니다.
+
+## BeforeIncident.moved
+- {prev}에서 {room}으로/로 막 넘어온 참이었습니다.
+- 직전에 {prev}에서 자리를 옮겼습니다.
+
+## BeforeIncident.plain
+- 평소와 다르지 않았습니다. {room}에서 자리를 지키고 있었습니다.
+- 특별한 건 없었습니다.
+
+## WhoSeenNear.someone
+- {who} 직원을 봤습니다. 그 이상은 모릅니다.
+- {who} 직원이 근처에 있었습니다.
+
+## WhoSeenNear.none
+- 아무도 보지 못했습니다.
+- 그 무렵에는 주변에 사람이 없었습니다.
+
+## RouteAround.full
+- {prev}에서 {room}으로/로, 그 다음 {next}으로/로 이동했습니다.
+- {prev} → {room} → {next} 순서였습니다.
+
+## RouteAround.short
+- {room}에서 거의 움직이지 않았습니다.
+- 그 시간대에는 {room}에만 있었습니다.
+
+## RouteAround.evasive
+- 순서까지는 정확히 말씀드리기 어렵습니다.
+- 여러 번 오갔습니다. 하나하나 기억나지는 않습니다.
+
+## Restate.same
+- 말씀드린 그대로입니다. {room}에 있었습니다.
+- 몇 번을 물으셔도 같습니다. {room}입니다.
+
+## MoodReason.incident
+- {room} 쪽 일이 계속 마음에 걸려서 그렇게 적었습니다.
+- 오늘 시설이 조용하지 않았습니다. 그래서입니다.
+
+## MoodReason.calm
+- 특별히 나쁜 일이 없었습니다. 그대로 적었습니다.
+- 오늘은 마음이 편했습니다. 그뿐입니다.
+
+## MoodReason.plain
+- 특별한 이유는 없습니다. 근무 전 느낌 그대로 적었습니다.
+- 그냥 그랬습니다. 깊은 뜻은 없습니다.
+
+## MoodBefore.yes
+- 네. 출근할 때부터 그랬습니다.
+- 근무 전부터였습니다. 시설 일과는 상관없습니다.
+
+## MoodBefore.no
+- 아닙니다. 근무 들어와서 그렇게 됐습니다.
+- 처음엔 괜찮았습니다. 중간부터 그랬습니다.
+
+## MoodRelated.person
+- {who} 직원과 마주친 뒤로 신경이 쓰였습니다.
+- 굳이 꼽자면 {who} 직원 쪽입니다.
+
+## MoodRelated.incident
+- {room} 쪽 일 때문입니다.
+- 사고 이후로 계속 그랬습니다.
+
+## MoodRelated.none
+- 특정한 사람이나 사건과는 관계없습니다.
+- 아닙니다. 그런 건 없습니다.
+
+## ExactTime.exact
+- {time}경입니다.
+- {time} 전후였습니다.
+
+## ExactTime.vague
+- 시계를 보지 않아 정확히는 모르겠습니다.
+- 정확한 시각까지는 기억나지 않습니다.
+
+## Unknown.any
+- 그건 잘 모르겠습니다.
+
+# ── 되받기 · 시간 표현 ──
+## echo.wrap
+- {subject} 말씀이십니까?
+
+## echo.certain
+- 확실하냐는 말씀이십니까?
+
+## echo.seen
+- 직접 봤냐는 말씀이십니까?
+
+## echo.heard
+- 어떤 소리였냐는 말씀이십니까?
+
+## echo.where
+- 어디서 봤냐는 말씀이십니까?
+
+## time.vague
+- 그때
+- 아까
+- 그쯤
+
+## MoveReason.dispatched
+- 전화로 확인 지시를 받고 {to}으로/로 갔습니다.
+
+# ── 근무 기억(ShiftMemory) ──
+## mem.worked
+- {task} 중이었습니다.
+
+## mem.worked.repair
+- {room} 수리를 하고 있었습니다.
+
+## mem.with
+- {who} 씨도 같이 있었습니다.
+
+## mem.with.two
+- {who} 씨와 {who2} 씨가 같이 있었습니다.
+
+## mem.with.incident
+- {who} 씨도 그 자리에 있었습니다.
+
+## mem.with.day
+- 오늘은 주로 {who} 씨와 같이 일했습니다.
+
+## mem.with.vague
+- 다들 자기 자리에 있었던 것 같습니다.
+
+## mem.alone
+- 그때는 혼자였습니다.
+
+## mem.relocated
+- 지시를 받고 {time} {room}으로/로 옮겼습니다.
+
+## mem.dispatched
+- 전화로 지시를 받고 {iroom}에 확인하러 갔습니다.
+
+## mem.call.stay
+- 전화로 대기하라는 지시를 받아 자리를 지켰습니다.
+
+## mem.call.reported
+- 그래서 바로 관리자님께 보고드렸습니다.
+
+## mem.call.missed
+- 전화를 드렸는데 받지 않으셨습니다.
+
+## mem.called
+- 관리자님 전화를 받았을 때도 {room}에 있었습니다.
+
+## mem.repair
+- {room} 복구가 끝난 것도 그쯤이었습니다.
+
+## mem.heard
+- 그쯤 {iroom} 쪽에서 소리가 났습니다.
+
+## mem.incident.here
+- {room}에서 사고가 났을 때도 거기 있었습니다.
+
+## mem.sum.moves
+- 오늘은 {n} 번 자리를 옮겼습니다.
+
+## mem.sum.calls
+- 오늘 관리자님께 {n} 번 전화드렸습니다.
+
+## slip.assert
+- 그건 확실합니다.
+
+## slip.concern.vague
+- 다들 괜찮은지 걱정됐습니다.
+
+@char sft
+
+# ── 증거 기반 심문 공통 ──
+## MoveReason.plain
+- 특별한 이유는 없었어요. 잠깐 옮긴 거예요.
+- {to}에 잠깐 갔다 왔어요.
+
+## PresenceReason.task
+- {room}에서 {task} 하고 있었어요.
+- {task} 때문에 계속 거기 있었어요.
+
+## PresenceReason.assigned
+- 거기가 제 자리잖아요. {room}에 있었어요.
+- {room}이/가 오늘 제 배치였어요.
+
+## PresenceReason.check
+- {room} 상태 보고 있었어요.
+- 이상 없나 보러 들어가 있었어요.
+
+## PresenceReason.evasive
+- 거기 있었던 건 맞는데요... 그냥 지나간 거예요.
+- 딱히 이유는 없었어요. 잠깐이었고요.
+
+## NextLocation.moved
+- 끝내고 {next}으로/로 갔어요.
+- {next}으로/로 옮겼어요. 그 뒤엔 쭉 거기 있었고요.
+
+## NextLocation.stayed
+- 그 뒤론 계속 {room}에 있었어요.
+- 안 옮겼어요. 끝까지 거기 있었어요.
+
+## NextLocation.evasive
+- 그 뒤엔... 여기저기 좀 돌았어요. 순서는 잘 모르겠고요.
+- 어디부터였는지는 기억이 잘 안 나요.
+
+## ActionThere.task
+- {task} 했어요.
+- {task} 끝내고 나왔어요.
+
+## ActionThere.repair
+- 고장난 거 고쳤어요.
+- {room} 수리했어요.
+
+## ActionThere.check
+- 상태만 보고 나왔어요.
+- 딱히 한 건 없어요. 확인만 했어요.
+
+## ActionThere.evasive
+- 별거 안 했어요. 잠깐 있다 나왔어요.
+- 기억에 남을 만한 건 없는데요.
+
+## IncidentKnown.none
+- 그건 처음 듣는데요.
+- 몰랐어요. 제가 있던 데선 아무것도 없었어요.
+
+## BeforeIncident.task
+- {room}에서 {task} 하고 있었어요.
+- 그 직전까지 {task} 중이었어요.
+
+## BeforeIncident.moved
+- {prev}에서 {room}으로/로 막 옮긴 참이었어요.
+- 직전에 {prev}에서 넘어왔어요.
+
+## BeforeIncident.plain
+- 평소랑 똑같았어요. {room}에 있었고요.
+- 별거 없었어요.
+
+## WhoSeenNear.someone
+- {who} 씨 봤어요. 그게 다예요.
+- {who} 씨가 근처에 있었어요.
+
+## WhoSeenNear.none
+- 아무도 못 봤어요.
+- 그때는 주변에 아무도 없었어요.
+
+## RouteAround.full
+- {prev}에 있다가 {room}으로/로 갔고, 그 다음엔 {next}으로/로 옮겼어요.
+- {prev}, {room}, {next} 순서였어요.
+
+## RouteAround.short
+- {room}에서 거의 안 움직였어요.
+- 그 시간엔 {room}에만 있었어요.
+
+## RouteAround.evasive
+- 순서까지는 잘 모르겠어요.
+- 여러 번 왔다 갔다 해서요... 정확히는 기억이 안 나요.
+
+## Restate.same
+- 아까 말한 그대로예요. {room}에 있었어요.
+- 몇 번을 물으셔도 똑같아요. {room}이요/요.
+
+## MoodReason.incident
+- {room} 쪽 일이 계속 신경 쓰여서요.
+- 오늘 시설이 좀 시끄러웠잖아요. 그래서예요.
+
+## MoodReason.calm
+- 딱히 나쁜 일이 없었거든요. 그대로 적은 거예요.
+- 오늘은 그냥 마음이 편했어요.
+
+## MoodReason.plain
+- 딱히 이유는 없어요. 그냥 그랬어요.
+- 그냥 적은 거예요. 별 뜻 없어요.
+
+## MoodBefore.yes
+- 네, 올 때부터 그랬어요.
+- 근무 전부터요. 여기 일이랑은 상관없어요.
+
+## MoodBefore.no
+- 아뇨, 들어와서 그렇게 됐어요.
+- 처음엔 괜찮았는데 중간부터요.
+
+## MoodRelated.person
+- {who} 씨 만나고 나서 좀 그랬어요.
+- 굳이 따지면 {who} 씨 쪽이요.
+
+## MoodRelated.incident
+- {room} 쪽 일 때문이에요.
+- 그 사고 나고부터 계속 그랬어요.
+
+## MoodRelated.none
+- 특별히 누구 때문은 아니에요.
+- 아뇨, 그런 건 없어요.
+
+## ExactTime.exact
+- {time}쯤이요.
+- {time} 전후였어요.
+
+## ExactTime.vague
+- 시계를 안 봐서 정확히는 몰라요.
+- 몇 시였는지까지는 기억이 안 나요.
+
+## Unknown.any
+- 그건 잘 모르겠어요.
+
+# ── 되받기 · 시간 표현 ──
+## echo.wrap
+- {subject}이요/요?
+
+## echo.certain
+- 확실하냐고요?
+
+## echo.seen
+- 직접 봤냐고요?
+
+## echo.heard
+- 무슨 소리였냐고요?
+
+## echo.where
+- 어디서 봤냐고요?
+
+## time.vague
+- 그때
+- 아까
+- 조금 전에
+- 그쯤
+
+## MoveReason.dispatched
+- 관리자님이 전화로 확인하러 가라고 하셔서 {to}으로/로 갔어요.
+
+# ── 근무 기억(ShiftMemory) ──
+## mem.worked
+- {task} 하고 있었어요.
+
+## mem.worked.repair
+- {room} 수리하고 있었어요.
+
+## mem.with
+- {who} 씨도 같이 있었어요.
+
+## mem.with.two
+- {who} 씨랑 {who2} 씨가 같이 있었어요.
+
+## mem.with.incident
+- {who} 씨도 그 자리에 있었어요.
+
+## mem.with.day
+- 오늘은 거의 {who} 씨랑 같이 일했어요.
+
+## mem.with.vague
+- 다들 자기 자리에 있었던 것 같아요.
+
+## mem.alone
+- 그때는 혼자 있었어요.
+
+## mem.relocated
+- 관리자님이 옮기라고 하셔서 {time} {room}으로/로 갔어요.
+
+## mem.dispatched
+- 전화로 확인하러 가라고 하셔서 {iroom}에 갔었어요.
+
+## mem.call.stay
+- 전화로 기다리라고 하셔서 자리에 있었어요.
+
+## mem.call.reported
+- 그래서 바로 관리자님께 전화드렸잖아요.
+
+## mem.call.missed
+- 전화드렸는데 안 받으셨어요.
+
+## mem.called
+- 관리자님이 전화하셨을 때도 {room}에 있었어요.
+
+## mem.repair
+- {room} 복구 끝난 것도 그쯤이었어요.
+
+## mem.heard
+- 그쯤 {iroom} 쪽에서 소리가 났었어요.
+
+## mem.incident.here
+- {room}에서 사고 났을 때도 거기 있었어요.
+
+## mem.sum.moves
+- 오늘은 {n} 번이나 자리를 옮겼어요.
+
+## mem.sum.calls
+- 오늘 관리자님께 {n} 번 전화드렸어요.
+
+## slip.assert
+- 그건 확실해요.
+
+## slip.concern.vague
+- 다들 괜찮은지 걱정됐어요.
+
+@char any
+
+# ── 사건 표현 — 동사 줄기(과거형 음절로 끝남). 말투에 따라 '어요/습니다' 가 붙는다 ──
+## phrase.direct.TaskFailed
+- 설비가 멈췄
+- 기계가 갑자기 섰
+- 장비 하나가 나갔
+
+## phrase.direct.PowerOutage
+- 전기가 나갔
+- 불이 전부 꺼졌
+- 전력이 끊겼
+
+## phrase.direct.CctvDisconnect
+- 화면이 끊겼
+- 감시 화면이 나갔
+
+## phrase.direct.Sabotage
+- 장비가 누가 건드린 것처럼 어긋나 있었
+- 작업 기록이 이상하게 밀려 있었
+
+## phrase.direct.TabooViolation
+- 설명하기 어려운 일이 있었
+- 그때 뭔가 나타났
+
+## phrase.direct.Death
+- 사람이 쓰러져 있었
+
+## phrase.direct.any
+- 이상한 일이 있었
+
+## phrase.sound.Death
+- 비명 같은 게 들렸
+- 사람 소리가 한 번 크게 났
+
+## phrase.sound.PowerOutage
+- 불이 한 번 크게 깜빡였
+- 그쪽 조명이 꺼지는 게 보였
+- 큰 소리가 났
+
+## phrase.sound.any
+- 큰 소리가 났
+- 쿵 하는 소리가 들렸
+- 뭔가 부서지는 소리가 났
+- 진동이 느껴졌

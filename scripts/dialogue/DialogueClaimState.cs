@@ -77,5 +77,8 @@ public static class DialogueClaimState
         InterviewReplyPlanner.Reset();
         DialoguePatternMemory.ResetAll();
         DialogueContextBuilder.Invalidate();
+        // 지난 근무의 통화·근무 기억은 새 근무로 넘어오지 않는다(기억은 날짜로도 걸러진다).
+        CallMemoryLog.ResetAll();
+        ShiftMemory.Invalidate();
     }
 }

@@ -94,7 +94,7 @@ public static class DialogueUtterancePlanner
 
         // 위치 답변에는 시간 표현을 붙이지 않는다 — 질문이 이미 시각을 말했고,
         // "아까 경비실입니다" 처럼 명사로 끝나는 답에 얹으면 사람 말이 아니게 된다.
-        up.TimeWord = plan.Core == CoreKind.SelfLocation ? "" : TimeWord(plan, voice);
+        up.TimeWord = plan.Core == CoreKind.SelfLocation ? "" : TimeWord(ctx, plan, voice);
         up.EchoText = EchoText(ctx, plan, voice, vars);
         up.ReactionSlot = ReactionSlot(ctx, plan, up.Tone);
         up.ExtraSlot = ExtraSlot(ctx, plan, voice);
@@ -149,27 +149,24 @@ public static class DialogueUtterancePlanner
     private static string EchoText(DialogueContext ctx, DialogueResponsePlan plan,
         DialogueVoiceDef voice, IReadOnlyDictionary<string, string> vars)
     {
-        // 꼬리질문처럼 이미 완성된 되받기가 있으면 그대로 쓴다.
-        string ready = ReadyEcho(plan, voice);
-        if (!string.IsNullOrEmpty(ready)) return ready;
+        // 꼬리질문처럼 명사 하나로 되받을 수 없는 질문은 통째로 되받는다("확실하냐고요?").
+        string readySlot = plan.Core switch
+        {
+            CoreKind.CertaintyAnswer => "echo.certain",
+            CoreKind.SeenConfirm => "echo.seen",
+            CoreKind.HeardDetail => "echo.heard",
+            CoreKind.SightingPlace => "echo.where",
+            _ => "",
+        };
+        if (readySlot.Length > 0) return DialogueLineBank.Any(ctx.EmployeeId, readySlot, voice.Formal);
 
         string subject = EchoSubject(ctx, plan, vars);
         if (string.IsNullOrEmpty(subject)) return "";
-        // 격식체는 "말씀이십니까", 해요체는 "요?" 로 받는다.
-        return voice.Formal
-            ? KoreanParticle.Resolve(subject + " 말씀이십니까?")
-            : KoreanParticle.Resolve(subject + "이요/요?");
+        // 격식체는 "… 말씀이십니까?", 해요체는 "…요?" — 틀은 대사 뱅크의 echo.wrap 에 있다.
+        string wrap = DialogueLineBank.Any(ctx.EmployeeId, "echo.wrap", voice.Formal);
+        if (wrap.Length == 0) return "";
+        return KoreanParticle.Resolve(wrap.Replace("{subject}", subject));
     }
-
-    // 명사 하나로 되받을 수 없는 질문은 통째로 되받는다("확실하냐고요?").
-    private static string ReadyEcho(DialogueResponsePlan plan, DialogueVoiceDef voice) => plan.Core switch
-    {
-        CoreKind.CertaintyAnswer => voice.Formal ? "확실하냐는 말씀이십니까?" : "확실하냐고요?",
-        CoreKind.SeenConfirm => voice.Formal ? "직접 봤냐는 말씀이십니까?" : "직접 봤냐고요?",
-        CoreKind.HeardDetail => voice.Formal ? "어떤 소리였냐는 말씀이십니까?" : "무슨 소리였냐고요?",
-        CoreKind.SightingPlace => voice.Formal ? "어디서 봤냐는 말씀이십니까?" : "어디서 봤냐고요?",
-        _ => "",
-    };
 
     private static string EchoSubject(DialogueContext ctx, DialogueResponsePlan plan,
         IReadOnlyDictionary<string, string> vars)
@@ -300,13 +297,11 @@ public static class DialogueUtterancePlanner
 
     // --- 시간 표현 --------------------------------------------------------
 
-    private static string TimeWord(DialogueResponsePlan plan, DialogueVoiceDef voice) => plan.Time switch
+    private static string TimeWord(DialogueContext ctx, DialogueResponsePlan plan, DialogueVoiceDef voice) => plan.Time switch
     {
-        TimeRef.Vague => Choose("그때", "아까", "조금 전", "그쯤"),
-        TimeRef.Exact => KoreanDialogueComposer.ClockText(plan.IncidentTimeSeconds)
-                         + (voice.Formal ? "경" : "쯤"),
+        TimeRef.Vague => DialogueLineBank.Any(ctx.EmployeeId, "time.vague", voice.Formal),
+        TimeRef.Exact => KoreanParticle.TimePhrase(plan.IncidentTimeSeconds, voice.Formal),
         _ => "",
     };
 
-    private static string Choose(params string[] pool) => pool[(int)(GD.Randi() % (uint)pool.Length)];
 }
