@@ -67,6 +67,8 @@ public partial class FacilitySimulation : Node
     private readonly List<TaskSpawnDef> _schedule = new();
     private readonly List<SpawnedTask> _activeTasks = new();
     private int _scheduleCursor = 0;
+    // 이번 근무에서 각 스폰이 실제로 뜨는 시각(흔들림 적용 후).
+    private readonly Dictionary<int, float> _scheduleJitter = new();
 
     private string _surveillanceTargetRoomId = "";
     private string _forcedSurveillanceRoomId = "";
@@ -154,6 +156,7 @@ public partial class FacilitySimulation : Node
     {
         _activeTasks.Clear();
         _scheduleCursor = 0;
+        _scheduleJitter.Clear();
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
         _cctvWasOperational = true;
@@ -727,6 +730,7 @@ public partial class FacilitySimulation : Node
     {
         _activeTasks.Clear();
         _scheduleCursor = 0;
+        _scheduleJitter.Clear();
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
         _cctvWasOperational = true;
@@ -812,11 +816,24 @@ public partial class FacilitySimulation : Node
     private void TickSchedule()
     {
         float now = GameState.Instance.DayTimeSeconds;
-        while (_scheduleCursor < _schedule.Count && now >= _schedule[_scheduleCursor].SpawnAtSeconds)
+        while (_scheduleCursor < _schedule.Count && now >= SpawnTimeOf(_scheduleCursor))
         {
             SpawnFromDef(_schedule[_scheduleCursor]);
             _scheduleCursor++;
         }
+    }
+
+    // 이번 근무에서 이 스폰이 실제로 뜨는 시각. 흔들림은 근무마다 한 번만 뽑는다.
+    private float SpawnTimeOf(int index)
+    {
+        if (_scheduleJitter.TryGetValue(index, out float at)) return at;
+        var def = _schedule[index];
+        float jitter = def.JitterSeconds > 0f
+            ? (float)(_rng.NextDouble() * 2.0 - 1.0) * def.JitterSeconds
+            : 0f;
+        at = Mathf.Max(0f, def.SpawnAtSeconds + jitter);
+        _scheduleJitter[index] = at;
+        return at;
     }
 
     private void SpawnFromDef(TaskSpawnDef def)
@@ -1020,14 +1037,43 @@ public partial class FacilitySimulation : Node
     {
         _sabotageActionsToday++;
         _saboteurPlan.OnActed(this, actor, OpsProfile.Today, roomId);
-        // 같은 방에 있었다고 모두가 설비 쪽을 보고 있는 것은 아니다 — 관찰력이 목격을 가른다.
+
+        // ① 눈치챈 사람 — 같은 방에서 이상을 알아차린 정도. 이름은 모른다.
+        //    (설비가 이상하다 / 누가 뭘 건드린 것 같다 까지만 안다.)
         var noticed = witnesses
             .Where(w => EmployeeTraits.Get(w.EmployeeId).ObservationalAwareness
                         >= EmployeeTraits.AwarenessForWitness)
             .Select(w => w.EmployeeId)
             .ToList();
+
+        // ② 사람을 특정한 사람 — 훨씬 어렵다. 관찰력이 최상이고, 준비 단계의 이상 행동까지
+        //    이미 눈으로 본 사람만 "저 사람이 했다" 고 말할 수 있다. 조건을 못 채우면
+        //    그 사고를 알고는 있어도 범인은 모른다 — CCTV·로그·다른 증언과 맞춰야 한다.
+        //    조건 셋을 모두 채워야 한다.
+        //      · 관찰력이 최상이고
+        //      · 준비 단계의 이상 행동까지 이미 눈으로 봤고
+        //      · 그 순간 자기 업무에 매여 있지 않았다
+        //    마지막 조건이 핵심이다. 설비를 돌리느라 손이 바쁜 사람은 옆 사람이 무엇을
+        //    했는지까지 보지 못한다 — 그래서 "그 방에 있었다"만으로는 범인이 특정되지 않는다.
+        var identified = noticed
+            .Where(id => EmployeeTraits.Get(id).ObservationalAwareness >= IdentifyAwareness)
+            .Where(id => SawPrecursorOf(actor.EmployeeId, id))
+            .Where(_ => !IsRoomWorkProgressing(roomId))
+            //      · 그리고 하필 그 순간 그쪽을 보고 있었다
+            //        (조건을 다 갖춰도 늘 보이지는 않는다 — 특정은 어디까지나 운까지 겹쳐야 한다)
+            .Where(_ => _rng.NextDouble() < IdentifyChance)
+            .ToList();
+
+        // 로그의 실행자(actor)는 시스템 진실이라 그대로 남지만, 목격자 목록에는
+        // "사람을 특정한 사람" 만 들어간다. 대사·전화·심문은 이 목록만 본다.
         EventLog.Instance?.LogEvent(LogEventType.Sabotage, actor.EmployeeId, roomId,
-            $"⚠ {RoomName(roomId)} — {what}", noticed);
+            $"⚠ {RoomName(roomId)} — {what}", identified);
+
+        // 눈치만 챈 사람들은 "이상한 일이 있었다" 까지만 기억한다(실행자 없음).
+        var onlyNoticed = noticed.Where(id => !identified.Contains(id)).ToList();
+        if (onlyNoticed.Count > 0)
+            EventLog.Instance?.LogEvent(LogEventType.Neglect, "", roomId,
+                $"{RoomName(roomId)} — 설비 쪽에서 이상한 조작 흔적이 보였다", onlyNoticed);
 
         // 로그만 남기면 다른 화면을 보고 있을 때 그냥 지나간다 — 화면 전체로 알린다.
         // 연출은 HUD 가 알아서 돌고, 시뮬레이션은 여기서 멈추지 않는다.
@@ -1346,6 +1392,23 @@ public partial class FacilitySimulation : Node
     }
 
     private const float SuspiciousActionSeconds = 4f;
+    // 사람을 특정하려면 이 정도 관찰력이 필요하다(전조까지 이미 본 경우에만).
+    private const int IdentifyAwareness = 3;
+    private const double IdentifyChance = 0.35;
+
+    // 그 방의 업무가 지금 실제로 돌아가고 있는가(수리 제외).
+    private bool IsRoomWorkProgressing(string roomId) =>
+        _activeTasks.Any(t => t.RoomId == roomId && t.Status == SpawnedTaskStatus.Active
+                              && !t.IsRepair && t.Progressing);
+
+    // 이 사람이 그 실행자의 준비 단계 이상 행동을 실제로 봤는가.
+    // RecordOddBehaviour 가 남긴 기록이 곧 "계속 지켜보고 있었다"는 증거다.
+    private bool SawPrecursorOf(string actorId, string watcherId) =>
+        EventLog.Instance?.GetAllEntries().Any(e =>
+            e.Day == (GameState.Instance?.CurrentDay ?? 1)
+            && e.EventType == LogEventType.Neglect
+            && e.ActorEmployeeId == actorId
+            && e.WitnessEmployeeIds.Contains(watcherId)) ?? false;
 
     // 지금 이 방에서 누군가 설비 쪽에 붙어 있는가(CCTV 화면 표시용).
     public bool HasSuspiciousAction(string roomId)
@@ -1435,10 +1498,13 @@ public partial class FacilitySimulation : Node
         return $"효율 {eff * 100f:0}%";
     }
 
-    // 지금 시설이 실제로 고장 나 수리가 돌아가고 있는가.
-    // (떠 있는 경고는 여기 포함하지 않는다 — 경고는 자주 뜨고 금방 사라진다.)
+    // 지금 모두가 달려들어 수습하고 있는 중인가.
+    //
+    // "고장이 하나 열려 있다"가 아니라 "실제로 수리가 돌아가고 있다"를 본다.
+    // 아무도 손대지 않은 채 방치된 고장이 결번자를 근무 내내 숨겨 주면,
+    // 플레이어가 대응을 포기할수록 사건이 안 일어나는 이상한 게임이 된다.
     public bool HasSeriousIncidentActive() =>
-        _activeTasks.Any(t => t.IsRepair && t.Status == SpawnedTaskStatus.Active);
+        _activeTasks.Any(t => t.IsRepair && t.Status == SpawnedTaskStatus.Active && t.Progressing);
 
     // 개발용 사후 확인(§19). 플레이어에게는 어떤 화면으로도 보여주지 않는다.
     public void PrintSaboteurDebug()

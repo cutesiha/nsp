@@ -85,7 +85,14 @@ public partial class ShiftReportView : Control
         int materialsDelta = gs.Materials - materialsAtStart;
 
         var sb = new StringBuilder();
-        sb.AppendLine($"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} — SHIFT COMPLETE[/font_size]\n");
+        // 필수 업무를 못 끝냈으면 머리글부터 다르다 — "끝났다"와 "못 끝냈다"는 다른 결과다.
+        int missed = gs.LastShiftMissedRequired;
+        sb.AppendLine(missed > 0
+            ? $"[font_size=26][color=#ff6b5a]{DayFeatures.DayLabel(gs.CurrentDay)} — 필수 업무 미달성[/color][/font_size]"
+            : $"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} — SHIFT COMPLETE[/font_size]");
+        if (missed > 0)
+            sb.AppendLine($"[color=#ff9a8a]근무 시간이 끝났습니다. 끝내지 못한 필수 업무 {missed}건.[/color]");
+        sb.AppendLine("");
         sb.AppendLine($"CORE        {Signed(coreDelta):0.0}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
         sb.AppendLine($"MATERIAL    {Signed(materialsDelta)}   [color=#8899aa](현재 {gs.Materials})[/color]\n");
         // 이번 근무의 경고 대응 성적 — 배치 판단이 실제로 통했는지가 여기서 드러난다.

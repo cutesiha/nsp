@@ -15,6 +15,10 @@ public partial class TaskSpawnDef : Resource
     // 근무 시작(DayTimeSeconds=0) 기준 몇 초 뒤에 발생하는가.
     [Export] public float SpawnAtSeconds = 0f;
 
+    // ±이 값 안에서 시각이 흔들린다(0 이면 고정). 사건 자체는 반드시 발생한다 —
+    // 매번 같은 초에 뜨면 대본처럼 보이기 때문에 시각만 흔든다.
+    [Export] public float JitterSeconds = 0f;
+
     // true 면 상시 업무(코어 수리·자재 생산처럼 계속 돌아가는 것). 제한시간/실패 없이
     // 게이지가 차면 효과 적용 후 다시 0부터 순환한다.
     [Export] public bool Recurring = false;

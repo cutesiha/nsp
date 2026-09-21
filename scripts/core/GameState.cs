@@ -32,6 +32,18 @@ public partial class GameState : Node
     // 업무평가 — 선택 업무를 달성할 때마다 +1. 게임 성능에는 전혀 영향을 주지 않고
     // 마지막 날의 관리자 평가 등급에만 반영된다.
     public int EvaluationScore { get; private set; }
+
+    // 필수 업무를 못 끝낸 채 끝난 근무. 임의의 수치 패널티는 주지 않고 사실만 남긴다 —
+    // 정산 화면과 마지막 관리자 평가가 이 값을 읽는다.
+    public int MissedRequiredDays { get; private set; }
+    // 방금 끝난 근무에서 못 끝낸 필수 업무 수(0이면 전부 달성).
+    public int LastShiftMissedRequired { get; private set; }
+
+    public void RecordShiftObjectives(int missedRequired)
+    {
+        LastShiftMissedRequired = Math.Max(0, missedRequired);
+        if (LastShiftMissedRequired > 0) MissedRequiredDays += 1;
+    }
     public void AddEvaluation(int amount) => EvaluationScore = Math.Max(0, EvaluationScore + amount);
 
     private readonly Random _rng = new();
@@ -231,6 +243,8 @@ public partial class GameState : Node
         SaboteurEmployeeId = "";
         TotalKills = 0;
         EvaluationScore = 0;
+        MissedRequiredDays = 0;
+        LastShiftMissedRequired = 0;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON
         ResetFacilityFaults();
     }

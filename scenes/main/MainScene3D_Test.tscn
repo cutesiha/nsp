@@ -254,7 +254,7 @@ environment = SubResource("Env")
 [node name="ControlRoom" type="Node3D" parent="." unique_id=1811790660]
 
 [node name="Floor" type="MeshInstance3D" parent="ControlRoom" unique_id=1252295084]
-transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4000006, 0.00049972534, -0.03712796, -0.9093176)
+transform = Transform3D(4.4, 0, 0, 0, 0.1, 0, 0, 0, 3.4000006, 0.0031256676, -0.03249382, -0.9173604)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Floor")
 

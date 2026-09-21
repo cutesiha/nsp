@@ -248,7 +248,8 @@ public sealed class InterviewSession
 
     private static string BasicQuestionId(InterviewIntent intent) => intent switch
     {
-        InterviewIntent.BasicShift => DialogueQuestions.GeneralStatus,
+        // 휴게시간에는 "지금"이 아니라 "오늘 근무"를 묻는다.
+        InterviewIntent.BasicShift => DialogueQuestions.ShiftReview,
         InterviewIntent.BasicSuspicious => DialogueQuestions.Suspicious,
         _ => DialogueQuestions.Anomaly,
     };

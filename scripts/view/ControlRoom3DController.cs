@@ -83,12 +83,18 @@ public partial class ControlRoom3DController : Node3D
 
     [Export] public string[] AutoStaffRooms =
         { "core_room", "power_room", "vent_room", "maintenance_room", "guard_room", "medical_room" };
+    // 운영 데이터에 금기 목록이 없을 때 쓰는 기본값(구조가 비어도 게임이 멈추지 않게).
     public static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
 
-    // 금기가 아직 해금되지 않은 날에는 활성 금기가 하나도 없다 — 금기 데이터와 판정 코드는
-    // 그대로 남아 있고, 오늘 적용할 목록만 비운다(DayFeatures.TaboosEnabled).
-    public static string[] TodayTabooIds() =>
-        DayFeatures.TaboosEnabled ? DailyTabooIds : System.Array.Empty<string>();
+    // 오늘 적용할 금기. 해금되지 않은 날에는 하나도 없다(DayFeatures.TaboosEnabled).
+    // 목록 자체는 그 날의 OpsProfile 이 쥐고 있으므로, DAY3~5 는 .tres 만 추가하면 된다.
+    public static string[] TodayTabooIds()
+    {
+        if (!DayFeatures.TaboosEnabled) return System.Array.Empty<string>();
+        var ops = NSP.Core.OpsProfile.Today;
+        if (ops != null && ops.DailyTabooIds.Count > 0) return ops.DailyTabooIds.ToArray();
+        return DailyTabooIds;
+    }
 
     private Camera3D _camera;
     private SeatedCameraRig _rig;
@@ -154,8 +160,8 @@ public partial class ControlRoom3DController : Node3D
         GameState.Instance?.SetPhase(GamePhase.Live);
         FacilitySimulation.Instance?.ResetForNewShift();
         EventLog.Instance?.ClearAll();
-        if ((GameState.Instance?.CurrentDay ?? 1) == 1)
-            DialogueHistory.Instance?.ClearAll();
+        // 대화 기록도 그 날 것만 남긴다 — 근무가 시작되면 지난 날의 대화는 지운다.
+        DialogueHistory.Instance?.ClearAll();
         // DAY0(교육)에는 방해자가 존재하지 않는다 — 배정 자체를 하지 않으면 TickSaboteur 가 통째로 쉰다.
         if (DayFeatures.SaboteurActive && string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
         {

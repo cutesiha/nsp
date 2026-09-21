@@ -305,6 +305,10 @@ public partial class ShiftFlowController : Node
         int earned = DayObjectives.OptionalCompleted();
         if (earned > 0) GameState.Instance?.AddEvaluation(earned);
 
+        // 필수 업무를 못 끝낸 채 시간이 다 됐는가. 게임을 멈추지는 않지만 기록은 남는다.
+        GameState.Instance?.RecordShiftObjectives(
+            DayObjectives.RequiredTotal - DayObjectives.RequiredDone);
+
         // 개발용 — 오늘 결번자가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
         FacilitySimulation.Instance?.PrintSaboteurDebug();
 

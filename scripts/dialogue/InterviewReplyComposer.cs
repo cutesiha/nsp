@@ -758,6 +758,16 @@ public static class InterviewReplyComposer
             "{room} 쪽 일이 계속 신경 쓰여서요.",
             "오늘 시설이 좀 시끄러웠잖아요. 그래서예요.",
         },
+        ["fml|MoodReason.calm"] = new[]
+        {
+            "특별히 나쁜 일이 없었습니다. 그대로 적었습니다.",
+            "오늘은 마음이 편했습니다. 그뿐입니다.",
+        },
+        ["sft|MoodReason.calm"] = new[]
+        {
+            "딱히 나쁜 일이 없었거든요. 그대로 적은 거예요.",
+            "오늘은 그냥 마음이 편했어요.",
+        },
         ["fml|MoodReason.plain"] = new[]
         {
             "특별한 이유는 없습니다. 근무 전 느낌 그대로 적었습니다.",

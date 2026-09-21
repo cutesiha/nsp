@@ -43,6 +43,7 @@ public static class DialogueResponsePlanner
             case DialogueQuestions.Suspicious: PlanSuspicious(ctx, plan, profile, claim); break;
             case DialogueQuestions.Opinion: PlanOpinion(ctx, plan, profile); break;
             case DialogueQuestions.Accuse: PlanAccuse(ctx, plan, profile); break;
+            case DialogueQuestions.ShiftReview: PlanShiftReview(ctx, plan, profile); break;
             case DialogueQuestions.GeneralStatus: PlanStatus(ctx, plan, profile); break;
             case DialogueQuestions.GeneralFocus: PlanComply(ctx, plan, profile); break;
             case DialogueQuestions.GeneralAnomaly: PlanAnomaly(ctx, plan, profile, claim); break;
@@ -172,6 +173,39 @@ public static class DialogueResponsePlanner
     }
 
     // 일반 통화 "작업은 잘 되어가나요?" — 지금 상태를 실제로 읽어 답한다.
+    // 휴게시간 — 끝난 근무를 돌아본다.
+    //
+    // 지금 걷고 있는지, 지금 방에 무슨 업무가 있는지는 여기서 절대 보지 않는다.
+    // 오늘 이 직원이 실제로 겪은 것(자기가 아는 사고 · 자기 방의 고장 · 하루의 피로)만 쓴다.
+    private static void PlanShiftReview(DialogueContext ctx, DialogueResponsePlan plan,
+        DialogueVoiceProfile profile)
+    {
+        plan.Core = CoreKind.StatusReport;
+        plan.RoomId = ctx.AssignedRoomId;
+        plan.AllowSupport = false;
+
+        // 오늘 이 사람이 실제로 알고 있는 사고 중 가장 최근 것.
+        var known = DialogueContextBuilder.MostRecentKnownIncident(ctx.EmployeeId, ctx.CurrentDay);
+        if (known != null)
+        {
+            plan.StatusNote = "busy";
+            plan.IncidentRoomId = known.RoomId;
+            plan.IncidentType = known.EventType;
+            plan.IncidentTimeSeconds = known.GameTimeSeconds;
+            plan.Emotion = EmotionKind.Alarm;
+        }
+        else if (ctx.Stress >= 31f)
+        {
+            plan.StatusNote = "hard";
+            plan.Emotion = EmotionKind.Fear;
+        }
+        else
+        {
+            plan.StatusNote = "quiet";
+        }
+        plan.Certainty = Certainty.High;
+    }
+
     private static void PlanStatus(DialogueContext ctx, DialogueResponsePlan plan, DialogueVoiceProfile profile)
     {
         plan.Core = CoreKind.StatusReport;

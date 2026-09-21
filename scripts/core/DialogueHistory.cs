@@ -26,10 +26,9 @@ public partial class DialogueHistory : Node
     public bool AddEntry(string speakerId, string speakerDisplayName, DialogueEntryType entryType,
         string text, DialogueConversationType conversationType, string counterpartId = "")
     {
-        // DAY2 이후 저장/탭은 이번 프로토타입 범위가 아니다.
-        // DAY0(교육)은 기록한다 — 튜토리얼에서 대화 기록 보는 법을 가르치기 때문이다.
+        // 그 날의 대화는 그 날 기록한다. 화면(Day1HistoryOverlay)이 오늘 것만 보여주고
+        // 근무가 바뀌면 지워지므로, 여기서 날짜로 막을 이유가 없다 — DAY2 이후에도 똑같이 쌓인다.
         int day = GameState.Instance?.CurrentDay ?? 1;
-        if (day > 1) return false;
 
         string normalizedText = Normalize(text);
         if (normalizedText.Length == 0) return false;

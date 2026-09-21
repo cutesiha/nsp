@@ -219,8 +219,13 @@ public static class InterviewReplyPlanner
             case InterviewIntent.AskMoodReason:
             {
                 f.Topic = ReplyTopic.MoodReason;
-                var known = DialogueContextBuilder.MostRecentKnownIncident(id, day);
-                f.Variant = known != null ? "incident" : "plain";
+                // 사고를 이유로 댈 수 있는 것은 불안·예민 계열 기분일 때뿐이다.
+                // "여유로움"이라고 적어 놓고 "사고가 신경 쓰여서요"라고 하면 앞뒤가 안 맞는다.
+                var known = MoodTones.CanBlameIncident(q.MoodText)
+                    ? DialogueContextBuilder.MostRecentKnownIncident(id, day)
+                    : null;
+                f.Variant = known != null ? "incident"
+                    : MoodTones.Of(q.MoodText) == MoodTone.Calm ? "calm" : "plain";
                 f.Set("room", RoomName(known?.RoomId ?? ""));
                 break;
             }
@@ -228,8 +233,11 @@ public static class InterviewReplyPlanner
             case InterviewIntent.AskMoodBefore:
             {
                 f.Topic = ReplyTopic.MoodBefore;
-                // 오늘 아는 사건이 있으면 "근무 중에 그렇게 됐다" 쪽이 사실에 맞다.
-                f.Variant = DialogueContextBuilder.MostRecentKnownIncident(id, day) != null ? "no" : "yes";
+                // 근무 중에 기분이 바뀌었다고 말하려면, 그럴 만한 일을 겪었고
+                // 지금 적어 낸 기분도 그 방향이어야 한다.
+                bool changedByShift = MoodTones.CanBlameIncident(q.MoodText)
+                    && DialogueContextBuilder.MostRecentKnownIncident(id, day) != null;
+                f.Variant = changedByShift ? "no" : "yes";
                 break;
             }
 
@@ -237,8 +245,13 @@ public static class InterviewReplyPlanner
             {
                 f.Topic = ReplyTopic.MoodRelated;
                 string suspect = truthful ? ctx.KnownSuspiciousActorId : "";
-                var known = DialogueContextBuilder.MostRecentKnownIncident(id, day);
-                if (!string.IsNullOrEmpty(suspect)) { f.Variant = "person"; f.Set("who", Codename(suspect)); }
+                // 여기서도 기분의 방향을 먼저 본다 — 편안하다고 적은 사람이
+                // "그 사고 때문이에요" 라고 답하지 않게.
+                var known = MoodTones.CanBlameIncident(q.MoodText)
+                    ? DialogueContextBuilder.MostRecentKnownIncident(id, day)
+                    : null;
+                if (!string.IsNullOrEmpty(suspect) && MoodTones.CanBlameIncident(q.MoodText))
+                { f.Variant = "person"; f.Set("who", Codename(suspect)); }
                 else if (known != null) { f.Variant = "incident"; f.Set("room", RoomName(known.RoomId)); }
                 else f.Variant = "none";
                 break;

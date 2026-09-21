@@ -420,6 +420,28 @@ public static class KoreanDialogueComposer
         ["crow|status.ok"] = new[] { "정상 진행 중입니다.", "특이사항 없습니다." },
         ["fox|status.ok"] = new[] { "순조롭습니다.", "걱정하실 정도는 아니에요." },
 
+        // 휴게시간 회고 — 오늘 근무가 어땠는가.
+        ["owl|status.quiet"] = new[] { "오늘은 특별한 일 없이 끝났습니다.", "평소와 다르지 않았습니다." },
+        ["cat|status.quiet"] = new[] { "평범했어요.", "별일 없었어요. 그게 제일 좋죠." },
+        ["jellyfish|status.quiet"] = new[] { "오늘은... 조용했어요. 다행이에요.", "별일 없었어요." },
+        ["rabbit|status.quiet"] = new[] { "오늘은 좀 심심했어요. 나쁜 뜻은 아니고요.", "평범했어요. 조용했고요." },
+        ["crow|status.quiet"] = new[] { "특이사항 없었습니다.", "평범했습니다." },
+        ["fox|status.quiet"] = new[] { "무난했어요. 이런 밤이 제일 낫죠.", "조용했습니다." },
+
+        ["owl|status.busy"] = new[] { "{iroom} 쪽 일이 있어 정신없었습니다.", "{iroom} 건이 있어 평소보다 바빴습니다." },
+        ["cat|status.busy"] = new[] { "{iroom} 쪽 때문에 정신없었어요.", "{iroom} 일만 아니었으면 괜찮았어요." },
+        ["jellyfish|status.busy"] = new[] { "{iroom} 쪽 일이 있어서... 좀 놀랐어요.", "{iroom} 때문에 정신이 없었어요." },
+        ["rabbit|status.busy"] = new[] { "{iroom} 쪽이 좀 시끄러웠어요!", "{iroom} 일 때문에 바빴어요." },
+        ["crow|status.busy"] = new[] { "{iroom} 건이 있었습니다.", "{iroom} 쪽 대응이 있었습니다." },
+        ["fox|status.busy"] = new[] { "{iroom} 쪽이 좀 소란스러웠죠.", "{iroom} 건만 빼면 평소와 비슷했어요." },
+
+        ["owl|status.hard"] = new[] { "솔직히 오늘은 쉽지 않았습니다.", "체력적으로 힘든 근무였습니다." },
+        ["cat|status.hard"] = new[] { "오늘은 좀 힘들었어요.", "피곤해요. 그것 말곤 할 말 없어요." },
+        ["jellyfish|status.hard"] = new[] { "오늘은... 좀 힘들었어요.", "많이 지쳤어요." },
+        ["rabbit|status.hard"] = new[] { "오늘은 좀 힘들었어요.", "생각보다 진이 빠지네요." },
+        ["crow|status.hard"] = new[] { "힘든 근무였습니다.", "피로가 있습니다." },
+        ["fox|status.hard"] = new[] { "오늘은 저도 좀 지치네요.", "쉬운 밤은 아니었어요." },
+
         ["owl|status.blocked"] = new[] { "자재가 없어 작업이 멈춰 있습니다.", "자재부터 채워주셔야 진행이 됩니다." },
         ["cat|status.blocked"] = new[] { "자재가 없어서 손 놓고 있어요.", "자재요. 없으면 못 해요." },
         ["jellyfish|status.blocked"] = new[] { "저, 자재가 떨어져서... 못 하고 있어요.", "자재가 없어요... 어떡하죠?" },

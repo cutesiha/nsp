@@ -4,6 +4,10 @@ namespace NSP.Dialogue;
 // 인터뷰 5종은 기존 LocalInterviewDialogue 의 상수와 문자열이 같아야 한다(저장된 흐름 호환).
 public static class DialogueQuestions
 {
+    // 휴게시간 심문 전용 — 끝난 근무를 돌아보는 질문.
+    // 실시간 통화의 GeneralStatus("지금 어떻습니까")와 반드시 구분한다.
+    public const string ShiftReview = "Q0_SHIFT_REVIEW";
+
     public const string Anomaly = "Q1_ANOMALY";
     public const string Where = "Q2_WHERE";
     public const string Suspicious = "Q3_SUSPICIOUS";

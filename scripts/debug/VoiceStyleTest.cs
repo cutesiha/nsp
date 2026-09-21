@@ -153,7 +153,9 @@ public partial class VoiceStyleTest : Node
     {
         int fox = corpus["fox"].Count(t => t.Contains("?"));
         GD.Print($"[E] 여우 {Samples}개 중 되묻는 답변 {fox}개");
-        Check(fox >= 1 && fox <= Samples * 3 / 4, "E 여우는 가끔 되묻지만 매번은 아니다");
+        // 여우의 핵심 문장 자체에 되묻는 말이 섞인 경우도 '?' 로 잡히므로 상한은 넉넉히 둔다.
+        // 여기서 막고 싶은 것은 "모든 답변이 되묻기" 한 가지다.
+        Check(fox >= 1 && fox < Samples, "E 여우는 가끔 되묻지만 매번은 아니다");
     }
 
     // 올빼미는 확인하지 않은 것을 단정하지 않는다 — 벽 너머로 들은 사건을 물었을 때
@@ -185,7 +187,9 @@ public partial class VoiceStyleTest : Node
             int distinct = five.Distinct().Count();
             int maxDup = five.GroupBy(t => t).Max(g => g.Count());
             GD.Print($"[G] {Codename(id),-4} 5연속 — 서로 다른 문장 {distinct}개, 같은 문장 최대 {maxDup}회");
-            Check(distinct >= 3 && maxDup <= 2, $"G {Codename(id)} 가 같은 문장을 되풀이하지 않는다");
+            // 까마귀처럼 문장 풀이 3개뿐인 캐릭터는 5연속에서 한 문장이 세 번 나올 수 있다.
+            // 잡고 싶은 것은 "같은 문장만 반복"이므로 서로 다른 문장 수를 기준으로 본다.
+            Check(distinct >= 3 && maxDup <= 3, $"G {Codename(id)} 가 같은 문장을 되풀이하지 않는다");
         }
     }
 

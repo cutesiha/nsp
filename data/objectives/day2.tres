@@ -1,48 +1,52 @@
 [gd_resource type="Resource" script_class="DayPlanDef" load_steps=5 format=3]
 
 ; ════════════════════════════════════════════════════════════════════════
-; DAY2 오늘의 업무. 여기 숫자만 고치면 목표가 바뀐다(코드 수정 불필요).
+; DAY2 오늘의 업무.
+;
+; DAY1 의 숫자만 올린 날이 아니다 — 이 날 처음 열리는 환기실/의무실과
+; "경고든 고장이든 두 건을 처리한다" 는 복합 운영을 체험하는 날이다.
 ;
 ; Required=true 인 업무를 전부 끝내야 '근무 종료' 를 누를 수 있다.
-; 끝내도 자동으로 끝나지는 않는다 — MaxShiftSeconds 가 다 되면 강제 종료된다.
 ; 선택 업무(Required=false)는 업무평가 +1 로만 반영되고 성능 보상은 없다.
-;
-; ※ 방해공작·결번자 관련 항목은 절대 넣지 않는다. 미리 알려주면 사건이 아니게 된다.
+; ※ 방해공작·결번자 관련 항목은 절대 넣지 않는다.
 ; ════════════════════════════════════════════════════════════════════════
 
 [ext_resource type="Script" path="res://scripts/data/DayPlanDef.cs" id="1_plan"]
 [ext_resource type="Script" path="res://scripts/data/DayObjectiveDef.cs" id="2_obj"]
 
+; 5일짜리 장기 목표. 누적값이라 DAY1 에서 올려 둔 만큼이 그대로 이어진다.
 [sub_resource type="Resource" id="obj_core"]
 script = ExtResource("2_obj")
 ObjectiveId = "core"
-DisplayText = "봉쇄 코어 복구율 38% 달성"
+DisplayText = "봉쇄 코어 누적 복구율 38% 달성"
 Type = 0
 TargetValue = 38.0
 Required = true
 TargetRooms = Array[String]([])
 
-[sub_resource type="Resource" id="obj_warn"]
+; 사전에 막았든, 터진 뒤 고쳤든 둘 다 인정한다(IncidentsResolved).
+[sub_resource type="Resource" id="obj_incident"]
 script = ExtResource("2_obj")
-ObjectiveId = "warn"
-DisplayText = "시설 경고 2회 안정화"
-Type = 1
+ObjectiveId = "incident"
+DisplayText = "시설 경고 또는 고장 2회 해결"
+Type = 2
 TargetValue = 2.0
 Required = true
 TargetRooms = Array[String]([])
 
-[sub_resource type="Resource" id="obj_nobreak"]
+; 오늘 처음 열리는 두 작업실. 실패해도 진행은 막히지 않는다.
+[sub_resource type="Resource" id="obj_newrooms"]
 script = ExtResource("2_obj")
-ObjectiveId = "nobreak"
-DisplayText = "시설 고장 1회 이하로 근무 완료"
-Type = 3
-TargetValue = 1.0
+ObjectiveId = "newrooms"
+DisplayText = "근무 종료 시 환기실·의무실 정상 가동"
+Type = 4
+TargetValue = 2.0
 Required = false
-TargetRooms = Array[String]([])
+TargetRooms = Array[String](["vent_room", "medical_room"])
 
 [resource]
 script = ExtResource("1_plan")
 Day = 2
-Note = "DAY1 과 같은 구조에서 압박만 한 단계 올린다. 새 시스템 없음."
+Note = "환기실·의무실 해금 + 복합 운영. 숫자보다 시스템이 늘어난 날."
 MaxShiftSeconds = 120.0
-Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_warn"), SubResource("obj_nobreak")])
+Objectives = Array[ExtResource("2_obj")]([SubResource("obj_core"), SubResource("obj_incident"), SubResource("obj_newrooms")])

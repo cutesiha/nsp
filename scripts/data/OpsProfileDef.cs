@@ -54,6 +54,11 @@ public partial class OpsProfileDef : Resource
     [Export] public float SabotageWindowStartSeconds = 78f;
     [Export] public float SabotageWindowEndSeconds = 96f;
 
+    // ── 오늘의 금기 ────────────────────────────────────────────────────
+    // 이 날 적용할 금기 id 목록(data/taboos/*.tres). 비어 있으면 그 날은 금기가 없다.
+    // DAY 별 차이는 전부 이 데이터에서 나온다 — 코드에 날짜 분기를 넣지 않는다.
+    [Export] public Godot.Collections.Array<string> DailyTabooIds = new();
+
     // ── 정상 직원의 반응 이동(EmployeeBehaviorSystem) ──────────────────
     // 사고가 났을 때 성격에 따라 자리를 뜨는 최대 인원. 로그가 복잡해지지 않게 제한한다.
     [Export] public int MaxReactionMovesPerDay = 2;
