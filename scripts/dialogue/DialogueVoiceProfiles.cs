@@ -9,23 +9,24 @@ public static class DialogueVoiceProfiles
     private static readonly Dictionary<string, DialogueVoiceProfile> _profiles = Build();
 
     public static DialogueVoiceProfile Get(string employeeId) =>
-        _profiles.GetValueOrDefault(employeeId) ?? _profiles["owl"];
+        _profiles.GetValueOrDefault(employeeId) ?? _profiles["cat"];
 
     public static IReadOnlyCollection<string> Ids => _profiles.Keys;
 
     private static Dictionary<string, DialogueVoiceProfile> Build() => new()
     {
-        // 원칙적·차분·절차 중시. 상황 → 판단 순서로 말하고, 확인된 사실만 단정한다.
-        ["owl"] = new DialogueVoiceProfile
+        // 무뚝뚝·침착·자신감. 짧고 단정하며, 본 것과 추측을 나눠 말한다. 정확한 시각을 말할 여지가 크다.
+        // 결번자일 때는 흔들림 없이 부정하거나 생략한다 — 그 단정함 자체가 V2 의 미세한 어긋남 재료가 된다.
+        ["wolf"] = new DialogueVoiceProfile
         {
-            EmployeeId = "owl",
+            EmployeeId = "wolf",
             Register = SpeechRegister.Formal,
-            EmotionChance = 0.15f,
-            ExactTimeChance = 0.15f,
-            VagueTimeChance = 0.35f,
+            EmotionChance = 0.05f,
+            ExactTimeChance = 0.40f,
+            VagueTimeChance = 0.10f,
             SeparatesGuess = true,
-            TaskMentionChance = 0.50f,
-            DeceptionOrder = new[] { DeceptionMode.Omit, DeceptionMode.Vague, DeceptionMode.Truth, DeceptionMode.Deny },
+            TaskMentionChance = 0.25f,
+            DeceptionOrder = new[] { DeceptionMode.Omit, DeceptionMode.Deny, DeceptionMode.Truth },
         },
 
         // 효율 중시·까칠. 핵심부터 바로 답하고 설명을 아낀다.
@@ -41,14 +42,14 @@ public static class DialogueVoiceProfiles
             DeceptionOrder = new[] { DeceptionMode.Justify, DeceptionMode.Minimize, DeceptionMode.Omit },
         },
 
-        // 소심·과민. 반응이 먼저 나오고, 확신이 약하면 스스로 단서를 붙인다.
-        ["jellyfish"] = new DialogueVoiceProfile
+        // 극도로 소심·예민. 반응이 먼저 나오고, 확신이 약하면 스스로 단서를 붙인다.
+        ["sheep"] = new DialogueVoiceProfile
         {
-            EmployeeId = "jellyfish",
+            EmployeeId = "sheep",
             Register = SpeechRegister.Soft,
             EmotionChance = 0.45f,
             ExactTimeChance = 0.03f,
-            VagueTimeChance = 0.30f,
+            VagueTimeChance = 0.35f,
             SeparatesGuess = true,
             TaskMentionChance = 0.20f,
             DeceptionOrder = new[] { DeceptionMode.Vague, DeceptionMode.Omit, DeceptionMode.Deny },
@@ -67,17 +68,18 @@ public static class DialogueVoiceProfiles
             DeceptionOrder = new[] { DeceptionMode.Justify, DeceptionMode.Minimize, DeceptionMode.Omit },
         },
 
-        // 무뚝뚝·관찰형. 가장 짧고, 본 것과 추측을 나눠 말한다. 정확한 시각을 말할 여지가 가장 크다.
-        ["crow"] = new DialogueVoiceProfile
+        // 온순·다정·협조. 업무와 함께 있던 사람 이야기를 자연스럽게 꺼낸다. 남을 몰아가지 않는다.
+        // 결번자일 때는 친절하게 얼버무린다(누구를 지목하는 Redirect 는 쓰지 않는다).
+        ["dog"] = new DialogueVoiceProfile
         {
-            EmployeeId = "crow",
-            Register = SpeechRegister.Formal,
-            EmotionChance = 0.05f,
-            ExactTimeChance = 0.40f,
-            VagueTimeChance = 0.15f,
-            SeparatesGuess = true,
-            TaskMentionChance = 0.15f,
-            DeceptionOrder = new[] { DeceptionMode.Omit, DeceptionMode.Truth, DeceptionMode.Vague },
+            EmployeeId = "dog",
+            Register = SpeechRegister.Soft,
+            EmotionChance = 0.30f,
+            ExactTimeChance = 0.10f,
+            VagueTimeChance = 0.30f,
+            SeparatesGuess = false,
+            TaskMentionChance = 0.45f,
+            DeceptionOrder = new[] { DeceptionMode.Vague, DeceptionMode.Minimize, DeceptionMode.Omit },
         },
 
         // 여유·능글. 답은 하되 핵심을 살짝 비껴가고, 질문을 되돌린다.

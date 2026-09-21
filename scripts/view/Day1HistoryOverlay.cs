@@ -798,7 +798,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         return row.Severity == DisplayLogSeverity.Move ? LogMove : LogNormal;
     }
 
-    // 까마귀처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
+    // 늑대처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
     // 최소 밝기까지만 끌어올린다. 로그는 글자가 작고 줄이 빽빽해 통화창(0.55)보다
     // 더 밝게 잡는다 — 이 값은 시설 로그에서만 쓴다.
     private static Color Readable(Color c)

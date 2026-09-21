@@ -59,7 +59,7 @@ public partial class PlaytestFixTest : Node
         GameState.Instance.SetPhase(GamePhase.Rest);
 
         bool moving = false;
-        foreach (string id in new[] { "cat", "fox", "owl", "crow" })
+        foreach (string id in new[] { "cat", "fox", "dog", "wolf" })
         {
             string a = Answer(id, DialogueQuestions.ShiftReview);
             GD.Print($"   {Code(id),-4} : {a}");
@@ -83,7 +83,7 @@ public partial class PlaytestFixTest : Node
         GameState.Instance.SetPhase(GamePhase.Rest);
 
         bool ok = true;
-        foreach (string id in new[] { "cat", "owl", "rabbit" })
+        foreach (string id in new[] { "cat", "dog", "rabbit" })
         {
             var ctx1 = DialogueContextBuilder.Build(id, DialogueConversationKind.Interview,
                 DialogueQuestions.Where, "", null);
@@ -117,7 +117,7 @@ public partial class PlaytestFixTest : Node
         // 긍정 기분인데 사고 탓을 하면 안 된다.
         var sim = FacilitySimulation.Instance;
         bool calmOk = true, uneasyLinked = false;
-        foreach (string id in new[] { "fox", "cat", "owl" })
+        foreach (string id in new[] { "fox", "cat", "dog" })
         {
             sim.GetEmployeeState(id).DailyMood = "여유로움";
             string a = MoodAnswer(id, "여유로움");
@@ -126,7 +126,7 @@ public partial class PlaytestFixTest : Node
         }
         Check(calmOk, "③ 긍정 기분은 사고를 이유로 대지 않는다");
 
-        foreach (string id in new[] { "jellyfish", "cat" })
+        foreach (string id in new[] { "sheep", "cat" })
         {
             sim.GetEmployeeState(id).DailyMood = "불안함";
             string a = MoodAnswer(id, "불안함");
@@ -245,8 +245,8 @@ public partial class PlaytestFixTest : Node
 
         var rooms = new Dictionary<string, string>
         {
-            ["owl"] = Guard, ["cat"] = Storage, ["crow"] = Maintenance,
-            ["rabbit"] = Maintenance, ["jellyfish"] = Power, ["fox"] = Core,
+            ["dog"] = Guard, ["cat"] = Storage, ["wolf"] = Maintenance,
+            ["rabbit"] = Maintenance, ["sheep"] = Power, ["fox"] = Core,
         };
         foreach (var kv in rooms) Place(kv.Key, kv.Value);
         foreach (var kv in rooms) Log(LogEventType.TaskStart, kv.Key, kv.Value, 1f);
@@ -276,9 +276,9 @@ public partial class PlaytestFixTest : Node
         // 결번자와 관찰력 높은 직원을 같은 방에 둔다 — 가장 들키기 쉬운 배치.
         sim.AssignToRoom("fox", Core);
         sim.AssignToRoom("cat", Core);
-        sim.AssignToRoom("owl", Power);
-        sim.AssignToRoom("crow", Maintenance);
-        sim.AssignToRoom("jellyfish", Guard);
+        sim.AssignToRoom("dog", Power);
+        sim.AssignToRoom("wolf", Maintenance);
+        sim.AssignToRoom("sheep", Guard);
         sim.AssignToRoom("rabbit", Storage);
         GameState.Instance.SetSaboteur(saboteurId);
         sim.ResetForNewShift();

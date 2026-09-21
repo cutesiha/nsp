@@ -24,7 +24,7 @@
 #       speaker:   <text>       화면에 보이는 말하는 사람 라벨 (없으면 안 뜸)
 #       voice:     <보이스 id>   글자가 찍힐 때 울리는 타이핑 보이스
 #                               director = 연구소 총괄 관리자 / guide0 = GUIDE-0
-#                               cat crow fox jellyfish owl rabbit = 기존 직원 보이스 그대로
+#                               rabbit cat fox sheep wolf dog = 기존 직원 보이스 그대로
 #       radio:     true         무전/인터컴으로 들리게 한다(앞뒤 치직 + 약한 잡음 + 무전 필터).
 #                               직원 보이스를 바꾸지 않고 Radio 버스로만 통과시킨다.
 #       signal:    <0~100>      무전 슬라이드의 좌하단 수신 상태 HUD(신호 세기 + 파형).
@@ -304,7 +304,7 @@ hold: 3.0
 image: res://assets/cutscene/prologue/disaster_12_radio.png
 imagenote: 노이즈가 낀 무전 화면
 speaker: 직원 무전
-voice: crow
+voice: wolf
 radio: true
 signal: 41
 text: 격리 구역에서 개체들이 빠져나왔어요!

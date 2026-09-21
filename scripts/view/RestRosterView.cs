@@ -395,7 +395,7 @@ public partial class RestRosterView : Control
                 }
                 else
                 {
-                    // 원화 미제작 직원(해파리 / 올빼미) 대체 표시.
+                    // 얼굴 원화가 없는 직원의 대체 표시.
                     DrawCircle(c, r * 0.72f, new Color(accent.R, accent.G, accent.B, alive ? 0.55f : 0.25f));
                     string initial = string.IsNullOrEmpty(def.Codename) ? "?" : def.Codename.Substring(0, 1);
                     DrawString(ViewFont.Default, c + new Vector2(-r, 10f), initial,

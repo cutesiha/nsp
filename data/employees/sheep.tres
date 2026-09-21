@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/standing_v1/sheep_stand.png" id="2_img"]
+[ext_resource type="AtlasTexture" path="res://assets/characters/standing_v1/faces/sheep_face.tres" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "sheep"
+Codename = "양"
+Tech = 1
+Courage = 1
+Observation = 3
+Trait = "겁많은 관찰자"
+
+PersonalityLine1 = "겁이 많고 소심하며, 말을 자주 더듬고, 자기주장이 약해 작은 소리나 예상치 못한 상황에도 쉽게 긴장하고 주변 사람의 눈치를 많이 본다."
+PersonalityLine2 = "자신의 판단이 틀렸을까 늘 걱정해 확신 있게 말하는 것을 어려워하며 말을 늘이지만, 주변의 분위기나 미세한 변화는 누구보다 빠르게 알아차린다."
+PersonalityLine3 = "위험한 상황에서는 몸부터 움츠러드는 편이지만 남에게 피해를 주는 것을 싫어하고, 자신이 발견한 이상은 무서워하면서도 관리자에게 빠짐없이 알리려 한다."
+
+SpeechStyleLine1 = "조심스럽고 부드러운 존댓말을 사용하며 긴장하면 잠깐 말을 망설이거나 말끝에 자신 없는 기색이 드러난다."
+SpeechStyleLine2 = "직접 확인한 사실과 자신의 추측을 구분해서 말하며, 확신이 없을 때는 억지로 단정하지 않고 솔직하게 불확실성을 밝힌다."
+SpeechStyleLine3 = "겁을 먹으면 관리자의 판단을 재확인하려는 경향이 있지만, 매 문장마다 말을 더듬거나 말줄임표를 사용하는 식으로 소심함을 과장하지 않는다."
+
+SpeechExample1 = "저, 저기, 관리자님... 방금 발전실 쪽에서 큰 소리가 났어요... 괘, 괜찮은 거 맞죠?"
+SpeechExample2 = "그, 그때 누가 지나간 것 같긴 해요. 그런데 너무 잠깐 봐서... 제, 제가 잘못 본 걸 수도 있고..."
+SpeechExample3 = "저, 저 혼자 확인해야 하나요...?! 무섭긴 한데... 필요하면 할게요..."
+
+BehaviorLine1 = "큰 사고음이나 이상현상이 발생하면 다른 직원보다 먼저 긴장하고 작업이 잠시 굳을 수 있지만, 현재 위치를 벗어나지 않은 채 관리자에게 상황을 보고하고 지시를 기다린다."
+BehaviorLine2 = "같은 작업실 안의 작은 소리, 설비 변화, 동료의 평소와 다른 행동을 비교적 잘 알아차리며 나중에도 세세하게 기억하는 편이다."
+BehaviorLine3 = "위험이 커질수록 행동은 소극적이 되지만 자신이 실제로 보거나 들은 것과 추측을 구분하려 하며, 모르는 내용을 아는 척하지 않는다."
+
+IncomingCallPatienceSeconds = 9.0
+StartRoomId = "storage_room"
+IconColor = Color(0.78, 0.88, 0.74, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

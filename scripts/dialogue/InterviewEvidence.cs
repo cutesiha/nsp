@@ -43,7 +43,7 @@ public sealed class InterviewEvidence
     public readonly System.Collections.Generic.List<string> RelatedEmployeeIds = new();
 
     // --- 카드 표시 ---------------------------------------------------
-    public string Header = "";      // "시설 로그" / "CCTV" / "까마귀의 증언"
+    public string Header = "";      // "시설 로그" / "CCTV" / "늑대의 증언"
     public string TimeText = "";    // "22:13" (없으면 빈 값)
     public string Body = "";        // "저장고 → 정비실"
 
@@ -79,7 +79,7 @@ public sealed class InterviewEvidence
 
     // 카드에 찍히는 한 줄. 종류를 두 글자로 앞에 달아 훑어보기 쉽게 한다.
     //   기록  22:13  저장고 → 정비실
-    //   증언  22:16  까마귀 · 정비실에서 봤다
+    //   증언  22:16  늑대 · 정비실에서 봤다
     public string Tag => Kind switch
     {
         EvidenceKind.Movement => "기록",

@@ -18,7 +18,7 @@ namespace NSP.Debug;
 public partial class VoiceStyleTest : Node
 {
     private const int Samples = 20;
-    private static readonly string[] Ids = { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" };
+    private static readonly string[] Ids = { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
 
     private const string Power = "power_room";
     private const string Storage = "storage_room";
@@ -57,6 +57,7 @@ public partial class VoiceStyleTest : Node
         CheckF(corpus);
         CheckG();
         CheckH(corpus);
+        CheckI(corpus);
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
@@ -111,7 +112,7 @@ public partial class VoiceStyleTest : Node
     {
         var ctx = DialogueContextBuilder.Build(id, DialogueConversationKind.Interview, questionId, "", null);
         ctx.IsRepeat = repeat;
-        ctx.TargetEmployeeId = id == "cat" ? "owl" : "cat";
+        ctx.TargetEmployeeId = id == "cat" ? "dog" : "cat";
         var plan = DialogueResponsePlanner.Plan(ctx);
         return KoreanDialogueComposer.Compose(ctx, plan);
     }
@@ -134,19 +135,19 @@ public partial class VoiceStyleTest : Node
 
     private void CheckC(Dictionary<string, List<string>> corpus)
     {
-        float crow = Avg(corpus["crow"]), rabbit = Avg(corpus["rabbit"]), fox = Avg(corpus["fox"]);
-        float owl = Avg(corpus["owl"]), cat = Avg(corpus["cat"]), jelly = Avg(corpus["jellyfish"]);
-        GD.Print($"[C] 평균 길이 — 까마귀 {crow:0.0} / 고양이 {cat:0.0} / 해파리 {jelly:0.0} / " +
-                 $"올빼미 {owl:0.0} / 여우 {fox:0.0} / 토끼 {rabbit:0.0}");
-        Check(crow < rabbit && crow < fox, "C 까마귀가 토끼·여우보다 짧게 말한다");
+        float wolf = Avg(corpus["wolf"]), rabbit = Avg(corpus["rabbit"]), fox = Avg(corpus["fox"]);
+        float dog = Avg(corpus["dog"]), cat = Avg(corpus["cat"]), sheep = Avg(corpus["sheep"]);
+        GD.Print($"[C] 평균 길이 — 늑대 {wolf:0.0} / 고양이 {cat:0.0} / 양 {sheep:0.0} / " +
+                 $"강아지 {dog:0.0} / 여우 {fox:0.0} / 토끼 {rabbit:0.0}");
+        Check(wolf < rabbit && wolf < fox, "C 늑대가 토끼·여우보다 짧게 말한다");
     }
 
     private void CheckD(Dictionary<string, List<string>> corpus)
     {
-        int jelly = corpus["jellyfish"].Count(Hedged);
-        int crow = corpus["crow"].Count(Hedged);
-        GD.Print($"[D] 확신 낮추는 표현 — 해파리 {jelly}개 / 까마귀 {crow}개");
-        Check(jelly > crow, "D 해파리가 까마귀보다 자주 확신을 낮춘다");
+        int sheep = corpus["sheep"].Count(Hedged);
+        int wolf = corpus["wolf"].Count(Hedged);
+        GD.Print($"[D] 확신 낮추는 표현 — 양 {sheep}개 / 늑대 {wolf}개");
+        Check(sheep > wolf, "D 양이 늑대보다 자주 확신을 낮춘다");
     }
 
     private void CheckE(Dictionary<string, List<string>> corpus)
@@ -158,21 +159,30 @@ public partial class VoiceStyleTest : Node
         Check(fox >= 1 && fox < Samples, "E 여우는 가끔 되묻지만 매번은 아니다");
     }
 
-    // 올빼미는 확인하지 않은 것을 단정하지 않는다 — 벽 너머로 들은 사건을 물었을 때
-    // "봤습니다" 라고 말하면 안 되고, 직접 보지 못했다는 사실이 답변에 남아야 한다.
+    // 늑대는 직접 본 것은 단정하지만 확인하지 않은 것은 단정하지 않는다 — 벽 너머로 들은
+    // 사건을 물었을 때 "봤습니다" 라고 말하면 안 되고, 직접 보지 못했다는 사실이 남아야 한다.
     private void CheckF(Dictionary<string, List<string>> corpus)
     {
         int scoped = 0, claimed = 0;
         for (int i = 0; i < 12; i++)
         {
-            string a = Answer("owl", DialogueQuestions.Anomaly);
+            string a = Answer("wolf", DialogueQuestions.Anomaly);
+            GD.Print($"     늑대: {a}");
             if (a.Contains("직접") || a.Contains("확인") || a.Contains("범위") || a.Contains("소리")
-                || a.Contains("보고")) scoped++;
+                || a.Contains("보고") || a.Contains("방향") || a.Contains("진동")) scoped++;
             if (a.Contains("봤습니다") && !a.Contains("직접 보")) claimed++;
         }
-        GD.Print($"[F] 올빼미 12개 중 확인 범위를 밝힌 답변 {scoped}개 · 단정한 답변 {claimed}개");
-        Check(claimed == 0, "F 올빼미가 확인하지 않은 것을 단정하지 않는다");
-        Check(scoped >= 6, "F 올빼미가 자기 확인 범위를 밝힌다");
+        GD.Print($"[F] 늑대 12개 중 감각/범위를 밝힌 답변 {scoped}개 · 단정한 답변 {claimed}개");
+        Check(claimed == 0, "F 늑대가 확인하지 않은 것을 단정하지 않는다");
+        Check(scoped >= 6, "F 늑대가 들은 것과 본 것을 구분한다");
+    }
+
+    // 강아지의 착함은 복종형 "네!" 로 표현하지 않는다.
+    private void CheckI(Dictionary<string, List<string>> corpus)
+    {
+        int yes = corpus["dog"].Count(t => t.StartsWith("네") || t.StartsWith("예"));
+        GD.Print($"[I] 강아지 {Samples}개 중 '네'로 시작 {yes}개");
+        Check(yes <= Samples / 5, "I 강아지가 '네'로 시작하는 복종형 답변만 하지 않는다");
     }
 
     private void CheckG()
@@ -187,7 +197,7 @@ public partial class VoiceStyleTest : Node
             int distinct = five.Distinct().Count();
             int maxDup = five.GroupBy(t => t).Max(g => g.Count());
             GD.Print($"[G] {Codename(id),-4} 5연속 — 서로 다른 문장 {distinct}개, 같은 문장 최대 {maxDup}회");
-            // 까마귀처럼 문장 풀이 3개뿐인 캐릭터는 5연속에서 한 문장이 세 번 나올 수 있다.
+            // 늑대처럼 문장 풀이 3개뿐인 캐릭터는 5연속에서 한 문장이 세 번 나올 수 있다.
             // 잡고 싶은 것은 "같은 문장만 반복"이므로 서로 다른 문장 수를 기준으로 본다.
             Check(distinct >= 3 && maxDup <= 3, $"G {Codename(id)} 가 같은 문장을 되풀이하지 않는다");
         }
@@ -235,8 +245,9 @@ public partial class VoiceStyleTest : Node
 
         var rooms = new Dictionary<string, string>
         {
-            ["owl"] = Guard, ["cat"] = Storage, ["jellyfish"] = Maintenance,
-            ["rabbit"] = Maintenance, ["crow"] = Core, ["fox"] = Core,
+            // 늑대는 경비실 — 발전실 사고를 소리로만 알게 되는 자리(F 검사가 이 자리를 본다).
+            ["wolf"] = Guard, ["cat"] = Storage, ["sheep"] = Maintenance,
+            ["rabbit"] = Maintenance, ["dog"] = Core, ["fox"] = Core,
         };
         var sim = FacilitySimulation.Instance;
         foreach (var kv in rooms)

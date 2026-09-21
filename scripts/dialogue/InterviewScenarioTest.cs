@@ -45,8 +45,8 @@ public static class InterviewScenarioTest
     {
         Head("A", "22:13 고양이 저장고→정비실 기록으로 질문 생성");
         Reset();
-        Deploy(new() { ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Vent,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Medical, ["fox"] = Core });
+        Deploy(new() { ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Vent,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
         Move("cat", Storage, Maintenance, At(13));
 
         var board = InterviewEvidenceBoard.Build("cat");
@@ -69,8 +69,8 @@ public static class InterviewScenarioTest
     {
         Head("B", "22:16 저장고 진술 vs 22:16 정비실 CCTV → 모순 성립");
         Reset();
-        Deploy(new() { ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Vent,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Medical, ["fox"] = Core });
+        Deploy(new() { ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Vent,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
 
         PlayerKnownEvidence.RecordLocationStatement("cat", "TaskFailed:power_room:16.0", Storage, true, At(16));
         PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(16), new[] { "cat" });
@@ -97,8 +97,8 @@ public static class InterviewScenarioTest
     {
         Head("C", "22:05 저장고 / 22:45 정비실 → 모순 아님");
         Reset();
-        Deploy(new() { ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Vent,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Medical, ["fox"] = Core });
+        Deploy(new() { ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Vent,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
 
         PlayerKnownEvidence.RecordCctvObservation(Storage, At(5), new[] { "cat" });
         PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(45), new[] { "cat" });
@@ -118,8 +118,8 @@ public static class InterviewScenarioTest
     {
         Head("D", "목격자 없는 방해공작 — 사건은 남고 실행자는 새지 않는다");
         Reset();
-        Deploy(new() { ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Vent,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Medical, ["fox"] = Core });
+        Deploy(new() { ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Vent,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
         // 내부 기록에는 실행자가 남지만 아무도 그 장면을 보지 못했다.
         Log(LogEventType.Sabotage, "cat", Core, At(20));
 
@@ -147,29 +147,29 @@ public static class InterviewScenarioTest
     {
         Head("E", "방해자의 알리바이가 반복 질문에서 흔들리지 않는다");
         Reset();
-        Deploy(new() { ["crow"] = Vent, ["owl"] = Guard, ["cat"] = Medical,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Storage, ["fox"] = Core });
-        GameState.Instance.SetSaboteur("crow");
-        Move("crow", Vent, Storage, At(8));          // 실제로는 저장고로 빠졌다
-        Log(LogEventType.Sabotage, "crow", Storage, At(12));
+        Deploy(new() { ["wolf"] = Vent, ["dog"] = Guard, ["cat"] = Medical,
+                       ["rabbit"] = Maintenance, ["sheep"] = Storage, ["fox"] = Core });
+        GameState.Instance.SetSaboteur("wolf");
+        Move("wolf", Vent, Storage, At(8));          // 실제로는 저장고로 빠졌다
+        Log(LogEventType.Sabotage, "wolf", Storage, At(12));
         Incident(LogEventType.TaskFailed, Power, At(16));
 
-        var board = InterviewEvidenceBoard.Build("crow");
+        var board = InterviewEvidenceBoard.Build("wolf");
         var incident = board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
         if (!Check(incident != null, "사고 기록이 자료로 뜬다")) return;
 
-        var qWhere = InterviewQuestionFactory.Make("crow", incident, InterviewIntent.AskWhereAtIncident);
+        var qWhere = InterviewQuestionFactory.Make("wolf", incident, InterviewIntent.AskWhereAtIncident);
         GD.Print($"   Q: {qWhere.Text}");
         GD.Print($"   A: {InterviewReplyPlanner.Answer(qWhere)}");
         var claimed = InterviewReplyPlanner.FrameFor(qWhere).Vars.GetValueOrDefault("room", "");
         string real = InterviewEvidenceBoard.RoomName(
-            DialogueContextBuilder.RoomAt("crow", 1, incident.AnchorTime));
+            DialogueContextBuilder.RoomAt("wolf", 1, incident.AnchorTime));
         GD.Print($"   [내부] 주장={claimed} / 실제={real}");
 
         // 같은 사건을 다른 각도로 두 번 더 캐묻는다.
-        var qRestate = InterviewQuestionFactory.Make("crow", incident, InterviewIntent.AskWhereAtIncident);
+        var qRestate = InterviewQuestionFactory.Make("wolf", incident, InterviewIntent.AskWhereAtIncident);
         string again = InterviewReplyPlanner.FrameFor(qRestate).Vars.GetValueOrDefault("room", "");
-        var qBefore = InterviewQuestionFactory.Make("crow", incident, InterviewIntent.AskBeforeIncident);
+        var qBefore = InterviewQuestionFactory.Make("wolf", incident, InterviewIntent.AskBeforeIncident);
         var before = InterviewReplyPlanner.FrameFor(qBefore);
         GD.Print($"   A(직전): {InterviewReplyPlanner.Answer(qBefore)}");
 
@@ -184,21 +184,21 @@ public static class InterviewScenarioTest
     {
         Head("F", "옆방에서 소리만 들은 직원은 원인을 설명하지 않는다");
         Reset();
-        Deploy(new() { ["crow"] = Vent, ["owl"] = Guard, ["cat"] = Medical,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Storage, ["fox"] = Core });
+        Deploy(new() { ["wolf"] = Vent, ["dog"] = Guard, ["cat"] = Medical,
+                       ["rabbit"] = Maintenance, ["sheep"] = Storage, ["fox"] = Core });
         Incident(LogEventType.TaskFailed, Power, At(16));
 
-        var board = InterviewEvidenceBoard.Build("crow");
+        var board = InterviewEvidenceBoard.Build("wolf");
         var incident = board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
         if (!Check(incident != null, "사고 기록이 자료로 뜬다")) return;
 
-        var q = InterviewQuestionFactory.Make("crow", incident, InterviewIntent.AskIncidentKnown);
+        var q = InterviewQuestionFactory.Make("wolf", incident, InterviewIntent.AskIncidentKnown);
         var frame = InterviewReplyPlanner.FrameFor(q);
         GD.Print($"   Q: {q.Text}");
         GD.Print($"   A: {InterviewReplyPlanner.Answer(q)}");
         GD.Print($"   [내부] 인지수준 variant={frame.Variant}");
 
-        var level = DialogueContextBuilder.KnowledgeOf("crow",
+        var level = DialogueContextBuilder.KnowledgeOf("wolf",
             DialogueContextBuilder.FindByKey(1, incident.IncidentKey));
         string expected = level == KnowledgeLevel.Direct ? "direct"
             : level == KnowledgeLevel.Indirect ? "indirect" : "none";
@@ -210,8 +210,8 @@ public static class InterviewScenarioTest
     {
         Head("G", "사건이 둘이어도 각 질문은 자기 사건에만 묶인다");
         Reset();
-        Deploy(new() { ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Vent,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Medical, ["fox"] = Core });
+        Deploy(new() { ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Vent,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
         Incident(LogEventType.CctvDisconnect, Medical, At(10));
         Incident(LogEventType.TaskFailed, Power, At(40));
 
@@ -238,20 +238,20 @@ public static class InterviewScenarioTest
     {
         Head("H", "자동 꼬리질문에 추궁이 섞이지 않는다");
         Reset();
-        Deploy(new() { ["crow"] = Vent, ["owl"] = Guard, ["cat"] = Medical,
-                       ["rabbit"] = Maintenance, ["jellyfish"] = Storage, ["fox"] = Core });
-        GameState.Instance.SetSaboteur("crow");
-        Move("crow", Vent, Storage, At(8));
+        Deploy(new() { ["wolf"] = Vent, ["dog"] = Guard, ["cat"] = Medical,
+                       ["rabbit"] = Maintenance, ["sheep"] = Storage, ["fox"] = Core });
+        GameState.Instance.SetSaboteur("wolf");
+        Move("wolf", Vent, Storage, At(8));
         Incident(LogEventType.TaskFailed, Power, At(16));
         // 플레이어가 실제로 확보한 증거까지 잔뜩 깔아 둔다 — 그래도 자동 추궁은 없어야 한다.
-        PlayerKnownEvidence.RecordCctvObservation(Storage, At(16), new[] { "crow" });
-        PlayerKnownEvidence.RecordSighting("owl", "crow", Storage, At(16));
+        PlayerKnownEvidence.RecordCctvObservation(Storage, At(16), new[] { "wolf" });
+        PlayerKnownEvidence.RecordSighting("dog", "wolf", Storage, At(16));
 
         bool any = false;
         foreach (string qid in new[] { DialogueQuestions.Anomaly, DialogueQuestions.Where,
                      DialogueQuestions.Suspicious, DialogueQuestions.Opinion, DialogueQuestions.Accuse })
         {
-            var turn = LocalDialogueGenerator.Interview("crow", qid);
+            var turn = LocalDialogueGenerator.Interview("wolf", qid);
             foreach (var f in turn.FollowUps)
             {
                 GD.Print($"   [꼬리질문] {f.Text}  ({f.Intent})");
@@ -261,14 +261,14 @@ public static class InterviewScenarioTest
         Check(!any, "추궁형 꼬리질문이 하나도 자동 생성되지 않는다");
 
         // 대신 플레이어가 직접 고르면 열린다.
-        var board = InterviewEvidenceBoard.Build("crow");
+        var board = InterviewEvidenceBoard.Build("wolf");
         var cctv = board.FirstOrDefault(e => e.Kind == EvidenceKind.Cctv);
         var say = board.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony);
         var claim2 = board.FirstOrDefault(e => e.Kind == EvidenceKind.OwnStatement);
         GD.Print($"   자료 수: CCTV={(cctv != null ? 1 : 0)} 증언={(say != null ? 1 : 0)} 진술={(claim2 != null ? 1 : 0)}");
         if (cctv != null && claim2 != null)
         {
-            var r = EvidenceContradiction.Check("crow", claim2, cctv);
+            var r = EvidenceContradiction.Check("wolf", claim2, cctv);
             GD.Print($"   플레이어 제시 결과: {(r.IsContradiction ? r.QuestionText : r.Notice)}");
         }
     }

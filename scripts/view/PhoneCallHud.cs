@@ -448,7 +448,7 @@ public partial class PhoneCallHud : CanvasLayer
         return l;
     }
 
-    // 어두운 고유색(까마귀의 회색 등)은 통화창의 검은 배경에서 안 보이므로 최소 밝기까지만 올린다.
+    // 어두운 고유색(늑대의 짙은 적색 등)은 통화창의 검은 배경에서 안 보이므로 최소 밝기까지만 올린다.
     // 색상(hue)은 건드리지 않아 "그 직원의 색"으로 계속 읽힌다.
     private static Color Readable(Color c)
     {

@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://ccmq6hric8bq7"
-path="res://.godot/imported/crow_01.wav-22b4c46625d19b28fdbda243ca8396bd.sample"
+uid="uid://ch5ujtelyhgw1"
+path="res://.godot/imported/dog_03.wav-29992dfb4c8393d8e46633a385051f06.sample"
 
 [deps]
 
-source_file="res://assets/audio/voice/crow_01.wav"
-dest_files=["res://.godot/imported/crow_01.wav-22b4c46625d19b28fdbda243ca8396bd.sample"]
+source_file="res://assets/audio/voice/dog_03.wav"
+dest_files=["res://.godot/imported/dog_03.wav-29992dfb4c8393d8e46633a385051f06.sample"]
 
 [params]
 

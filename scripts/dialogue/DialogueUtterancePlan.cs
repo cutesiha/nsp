@@ -9,7 +9,7 @@ namespace NSP.Dialogue;
 // 이제는 먼저 발화 형태 하나를 고르고, 그 형태가 요구하는 자리만 채운다.
 public enum UtteranceShape
 {
-    CoreOnly,        // 핵심 한 문장. 까마귀의 기본형.
+    CoreOnly,        // 핵심 한 문장. 늑대의 기본형.
     TopicEchoCore,   // "이상현상이요? …" — 주제를 짧게 되받고 답한다.
     ReactionCore,    // "네?! 저요?" — 질문이 놀랄 만할 때만.
     CoreVolunteer,   // 답 + 묻지 않은 정보 한 마디. 토끼의 기본형.
@@ -47,6 +47,6 @@ public sealed class DialogueUtterancePlan
     public string TimeWord = "";
     public int MaxSentences = 2;
     public int MaxExclamations = 0;
-    // 말이 잠깐 막히는 표현을 허용하는가(해파리).
+    // 말이 잠깐 막히는 표현을 허용하는가(양).
     public bool AllowPause;
 }

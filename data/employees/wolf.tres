@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/standing_v1/wolf_stand.png" id="2_img"]
+[ext_resource type="AtlasTexture" path="res://assets/characters/standing_v1/faces/wolf_face.tres" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "wolf"
+Codename = "늑대"
+Tech = 2
+Courage = 3
+Observation = 2
+Trait = "강철심장"
+
+PersonalityLine1 = "무뚝뚝하고 말수가 적지만 쉽게 흔들리지 않는 성격으로, 위기 상황에서도 겁먹거나 호들갑을 떨기보다 해야 할 일을 먼저 생각한다."
+PersonalityLine2 = "강한 인상과 카리스마 때문에 차갑게 보이지만 책임감이 강하고, 위험한 일이 생기면 자신이 먼저 맡으려는 보호자 기질이 있다."
+PersonalityLine3 = "자신감이 있고 결단이 빠르며 한번 내린 판단에는 쉽게 흔들리지 않지만, 모르는 것까지 아는 척하거나 허세를 부리는 성격은 아니다."
+
+SpeechStyleLine1 = "낮고 단정한 존댓말을 사용하며 대답이 짧고 핵심이 분명하다."
+SpeechStyleLine2 = "자신이 직접 확인한 사실은 확실하게 말하고, 모르는 내용은 군더더기 없이 모른다고 인정한다."
+SpeechStyleLine3 = "긴급한 상황에서도 감탄사나 과장된 표현을 거의 사용하지 않으며, 필요할 때는 설명보다 자신이 무엇을 하겠다는 행동 의지를 먼저 밝힌다."
+
+SpeechExample1 = "발전실 쪽에서 문제를 확인했습니다. 아직 큰 이상은 없습니다."
+SpeechExample2 = "직접 봤습니다. 그건 확실합니다. 그 이후는 모릅니다."
+SpeechExample3 = "위험한 작업이면 양 대신 저를 보내시죠. 제가 맡겠습니다. 지시해 주십시오."
+
+BehaviorLine1 = "사고나 큰 소리가 발생해도 배치된 작업실을 임의로 떠나지 않으며, 현재 상황을 빠르게 파악한 뒤 필요한 내용만 관리자에게 보고한다."
+BehaviorLine2 = "위험한 상황에서 쉽게 위축되지 않고 같은 작업실의 다른 직원이 동요하면 자신이 더 위험한 작업을 맡으려는 경향이 있다."
+BehaviorLine3 = "이상한 행동이나 설비 변화를 목격하면 감정적으로 의심부터 하기보다 자신이 직접 확인한 사실과 확인하지 못한 부분을 분명하게 나누어 기억한다."
+
+IncomingCallPatienceSeconds = 5.0
+StartRoomId = "guard_room"
+IconColor = Color(0.68, 0.18, 0.20, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

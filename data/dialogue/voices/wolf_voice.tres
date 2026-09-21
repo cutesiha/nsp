@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
+
+; 늑대 — 무뚝뚝 / 침착 / 자신감 / 행동 우선
+; 짧고 단정하다. 직접 본 건 확실하게, 모르는 건 모른다고 군더더기 없이 말한다.
+; 카리스마는 허세("흥", "겁먹었나?")가 아니라 짧고 침착한 발화 + "제가 가겠습니다" 같은 행동 의지로 낸다.
+; 주의: 말수가 적은 건 늑대의 평소 모습이다. V2 에서 말수 자체를 결번자 단서로 쓰지 않는다.
+; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
+
+[ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
+
+[resource]
+script = ExtResource("1_voice")
+EmployeeId = "wolf"
+Formal = true
+Talkativeness = 0.15
+MaxSentences = 2
+QuestionEchoChance = 0.05
+VolunteerInfoChance = 0.15
+BackQuestionChance = 0.0
+ReactionIntensity = 0.05
+HedgeChance = 0.05
+Directness = 0.95
+ExclamationChance = 0.0
+PauseChance = 0.0
+MaxExclamations = 0
+VoiceAxis = "무뚝뚝 / 침착 / 자신감 / 행동 우선"
+LeadWith = 0
+Confidence = 0.9
+SeparatesFactFromGuess = 0.9
+MentionOthersChance = 0.15
+OfferActionChance = 0.5
+ImpostorTells = 28
+ImpostorTellLine1 = "평소보다 더 단정적이다 — 정상 늑대라면 '그 이후는 모릅니다'라고 끊을 자리에서도 끝까지 단정한다."
+ImpostorTellLine2 = "직접 관찰하지 않은 정보까지 확신한다."
+ImpostorTellLine3 = "행동 이유를 물으면 이유가 비정상적으로 빈약하거나 같은 설명을 되풀이한다(정상 늑대는 짧아도 이유가 있다)."

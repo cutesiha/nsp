@@ -3,12 +3,12 @@
 importer="wav"
 type="AudioStreamWAV"
 uid="uid://dey0s654frs1w"
-path="res://.godot/imported/jellyfish_02.wav-fe0ec220bdeb3038ced476eb5601b626.sample"
+path="res://.godot/imported/sheep_02.wav-6ea21cd31cc0ef0e93ed0a3d3daa4ee0.sample"
 
 [deps]
 
-source_file="res://assets/audio/voice/jellyfish_02.wav"
-dest_files=["res://.godot/imported/jellyfish_02.wav-fe0ec220bdeb3038ced476eb5601b626.sample"]
+source_file="res://assets/audio/voice/sheep_02.wav"
+dest_files=["res://.godot/imported/sheep_02.wav-6ea21cd31cc0ef0e93ed0a3d3daa4ee0.sample"]
 
 [params]
 

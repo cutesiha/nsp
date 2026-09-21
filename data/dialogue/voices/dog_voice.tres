@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
+
+; 강아지 — 온순 / 다정 / 협조 / 사람을 챙김
+; 부드러운 존댓말. 상황뿐 아니라 함께 있던 사람의 상태를 자연스럽게 언급하고, 도울 일이 있으면 먼저 제안한다.
+; 착함은 "네! 알겠습니다!"식 복종이 아니라 "누구를 챙기는 정보를 고르는가"로 드러낸다.
+; 고양이와 대비: 고양이는 걱정도 핀잔처럼 말하고, 강아지는 걱정한다고 직접 말한다.
+; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
+
+[ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
+
+[resource]
+script = ExtResource("1_voice")
+EmployeeId = "dog"
+Formal = false
+Talkativeness = 0.55
+MaxSentences = 3
+QuestionEchoChance = 0.2
+VolunteerInfoChance = 0.45
+BackQuestionChance = 0.1
+ReactionIntensity = 0.2
+HedgeChance = 0.2
+Directness = 0.45
+ExclamationChance = 0.0
+PauseChance = 0.0
+MaxExclamations = 0
+VoiceAxis = "온순 / 다정 / 협조 / 사람을 챙김"
+LeadWith = 3
+Confidence = 0.6
+SeparatesFactFromGuess = 0.6
+MentionOthersChance = 0.6
+OfferActionChance = 0.45
+ImpostorTells = 96
+ImpostorTellLine1 = "말투는 친절한데, 다른 직원의 상태에 대한 실제 기억이 빈약하다."
+ImpostorTellLine2 = "걱정하는 표현은 하지만 구체적인 관찰 내용(누가 어땠는지)이 없다."
+ImpostorTellLine3 = "누가 어디 있었는지 물으면 '다들 자기 자리에 있었던 것 같아요'처럼 지나치게 일반적으로 답한다."

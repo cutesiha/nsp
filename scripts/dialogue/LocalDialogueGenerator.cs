@@ -22,12 +22,12 @@ public static class LocalDialogueGenerator
     // 자기 자신을 묻거나 여러 인터뷰가 같은 직원에게 몰리지 않는다.
     private static readonly Dictionary<string, string> OpinionTargets = new()
     {
-        ["owl"] = "cat",
-        ["cat"] = "jellyfish",
-        ["jellyfish"] = "rabbit",
-        ["rabbit"] = "crow",
-        ["crow"] = "fox",
-        ["fox"] = "owl",
+        ["sheep"] = "wolf",
+        ["wolf"] = "dog",
+        ["dog"] = "cat",
+        ["cat"] = "rabbit",
+        ["rabbit"] = "fox",
+        ["fox"] = "sheep",
     };
 
     public static string OpinionTargetId(string employeeId) => OpinionTargets.GetValueOrDefault(employeeId, "");
@@ -38,9 +38,9 @@ public static class LocalDialogueGenerator
         "rabbit" => "네, 관리자님! 무슨 일이에요?",
         "fox" => "네~ 관리자님. 저 찾으셨어요?",
         "cat" => "네. 왜 부르셨어요?",
-        "crow" => "네.",
-        "owl" => "네, 관리자님. 말씀하세요.",
-        "jellyfish" => "아..! 관리자님. 듣고 있어요.",
+        "wolf" => "네. 말씀하십시오.",
+        "dog" => "네, 관리자님. 무슨 일 있으세요?",
+        "sheep" => "아, 네. 관리자님, 부르셨어요?",
         _ => "네, 말씀하세요.",
     };
 
@@ -220,11 +220,11 @@ public static class LocalDialogueGenerator
 
     private static string CallPrefix(string employeeId) => employeeId switch
     {
-        "owl" => "관리자님, 보고드릴 게 있습니다.",
+        "dog" => "관리자님, 말씀드릴 게 있어요.",
         "cat" => "관리자님. 하나 보고할게요.",
-        "jellyfish" => "저, 관리자님... 이거 말씀드려야 할 것 같아서요.",
+        "sheep" => "저, 관리자님... 이거 말씀드려야 할 것 같아서요.",
         "rabbit" => "관리자님! 이거 보셨어요?",
-        "crow" => "보고드립니다.",
+        "wolf" => "보고드립니다.",
         "fox" => "관리자님, 잠깐만요.",
         _ => "관리자님.",
     };

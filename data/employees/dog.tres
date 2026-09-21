@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
+[ext_resource type="Texture2D" path="res://assets/characters/standing_v1/dog_stand.png" id="2_img"]
+[ext_resource type="AtlasTexture" path="res://assets/characters/standing_v1/faces/dog_face.tres" id="3_face"]
+
+[resource]
+script = ExtResource("1_emp")
+EmployeeId = "dog"
+Codename = "강아지"
+Tech = 2
+Courage = 2
+Observation = 2
+Trait = "다정한 협력자"
+
+PersonalityLine1 = "온순하고 다정하며 기본적으로 다른 사람을 선의로 대하는 성격으로, 동료가 힘들어 보이면 자연스럽게 먼저 챙기려 한다."
+PersonalityLine2 = "성격이 순하고 협조적이라 갈등을 만드는 것을 싫어하며, 다른 사람의 실수에도 화를 내기보다 함께 해결할 방법을 찾으려 한다."
+PersonalityLine3 = "사람을 쉽게 믿는 순진한 면이 있지만 마냥 어리숙한 것은 아니며, 자신이 해야 할 일이 생기면 묵묵히 책임지고 도와주는 편이다."
+
+SpeechStyleLine1 = "부드럽고 편안한 존댓말을 사용하며 상대를 몰아붙이거나 날카롭게 말하는 경우가 거의 없다."
+SpeechStyleLine2 = "상황 자체뿐 아니라 함께 있던 사람의 상태도 자연스럽게 언급하며, 자신이 도울 수 있는 일이 있으면 부담스럽지 않게 먼저 제안한다."
+SpeechStyleLine3 = "긍정적이고 협조적인 표현을 자주 사용하지만 모든 질문에 '네, 알겠습니다'라고 답하는 수동적인 말투가 되지는 않는다."
+
+SpeechExample1 = "발전실 쪽에서 소리가 났어요. 혹시 제가 확인해야 할 게 있으면 말씀해 주세요."
+SpeechExample2 = "양 씨가 많이 놀란 것 같더라고요. 큰일은 아닌 것 같은데, 한번 확인해 주시면 좋을 것 같아요."
+SpeechExample3 = "괜찮습니다. 제가 할게요. 다른 분은 하던 작업 계속하셔도 될 것 같아요."
+
+BehaviorLine1 = "사고가 발생하면 자신의 배치 위치를 임의로 벗어나지는 않지만 같은 작업실에 있는 동료의 상태를 먼저 확인하고, 필요한 지원이 있으면 관리자에게 함께 보고한다."
+BehaviorLine2 = "동료가 긴장하거나 힘들어하면 업무에 지장이 없는 범위에서 도우려 하며, 직원들 사이의 작은 다툼이나 분위기 변화도 비교적 신경 쓰는 편이다."
+BehaviorLine3 = "이상한 상황을 목격해도 다른 직원을 쉽게 범인처럼 몰아가지 않으며, 자신이 본 사실을 부드럽게 설명하고 판단은 관리자에게 맡기려 한다."
+
+IncomingCallPatienceSeconds = 7.0
+StartRoomId = "core_room"
+IconColor = Color(0.95, 0.72, 0.24, 1)
+StandingImage = ExtResource("2_img")
+FacePortrait = ExtResource("3_face")

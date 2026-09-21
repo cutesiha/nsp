@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://23vxyg47r01r"
-path="res://.godot/imported/jellyfish_stand.png-ad75825bef14075af7bd7bb77f444679.ctex"
+uid="uid://dl62wsfgx6mq3"
+path="res://.godot/imported/wolf_stand.png-ec22524618281b6a31acf5d4c0044803.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/characters/standing_v1/jellyfish_stand.png"
-dest_files=["res://.godot/imported/jellyfish_stand.png-ad75825bef14075af7bd7bb77f444679.ctex"]
+source_file="res://assets/characters/standing_v1/wolf_stand.png"
+dest_files=["res://.godot/imported/wolf_stand.png-ec22524618281b6a31acf5d4c0044803.ctex"]
 
 [params]
 

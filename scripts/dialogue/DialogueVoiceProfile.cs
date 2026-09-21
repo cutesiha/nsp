@@ -12,7 +12,7 @@ public enum SpeechRegister
 // data/dialogue/voices/*.tres(DialogueVoiceDef)로 옮겼다. 여기 남은 것은
 // DialogueResponsePlanner 가 계획을 세울 때 보는 값뿐이다.
 //   · ExactTimeChance / VagueTimeChance : 시각을 얼마나 정확히 말하는가
-//   · SeparatesGuess  : 본 것과 추측을 따로 구분해 말하는가(까마귀·올빼미)
+//   · SeparatesGuess  : 본 것과 추측을 따로 구분해 말하는가(늑대·양)
 //   · TaskMentionChance / EmotionChance : 업무·감정을 언급할 성향
 //   · DeceptionOrder  : 방해자일 때 선호하는 전략 순서
 public sealed class DialogueVoiceProfile

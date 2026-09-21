@@ -6,7 +6,7 @@ namespace NSP.Facility;
 //
 // 능력치가 아니다. 플레이어에게 숫자로 공개하지 않으며, 성공/실패 판정에도 쓰지 않는다.
 // 오직 두 가지에만 쓴다.
-//   ① 근무 중 이 직원이 자리를 뜰 만한가 / 사건 현장으로 갈까 피할까 (EmployeeBehaviorSystem)
+//   ① 같은 작업실 안에서 설비를 들여다보는가 / 사고에 어떻게 반응하는가 (EmployeeBehaviorSystem)
 //   ② 옆 방에서 벌어진 일을 알아차리는가 / 본 것을 얼마나 정확히 말하는가 (대사 계층)
 //
 // 말투·정보량은 이미 DialogueVoiceProfiles 가 쥐고 있다. 여기 있는 것은 "행동" 쪽이며,
@@ -17,7 +17,9 @@ public sealed class EmployeeTraitProfile
 {
     public string EmployeeId = "";
 
-    // 배치된 자리를 얼마나 쉽게 뜨는가. 로그에 이동 기록이 남는 빈도로 나타난다.
+    // 배치된 자리를 얼마나 쉽게 뜨는가.
+    // ※ 방 간 자율 이동은 폐기됐다(이동 권한은 플레이어에게만 있다). 이 값으로 직원을
+    //   다른 방으로 옮기는 로직을 만들지 말 것 — 성향 기록 / V2 대사 참고용으로만 남긴다.
     public int MovementTendency;
     // 이상한 일이 생기면 직접 확인하러 가는가.
     public int Curiosity;
@@ -28,7 +30,7 @@ public sealed class EmployeeTraitProfile
     // 같은 방이 아니어도 무슨 일이 났는지 알아차리는가.
     // 이 값이 낮으면 옆 방 사건을 "몰랐다"고 답한다 — 없는 목격을 만들지 않기 위한 문지기다.
     public int ObservationalAwareness;
-    // 용건 없이 다른 직원 쪽으로 움직이는가.
+    // 다른 직원에게 관심을 두고 챙기는가(같은 방 안의 행동·대사에서만 쓴다. 방 간 이동 금지).
     public int SocialMovement;
     // 시각·위치를 얼마나 정확히 진술하는가(DialogueVoiceProfiles 의 시간 표현과 같은 방향).
     public int StatementPrecision;
@@ -65,18 +67,18 @@ public static class EmployeeTraits
 
     private static Dictionary<string, EmployeeTraitProfile> Build() => new()
     {
-        // 원칙적·책임감. 맡은 자리를 쉽게 뜨지 않고, 본 것은 보고한다.
-        ["owl"] = new EmployeeTraitProfile
+        // 무뚝뚝·침착·보호자 기질. 위험에 물러서지 않고, 확인한 것과 못 한 것을 분명히 나눠 기억한다.
+        ["wolf"] = new EmployeeTraitProfile
         {
-            EmployeeId = "owl",
+            EmployeeId = "wolf",
             MovementTendency = 0,
-            Curiosity = 1,
-            ReportsAnomaly = 3,
-            AvoidsDanger = 1,
+            Curiosity = 0,
+            ReportsAnomaly = 2,
+            AvoidsDanger = 0,
             ObservationalAwareness = 2,
-            SocialMovement = 1,
+            SocialMovement = 0,
             StatementPrecision = 3,
-            Note = "규칙대로 대응한다 · 본 것과 추측을 구분해 말한다",
+            Note = "위험 앞에서 물러서지 않는다 · 필요한 것만 보고한다 · 시각과 위치를 정확히 말한다",
         },
 
         // 예민·효율. 불필요한 이동을 싫어하지만 설비 이상은 누구보다 빨리 알아챈다.
@@ -93,18 +95,19 @@ public static class EmployeeTraits
             Note = "이동을 아낀다 · 설비 이상 감지가 빠르다 · 필요한 말만 한다",
         },
 
-        // 소심·과민. 위험한 곳에서 먼저 물러나고, 분위기와 소리를 잘 알아차린다.
-        ["jellyfish"] = new EmployeeTraitProfile
+        // 극도로 소심·예민. 위험에서 가장 먼저 움츠러들지만, 작은 소리와 변화는 누구보다 빨리 알아챈다.
+        // 무서워하면서도 본 것은 빠짐없이 알리려 한다.
+        ["sheep"] = new EmployeeTraitProfile
         {
-            EmployeeId = "jellyfish",
-            MovementTendency = 1,
-            Curiosity = 0,
-            ReportsAnomaly = 1,
+            EmployeeId = "sheep",
+            MovementTendency = 0,
+            Curiosity = 1,
+            ReportsAnomaly = 3,
             AvoidsDanger = 3,
             ObservationalAwareness = 3,
             SocialMovement = 0,
-            StatementPrecision = 1,
-            Note = "사고 현장에서 멀어진다 — 그 모습이 도망처럼 보일 수 있다",
+            StatementPrecision = 2,
+            Note = "위험을 가장 먼저 피한다 · 작은 이상을 먼저 알아챈다 · 모르는 건 모른다고 한다",
         },
 
         // 활발·즉흥. 이상한 일이 있으면 직접 보러 간다 — 그래서 자주 현장 근처에 있다.
@@ -121,18 +124,18 @@ public static class EmployeeTraits
             Note = "사건 현장으로 직접 간다 · 이동 기록이 가장 많다",
         },
 
-        // 무뚝뚝·침착. 거의 움직이지 않는 대신 주변을 계속 본다.
-        ["crow"] = new EmployeeTraitProfile
+        // 온순·다정·협조. 같은 방 동료의 상태를 먼저 챙기고, 사람에 대한 기억이 자연스럽게 남는다.
+        ["dog"] = new EmployeeTraitProfile
         {
-            EmployeeId = "crow",
-            MovementTendency = 0,
-            Curiosity = 1,
+            EmployeeId = "dog",
+            MovementTendency = 1,
+            Curiosity = 2,
             ReportsAnomaly = 2,
             AvoidsDanger = 1,
-            ObservationalAwareness = 3,
-            SocialMovement = 0,
-            StatementPrecision = 3,
-            Note = "움직이지 않는다 · 시각과 위치를 정확히 기억한다",
+            ObservationalAwareness = 2,
+            SocialMovement = 3,
+            StatementPrecision = 2,
+            Note = "동료 상태를 먼저 살핀다 · 다른 직원을 몰아가지 않는다 · 판단은 관리자에게 맡긴다",
         },
 
         // 능글·사교적. 용건 없이 다른 직원 쪽으로 가는 일이 잦다.

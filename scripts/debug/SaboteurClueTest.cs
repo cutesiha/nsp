@@ -18,7 +18,7 @@ namespace NSP.Debug;
 public partial class SaboteurClueTest : Node
 {
     private const float Step = 1f / 30f;
-    private static readonly string[] Roster = { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" };
+    private static readonly string[] Roster = { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
 
     private FacilitySimulation _sim;
     private int _pass, _fail;
@@ -261,14 +261,14 @@ public partial class SaboteurClueTest : Node
     // 정상 직원도 같은 모양의 행동을 한다 — 전조 하나로 범인이 정해지면 안 된다.
     private void CheckNormalBehaviour()
     {
-        StartShift("crow");
+        StartShift("wolf");
         Advance(DayObjectives.MaxShiftSeconds);
         var odd = EventLog.Instance.GetAllEntries()
             .Where(e => e.Day == 1 && e.EventType == LogEventType.Neglect
                         && !string.IsNullOrEmpty(e.ActorEmployeeId))
             .Select(e => e.ActorEmployeeId).Distinct().ToList();
         GD.Print($"\n[G/H] 이상 행동을 보인 직원 {odd.Count}명 ({string.Join(", ", odd.Select(Code))})");
-        Check(odd.Count(id => id != "crow") >= 1, "G 정상 직원도 비슷한 행동을 한다");
+        Check(odd.Count(id => id != "wolf") >= 1, "G 정상 직원도 비슷한 행동을 한다");
 
         var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);
         int noise = rows.Count(r => r.Text.Contains("확인했다") || r.Text.Contains("들여다")

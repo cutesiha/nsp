@@ -26,7 +26,7 @@ public static class PrologueScript
         public string FigurePath = "";
         public string FigureNote = "";
         public string Speaker = "";
-        // 이 슬라이드 자막을 읽는 목소리. 기존 직원 id(rabbit, owl …) 또는 프롤로그 전용
+        // 이 슬라이드 자막을 읽는 목소리. 기존 직원 id(rabbit, wolf …) 또는 프롤로그 전용
         // director / guide0. 비워 두면 소리 없이 글자만 찍힌다.
         public string VoiceId = "";
         // 무전/인터컴으로 들리는가(Radio 버스 + 앞뒤 치직 + 약한 잡음).

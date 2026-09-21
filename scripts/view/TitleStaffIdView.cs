@@ -30,12 +30,12 @@ public partial class TitleStaffIdView : Control
     // 데이터에 코드네임이 없을 때만 쓰는 폴백. 화면에는 한글 이름만 찍는다.
     private static readonly Dictionary<string, string> Fallback = new()
     {
-        { "owl", "올빼미" }, { "cat", "고양이" }, { "jellyfish", "해파리" },
-        { "rabbit", "토끼" }, { "crow", "까마귀" }, { "fox", "여우" },
+        { "rabbit", "토끼" }, { "cat", "고양이" }, { "fox", "여우" },
+        { "sheep", "양" }, { "wolf", "늑대" }, { "dog", "강아지" },
     };
 
     // 화면에 놓는 순서(윗줄 3명 / 아랫줄 3명). 목록에 없는 직원은 뒤에 붙는다.
-    private static readonly string[] Order = { "owl", "cat", "jellyfish", "rabbit", "crow", "fox" };
+    private static readonly string[] Order = { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
 
     private sealed class Card
     {

@@ -134,17 +134,17 @@ public static class InterviewReplyComposer
     private static readonly Dictionary<string, string[]> Templates = new()
     {
         // ── 왜 그 방으로 이동했는가 ──────────────────────────────────
-        ["owl|MoveReason.ordered"] = new[]
+        ["dog|MoveReason.ordered"] = new[]
         {
-            "관리자님 지시를 받고 {to}으로/로 이동했습니다.",
-            "재배치 지시가 내려와서 {from}에서 바로 넘어갔습니다.",
+            "관리자님이 {to}으로/로 가라고 하셔서 옮겼어요.",
+            "재배치 지시가 와서 {from}에서 바로 넘어갔어요.",
         },
         ["cat|MoveReason.ordered"] = new[]
         {
             "관리자님이 가라고 하셨잖아요. 그래서 갔어요.",
             "지시받고 옮긴 건데요.",
         },
-        ["jellyfish|MoveReason.ordered"] = new[]
+        ["sheep|MoveReason.ordered"] = new[]
         {
             "지시가 와서요... 바로 {to}으로/로 갔어요.",
             "제가 가야 한다고 하셔서... 그래서 옮겼어요.",
@@ -154,7 +154,7 @@ public static class InterviewReplyComposer
             "관리자님이 가라고 하셨잖아요! 그래서 바로 뛰어갔어요.",
             "지시받고 갔어요! 저 시킨 건 잘하거든요.",
         },
-        ["crow|MoveReason.ordered"] = new[]
+        ["wolf|MoveReason.ordered"] = new[]
         {
             "지시에 따라 이동했습니다.",
             "재배치 명령. 그대로 수행했습니다.",
@@ -165,17 +165,17 @@ public static class InterviewReplyComposer
             "지시대로 움직인 것뿐인데요.",
         },
 
-        ["owl|MoveReason.repair"] = new[]
+        ["dog|MoveReason.repair"] = new[]
         {
-            "{to}에 수리가 걸려 있어서 손을 보러 갔습니다.",
-            "고장 신호가 떠 있길래 {to}으로/로 넘어갔습니다.",
+            "{to}에 수리가 걸려 있어서 도우러 갔어요.",
+            "고장 신호가 떠 있길래 {to}으로/로 넘어갔어요.",
         },
         ["cat|MoveReason.repair"] = new[]
         {
             "{to} 고장났잖아요. 누가 가긴 가야 하니까요.",
             "수리하러 갔어요. 그거 안 하면 더 커지거든요.",
         },
-        ["jellyfish|MoveReason.repair"] = new[]
+        ["sheep|MoveReason.repair"] = new[]
         {
             "{to}이/가 고장났다고 떠서... 제가 제일 가까워서 갔어요.",
             "수리하러요... 무서웠지만 가야 할 것 같았어요.",
@@ -185,7 +185,7 @@ public static class InterviewReplyComposer
             "{to} 고장나서요! 제가 얼른 가서 고쳤어요.",
             "수리하러 갔어요! 빨리 안 가면 큰일 나잖아요.",
         },
-        ["crow|MoveReason.repair"] = new[]
+        ["wolf|MoveReason.repair"] = new[]
         {
             "{to} 수리. 그게 전부입니다.",
             "고장 처리를 위해 이동했습니다.",
@@ -196,17 +196,17 @@ public static class InterviewReplyComposer
             "수리하러 갔죠. 누가 해도 할 일이었잖아요?",
         },
 
-        ["owl|MoveReason.task"] = new[]
+        ["dog|MoveReason.task"] = new[]
         {
-            "{to}에서 {task}을/를 맡아 이동했습니다.",
-            "{task} 때문에 자리를 옮겼습니다.",
+            "{to}에서 {task}을/를 맡게 돼서 옮겼어요.",
+            "{task} 때문에 자리를 옮겼어요.",
         },
         ["cat|MoveReason.task"] = new[]
         {
             "{task} 하러요. 그게 제 일이라서요.",
             "{to}에서 {task} 있었어요.",
         },
-        ["jellyfish|MoveReason.task"] = new[]
+        ["sheep|MoveReason.task"] = new[]
         {
             "{task} 때문에요... {to}으로/로 옮겼어요.",
             "그, {to}에서 {task} 해야 해서요.",
@@ -216,7 +216,7 @@ public static class InterviewReplyComposer
             "{task} 하러 갔어요! 저 그거 맡았거든요.",
             "{to}에서 {task} 있었어요!",
         },
-        ["crow|MoveReason.task"] = new[]
+        ["wolf|MoveReason.task"] = new[]
         {
             "{task} 수행을 위해 이동했습니다.",
             "{to}, {task}. 그뿐입니다.",
@@ -227,17 +227,17 @@ public static class InterviewReplyComposer
             "{to}에 {task}이/가 남아 있었거든요.",
         },
 
-        ["owl|MoveReason.check"] = new[]
+        ["dog|MoveReason.check"] = new[]
         {
-            "{to} 설비 상태가 마음에 걸려 직접 확인하러 갔습니다.",
-            "이상이 있는지 확인차 {to}에 들렀습니다.",
+            "{to} 설비가 좀 걱정돼서 직접 보러 갔어요.",
+            "혹시 이상 있나 싶어서 {to}에 들렀어요.",
         },
         ["cat|MoveReason.check"] = new[]
         {
             "{to} 상태 보러 갔어요. 그게 이상해서요.",
             "확인하러요. 그냥 두면 더 귀찮아지잖아요.",
         },
-        ["jellyfish|MoveReason.check"] = new[]
+        ["sheep|MoveReason.check"] = new[]
         {
             "{to} 쪽이 좀 이상한 것 같아서... 확인하러 갔어요.",
             "그냥... 괜찮은지 보고 오려고요.",
@@ -247,7 +247,7 @@ public static class InterviewReplyComposer
             "{to} 좀 이상한 것 같아서 보러 갔어요!",
             "확인하러요! 궁금하면 바로 가봐야 하잖아요.",
         },
-        ["crow|MoveReason.check"] = new[]
+        ["wolf|MoveReason.check"] = new[]
         {
             "{to} 상태 확인. 그 목적이었습니다.",
             "이상 여부를 직접 확인했습니다.",
@@ -270,17 +270,17 @@ public static class InterviewReplyComposer
         },
 
         // 방해자가 동선을 감출 때. 이유를 대지 않고 흐린다.
-        ["owl|MoveReason.evasive"] = new[]
+        ["dog|MoveReason.evasive"] = new[]
         {
-            "…정확히 왜였는지는 지금 바로 떠오르지 않습니다.",
-            "업무 중 한 이동이었습니다. 그 이상은 기억이 흐립니다.",
+            "…왜 갔는지 지금 바로는 잘 생각이 안 나요.",
+            "일하다가 옮긴 거였어요. 그 이상은 기억이 흐려요.",
         },
         ["cat|MoveReason.evasive"] = new[]
         {
             "그걸 일일이 기억해야 하나요? 그냥 일하다 옮긴 거예요.",
             "이유요? 딱히 없는데요.",
         },
-        ["jellyfish|MoveReason.evasive"] = new[]
+        ["sheep|MoveReason.evasive"] = new[]
         {
             "어... 그게, 왜 갔더라... 죄송해요, 잘 기억이 안 나요.",
             "그, 그냥... 그때는 그래야 할 것 같아서요...",
@@ -290,7 +290,7 @@ public static class InterviewReplyComposer
             "어? 음... 그냥 왔다 갔다 한 거예요. 별 이유 없었어요.",
             "그게... 기억이 잘 안 나요. 이상한가요?",
         },
-        ["crow|MoveReason.evasive"] = new[]
+        ["wolf|MoveReason.evasive"] = new[]
         {
             "기억나지 않습니다.",
             "이동한 것은 맞습니다. 이유는 기록에 없습니다.",
@@ -344,17 +344,17 @@ public static class InterviewReplyComposer
         },
 
         // ── 그때 같이 있던 사람 ────────────────────────────────────
-        ["owl|Companion.with"] = new[]
+        ["dog|Companion.with"] = new[]
         {
-            "{who} 직원이 같은 자리에 있었습니다. 확인해 보셔도 됩니다.",
-            "{who} 직원과 함께 있었습니다.",
+            "{who} 씨가 같은 자리에 있었어요. 물어보셔도 돼요.",
+            "{who} 씨랑 같이 있었어요.",
         },
         ["cat|Companion.with"] = new[]
         {
             "{who} 씨 있었어요. 물어보시든가요.",
             "{who} 씨랑 같이 있었는데요.",
         },
-        ["jellyfish|Companion.with"] = new[]
+        ["sheep|Companion.with"] = new[]
         {
             "{who} 씨도 있었어요. 물어보시면 아실 거예요...",
             "네, {who} 씨가 옆에 있었어요.",
@@ -364,7 +364,7 @@ public static class InterviewReplyComposer
             "{who} 씨요! 같이 있었어요. 물어보세요!",
             "네! {who} 씨가 봤을 거예요.",
         },
-        ["crow|Companion.with"] = new[]
+        ["wolf|Companion.with"] = new[]
         {
             "{who} 직원. 같은 자리에 있었습니다.",
             "{who}. 확인 가능합니다.",
@@ -375,17 +375,17 @@ public static class InterviewReplyComposer
             "{who} 씨한테 물어보시면 되겠네요.",
         },
 
-        ["owl|Companion.alone"] = new[]
+        ["dog|Companion.alone"] = new[]
         {
-            "혼자였습니다. 증명해 줄 사람은 없습니다.",
-            "그 자리에는 저 혼자 있었습니다.",
+            "혼자였어요. 증명해 줄 사람은 없어요.",
+            "그 자리엔 저 혼자 있었어요.",
         },
         ["cat|Companion.alone"] = new[]
         {
             "혼자였어요. 그게 문제인가요?",
             "아뇨, 저뿐이었어요.",
         },
-        ["jellyfish|Companion.alone"] = new[]
+        ["sheep|Companion.alone"] = new[]
         {
             "혼자... 혼자 있었어요. 그래서 더 무서웠고요.",
             "아무도 없었어요...",
@@ -395,7 +395,7 @@ public static class InterviewReplyComposer
             "혼자 있었어요! 아무도 안 왔어요.",
             "저 혼자였어요. 좀 심심했어요.",
         },
-        ["crow|Companion.alone"] = new[]
+        ["wolf|Companion.alone"] = new[]
         {
             "혼자였습니다.",
             "동행 없음.",
@@ -481,17 +481,17 @@ public static class InterviewReplyComposer
         },
 
         // ── 그 사고를 알고 있었는가 ────────────────────────────────
-        ["owl|IncidentKnown.direct"] = new[]
+        ["dog|IncidentKnown.direct"] = new[]
         {
-            "네. {room}에 있었기 때문에 직접 봤습니다.",
-            "알고 있습니다. 그 자리에 있었습니다.",
+            "네, {room}에 있어서 직접 봤어요.",
+            "알아요. 그 자리에 있었어요.",
         },
         ["cat|IncidentKnown.direct"] = new[]
         {
             "네, 봤어요. 제가 거기 있었으니까요.",
             "알죠. 눈앞에서 났는데요.",
         },
-        ["jellyfish|IncidentKnown.direct"] = new[]
+        ["sheep|IncidentKnown.direct"] = new[]
         {
             "네... 봤어요. 바로 앞에서요.",
             "알아요. 제가 {room}에 있었어요...",
@@ -501,7 +501,7 @@ public static class InterviewReplyComposer
             "네! 봤어요! 제가 거기 있었거든요.",
             "알아요! 바로 앞에서 났어요!",
         },
-        ["crow|IncidentKnown.direct"] = new[]
+        ["wolf|IncidentKnown.direct"] = new[]
         {
             "알고 있습니다. 직접 목격했습니다.",
             "{room}. 현장에 있었습니다.",
@@ -512,17 +512,17 @@ public static class InterviewReplyComposer
             "봤습니다. 꽤 요란했죠.",
         },
 
-        ["owl|IncidentKnown.indirect"] = new[]
+        ["dog|IncidentKnown.indirect"] = new[]
         {
-            "소리는 들었습니다. 다만 직접 보지는 못했습니다.",
-            "옆 작업실에 있어서 소리만 들었습니다. 원인은 모릅니다.",
+            "소리는 들었어요. 직접 보지는 못했고요.",
+            "옆 작업실에 있어서 소리만 들었어요. 원인은 몰라요.",
         },
         ["cat|IncidentKnown.indirect"] = new[]
         {
             "소리만 들었어요. 뭔지까지는 몰라요.",
             "들리긴 했는데 보진 못했어요.",
         },
-        ["jellyfish|IncidentKnown.indirect"] = new[]
+        ["sheep|IncidentKnown.indirect"] = new[]
         {
             "소리는 들었어요... 근데 직접 본 건 아니라서요.",
             "뭔가 나긴 났는데... 뭔지는 모르겠어요.",
@@ -532,7 +532,7 @@ public static class InterviewReplyComposer
             "소리 들었어요! 근데 직접 본 건 아니에요.",
             "쿵 하는 건 들었는데 뭔지는 몰라요.",
         },
-        ["crow|IncidentKnown.indirect"] = new[]
+        ["wolf|IncidentKnown.indirect"] = new[]
         {
             "소리만 확인했습니다. 원인은 보지 못했습니다.",
             "청취만 했습니다. 시각 확인은 없습니다.",
@@ -555,17 +555,17 @@ public static class InterviewReplyComposer
         },
 
         // ── 그 시각 어디에 있었는가 ────────────────────────────────
-        ["owl|WhereAtIncident.any"] = new[]
+        ["dog|WhereAtIncident.any"] = new[]
         {
-            "{room}에 있었습니다. 배치받은 자리 그대로였습니다.",
-            "{time}경이면 {room}입니다.",
+            "{room}에 있었어요. 배치받은 자리 그대로요.",
+            "{time}쯤이면 {room}에 있었어요.",
         },
         ["cat|WhereAtIncident.any"] = new[]
         {
             "{room}이요/요. 계속 거기 있었어요.",
             "{room}에 있었어요. 그게 다예요.",
         },
-        ["jellyfish|WhereAtIncident.any"] = new[]
+        ["sheep|WhereAtIncident.any"] = new[]
         {
             "{room}에 있었어요... 계속요.",
             "저는 {room}이요/요. 안 움직였어요.",
@@ -575,7 +575,7 @@ public static class InterviewReplyComposer
             "{room}에 있었어요! 계속 거기서 일했어요.",
             "{room}이요/요! 확인해 보셔도 돼요.",
         },
-        ["crow|WhereAtIncident.any"] = new[]
+        ["wolf|WhereAtIncident.any"] = new[]
         {
             "{room}입니다.",
             "{time}경, {room}. 이동 없었습니다.",
@@ -673,17 +673,17 @@ public static class InterviewReplyComposer
         },
 
         // ── 다른 직원의 증언이 사실인가 ────────────────────────────
-        ["owl|ConfirmTestimony.admit"] = new[]
+        ["dog|ConfirmTestimony.admit"] = new[]
         {
-            "사실입니다. 그 시각 {room}에 있었습니다.",
-            "맞습니다. 숨길 이유가 없습니다.",
+            "맞아요. 그 시간에 {room}에 있었어요.",
+            "맞아요. 숨길 이유 없어요.",
         },
         ["cat|ConfirmTestimony.admit"] = new[]
         {
             "맞아요. {room}에 있었어요.",
             "사실이에요. 그게 왜요?",
         },
-        ["jellyfish|ConfirmTestimony.admit"] = new[]
+        ["sheep|ConfirmTestimony.admit"] = new[]
         {
             "네... 맞아요. {room}에 있었어요.",
             "사실이에요. 숨긴 거 아니에요...",
@@ -693,7 +693,7 @@ public static class InterviewReplyComposer
             "맞아요! {room}에 있었어요.",
             "네! 사실이에요.",
         },
-        ["crow|ConfirmTestimony.admit"] = new[]
+        ["wolf|ConfirmTestimony.admit"] = new[]
         {
             "사실입니다.",
             "{room}. 맞습니다.",
@@ -704,17 +704,17 @@ public static class InterviewReplyComposer
             "사실이에요. 굳이 부정할 일도 아니고요.",
         },
 
-        ["owl|ConfirmTestimony.deny"] = new[]
+        ["dog|ConfirmTestimony.deny"] = new[]
         {
-            "아닙니다. 그 시각 저는 {room}에 있었습니다.",
-            "사실이 아닙니다. 잘못 보신 것 같습니다.",
+            "아니에요. 그 시간엔 저 {room}에 있었어요.",
+            "그건 아닌 것 같아요. 잘못 보신 것 같아요.",
         },
         ["cat|ConfirmTestimony.deny"] = new[]
         {
             "아닌데요. 저 그때 {room}에 있었어요.",
             "잘못 봤겠죠. 저 아니에요.",
         },
-        ["jellyfish|ConfirmTestimony.deny"] = new[]
+        ["sheep|ConfirmTestimony.deny"] = new[]
         {
             "네...? 아니에요, 저 그때 {room}에 있었어요...",
             "그, 그건 아닌 것 같은데요...",
@@ -724,7 +724,7 @@ public static class InterviewReplyComposer
             "네?! 아니에요! 저 {room}에 있었어요!",
             "그거 잘못 본 거예요! 저 아니에요.",
         },
-        ["crow|ConfirmTestimony.deny"] = new[]
+        ["wolf|ConfirmTestimony.deny"] = new[]
         {
             "아닙니다. 저는 {room}에 있었습니다.",
             "사실과 다릅니다.",
@@ -853,17 +853,17 @@ public static class InterviewReplyComposer
 
         // ── 모순 추궁에 대한 대응 ──────────────────────────────────
         // 결백한 직원: 기록을 인정하고 착오를 인정한다. 알리바이를 새로 만들지 않는다.
-        ["owl|Confront.honest"] = new[]
+        ["dog|Confront.honest"] = new[]
         {
-            "…제 기억이 틀렸을 수 있습니다. 기록이 맞다면 그쪽이 사실일 겁니다.",
-            "정정하겠습니다. 시간까지 정확히 기억하고 있진 않았습니다.",
+            "…제 기억이 틀렸을 수도 있어요. 기록이 맞다면 그게 사실일 거예요.",
+            "정정할게요. 시간까지 정확히 기억하진 못했어요.",
         },
         ["cat|Confront.honest"] = new[]
         {
             "아, 그러네요. 제가 시간을 헷갈렸나 봐요.",
             "기록이 그렇다면 그게 맞겠죠. 숨길 생각은 없었어요.",
         },
-        ["jellyfish|Confront.honest"] = new[]
+        ["sheep|Confront.honest"] = new[]
         {
             "어...? 그, 그럼 제가 잘못 말한 거예요. 일부러 그런 건 아니에요...",
             "죄송해요, 제가 시간을 착각했나 봐요...",
@@ -873,7 +873,7 @@ public static class InterviewReplyComposer
             "어?! 진짜요? 그럼 제가 헷갈린 거예요. 거짓말한 거 아니에요!",
             "아 맞다, 그때 잠깐 갔었네요. 까먹었어요!",
         },
-        ["crow|Confront.honest"] = new[]
+        ["wolf|Confront.honest"] = new[]
         {
             "기록이 맞습니다. 제 진술을 정정합니다.",
             "착오였습니다. 기록을 따르십시오.",
@@ -885,17 +885,17 @@ public static class InterviewReplyComposer
         },
 
         // 방해자가 흐릴 때.
-        ["owl|Confront.evasive"] = new[]
+        ["dog|Confront.evasive"] = new[]
         {
-            "…그 기록만으로 단정하시는 건 이르다고 봅니다.",
-            "설명드릴 수 있습니다. 다만 지금 당장은 정리가 되지 않습니다.",
+            "…그 기록만 보고 정하시기엔 좀 이른 것 같아요.",
+            "설명드릴 수 있어요. 근데 지금 당장은 정리가 잘 안 돼요.",
         },
         ["cat|Confront.evasive"] = new[]
         {
             "기록이 그렇다고 제가 뭘 했다는 건 아니잖아요.",
             "그 시간에 잠깐 지나갔을 수는 있죠. 그게 문제예요?",
         },
-        ["jellyfish|Confront.evasive"] = new[]
+        ["sheep|Confront.evasive"] = new[]
         {
             "그, 그게... 제가 착각했나 봐요. 근데 이상한 짓은 안 했어요...",
             "저, 정말 아무것도 안 했어요... 기록이 왜 그런지는 저도 모르겠어요...",
@@ -905,7 +905,7 @@ public static class InterviewReplyComposer
             "에? 아니, 그게... 저 진짜 아무것도 안 했는데요?!",
             "그, 그럼 제가 잘못 말했나 봐요. 근데 진짜 별일 없었어요!",
         },
-        ["crow|Confront.evasive"] = new[]
+        ["wolf|Confront.evasive"] = new[]
         {
             "기록은 기록입니다. 제 행동과는 별개입니다.",
             "그 이상은 답변하지 않겠습니다.",
@@ -917,17 +917,17 @@ public static class InterviewReplyComposer
         },
 
         // 방해자가 정면 부정할 때(불리한 기록이 이미 여러 건).
-        ["owl|Confront.deny"] = new[]
+        ["dog|Confront.deny"] = new[]
         {
-            "그 기록이 저를 가리키는 건 압니다. 그래도 제가 한 일은 아닙니다.",
-            "아닙니다. 기록을 다시 확인해 주십시오.",
+            "그 기록이 저를 가리키는 건 알아요. 그래도 제가 한 일은 아니에요.",
+            "아니에요. 기록 한 번만 다시 확인해 주세요.",
         },
         ["cat|Confront.deny"] = new[]
         {
             "저 아니에요. 몇 번을 물으셔도 같아요.",
             "그거 가지고 절 몰아가시는 건 무리예요.",
         },
-        ["jellyfish|Confront.deny"] = new[]
+        ["sheep|Confront.deny"] = new[]
         {
             "저 아니에요...! 정말 아니에요...",
             "아니에요, 진짜 아니에요. 믿어주세요...",
@@ -937,7 +937,7 @@ public static class InterviewReplyComposer
             "저 아니에요! 진짜 아니라고요!",
             "아니에요! 왜 자꾸 저만 의심하세요?!",
         },
-        ["crow|Confront.deny"] = new[]
+        ["wolf|Confront.deny"] = new[]
         {
             "아닙니다.",
             "부정합니다. 그 이상 말할 것은 없습니다.",

@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://ch5ujtelyhgw1"
-path="res://.godot/imported/owl_03.wav-f9bbd65ef4279ac218e9fcac53b98a1e.sample"
+uid="uid://b461jxxkaldw3"
+path="res://.godot/imported/sheep_01.wav-1a8617988d9275eebb716f7acbf6ec71.sample"
 
 [deps]
 
-source_file="res://assets/audio/voice/owl_03.wav"
-dest_files=["res://.godot/imported/owl_03.wav-f9bbd65ef4279ac218e9fcac53b98a1e.sample"]
+source_file="res://assets/audio/voice/sheep_01.wav"
+dest_files=["res://.godot/imported/sheep_01.wav-1a8617988d9275eebb716f7acbf6ec71.sample"]
 
 [params]
 

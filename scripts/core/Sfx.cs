@@ -335,15 +335,15 @@ public partial class Sfx : Node
     private static AudioStreamWav BuildEmployeeScream(string employeeId)
     {
         const int rate = 22050;
-        // 낮고 절제된 올빼미/까마귀, 날카로운 고양이, 떨리는 해파리,
-        // 밝고 높은 토끼, 중간 톤의 여우로 기존 음성 인상을 유지한다.
+        // 낮고 거친 늑대, 따뜻한 중간 톤의 강아지, 날카로운 고양이, 떨리는 양,
+        // 밝고 높은 토끼, 중간 톤의 여우.
         (float startHz, float peakHz, float duration, float rough, float vibrato, float fall) profile = employeeId switch
         {
-            "owl" => (310f, 610f, 0.86f, 0.18f, 24f, 0.72f),
+            "dog" => (400f, 780f, 0.80f, 0.16f, 30f, 0.68f),
             "cat" => (510f, 970f, 0.68f, 0.25f, 38f, 0.60f),
-            "jellyfish" => (560f, 1040f, 0.94f, 0.22f, 46f, 0.78f),
+            "sheep" => (570f, 1060f, 0.96f, 0.22f, 48f, 0.80f),
             "rabbit" => (590f, 1120f, 0.78f, 0.17f, 42f, 0.66f),
-            "crow" => (250f, 540f, 0.82f, 0.34f, 28f, 0.70f),
+            "wolf" => (240f, 520f, 0.80f, 0.34f, 24f, 0.70f),
             "fox" => (430f, 820f, 0.84f, 0.20f, 32f, 0.68f),
             _ => (460f, 860f, 0.78f, 0.25f, 36f, 0.66f),
         };
@@ -368,7 +368,7 @@ public partial class Sfx : Node
             float glottal = Mathf.Sin(ph) + 0.46f * Mathf.Sin(ph * 2.03f)
                 + 0.20f * Mathf.Sin(ph * 3.01f) + 0.08f * Mathf.Sin(ph * 4.97f);
             breath = Mathf.Lerp(breath, rng.RandfRange(-1f, 1f), 0.34f);
-            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "jellyfish" ? 17f : 11f) * Mathf.Tau);
+            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "sheep" ? 17f : 11f) * Mathf.Tau);
             float attack = Mathf.Min(1f, t * 34f);
             float release = Mathf.Pow(Mathf.Max(0f, 1f - t), 0.42f);
             float env = attack * release * tremble;

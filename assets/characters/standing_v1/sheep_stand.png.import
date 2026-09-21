@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dl62wsfgx6mq3"
-path="res://.godot/imported/crow_stand.png-8fb3d53060d4a35b76bbf48448521439.ctex"
+uid="uid://23vxyg47r01r"
+path="res://.godot/imported/sheep_stand.png-cfb8bfe4bf6e990958f86961f94805c6.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/characters/standing_v1/crow_stand.png"
-dest_files=["res://.godot/imported/crow_stand.png-8fb3d53060d4a35b76bbf48448521439.ctex"]
+source_file="res://assets/characters/standing_v1/sheep_stand.png"
+dest_files=["res://.godot/imported/sheep_stand.png-cfb8bfe4bf6e990958f86961f94805c6.ctex"]
 
 [params]
 

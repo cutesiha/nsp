@@ -42,7 +42,7 @@ public partial class SensorScenarioTest : Node
         Run(10f);
         GD.Print("\n[TEST B] 10초 시점 — 아래 위험이 떠 있어야 한다");
         PrintRows();
-        _sim.AssignToRoom("crow", "vent_room");
+        _sim.AssignToRoom("wolf", "vent_room");
         Run(1f);
         Print("TEST B : 환기실에 직원 배치 직후 (위험 해소)");
     }
@@ -71,7 +71,7 @@ public partial class SensorScenarioTest : Node
     {
         Setup(skip: "");
         // 두 방을 동시에 비운다.
-        _sim.ClearAssignment("crow");
+        _sim.ClearAssignment("wolf");
         _sim.ClearAssignment("cat");
         Run(14f);
         Print("TEST E : 두 곳 동시 위험");
@@ -123,8 +123,8 @@ public partial class SensorScenarioTest : Node
 
         var plan = new (string Emp, string Room)[]
         {
-            ("owl", "guard_room"), ("cat", "maintenance_room"), ("crow", "vent_room"),
-            ("rabbit", "core_room"), ("jellyfish", "storage_room"), ("fox", "power_room"),
+            ("dog", "guard_room"), ("cat", "maintenance_room"), ("wolf", "vent_room"),
+            ("rabbit", "core_room"), ("sheep", "storage_room"), ("fox", "power_room"),
         };
         foreach (var (emp, room) in plan)
             if (room != skip) _sim.AssignToRoom(emp, room);

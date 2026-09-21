@@ -78,18 +78,18 @@ public partial class RestEvidenceTest : Node
         Deploy();
 
         // ① 지나가기만 한 방(화면 로그에 뜨지 않는다)
-        Log(LogEventType.RoomExit, "crow", Guard, At(9), passing: true);
-        Log(LogEventType.RoomEnter, "crow", Core, At(10), passing: true);
+        Log(LogEventType.RoomExit, "wolf", Guard, At(9), passing: true);
+        Log(LogEventType.RoomEnter, "wolf", Core, At(10), passing: true);
         // ② 아무도 보지 못한 결번자의 행동 — EventLog 에는 남지만 화면에는 없다
         GameState.Instance.SetSaboteur("fox");
         Log(LogEventType.RoomEnter, "fox", Power, At(20), passing: true);
 
-        var crow = InterviewEvidenceBoard.Build("crow");
+        var wolf = InterviewEvidenceBoard.Build("wolf");
         var fox = InterviewEvidenceBoard.Build("fox");
-        GD.Print($"   까마귀 자료 {crow.Count}장 · 여우 자료 {fox.Count}장 (기분 제외 " +
-                 $"{crow.Count(e => e.Kind != EvidenceKind.Mood)}/{fox.Count(e => e.Kind != EvidenceKind.Mood)})");
+        GD.Print($"   늑대 자료 {wolf.Count}장 · 여우 자료 {fox.Count}장 (기분 제외 " +
+                 $"{wolf.Count(e => e.Kind != EvidenceKind.Mood)}/{fox.Count(e => e.Kind != EvidenceKind.Mood)})");
 
-        Check(!crow.Any(e => e.Kind == EvidenceKind.Movement), "통과만 한 이동은 자료가 되지 않는다");
+        Check(!wolf.Any(e => e.Kind == EvidenceKind.Movement), "통과만 한 이동은 자료가 되지 않는다");
         Check(!fox.Any(e => e.Kind == EvidenceKind.Movement), "결번자의 숨은 이동도 자료가 되지 않는다");
         // 내부 진실은 여전히 알고 있지만, 그것이 자료로 새어 나오지 않아야 한다.
         Check(DialogueContextBuilder.RoomAt("fox", 1, At(25)) == Power,
@@ -113,7 +113,7 @@ public partial class RestEvidenceTest : Node
         Check(cctv.SubjectRoomId == Maintenance && cctv.Position == PositionClaim.AtRoom,
             "그 시각 그 방에 있었다는 위치 자료다");
         Check(cctv.RelatedEmployeeIds.Contains("rabbit"), "같이 찍힌 직원이 함께 기록된다");
-        Check(!InterviewEvidenceBoard.Build("owl").Any(e => e.Kind == EvidenceKind.Cctv),
+        Check(!InterviewEvidenceBoard.Build("dog").Any(e => e.Kind == EvidenceKind.Cctv),
             "찍히지 않은 직원의 자료에는 뜨지 않는다");
     }
 
@@ -146,24 +146,24 @@ public partial class RestEvidenceTest : Node
     // ── E : 한 직원의 증언을 다른 직원 심문에 쓴다 ────────────────────────
     private void TestE()
     {
-        Head("E", "까마귀의 목격 증언 → 고양이 심문에서 사용");
+        Head("E", "늑대의 목격 증언 → 고양이 심문에서 사용");
         Reset();
         Deploy();
         GameState.Instance.SetSaboteur("cat");
-        // 까마귀가 실제로 같은 방에서 고양이의 행동을 봤다.
-        Log(LogEventType.Sabotage, "cat", Maintenance, At(35), witnesses: new[] { "crow" });
+        // 늑대가 실제로 같은 방에서 고양이의 행동을 봤다.
+        Log(LogEventType.Sabotage, "cat", Maintenance, At(35), witnesses: new[] { "wolf" });
 
-        var crowSession = new InterviewSession("crow");
-        var q = crowSession.BasicQuestions().First(x => x.Intent == InterviewIntent.BasicSuspicious);
-        var turn = crowSession.Ask(q);
-        GD.Print($"   Q(까마귀): {turn.QuestionText}\n   A: {turn.Answer}");
+        var wolfSession = new InterviewSession("wolf");
+        var q = wolfSession.BasicQuestions().First(x => x.Intent == InterviewIntent.BasicSuspicious);
+        var turn = wolfSession.Ask(q);
+        GD.Print($"   Q(늑대): {turn.QuestionText}\n   A: {turn.Answer}");
 
         var catBoard = InterviewEvidenceBoard.Build("cat");
         var said = catBoard.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony);
-        Check(said != null, "까마귀의 증언이 고양이의 조사 자료로 넘어간다");
+        Check(said != null, "늑대의 증언이 고양이의 조사 자료로 넘어간다");
         if (said == null) return;
         GD.Print($"   자료: [{said.Header}] {said.OneLine}");
-        Check(said.SpeakerEmployeeId == "crow" && said.SubjectEmployeeId == "cat",
+        Check(said.SpeakerEmployeeId == "wolf" && said.SubjectEmployeeId == "cat",
             "누가 누구에 대해 말했는지가 남는다");
 
         var follow = InterviewQuestionFactory.For("cat", said);
@@ -260,24 +260,24 @@ public partial class RestEvidenceTest : Node
         Deploy();
         Incident(LogEventType.TaskFailed, Power, At(30));
 
-        var session = new InterviewSession("owl");
+        var session = new InterviewSession("dog");
         int before = session.Board.Count;
 
         // 기분 질문 3종 + 기본 질문 3종 + 정확한 시각 되묻기.
         var mood = session.Board.First(e => e.Kind == EvidenceKind.Mood);
         foreach (var intent in new[] { InterviewIntent.AskMoodReason, InterviewIntent.AskMoodBefore,
                      InterviewIntent.AskMoodRelated })
-            session.Ask(InterviewQuestionFactory.Make("owl", mood, intent));
+            session.Ask(InterviewQuestionFactory.Make("dog", mood, intent));
         foreach (var q in session.BasicQuestions()) session.Ask(q);
         var incident = session.Board.First(e => e.Kind == EvidenceKind.Incident);
-        session.Ask(InterviewQuestionFactory.Make("owl", incident, InterviewIntent.FollowExactTime));
+        session.Ask(InterviewQuestionFactory.Make("dog", incident, InterviewIntent.FollowExactTime));
 
         int after = session.Board.Count;
         GD.Print($"   질문 7개 → 자료 {before}장 → {after}장");
         Check(after == before, "추리에 쓸 수 없는 답변은 자료를 늘리지 않는다");
 
         // 반대로 위치를 묻는 질문은 자료를 늘린다.
-        session.Ask(InterviewQuestionFactory.Make("owl", incident, InterviewIntent.AskWhereAtIncident));
+        session.Ask(InterviewQuestionFactory.Make("dog", incident, InterviewIntent.AskWhereAtIncident));
         GD.Print($"   위치 질문 1개 → 자료 {session.Board.Count}장");
         Check(session.Board.Count == before + 1, "위치 진술은 자료로 남는다");
     }
@@ -297,18 +297,18 @@ public partial class RestEvidenceTest : Node
         int catEvidence = catSession.Board.Count;
 
         // 다른 직원을 심문하고 다시 돌아온다.
-        var owlSession = new InterviewSession("owl");
-        owlSession.Ask(InterviewQuestionFactory.Make("owl", incident, InterviewIntent.AskWhereAtIncident));
+        var dogSession = new InterviewSession("dog");
+        dogSession.Ask(InterviewQuestionFactory.Make("dog", incident, InterviewIntent.AskWhereAtIncident));
         var back = new InterviewSession("cat");
 
-        GD.Print($"   고양이 {catEvidence}장 → 올빼미 심문 후 {back.Board.Count}장");
+        GD.Print($"   고양이 {catEvidence}장 → 강아지 심문 후 {back.Board.Count}장");
         Check(back.Board.Count >= catEvidence, "먼저 확보한 자료가 사라지지 않는다");
         Check(back.Board.Any(e => e.Kind == EvidenceKind.OwnStatement), "고양이의 진술이 그대로 남아 있다");
 
-        // 전원 보기에서는 올빼미의 진술까지 함께 읽을 수 있다.
+        // 전원 보기에서는 강아지의 진술까지 함께 읽을 수 있다.
         back.SetScope(true);
-        Check(back.Board.Any(e => e.SubjectEmployeeId == "owl"), "전원 보기에서 다른 직원 자료도 읽힌다");
-        Check(!back.CanUse(back.Board.First(e => e.SubjectEmployeeId == "owl")),
+        Check(back.Board.Any(e => e.SubjectEmployeeId == "dog"), "전원 보기에서 다른 직원 자료도 읽힌다");
+        Check(!back.CanUse(back.Board.First(e => e.SubjectEmployeeId == "dog")),
             "다른 직원의 자료로는 이 사람에게 질문할 수 없다");
         back.SetScope(false);
 
@@ -350,8 +350,8 @@ public partial class RestEvidenceTest : Node
     {
         var rooms = new Dictionary<string, string>
         {
-            ["cat"] = Storage, ["owl"] = Guard, ["crow"] = Maintenance,
-            ["rabbit"] = Maintenance, ["jellyfish"] = Power, ["fox"] = Core,
+            ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Maintenance,
+            ["rabbit"] = Maintenance, ["sheep"] = Power, ["fox"] = Core,
         };
         var sim = FacilitySimulation.Instance;
         foreach (var kv in rooms)

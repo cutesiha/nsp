@@ -752,8 +752,8 @@ public partial class CutscenePlayer : Control
         {
             "director" => "총괄 관리자",
             "guide0" => "GUIDE-0",
-            "owl" => "올빼미", "cat" => "고양이", "jellyfish" => "해파리",
-            "rabbit" => "토끼", "crow" => "까마귀", "fox" => "여우",
+            "rabbit" => "토끼", "cat" => "고양이", "fox" => "여우",
+            "sheep" => "양", "wolf" => "늑대", "dog" => "강아지",
             _ => voiceId,
         };
     }

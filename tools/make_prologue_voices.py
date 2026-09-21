@@ -1,6 +1,6 @@
 """프롤로그/DAY0 전용 신규 타이핑 보이스와 무전 효과음을 만든다.
 
-기존 직원 6명(cat/crow/fox/jellyfish/owl/rabbit)의 보이스는 건드리지 않는다.
+기존 직원 6명(rabbit/cat/fox/sheep/wolf/dog)의 보이스는 건드리지 않는다.
 여기서 만드는 것은 새로 추가되는 화자 두 명과, 직원 보이스에 씌울 무전 질감뿐이다.
 
     python tools/make_prologue_voices.py

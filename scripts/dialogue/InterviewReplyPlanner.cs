@@ -333,7 +333,7 @@ public static class InterviewReplyPlanner
     }
 
     // 로그 원문에서 업무 이름을 집어낸다.
-    // 문장 형식("🔧 까마귀 환기실 도착 / 환기구 청소 시작")에 기대지 않고, 먼저 실제
+    // 문장 형식("🔧 늑대 환기실 도착 / 환기구 청소 시작")에 기대지 않고, 먼저 실제
     // TaskDef 이름과 대조한다 — 로그 문구가 바뀌어도 대사가 깨지지 않게.
     private static string TaskNameFrom(string description)
     {

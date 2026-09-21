@@ -18,7 +18,7 @@ public static class DialogueVoices
     {
         EnsureLoaded();
         if (_defs.TryGetValue(employeeId ?? "", out var d)) return d;
-        return _defs.TryGetValue("owl", out var fallback) ? fallback : Fallback;
+        return _defs.TryGetValue("cat", out var fallback) ? fallback : Fallback;
     }
 
     private static readonly DialogueVoiceDef Fallback = new() { EmployeeId = "", Formal = true };
@@ -230,7 +230,7 @@ public static class DialogueUtterancePlanner
         }
         if (!plan.AllowSupport) return "";
 
-        // ② 확신이 낮으면 스스로 낮춰 말한다(해파리가 가장 자주).
+        // ② 확신이 낮으면 스스로 낮춰 말한다(양이 가장 자주).
         bool hedgeable = plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect
             or CoreKind.SuspiciousSighting or CoreKind.Opinion or CoreKind.SeenConfirm;
         if (hedgeable && plan.CaveatFree && (plan.Certainty == Certainty.Low
