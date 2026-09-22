@@ -571,19 +571,10 @@ public partial class FacilitySimulation : Node
 
     // 통로는 두 방이 같은 행/열이 아니면 직각으로 한 번 꺾인다. 꺾임 지점은 **이동 방향과
     // 무관하게 항상 같은 모서리**여야 CorridorLine.cs가 그리는 회색 선과 정확히 겹친다.
-    // 규칙: 세로 구간은 더 위쪽(작은 Y) 방의 X에, 가로 구간은 더 아래쪽 방의 Y에 둔다.
-    // (CorridorLine.cs의 ComputeElbow와 동일 규칙 — 한쪽만 바꾸면 안 됨.)
-    private Vector2? ComputeElbowWaypoint(string fromRoomId, string toRoomId)
-    {
-        Vector2 from = GetRoomPosition(fromRoomId);
-        Vector2 to = GetRoomPosition(toRoomId);
-        if (Mathf.IsEqualApprox(from.X, to.X) || Mathf.IsEqualApprox(from.Y, to.Y))
-            return null;
-
-        Vector2 upper = from.Y <= to.Y ? from : to;
-        Vector2 lower = from.Y <= to.Y ? to : from;
-        return new Vector2(upper.X, lower.Y);
-    }
+    // 규칙은 CorridorElbow 한 곳에 있다(미니맵 FacilityMinimap 도 같은 함수로 통로를 그린다).
+    private Vector2? ComputeElbowWaypoint(string fromRoomId, string toRoomId) =>
+        CorridorElbow.Compute(GetRoomPosition(fromRoomId), GetRoomPosition(toRoomId),
+            GetRoomPosition(DeployOriginRoomId));
 
     private List<string> FindPath(string fromRoomId, string toRoomId)
     {

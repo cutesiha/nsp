@@ -12,4 +12,4 @@ SpawnAtSeconds = 30.0
 JitterSeconds = 5.0
 Recurring = false
 RoomId = "vent_room"
-Day = 2
+Day = 99

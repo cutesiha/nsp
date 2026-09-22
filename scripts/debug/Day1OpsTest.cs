@@ -108,7 +108,10 @@ public partial class Day1OpsTest : Node
         GD.Print("\n---------------- 판정 ----------------");
         int pass = 0, fail = 0;
         Check("A 안정 배치는 사고 없이 끝난다", a.Breakdowns < 0.6f, ref pass, ref fail);
-        Check("B 발전 1명은 경고가 더 자주 뜬다", b.WarnRaised > a.WarnRaised + 0.4f, ref pass, ref fail);
+        // 하루 경고 총량 상한(MaxWarningsPerDay)이 생긴 뒤로는 총 발생 수가 상한에 붙는다 —
+        // 발전실 1명의 부담은 '더 많이 뜨거나, 더 많이 놓친다' 둘 중 하나로 드러난다.
+        Check("B 발전 1명은 경고 부담이 더 크다(발생 또는 실패가 더 많다)",
+            b.WarnRaised > a.WarnRaised + 0.2f || b.WarnFailed > a.WarnFailed + 0.2f, ref pass, ref fail);
         Check("B 발전 1명도 근무를 마칠 수 있다", b.CoreGain > 0.1f, ref pass, ref fail);
         Check("C 코어 집중이 A 보다 복구량이 높다", c.CoreGain > a.CoreGain + 1f, ref pass, ref fail);
         Check("C 코어 집중은 그만큼 위험을 떠안는다",

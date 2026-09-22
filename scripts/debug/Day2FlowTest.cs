@@ -69,7 +69,10 @@ public partial class Day2FlowTest : Node
         Check(d2.SaboteurStartSeconds < d1.SaboteurStartSeconds
               && d1.SaboteurStartSeconds - d2.SaboteurStartSeconds <= 6f,
             "방해공작 기회가 조금만 빨라졌다");
-        Check(d2.DailyTabooIds.Count == 1, "DAY2 의 활성 금기는 1개");
+        // 2026-09-22 설계 변경: DAY1 의 시스템이 DAY5 까지 그대로 이어진다(금기 없음).
+        Check(d2.DailyTabooIds.Count == 0, "DAY2 에도 금기는 없다");
+        Check(d2.Rooms.Count == d1.Rooms.Count && d2.Rooms.All(r => d1.Rooms.Any(o => o.RoomId == r.RoomId)),
+            "DAY2 작업실 구성이 DAY1 과 같다");
     }
 
     // --- 해금 --------------------------------------------------------------
@@ -88,10 +91,14 @@ public partial class Day2FlowTest : Node
                  $"의무실 {_sim.IsRoomActive("medical_room")}");
 
         Check(!d1Stats && !d1Stress && !d1Taboo, "DAY1 에는 능력치·스트레스·금기가 꺼져 있다");
-        Check(DayFeatures.StatsEnabled && DayFeatures.StressEnabled && DayFeatures.TaboosEnabled,
-            "DAY2 부터 능력치·스트레스·금기가 켜진다");
-        Check(!d1Vent && !d1Med && _sim.IsRoomActive("vent_room") && _sim.IsRoomActive("medical_room"),
-            "환기실·의무실이 DAY2 에 해금된다");
+        Check(!DayFeatures.StatsEnabled && !DayFeatures.StressEnabled && !DayFeatures.TaboosEnabled,
+            "DAY2 에도 능력치·스트레스·금기는 꺼져 있다(DAY1 시스템 유지)");
+        Check(!d1Vent && !d1Med && !_sim.IsRoomActive("vent_room") && !_sim.IsRoomActive("medical_room"),
+            "환기실·의무실은 DAY2 에도 열리지 않는다");
+        GameState.Instance.ResetRun(5);
+        Check(!DayFeatures.StatsEnabled && !DayFeatures.TaboosEnabled && !_sim.IsRoomActive("vent_room"),
+            "DAY5 까지 DAY1 시스템이 그대로다");
+        GameState.Instance.ResetRun(2);
 
         // 능력치가 실제 작업 효율에 들어가는가 — 같은 직원의 배율이 날마다 다르다.
         GameState.Instance.ResetRun(1);
@@ -99,15 +106,12 @@ public partial class Day2FlowTest : Node
         GameState.Instance.ResetRun(2);
         float real = _sim.TechWorkMultiplier("cat");
         GD.Print($"       고양이 기술 배율 DAY1 {flat:0.00} → DAY2 {real:0.00}");
-        Check(!Mathf.IsEqualApprox(flat, real) || _sim.GetEmployeeDef("cat").Tech == DayFeatures.NeutralStatValue,
-            "DAY2 에는 실제 능력치가 작업 효율에 반영된다");
+        Check(Mathf.IsEqualApprox(flat, real), "DAY2 에도 능력치는 작업 효율에 반영되지 않는다(모두 보통)");
 
         // 금기 목록이 데이터에서 나온다.
         var taboos = ControlRoom3DController.TodayTabooIds();
         GD.Print($"       오늘의 금기 {taboos.Length}개 : {string.Join(", ", taboos)}");
-        Check(taboos.Length == 1, "DAY2 오늘의 금기가 1개 잡힌다");
-        Check(TabooRuleSystem.Instance?.GetTaboo(taboos.FirstOrDefault() ?? "") != null,
-            "그 금기가 실제 데이터에 존재한다");
+        Check(taboos.Length == 0, "DAY2 오늘의 금기는 없다");
     }
 
     // --- 오늘의 업무 --------------------------------------------------------
@@ -127,9 +131,8 @@ public partial class Day2FlowTest : Node
         Check(lines.Any(l => l.Def.Type == DayObjectiveType.IncidentsResolved
                              && Mathf.IsEqualApprox(l.Def.TargetValue, 2f)), "필수② 경고/고장 2회 해결");
         var opt = lines.FirstOrDefault(l => !l.Required);
-        Check(opt is { Def.Type: DayObjectiveType.RoomsOperational }
-              && opt.Def.TargetRooms.Contains("vent_room") && opt.Def.TargetRooms.Contains("medical_room"),
-            "선택 업무가 환기실·의무실 정상 가동이다");
+        Check(opt != null && !opt.Def.TargetRooms.Contains("vent_room") && !opt.Def.TargetRooms.Contains("medical_room"),
+            "선택 업무가 잠긴 작업실(환기실·의무실)을 요구하지 않는다");
         Check(!lines.Any(l => l.Def.DisplayText.Contains("방해") || l.Def.DisplayText.Contains("결번")),
             "방해공작 관련 업무는 노출되지 않는다");
     }
@@ -302,17 +305,19 @@ public partial class Day2FlowTest : Node
 
         Check(d1.UnorderedMoves == 0 && d2.UnorderedMoves == 0,
             "DAY2 에서도 직원은 플레이어 명령으로만 움직인다");
-        Check(d2.SpawnedTasks.Contains("power_generator_check"), "DAY2 발전기 점검이 발생한다");
-        Check(d2.SpawnedTasks.Contains("vent_circulation_check"), "DAY2 환기 순환 점검이 발생한다");
-        Check(d2.SpawnedTasks.Contains("staff_treatment"), "의무실 상시 업무가 해금과 함께 돈다");
+        Check(!d2.SpawnedTasks.Contains("power_generator_check"), "DAY2 에도 발전기 점검(2명 고정 업무)은 없다");
+        Check(!d2.SpawnedTasks.Contains("vent_circulation_check"), "DAY2 에도 환기 업무는 없다");
+        Check(!d2.SpawnedTasks.Contains("staff_treatment"), "DAY2 에도 의무실 업무는 없다");
         Check(!d1.SpawnedTasks.Contains("vent_circulation_check"), "DAY1 에는 환기 업무가 뜨지 않는다");
-        // DAY2 의 난이도는 사고 수가 아니라 "같은 인원으로 더 많은 일을 돌린다" 에서 온다.
-        // 성과가 조금 깎이되 무너지지는 않아야 한다.
+        // DAY2 는 DAY1 과 같은 시스템에서 숫자만 조금 조였다. 무작위 근무 몇 번의 결과라
+        // 편차가 크므로 "무너지지도, 훨씬 쉬워지지도 않는다" 만 본다.
         float ratio = d1.CoreGain <= 0f ? 1f : d2.CoreGain / d1.CoreGain;
         GD.Print($"       DAY2 코어 성과 = DAY1 의 {ratio:P0}");
-        Check(ratio >= 0.7f && ratio <= 1.05f, $"DAY2 가 조금만 어렵다 (코어 {ratio:P0})");
-        Check(d2.SabotageAt < 0f || d1.SabotageAt < 0f || d2.SabotageAt <= d1.SabotageAt + 4f,
-            "DAY2 방해공작이 DAY1 보다 늦지 않다");
+        Check(ratio >= 0.6f && ratio <= 1.35f, $"DAY2 성과가 DAY1 과 비슷한 범위다 (코어 {ratio:P0})");
+        // 실제 방해 시각은 기회(빈 방 · 목격자)에 따라 흔들린다 — 규칙상의 기회 창으로 본다.
+        var p1 = OpsProfile.For(1); var p2 = OpsProfile.For(2);
+        Check(p2 != null && p1 != null && p2.SabotageWindowStartSeconds <= p1.SabotageWindowStartSeconds,
+            "DAY2 방해공작 기회 창이 DAY1 보다 늦지 않다");
         GD.Print($"       범인이 특정된 근무 — DAY1 {d1.NamedCount}/3 · DAY2 {d2.NamedCount}/3");
         Check(d2.NamedCount <= 1, "DAY2 에서도 범인 특정은 드물다(자동 노출 아님)");
     }

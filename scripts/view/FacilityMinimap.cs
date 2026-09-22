@@ -101,20 +101,18 @@ public partial class FacilityMinimap : Control
                 string key = string.CompareOrdinal(roomId, other) < 0 ? roomId + "|" + other : other + "|" + roomId;
                 if (!seen.Add(key)) continue;
 
-                // 직원 이동은 FacilitySimulation.ComputeElbowWaypoint 규칙으로 한 번 직각으로 꺾인다.
-                // 회색 통로도 같은 규칙(위쪽 방 X, 아래쪽 방 Y)으로 두 마디로 그려 정확히 겹치게 한다.
+                // 직원 이동과 같은 규칙(CorridorElbow)으로 한 번 직각으로 꺾어 그려 정확히 겹치게 한다.
+                // 중앙 제어실 ↔ 작업실은 안쪽 살, 작업실 ↔ 작업실은 바깥쪽 고리가 된다.
                 Vector2 pa = CenterOf(roomId), pb = CenterOf(other);
-                if (Mathf.Abs(pa.X - pb.X) < 1f || Mathf.Abs(pa.Y - pb.Y) < 1f)
+                var elbow = CorridorElbow.Compute(pa, pb, CenterOf(FacilitySimulation.DeployOriginRoomId));
+                if (elbow == null)
                 {
                     DrawLine(pa, pb, col, 3f);
                 }
                 else
                 {
-                    Vector2 upper = pa.Y <= pb.Y ? pa : pb;
-                    Vector2 lower = pa.Y <= pb.Y ? pb : pa;
-                    Vector2 elbow = new(upper.X, lower.Y);
-                    DrawLine(upper, elbow, col, 3f);
-                    DrawLine(elbow, lower, col, 3f);
+                    DrawLine(pa, elbow.Value, col, 3f);
+                    DrawLine(elbow.Value, pb, col, 3f);
                 }
             }
         }

@@ -24,6 +24,9 @@ public partial class OpsProfileDef : Resource
     // ── 경고 발생 제어 ─────────────────────────────────────────────────
     // 동시에 떠 있을 수 있는 경고 수.
     [Export] public int MaxConcurrentWarnings = 1;
+    // 하루에 뜰 수 있는 경고의 총 상한(정해진 시각의 경고 포함). 0 이면 제한 없음.
+    // 빈도를 올려도 한 근무에 경고가 우르르 쏟아지지 않게 막는 안전장치다.
+    [Export] public int MaxWarningsPerDay = 0;
     // 경고 하나가 끝난 뒤 다음 경고까지의 최소 간격(초).
     [Export] public float WarningGapSeconds = 14f;
     // 근무 시작 후 이 시간까지는 경고가 뜨지 않는다(초기 배치를 마칠 여유).

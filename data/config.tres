@@ -6,9 +6,9 @@
 script = ExtResource("1_cfg")
 MaxDays = 5
 MaxEmployees = 6
-StatsUnlockDay = 2
-StressUnlockDay = 2
-TabooUnlockDay = 2
+StatsUnlockDay = 99
+StressUnlockDay = 99
+TabooUnlockDay = 99
 MoodVagueMaxPerDay = 2
 StressMax = 50.0
 MurderMaxTotal = 2

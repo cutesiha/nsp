@@ -159,6 +159,12 @@ public sealed class FacilityWarningSystem
         if (now > dayLength - profile.WarningCutoffSeconds) return;
         if (_active.Count >= Mathf.Max(1, profile.MaxConcurrentWarnings)) return;
         if (now < _gapUntil) return;
+        // 하루 총량 상한 — 아직 안 뜬 '정해진 시각의 경고' 몫을 남겨 두고 무작위 경고를 멈춘다.
+        if (profile.MaxWarningsPerDay > 0)
+        {
+            int pendingScheduled = profile.ScheduledWarnings.Count(sw => sw != null && !_firedSchedule.Contains(sw));
+            if (Raised + pendingScheduled >= profile.MaxWarningsPerDay) return;
+        }
 
         float facilityMult = RoomStaffing.WarningChanceMultiplier();
 

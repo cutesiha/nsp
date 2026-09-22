@@ -4,7 +4,7 @@
 
 ; 발전기 점검 — 근무자 2명을 요구하는 고정 업무.
 ;
-; DAY1 에서는 쓰지 않는다(Day = 2). 이 업무가 있으면 "발전실에는 무조건 2명"이 정답이 되어
+; 쓰지 않는다(Day = 99 — DAY1 의 시스템을 DAY5 까지 그대로 유지한다). 이 업무가 있으면 "발전실에는 무조건 2명"이 정답이 되어
 ; 배치에서 고를 것이 사라지기 때문이다. DAY1 의 발전실 압박은 인원수에 따른 과열 경고
 ; (data/ops/day1.tres 의 power_room)가 대신한다.
 
@@ -14,4 +14,4 @@ TaskId = "power_generator_check"
 SpawnAtSeconds = 4.0
 Recurring = false
 RoomId = "power_room"
-Day = 2
+Day = 99
