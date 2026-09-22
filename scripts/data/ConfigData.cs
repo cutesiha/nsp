@@ -150,7 +150,7 @@ public partial class ConfigData : Resource
     // ── 심문 스탠딩 일러 CRT 셰이더 ──────────────────────────────────────
     // 일러 셰이더는 "청록 톤 + 어둡게 + 중앙 발광"만 맡는다. 스캔라인 · 그레인은 모니터
     // 셰이더(crt_screen.gdshader)가 이미 그리므로 여기서는 끈다(겹치면 모아레).
-    [Export(PropertyHint.File, "*.gdshader")] public string StandingShaderPath = "res://shaders/nsp_crt_glow_standing.gdshader";
+    [Export(PropertyHint.File, "*.gdshader")] public string StandingShaderPath = "";   // 비우면 스탠딩 셰이더 끔. 다시 켜려면 res://shaders/nsp_crt_glow_standing.gdshader
     [Export] public float StandingScanAmt = 0f;
     [Export] public float StandingGrainAmt = 0f;
     // 긴장 순간(심문 중 모순 추궁 성립) — 더 어둡게 + 빛이 확 번진다. 잠시 뒤 원래 값으로 돌아간다.

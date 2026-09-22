@@ -22,8 +22,6 @@ public partial class FacilityMinimap : Control
     private const float EmpDotRadius = 10f;
 
     // 방 배치 (미니맵 정규화 좌표). 사용자 스케치의 구조.
-    // 환기실 / 의무실은 이번 버전에서 쓰지 않으므로 지도에 올리지 않는다
-    // (데이터와 기능은 그대로 남아 있다 — 해금되면 여기 한 줄만 다시 넣으면 된다).
     private static readonly Dictionary<string, Vector2> Layout = new()
     {
         ["core_room"] = new(0.50f, 0.13f),
@@ -44,6 +42,11 @@ public partial class FacilityMinimap : Control
     private Font _font;
     private readonly HashSet<string> _seenCorridors = new();
 
+    // 작업 완료 팝업 — 방 상자 위에 "코어 복구 +1%" / "자재 +3" 같은 결과가 톡 떴다가 올라가며 사라진다.
+    private const float PopupSeconds = 1.6f;
+    private const float PopupRise = 18f;
+    private readonly List<(string RoomId, string Text, float Age)> _popups = new();
+
     public override void _Ready()
     {
         _font = ViewFont.Default;
@@ -51,10 +54,47 @@ public partial class FacilityMinimap : Control
         SetProcess(true);
         // 끌어다 놓기는 _GuiInput 밖(루트 _Input)에서 이동/뗌을 받아야 한다.
         SetProcessInput(true);
+        if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged += OnLogEntry;
+    }
+
+    public override void _ExitTree()
+    {
+        if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged -= OnLogEntry;
+    }
+
+    private void OnLogEntry()
+    {
+        var e = NSP.Core.EventLog.Instance?.GetAllEntries().LastOrDefault();
+        if (e == null || e.EventType != NSP.Data.LogEventType.TaskComplete || !Layout.ContainsKey(e.RoomId)) return;
+        string text = PopupText(e.Description);
+        if (!string.IsNullOrEmpty(text)) _popups.Add((e.RoomId, text, 0f));
+    }
+
+    // 완료 기록("✓ 코어 수리 완료 · 코어 +1% · 📦 자재 -2")에서 결과 부분만 짧게 뽑는다.
+    // 결과가 적혀 있지 않은 업무는 "완료"만 띄운다. (미니맵 글꼴에 없는 그림 문자는 뺀다.)
+    private static string PopupText(string desc)
+    {
+        if (string.IsNullOrEmpty(desc)) return "";
+        var parts = desc.Split(" · ");
+        if (parts.Length < 2) return desc.Contains("수리") ? "수리 완료" : "완료";
+        var outp = new List<string>();
+        foreach (var raw in parts.Skip(1))
+        {
+            string p = raw.Replace("📦", "").Replace("⚡", "").Replace("⚠", "").Trim();
+            if (p.StartsWith("코어 +")) p = "코어 복구 +" + p.Substring("코어 +".Length);
+            if (p.Length > 0) outp.Add(p);
+        }
+        return string.Join("\n", outp);
     }
 
     public override void _Process(double delta)
     {
+        for (int i = _popups.Count - 1; i >= 0; i--)
+        {
+            var p = _popups[i];
+            p.Age += (float)delta;
+            if (p.Age >= PopupSeconds) _popups.RemoveAt(i); else _popups[i] = p;
+        }
         var sim = FacilitySimulation.Instance;
         if (sim != null)
         {
@@ -86,6 +126,32 @@ public partial class FacilityMinimap : Control
 
         foreach (var id in sim.GetEmployeeIds())
             DrawEmployee(sim, id);
+
+        DrawPopups();
+    }
+
+    private void DrawPopups()
+    {
+        // 같은 방에 여러 개가 겹치면 위로 한 줄씩 쌓는다.
+        var stack = new Dictionary<string, int>();
+        foreach (var (roomId, text, age) in _popups)
+        {
+            int n = stack.GetValueOrDefault(roomId);
+            stack[roomId] = n + 1;
+            float k = age / PopupSeconds;
+            // 처음 0.12초는 살짝 튀어 오르고(또잉), 이후 천천히 올라가며 옅어진다.
+            float pop = age < 0.12f ? Mathf.Sin(age / 0.12f * Mathf.Pi) * 4f : 0f;
+            float alpha = k < 0.6f ? 1f : 1f - (k - 0.6f) / 0.4f;
+            var box = BoxOf(roomId);
+            int lines = text.Split('\n').Length;
+            float fs = ViewFont.S(13);
+            float y = box.Position.Y - 6f - PopupRise * k - pop - n * (fs + 4f) * lines - (lines - 1) * (fs + 2f);
+            var col = new Color(0.62f, 1f, 0.78f, alpha);
+            DrawMultilineStringOutline(_font, new Vector2(box.Position.X - 30f, y), text, HorizontalAlignment.Center,
+                box.Size.X + 60f, (int)fs, -1, 4, new Color(0f, 0f, 0f, 0.85f * alpha));
+            DrawMultilineString(_font, new Vector2(box.Position.X - 30f, y), text, HorizontalAlignment.Center,
+                box.Size.X + 60f, (int)fs, -1, col);
+        }
     }
 
     private void DrawCorridors(FacilitySimulation sim)

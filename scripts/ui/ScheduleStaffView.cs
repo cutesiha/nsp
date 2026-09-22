@@ -30,13 +30,38 @@ public partial class ScheduleStaffView : Control
     private Font _font;
     private float _t;
 
+    // 이 화면(모니터 2)에서 직접 고른 직원. 왼쪽 지도에서 직원을 눌러도 여기는 바뀌지 않는다.
+    private string _detailEmp = "";
+    private readonly List<(Rect2 Rect, string Id)> _cards = new();
+    private static readonly Rect2 CloseRect = new(Canvas.X - 104f, 28f, 64f, 56f);
+    private bool _closeVisible;
+
+    // 이 화면 글자 배율(읽기 쉽게 키움).
+    private static int Fs(int n) => ViewFont.S(Mathf.RoundToInt(n * 1.2f));
+
     public override void _Ready()
     {
         _font = ViewFont.Default;
         SetAnchorsPreset(LayoutPreset.FullRect);
         Size = Canvas;
-        MouseFilter = MouseFilterEnum.Ignore;
+        MouseFilter = MouseFilterEnum.Stop;
         SetProcess(true);
+    }
+
+    public override void _GuiInput(InputEvent e)
+    {
+        if (e is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mb) return;
+        var p = mb.Position;
+        if (_closeVisible && CloseRect.Grow(6f).HasPoint(p))
+        {
+            _detailEmp = "";
+            ScheduleMapView.Instance?.ClearFocus();
+            AcceptEvent();
+            return;
+        }
+        if (!_closeVisible)
+            foreach (var (r, id) in _cards)
+                if (r.HasPoint(p)) { _detailEmp = id; AcceptEvent(); return; }
     }
 
     public override void _Process(double delta)
@@ -58,30 +83,50 @@ public partial class ScheduleStaffView : Control
         if (string.IsNullOrEmpty(emp)) emp = map?.SelectedEmployeeId ?? "";
         string hover = map?.HoverRoomId ?? "";
 
-        // 경영 리워크: 능력치 비교(ASSIGNMENT CHECK)는 쓰지 않는다 — 끌어다 놓으면 바로 배치.
-        if (!string.IsNullOrEmpty(map?.FocusEmployeeId))
-            DrawEmployee(sim, map.FocusEmployeeId);
+        // 직원 상세는 이 화면의 직원 블록을 눌렀을 때만 연다(왼쪽 지도 선택과 무관).
+        // 작업실 정보는 왼쪽 지도에서 작업실을 눌렀을 때 뜬다. 둘 다 오른쪽 위 X 로 닫는다.
+        _cards.Clear();
+        _closeVisible = false;
+        if (!string.IsNullOrEmpty(_detailEmp))
+        {
+            DrawEmployee(sim, _detailEmp);
+            DrawClose();
+        }
         else if (!string.IsNullOrEmpty(map?.FocusRoomId))
+        {
             DrawRoom(sim, map.FocusRoomId);
+            DrawClose();
+        }
         else
             DrawRosterGrid(sim);
 
         Scanlines();
     }
 
+    private void DrawClose()
+    {
+        _closeVisible = true;
+        DrawRect(CloseRect, new Color(0.05f, 0.10f, 0.11f, 0.95f));
+        DrawRect(CloseRect, Mint with { A = 0.8f }, false, 2f);
+        var c = CloseRect.GetCenter();
+        float k = 13f;
+        DrawLine(c + new Vector2(-k, -k), c + new Vector2(k, k), Mint, 3f);
+        DrawLine(c + new Vector2(-k, k), c + new Vector2(k, -k), Mint, 3f);
+    }
+
     // ── 머리말 ───────────────────────────────────────────────────────────
 
     private void Header(string title, string sub)
     {
-        DrawString(_font, new Vector2(48f, 66f), title, HorizontalAlignment.Left, 560f, ViewFont.S(20), Mint);
-        DrawString(_font, new Vector2(48f, 92f), sub, HorizontalAlignment.Left, 640f, ViewFont.S(13), Dim);
+        DrawString(_font, new Vector2(48f, 66f), title, HorizontalAlignment.Left, 560f, Fs(20), Mint);
+        DrawString(_font, new Vector2(48f, 92f), sub, HorizontalAlignment.Left, 640f, Fs(13), Dim);
         DrawRect(new Rect2(48f, 108f, Canvas.X - 96f, 1f), Mint with { A = 0.20f });
     }
 
     private void Footer(string line, Color col)
     {
         DrawRect(new Rect2(48f, 506f, Canvas.X - 96f, 1f), Mint with { A = 0.18f });
-        DrawString(_font, new Vector2(48f, 538f), line, HorizontalAlignment.Left, Canvas.X - 96f, ViewFont.S(15), col);
+        DrawString(_font, new Vector2(48f, 538f), line, HorizontalAlignment.Left, Canvas.X - 96f, Fs(15), col);
     }
 
     // ── 기본: 신원 카드 그리드 ────────────────────────────────────────────
@@ -91,7 +136,7 @@ public partial class ScheduleStaffView : Control
         var roster = sim.GetActiveEmployeeIds();
         Header("STAFF IDENTIFICATION", "제7지하시설 · 야간근무 편성");
         DrawString(_font, new Vector2(Canvas.X - 200f, 70f), $"{roster.Count} / {roster.Count}",
-            HorizontalAlignment.Right, 152f, ViewFont.S(16), Dim);
+            HorizontalAlignment.Right, 152f, Fs(16), Dim);
 
         const float left = 82f, top = 132f, w = 208f, h = 168f, gx = 16f, gy = 14f;
         for (int i = 0; i < roster.Count && i < 6; i++)
@@ -101,18 +146,19 @@ public partial class ScheduleStaffView : Control
             if (def == null || st == null) continue;
             var r = new Rect2(left + (i % 3) * (w + gx), top + (i / 3) * (h + gy), w, h);
             bool assigned = !string.IsNullOrEmpty(st.AssignedRoomId);
+            _cards.Add((r, roster[i]));
 
             DrawRect(r, new Color(0.04f, 0.09f, 0.10f, 0.9f));
             DrawRect(r, (assigned ? Mint : Dim) with { A = assigned ? 0.6f : 0.4f }, false, 1.2f);
             var face = new Rect2(r.Position.X + (w - 72f) * 0.5f, r.Position.Y + 14f, 72f, 72f);
             Portrait(def, face);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 112f), def.Codename,
-                HorizontalAlignment.Center, w, ViewFont.S(19), Ink);
+                HorizontalAlignment.Center, w, Fs(19), Ink);
             string where = assigned ? "→ " + RoomName(sim, st.AssignedRoomId) : "미배치";
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 140f), where,
-                HorizontalAlignment.Center, w, ViewFont.S(13), assigned ? Mint : Amber);
+                HorizontalAlignment.Center, w, Fs(13), assigned ? Mint : Amber);
         }
-        Footer("직원 또는 작업실을 선택하면 상세 정보가 표시됩니다.", Dim);
+        Footer("직원 블록을 누르면 상세 정보가 표시됩니다.", Dim);
     }
 
     // ── 직원 ─────────────────────────────────────────────────────────────
@@ -126,36 +172,37 @@ public partial class ScheduleStaffView : Control
         Header("STAFF IDENTIFICATION  ·  " + id.ToUpperInvariant(), "시설 직원 신원 확인됨.");
 
         // 초상(스탠딩 원화가 있으면 크게, 없으면 얼굴).
-        var box = new Rect2(56f, 128f, 230f, 360f);
+        var box = new Rect2(40f, 120f, 270f, 380f);
         DrawRect(box, new Color(0.03f, 0.07f, 0.08f, 0.9f));
         DrawRect(box, Dim with { A = 0.55f }, false, 1.2f);
         var tex = def.StandingImage ?? def.FacePortrait;
-        if (tex != null) Contain(tex, box.Grow(-8f));
+        if (tex != null && def.StandingImage != null) FillUpper(tex, box.Grow(-6f));
+        else if (tex != null) Contain(tex, box.Grow(-8f));
         else DrawCircle(box.GetCenter(), 50f, def.IconColor);
 
-        float x = 316f, y = 150f;
+        float x = 334f, y = 156f;
         DrawRect(new Rect2(x, y - 22f, 4f, 30f), def.IconColor);
-        DrawString(_font, new Vector2(x + 14f, y), def.Codename, HorizontalAlignment.Left, 420f, ViewFont.S(30), Ink);
+        DrawString(_font, new Vector2(x + 14f, y), def.Codename, HorizontalAlignment.Left, 420f, Fs(30), Ink);
         y += 34f;
         // 경영 리워크: 특성 · 능력치는 싣지 않는다(EmployeeDef 필드는 남아 있음).
         {
             // 능력치가 잠긴 날 — 오늘의 기분이 주 정보다(직원 본인의 자기보고).
-            DrawString(_font, new Vector2(x, y), "오늘의 기분", HorizontalAlignment.Left, 440f, ViewFont.S(14), Dim);
+            DrawString(_font, new Vector2(x, y), "오늘의 기분", HorizontalAlignment.Left, 440f, Fs(14), Dim);
             y += 30f;
             string mood = sim.GetDailyMood(id);
             DrawString(_font, new Vector2(x, y), string.IsNullOrEmpty(mood) ? "—" : mood,
-                HorizontalAlignment.Left, 440f, ViewFont.S(24), Amber);
+                HorizontalAlignment.Left, 440f, Fs(24), Amber);
             y += 26f;
             DrawString(_font, new Vector2(x, y), "※ 직원 본인이 근무 전에 적어 낸 자기보고입니다.",
-                HorizontalAlignment.Left, 440f, ViewFont.S(11), Dim);
+                HorizontalAlignment.Left, 440f, Fs(11), Dim);
             y += 34f;
         }
 
         string room = st.AssignedRoomId;
-        DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, ViewFont.S(14), Dim);
+        DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, Fs(14), Dim);
         y += 30f;
         DrawString(_font, new Vector2(x, y), string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
-            HorizontalAlignment.Left, 440f, ViewFont.S(22), string.IsNullOrEmpty(room) ? Amber : Mint);
+            HorizontalAlignment.Left, 440f, Fs(22), string.IsNullOrEmpty(room) ? Amber : Mint);
 
         bool selected = ScheduleMapView.Instance?.SelectedEmployeeId == id;
         Footer(selected ? $"{def.Codename} 선택됨 — 배치할 작업실을 누르십시오." : $"{def.Codename}   시설 직원 신원 확인됨.",
@@ -164,13 +211,13 @@ public partial class ScheduleStaffView : Control
 
     private void Stat(string label, int v, float x, float y)
     {
-        DrawString(_font, new Vector2(x, y), label, HorizontalAlignment.Left, 60f, ViewFont.S(16), Ink);
+        DrawString(_font, new Vector2(x, y), label, HorizontalAlignment.Left, 60f, Fs(16), Ink);
         for (int i = 0; i < 3; i++)
         {
             var r = new Rect2(x + 64f + i * 26f, y - 15f, 20f, 16f);
             DrawRect(r, i < v ? Mint : Mint with { A = 0.14f });
         }
-        DrawString(_font, new Vector2(x + 150f, y), v.ToString(), HorizontalAlignment.Left, 40f, ViewFont.S(16), Dim);
+        DrawString(_font, new Vector2(x + 150f, y), v.ToString(), HorizontalAlignment.Left, 40f, Fs(16), Dim);
     }
 
     // ── 작업실 ───────────────────────────────────────────────────────────
@@ -197,12 +244,12 @@ public partial class ScheduleStaffView : Control
         if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
         {
             DrawString(_font, new Vector2(x, y), $"인원별 효과   (현재 {here.Count}명)", HorizontalAlignment.Left,
-                680f, ViewFont.S(16), Mint);
+                680f, Fs(16), Mint);
             y += 28f;
             foreach (string line in ops.RoleNote.Split(" / ").Take(4))
             {
                 DrawString(_font, new Vector2(x + 8f, y), "· " + line.Trim(), HorizontalAlignment.Left, 680f,
-                    ViewFont.S(14), Ink);
+                    Fs(14), Ink);
                 y += 24f;
             }
         }
@@ -210,12 +257,12 @@ public partial class ScheduleStaffView : Control
         {
             DrawString(_font, new Vector2(x, y),
                 $"권장 인원   {ScheduleMapView.RecommendedHeadcount(sim, roomId)}명   (현재 {here.Count}명)",
-                HorizontalAlignment.Left, 680f, ViewFont.S(16), Mint);
+                HorizontalAlignment.Left, 680f, Fs(16), Mint);
             y += 28f;
         }
         y += 6f;
         DrawString(_font, new Vector2(x, y), $"사고 수리 최소 인원   {RoomStaffing.RepairMinWorkers(roomId, def)}명",
-            HorizontalAlignment.Left, 680f, ViewFont.S(15), Dim);
+            HorizontalAlignment.Left, 680f, Fs(15), Dim);
         y += 34f;
 
         DrawDescription(roomId, x, y);
@@ -231,7 +278,7 @@ public partial class ScheduleStaffView : Control
         string desc = RoomDetailCard.Descriptions.GetValueOrDefault(roomId, "");
         if (string.IsNullOrEmpty(desc)) return;
         // 줄바꿈 — DrawMultilineString 으로 폭 안에서 접는다.
-        DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, ViewFont.S(14),
+        DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, Fs(14),
             4, Ink with { A = 0.85f }, TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.Mandatory);
     }
 
@@ -254,10 +301,10 @@ public partial class ScheduleStaffView : Control
 
         float x = 204f, y = 170f;
         DrawString(_font, new Vector2(x, y), $"{rdef.DisplayName} 요구 능력 : {StatLabel(primary)}",
-            HorizontalAlignment.Left, 540f, ViewFont.S(17), Ink);
+            HorizontalAlignment.Left, 540f, Fs(17), Ink);
         y += 34f;
         DrawString(_font, new Vector2(x, y), $"{edef.Codename} 의 {StatLabel(primary)}", HorizontalAlignment.Left,
-            200f, ViewFont.S(16), Dim);
+            200f, Fs(16), Dim);
         Stat("", value, x + 150f, y);
 
         // 업무 적합도 3단계 — 종이 배치표 · FacilitySimulation.StatWorkRate 와 같은 구간.
@@ -267,8 +314,8 @@ public partial class ScheduleStaffView : Control
             2 => ("○ 보통", Amber, "기준 속도"),
             _ => ("△ 비효율", Err, "업무 속도 크게 느림"),
         };
-        DrawString(_font, new Vector2(x, y + 64f), text, HorizontalAlignment.Left, 300f, ViewFont.S(28), col);
-        DrawString(_font, new Vector2(x, y + 94f), note, HorizontalAlignment.Left, 400f, ViewFont.S(14), Dim);
+        DrawString(_font, new Vector2(x, y + 64f), text, HorizontalAlignment.Left, 300f, Fs(28), col);
+        DrawString(_font, new Vector2(x, y + 94f), note, HorizontalAlignment.Left, 400f, Fs(14), Dim);
         Footer("놓으면 이 작업실에 배치됩니다.", Mint);
     }
 
@@ -280,6 +327,19 @@ public partial class ScheduleStaffView : Control
         if (def.FacePortrait != null) Contain(def.FacePortrait, box);
         else DrawCircle(box.GetCenter(), box.Size.X * 0.3f, def.IconColor);
         DrawRect(box, Dim with { A = 0.6f }, false, 1f);
+    }
+
+    // 스탠딩 원화의 투명 여백을 잘라 그림 폭을 칸 폭에 맞추고, 머리부터 칸 높이만큼만 그린다.
+    private void FillUpper(Texture2D tex, Rect2 box)
+    {
+        var c = NSP.View.InterviewCCTVView.ContentBox(tex);
+        float pad = c.Size.X * 0.06f;
+        float srcW = c.Size.X + pad * 2f;
+        float srcH = Mathf.Min(srcW * box.Size.Y / box.Size.X, c.Size.Y + pad);
+        var src = new Rect2(c.Position.X - pad, Mathf.Max(0f, c.Position.Y - pad), srcW, srcH);
+        float k = box.Size.X / srcW;
+        var dst = new Rect2(box.Position, new Vector2(box.Size.X, srcH * k));
+        DrawTextureRectRegion(tex, dst, src);
     }
 
     private void Contain(Texture2D tex, Rect2 box)

@@ -50,6 +50,28 @@ public partial class SchedulePreviewShot : Node
         await Frames(3);
         Save(staffVp, dir, "schedule_staff_room.png");
 
+        // 모니터 2 — X 로 목록 복귀 → 직원 블록 클릭 → 상세 → X 로 목록.
+        Click(staffVp, new Vector2(736f, 56f));
+        await Frames(3);
+        Save(staffVp, dir, "schedule_staff_after_close.png");
+        Click(staffVp, new Vector2(186f, 216f));
+        await Frames(3);
+        Save(staffVp, dir, "schedule_staff_detail.png");
+        Click(staffVp, new Vector2(736f, 56f));
+        await Frames(3);
+
+        // 실시간 운영 모니터 1 — 작업실 선택 + 아래 한 줄 알림.
+        GameState.Instance.SetPhase(GamePhase.Live);
+        var monVp = Vp(out var mon, new FacilityMonitorView());
+        await Frames(3);
+        typeof(FacilityMonitorView).GetMethod("SelectRoom", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            ?.Invoke(mon, new object[] { "maintenance_room" });
+        NSP.Ui.FacilityAlertHud.Instance?.Notify("⚠ 발전실 사고 위험 — 근무자 부재", NSP.Ui.NoticeLevel.Warning);
+        await Frames(4);
+        Save(monVp, dir, "monitor1_room.png");
+        monVp.QueueFree();
+        GameState.Instance.SetPhase(GamePhase.Schedule);
+
         // 관계 Phase 1 — 동실 거부(고양이+여우) · 우호(늑대+토끼) · 불편(고양이+양).
         foreach (var id in sim.GetActiveEmployeeIds()) sim.ClearAssignment(id);
         sim.AssignToRoom("cat", "storage_room");

@@ -19,6 +19,8 @@ public enum NoticeLevel { Info, Warning, Critical }
 public partial class FacilityAlertHud : CanvasLayer
 {
     public static FacilityAlertHud Instance { get; private set; }
+    // 왼쪽 아래 알림이 한 줄 뜰 때마다(중복 제외) — 모니터 1 아래 한 줄 알림이 같은 내용을 받는다.
+    public static event System.Action<string, NoticeLevel> Noticed;
 
     // 화면 왼쪽 아래에 쌓이는 짧은 시스템 알림.
     // Facility Log 와 역할이 다르다 — 여기는 "지금 무슨 일이 났는지"만 알리고,
@@ -75,6 +77,7 @@ public partial class FacilityAlertHud : CanvasLayer
         double now = Time.GetTicksMsec() / 1000.0;
         if (_noticeSeenAt.TryGetValue(text, out double at) && now - at < 8.0) return;
         _noticeSeenAt[text] = now;
+        Noticed?.Invoke(text, level);
 
         var label = new Label
         {

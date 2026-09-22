@@ -42,7 +42,11 @@ public partial class ScheduleConsoleTest : Node
         AddChild(_vp);
         _map = new ScheduleMapView();
         _vp.AddChild(_map);
-        _vp.AddChild(new ScheduleStaffView());
+        // 게임에서는 모니터 2 가 따로 된 뷰포트다. 여기서는 한 뷰포트에 겹쳐 두므로
+        // 모니터 2(직원 블록 클릭)가 지도로 갈 입력을 가로채지 않게 입력만 끈다.
+        var staff = new ScheduleStaffView();
+        _vp.AddChild(staff);
+        staff.MouseFilter = Control.MouseFilterEnum.Ignore;
         _map.StartPressed += () => _startPressed++;
         await Frames(3);
 

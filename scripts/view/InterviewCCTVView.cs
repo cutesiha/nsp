@@ -85,8 +85,8 @@ public partial class InterviewCCTVView : Control
         _portraitBox = new Control
         {
             // 스탠딩 원화의 발끝이 화면 아래에 붙도록 프레임 전체 높이를 쓴다.
-            Position = new Vector2(Frame.Position.X + Frame.Size.X / 2f - 190f, Frame.Position.Y),
-            Size = new Vector2(380f, Frame.Size.Y),
+            Position = Frame.Position,
+            Size = Frame.Size,
             ClipContents = true,
             MouseFilter = MouseFilterEnum.Ignore,
         };
@@ -186,7 +186,9 @@ public partial class InterviewCCTVView : Control
     {
         var cfg = Config.Instance?.Data;
         string path = cfg?.StandingShaderPath ?? "";
-        var shader = string.IsNullOrEmpty(path) ? null : GD.Load<Shader>(path);
+        // 경로가 비어 있으면 셰이더 · 발광 · 긴장 연출을 모두 끈다(원화 그대로 표시).
+        if (string.IsNullOrEmpty(path)) return;
+        var shader = GD.Load<Shader>(path);
         if (shader == null)
         {
             GD.PushWarning($"InterviewCCTVView: 스탠딩 일러 셰이더를 찾지 못했습니다: {path}");
@@ -326,6 +328,9 @@ public partial class InterviewCCTVView : Control
 
     // 원화 위쪽 여백 — 제일 큰 캐릭터의 머리가 프레임 위선에 닿지 않게 한다.
     private const float PortraitTopMargin = 12f;
+    // 얼굴이 잘 보이도록 전원에게 같은 배율로 키운다. 키가 가장 큰 직원의 머리가 위로 잘리지 않게
+    // 여섯 명 모두 같은 만큼(아래 PortraitDrop) 내린다 — 대신 다리 쪽이 화면 아래로 잘린다.
+    private const float PortraitZoom = 1.45f;
 
     private static readonly System.Collections.Generic.Dictionary<ulong, Rect2I> _contentBoxes = new();
     private static float _portraitUnit = -1f;
@@ -336,14 +341,18 @@ public partial class InterviewCCTVView : Control
         if (tex == null) return;
 
         Rect2I box = ContentBox(tex);
-        float unit = PortraitUnit(_portraitBox.Size.Y - PortraitTopMargin);
+        float avail = _portraitBox.Size.Y - PortraitTopMargin;
+        float unit = PortraitUnit(avail) * PortraitZoom;
+        // 확대로 늘어난 만큼 전원 똑같이 내린다 → 가장 큰 직원의 머리가 원래 자리(위 여백)에 머문다.
+        float drop = avail * (PortraitZoom - 1f);
 
         _portrait.Size = new Vector2(tex.GetWidth() * unit, tex.GetHeight() * unit);
         _portrait.Position = new Vector2(
             // 가로는 그림의 중심을 표시 영역 중앙에.
             _portraitBox.Size.X / 2f - (box.Position.X + box.Size.X / 2f) * unit,
-            // 세로는 그림의 발끝을 표시 영역 바닥에 정확히 붙인다(아래 공백 없음).
-            _portraitBox.Size.Y - (box.Position.Y + box.Size.Y) * unit);
+            // 세로는 발끝을 바닥에 맞춘 자리에서 공통 drop 만큼 아래로.
+            _portraitBox.Size.Y - (box.Position.Y + box.Size.Y) * unit + drop
+                - (FacilitySimulation.Instance?.GetEmployeeDef(_lastEmployee)?.InterviewPortraitLift ?? 0f));
     }
 
     // 여섯 명 중 가장 큰 원화가 표시 높이에 맞도록 하는 공통 배율.
@@ -366,7 +375,7 @@ public partial class InterviewCCTVView : Control
     }
 
     // 원화에서 실제로 그림이 그려진 영역(투명 여백 제외). 원화를 교체해도 자동으로 다시 잡힌다.
-    private static Rect2I ContentBox(Texture2D tex)
+    public static Rect2I ContentBox(Texture2D tex)
     {
         ulong key = tex.GetInstanceId();
         if (_contentBoxes.TryGetValue(key, out var cached)) return cached;

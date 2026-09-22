@@ -49,6 +49,8 @@ public partial class EmployeeDef : Resource
     // glow_center 는 원화 UV 기준(0=위, 1=아래). y 를 줄이면 빛이 위로, 늘리면 아래로 간다.
     [Export(PropertyHint.Range, "0,3,0.05")] public float StandingGlowAmt = 0.9f;
     [Export] public Vector2 StandingGlowCenter = new(0.5f, 0.46f);
+    // 휴게 CCTV 스탠딩을 위로 올리는 양(px). 키 작은 직원의 얼굴이 화면 가운데 쪽에 오게.
+    [Export] public float InterviewPortraitLift = 0f;
 
     public int GetStat(StatType stat) => stat switch
     {

@@ -29,6 +29,8 @@ namespace NSP.Ui;
 public partial class ScheduleMapView : Control
 {
     public static ScheduleMapView Instance { get; private set; }
+    // 이 화면 글자 배율(읽기 쉽게 키움).
+    private static int Fs(int n) => ViewFont.S(Mathf.RoundToInt(n * 1.15f));
 
     public event Action StartPressed;
     // 선택·배치가 바뀔 때마다. 오른쪽 모니터가 다시 그린다.
@@ -92,7 +94,7 @@ public partial class ScheduleMapView : Control
         SetProcess(true);
         SetProcessInput(true);
 
-        _start = MonitorUi.Button("근무 시작  ▶", Mint, _font, () => StartPressed?.Invoke(), ViewFont.S(19));
+        _start = MonitorUi.Button("근무 시작  ▶", Mint, _font, () => StartPressed?.Invoke(), Fs(19));
         _start.Position = new Vector2(Canvas.X - 232f, Canvas.Y - 72f);
         _start.Size = new Vector2(212f, 50f);
         AddChild(_start);
@@ -145,7 +147,7 @@ public partial class ScheduleMapView : Control
             foreach (var emp in AssignedTo(sim, roomId))
             {
                 string name = sim.GetEmployeeDef(emp)?.Codename ?? emp;
-                float w = Mathf.Min(_font.GetStringSize(name, HorizontalAlignment.Left, -1, ViewFont.S(11)).X + 16f, 64f);
+                float w = Mathf.Min(_font.GetStringSize(name, HorizontalAlignment.Left, -1, Fs(11)).X + 16f, 64f);
                 if (x + w > cell.End.X - 4f) break;   // 넘치는 인원은 "…" 로만 표시(대기 인원 카드에서 잡을 수 있다)
                 _chipRects.Add((emp, new Rect2(x, y, w, 16f)));
                 x += w + 4f;
@@ -335,11 +337,11 @@ public partial class ScheduleMapView : Control
         int day = GameState.Instance?.CurrentDay ?? 1;
         DrawRect(new Rect2(10f, 8f, Canvas.X - 20f, Canvas.Y - 16f), Mint with { A = 0.18f }, false, 1.2f);
         DrawString(_font, new Vector2(24f, 38f), "NIGHT SHIFT ASSIGNMENT", HorizontalAlignment.Left, 360f,
-            ViewFont.S(16), Mint);
+            Fs(16), Mint);
         DrawString(_font, new Vector2(24f, 60f), "근무 배치  ·  직원을 끌어 작업실에 놓으십시오", HorizontalAlignment.Left,
-            420f, ViewFont.S(12), Dim);
+            420f, Fs(12), Dim);
         DrawString(_font, new Vector2(Canvas.X - 220f, 46f), DayFeatures.DayLabel(day), HorizontalAlignment.Right,
-            196f, ViewFont.S(26), Ink);
+            196f, Fs(26), Ink);
 
         // 경영 리워크: 금기는 게임에서 걷어냈다 — 배치 화면에 싣지 않는다.
         DrawRect(new Rect2(24f, 93f, Canvas.X - 48f, 1f), Mint with { A = 0.16f });
@@ -404,20 +406,20 @@ public partial class ScheduleMapView : Control
 
         var nameCol = assignable ? Ink : Dim;
         DrawString(_font, cell.Position + new Vector2(8f, 17f), def.DisplayName, HorizontalAlignment.Left,
-            cell.Size.X - 60f, ViewFont.S(13), nameCol);
+            cell.Size.X - 60f, Fs(13), nameCol);
 
         if (locked)
         {
             // UnlockDay 로 잠긴 방 — 비활성 표시만. 이번 근무 기간(MaxDays) 안에 열리지 않는 방은 날짜를 싣지 않는다.
             DrawString(_font, cell.Position + new Vector2(8f, 40f), LockedLabel(def),
-                HorizontalAlignment.Left, cell.Size.X - 16f, ViewFont.S(10), Dim);
+                HorizontalAlignment.Left, cell.Size.X - 16f, Fs(10), Dim);
             return;
         }
         if (restricted)
         {
             string tag = roomId == FacilitySimulation.DeployOriginRoomId ? "관리자" : "제한 구역";
             DrawString(_font, cell.Position + new Vector2(8f, 40f), tag, HorizontalAlignment.Left,
-                cell.Size.X - 16f, ViewFont.S(10), Dim);
+                cell.Size.X - 16f, Fs(10), Dim);
             return;
         }
         if (!assignable) return;
@@ -428,9 +430,9 @@ public partial class ScheduleMapView : Control
         int repair = RoomStaffing.RepairMinWorkers(roomId, def);
         Color countCol = here.Count == 0 ? Dim : here.Count >= rec ? Mint : Amber;
         DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 17f), $"{here.Count}/{rec}",
-            HorizontalAlignment.Right, cell.Size.X - 24f, ViewFont.S(12), countCol);
+            HorizontalAlignment.Right, cell.Size.X - 24f, Fs(12), countCol);
         DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 30f), $"수리 {repair}",
-            HorizontalAlignment.Right, cell.Size.X - 24f, ViewFont.S(9), Dim);
+            HorizontalAlignment.Right, cell.Size.X - 24f, Fs(9), Dim);
 
         // 관계 아이콘(방 칸 오른쪽 위) — 거부 > 불편 > 밀접 > 우호 중 가장 센 것 하나.
         if (band != null) DrawRelationIcon(RelationSlotOf(roomId), band.Value, pulse);
@@ -447,7 +449,7 @@ public partial class ScheduleMapView : Control
             shown++;
         }
         if (shown < here.Count)
-            DrawString(_font, new Vector2(lastX, cell.End.Y - 8f), "…", HorizontalAlignment.Left, 12f, ViewFont.S(11), Dim);
+            DrawString(_font, new Vector2(lastX, cell.End.Y - 8f), "…", HorizontalAlignment.Left, 12f, Fs(11), Dim);
 
         // 동실 거부 쌍 — 두 칩 사이에 붉은 스파크.
         foreach (var (a, b, pb) in RoomPairs(sim, roomId))
@@ -599,7 +601,7 @@ public partial class ScheduleMapView : Control
     {
         var lines = TooltipLines(sim, out var anchor);
         if (lines.Count == 0) return;
-        int fs = ViewFont.S(12);
+        int fs = Fs(12);
         float w = lines.Max(l => _font.GetStringSize(l.Text, HorizontalAlignment.Left, -1, fs).X) + 24f;
         float h = lines.Count * 20f + 10f;
         var box = new Rect2(anchor + new Vector2(14f, 16f), new Vector2(w, h));
@@ -635,7 +637,7 @@ public partial class ScheduleMapView : Control
         DrawRect(new Rect2(chip.Position, new Vector2(3f, chip.Size.Y)), tint);
         DrawRect(chip, (selected ? Ink : tint with { A = 0.6f }), false, selected ? 1.6f : 1f);
         DrawString(_font, chip.Position + new Vector2(7f, chip.Size.Y * 0.5f + fontSize * 0.42f), name,
-            HorizontalAlignment.Left, chip.Size.X - 9f, ViewFont.S(fontSize), dragged ? Dim : Ink);
+            HorizontalAlignment.Left, chip.Size.X - 9f, Fs(fontSize), dragged ? Dim : Ink);
     }
 
     // 오른쪽 대기 인원 — 오늘 근무자 전원. 배치된 사람은 어느 방인지 함께 보여 준다.
@@ -646,7 +648,7 @@ public partial class ScheduleMapView : Control
         DrawRect(r, new Color(0.04f, 0.08f, 0.08f, 0.9f));
         DrawRect(r, dropHere ? Mint : Mint with { A = 0.22f }, false, dropHere ? 2f : 1f);
         DrawString(_font, r.Position + new Vector2(10f, 20f), "STAFF  ·  대기 인원", HorizontalAlignment.Left,
-            r.Size.X - 20f, ViewFont.S(12), Mint);
+            r.Size.X - 20f, Fs(12), Mint);
 
         foreach (var (emp, card) in _rosterRects)
         {
@@ -672,13 +674,13 @@ public partial class ScheduleMapView : Control
 
             float tx = face.End.X + 8f;
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f - 2f), def.Codename,
-                HorizontalAlignment.Left, card.End.X - tx - 4f, ViewFont.S(14), assigned ? Ink with { A = 0.7f } : Ink);
+                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(14), assigned ? Ink with { A = 0.7f } : Ink);
 
             string sub = assigned
                 ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
                 : "기분 · " + (string.IsNullOrEmpty(st.DailyMood) ? "—" : st.DailyMood);
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f + 14f), sub,
-                HorizontalAlignment.Left, card.End.X - tx - 4f, ViewFont.S(10), assigned ? Mint : Amber);
+                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(10), assigned ? Mint : Amber);
         }
     }
 
@@ -705,12 +707,12 @@ public partial class ScheduleMapView : Control
         {
             var u = uneasy[0];
             string warn = "⚠ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
-            DrawString(_font, new Vector2(24f, Canvas.Y - 80f), warn, HorizontalAlignment.Left, 520f, ViewFont.S(11), Warn);
+            DrawString(_font, new Vector2(24f, Canvas.Y - 80f), warn, HorizontalAlignment.Left, 520f, Fs(11), Warn);
         }
         DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 520f,
-            ViewFont.S(15), statusCol);
+            Fs(15), statusCol);
         DrawString(_font, new Vector2(24f, Canvas.Y - 28f), "클릭 = 선택 · 끌기 = 배치 · 대기 인원으로 끌기/우클릭 = 해제",
-            HorizontalAlignment.Left, 520f, ViewFont.S(10), Dim);
+            HorizontalAlignment.Left, 520f, Fs(10), Dim);
     }
 
     private void DrawDragGhost(FacilitySimulation sim)
@@ -723,7 +725,7 @@ public partial class ScheduleMapView : Control
         DrawRect(r, Mint, false, 1.6f);
         DrawRect(new Rect2(r.Position, new Vector2(3f, r.Size.Y)), def?.IconColor ?? Mint);
         DrawString(_font, r.Position + new Vector2(0f, 17f), name, HorizontalAlignment.Center, r.Size.X,
-            ViewFont.S(13), Ink);
+            Fs(13), Ink);
     }
 
     private void DrawContained(Texture2D tex, Rect2 box)
@@ -853,6 +855,14 @@ public partial class ScheduleMapView : Control
             FocusRoomId = room;
             FocusEmployeeId = "";
         }
+    }
+
+    // 오른쪽 모니터의 X 버튼 — 작업실 정보 보기를 닫고 직원 목록으로 돌아간다.
+    public void ClearFocus()
+    {
+        FocusEmployeeId = "";
+        FocusRoomId = "";
+        NotifyChanged();
     }
 
     private void EndDrag()

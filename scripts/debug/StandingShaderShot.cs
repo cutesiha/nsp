@@ -44,9 +44,9 @@ public partial class StandingShaderShot : Node
         {
             selProp.SetValue(roster, id);
             await Frames(3);
-            var sm = (ShaderMaterial)portrait.Material;
-            GD.Print($"{id}: glow_amt={sm.GetShaderParameter("glow_amt")} glow_center={sm.GetShaderParameter("glow_center")} " +
-                     $"scan={sm.GetShaderParameter("scan_amt")} grain={sm.GetShaderParameter("grain_amt")}");
+            if (portrait.Material is ShaderMaterial sm)
+                GD.Print($"{id}: glow_amt={sm.GetShaderParameter("glow_amt")} glow_center={sm.GetShaderParameter("glow_center")} " +
+                         $"scan={sm.GetShaderParameter("scan_amt")} grain={sm.GetShaderParameter("grain_amt")}");
             Save(vp, dir, $"standing_{id}.png");
             portrait.Material = null;
             await Frames(2);
