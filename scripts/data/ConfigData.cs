@@ -126,4 +126,16 @@ public partial class ConfigData : Resource
 
     // 발생 업무가 완료/실패한 뒤 방 카드에 결과 배지를 몇 초 더 보여줄지.
     [Export] public float ResolvedTaskDisplaySeconds = 2.5f;
+
+    // ── 심문 스탠딩 일러 CRT 셰이더 ──────────────────────────────────────
+    // 일러 셰이더는 "청록 톤 + 어둡게 + 중앙 발광"만 맡는다. 스캔라인 · 그레인은 모니터
+    // 셰이더(crt_screen.gdshader)가 이미 그리므로 여기서는 끈다(겹치면 모아레).
+    [Export(PropertyHint.File, "*.gdshader")] public string StandingShaderPath = "res://shaders/nsp_crt_glow_standing.gdshader";
+    [Export] public float StandingScanAmt = 0f;
+    [Export] public float StandingGrainAmt = 0f;
+    // 긴장 순간(심문 중 모순 추궁 성립) — 더 어둡게 + 빛이 확 번진다. 잠시 뒤 원래 값으로 돌아간다.
+    [Export] public float StandingTensionDarkness = 0.6f;
+    [Export] public float StandingTensionGlowAmt = 1.5f;
+    [Export] public float StandingTensionHoldSeconds = 2.5f;
+    [Export] public float StandingTensionFadeSeconds = 1.2f;
 }

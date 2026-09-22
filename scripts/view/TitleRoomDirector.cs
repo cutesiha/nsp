@@ -27,6 +27,7 @@ public partial class TitleRoomDirector : Node
     [Export] public NodePath PhonePath = "../ControlRoom/Telephone";
     [Export] public NodePath SensorPath = "../ControlRoom/AlertTerminal";
     [Export] public NodePath PowerPanelPath = "../ControlRoom/PowerSwitchPanel";
+    // 천장광 비활성 상태 — Lights 그룹이 숨겨져 있어 이 밝기 조절은 화면에 효과가 없다.
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
     [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
 

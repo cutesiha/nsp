@@ -44,6 +44,12 @@ public partial class EmployeeDef : Resource
     [Export] public Texture2D StandingImage;
     [Export] public Texture2D FacePortrait;
 
+    // 휴게시간 심문 스탠딩 일러의 중앙 발광(nsp_crt_glow_standing.gdshader 의 glow_amt / glow_center).
+    // 원화마다 밝기가 달라 흰 옷 캐릭터는 같은 세기에서도 빛이 과하게 번진다 — 캐릭터별로 낮춘다.
+    // glow_center 는 원화 UV 기준(0=위, 1=아래). y 를 줄이면 빛이 위로, 늘리면 아래로 간다.
+    [Export(PropertyHint.Range, "0,3,0.05")] public float StandingGlowAmt = 0.9f;
+    [Export] public Vector2 StandingGlowCenter = new(0.5f, 0.46f);
+
     public int GetStat(StatType stat) => stat switch
     {
         StatType.Tech => Tech,

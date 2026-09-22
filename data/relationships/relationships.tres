@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="RelationshipTableDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/RelationshipDef.cs" id="1_rel"]
+
+[resource]
+script = ExtResource("1_rel")
+Seed = Array[String]([
+"cat,dog,90,Lover",
+"dog,cat,95,Lover",
+"sheep,wolf,70,MutualCrush,fear",
+"wolf,sheep,65,MutualCrush",
+"rabbit,fox,80,Crush,admire",
+"fox,rabbit,35,Friend",
+"cat,fox,-90,Hatred",
+"fox,cat,-60,Hatred,looksdown",
+"cat,rabbit,45,Care",
+"rabbit,cat,25,Friend",
+"cat,sheep,-35,Friction",
+"sheep,cat,-40,Wary",
+"cat,wolf,40,Trust",
+"wolf,cat,40,Trust",
+"dog,fox,35,Friend",
+"fox,dog,-15,Wary,looksdown",
+"dog,rabbit,55,Friend",
+"rabbit,dog,55,Friend",
+"dog,sheep,60,Care",
+"sheep,dog,55,Friend",
+"dog,wolf,50,Trust",
+"wolf,dog,50,Trust",
+"fox,sheep,-35,Wary",
+"sheep,fox,-30,Wary",
+"fox,wolf,-40,Wary",
+"wolf,fox,-45,Friction",
+"rabbit,sheep,45,Friend",
+"sheep,rabbit,40,Friend",
+"rabbit,wolf,45,Trust",
+"wolf,rabbit,40,Care"
+])
+RefuseAtOrBelow = -70
+UneasyAtOrBelow = -30
+FriendlyAtOrAbove = 30
+CloseAtOrAbove = 70

@@ -38,8 +38,13 @@ background_mode = 1
 background_color = Color(0.015, 0.015, 0.02, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.34, 0.36, 0.44, 1)
-ambient_light_energy = 0.24
+ambient_light_energy = 0.2
 tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.55
+glow_strength = 0.9
+glow_blend_mode = 1
+glow_hdr_threshold = 1.0
 fog_enabled = true
 fog_light_color = Color(0.04, 0.04, 0.06, 1)
 fog_density = 0.018
@@ -59,12 +64,12 @@ roughness = 0.95
 albedo_color = Color(0.85, 0.85, 0.85, 1)
 albedo_texture = ExtResource("17_desktex")
 metallic = 0.1
-roughness = 0.6
+roughness = 0.4
 
 [sub_resource type="StandardMaterial3D" id="Mat_Metal"]
 albedo_color = Color(0.24, 0.24, 0.27, 1)
 metallic = 0.6
-roughness = 0.4
+roughness = 0.3
 
 [sub_resource type="StandardMaterial3D" id="Mat_DarkPlastic"]
 albedo_color = Color(0.07, 0.07, 0.08, 1)
@@ -969,13 +974,19 @@ text = "MONITOR 01  —  FACILITY"
 font_size = 26
 outline_size = 0
 
-[node name="M01_Glow" type="OmniLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
-transform = Transform3D(1.0002681, 0, 0, 0, 0.99999994, 0, 0, 0, 1.0002681, 0.017760724, 1.1249524, 0.051451623)
+[node name="M01_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
+transform = Transform3D(-1, 0, 0, 0, 0.95105654, 0.309017, 0, 0.309017, -0.95105654, 0, 1.13, 0.07)
 light_color = Color(0.5, 0.8, 1, 1)
-light_energy = 0.6
-light_size = 1.0
-light_specular = 0.0
-omni_range = 1.7
+light_energy = 1.6
+light_specular = 0.6
+shadow_enabled = true
+shadow_bias = 0.02
+shadow_normal_bias = 0.6
+shadow_blur = 0.6
+spot_range = 2.4
+spot_attenuation = 0.9
+spot_angle = 50.0
+spot_angle_attenuation = 0.6
 
 [node name="Monitor02" type="Node3D" parent="ControlRoom" unique_id=1106093213]
 transform = Transform3D(0.97, 0, -0.242, 0, 1, 0, 0.242, 0, 0.97, 0.47, 0, -0.75)
@@ -1008,12 +1019,19 @@ text = "MONITOR 02  —  CCTV"
 font_size = 26
 outline_size = 0
 
-[node name="M02_Glow" type="OmniLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
-transform = Transform3D(1.0002681, 0, 0, 0, 0.99999994, 0, 0, 0, 1.0002681, -0.0038870275, 1.1299993, 0.09275615)
+[node name="M02_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
+transform = Transform3D(-1, 0, 0, 0, 0.95105654, 0.309017, 0, 0.309017, -0.95105654, 0, 1.13, 0.07)
 light_color = Color(0.5, 0.8, 1, 1)
-light_energy = 0.6
-light_size = 0.095
-omni_range = 1.7
+light_energy = 1.6
+light_specular = 0.6
+shadow_enabled = true
+shadow_bias = 0.02
+shadow_normal_bias = 0.6
+shadow_blur = 0.6
+spot_range = 2.4
+spot_attenuation = 0.9
+spot_angle = 50.0
+spot_angle_attenuation = 0.6
 
 [node name="Keyboard" type="MeshInstance3D" parent="ControlRoom" unique_id=1690353115]
 transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0, 0.762, -0.42)
@@ -1181,7 +1199,7 @@ transform = Transform3D(0.14, 0, 0, 0, 0.09, 0, 0, 0, 0.08, 1.9, 1.95, -2.55)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_EmergencyRed")
 
-[node name="EmergencyLight" type="OmniLight3D" parent="ControlRoom/Lights" unique_id=445922533]
+[node name="EmergencyLight" type="OmniLight3D" parent="ControlRoom" unique_id=445922533]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 1.9, -2.4)
 visible = false
 light_color = Color(0.95, 0.1, 0.1, 1)

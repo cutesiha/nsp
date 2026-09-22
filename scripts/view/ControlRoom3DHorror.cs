@@ -13,10 +13,12 @@ namespace NSP.View;
 //  [쿵]: 카메라 강타 + 손이 책상을 짚음 + 천장등 OFF + CRT 암전 → 비상등 → 복귀
 public partial class ControlRoom3DHorror : Node
 {
+    // 천장광 비활성 상태 — Lights 그룹(천장등 · 보조광 · 등 메쉬)은 숨겨져 있어 아래 밝기 제어는 화면에 효과가 없다.
+    // 방의 광원은 두 모니터(M01/M02_ScreenLight)로 통일. 비상등만 그룹 밖으로 꺼내 살려 두었다.
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
     [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
     [Export] public NodePath CeilingFixturePath = "../ControlRoom/Lights/CeilingFixture";
-    [Export] public NodePath EmergencyLightPath = "../ControlRoom/Lights/EmergencyLight";
+    [Export] public NodePath EmergencyLightPath = "../ControlRoom/EmergencyLight";
     [Export] public NodePath EmergencyMeshPath = "../ControlRoom/Lights/EmergencyLight_Mesh";
     [Export] public NodePath CameraRigPath = "../PlayerSeatRig";
     [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
@@ -119,6 +121,7 @@ public partial class ControlRoom3DHorror : Node
         }
 
         float k = Mathf.Clamp(delta * (_lightsOff ? 9f : 4f), 0f, 1f);
+        // 천장광 비활성 상태 — 천장등 · 보조광 · 등 메쉬는 숨겨져 있다(아래 비상등만 실제로 보인다).
         _ceiling.LightEnergy = Mathf.Lerp(_ceiling.LightEnergy, ceilTarget, k);
         _ceiling.LightColor = _ceiling.LightColor.Lerp(colTarget, Mathf.Clamp(delta * 1.8f, 0f, 1f));
         if (_fill != null)

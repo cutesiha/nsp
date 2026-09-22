@@ -35,3 +35,5 @@ StartRoomId = "medical_room"
 IconColor = Color(0.20,0.48,0.95, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
+StandingGlowAmt = 0.65
+StandingGlowCenter = Vector2(0.5, 0.58)

@@ -3,17 +3,19 @@ using NSP.Core;
 
 namespace NSP.View;
 
-// 시작 화면의 설정 창. 근무 배치표와 같은 낡은 서류 톤(누런 아이보리 종이 + 붉은 도장 잉크).
-// 값은 전부 GameSettings 가 들고 있고, 여기서는 읽고 쓰기만 한다.
+// 환경 설정 창. 게임 안의 기기가 아니라 메타 설정이므로 시스템 오버레이로 띄우되,
+// 시설 로그 창(Day1HistoryOverlay)과 같은 홀로그램 창 — 청록 테두리 · HologramFrame · 스캔라인 — 을 쓴다.
+// 값은 전부 GameSettings 가 들고 있고, 여기서는 읽고 쓰기만 한다(항목 · 동작은 종이 시절과 동일).
 //   · 음량 : MASTER(전체) / BGM(배경음악) / SFX(효과음)
 //   · 화면 : 전체화면 켜기·끄기 / 그래픽 품질(3D 렌더 배율)
 //   · 조작 : 모니터1 / 모니터2 / 경고 단말기 / 전력 기기 확대 숫자키
 public partial class SettingsPanel : CanvasLayer
 {
-    private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
-    private static readonly Color InkDim = new(0.42f, 0.35f, 0.24f);
-    private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
-    private static readonly Color Paper = new(0.855f, 0.80f, 0.645f);
+    // 시설 로그 창과 같은 색.
+    private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+    private static readonly Color Ink = new(0.84f, 0.92f, 0.92f);
+    private static readonly Color InkDim = new(0.50f, 0.66f, 0.68f);
+    private static readonly Color WindowBg = new(0.03f, 0.09f, 0.11f, 0.94f);
 
     private Control _root;
     private Font _serif, _body;
@@ -26,8 +28,8 @@ public partial class SettingsPanel : CanvasLayer
         // 일시정지 창(120)보다 위 — 거기서 열었을 때 가려지면 클릭조차 안 된다.
         Layer = 130;
         Visible = false;
-        _serif = GD.Load<Font>("res://assets/fonts/KMU80TTFSungkokSerif.ttf") ?? ViewFont.Default;
         _body = ViewFont.Default;
+        _serif = _body;   // 홀로그램 창은 로그 창처럼 본문 글꼴 하나로 통일한다
         BuildUI();
     }
 
@@ -82,7 +84,7 @@ public partial class SettingsPanel : CanvasLayer
         scrim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _root.AddChild(scrim);
 
-        // 종이 — 배치표와 같은 누런 서류 질감.
+        // 홀로그램 창 — 시설 로그 창과 같은 바탕 · 테두리 · 프레임(코너 괄호 + 스캔라인 + 흐르는 선).
         var sheet = new Panel
         {
             AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f,
@@ -91,12 +93,15 @@ public partial class SettingsPanel : CanvasLayer
         };
         sheet.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = Paper,
-            BorderColor = new Color(0.32f, 0.24f, 0.13f),
-            BorderWidthLeft = 3, BorderWidthTop = 3, BorderWidthRight = 3, BorderWidthBottom = 3,
+            BgColor = WindowBg,
+            BorderColor = Cyan with { A = 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         });
         _root.AddChild(sheet);
-        sheet.AddChild(new DocumentPaperTexture { MouseFilter = Control.MouseFilterEnum.Ignore });
+        var frame = new HologramFrame { Accent = Cyan, MouseFilter = Control.MouseFilterEnum.Ignore };
+        frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        sheet.AddChild(frame);
+        sheet.AddChild(CloseButton());
 
         // Panel 은 컨테이너가 아니라 스타일박스의 ContentMargin 을 자식에 적용하지 않는다.
         // 여백은 여기서 앵커 오프셋으로 직접 준다.
@@ -104,12 +109,12 @@ public partial class SettingsPanel : CanvasLayer
         vb.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         vb.OffsetLeft = 46; vb.OffsetRight = -46;
         // 하단 버튼은 VBox 밖에 별도로 고정한다. 위 항목의 글이 바뀌어도 움직이지 않는다.
-        vb.OffsetTop = 24; vb.OffsetBottom = -84;
+        vb.OffsetTop = 40; vb.OffsetBottom = -84;
         vb.AddThemeConstantOverride("separation", 8);
         sheet.AddChild(vb);
 
-        vb.AddChild(Lbl("DOC NO. NSP-00   FACILITY CONTROL DEPT.", 13, InkDim, _body));
-        vb.AddChild(Lbl("설정", 40, Ink, _serif));
+        vb.AddChild(Lbl("SYSTEM CONFIG  /  환경 설정", 26, Cyan, _body));
+        vb.AddChild(Lbl("SYSTEM OVERLAY  ·  NSP-00  ·  이 설정은 근무 기록에 남지 않습니다.", 13, InkDim, _body));
         vb.AddChild(Rule());
 
         // ── 음량 ──
@@ -132,8 +137,11 @@ public partial class SettingsPanel : CanvasLayer
             GameSettings.Save();
         };
         fsRow.AddChild(fsBtn);
-        fsRow.AddChild(Lbl("화면 비율은 그대로 유지된 채 모니터 크기에 맞춰 확대됩니다.", 14, InkDim, _body));
         vb.AddChild(fsRow);
+        // 설명은 다음 줄에 접어 싣는다 — 한 줄로 두면 창 오른쪽 밖으로 뻗는다.
+        var fsNote = Lbl("화면 비율은 그대로 유지된 채 모니터 크기에 맞춰 확대됩니다.", 14, InkDim, _body);
+        fsNote.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        vb.AddChild(fsNote);
 
         var qRow = Row();
         qRow.AddChild(Lbl("그래픽 품질", 21, Ink, _body, 240f));
@@ -182,7 +190,7 @@ public partial class SettingsPanel : CanvasLayer
 
     private Control Section(string title)
     {
-        var l = Lbl(title, 22, InkRed, _serif);
+        var l = Lbl(title, 20, Cyan, _serif);
         l.CustomMinimumSize = new Vector2(0, 34);
         l.VerticalAlignment = VerticalAlignment.Bottom;
         return l;
@@ -190,7 +198,7 @@ public partial class SettingsPanel : CanvasLayer
 
     private Control Rule()
     {
-        var r = new ColorRect { Color = new Color(0.3f, 0.24f, 0.14f, 0.45f), CustomMinimumSize = new Vector2(0, 1.5f) };
+        var r = new ColorRect { Color = Cyan with { A = 0.22f }, CustomMinimumSize = new Vector2(0, 1f) };
         return r;
     }
 
@@ -216,9 +224,9 @@ public partial class SettingsPanel : CanvasLayer
             CustomMinimumSize = new Vector2(360, 30),
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
-        var grabber = new StyleBoxFlat { BgColor = new Color(0.30f, 0.22f, 0.12f), CornerRadiusTopLeft = 6, CornerRadiusTopRight = 6, CornerRadiusBottomLeft = 6, CornerRadiusBottomRight = 6 };
-        s.AddThemeStyleboxOverride("slider", new StyleBoxFlat { BgColor = new Color(0.55f, 0.48f, 0.34f, 0.55f), ContentMarginTop = 5, ContentMarginBottom = 5 });
-        s.AddThemeStyleboxOverride("grabber_area", new StyleBoxFlat { BgColor = new Color(0.52f, 0.30f, 0.14f), ContentMarginTop = 5, ContentMarginBottom = 5 });
+        var grabber = new StyleBoxFlat { BgColor = Cyan, CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2, CornerRadiusBottomLeft = 2, CornerRadiusBottomRight = 2 };
+        s.AddThemeStyleboxOverride("slider", new StyleBoxFlat { BgColor = Cyan with { A = 0.14f }, BorderColor = Cyan with { A = 0.35f }, BorderWidthTop = 1, BorderWidthBottom = 1, BorderWidthLeft = 1, BorderWidthRight = 1, ContentMarginTop = 5, ContentMarginBottom = 5 });
+        s.AddThemeStyleboxOverride("grabber_area", new StyleBoxFlat { BgColor = Cyan with { A = 0.55f }, ContentMarginTop = 5, ContentMarginBottom = 5 });
         s.AddThemeStyleboxOverride("grabber_area_highlight", (StyleBoxFlat)grabber.Duplicate());
         row.AddChild(s);
 
@@ -276,9 +284,9 @@ public partial class SettingsPanel : CanvasLayer
         k.CustomMinimumSize = new Vector2(key.Length > 1 ? 54f : 38f, 30f);
         k.AddThemeStyleboxOverride("normal", new StyleBoxFlat
         {
-            BgColor = new Color(0.80f, 0.74f, 0.58f),
-            BorderColor = new Color(0.34f, 0.26f, 0.15f),
-            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
+            BgColor = Cyan with { A = 0.10f },
+            BorderColor = Cyan with { A = 0.6f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         });
         h.AddChild(k);
         h.AddChild(Lbl(what, 17, InkDim, _body));
@@ -294,24 +302,26 @@ public partial class SettingsPanel : CanvasLayer
         }
     }
 
-    // 배치표 버튼과 같은 서류 톤.
+    // 콘솔 버튼 — 모니터 단말기 버튼(MonitorUi)과 같은 청록 발광 테두리.
+    // (이름은 호출부를 건드리지 않으려고 그대로 둔다.)
     private Button DocButton(string text, float minWidth)
     {
         var b = new Button { Text = text, CustomMinimumSize = new Vector2(minWidth, 40) };
         b.AddThemeFontOverride("font", _body);
         b.AddThemeFontSizeOverride("font_size", ViewFont.FS(19));
-        b.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
-        b.AddThemeColorOverride("font_hover_color", new Color(0.99f, 0.96f, 0.88f));
-        b.AddThemeColorOverride("font_pressed_color", new Color(0.99f, 0.96f, 0.88f));
+        b.AddThemeColorOverride("font_color", Cyan);
+        b.AddThemeColorOverride("font_hover_color", Colors.White);
+        b.AddThemeColorOverride("font_pressed_color", Colors.White);
         var normal = new StyleBoxFlat
         {
-            BgColor = new Color(0.90f, 0.86f, 0.73f),
-            BorderColor = new Color(0.4f, 0.32f, 0.2f, 0.7f),
+            BgColor = new Color(Cyan.R * 0.16f, Cyan.G * 0.16f, Cyan.B * 0.16f, 0.6f),
+            BorderColor = Cyan with { A = 0.5f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
             ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 4, ContentMarginBottom = 4,
         };
         var hover = (StyleBoxFlat)normal.Duplicate();
-        hover.BgColor = new Color(0.72f, 0.60f, 0.30f);
+        hover.BgColor = new Color(Cyan.R * 0.34f, Cyan.G * 0.34f, Cyan.B * 0.34f, 0.8f);
+        hover.BorderColor = Cyan;
         b.AddThemeStyleboxOverride("normal", normal);
         b.AddThemeStyleboxOverride("hover", hover);
         b.AddThemeStyleboxOverride("pressed", hover);
@@ -319,4 +329,33 @@ public partial class SettingsPanel : CanvasLayer
         return b;
     }
 
+    // 창 오른쪽 위 ✕ — 시설 로그 창의 닫기 버튼과 같은 모양. 하단 "닫기"와 같은 동작(Close).
+    private Button CloseButton()
+    {
+        var close = new Button
+        {
+            Text = "✕",
+            AnchorLeft = 1f, AnchorRight = 1f,
+            OffsetLeft = -62f, OffsetRight = -18f, OffsetTop = 18f, OffsetBottom = 62f,
+            TooltipText = "닫기",
+        };
+        close.AddThemeFontOverride("font", _body);
+        close.AddThemeFontSizeOverride("font_size", ViewFont.FS(22));
+        close.AddThemeColorOverride("font_color", Cyan);
+        close.AddThemeColorOverride("font_hover_color", Colors.White);
+        var normal = new StyleBoxFlat
+        {
+            BgColor = new Color(0, 0, 0, 0.12f),
+            BorderColor = Cyan with { A = 0.5f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+        };
+        var hover = (StyleBoxFlat)normal.Duplicate();
+        hover.BgColor = Cyan with { A = 0.25f };
+        close.AddThemeStyleboxOverride("normal", normal);
+        close.AddThemeStyleboxOverride("hover", hover);
+        close.AddThemeStyleboxOverride("pressed", hover);
+        close.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        close.Pressed += Close;
+        return close;
+    }
 }

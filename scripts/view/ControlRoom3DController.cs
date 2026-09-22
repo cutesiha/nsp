@@ -106,6 +106,9 @@ public partial class ControlRoom3DController : Node3D
     private SubViewport _guideFaceVp;
     // 타이틀 화면 2 전용 — 왼쪽 CRT 직원 신원 확인, 오른쪽 CRT 관리자 단말기.
     private SubViewport _titleStaffVp, _titleTerminalVp;
+    // 근무 배치 단계의 두 CRT 프로그램(왼쪽 = 시설 지도 배치, 오른쪽 = 직원·작업실 정보).
+    private SubViewport _scheduleMapVp, _scheduleStaffVp;
+    private ScheduleMapView _scheduleMap;
     // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
     // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
     private SubViewport _facilityCctvVp;
@@ -202,6 +205,9 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport GuideFaceViewport => _guideFaceVp;
     public SubViewport TitleStaffViewport => _titleStaffVp;
     public SubViewport TitleTerminalViewport => _titleTerminalVp;
+    public SubViewport ScheduleMapViewport => _scheduleMapVp;
+    public SubViewport ScheduleStaffViewport => _scheduleStaffVp;
+    public ScheduleMapView ScheduleMap => _scheduleMap;
 
     private void BuildViewports()
     {
@@ -257,6 +263,13 @@ public partial class ControlRoom3DController : Node3D
 
         _titleTerminalVp = MakeViewport();
         AddScaledView(_titleTerminalVp, new TitleTerminalView(), MonitorCanvasSize);
+
+        _scheduleMapVp = MakeViewport();
+        _scheduleMap = new ScheduleMapView();
+        AddScaledView(_scheduleMapVp, _scheduleMap, MonitorCanvasSize);
+
+        _scheduleStaffVp = MakeViewport();
+        AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
@@ -281,7 +294,7 @@ public partial class ControlRoom3DController : Node3D
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp })
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp })
         {
             if (vp == null) continue;
             bool bound = false;

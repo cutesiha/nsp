@@ -152,6 +152,8 @@ public sealed class InterviewSession
     // 플레이어가 무엇을 물었는지 알린다. DAY0 교육이 진행 조건으로만 듣는다
     // (게임 규칙은 이 이벤트를 쓰지 않는다).
     public static event System.Action<string, InterviewQuestion> Asked;
+    // 플레이어가 자료 두 장으로 모순을 들이밀어 추궁이 성립한 순간. 연출(심문 일러의 긴장 효과)만 듣는다.
+    public static event System.Action<string> Confronted;
 
     public Turn Ask(InterviewQuestion q)
     {
@@ -178,6 +180,7 @@ public sealed class InterviewSession
         _asked.Add($"Confront|{result.Earlier?.Id}|{result.Later?.Id}");
         turn.QuestionText = result.QuestionText;
         turn.Answer = InterviewReplyPlanner.ConfrontAnswer(EmployeeId, result);
+        Confronted?.Invoke(EmployeeId);
         Refresh();
         return turn;
     }

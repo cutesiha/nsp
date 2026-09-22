@@ -1,0 +1,89 @@
+using System.Linq;
+using Godot;
+using NSP.Core;
+using NSP.Data;
+using NSP.Facility;
+using NSP.Ui;
+using NSP.View;
+
+namespace NSP.Debug;
+
+// Phase 0 화면 캡처(레이아웃 확인용). 창 모드로 실행해야 한다(헤드리스는 그림을 그리지 않는다).
+//
+//   godot --path . res://scenes/debug/SchedulePreviewShot.tscn -- <저장 폴더>
+//
+// 배치 콘솔 두 화면(직원 몇 명을 배치해 둔 상태)과 환경 설정 창을 PNG 로 저장하고 종료한다.
+public partial class SchedulePreviewShot : Node
+{
+    public override void _Ready() => _ = Run();
+
+    private async System.Threading.Tasks.Task Run()
+    {
+        var args = OS.GetCmdlineUserArgs();
+        string dir = args.Length > 0 ? args[0] : ProjectSettings.GlobalizePath("user://");
+        var sim = FacilitySimulation.Instance;
+        GameState.Instance.ResetRun(1);
+        sim.ResetRun();
+        GameState.Instance.SetPhase(GamePhase.Schedule);
+        sim.RollDailyMoods();
+        sim.AssignToRoom("rabbit", "maintenance_room");
+        sim.AssignToRoom("cat", "maintenance_room");
+        sim.AssignToRoom("wolf", "core_room");
+        sim.AssignToRoom("dog", "guard_room");
+
+        var mapVp = Vp(out var map, new ScheduleMapView());
+        var staffVp = Vp(out _, new ScheduleStaffView());
+        await Frames(4);
+        Save(mapVp, dir, "schedule_map.png");
+        Save(staffVp, dir, "schedule_staff_grid.png");
+
+        // 직원 선택 / 작업실 선택 상태는 입력으로 만든다.
+        var m = (ScheduleMapView)map;
+        m.ComputeLayout(sim);
+        Click(mapVp, m.RosterCardOf("sheep").GetCenter());
+        await Frames(3);
+        Save(mapVp, dir, "schedule_map_selected.png");
+        Save(staffVp, dir, "schedule_staff_employee.png");
+        Click(mapVp, m.CellOf("power_room").GetCenter());   // 선택 중이던 양이 발전실로 배치된다
+        await Frames(3);
+        Click(mapVp, m.CellOf("storage_room").GetCenter());
+        await Frames(3);
+        Save(staffVp, dir, "schedule_staff_room.png");
+
+        var panel = new SettingsPanel();
+        AddChild(panel);
+        await Frames(2);
+        panel.Open();
+        await Frames(4);
+        GetViewport().GetTexture().GetImage().SavePng(dir + "/settings.png");
+        GD.Print("saved → " + dir);
+        GetTree().Quit();
+    }
+
+    private SubViewport Vp(out Control view, Control v)
+    {
+        var vp = new SubViewport
+        {
+            Size = new Vector2I(800, 600), RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            HandleInputLocally = true, Disable3D = true,
+        };
+        AddChild(vp);
+        vp.AddChild(v);
+        view = v;
+        return vp;
+    }
+
+    private static void Click(SubViewport vp, Vector2 at)
+    {
+        vp.PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = at, GlobalPosition = at }, true);
+        vp.PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = at, GlobalPosition = at }, true);
+    }
+
+    private static void Save(SubViewport vp, string dir, string name) =>
+        vp.GetTexture().GetImage().SavePng(dir + "/" + name);
+
+    private async System.Threading.Tasks.Task Frames(int n)
+    {
+        for (int i = 0; i < n; i++) await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+    }
+}

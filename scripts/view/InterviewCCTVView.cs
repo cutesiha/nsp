@@ -1,5 +1,6 @@
 using Godot;
 using NSP.Core;
+using NSP.Dialogue;
 using NSP.Facility;
 
 namespace NSP.View;
@@ -33,6 +34,17 @@ public partial class InterviewCCTVView : Control
     private float _recBlink;
     private string _lastEmployee = "\0";
     private bool _feedBound;
+
+    // 스탠딩 일러 CRT 셰이더(nsp_crt_glow_standing) — 청록 톤 + 어둡게 + 중앙 발광.
+    // 머티리얼은 하나만 두고, 직원이 바뀔 때만 그 직원의 발광 값(EmployeeDef.StandingGlow*)을 넣는다
+    // (입 모양 프레임이 바뀌어도 값은 그대로 유지된다).
+    private ShaderMaterial _standingMat;
+    private float _baseDarkness = 0.84f;
+    private float _baseGlowAmt = 0.9f;
+    private float _defaultGlowAmt = 0.9f;   // 셰이더 기본값 — 긴장 발광의 비율 기준
+    private Tween _tensionTween;
+
+    public static InterviewCCTVView Instance { get; private set; }
 
     public override void _Ready()
     {
@@ -89,6 +101,7 @@ public partial class InterviewCCTVView : Control
             MouseFilter = MouseFilterEnum.Ignore,
         };
         _portraitBox.AddChild(_portrait);
+        BuildStandingMaterial();
 
         _stateLabel = Lbl("왼쪽 BREAK ROOM 에서 직원을 선택하세요", 20, new Color(0.8f, 0.85f, 0.8f));
         _stateLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y / 2f - 16f);
@@ -155,6 +168,100 @@ public partial class InterviewCCTVView : Control
         return l;
     }
 
+    public override void _EnterTree()
+    {
+        Instance = this;
+        InterviewSession.Confronted += OnConfronted;
+    }
+
+    public override void _ExitTree()
+    {
+        InterviewSession.Confronted -= OnConfronted;
+        if (Instance == this) Instance = null;
+    }
+
+    // --- 스탠딩 일러 CRT 셰이더 ---------------------------------------------
+
+    private void BuildStandingMaterial()
+    {
+        var cfg = Config.Instance?.Data;
+        string path = cfg?.StandingShaderPath ?? "";
+        var shader = string.IsNullOrEmpty(path) ? null : GD.Load<Shader>(path);
+        if (shader == null)
+        {
+            GD.PushWarning($"InterviewCCTVView: 스탠딩 일러 셰이더를 찾지 못했습니다: {path}");
+            return;
+        }
+        _standingMat = new ShaderMaterial { Shader = shader };
+        // 스캔라인 · 그레인은 모니터 셰이더(crt_screen)가 이미 그린다 — 일러에서는 끈다.
+        _standingMat.SetShaderParameter("scan_amt", cfg?.StandingScanAmt ?? 0f);
+        _standingMat.SetShaderParameter("grain_amt", cfg?.StandingGrainAmt ?? 0f);
+        // 긴장 연출이 끝나면 돌아올 밝기 = 셰이더에 적힌 기본값.
+        var dv = RenderingServer.ShaderGetParameterDefault(shader.GetRid(), "darkness");
+        if (dv.VariantType != Variant.Type.Nil) _baseDarkness = dv.AsSingle();
+        var gv = RenderingServer.ShaderGetParameterDefault(shader.GetRid(), "glow_amt");
+        if (gv.VariantType != Variant.Type.Nil && gv.AsSingle() > 0f) _defaultGlowAmt = gv.AsSingle();
+        _portrait.Material = _standingMat;
+    }
+
+    // 직원 한 명의 발광 값. 흰 옷처럼 밝은 원화는 EmployeeDef 에서 낮춰 둔다.
+    private void ApplyStandingGlow(NSP.Data.EmployeeDef def)
+    {
+        if (_standingMat == null || def == null) return;
+        StopTension();
+        _baseGlowAmt = def.StandingGlowAmt;
+        _standingMat.SetShaderParameter("glow_amt", def.StandingGlowAmt);
+        _standingMat.SetShaderParameter("glow_center", def.StandingGlowCenter);
+        _standingMat.SetShaderParameter("darkness", _baseDarkness);
+    }
+
+    // 외부에서 부르는 강도 조절 — 더 어둡게(darkness↓) + 빛 번짐(glowAmt↑).
+    public void SetCrtIntensity(float darkness, float glowAmt)
+    {
+        if (_standingMat == null) return;
+        StopTension();
+        _standingMat.SetShaderParameter("darkness", darkness);
+        _standingMat.SetShaderParameter("glow_amt", glowAmt);
+    }
+
+    // 지금 직원의 평소 값으로 되돌린다.
+    public void ResetCrtIntensity() => SetCrtIntensity(_baseDarkness, _baseGlowAmt);
+
+    // 긴장 순간 — 확 어두워지며 빛이 번졌다가, 잠시 뒤 평소 값으로 서서히 돌아온다.
+    public void PulseTension()
+    {
+        if (_standingMat == null) return;
+        var cfg = Config.Instance?.Data;
+        float dark = cfg?.StandingTensionDarkness ?? 0.5f;
+        // 발광은 직원 비율대로 — 기본 직원은 설정값 그대로, 발광을 낮춰 둔 흰 옷 직원은 그만큼 덜 번진다.
+        float glow = (cfg?.StandingTensionGlowAmt ?? 2.2f) * (_baseGlowAmt / _defaultGlowAmt);
+        float hold = cfg?.StandingTensionHoldSeconds ?? 2.5f;
+        float fade = cfg?.StandingTensionFadeSeconds ?? 1.2f;
+
+        StopTension();
+        _standingMat.SetShaderParameter("darkness", dark);
+        _standingMat.SetShaderParameter("glow_amt", glow);
+        _tensionTween = CreateTween();
+        _tensionTween.TweenInterval(hold);
+        _tensionTween.SetParallel(true);
+        _tensionTween.TweenMethod(Callable.From<float>(v => _standingMat.SetShaderParameter("darkness", v)),
+            dark, _baseDarkness, fade);
+        _tensionTween.TweenMethod(Callable.From<float>(v => _standingMat.SetShaderParameter("glow_amt", v)),
+            glow, _baseGlowAmt, fade);
+    }
+
+    private void StopTension()
+    {
+        if (_tensionTween != null && _tensionTween.IsValid()) _tensionTween.Kill();
+        _tensionTween = null;
+    }
+
+    // 심문 중 모순 추궁이 성립한 순간 — 지금 화면에 떠 있는 그 직원이면 긴장 연출.
+    private void OnConfronted(string employeeId)
+    {
+        if (employeeId == _lastEmployee) PulseTension();
+    }
+
     public override void _Process(double delta)
     {
         float d = (float)delta;
@@ -200,6 +307,7 @@ public partial class InterviewCCTVView : Control
 
         _stateLabel.Visible = false;
         ApplyPortrait(EmployeeMouthAnimator.PortraitFor(empId) ?? def.StandingImage ?? def.FacePortrait);
+        ApplyStandingGlow(def);
         _namePlate.Visible = true;
         _nameLabel.Text = def.Codename;
         _statusLabel.Text = !st.Alive ? "응답 없음 · 기록 종료"

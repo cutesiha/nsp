@@ -12,7 +12,7 @@ namespace NSP.View;
 // 를 "한 공간에서 이어지는" 루프로 묶는다. 씬 전환(ChangeSceneToFile)은 최종 결과로 갈 때
 // 한 번만 쓴다. 같은 3D 중앙제어실 안에서:
 //   - 시작 화면 : 어두운 제어실 + TitleOverlay, CRT OFF
-//   - 근무 배치 : 카메라가 책상의 DeskScheduleBoard 를 내려다봄
+//   - 근무 배치 : 두 CRT 가 배치 콘솔이 된다(왼쪽 = 시설 지도 배치 / 오른쪽 = 직원·작업실 정보)
 //   - 근무 부팅 : 카메라 정면 복귀 + 조명 안정 + CRT 부팅 + "NIGHT SHIFT START"
 //   - 근무 종료 : 왼쪽 CRT 가 ShiftReportView 로 전환("SHIFT COMPLETE")
 //   - 휴게시간 : 왼쪽 CRT = RestRosterView(명단), 오른쪽 CRT = InterviewCCTVView(선택 직원).
@@ -25,6 +25,7 @@ public partial class ShiftFlowController : Node
     [Export] public NodePath RigPath = "../PlayerSeatRig";
     [Export] public NodePath TitleOverlayPath = "../TitleOverlay";
     [Export] public NodePath DeskBoardPath = "../ControlRoom/DeskScheduleBoard";
+    // 천장광 비활성 상태 — Lights 그룹이 숨겨져 있어 이 밝기 조절은 화면에 효과가 없다.
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
     [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
     [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
@@ -68,6 +69,7 @@ public partial class ShiftFlowController : Node
     private OmniLight3D _ceiling, _fill;
     private Node3D _arms;
     private readonly System.Collections.Generic.List<Node3D> _clutter = new();
+    private bool _wiredSchedule;
     private float _ceilBase = 1.1f, _fillBase = 0.4f;
 
     private bool _wiredViews;
@@ -112,11 +114,9 @@ public partial class ShiftFlowController : Node
             _titleRoom.StartRequested += OnStartPressed;
             if (!skipBoot) _titleRoom.Begin();
         }
-        if (_board != null)
-        {
-            _board.StartRequested += EnterShift;
-            _board.SetActive(false);
-        }
+        // 예전 책상 위 종이 배치표. Phase 0 에서 배치는 CRT 콘솔(ScheduleMapView)로 옮겼다 —
+        // 노드는 씬에 남아 있지만 켜지 않는다.
+        _board?.SetActive(false);
 
         _stage = Stage.Title;
         // 시작 화면·근무 배치·휴게시간은 같은 곡으로 통일한다.
@@ -191,6 +191,12 @@ public partial class ShiftFlowController : Node
     public override void _Process(double delta)
     {
         if (!_wiredViews) WireLateSignals();
+        if (!_wiredSchedule && ScheduleMapView.Instance != null)
+        {
+            // 배치 콘솔도 CRT SubViewport 안에서 지연 생성된다 — 준비되면 한 번만 연결한다.
+            ScheduleMapView.Instance.StartPressed += EnterShift;
+            _wiredSchedule = true;
+        }
         RefreshSkipButton();
 
         // 최대 근무시간이 다 되면 필수 업무를 못 끝냈어도 근무가 끝난다(막히지 않게).
@@ -280,19 +286,22 @@ public partial class ShiftFlowController : Node
         if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilBase * 0.72f, 1.1);
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase, 1.1);
 
-        // 책상 위를 정리 — 장비를 치우고 배치표를 편다.
-        foreach (var n in _clutter) n.Visible = false;
+        // 배치는 두 CRT 콘솔에서 한다 — 왼쪽 = 시설 지도 배치, 오른쪽 = 직원·작업실 정보.
+        // 입력은 근무·휴게 때와 같은 CRT 경로(레이캐스트 → 화면)로 들어간다(숫자키 확대도 그대로).
         if (_arms != null) _arms.Visible = false;
+        _ctl?.ScheduleMap?.Rebuild();
+        _ctl?.SetLeftScreen(_ctl.ScheduleMapViewport);
+        _ctl?.SetRightScreen(_ctl.ScheduleStaffViewport);
+        _ctl?.SetScreenBrightness(0.02f);
+        var crt = CreateTween();
+        crt.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 0.02f, 1.0f, 0.5)
+           .SetTrans(Tween.TransitionType.Sine);
 
-        _board?.SetActive(true);
-        // 배치표 단계에서는 자막 띄를 위로 올린다 — 아래쪽 ‘근무 시작’ 버튼을 가리지 않게.
         // 자막 띠는 항상 화면 아래 같은 자리에 둔다(단계마다 옮기면 눈이 따라가지 못한다).
         NSP.Prologue.GuideSubtitleHud.Instance?.SetTopAligned(false);
+        _ctl?.SetModalSurface(null);
         _ctl?.SetInputLocked(false);
-        _ctl?.SetModalSurface(_board);
-
-        if (_board != null)
-            _rig?.FocusOnScreen(_board.SurfaceCenterWorld, _board.SurfaceNormalWorld, BoardFocusDistance, 0.7f);
+        _rig?.ReturnToSeat(0.6f);
 
         // DAY0 = GUIDE-0 가 진행하는 관리자 교육. 배치표가 열린 직후부터 시작한다.
         if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
@@ -330,7 +339,6 @@ public partial class ShiftFlowController : Node
 
         _ctl?.SetModalSurface(null);
         NSP.Prologue.GuideSubtitleHud.Instance?.SetTopAligned(false);
-        _board?.PlayDismiss();
         _rig?.ReturnToSeat(0.6f);
         foreach (var n in _clutter) n.Visible = true;
         if (_arms != null) _arms.Visible = true;

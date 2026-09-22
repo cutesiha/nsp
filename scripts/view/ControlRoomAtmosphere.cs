@@ -90,6 +90,8 @@ public partial class ControlRoomAtmosphere : Node3D
     {
         _vent = MakeLoop3D("vent_loop", NodeAt(VentPath), -6f, 0f, 3.5f, 14f, offDelay: 1.2f, onDelay: 2.0f);
         _fluor = MakeLoop3D("fluor_hum", NodeAt(CeilingLightPath), -21f, 0f, 2.2f, 9f, offDelay: 0.5f, onDelay: 0.8f);
+        // 천장광 비활성 상태 — 방의 광원은 두 모니터뿐이라 형광등 웅웅 소리도 끈다(레이어는 남겨 둔다).
+        _fluor.NormalDb = Silent;
         _machinery = MakeLoop3D("machinery_loop", NodeAt(WallPath), -20f, 0f, 6f, 22f, offDelay: 0.0f, onDelay: 0.0f);
         _crt.Add(MakeLoop3D("crt_hum", NodeAt(M01ScreenPath), -19f, 0f, 1.4f, 4.5f, offDelay: 2.0f, onDelay: 1.6f));
         _crt.Add(MakeLoop3D("crt_hum", NodeAt(M02ScreenPath), -19f, 0f, 1.4f, 4.5f, offDelay: 2.0f, onDelay: 1.6f));
@@ -352,7 +354,7 @@ public partial class ControlRoomAtmosphere : Node3D
     private float StateDb(Layer l) => _amb switch
     {
         Amb.Warning => l == _drone ? -20f : l == _machinery ? -16f : IsCrt(l) ? -18f : l.NormalDb,
-        Amb.TabooPrecursor => l == _drone ? -24f : l == _machinery ? -17f : l == _fluor ? -18f : IsCrt(l) ? -16f : l.NormalDb,
+        Amb.TabooPrecursor => l == _drone ? -24f : l == _machinery ? -17f : l == _fluor ? l.NormalDb : IsCrt(l) ? -16f : l.NormalDb,
         _ => l.NormalDb,
     };
 
