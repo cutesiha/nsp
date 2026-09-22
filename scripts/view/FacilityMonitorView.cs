@@ -112,8 +112,8 @@ public partial class FacilityMonitorView : Control
         bar.AddChild(title);
 
         _clock = MakeLabel("--:--", 20, Amber);
-        _clock.Position = new Vector2(560, 8);
-        _clock.Size = new Vector2(130, 28);
+        _clock.Position = new Vector2(420, 8);
+        _clock.Size = new Vector2(262, 28);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         bar.AddChild(_clock);
 
@@ -596,13 +596,6 @@ public partial class FacilityMonitorView : Control
         return $"{t / 60:0}:{t % 60:00}";
     }
 
-    private static string ShiftClock(float t)
-    {
-        // 현실 3분(설정값) 동안 22:00에서 다음 날 04:00까지 흐른다.
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (360f / Mathf.Max(1f, shiftLength)));
-        int h = (totalMin / 60) % 24;
-        int m = totalMin % 60;
-        return $"{h:00}:{m:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string ShiftClock(float t) => NSP.Dialogue.DialogueClock.Text(t);
 }

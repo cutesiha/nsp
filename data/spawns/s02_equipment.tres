@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY2 — 설비 고장 수리. 경비실 경고(54초) 전에 정비실로 한 명을 빼야 하는 판단거리.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "equipment_repair"
+SpawnAtSeconds = 36.0
+JitterSeconds = 4.0
+Recurring = false
+RoomId = "maintenance_room"
+Day = 2

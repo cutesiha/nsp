@@ -150,8 +150,8 @@ public partial class InterviewCCTVView : Control
         AddChild(_recLabel);
 
         _clock = Lbl("--:--", 16, new Color(0.75f, 0.85f, 0.8f));
-        _clock.Position = new Vector2(Frame.End.X - 160f, 25f);
-        _clock.Size = new Vector2(156, 24);
+        _clock.Position = new Vector2(Frame.End.X - 224f, 25f);
+        _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);
     }
@@ -440,12 +440,6 @@ public partial class InterviewCCTVView : Control
         return ImageTexture.CreateFromImage(img);
     }
 
-    private static string FacilityClock(float t)
-    {
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (360f / Mathf.Max(1f, shiftLength)));
-        int h = (totalMin / 60) % 24;
-        int m = totalMin % 60;
-        return $"{h:00}:{m:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string FacilityClock(float t) => NSP.Dialogue.DialogueClock.Text(t);
 }

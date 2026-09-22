@@ -395,10 +395,6 @@ public partial class AlertTerminalView : Control
     }
 
     // 근무 시계(0초 = 22:00)를 실제 시각 표기로.
-    private static string Clock24(float seconds)
-    {
-        float length = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int total = 22 * 60 + Mathf.FloorToInt(Mathf.Max(0f, seconds) * (360f / Mathf.Max(1f, length)));
-        return $"{(total / 60) % 24:00}:{total % 60:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string Clock24(float seconds) => NSP.Dialogue.DialogueClock.Text(seconds);
 }

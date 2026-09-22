@@ -109,11 +109,16 @@ public partial class ShiftFlowController : Node
         // 제어실 자체를 타이틀로 쓴다 — 두 CRT + 책상 장비가 메뉴 역할을 한다.
         bool skipBoot = _skipToDay1Pending;
         _skipToDay1Pending = false;
+        // 엔딩 → 최종 기록 → [타이틀로] 로 돌아온 경우: 암전에서 시작해 "다시 눈을 뜬다".
+        var wake = skipBoot ? EndingState.Kind.None : EndingState.PendingWake;
+        EndingState.PendingWake = EndingState.Kind.None;
+        if (wake != EndingState.Kind.None) _title?.FadeToBlack(0.01f);
         if (_titleRoom != null)
         {
             _titleRoom.StartRequested += OnStartPressed;
             if (!skipBoot) _titleRoom.Begin();
         }
+        if (wake != EndingState.Kind.None) _ = WakeAtTitle(wake == EndingState.Kind.Bad);
         // 예전 책상 위 종이 배치표. Phase 0 에서 배치는 CRT 콘솔(ScheduleMapView)로 옮겼다 —
         // 노드는 씬에 남아 있지만 켜지 않는다.
         _board?.SetActive(false);
@@ -125,6 +130,17 @@ public partial class ShiftFlowController : Node
 
         BuildSkipButton();
         if (skipBoot) BootStraightToDay1();
+    }
+
+    private async System.Threading.Tasks.Task WakeAtTitle(bool harsh)
+    {
+        // 타이틀 부팅(CRT · 조명 세팅)이 먼저 끝나게 두 프레임 기다린다.
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree().CreateTimer(0.6), SceneTreeTimer.SignalName.Timeout);
+        var pd = PrologueDirector.Instance;
+        if (pd != null) await pd.PlayWake(harsh, TitleRoomDirector.EndingScreenNoise);
+        else _title?.FadeFromBlack(1.2f);
     }
 
     // --- 테스트용: 프롤로그 / 튜토리얼 건너뛰기 ------------------------------
@@ -236,6 +252,9 @@ public partial class ShiftFlowController : Node
         // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
         // 그 값이 남지 않게 모든 런 상태를 비운다.
         StartNewRun(PlayPrologue ? 0 : 1);
+        // 시작 화면에 남아 있던 결말의 흔적(붉은 CRT / 아침빛)도 새 근무와 함께 지운다.
+        EndingState.Clear();
+        EndingState.PendingWake = EndingState.Kind.None;
 
         if (!PlayPrologue || PrologueDirector.Instance == null)
         {
@@ -391,6 +410,12 @@ public partial class ShiftFlowController : Node
         int earned = DayObjectives.OptionalCompleted();
         if (earned > 0) GameState.Instance?.AddEvaluation(earned);
 
+        // 5일 누적(최종 근무 기록 화면) — 오늘 기록은 다음 근무 시작에 지워지므로 지금 더해 둔다.
+        int tabooToday = 0;
+        foreach (var e in EventLog.Instance?.GetAllEntries() ?? new System.Collections.Generic.List<LogEntry>())
+            if (e.EventType == LogEventType.TabooViolation) tabooToday++;
+        GameState.Instance?.AddShiftTotals(tabooToday, IncidentTracker.OpenedCount);
+
         // 필수 업무를 못 끝낸 채 시간이 다 됐는가. 게임을 멈추지는 않지만 기록은 남는다.
         GameState.Instance?.RecordShiftObjectives(
             DayObjectives.RequiredTotal - DayObjectives.RequiredDone);
@@ -418,6 +443,12 @@ public partial class ShiftFlowController : Node
     private async void RequestRestFromReport()
     {
         if (_stage != Stage.Report) return;
+        // 마지막 날 — FINAL SHIFT REPORT 의 [계속] 은 휴게시간이 아니라 엔딩으로 간다.
+        if ((GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5))
+        {
+            StartEnding();
+            return;
+        }
         _stage = Stage.Rest;
 
         GameState.Instance?.SetPhase(GamePhase.Rest);
@@ -451,14 +482,24 @@ public partial class ShiftFlowController : Node
         bool finalDay = (GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5);
         if (finalDay)
         {
-            _stage = Stage.Final;
-            GoToFinalResult();
+            StartEnding();
         }
         else
         {
             _stage = Stage.DayTransition;
             AdvanceToNextDay();
         }
+    }
+
+    // 엔딩 — 코어 100% 여부 하나로만 갈린다(EndingDirector). 끝나면 최종 근무 기록 → 변한 시작 화면.
+    private void StartEnding()
+    {
+        if (_stage == Stage.Final) return;
+        _stage = Stage.Final;
+        if (_arms != null) _arms.Visible = false;
+        var ending = new EndingDirector();
+        AddChild(ending);
+        ending.Play(_ctl, _title);
     }
 
     private async void GoToFinalResult()

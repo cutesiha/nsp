@@ -1699,11 +1699,12 @@ public partial class FacilitySimulation : Node
         }
     }
 
-    // DAY1 학습 편의: 대형 작업실 사고를 한 번에 하나로 제한한다. DAY2 이후에는 제한 없음.
+    // 초반 단순화: 대형 작업실 사고를 한 번에 하나로 제한한다.
+    // DAY1 전용이었지만 DAY5 까지 같은 규칙을 유지한다(Config.IncidentLimitLastDay).
     private bool CanStartNewIncident()
     {
-        if ((GameState.Instance?.CurrentDay ?? 1) != 1) return true;
         var cfg = Config.Instance.Data;
+        if ((GameState.Instance?.CurrentDay ?? 1) > cfg.IncidentLimitLastDay) return true;
         if (IncidentTracker.ActiveCount >= Mathf.Max(1, cfg.Day1MaxActiveIncidents)) return false;
         return GameState.Instance.DayTimeSeconds - IncidentTracker.LastIncidentAt >= cfg.IncidentGapSeconds;
     }

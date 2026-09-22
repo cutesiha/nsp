@@ -15,6 +15,14 @@ public enum EvidenceFilter
     Starred,    // 플레이어가 ★ 로 찍어 둔 것
 }
 
+// 오른쪽 「조사 노트」의 보기. 보기 방식일 뿐 판정에는 쓰지 않는다.
+public enum NoteTab
+{
+    ByIncident,       // 오늘의 사고를 중심으로 묶어 보기(전원 자료)
+    CurrentEmployee,  // 지금 심문 중인 직원의 자료만 시간순
+    Starred,          // 플레이어가 ★ 로 찍어 둔 자료만
+}
+
 // 휴게시간 심문 한 건의 진행 상태.
 //
 // UI(PhoneCallHud)는 여기에만 말을 건다. 조사 자료를 고르고, 질문을 고르고, 두 장을
@@ -34,10 +42,79 @@ public sealed class InterviewSession
     // 이미 물어본 질문 — 같은 걸 또 묻지 않게 목록에서 뺀다.
     private readonly HashSet<string> _asked = new();
 
+    // --- 최초 진술 ---------------------------------------------------------
+    //
+    // 인터뷰를 시작하면 직원이 먼저 자기 근무를 몇 마디로 말한다. 새 생성기를 만들지 않고
+    // 기존 기본 질문 세 개(근무 소감 · 이상한 점 · 수상한 사람)의 로컬 답변을 그대로 쓴다 —
+    // 답변과 함께 그 답변에서 이어지는 꼬리질문(FollowUps)도 같이 돌아온다.
+    // 세션이 만들어질 때 한 번만 만들고, Refresh 를 몇 번 불러도 다시 만들지 않는다.
+    public sealed class OpeningStatement
+    {
+        public int Index;
+        public string QuestionId = "";
+        public string Text = "";
+        public List<FollowUpQuestion> FollowUps = new();
+    }
+
+    private static readonly string[] OpeningQuestions =
+    {
+        DialogueQuestions.ShiftReview, DialogueQuestions.Anomaly, DialogueQuestions.Suspicious,
+    };
+
+    private readonly List<OpeningStatement> _openings = new();
+    public IReadOnlyList<OpeningStatement> Openings => _openings;
+    // 지금 고른 진술(없으면 -1). 그 진술의 꼬리질문만 화면에 뜬다.
+    public int SelectedOpening { get; private set; } = -1;
+    // 이미 물어본 진술 꼬리질문 — 체크 표시용.
+    private readonly HashSet<string> _askedFollowUps = new();
+
+    // 오른쪽 조사 노트의 탭. 사건별 · ★ 은 오늘 확보한 전원 자료를, 현재 직원은 이 사람 것만 본다.
+    public NoteTab Tab { get; private set; } = NoteTab.CurrentEmployee;
+
     public InterviewSession(string employeeId)
     {
         EmployeeId = employeeId ?? "";
+        BuildOpenings();
         Refresh();
+    }
+
+    private void BuildOpenings()
+    {
+        if (string.IsNullOrEmpty(EmployeeId)) return;
+        var seen = new HashSet<string>();
+        foreach (string qid in OpeningQuestions)
+        {
+            var turn = LocalDialogueGenerator.Interview(EmployeeId, qid);
+            string text = (turn?.Answer ?? "").Trim();
+            if (string.IsNullOrEmpty(text) || text == "…" || !seen.Add(text)) continue;
+            _openings.Add(new OpeningStatement
+            {
+                Index = _openings.Count,
+                QuestionId = qid,
+                Text = text,
+                FollowUps = turn.FollowUps ?? new List<FollowUpQuestion>(),
+            });
+        }
+    }
+
+    // 진술 블록 선택. 같은 블록을 다시 누르면 선택이 풀린다.
+    public void SelectOpening(int index) =>
+        SelectedOpening = index == SelectedOpening || index < 0 || index >= _openings.Count ? -1 : index;
+
+    // 고른 진술에서 나온 꼬리질문만. 진술이 없거나 고르지 않았으면 빈 목록.
+    public List<FollowUpQuestion> OpeningFollowUps() =>
+        SelectedOpening >= 0 && SelectedOpening < _openings.Count
+            ? _openings[SelectedOpening].FollowUps
+            : new List<FollowUpQuestion>();
+
+    public bool WasAskedFollowUp(FollowUpQuestion q) => q != null && _askedFollowUps.Contains(FollowUpKey(q));
+
+    private static string FollowUpKey(FollowUpQuestion q) => $"{q.BaseQuestionId}|{q.Intent}|{q.SubjectIncidentKey}";
+
+    public void SetTab(NoteTab tab)
+    {
+        Tab = tab;
+        SetScope(tab != NoteTab.CurrentEmployee);
     }
 
     // 답변이 새 진술을 남기면 자료가 늘어난다 — 한 턴이 끝날 때마다 다시 만든다.
@@ -169,6 +246,21 @@ public sealed class InterviewSession
             : InterviewReplyPlanner.Answer(q);
 
         turn.FollowUps = NeutralFollowUps(q);
+        Refresh();
+        return turn;
+    }
+
+    // 진술 블록에서 나온 꼬리질문. 답은 기존 꼬리질문 파이프라인(FollowUpAnswer)이 만든다 —
+    // 위치를 말하면 그 답이 PlayerKnownEvidence 에 진술 자료로 남는 것도 그대로다.
+    public Turn AskFollowUp(FollowUpQuestion q)
+    {
+        var turn = new Turn();
+        if (q == null) return turn;
+        _askedFollowUps.Add(FollowUpKey(q));
+        // DAY0 교육은 "무엇이든 물었는가"만 듣는다(자료 질문이 아니므로 EvidenceId 는 비어 있다).
+        Asked?.Invoke(EmployeeId, new InterviewQuestion { TargetEmployeeId = EmployeeId, Text = q.Text });
+        turn.QuestionText = q.Text;
+        turn.Answer = LocalDialogueGenerator.FollowUpAnswer(EmployeeId, q);
         Refresh();
         return turn;
     }

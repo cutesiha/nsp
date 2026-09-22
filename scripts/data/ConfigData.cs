@@ -55,6 +55,8 @@ public partial class ConfigData : Resource
     // DAY1 은 시스템을 배우는 날이라 대형 작업실 사고가 겹치지 않게 한다.
     // 활성 사고가 이 수 이상이거나, 직전 사고에서 이 시간이 지나지 않으면 새 사고를 미룬다.
     [Export] public int Day1MaxActiveIncidents = 1;
+    // 위 동시 사고 제한을 며칠째까지 유지하는가. 초반 단순화 규칙을 DAY5 까지 그대로 쓴다(5).
+    [Export] public int IncidentLimitLastDay = 5;
     [Export] public float IncidentGapSeconds = 18f;
 
     // --- 업무 수행 속도 --------------------------------------------------

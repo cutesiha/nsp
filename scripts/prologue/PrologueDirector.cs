@@ -213,9 +213,38 @@ public partial class PrologueDirector : Node
 
     private readonly RandomNumberGenerator _dizzyRng = new();
 
-    private async Task DizzyRecovery()
+    // 엔딩 뒤 시작 화면에서 다시 눈을 뜨는 순간 — 프롤로그의 의식 회복을 그대로 쓴다.
+    //   harsh = true  : 충격으로 기절했다 깬다(이명 · 숨소리 · 어지러움 · 휘청) — 배드엔딩
+    //   harsh = false : 스스로 감았던 눈을 조용히 뜬다(흔들림 · 이명 없음, 초점만 천천히 잡힌다) — 진엔딩
+    // settleNoise : 다 깨어난 뒤의 CRT 노이즈(그 화면의 평소 값).
+    public async Task PlayWake(bool harsh, float settleNoise)
     {
-        float baseNoise = 0.035f;   // 평소 게임 화면의 노이즈
+        _ctl?.ResetCameraCollapse();
+        if (harsh)
+        {
+            Sfx.Instance?.Play("tinnitus", -8f);
+            await Wait(0.9);
+            Sfx.Instance?.Play("breath_faint", -14f);
+            _title?.FadeFromBlack(0.8f);
+            await DizzyRecovery(settleNoise);
+            return;
+        }
+
+        _title?.FadeFromBlack(2.6f);
+        const double len = 3.4;
+        double t = 0;
+        while (t < len)
+        {
+            await NextFrame();
+            t += GetProcessDeltaTime();
+            float k = 1f - Mathf.Clamp((float)(t / len), 0f, 1f);
+            _dizzy?.SetAmount(0.32f * k * k);
+        }
+        _dizzy?.Clear();
+    }
+
+    private async Task DizzyRecovery(float baseNoise = 0.035f)   // baseNoise = 평소 게임 화면의 노이즈
+    {
         double t = 0;
         double nextLurch = 0.25;
 

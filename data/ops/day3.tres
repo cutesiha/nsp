@@ -1,10 +1,9 @@
 [gd_resource type="Resource" script_class="OpsProfileDef" load_steps=11 format=3]
 
 ; ════════════════════════════════════════════════════════════════════════
-; DAY2 운영 규칙 — DAY1 과 같은 시스템(작업실 7개 · 스트레스 있음 · 능력치 · 금기 없음).
-; (예전에는 DAY2 부터 능력치 · 스트레스 · 금기 · 환기실 · 의무실이 켜졌지만 전부 뺐다.)
-; DAY1 표에서 경고 간격 · 방해공작 시각만 조금 앞당겼다. 여기 숫자만 고치면 된다.
-; DAY3~5 는 day3~5.tres 가 따로 있다(날마다 경고 시각 · 작업실 · 방해 구간이 다르다).
+; DAY3 — 경비실로 시작해 코어실 · 정비실로 번지는 하루. 방해공작 기회가 근무 중반으로 당겨진다.
+; DAY2 표를 바탕으로 정해진 경고의 시각 · 작업실과 방해공작 기회 구간만 바꿨다.
+; 여기 숫자만 고치면 된다(코드 수정 불필요).
 ; ════════════════════════════════════════════════════════════════════════
 
 [ext_resource type="Script" path="res://scripts/data/OpsProfileDef.cs" id="1_profile"]
@@ -140,52 +139,51 @@ RepairSeconds = 10.0
 RepairMinWorkers = 1
 
 ; ── 정해진 시각의 경고 ───────────────────────────────────────────────────
-; DAY2 — DAY1(정비실 → 발전실 → 저장고)과 순서를 바꿔 저장고 → 경비실 → 발전실.
-[sub_resource type="Resource" id="sched_d2_0"]
+[sub_resource type="Resource" id="sched_d3_0"]
 script = ExtResource("3_warn")
-AtSeconds = 24.0
+AtSeconds = 18.0
 JitterSeconds = 4.0
-RoomId = "storage_room"
-RequiredStaff = 2
-ResponseSeconds = 15.0
-
-[sub_resource type="Resource" id="sched_d2_1"]
-script = ExtResource("3_warn")
-AtSeconds = 54.0
-JitterSeconds = 5.0
 RoomId = "guard_room"
 RequiredStaff = 2
 ResponseSeconds = 15.0
 
-[sub_resource type="Resource" id="sched_d2_2"]
+[sub_resource type="Resource" id="sched_d3_1"]
 script = ExtResource("3_warn")
-AtSeconds = 90.0
+AtSeconds = 46.0
 JitterSeconds = 5.0
-RoomId = "power_room"
+RoomId = "core_room"
+RequiredStaff = 2
+ResponseSeconds = 15.0
+
+[sub_resource type="Resource" id="sched_d3_2"]
+script = ExtResource("3_warn")
+AtSeconds = 88.0
+JitterSeconds = 5.0
+RoomId = "maintenance_room"
 RequiredStaff = 2
 ResponseSeconds = 14.0
 
 [resource]
 script = ExtResource("1_profile")
-Day = 2
-Note = "DAY2 — 저장고 → 경비실 → 발전실 순서로 경고가 뜨고, 정비실에 설비 고장 수리가 한 번 발생한다."
+Day = 3
+Note = "DAY3 — 경비실로 시작해 코어실 · 정비실로 번지는 하루. 방해공작 기회가 근무 중반으로 당겨진다."
 Rooms = Array[ExtResource("2_roomops")]([SubResource("ops_power"), SubResource("ops_core"), SubResource("ops_maintenance"), SubResource("ops_guard"), SubResource("ops_storage")])
-TargetCoreGain = 20.0
+TargetCoreGain = 22.0
 MaxConcurrentWarnings = 1
 MaxWarningsPerDay = 7
 WarningGapSeconds = 7.0
 WarningGraceSeconds = 12.0
 WarningCutoffSeconds = 14.0
-ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_d2_0"), SubResource("sched_d2_1"), SubResource("sched_d2_2")])
-SaboteurStartSeconds = 58.0
+ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_d3_0"), SubResource("sched_d3_1"), SubResource("sched_d3_2")])
+SaboteurStartSeconds = 50.0
 MaxSabotageActionsPerDay = 1
 AllowMurder = false
-SabotageTargetRooms = Array[String](["core_room", "power_room", "maintenance_room", "storage_room", "guard_room"])
+SabotageTargetRooms = Array[String](["power_room", "maintenance_room", "storage_room", "guard_room"])
 SabotageSettleSeconds = 7.0
 SabotagePrepareMinSeconds = 10.0
 SabotagePrepareMaxSeconds = 13.0
-SabotageWindowStartSeconds = 74.0
-SabotageWindowEndSeconds = 96.0
+SabotageWindowStartSeconds = 60.0
+SabotageWindowEndSeconds = 84.0
 MaxReactionMovesPerDay = 2
 ReactionMoveGapSeconds = 26.0
 ReactionStaySeconds = 18.0

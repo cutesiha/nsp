@@ -195,7 +195,8 @@ public partial class TitleStaffIdView : Control
         _t += (float)delta;
         bool redraw = false;
 
-        if (_poweredOn && !_scanning)
+        // 진엔딩 뒤의 시작 화면은 시설이 정상화된 상태 — 신원 카드가 더는 깨지지 않는다.
+        if (_poweredOn && !_scanning && EndingState.Last != EndingState.Kind.True)
         {
             _nextGlitch -= delta;
             if (_nextGlitch <= 0)
@@ -352,10 +353,23 @@ public partial class TitleStaffIdView : Control
 
     private void DrawFooter()
     {
+        // 결말의 흔적 — 실패 뒤에는 CONTAINMENT FAILED, 복구 뒤에는 직원들이 남긴 짧은 메모.
+        string idle = EndingState.Last switch
+        {
+            EndingState.Kind.Bad => "CONTAINMENT FAILED",
+            EndingState.Kind.True => "야간 관리 업무 종료.   관리자님, 수고하셨습니다.",
+            _ => "ID STATUS : NORMAL",
+        };
+        var idleCol = EndingState.Last switch
+        {
+            EndingState.Kind.Bad => Err,
+            EndingState.Kind.True => Ink,
+            _ => Dim,
+        };
         string line = _glitchIndex >= 0
             ? "ID STATUS : ▒▒▒▒▒▒"
-            : _hover >= 0 ? HoverLine : "ID STATUS : NORMAL";
-        var col = _glitchIndex >= 0 ? Err : _hover >= 0 ? Ink : Dim;
+            : _hover >= 0 ? HoverLine : idle;
+        var col = _glitchIndex >= 0 ? Err : _hover >= 0 ? Ink : idleCol;
         DrawRect(new Rect2(48f, 506f, Canvas.X - 96f, 1f), Mint with { A = 0.18f });
         DrawString(_font, new Vector2(48f, 538f), line, HorizontalAlignment.Left,
             Canvas.X - 96f, ViewFont.S(16), col);

@@ -24,6 +24,7 @@ public partial class ShiftReportView : Control
 
     private Font _font;
     private RichTextLabel _body;
+    private Label _title;
 
     public override void _Ready()
     {
@@ -34,9 +35,9 @@ public partial class ShiftReportView : Control
 
         AddChild(Rect(Bg));
 
-        var title = MakeLabel("SHIFT REPORT", 22, Ink);
-        title.Position = new Vector2(24, 20);
-        AddChild(title);
+        _title = MakeLabel("SHIFT REPORT", 22, Ink);
+        _title.Position = new Vector2(24, 20);
+        AddChild(_title);
 
         _body = new RichTextLabel
         {
@@ -85,6 +86,18 @@ public partial class ShiftReportView : Control
         int materialsDelta = gs.Materials - materialsAtStart;
 
         var sb = new StringBuilder();
+        // 마지막 날 — 제목부터 FINAL SHIFT REPORT. 5일간 쌓은 코어 복구율을 제일 크게 보여 준다
+        // (이 숫자 하나로 엔딩이 갈린다).
+        bool final = gs.CurrentDay >= (Config.Instance?.Data?.MaxDays ?? 5);
+        _title.Text = final ? "FINAL SHIFT REPORT" : "SHIFT REPORT";
+        _title.AddThemeColorOverride("font_color", final ? Amber : Ink);
+        if (final)
+        {
+            string coreCol = gs.CoreProgress >= 100f ? "#7dffc4" : "#ffb347";
+            sb.AppendLine($"[font_size={ViewFont.S(20)}][color=#8899aa]봉쇄 코어 최종 복구율[/color][/font_size]");
+            sb.AppendLine($"[font_size={ViewFont.S(62)}][color={coreCol}]CORE {Mathf.Min(gs.CoreProgress, 100f):0.0}%[/color][/font_size]");
+            sb.AppendLine("");
+        }
         // 필수 업무를 못 끝냈으면 머리글부터 다르다 — "끝났다"와 "못 끝냈다"는 다른 결과다.
         int missed = gs.LastShiftMissedRequired;
         sb.AppendLine(missed > 0
@@ -126,13 +139,13 @@ public partial class ShiftReportView : Control
                               $"   [color=#8899aa](누적 {gs.EvaluationScore})[/color]");
         }
         _body.Text = sb.ToString();
-        FitBody();
+        FitBody(final ? ViewFont.S(18) : ViewFont.S(22));
     }
 
     // 내용이 길면(업무 줄이 많은 날) 아래쪽이 잘리지 않게 글자를 줄이고, 그래도 넘치면 스크롤을 켠다.
-    private async void FitBody()
+    private async void FitBody(int size)
     {
-        int size = ViewFont.S(22), min = ViewFont.S(15);
+        int min = ViewFont.S(13);
         _body.ScrollActive = false;
         _body.AddThemeFontSizeOverride("normal_font_size", size);
         for (int guard = 0; guard < 16; guard++)

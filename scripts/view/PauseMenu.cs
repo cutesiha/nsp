@@ -74,6 +74,8 @@ public partial class PauseMenu : CanvasLayer
 
         // 시작 화면(중앙제어실 전체가 타이틀)에서는 ESC 가 그쪽 단말기의 '뒤로'다.
         if (TitleRoomDirector.Instance?.IsRunning == true) return;
+        // 엔딩 연출 · 5일간의 근무 기록 동안에는 멈추지 않는다.
+        if (EndingDirector.IsPlaying) return;
 
         if (_confirm is { Visible: true }) HideConfirm();
         else if (Visible) Close();

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY4 — 봉쇄 장치 점검. 발전실 경고(26초) 직후 경비실.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "lockdown_gear_check"
+SpawnAtSeconds = 38.0
+JitterSeconds = 4.0
+Recurring = false
+RoomId = "guard_room"
+Day = 4

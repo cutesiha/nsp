@@ -39,6 +39,23 @@ public partial class TitleRoomDirector : Node
     public event Action StartRequested;
     public bool IsRunning { get; private set; }
 
+    // 결말의 흔적 — 마지막으로 본 엔딩(EndingState)에 따라 시작 화면의 방 분위기가 다르다.
+    //   실패 : 붉은 CRT · 아주 느리게 붉게 점멸하는 비상등 · BGM 대신 낮은 기계음/경고음 · 가끔 혼자 울리는 전화
+    //   복구 : 아주 약한 아침빛 · 정상 색 · CRT 노이즈 감소 · 같은 곡의 조용한 버전
+    public static float EndingScreenNoise => EndingState.Last switch
+    {
+        EndingState.Kind.Bad => 0.06f,
+        EndingState.Kind.True => 0.008f,
+        _ => 0.018f,
+    };
+    private SpotLight3D _m1, _m2, _deskFill;
+    private OmniLight3D _emergency, _morning;
+    private float _m1E, _m2E, _deskE;
+    private Color _m1C, _m2C, _deskC;
+    private bool _endingLook;
+    private double _nextRing = 24.0, _nextBeep = 9.0;
+    private float _pulseT;
+
     // 화면 오른쪽 아래에 늘 떠 있는 조작 안내. 이 한 줄만 남긴다.
     private const string MenuHint = "↑ ↓ 이동   ENTER 확인";
     // 확인 창(예/아니오)은 선택지가 가로로 놓인다 — 안내도 좌우로 바꾼다.
@@ -130,13 +147,15 @@ public partial class TitleRoomDirector : Node
         // 오른쪽 CRT(직원 신원)는 아직 꺼져 있다 — 약한 노이즈만 보일 정도로.
         _ctl.SetScreenBrightnessFor("02", 0.13f);
         // 타이틀 동안에는 화면 노이즈를 조금 낮춘다(표제와 메뉴가 첫인상이다).
-        _ctl.SetScreenNoise(0.018f);
+        _ctl.SetScreenNoise(EndingScreenNoise);
+        ApplyEndingLook();
 
         TitleStaffIdView.Instance.PowerOff();
         TitleTerminalView.Instance.ShowStandby();
 
         // 게임 시작 순간부터 왼쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
-        _ctl.FocusMonitor(1, 0.01f);
+        // 엔딩 뒤에 다시 눈을 뜬 경우만 예외 — 방 전체(붉은 CRT · 비상등 / 아침빛)가 먼저 보여야 한다.
+        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, 0.01f);
 
         // 대기 화면의 안내는 단말기 자체에 "[ PRESS ANY KEY ]" 로 떠 있다 — 겹쳐 쓰지 않는다.
         _hint.SetLine("");
@@ -229,6 +248,7 @@ public partial class TitleRoomDirector : Node
         await Wait(1.10);
 
         // 화면을 한 번 내려 두고 넘긴다 — 프롤로그가 다시 켜는 연출로 자연히 이어진다.
+        ClearEndingLook();
         _ctl?.SetScreenNoise(0.035f);   // 게임 화면의 기본 노이즈로 되돌린다
         var t = CreateTween();
         t.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 1.0f, 0.02f, 0.45)
@@ -286,6 +306,7 @@ public partial class TitleRoomDirector : Node
     private async Task ShutdownAsync()
     {
         _phase = Phase.Busy;
+        ClearEndingLook();
         _hint.SetLine("");
         _hint.SetSub("");
         var term = TitleTerminalView.Instance;
@@ -462,6 +483,7 @@ public partial class TitleRoomDirector : Node
     private void TickAmbience(double delta)
     {
         if (_phase is Phase.Off or Phase.Done) return;
+        TickEndingLook(delta);
 
         // 형광등이 가끔 한 번 깜빡인다.
         _nextFlicker -= delta;
@@ -482,6 +504,92 @@ public partial class TitleRoomDirector : Node
             _nextDistant = _rng.RandfRange(10f, 20f);
             Sfx.Instance?.Play(_rng.Randf() > 0.5f ? "metal_clang" : "pipe_knock", -28f);
         }
+    }
+
+    // --- 결말의 흔적 -----------------------------------------------------------
+
+    private void ApplyEndingLook()
+    {
+        var kind = EndingState.Last;
+        if (kind == EndingState.Kind.None || _ctl == null) return;
+        _endingLook = true;
+        _m1 = _ctl.GetNodeOrNull<SpotLight3D>("ControlRoom/Monitor01/M01_ScreenLight");
+        _m2 = _ctl.GetNodeOrNull<SpotLight3D>("ControlRoom/Monitor02/M02_ScreenLight");
+        _deskFill = _ctl.GetNodeOrNull<SpotLight3D>("ControlRoom/DeskFillLight");
+        _emergency = _ctl.GetNodeOrNull<OmniLight3D>("ControlRoom/EmergencyLight");
+        if (_m1 != null) { _m1E = _m1.LightEnergy; _m1C = _m1.LightColor; }
+        if (_m2 != null) { _m2E = _m2.LightEnergy; _m2C = _m2.LightColor; }
+        if (_deskFill != null) { _deskE = _deskFill.LightEnergy; _deskC = _deskFill.LightColor; }
+
+        if (kind == EndingState.Kind.Bad)
+        {
+            ControlRoom3DHorror.ExternalLightingOverride = true;
+            _ctl.SetScreenTint(new Color(1.3f, 0.30f, 0.26f));
+            var red = new Color(1f, 0.22f, 0.18f);
+            if (_m1 != null) _m1.LightColor = red;
+            if (_m2 != null) _m2.LightColor = red;
+            if (_deskFill != null) { _deskFill.LightColor = new Color(0.8f, 0.35f, 0.32f); _deskFill.LightEnergy = _deskE * 0.6f; }
+            if (_emergency != null) { _emergency.Visible = true; _emergency.LightColor = new Color(0.95f, 0.1f, 0.08f); }
+            Sfx.Instance?.FadeOutMusic(1.0f);
+            Sfx.Instance?.Loop("drone_loop", -18f);
+            Sfx.Instance?.Loop("machinery_loop", -27f);
+            return;
+        }
+
+        // 복구 — 아주 약한 아침빛. 붉거나 불안정했던 표시 없이 정상 색에 따뜻함만 조금.
+        _ctl.SetScreenTint(new Color(1.03f, 1.0f, 0.95f));
+        var warm = new Color(1f, 0.86f, 0.70f);
+        if (_deskFill != null) { _deskFill.LightColor = _deskC.Lerp(warm, 0.6f); _deskFill.LightEnergy = _deskE * 1.35f; }
+        _morning = new OmniLight3D
+        {
+            Name = "TitleMorningLight",
+            LightColor = new Color(1f, 0.82f, 0.62f),
+            LightEnergy = 0.55f,
+            OmniRange = 4.8f,
+            ShadowEnabled = false,
+            Position = new Vector3(-1.8f, 2.3f, -0.6f),
+        };
+        _ctl.GetNodeOrNull<Node3D>("ControlRoom")?.AddChild(_morning);
+        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true, targetDb: -15f, restartIfSame: true);
+    }
+
+    private void TickEndingLook(double delta)
+    {
+        if (!_endingLook || EndingState.Last != EndingState.Kind.Bad) return;
+        // 방 전체 비상등이 아주 느리게 붉게 점멸한다.
+        _pulseT += (float)delta;
+        if (_emergency != null)
+            _emergency.LightEnergy = 0.15f + 1.4f * Mathf.Pow(0.5f + 0.5f * Mathf.Sin(_pulseT * 1.05f), 2f);
+        // 가끔 전화기가 혼자 울리거나 잡음이 난다.
+        _nextRing -= delta;
+        if (_nextRing <= 0)
+        {
+            _nextRing = _rng.RandfRange(22f, 40f);
+            Sfx.Instance?.Play(_rng.Randf() < 0.6f ? "call_ring" : "radio_static", -20f);
+        }
+        _nextBeep -= delta;
+        if (_nextBeep <= 0)
+        {
+            _nextBeep = _rng.RandfRange(8f, 16f);
+            Sfx.Instance?.Play("alert_beep3", -26f);
+        }
+    }
+
+    // 새 근무를 시작하면(또는 시스템 종료) 방을 원래대로 돌린다.
+    private void ClearEndingLook()
+    {
+        if (!_endingLook) return;
+        _endingLook = false;
+        _ctl?.SetScreenTint(Colors.White);
+        if (_m1 != null) { _m1.LightColor = _m1C; _m1.LightEnergy = _m1E; }
+        if (_m2 != null) { _m2.LightColor = _m2C; _m2.LightEnergy = _m2E; }
+        if (_deskFill != null) { _deskFill.LightColor = _deskC; _deskFill.LightEnergy = _deskE; }
+        if (_emergency != null) { _emergency.LightEnergy = 0f; _emergency.Visible = false; }
+        if (_morning != null && IsInstanceValid(_morning)) _morning.QueueFree();
+        _morning = null;
+        Sfx.Instance?.StopLoop("drone_loop");
+        Sfx.Instance?.StopLoop("machinery_loop");
+        ControlRoom3DHorror.ExternalLightingOverride = false;
     }
 
     // --- 레이캐스트 헬퍼 --------------------------------------------------------

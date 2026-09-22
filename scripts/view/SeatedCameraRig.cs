@@ -89,6 +89,21 @@ public partial class SeatedCameraRig : Node3D
             .SetTrans(Tween.TransitionType.Quint).SetEase(Tween.EaseType.In);
     }
 
+    // 긴장이 풀려 의자에 천천히 기대는 자세 — 고개가 살짝 뒤로 젖혀지고 몸이 뒤로 빠진다.
+    // (엔딩의 "스스로 눈을 감는" 순간. 쓰러지는 CollapseOntoDesk 와 반대 방향.)
+    public void LeanBack(float seconds = 3.0f)
+    {
+        _collapseTween?.Kill();
+        _collapseTween = CreateTween();
+        _collapseTween.SetParallel(true);
+        _collapseTween.TweenMethod(Callable.From<Vector3>(v => _collapsePos = v),
+            _collapsePos, new Vector3(0f, -0.06f, 0.16f), seconds)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+        _collapseTween.TweenMethod(Callable.From<Vector3>(v => _collapseRotDeg = v),
+            _collapseRotDeg, new Vector3(9f, 0f, 2.5f), seconds)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+    }
+
     public void ResetCollapse()
     {
         _collapseTween?.Kill();

@@ -108,6 +108,7 @@ public partial class ControlRoom3DController : Node3D
     private SubViewport _titleStaffVp, _titleTerminalVp;
     // 근무 배치 단계의 두 CRT 프로그램(왼쪽 = 시설 지도 배치, 오른쪽 = 직원·작업실 정보).
     private SubViewport _scheduleMapVp, _scheduleStaffVp;
+    private SubViewport _endingLeftVp, _endingRightVp;
     private ScheduleMapView _scheduleMap;
     // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
     // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
@@ -207,6 +208,9 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport TitleTerminalViewport => _titleTerminalVp;
     public SubViewport ScheduleMapViewport => _scheduleMapVp;
     public SubViewport ScheduleStaffViewport => _scheduleStaffVp;
+    // 엔딩 연출(FINAL RECOVERY SEQUENCE) 전용 두 화면.
+    public SubViewport EndingLeftViewport => _endingLeftVp;
+    public SubViewport EndingRightViewport => _endingRightVp;
     public ScheduleMapView ScheduleMap => _scheduleMap;
 
     private void BuildViewports()
@@ -270,6 +274,11 @@ public partial class ControlRoom3DController : Node3D
 
         _scheduleStaffVp = MakeViewport();
         AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);
+
+        _endingLeftVp = MakeViewport();
+        AddScaledView(_endingLeftVp, new EndingMonitorView(true), MonitorCanvasSize);
+        _endingRightVp = MakeViewport();
+        AddScaledView(_endingRightVp, new EndingMonitorView(false), MonitorCanvasSize);
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
@@ -294,7 +303,7 @@ public partial class ControlRoom3DController : Node3D
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp })
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _endingLeftVp, _endingRightVp })
         {
             if (vp == null) continue;
             bool bound = false;
@@ -354,6 +363,22 @@ public partial class ControlRoom3DController : Node3D
             s.ScreenMaterial?.SetShaderParameter("brightness", _brightness);
             s.ScreenMaterial?.SetShaderParameter("h_distortion", _distortion);
             s.ScreenMaterial?.SetShaderParameter("noise_strength", _noise);
+            s.ScreenMaterial?.SetShaderParameter("tint_r", _tint.R);
+            s.ScreenMaterial?.SetShaderParameter("tint_g", _tint.G);
+            s.ScreenMaterial?.SetShaderParameter("tint_b", _tint.B);
+        }
+    }
+
+    // 두 CRT 전체의 색조(crt_screen 의 tint). 기본 흰색 = 원래 색. 실패한 시작 화면의 붉은 CRT 등.
+    private Color _tint = Colors.White;
+    public void SetScreenTint(Color c)
+    {
+        _tint = c;
+        foreach (var s in _screens)
+        {
+            s.ScreenMaterial?.SetShaderParameter("tint_r", c.R);
+            s.ScreenMaterial?.SetShaderParameter("tint_g", c.G);
+            s.ScreenMaterial?.SetShaderParameter("tint_b", c.B);
         }
     }
 
@@ -426,7 +451,8 @@ public partial class ControlRoom3DController : Node3D
         // CanvasLayer 통화 HUD가 마우스 입력을 받는 동안에는 그 입력을 3D CRT로
         // 재투사하지 않는다. 그렇지 않으면 "통화를 종료한다" 클릭이 뒤쪽 휴게화면의
         // 다음 날 배치 버튼까지 동시에 눌릴 수 있다.
-        if (PhoneCallHud.Instance?.IsOpen == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+        // (휴게시간 심문은 MONITOR 01 에서 조작하므로 자막 띠 위를 누를 때만 막는다.)
+        if (PhoneCallHud.Instance?.BlocksCrtInput(@event) == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
 
         if (_modal != null)
         {
@@ -648,6 +674,8 @@ public partial class ControlRoom3DController : Node3D
     // 프롤로그 — 의식을 잃고 책상에 엎어지는 시점 연출.
     public void CollapseCameraOntoDesk(float seconds = 0.38f) => _rig?.CollapseOntoDesk(seconds);
     public void ResetCameraCollapse() => _rig?.ResetCollapse();
+    // 긴장이 풀려 의자에 기대며 눈을 감는 자세(진엔딩).
+    public void LeanBackInChair(float seconds = 3f) => _rig?.LeanBack(seconds);
 
     // 확대 중이면 풀고 true. PauseMenu 가 ESC 를 받았을 때 "메뉴 열기"보다 먼저 시도한다.
     public bool UnzoomIfFocused()

@@ -50,9 +50,10 @@ public partial class Day2FlowTest : Node
         var d1 = OpsProfile.For(1);
         var d2 = OpsProfile.For(2);
         var d3 = OpsProfile.For(3);
-        GD.Print($"\n[데이터] 운영 프로필 — DAY1 Day={d1?.Day} / DAY2 Day={d2?.Day} / DAY3 Day={d3?.Day}(폴백)");
+        GD.Print($"\n[데이터] 운영 프로필 — DAY1 Day={d1?.Day} / DAY2 Day={d2?.Day} / DAY3 Day={d3?.Day}");
         Check(d2 != null && d2.Day == 2, "DAY2 전용 운영 프로필이 있다");
-        Check(d3 != null && d3.Day == 2, "DAY3 은 아직 프로필이 없어 DAY2 를 그대로 쓴다(확장 지점)");
+        // DAY3~5 는 날마다 다른 일정의 자기 프로필을 쓴다(상세 검증은 DayScheduleTest).
+        Check(d3 != null && d3.Day == 3, "DAY3 은 자기 운영 프로필을 쓴다");
         if (d1 == null || d2 == null) return;
 
         GD.Print($"        경고 간격 {d1.WarningGapSeconds:0.#}→{d2.WarningGapSeconds:0.#}초 · " +

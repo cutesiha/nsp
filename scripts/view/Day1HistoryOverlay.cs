@@ -913,10 +913,6 @@ public partial class Day1HistoryOverlay : CanvasLayer
         return label;
     }
 
-    private static string ShiftClock(float elapsedSeconds)
-    {
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMinutes = 22 * 60 + Mathf.FloorToInt(Mathf.Max(0f, elapsedSeconds) * (360f / Mathf.Max(1f, shiftLength)));
-        return $"{(totalMinutes / 60) % 24:00}:{totalMinutes % 60:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string ShiftClock(float elapsedSeconds) => NSP.Dialogue.DialogueClock.Text(elapsedSeconds);
 }

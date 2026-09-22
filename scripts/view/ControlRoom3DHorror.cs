@@ -85,9 +85,12 @@ public partial class ControlRoom3DHorror : Node
 
     // 실내 조명 통합 제어: 조명 스위치 OFF / 정전 → 방이 어두워지고 비상등이 켜진다.
     // 정상일 때만 사고 수(2+)에 따라 파랑/빨강.
+    // 엔딩 연출 / 결말 타이틀이 비상등을 직접 다루는 동안 true — 여기서 되돌리지 않는다.
+    public static bool ExternalLightingOverride;
+
     private void TickRoomLighting(float delta)
     {
-        if (_ceiling == null) return;
+        if (_ceiling == null || ExternalLightingOverride) return;
         var gs = GameState.Instance;
         bool live = gs?.CurrentPhase == GamePhase.Live;
         if (!live) _tabooAlert = false;

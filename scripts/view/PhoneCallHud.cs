@@ -44,19 +44,30 @@ public partial class PhoneCallHud : CanvasLayer
     private Label _incoming;
     private Font _font;
 
-    // 휴게시간 심문 전용 — 오른쪽 「조사 자료」 열.
+    // 휴게시간 심문 전용 — 왼쪽 대화(진술 · 질문), 오른쪽 「조사 노트」, 아래 「자료 A / B」.
+    private VBoxContainer _root;
     private HBoxContainer _body;
     private VBoxContainer _leftCol;
-    private VBoxContainer _evidenceCol;
+    private VBoxContainer _leftInner;
+    // 심문 UI 는 MONITOR 01 의 심문 콘솔(RestInterviewConsole) 안에 있다. 아래는 그 콘솔의 자리를 가리킨다.
+    private RestInterviewConsole _console;
+    private bool _consoleWired;
+    private Label _statementsHead;
+    private VBoxContainer _statements;
+    private VBoxContainer _ivChoices;
+    private VBoxContainer _ivTail;
     private VBoxContainer _evidenceList;
-    private HFlowContainer _evidenceFilters;
-    private Button _scopeBtn;
-    private HBoxContainer _evidenceActions;
+    private HFlowContainer _noteTabs;
+    private Button _slotA;
+    private Button _slotB;
     private VBoxContainer _tail;
     private Button _askBtn;
     private Button _confrontBtn;
     private InterviewSession _session;
     private System.Collections.Generic.List<InterviewQuestion> _intents = new();
+    // 조사 노트 화면 상태(보기 방식일 뿐 — 판정에 쓰지 않는다).
+    private readonly System.Collections.Generic.HashSet<string> _expandedCards = new();
+    private readonly System.Collections.Generic.HashSet<string> _collapsedGroups = new();
 
     // 창 윗부분을 잡고 끌어 옮기는 손잡이(심문 창에서만 쓴다).
     private Control _dragBar;
@@ -109,13 +120,20 @@ public partial class PhoneCallHud : CanvasLayer
         _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _panel.AddChild(_frame);
 
-        // 왼쪽 = 대화, 오른쪽 = 조사 자료. 일반 통화에서는 오른쪽 열을 숨긴다.
-        _body = new HBoxContainer();
-        _body.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        _body.AddThemeConstantOverride("separation", 18);
-        _panel.AddChild(_body);
+        // 위 = [왼쪽 대화 | 오른쪽 조사 노트], 아래 = 자료 A/B · 질문 · 비교 · 통화 종료(심문에서만).
+        // 일반 통화에서는 오른쪽 열과 아래 줄을 숨긴다.
+        _root = new VBoxContainer();
+        _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        // 창 테두리(홀로그램 모서리)와 글자가 붙지 않게 안쪽 여백.
+        _root.OffsetLeft = 24; _root.OffsetTop = 10; _root.OffsetRight = -24; _root.OffsetBottom = -10;
+        _root.AddThemeConstantOverride("separation", 10);
+        _panel.AddChild(_root);
 
-        _leftCol = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _body = new HBoxContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill };
+        _body.AddThemeConstantOverride("separation", 18);
+        _root.AddChild(_body);
+
+        _leftCol = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, SizeFlagsStretchRatio = 1.15f };
         _leftCol.AddThemeConstantOverride("separation", 10);
         _body.AddChild(_leftCol);
 
@@ -145,32 +163,24 @@ public partial class PhoneCallHud : CanvasLayer
         _message.CustomMinimumSize = new Vector2(0, 54);
         _leftCol.AddChild(_message);
 
+        // 진술 블록 · 질문은 길어질 수 있으므로 남는 자리 안에서 스크롤한다(버튼이 창 밖으로 밀리지 않게).
+        var leftHost = new Control { SizeFlagsVertical = Control.SizeFlags.ExpandFill, ClipContents = true };
+        _leftCol.AddChild(leftHost);
+        var leftScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+        leftScroll.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        leftHost.AddChild(leftScroll);
+        _leftInner = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        _leftInner.AddThemeConstantOverride("separation", 7);
+        leftScroll.AddChild(_leftInner);
+
         _choices = new VBoxContainer();
         _choices.AddThemeConstantOverride("separation", 7);
-        _leftCol.AddChild(_choices);
+        _leftInner.AddChild(_choices);
 
-        // 「선택한 자료로 질문 / 두 자료 비교」 — 심문에서만 뜨고, 늘 마지막 줄
-        // ("통화를 종료한다") 바로 위에 붙는다.
-        _evidenceActions = new HBoxContainer { Visible = false };
-        _evidenceActions.AddThemeConstantOverride("separation", 8);
-        _leftCol.AddChild(_evidenceActions);
-
-        _askBtn = ChoiceButton("선택한 자료로 질문", OnAskWithEvidence);
-        _askBtn.CustomMinimumSize = new Vector2(0, 38);
-        _askBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        _evidenceActions.AddChild(_askBtn);
-
-        _confrontBtn = ChoiceButton("두 자료를 비교 / 모순 추궁", OnConfront);
-        _confrontBtn.CustomMinimumSize = new Vector2(0, 38);
-        _confrontBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        _evidenceActions.AddChild(_confrontBtn);
-
-        // 맨 아래 한 줄(통화를 종료한다 / 다른 질문을 한다)은 따로 둔다 — 위 두 칸이
-        // 어떻게 바뀌든 이 줄은 항상 제일 밑이다.
+        // 맨 아래 한 줄(통화를 종료한다 / 다른 질문을 한다)은 따로 둔다 — 위가 어떻게 바뀌든 제일 밑이다.
         _tail = new VBoxContainer();
-        _leftCol.AddChild(_tail);
+        _leftInner.AddChild(_tail);
 
-        BuildEvidenceColumn();
         BuildDragBar();
 
         _incoming = new Label
@@ -251,83 +261,101 @@ public partial class PhoneCallHud : CanvasLayer
         _panel.OffsetBottom += fix.Y;
     }
 
-    // --- 조사 자료 열 ---------------------------------------------------
+    // --- MONITOR 01 심문 콘솔 --------------------------------------------
 
-    private void BuildEvidenceColumn()
+    // 심문 화면은 통화창이 아니라 MONITOR 01(휴게실 CRT) 안에 있다. 콘솔은 자리와 화면 전환만 갖고,
+    // 내용(진술 · 질문 · 카드 · 자료 A/B · 버튼)은 여기서 채운다.
+    // 3D 씬이 없는 캡처/테스트에서는 콘솔을 이 CanvasLayer 에 직접 띄운다.
+    private void AttachConsole()
     {
-        _evidenceCol = new VBoxContainer
+        var con = RestInterviewConsole.Instance;
+        if (con == null)
         {
-            Visible = false,
-            CustomMinimumSize = new Vector2(430, 0),
-            SizeFlagsHorizontal = Control.SizeFlags.Fill,
-        };
-        _evidenceCol.AddThemeConstantOverride("separation", 8);
-        _body.AddChild(_evidenceCol);
+            con = new RestInterviewConsole();
+            AddChild(con);
+        }
+        if (_console != con) { _console = con; _consoleWired = false; }
+        if (_consoleWired) return;
+        _consoleWired = true;
 
-        var head = Lbl("조 사 자 료", 17, Cyan);
-        head.HorizontalAlignment = HorizontalAlignment.Center;
-        _evidenceCol.AddChild(head);
+        _statementsHead = con.StatementsHead;
+        _statements = con.Statements;
+        _ivChoices = con.Choices;
+        _ivTail = con.Tail;
+        _noteTabs = con.NoteTabs;
+        _evidenceList = con.EvidenceList;
+        con.EndPressed += CloseCall;
 
-        // 분류 — 자료가 늘어나도 찾을 수 있게. 검색은 없다(DAY1 의 자료 수는 적다).
-        _evidenceFilters = new HFlowContainer();
-        _evidenceFilters.AddThemeConstantOverride("h_separation", 4);
-        _evidenceFilters.AddThemeConstantOverride("v_separation", 4);
-        _evidenceCol.AddChild(_evidenceFilters);
-
-        foreach (var (label, filter) in new (string, EvidenceFilter)[]
+        // 보기 탭 — 사건별(기본) / 현재 직원 / ★ 중요.
+        foreach (var (label, tab) in new (string, NoteTab)[]
                  {
-                     ("전체", EvidenceFilter.All), ("로그", EvidenceFilter.Log),
-                     ("사건", EvidenceFilter.Incident), ("CCTV", EvidenceFilter.Cctv),
-                     ("증언", EvidenceFilter.Statement), ("기분", EvidenceFilter.Mood),
-                     ("★", EvidenceFilter.Starred),
+                     ("사건별", NoteTab.ByIncident), ("현재 직원", NoteTab.CurrentEmployee), ("★ 중요", NoteTab.Starred),
                  })
         {
-            var f = filter;
+            var t = tab;
             var chip = FilterChip(label, () =>
             {
                 if (_session == null) return;
-                _session.Filter = f;
+                _session.SetTab(t);
                 RefreshEvidence();
             });
-            chip.SetMeta("filter", (int)f);
-            _evidenceFilters.AddChild(chip);
+            chip.SetMeta("tab", (int)t);
+            _noteTabs.AddChild(chip);
         }
 
-        // 이 직원 것만 볼지, 오늘 확보한 자료 전부를 볼지.
-        _scopeBtn = FilterChip("이 직원", () =>
-        {
-            if (_session == null) return;
-            _session.SetScope(!_session.ShowEveryone);
-            RefreshEvidence();
-        });
-        _evidenceFilters.AddChild(_scopeBtn);
+        // [자료 A] [자료 B]
+        _slotA = SlotButton(0);
+        _slotB = SlotButton(1);
+        con.SlotRow.AddChild(_slotA);
+        con.SlotRow.AddChild(_slotB);
 
-        // ScrollContainer 는 내용물의 최소 높이를 그대로 물려받는다. 그대로 두면 자료가
-        // 늘어날수록 세로로 밀려 아래의 버튼이 창 밖으로 나간다. 최소 높이가 없는 Control
-        // 안에 넣어 "남는 자리만 차지"하게 만든다.
-        var scrollHost = new Control
+        // [이 자료로 질문] [두 자료 비교 / 모순 추궁]
+        _askBtn = ChoiceButton("이 자료로 질문", OnAskWithEvidence);
+        _askBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _askBtn.SizeFlagsVertical = Control.SizeFlags.Fill;
+        con.ActionRow.AddChild(_askBtn);
+        _confrontBtn = ChoiceButton("두 자료 비교 / 모순 추궁", OnConfront);
+        _confrontBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        _confrontBtn.SizeFlagsVertical = Control.SizeFlags.Fill;
+        con.ActionRow.AddChild(_confrontBtn);
+    }
+
+    // 심문 콘솔(MONITOR 01) 안의 글자는 SubViewport 논리 크기, 통화 자막은 화면 크기.
+    private bool OnMonitor => _session != null;
+    private int Fz(int px) => OnMonitor ? ViewFont.S(px) : ViewFont.FS(px);
+
+    // 선택한 자료 한 칸. 누르면 그 자료의 선택이 풀린다.
+    private Button SlotButton(int index)
+    {
+        var b = new Button
         {
-            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-            ClipContents = true,
+            Alignment = HorizontalAlignment.Left,
+            VerticalIconAlignment = VerticalAlignment.Top,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            SizeFlagsVertical = Control.SizeFlags.Fill,
+            CustomMinimumSize = new Vector2(0, 88),
+            ClipText = true,
         };
-        _evidenceCol.AddChild(scrollHost);
-
-        var scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
-        scroll.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        scrollHost.AddChild(scroll);
-
-        _evidenceList = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        _evidenceList.AddThemeConstantOverride("separation", 5);
-        scroll.AddChild(_evidenceList);
-
+        b.AddThemeFontOverride("font", _font);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(13));
+        b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        b.Pressed += () =>
+        {
+            var ev = _session?.EvidenceAt(index);
+            if (ev == null) return;
+            _session.Toggle(ev.Id);
+            RefreshEvidence();
+        };
+        return b;
     }
 
     // 작은 분류 단추 하나.
     private Button FilterChip(string label, System.Action onPressed)
     {
-        var b = new Button { Text = label, CustomMinimumSize = new Vector2(0, 26) };
+        var b = new Button { Text = label, CustomMinimumSize = new Vector2(0, 30) };
         b.AddThemeFontOverride("font", _font);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(12));
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(14));
         b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         b.Pressed += onPressed;
         return b;
@@ -342,111 +370,225 @@ public partial class PhoneCallHud : CanvasLayer
             BgColor = on ? new Color(0.16f, 0.34f, 0.38f, 0.85f) : new Color(0.05f, 0.11f, 0.14f, 0.6f),
             BorderColor = on ? Cyan : Cyan with { A = 0.28f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
-            ContentMarginLeft = 8, ContentMarginRight = 8, ContentMarginTop = 2, ContentMarginBottom = 2,
+            ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 2, ContentMarginBottom = 2,
         };
         b.AddThemeStyleboxOverride("normal", box);
         b.AddThemeStyleboxOverride("hover", box);
         b.AddThemeStyleboxOverride("pressed", box);
     }
 
-    // 자료 카드를 다시 그린다. 답변으로 새 진술이 남으면 카드가 늘어난다.
+    // 조사 노트를 다시 그린다. 답변으로 새 진술이 남으면 카드가 늘어난다.
     private void RefreshEvidence()
     {
         if (_evidenceList == null || _session == null) return;
         foreach (var c in _evidenceList.GetChildren()) c.QueueFree();
 
-        foreach (Node c in _evidenceFilters.GetChildren())
-            if (c is Button chip && chip != _scopeBtn)
-                PaintChip(chip, (int)chip.GetMeta("filter", 0) == (int)_session.Filter);
-        _scopeBtn.Text = _session.ShowEveryone ? "전원" : "이 직원";
-        PaintChip(_scopeBtn, _session.ShowEveryone);
+        foreach (Node c in _noteTabs.GetChildren())
+            if (c is Button chip)
+                PaintChip(chip, (int)chip.GetMeta("tab", 0) == (int)_session.Tab);
 
         // 마지막으로 고른 자료와 같은 시간대의 자료. 밝기만 달라진다 —
         // 무엇이 단서인지는 화면이 판단하지 않는다.
         var near = _session.SameWindowIds();
-        var visible = _session.Visible();
+        int shown = 0;
 
-        foreach (var ev in visible)
+        switch (_session.Tab)
         {
-            var captured = ev;
-            bool on = _session.IsSelected(ev.Id);
-            bool usable = _session.CanUse(ev);
-            bool star = _session.IsStarred(ev.Id);
-
-            var row = new HBoxContainer();
-            row.AddThemeConstantOverride("separation", 3);
-            _evidenceList.AddChild(row);
-
-            // ★ — 플레이어가 직접 찍는 메모. 게임이 중요도를 정하지 않는다.
-            var mark = new Button
-            {
-                Text = star ? "★" : "☆",
-                CustomMinimumSize = new Vector2(28, 32),
-                TooltipText = "중요 표시",
-            };
-            mark.AddThemeFontOverride("font", _font);
-            mark.AddThemeFontSizeOverride("font_size", ViewFont.FS(13));
-            mark.AddThemeColorOverride("font_color", star ? Amber : Cyan with { A = 0.45f });
-            mark.AddThemeColorOverride("font_hover_color", Amber);
-            mark.AddThemeStyleboxOverride("normal", new StyleBoxEmpty());
-            mark.AddThemeStyleboxOverride("hover", new StyleBoxEmpty());
-            mark.AddThemeStyleboxOverride("pressed", new StyleBoxEmpty());
-            mark.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-            mark.Pressed += () => { _session.ToggleStar(captured.Id); RefreshEvidence(); };
-            row.AddChild(mark);
-
-            string prefix = !usable
-                ? "· "
-                : on ? "▣ " : "□ ";
-            // 전원 보기에서는 누구의 자료인지 앞에 붙여 준다.
-            string who = _session.ShowEveryone && !string.IsNullOrEmpty(ev.SubjectEmployeeId)
-                         && ev.SubjectEmployeeId != _session.EmployeeId
-                ? InterviewEvidenceBoard.Codename(ev.SubjectEmployeeId) + " · "
-                : "";
-
-            var b = new Button
-            {
-                Text = prefix + who + ev.OneLine,
-                Alignment = HorizontalAlignment.Left,
-                ClipText = true,
-                CustomMinimumSize = new Vector2(0, 32),
-                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-            };
-            b.AddThemeFontOverride("font", _font);
-            b.AddThemeFontSizeOverride("font_size", ViewFont.FS(13));
-            b.AddThemeColorOverride("font_color",
-                on ? Colors.White : usable ? Cyan : Cyan with { A = 0.45f });
-            b.AddThemeColorOverride("font_hover_color", Colors.White);
-            float glow = on ? 0.8f : near.Contains(ev.Id) ? 0.7f : 0.6f;
-            var box = new StyleBoxFlat
-            {
-                BgColor = on ? new Color(0.16f, 0.34f, 0.38f, 0.8f)
-                    : near.Contains(ev.Id) ? new Color(0.09f, 0.19f, 0.23f, glow)
-                    : new Color(0.06f, 0.13f, 0.16f, glow),
-                BorderColor = on ? Cyan : near.Contains(ev.Id) ? Cyan with { A = 0.55f } : Cyan with { A = 0.32f },
-                BorderWidthLeft = on ? 3 : near.Contains(ev.Id) ? 3 : 1,
-                BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
-                ContentMarginLeft = 9, ContentMarginRight = 9, ContentMarginTop = 4, ContentMarginBottom = 4,
-            };
-            b.AddThemeStyleboxOverride("normal", box);
-            b.AddThemeStyleboxOverride("hover", box);
-            b.AddThemeStyleboxOverride("pressed", box);
-            b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-            b.Pressed += () =>
-            {
-                _session.Toggle(captured.Id);
-                RefreshEvidence();
-            };
-            row.AddChild(b);
+            case NoteTab.ByIncident:
+                foreach (var g in InterviewEvidenceDisplay.ByIncident(_session.Board))
+                {
+                    AddGroupHeader(g);
+                    if (_collapsedGroups.Contains(g.Key)) continue;
+                    foreach (var card in g.Cards) { AddCard(card, near); shown++; }
+                }
+                break;
+            case NoteTab.CurrentEmployee:
+                foreach (var card in InterviewEvidenceDisplay.Compress(_session.Board)) { AddCard(card, near); shown++; }
+                break;
+            case NoteTab.Starred:
+                foreach (var ev in _session.Board)
+                {
+                    if (!_session.IsStarred(ev.Id)) continue;
+                    var single = new EvidenceCard();
+                    single.Items.Add(ev);
+                    AddCard(single, near);
+                    shown++;
+                }
+                break;
         }
 
-        if (visible.Count == 0)
-            _evidenceList.AddChild(Lbl(_session.Board.Count == 0
-                ? "확보한 자료가 없습니다."
-                : "이 분류에는 자료가 없습니다.", 13, new Color(0.55f, 0.62f, 0.66f)));
+        if (shown == 0)
+            _evidenceList.AddChild(Lbl(_session.Tab == NoteTab.Starred
+                ? "★ 로 표시한 자료가 없습니다."
+                : "확보한 자료가 없습니다.", 13, new Color(0.55f, 0.62f, 0.66f)));
+
+        UpdateSlots();
+    }
+
+    // 사건 묶음 머리 — 누르면 접고 편다.
+    private void AddGroupHeader(EvidenceGroup g)
+    {
+        bool closed = _collapsedGroups.Contains(g.Key);
+        var b = new Button
+        {
+            Text = (closed ? "▶  " : "▼  ") + g.Title,
+            Alignment = HorizontalAlignment.Left,
+            ClipText = true,
+            CustomMinimumSize = new Vector2(0, 30),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        b.AddThemeFontOverride("font", _font);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
+        b.AddThemeColorOverride("font_color", g.Incident != null ? Amber : Cyan with { A = 0.7f });
+        b.AddThemeColorOverride("font_hover_color", Colors.White);
+        var box = new StyleBoxFlat
+        {
+            BgColor = new Color(0.03f, 0.07f, 0.09f, 0.55f),
+            BorderColor = (g.Incident != null ? Amber : Cyan) with { A = 0.35f },
+            BorderWidthBottom = 1,
+            ContentMarginLeft = 6, ContentMarginRight = 6, ContentMarginTop = 2, ContentMarginBottom = 2,
+        };
+        foreach (string st in new[] { "normal", "hover", "pressed" }) b.AddThemeStyleboxOverride(st, box);
+        b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        string key = g.Key;
+        b.Pressed += () =>
+        {
+            if (!_collapsedGroups.Remove(key)) _collapsedGroups.Add(key);
+            RefreshEvidence();
+        };
+        _evidenceList.AddChild(b);
+    }
+
+    // 카드 한 장. 묶음 카드는 눌러서 펼치고, 펼친 상세의 원본 자료를 골라 질문 · 비교에 쓴다.
+    private void AddCard(EvidenceCard card, System.Collections.Generic.HashSet<string> near)
+    {
+        if (card == null || card.Items.Count == 0) return;
+        if (!card.IsCluster)
+        {
+            AddEvidenceRow(card.First, InterviewEvidenceDisplay.Title(card), InterviewEvidenceDisplay.Body(card), 0, near);
+            return;
+        }
+
+        bool open = _expandedCards.Contains(card.Key);
+        bool anySelected = card.Items.Exists(e => _session.IsSelected(e.Id));
+        bool anyNear = card.Items.Exists(e => near.Contains(e.Id));
+        bool usable = card.Items.Exists(e => _session.CanUse(e));
+        string title = (open ? "▾ " : "▸ ") + InterviewEvidenceDisplay.Title(card) + $"   · 기록 {card.Items.Count}건";
+        var b = CardButton(title + "\n" + InterviewEvidenceDisplay.Body(card), anySelected, anyNear, usable);
+        string key = card.Key;
+        b.Pressed += () =>
+        {
+            if (!_expandedCards.Remove(key)) _expandedCards.Add(key);
+            RefreshEvidence();
+        };
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 3);
+        row.AddChild(new Control { CustomMinimumSize = new Vector2(28, 0) });   // ★ 칸 자리 맞춤
+        row.AddChild(b);
+        _evidenceList.AddChild(row);
+
+        if (!open) return;
+        var detailHead = Lbl("      ▼ 상세 기록", 12, Cyan with { A = 0.6f });
+        _evidenceList.AddChild(detailHead);
+        foreach (var ev in card.Items)
+            AddEvidenceRow(ev, InterviewEvidenceDisplay.DetailLine(ev), null, 1, near);
+    }
+
+    // 원본 자료 한 장 — ★ 와 선택 버튼.
+    private void AddEvidenceRow(InterviewEvidence ev, string line1, string line2, int indent,
+        System.Collections.Generic.HashSet<string> near)
+    {
+        var captured = ev;
+        bool on = _session.IsSelected(ev.Id);
+        bool usable = _session.CanUse(ev);
+        bool star = _session.IsStarred(ev.Id);
+
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 3);
+        _evidenceList.AddChild(row);
+        if (indent > 0) row.AddChild(new Control { CustomMinimumSize = new Vector2(22 * indent, 0) });
+
+        // ★ — 플레이어가 직접 찍는 메모. 게임이 중요도를 정하지 않는다.
+        var mark = new Button
+        {
+            Text = star ? "★" : "☆",
+            CustomMinimumSize = new Vector2(28, 32),
+            TooltipText = "중요 표시",
+        };
+        mark.AddThemeFontOverride("font", _font);
+        mark.AddThemeFontSizeOverride("font_size", ViewFont.S(14));
+        mark.AddThemeColorOverride("font_color", star ? Amber : Cyan with { A = 0.45f });
+        mark.AddThemeColorOverride("font_hover_color", Amber);
+        foreach (string st in new[] { "normal", "hover", "pressed", "focus" })
+            mark.AddThemeStyleboxOverride(st, new StyleBoxEmpty());
+        mark.Pressed += () => { _session.ToggleStar(captured.Id); RefreshEvidence(); };
+        row.AddChild(mark);
+
+        string prefix = !usable ? "· " : on ? "▣ " : "□ ";
+        string text = prefix + line1 + (string.IsNullOrEmpty(line2) ? "" : "\n     " + line2);
+        var b = CardButton(text, on, near.Contains(ev.Id), usable);
+        b.Pressed += () =>
+        {
+            _session.Toggle(captured.Id);
+            RefreshEvidence();
+        };
+        row.AddChild(b);
+    }
+
+    private Button CardButton(string text, bool on, bool near, bool usable)
+    {
+        var b = new Button
+        {
+            Text = text,
+            Alignment = HorizontalAlignment.Left,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            CustomMinimumSize = new Vector2(0, 32),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        b.AddThemeFontOverride("font", _font);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(13));
+        b.AddThemeColorOverride("font_color", on ? Colors.White : usable ? Cyan : Cyan with { A = 0.5f });
+        b.AddThemeColorOverride("font_hover_color", Colors.White);
+        var box = new StyleBoxFlat
+        {
+            BgColor = on ? new Color(0.16f, 0.34f, 0.38f, 0.8f)
+                : near ? new Color(0.09f, 0.19f, 0.23f, 0.7f)
+                : new Color(0.06f, 0.13f, 0.16f, 0.6f),
+            BorderColor = on ? Cyan : near ? Cyan with { A = 0.55f } : Cyan with { A = 0.32f },
+            BorderWidthLeft = on || near ? 3 : 1,
+            BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+            ContentMarginLeft = 9, ContentMarginRight = 9, ContentMarginTop = 4, ContentMarginBottom = 4,
+        };
+        foreach (string st in new[] { "normal", "hover", "pressed" }) b.AddThemeStyleboxOverride(st, box);
+        b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        return b;
+    }
+
+    // 아래 「자료 A / 자료 B」 칸과 두 버튼의 활성 상태.
+    private void UpdateSlots()
+    {
+        if (_session == null || _slotA == null) return;
+        for (int i = 0; i < 2; i++)
+        {
+            var slot = i == 0 ? _slotA : _slotB;
+            var ev = _session.EvidenceAt(i);
+            string head = i == 0 ? "[자료 A]" : "[자료 B]";
+            slot.Text = head + "\n" + (ev == null ? "— 비어 있음" : InterviewEvidenceDisplay.SlotLine(ev));
+            slot.TooltipText = ev == null ? "" : "누르면 선택을 해제합니다.";
+            slot.AddThemeColorOverride("font_color", ev == null ? Cyan with { A = 0.45f } : Colors.White);
+            slot.AddThemeColorOverride("font_hover_color", Colors.White);
+            var box = new StyleBoxFlat
+            {
+                BgColor = ev == null ? new Color(0.03f, 0.07f, 0.09f, 0.5f) : new Color(0.10f, 0.22f, 0.26f, 0.8f),
+                BorderColor = Cyan with { A = ev == null ? 0.25f : 0.7f },
+                BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+                ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 6, ContentMarginBottom = 6,
+            };
+            foreach (string st in new[] { "normal", "hover", "pressed" }) slot.AddThemeStyleboxOverride(st, box);
+        }
 
         int picked = _session.Selected.Count;
-        _askBtn.Disabled = picked == 0;
+        _askBtn.Disabled = picked != 1;
         _confrontBtn.Disabled = picked != 2;
     }
 
@@ -454,7 +596,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         var l = new Label { Text = t };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
+        l.AddThemeFontSizeOverride("font_size", Fz(size));
         l.AddThemeColorOverride("font_color", c);
         return l;
     }
@@ -486,6 +628,15 @@ public partial class PhoneCallHud : CanvasLayer
     public bool ContainsPoint(Vector2 screenPosition) =>
         IsOpen && _panel != null && _panel.GetGlobalRect().HasPoint(screenPosition);
 
+    // 이 입력을 3D 모니터로 넘기면 안 되는가. 일반 · 수신 통화 중에는 전부 막고,
+    // 휴게시간 심문 중에는 자막 띠 위를 누를 때만 막는다(심문 조작은 MONITOR 01 에서 한다).
+    public bool BlocksCrtInput(InputEvent e)
+    {
+        if (!IsOpen) return false;
+        if (_session == null) return true;
+        return e is InputEventMouse m && ContainsPoint(m.Position);
+    }
+
     public void Open(string employeeId, string dialogueEvent = DialogueRepository.EventGeneralCall,
         string incidentRoomId = "")
     {
@@ -505,22 +656,32 @@ public partial class PhoneCallHud : CanvasLayer
         Color own = def?.IconColor ?? Cyan;
         _speaker.AddThemeColorOverride("font_color", Readable(own));
         _message.AddThemeColorOverride("default_color", Readable(own).Lerp(Colors.White, 0.62f));
-        // 「선택한 자료로 질문 / 두 자료 비교」 도 그 직원의 고유색으로(토끼 = 분홍 …).
-        TintAction(_askBtn, Readable(own));
-        TintAction(_confrontBtn, Readable(own));
+        // 「이 자료로 질문 / 두 자료 비교」 도 그 직원의 고유색으로(토끼 = 분홍 …).
 
         ClearChoices();
 
         if (_dialogueEvent == LocalInterviewDialogue.EventDay1Interview)
         {
-            // 휴게시간 심문 — 질문은 플레이어가 조사 자료에서 직접 만든다.
+            // 휴게시간 심문 — 직원이 먼저 근무 진술을 몇 마디 하고(세션이 한 번만 만든다),
+            // 플레이어는 진술을 골라 캐묻거나 조사 노트의 자료로 묻는다.
             _session = new InterviewSession(employeeId);
+            _session.SetTab(NoteTab.ByIncident);
+            AttachConsole();
+            _console.Open(def?.Codename ?? employeeId, Readable(own));
+            // 「이 자료로 질문 / 두 자료 비교」 도 그 직원의 고유색으로(토끼 = 분홍 …).
+            TintAction(_askBtn, Readable(own));
+            TintAction(_confrontBtn, Readable(own));
+            _expandedCards.Clear();
+            _collapsedGroups.Clear();
             _followUps.Clear();
             _intents.Clear();
             _playerLine.Visible = false;
             RefreshEvidence();
             string greeting = _session.Greeting();
             RecordNpc(greeting, DialogueEntryType.NpcLine, DialogueConversationType.Interview);
+            foreach (var st in _session.Openings)
+                RecordNpc(st.Text, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+            BuildStatements();
             StartTyping("\"" + greeting + "\"", AfterMode.InterviewMenu);
             return;
         }
@@ -645,25 +806,87 @@ public partial class PhoneCallHud : CanvasLayer
 
     // --- 휴게시간 심문 --------------------------------------------------
 
-    // 기본 질문 — 증거 없이도 물을 수 있는 도입부. 인터뷰의 중심이 아니다.
+    // 심문 기본 화면 — 직원의 근무 진술 블록과, 고른 진술에서 이어지는 꼬리질문만.
+    // (예전의 기본 질문 세 개는 목록으로 띄우지 않는다 — 그 답이 곧 진술 블록이다.)
     private void BuildInterviewMenu()
     {
         ClearChoices();
         _followUps.Clear();
         _intents.Clear();
         RefreshEvidence();
-        foreach (var q in _session.BasicQuestions())
+        BuildStatements();
+        if (_session == null) return;
+
+        if (_session.SelectedOpening < 0)
         {
-            var captured = q;
-            _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
+            if (_session.Openings.Count > 0)
+                _ivChoices.AddChild(Wrap(Lbl("진술을 누르면 그 내용에 대해 물어볼 수 있습니다.  조사 노트의 자료로도 질문할 수 있습니다.",
+                    13, new Color(0.55f, 0.66f, 0.70f))));
+            return;
         }
-        AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall));
+
+        var fus = _session.OpeningFollowUps();
+        if (fus.Count == 0)
+        {
+            _ivChoices.AddChild(Wrap(Lbl("이 진술에서 더 물어볼 것은 없습니다.", 13, new Color(0.55f, 0.66f, 0.70f))));
+            return;
+        }
+        foreach (var fq in fus)
+        {
+            var captured = fq;
+            string text = (_session.WasAskedFollowUp(fq) ? "✓  " : "") + fq.Text;
+            _ivChoices.AddChild(InterviewChoiceButton(text, () => AskOpeningFollowUp(captured)));
+        }
+    }
+
+    private static Label Wrap(Label l)
+    {
+        l.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        return l;
+    }
+
+    // 근무 진술 블록(클릭 가능). 긴 한 문단으로 합치지 않는다.
+    private void BuildStatements()
+    {
+        if (_statements == null) return;
+        foreach (var c in _statements.GetChildren()) { _statements.RemoveChild(c); c.QueueFree(); }
+        bool any = _session != null && _session.Openings.Count > 0;
+        _statementsHead.Visible = any;
+        if (!any) return;
+
+        foreach (var st in _session.Openings)
+        {
+            int idx = st.Index;
+            bool on = _session.SelectedOpening == idx;
+            var b = CardButton($"[근무 진술 {idx + 1}]\n\"{st.Text}\"", on, false, true);
+            b.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
+            b.Pressed += () =>
+            {
+                _session.SelectOpening(idx);
+                if (!_typing) BuildInterviewMenu(); else BuildStatements();
+            };
+            _statements.AddChild(b);
+        }
+    }
+
+    // 진술에서 나온 꼬리질문 → 기존 꼬리질문 답변(FollowUpAnswer).
+    private void AskOpeningFollowUp(FollowUpQuestion q)
+    {
+        if (_session == null || q == null) return;
+        ClearChoices();
+        var turn = _session.AskFollowUp(q);
+        LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
+        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
+        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        ShowPlayerLine(turn.QuestionText);
+        RefreshEvidence();
+        StartTyping("\"" + turn.Answer + "\"", AfterMode.InterviewMenu);
     }
 
     // 「선택한 자료로 질문」 — 고른 자료로 물을 수 있는 것들을 왼쪽에 펼친다.
     private void OnAskWithEvidence()
     {
-        if (_session == null) return;
+        if (_session == null || _session.Selected.Count != 1) return;
         _intents = _session.QuestionsForSelection();
         if (_intents.Count == 0)
         {
@@ -671,6 +894,7 @@ public partial class PhoneCallHud : CanvasLayer
             return;
         }
         BuildIntentChoices();
+        _console?.ShowPage(RestInterviewConsole.Page.Interview);
     }
 
     private void BuildIntentChoices()
@@ -679,9 +903,9 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _intents)
         {
             var captured = q;
-            _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
+            _ivChoices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
-        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        _ivTail.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
     // 이미 물어본 질문에는 체크 표시만 붙인다 — 목록에서 사라지지는 않는다.
@@ -711,9 +935,9 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _followUps)
         {
             var captured = q;
-            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
+            _ivChoices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
         }
-        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        _ivTail.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
     // 「두 자료를 비교」 — 모순인지 아닌지는 여기서 처음 밝혀진다.
@@ -820,7 +1044,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         var b = new Button { Text = "  ›  " + text, Alignment = HorizontalAlignment.Left };
         b.AddThemeFontOverride("font", _font);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
+        b.AddThemeFontSizeOverride("font_size", Fz(15));
         b.CustomMinimumSize = new Vector2(0, 40);
         b.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         b.AddThemeColorOverride("font_color", Cyan);
@@ -854,60 +1078,32 @@ public partial class PhoneCallHud : CanvasLayer
     private Button InterviewChoiceButton(string text, System.Action onPressed)
     {
         var b = ChoiceButton(text, onPressed);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
+        b.AddThemeFontSizeOverride("font_size", Fz(15));
         b.CustomMinimumSize = new Vector2(0, 36);
         return b;
     }
 
     // 「L 로그 / D 대화 기록」 버튼이 쓰는 화면 아래 자리. 여기까지만 내려온다.
     private const float InterviewBottomGap = 86f;
-    private const float InterviewMinHeight = 300f;
-    private const float InterviewMaxHeight = 486f;
 
-    private bool _fitQueued;
-
-    // 창 높이를 내용에 맞춘다 — 아래는 「L 로그 / D 대화 기록」 위에 고정하고 위만 늘린다.
-    // (고정 높이로 두면 선택지가 적을 때 창 아래가 통째로 비어 보였다.)
-    //
-    // 높이는 컨테이너에 묻지 않고 실제로 놓인 자리를 읽는다 — 자동 줄바꿈이 켜진
-    // 라벨/버튼은 최소 높이를 "가장 좁게 접었을 때"로 보고해서 엉뚱하게 커진다.
-    // 그래서 자식 정렬이 끝난 다음 프레임에 맨 아랫줄의 바닥을 잰다.
-    private async void FitInterviewHeight()
-    {
-        if (_fitQueued) return;
-        _fitQueued = true;
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        _fitQueued = false;
-
-        if (!IsInstanceValid(this) || _panel == null || _tail == null) return;
-        if (_evidenceCol == null || !_evidenceCol.Visible) return;
-
-        float need = _tail.Position.Y + _tail.Size.Y + 16f;
-        // 오른쪽 조사 자료도 높이를 요구한다 — 자료가 여러 장인데 창이 낮으면
-        // 목록이 두세 줄만 보여 근무 내내 모은 것을 한눈에 볼 수 없다.
-        if (_evidenceList != null)
-            need = Mathf.Max(need, _evidenceList.GetChildCount() * 37f + 132f);
-        _panel.OffsetTop = _panel.OffsetBottom - Mathf.Clamp(need, InterviewMinHeight, InterviewMaxHeight);
-    }
+    // 심문 중 자막 띠 높이(화면 px). 이름 · 질문 · 답변 두세 줄.
+    private const float SubtitleHeight = 168f;
 
     private void SetInterviewLayout(bool interview)
     {
-        if (_evidenceCol != null) _evidenceCol.Visible = interview;
-        if (_evidenceActions != null) _evidenceActions.Visible = interview;
         if (_dragBar != null) _dragBar.Visible = interview;
         _dragging = false;
 
         if (interview)
         {
-            // 심문은 왼쪽 대화 + 오른쪽 조사 자료의 두 열이라 넓은 판이 필요하다.
-            _panel.AnchorLeft = 0.06f;
-            _panel.AnchorRight = 0.94f;
+            // 심문 UI 는 MONITOR 01 에 있고 MONITOR 02 에는 직원이 서 있다 — 통화창은 두 모니터와
+            // 책상을 가리지 않도록 화면 아래 얇은 자막 띠로만 쓴다(질문 · 답변 한 줄 남짓).
+            _panel.AnchorLeft = 0.18f;
+            _panel.AnchorRight = 0.82f;
             _panel.AnchorTop = 1f;
             _panel.AnchorBottom = 1f;
             _panel.OffsetBottom = -InterviewBottomGap;
-            _panel.OffsetTop = -InterviewMaxHeight;
-            FitInterviewHeight();
+            _panel.OffsetTop = -InterviewBottomGap - SubtitleHeight;
             return;
         }
 
@@ -921,15 +1117,17 @@ public partial class PhoneCallHud : CanvasLayer
 
     private void ClearChoices()
     {
-        foreach (var c in _choices.GetChildren()) { _choices.RemoveChild(c); c.QueueFree(); }
-        foreach (var c in _tail.GetChildren()) { _tail.RemoveChild(c); c.QueueFree(); }
+        foreach (var box in new Control[] { _choices, _tail, _ivChoices, _ivTail })
+        {
+            if (box == null) continue;
+            foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); }
+        }
     }
 
     // 목록의 맨 아래 한 줄. 조사 자료 버튼 두 칸보다 항상 아래에 놓인다.
     private void AddTail(Button b)
     {
         _tail.AddChild(b);
-        FitInterviewHeight();
     }
 
     private void CloseCall()
@@ -940,6 +1138,8 @@ public partial class PhoneCallHud : CanvasLayer
         EmployeeMouthAnimator.Reset();
         ClearChoices();
         _session = null;
+        BuildStatements();
+        _console?.Close();
         _followUps.Clear();
         _intents.Clear();
         ShowPlayerLine("");

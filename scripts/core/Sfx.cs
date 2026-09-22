@@ -428,6 +428,14 @@ public partial class Sfx : Node
         _loops[key] = p;
     }
 
+    // 돌고 있는 루프의 볼륨만 바꾼다(엔딩 경고음이 점점 커지는 연출).
+    public void SetLoopVolume(string key, float volumeDb)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p)) p.VolumeDb = volumeDb;
+    }
+
+    public bool IsLooping(string key) => _loops.ContainsKey(key);
+
     public void StopLoop(string key)
     {
         if (!_loops.TryGetValue(key, out var p)) return;

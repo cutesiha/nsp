@@ -45,7 +45,216 @@ public partial class RestEvidenceTest : Node
         TestH();
         TestI();
         TestJ();
+        // 심문 개편(최초 진술 → 진술 꼬리질문 → 조사 노트 → 자료 비교) 검증.
+        TestNewA();
+        TestNewB();
+        TestNewC();
+        TestNewD();
+        TestNewE();
+        TestNewF();
+        TestNewG();
+        TestNewH();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
+    }
+
+    // ── 신규 A : 인터뷰를 만들면 최초 진술 블록이 생긴다 ──────────────────
+    private void TestNewA()
+    {
+        Head("신규 A", "인터뷰 생성 → 최초 진술 블록");
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Storage, At(30));   // 고양이가 근무하던 방
+
+        var session = new InterviewSession("cat");
+        foreach (var o in session.Openings) GD.Print($"   [근무 진술 {o.Index + 1}] ({o.QuestionId}) {o.Text}  · 꼬리질문 {o.FollowUps.Count}");
+        Check(session.Openings.Count >= 2 && session.Openings.Count <= 4, $"진술 블록 2~4개 ({session.Openings.Count}개)");
+        Check(session.Openings.All(o => !string.IsNullOrWhiteSpace(o.Text)), "빈 진술 블록이 없다");
+        Check(session.Openings.Select(o => o.Text).Distinct().Count() == session.Openings.Count,
+            "같은 문장이 두 블록으로 나오지 않는다");
+    }
+
+    // ── 신규 B : Refresh 해도 최초 진술은 그대로 ───────────────────────────
+    private void TestNewB()
+    {
+        Head("신규 B", "Refresh · 탭 전환 후에도 최초 진술 유지");
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Storage, At(30));
+
+        var session = new InterviewSession("cat");
+        var texts = session.Openings.Select(o => o.Text).ToList();
+        var lists = session.Openings.Select(o => o.FollowUps).ToList();
+        session.Refresh();
+        session.SetTab(NoteTab.ByIncident);
+        session.Refresh();
+        session.SetTab(NoteTab.CurrentEmployee);
+        var incident = session.Board.First(e => e.Kind == EvidenceKind.Incident);
+        session.Ask(InterviewQuestionFactory.Make("cat", incident, InterviewIntent.AskWhereAtIncident));
+
+        Check(session.Openings.Select(o => o.Text).SequenceEqual(texts), "진술 문장이 다시 생성되거나 바뀌지 않는다");
+        Check(session.Openings.Select(o => o.FollowUps).Zip(lists, ReferenceEquals).All(x => x),
+            "진술의 꼬리질문 목록도 그대로다");
+    }
+
+    // ── 신규 C : 진술을 고르면 그 진술의 꼬리질문만 ────────────────────────
+    private void TestNewC()
+    {
+        Head("신규 C", "진술 선택 → 그 진술에서 나온 꼬리질문만");
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Storage, At(30));
+
+        var session = new InterviewSession("cat");
+        var withFu = session.Openings.FirstOrDefault(o => o.FollowUps.Count > 0);
+        Check(withFu != null, "꼬리질문이 달린 진술이 있다(직접 겪은 사고)");
+        if (withFu == null) return;
+
+        Check(session.OpeningFollowUps().Count == 0, "진술을 고르기 전에는 꼬리질문이 없다");
+        session.SelectOpening(withFu.Index);
+        var shown = session.OpeningFollowUps();
+        GD.Print($"   진술 {withFu.Index + 1} 꼬리질문: {string.Join(" / ", shown.Select(q => q.Text))}");
+        Check(ReferenceEquals(shown, withFu.FollowUps), "고른 진술의 FollowUps 가 그대로 뜬다");
+        Check(shown.All(q => q.BaseQuestionId == withFu.QuestionId), "다른 진술의 질문이 섞이지 않는다");
+
+        var other = session.Openings.FirstOrDefault(o => o != withFu);
+        if (other != null)
+        {
+            session.SelectOpening(other.Index);
+            Check(ReferenceEquals(session.OpeningFollowUps(), other.FollowUps), "다른 진술을 고르면 그 진술의 질문으로 바뀐다");
+        }
+        session.SelectOpening(withFu.Index);
+        var turn = session.AskFollowUp(shown[0]);
+        GD.Print($"   Q: {turn.QuestionText}\n   A: {turn.Answer}");
+        Check(!string.IsNullOrWhiteSpace(turn.Answer), "진술 꼬리질문에 기존 로컬 답변이 돌아온다");
+        Check(session.WasAskedFollowUp(shown[0]), "물어본 꼬리질문은 체크 표시된다");
+    }
+
+    // ── 신규 D : CCTV 반복 기록 5개 → 화면에선 한 장, 원본은 5장 ─────────────
+    private void TestNewD()
+    {
+        Head("신규 D", "CCTV 반복 5건 → 범위 카드 1장 · 원본 5장 유지");
+        Reset();
+        Deploy();
+        // 여우가 저장고에 계속 있고, 고양이가 드나든다(같은 인원 반복은 기록 단계에서 이미 걸러진다).
+        for (int i = 0; i < 5; i++)
+            PlayerKnownEvidence.RecordCctvObservation(Storage, At(191 + i * 6),
+                i % 2 == 0 ? new[] { "fox" } : new[] { "fox", "cat" });
+
+        var board = InterviewEvidenceBoard.Build("fox");
+        var cctv = board.Where(e => e.Kind == EvidenceKind.Cctv).ToList();
+        var cards = InterviewEvidenceDisplay.Compress(board);
+        var range = cards.Where(c => c.Kind == EvidenceCardKind.CctvRange).ToList();
+        if (range.Count > 0)
+            GD.Print($"   카드: {InterviewEvidenceDisplay.Title(range[0])} / {InterviewEvidenceDisplay.Body(range[0])}");
+        Check(cctv.Count == 5, $"원본 CCTV 자료 5장 ({cctv.Count}장)");
+        Check(range.Count == 1 && range[0].Items.Count == 5, "표시 레이어에서는 CCTV 범위 카드 하나");
+        Check(InterviewEvidenceBoard.Build("fox").Count(e => e.Kind == EvidenceKind.Cctv) == 5,
+            "압축한 뒤에도 원본 InterviewEvidence 는 그대로 5장");
+    }
+
+    // ── 신규 E : 펼친 묶음의 원본 자료로 모순 추궁이 된다 ──────────────────
+    private void TestNewE()
+    {
+        Head("신규 E", "묶음 카드 펼침 → 원본 자료 선택 → EvidenceContradiction");
+        Reset();
+        Deploy();
+        for (int i = 0; i < 3; i++)
+            PlayerKnownEvidence.RecordCctvObservation(Storage, At(191 + i * 6),
+                i % 2 == 0 ? new[] { "fox" } : new[] { "fox", "cat" });
+        PlayerKnownEvidence.RecordLocationStatement("fox", "t:191", Maintenance, true, At(191));
+
+        var session = new InterviewSession("fox");
+        var card = InterviewEvidenceDisplay.Compress(session.Board).First(c => c.Kind == EvidenceCardKind.CctvRange);
+        var detail = card.Items[0];
+        var claim = session.Board.First(e => e.Kind == EvidenceKind.OwnStatement && e.SubjectRoomId == Maintenance);
+        session.Toggle(detail.Id);
+        session.Toggle(claim.Id);
+        var r = session.CheckContradiction();
+        GD.Print($"   Q: {r.QuestionText}");
+        Check(session.IsSelected(detail.Id), "펼친 상세의 원본 자료가 선택된다");
+        Check(r.IsContradiction, "원본 자료가 그대로 모순 판정에 전달된다");
+    }
+
+    // ── 신규 F : 사고 · 증언 · 본인 진술은 자동 병합되지 않는다 ──────────────
+    private void TestNewF()
+    {
+        Head("신규 F", "Incident / Testimony / OwnStatement 는 묶지 않는다");
+        var list = new List<InterviewEvidence>();
+        for (int i = 0; i < 3; i++)
+        {
+            float t = At(60 + i);
+            list.Add(new InterviewEvidence { Id = $"i{i}", Kind = EvidenceKind.Incident, HasTime = true, AnchorTime = t, SubjectRoomId = Power });
+            list.Add(new InterviewEvidence { Id = $"s{i}", Kind = EvidenceKind.Testimony, HasTime = true, AnchorTime = t,
+                SubjectEmployeeId = "fox", SpeakerEmployeeId = "cat", SubjectRoomId = Power, Position = PositionClaim.AtRoom });
+            list.Add(new InterviewEvidence { Id = $"c{i}", Kind = EvidenceKind.OwnStatement, HasTime = true, AnchorTime = t,
+                SubjectEmployeeId = "fox", SpeakerEmployeeId = "fox", SubjectRoomId = Power, Position = PositionClaim.AtRoom });
+        }
+        var cards = InterviewEvidenceDisplay.Compress(list);
+        Check(cards.Count == list.Count && cards.All(c => c.Kind == EvidenceCardKind.Single),
+            $"9장 모두 개별 카드 ({cards.Count}장)");
+
+        var groups = InterviewEvidenceDisplay.ByIncident(list);
+        Check(groups.Count(g => g.Incident != null) == 3, "사고마다 사건 묶음이 하나씩 생긴다");
+        Check(groups.Sum(g => g.Cards.Count) == list.Count, "각 자료는 한 묶음에만 들어간다");
+    }
+
+    // ── 신규 G : 플레이어에게 보이는 시각은 한글 시간대 표기 ─────────────────
+    private void TestNewG()
+    {
+        Head("신규 G", "시각 표기 — 밤 · 새벽");
+        var cases = new (int h, int m, string want)[]
+        {
+            (21, 20, "밤 9시 20분"), (22, 12, "밤 10시 12분"), (23, 15, "밤 11시 15분"),
+            (0, 0, "새벽 12시"), (0, 45, "새벽 12시 45분"), (1, 10, "새벽 1시 10분"),
+            (2, 30, "새벽 2시 30분"), (3, 13, "새벽 3시 13분"),
+        };
+        foreach (var (h, m, want) in cases)
+            Check(DialogueClock.Format(h, m) == want, $"{h:00}:{m:00} → {DialogueClock.Format(h, m)}");
+
+        // 근무 시계(22:00 = 0초)에서도 같은 표기가 나온다.
+        Check(DialogueClock.Text(At(12) + 0.01f) == "밤 10시 12분", "근무 12분 → 밤 10시 12분");
+        Check(DialogueClock.Text(At(165) + 0.01f) == "새벽 12시 45분", "근무 165분 → 새벽 12시 45분");
+        Check(DialogueClock.Range(At(162) + 0.01f, At(168) + 0.01f) == "새벽 12시 42분 ~ 새벽 12시 48분", "시간 범위도 같은 규칙");
+
+        Reset();
+        Deploy();
+        PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(165) + 0.01f, new[] { "cat" });
+        var cctv = InterviewEvidenceBoard.Build("cat").First(e => e.Kind == EvidenceKind.Cctv);
+        var q = InterviewQuestionFactory.Make("cat", cctv, InterviewIntent.AskPresenceReason);
+        GD.Print($"   자료: {cctv.OneLine}\n   Q: {q.Text}");
+        var digits = new System.Text.RegularExpressions.Regex(@"\d{1,2}:\d{2}");
+        Check(cctv.TimeText == "새벽 12시 45분" && !digits.IsMatch(cctv.OneLine), "조사 자료 카드가 한글 시간대로 뜬다");
+        Check(q.Text.Contains("새벽 12시 45분경") && !digits.IsMatch(q.Text), "질문 문장도 같은 표기를 쓴다");
+    }
+
+    // ── 신규 H : 표기가 바뀌어도 판정은 숫자 그대로 ─────────────────────────
+    private void TestNewH()
+    {
+        Head("신규 H", "표기 변경 후에도 AnchorTime · 모순 판정은 그대로");
+        Reset();
+        Deploy();
+        // 자정을 사이에 둔 2분 차이(밤 11시 59분 / 새벽 12시 1분) — 같은 순간으로 본다.
+        PlayerKnownEvidence.RecordLocationStatement("cat", "t:119", Storage, true, At(119));
+        PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(121), new[] { "cat" });
+        var s1 = new InterviewSession("cat");
+        var claim = s1.Board.First(e => e.Kind == EvidenceKind.OwnStatement);
+        var cam = s1.Board.First(e => e.Kind == EvidenceKind.Cctv);
+        Check(Mathf.IsEqualApprox(claim.AnchorTime, At(119)) && Mathf.IsEqualApprox(cam.AnchorTime, At(121)),
+            "AnchorTime 은 초 단위 숫자 그대로");
+        s1.Toggle(claim.Id);
+        s1.Toggle(cam.Id);
+        var near = s1.CheckContradiction();
+        GD.Print($"   {claim.TimeText} vs {cam.TimeText} → {(near.IsContradiction ? "모순" : near.Notice)}");
+        Check(near.IsContradiction && Mathf.IsEqualApprox(near.AnchorTime, At(121)), "자정을 넘는 가까운 두 시각 → 모순");
+
+        Reset();
+        Deploy();
+        PlayerKnownEvidence.RecordLocationStatement("cat", "t:100", Storage, true, At(100));
+        PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(140), new[] { "cat" });
+        var s2 = new InterviewSession("cat");
+        s2.Toggle(s2.Board.First(e => e.Kind == EvidenceKind.OwnStatement).Id);
+        s2.Toggle(s2.Board.First(e => e.Kind == EvidenceKind.Cctv).Id);
+        Check(!s2.CheckContradiction().IsContradiction, $"{EvidenceContradiction.WindowMinutes}분보다 먼 두 시각 → 모순 아님");
     }
 
     // ── A : 근무 중 화면에 뜬 이동 기록이 조사 자료가 된다 ────────────────

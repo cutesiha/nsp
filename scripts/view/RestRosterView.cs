@@ -88,6 +88,9 @@ public partial class RestRosterView : Control
         _nextBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(16));
         _nextBtn.Pressed += () => NextRequested?.Invoke();
         AddChild(_nextBtn);
+
+        // 심문 중에는 이 화면 위에 심문 콘솔(진술 · 조사 노트)이 덮인다. 통화를 끊으면 다시 휴게실.
+        AddChild(new RestInterviewConsole());
     }
 
     public override void _ExitTree()

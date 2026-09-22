@@ -46,6 +46,17 @@ public partial class GameState : Node
     }
     public void AddEvaluation(int amount) => EvaluationScore = Math.Max(0, EvaluationScore + amount);
 
+    // 5일 누적 — 최종 근무 기록 화면 전용. 오늘 기록(EventLog · IncidentTracker)은 다음 근무 시작에
+    // 지워지므로, 근무가 끝날 때마다 그날 숫자를 여기 더해 둔다.
+    public int TotalTabooViolations { get; private set; }
+    public int TotalIncidents { get; private set; }
+
+    public void AddShiftTotals(int tabooViolations, int incidents)
+    {
+        TotalTabooViolations += Math.Max(0, tabooViolations);
+        TotalIncidents += Math.Max(0, incidents);
+    }
+
     private readonly Random _rng = new();
 
     // ── 전력 패널(LIGHTING / CCTV / SENSOR) ────────────────────────────
@@ -243,6 +254,8 @@ public partial class GameState : Node
         SaboteurEmployeeId = "";
         TotalKills = 0;
         EvaluationScore = 0;
+        TotalTabooViolations = 0;
+        TotalIncidents = 0;
         MissedRequiredDays = 0;
         LastShiftMissedRequired = 0;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON

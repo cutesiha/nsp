@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY3 — 배전반 청소. 코어실 경고(46초)를 막고 난 뒤 발전실 쪽 판단거리.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "power_panel_cleaning"
+SpawnAtSeconds = 64.0
+JitterSeconds = 5.0
+Recurring = false
+RoomId = "power_room"
+Day = 3

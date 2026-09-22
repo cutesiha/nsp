@@ -28,6 +28,9 @@ public partial class TitleTerminalView : Control
     private const string StandbyHead = "FACILITY CONTROL SYSTEM";
     private const string StandbyUser = "USER DETECTED";
     private const string StandbyKey = "[ PRESS ANY KEY ]";
+    private const string FailedRecordTag = "복구 실패 기록이 존재합니다.";
+    // 진엔딩을 본 뒤에는 "근무 개시" 대신.
+    private const string NewShiftLabel = "새 근무 시작";
 
     // 메뉴 항목 — Id 는 TitleRoomDirector 가 동작을 고를 때 쓰는 키다.
     public static readonly (string Id, string Label)[] MenuItems =
@@ -39,6 +42,10 @@ public partial class TitleTerminalView : Control
     };
 
     public enum Mode { Standby, Menu, Report }
+
+    // 메뉴 문구(진엔딩을 본 뒤에는 근무 개시 → 새 근무 시작).
+    public static string LabelOf(int i) =>
+        MenuItems[i].Id == "start" && EndingState.Last == EndingState.Kind.True ? NewShiftLabel : MenuItems[i].Label;
 
     // ── 색 (무채색 + 포인트 1색. 빨강은 오류에만) ─────────────────────────
     private static readonly Color Ink = new(0.84f, 0.89f, 0.88f);
@@ -281,8 +288,16 @@ public partial class TitleTerminalView : Control
         DrawRect(new Rect2(16f, 14f, Canvas.X - 32f, Canvas.Y - 28f), Mint with { A = 0.28f }, false, 1.4f);
         DrawString(_font, new Vector2(30f, 38f), "FACILITY CONTROL SYSTEM",
             HorizontalAlignment.Left, 420f, ViewFont.S(12), Dim);
-        DrawString(_font, new Vector2(Canvas.X - 150f, 38f), "NSP-07",
-            HorizontalAlignment.Right, 120f, ViewFont.S(12), Dim);
+        // 결말의 흔적 — 오른쪽 위 작은 상태 표시.
+        var mark = EndingState.Last;
+        string corner = mark switch
+        {
+            EndingState.Kind.Bad => "CONTAINMENT FAILED",
+            EndingState.Kind.True => "CORE 100% · STABLE",
+            _ => "NSP-07",
+        };
+        DrawString(_font, new Vector2(Canvas.X - 330f, 38f), corner, HorizontalAlignment.Right, 300f, ViewFont.S(12),
+            mark == EndingState.Kind.Bad ? Err : mark == EndingState.Kind.True ? Mint : Dim);
 
         switch (CurrentMode)
         {
@@ -344,8 +359,13 @@ public partial class TitleTerminalView : Control
         if (t >= RevealWaitAt)
         {
             float a = 0.45f + 0.55f * (0.5f + 0.5f * Mathf.Sin(_t * 2.2f));
-            DrawString(_font, new Vector2(0f, 338f), WaitingTag, HorizontalAlignment.Center, Canvas.X,
-                ViewFont.S(16), Mint with { A = a });
+            // 실패의 흔적 — 대문짝만한 BAD END 대신, 시설이 실패를 기억하고 있다는 한 줄만.
+            if (EndingState.Last == EndingState.Kind.Bad)
+                DrawString(_font, new Vector2(0f, 338f), FailedRecordTag, HorizontalAlignment.Center, Canvas.X,
+                    ViewFont.S(14), Err with { A = 0.55f + 0.3f * a });
+            else
+                DrawString(_font, new Vector2(0f, 338f), WaitingTag, HorizontalAlignment.Center, Canvas.X,
+                    ViewFont.S(16), Mint with { A = a });
         }
 
         for (int i = 0; i < MenuItems.Length; i++)
@@ -359,7 +379,7 @@ public partial class TitleTerminalView : Control
                 DrawString(_font, new Vector2(ItemLeft - 30f, y), ">", HorizontalAlignment.Left, 28f,
                     ViewFont.S(27), Mint);
             }
-            DrawString(_font, new Vector2(ItemLeft + 14f, y), MenuItems[i].Label,
+            DrawString(_font, new Vector2(ItemLeft + 14f, y), LabelOf(i),
                 HorizontalAlignment.Left, ItemWidth - 20f, ViewFont.S(27), on ? Ink : Dim);
         }
     }
