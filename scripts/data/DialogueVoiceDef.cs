@@ -42,6 +42,18 @@ public partial class DialogueVoiceDef : Resource
     // 한 답변에 허용하는 느낌표 수 상한.
     [Export(PropertyHint.Range, "0,3")] public int MaxExclamations = 1;
 
+    // ── 말버릇(최종 문장에 입히는 캐릭터 표식) ─────────────────────────
+    // 대사 뱅크 문장에 이미 들어 있으면 덧대지 않는다. 뱅크가 놓친 답변(공통 문장 · 조립 결과)
+    // 에도 그 사람다움이 남게 하는 안전망이다.
+    // 첫 낱말을 더듬는다("저, 저는 …"). 양.
+    [Export(PropertyHint.Range, "0,1")] public float StutterChance = 0f;
+    // 마지막 문장을 흐린다("…있었어요..." / "…거예요...?"). 양.
+    [Export(PropertyHint.Range, "0,1")] public float TrailOffChance = 0f;
+    // "요." 하나를 "요~" 로 늘인다. 여우.
+    [Export(PropertyHint.Range, "0,1")] public float TildeChance = 0f;
+    // 답변에 동료({who})가 나오면 그 사람에 대한 인상을 한마디 붙인다(대사 뱅크 about.<id>).
+    [Export(PropertyHint.Range, "0,1")] public float ImpressionChance = 0f;
+
     // ── Dialogue V2 캐릭터 축 ─────────────────────────────────────────
     // 지금의 조립기(KoreanDialogueComposer)는 아직 이 값들을 읽지 않는다. Local Dialogue V2 가
     // 캐릭터를 나누는 기준이다. 캐릭터 차이는 문장부호가 아니라 "무엇을 먼저 말하는가 /

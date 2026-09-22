@@ -50,11 +50,9 @@ public partial class GuideCornerFace : Control
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
 
-    // 창 전체 자리 — CCTV 화면 오른쪽 아래 구석.
-    // 아래 여백을 넉넉히 둔다 — 모니터 2 를 확대해서 보면 화면 아래 자막 띠가
-    // 이 자리까지 올라오기 때문이다.
-    private const float WinW = 176f, WinH = 196f;
-    private const float MarginX = 14f, MarginY = 62f;
+    // 창 전체 자리 — CCTV 화면 오른쪽 아래 구석. 창의 오른쪽 아래 모서리가 모니터 화면 모서리에 닿는다.
+    private const float WinW = 212f, WinH = 236f;
+    private const float MarginX = 0f, MarginY = 0f;
     private const float BarH = 22f;
     // 위로 올렸을 때의 자리(화면 위쪽 정보 줄 아래).
     private const float LiftedY = 46f;

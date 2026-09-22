@@ -235,6 +235,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
             AnchorLeft = 1f, AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
             OffsetLeft = -598f, OffsetRight = -20f, OffsetTop = -80f, OffsetBottom = -20f,
             MouseFilter = Control.MouseFilterEnum.Pass,
+            // 오른쪽에 붙인다 — 휴게시간에 '업무' 버튼이 빠져도 로그/대화 기록이 화면 오른쪽 끝에 남는다.
+            Alignment = BoxContainer.AlignmentMode.End,
         };
         _icons.AddThemeConstantOverride("separation", 10);
         _icons.Visible = false;
@@ -419,7 +421,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _objPanel.AddChild(frame);
 
-        _objTitle = LabelFor("DAY 1  ·  오늘의 업무", 24, Cyan, _body);
+        _objTitle = LabelFor("DAY 1 - 오늘의 업무", 24, Cyan, _body);
         _objTitle.Position = new Vector2(28, 30);
         _objTitle.Size = new Vector2(500, 34);
         _objPanel.AddChild(_objTitle);
@@ -500,7 +502,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (_objPanel == null || !_objPanel.Visible) return;
 
         int day = GameState.Instance?.CurrentDay ?? 1;
-        _objTitle.Text = $"{DayFeatures.DayLabel(day)}  ·  오늘의 업무";
+        _objTitle.Text = $"{DayFeatures.DayLabel(day)} - 오늘의 업무";
 
         // 남은 시간은 매 프레임 갱신한다. 30초 아래로 내려가면 붉게만 바꾼다
         // (화면 전체를 깜빡이게 하지 않는다).

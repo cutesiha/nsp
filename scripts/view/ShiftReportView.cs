@@ -93,7 +93,7 @@ public partial class ShiftReportView : Control
         if (missed > 0)
             sb.AppendLine($"[color=#ff9a8a]근무 시간이 끝났습니다. 끝내지 못한 필수 업무 {missed}건.[/color]");
         sb.AppendLine("");
-        sb.AppendLine($"CORE        {Signed(coreDelta):0.0}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
+        sb.AppendLine($"CORE        {Signed(coreDelta)}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
         sb.AppendLine($"MATERIAL    {Signed(materialsDelta)}   [color=#8899aa](현재 {gs.Materials})[/color]\n");
         // 이번 근무의 경고 대응 성적 — 배치 판단이 실제로 통했는지가 여기서 드러난다.
         var warn = FacilitySimulation.Instance?.Warnings;
@@ -126,6 +126,24 @@ public partial class ShiftReportView : Control
                               $"   [color=#8899aa](누적 {gs.EvaluationScore})[/color]");
         }
         _body.Text = sb.ToString();
+        FitBody();
+    }
+
+    // 내용이 길면(업무 줄이 많은 날) 아래쪽이 잘리지 않게 글자를 줄이고, 그래도 넘치면 스크롤을 켠다.
+    private async void FitBody()
+    {
+        int size = ViewFont.S(22), min = ViewFont.S(15);
+        _body.ScrollActive = false;
+        _body.AddThemeFontSizeOverride("normal_font_size", size);
+        for (int guard = 0; guard < 16; guard++)
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInstanceValid(_body)) return;
+            if (_body.GetContentHeight() <= _body.Size.Y || size <= min) break;
+            size--;
+            _body.AddThemeFontSizeOverride("normal_font_size", size);
+        }
+        if (IsInstanceValid(_body) && _body.GetContentHeight() > _body.Size.Y) _body.ScrollActive = true;
     }
 
     private static string Signed(float v) => v >= 0 ? $"+{v:0.0}" : v.ToString("0.0");

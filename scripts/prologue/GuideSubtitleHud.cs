@@ -19,11 +19,11 @@ public partial class GuideSubtitleHud : CanvasLayer
 
     // 자막 블록 크기 — 대사가 길어도 두 줄 이상 편하게 들어가게 넉넉히 잡는다.
     private const float PanelHalfWidth = 560f;
-    private const float PanelHeight = 112f;
+    private const float PanelHeight = 124f;
     // 선택지 한 줄의 높이와 간격. 선택지가 뜨면 블록이 그만큼 아래로 자란다.
     private const float ChoiceHeight = 40f;
     private const float ChoiceGap = 6f;
-    private const float ChoiceTop = 104f;
+    private const float ChoiceTop = 116f;
 
     // 화면 아래 자막 블록에 띄울 선택지 하나.
     public sealed class Choice
@@ -34,7 +34,8 @@ public partial class GuideSubtitleHud : CanvasLayer
     }
 
     private Panel _panel;
-    private Label _label;
+    private RichTextLabel _label;
+    private string _raw = "";   // 강조색 BBCode 를 입히기 전 원문 — 홀로그램 창의 문장과 비교한다
     private Label _arrow;          // 다음으로 넘길 수 있을 때 오른쪽 끝에서 둥둥 떠다니는 ▶
     private VBoxContainer _choices;
     private bool _active;
@@ -59,7 +60,7 @@ public partial class GuideSubtitleHud : CanvasLayer
 
         // 홀로그램 창이 찍고 있는 만큼만 여기도 드러낸다(보이스도 그쪽이 울린다).
         var guide = GuideHologramView.Instance;
-        if (guide != null && guide.CurrentLineText == _label.Text)
+        if (guide != null && guide.CurrentLineText == _raw)
             _label.VisibleRatio = guide.CurrentLineRatio;
         else
             _label.VisibleRatio = 1f;
@@ -84,7 +85,7 @@ public partial class GuideSubtitleHud : CanvasLayer
     public void SetActive(bool active)
     {
         _active = active;
-        Visible = active && !string.IsNullOrEmpty(_label.Text);
+        Visible = active && !string.IsNullOrEmpty(_raw);
     }
 
     // 책상 배치표처럼 화면 아래쪽에 눌러야 할 버튼(‘근무 시작’)이 있는 단계에서는
@@ -162,10 +163,12 @@ public partial class GuideSubtitleHud : CanvasLayer
 
     public void SetLine(string text)
     {
-        _label.Text = text ?? "";
+        _raw = text ?? "";
+        // 직원 이름 · 작업실 이름에 강조색("먼저 토끼를 끌어다 정비실에" → 토끼 분홍, 정비실 호박색).
+        _label.Text = DialogueHighlight.Colorize(_raw);
         // 새 문장은 0 에서 시작해 홀로그램 창과 같은 속도로 드러난다.
-        _label.VisibleRatio = string.IsNullOrEmpty(_label.Text) ? 1f : 0f;
-        Visible = _active && (!string.IsNullOrEmpty(_label.Text) || HasChoices);
+        _label.VisibleRatio = string.IsNullOrEmpty(_raw) ? 1f : 0f;
+        Visible = _active && (!string.IsNullOrEmpty(_raw) || HasChoices);
     }
 
     public void Clear() => SetLine("");
@@ -197,16 +200,18 @@ public partial class GuideSubtitleHud : CanvasLayer
         tag.AddThemeColorOverride("font_color", new Color(0.55f, 0.95f, 1f));
         _panel.AddChild(tag);
 
-        _label = new Label
+        _label = new RichTextLabel
         {
             Position = new Vector2(24f, 38f),
-            Size = new Vector2(PanelHalfWidth * 2f - 82f, PanelHeight - 50f),
+            Size = new Vector2(PanelHalfWidth * 2f - 82f, PanelHeight - 46f),
+            BbcodeEnabled = true,
+            ScrollActive = false,
             AutowrapMode = TextServer.AutowrapMode.WordSmart,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        _label.AddThemeFontOverride("font", ViewFont.Default);
-        _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
-        _label.AddThemeColorOverride("font_color", new Color(0.90f, 0.98f, 1f));
+        _label.AddThemeFontOverride("normal_font", ViewFont.Default);
+        _label.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(19));
+        _label.AddThemeColorOverride("default_color", new Color(0.90f, 0.98f, 1f));
         _panel.AddChild(_label);
 
         _choices = new VBoxContainer

@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
 
-; 여유 있게 돌려 말한다 · 가끔 되묻는다 · 매번은 아니다
+; 여유 있고 능글맞다 · "~" 를 자주 쓴다 · 관리자를 은근히 떠보며 되묻는다
 ; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
 
 [ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
@@ -13,7 +13,7 @@ Talkativeness = 0.55
 MaxSentences = 2
 QuestionEchoChance = 0.45
 VolunteerInfoChance = 0.3
-BackQuestionChance = 0.35
+BackQuestionChance = 0.45
 ReactionIntensity = 0.15
 HedgeChance = 0.25
 Directness = 0.4
@@ -26,3 +26,5 @@ Confidence = 0.55
 SeparatesFactFromGuess = 0.3
 MentionOthersChance = 0.5
 OfferActionChance = 0.3
+ImpressionChance = 0.75
+TildeChance = 0.9

@@ -93,7 +93,8 @@ public static class DayObjectives
             case DayObjectiveType.CoreProgress:
                 line.Current = gs?.CoreProgress ?? 0f;
                 line.Done = line.Current >= def.TargetValue - 0.0001f;
-                line.ProgressText = $"{line.Current:0.0} / {def.TargetValue:0.#}%";
+                // 소수점은 보이지 않는다. 내림으로 적어서 "18 / 18%" 인데 미달성인 경우가 없게 한다.
+                line.ProgressText = $"{Mathf.FloorToInt(line.Current)} / {def.TargetValue:0}%";
                 break;
 
             case DayObjectiveType.WarningsResolved:

@@ -31,6 +31,6 @@ BehaviorLine3 = "이상한 행동이나 설비 변화를 목격하면 감정적�
 
 IncomingCallPatienceSeconds = 5.0
 StartRoomId = "guard_room"
-IconColor = Color(0.68, 0.18, 0.20, 1)
+IconColor = Color(0.56, 0.57, 0.60, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")

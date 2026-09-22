@@ -35,6 +35,8 @@ public partial class FacilitySimulation : Node
     private readonly Dictionary<string, EmployeeState> _employeeStates = new();
     private readonly Dictionary<string, RoomState> _roomStates = new();
     private readonly Dictionary<string, Vector2> _roomVisualCenters = new();
+    // 근무 시작 때 직원들이 출발하는 곳(중앙 제어실).
+    public const string DeployOriginRoomId = "central_office";
     private readonly Dictionary<string, Color> _roomVisualColors = new();
     private readonly Random _rng = new();
     // 직원별 "오늘의 기분" 배정. 기분은 EmployeeState 에만 저장되고 이 클래스는 고르기만 한다.
@@ -109,7 +111,10 @@ public partial class FacilitySimulation : Node
 
         foreach (var def in _employeeDefs.Values)
         {
-            var startRoom = _roomDefs.Values.FirstOrDefault(r => r.RoomId == def.StartRoomId) ?? _roomDefs.Values.FirstOrDefault();
+            // 모두 중앙 제어실에서 시작한다 — 근무가 시작되면 거기서 배치된 작업실로 걸어간다.
+            var startRoom = _roomDefs.GetValueOrDefault(DeployOriginRoomId)
+                            ?? _roomDefs.Values.FirstOrDefault(r => r.RoomId == def.StartRoomId)
+                            ?? _roomDefs.Values.FirstOrDefault();
             _employeeStates[def.EmployeeId] = new EmployeeState
             {
                 EmployeeId = def.EmployeeId,
@@ -771,6 +776,26 @@ public partial class FacilitySimulation : Node
         NSP.Dialogue.DialogueClaimState.ResetAll();
         IncidentTracker.Reset();
 
+        // 근무 시작 — 배치된 직원은 전부 중앙 제어실에서 출발해 자기 작업실로 걸어간다.
+        // (예전에는 지난 근무의 자리나 캐릭터 기본 시작실에서 출발했는데, 그 방이 지도에 없으면
+        //  옛 좌표(격리실 아래 먼 곳)에서 나타나 한참을 걸어왔다.)
+        // 가상 시뮬레이션(DAY0)과 실제 게임 첫날(DAY1)만 — 이후 DAY 는 전날 자리에서 이어서 움직인다
+        // (매일 중앙 제어실에서 걸어 나오면 DAY2+ 의 업무 시간이 그만큼 깎인다).
+        if (_roomDefs.ContainsKey(DeployOriginRoomId) && GameState.Instance.CurrentDay <= 1)
+        {
+            foreach (var emp in _employeeStates.Values)
+            {
+                if (!emp.Alive || emp.Isolated || string.IsNullOrEmpty(emp.AssignedRoomId)) continue;
+                emp.CurrentRoomId = DeployOriginRoomId;
+                emp.Position = GetRoomPosition(DeployOriginRoomId);
+                emp.IsMoving = false;
+                emp.ElbowWaypoint = null;
+                emp.PathQueue.Clear();
+                emp.TargetRoomId = DeployOriginRoomId;
+                BeginPathTo(emp, emp.AssignedRoomId);
+            }
+        }
+
         // 방 점유자 목록을 이번 근무의 실제 근무자로 다시 만든다.
         // 프로젝트 로드 시점에는 6명 전원이 각자 StartRoomId 에 점유자로 들어가 있는데,
         // 그대로 두면 근무표에서 빼 놓은 직원까지 그 방에서 업무 게이지를 채우고 금기 인원수에
@@ -781,6 +806,8 @@ public partial class FacilitySimulation : Node
         {
             if (!emp.Alive) continue;
             if (!emp.Isolated && string.IsNullOrEmpty(emp.AssignedRoomId)) continue;
+            // 아직 자리로 걷는 중이면 도착할 때(ArriveAtRoom) 점유자로 들어간다.
+            if (emp.IsMoving || emp.CurrentRoomId == DeployOriginRoomId) continue;
             AddOccupant(emp.CurrentRoomId, emp.EmployeeId);
         }
         GameState.Instance.RepairPowerAccident();
@@ -1683,7 +1710,10 @@ public partial class FacilitySimulation : Node
         // (AdvanceToNextWaypoint 는 이 함수 뒤에 불리므로 여기서는 남은 경유지가 그대로 있다.)
         bool passing = emp.PathQueue.Count > 0;
         string previousRoom = emp.CurrentRoomId;
-        if (previousRoom != emp.TargetRoomId)
+        // 중앙 제어실은 관리자 방이다 — 출근 출발점일 뿐이라 '퇴장' 기록은 남기지 않는다.
+        if (previousRoom != emp.TargetRoomId && previousRoom == DeployOriginRoomId)
+            RemoveOccupant(previousRoom, emp.EmployeeId);
+        else if (previousRoom != emp.TargetRoomId)
         {
             RemoveOccupant(previousRoom, emp.EmployeeId);
             EventLog.Instance?.LogEvent(LogEventType.RoomExit, emp.EmployeeId, previousRoom, $"{Codename(emp.EmployeeId)} - {RoomName(previousRoom)} 퇴장",

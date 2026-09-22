@@ -71,7 +71,8 @@ public static class DialogueUtterancePlanner
                 up.AllowPause = true;
                 break;
             case SituationTone.Alarmed:
-                up.MaxExclamations = Mathf.Min(up.MaxExclamations, 1);
+                // 놀란 순간에도 토끼 같은 사람은 느낌표가 튀어나온다 — 둘까지는 둔다.
+                up.MaxExclamations = Mathf.Min(up.MaxExclamations, 2);
                 up.AllowPause = voice.PauseChance > 0.2f;
                 break;
             default:

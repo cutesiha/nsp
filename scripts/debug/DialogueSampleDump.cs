@@ -55,6 +55,7 @@ public partial class DialogueSampleDump : Node
         _md.AppendLine();
 
         CheckBank();
+        VoiceCompare();
         NormalDay();
         foreach (string sab in new[] { "sheep", "wolf", "dog" }) SaboteurDay(sab);
         MachineChecks();
@@ -142,6 +143,70 @@ public partial class DialogueSampleDump : Node
             Answer(id, q.Text + " (다시)", s.Ask(q).Answer);
         }
     }
+
+    // ── 말투 비교: 같은 질문을 6명에게 여러 번 ─────────────────────────────
+    // 캐릭터 말투가 실제로 갈리는지 한눈에 본다. 둘씩 같은 방에 둬서 "누구랑 있었나"에 모두 이름이 나오게 한다.
+    private void VoiceCompare()
+    {
+        NewDay("");
+        var pairs = new (string Id, string Room)[]
+        {
+            ("cat", Power), ("dog", Power), ("fox", Storage), ("sheep", Storage), ("rabbit", Maint), ("wolf", Maint),
+        };
+        foreach (var p in pairs)
+        {
+            var st = _sim.GetEmployeeState(p.Id);
+            st.AssignedRoomId = p.Room; st.CurrentRoomId = p.Room; st.Alive = true; st.Isolated = false;
+            Log(LogEventType.Relocation, p.Id, p.Room, 0f, $"{Nm(p.Id)} → {RoomName(p.Room)} 배치");
+        }
+        // 아무도 없는 코어실에서 사고 — 질문의 기준 시각만 만든다.
+        Log(LogEventType.TaskFailed, "", Core, At(40));
+        GameState.Instance.AdvanceDayTime(At(60));
+
+        Section("말투 비교 — 같은 질문, 여섯 명",
+            "배치: 고양이·강아지=발전실 · 여우·양=저장고 · 토끼·늑대=정비실. 22:40 코어실 설비 고장(아무도 없음).\n" +
+            "같은 질문을 세 번씩 — 매번 다시 뽑힌다.");
+
+        foreach (string id in Ids)
+        {
+            Sub($"{Nm(id)}");
+            var session = new InterviewSession(id);
+            var incident = session.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+            if (incident == null) { _md.AppendLine("- (사고 자료 없음)"); continue; }
+            foreach (var intent in new[] { InterviewIntent.AskWhereAtIncident, InterviewIntent.AskWhoWasPresent })
+            {
+                var q = InterviewQuestionFactory.Make(id, incident, intent);
+                for (int i = 0; i < 3; i++) Answer(id, q.Text, InterviewReplyPlanner.Answer(q));
+            }
+            Answer(id, "당신을 의심하고 있습니다.", LocalDialogueGenerator.InterviewAnswer(id, DialogueQuestions.Accuse));
+        }
+        CheckVoiceMarks();
+    }
+
+    // 작성자가 지정한 말버릇이 실제 출력에 남는가(말투 비교 구간의 답변만 본다).
+    private void CheckVoiceMarks()
+    {
+        var by = new Dictionary<string, List<string>>();
+        foreach (var line in _md.ToString().Split('\n'))
+        {
+            var m = Regex.Match(line, @"^\*\*(.+?)\*\* .*");
+            if (m.Success) { _lastSpeaker = m.Groups[1].Value; continue; }
+            if (line.StartsWith("A: ") && _lastSpeaker != null)
+            {
+                if (!by.ContainsKey(_lastSpeaker)) by[_lastSpeaker] = new List<string>();
+                by[_lastSpeaker].Add(line[3..].Trim());
+            }
+        }
+        List<string> Of(string id) => by.GetValueOrDefault(Nm(id)) ?? new List<string>();
+        Check(Of("sheep").All(DialogueVoiceTics.HasStutter), $"양 — 모든 답변에 더듬기가 있다 ({Of("sheep").Count(DialogueVoiceTics.HasStutter)}/{Of("sheep").Count})");
+        Check(Of("fox").Count(a => a.Contains('~')) * 2 >= Of("fox").Count, $"여우 — 절반 이상의 답변에 '~' ({Of("fox").Count(a => a.Contains('~'))}/{Of("fox").Count})");
+        Check(Of("rabbit").Count(a => a.Contains('!')) * 10 >= Of("rabbit").Count * 8, $"토끼 — 대부분의 답변에 '!' ({Of("rabbit").Count(a => a.Contains('!'))}/{Of("rabbit").Count})");
+        Check(Of("wolf").All(a => !a.Contains('!') && !a.Contains('~')), "늑대 — 느낌표 · 물결 없음");
+        Check(Of("wolf").All(a => a.Contains("니다")), "늑대 — 합쇼체");
+        Check(Of("cat").All(a => !a.Contains('!')), "고양이 — 느낌표 없음");
+    }
+
+    private string _lastSpeaker;
 
     // ── 결번자가 거짓 알리바이를 대는 하루 ─────────────────────────────────
     private void SaboteurDay(string sab)

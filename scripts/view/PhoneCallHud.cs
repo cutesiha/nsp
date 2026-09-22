@@ -39,7 +39,7 @@ public partial class PhoneCallHud : CanvasLayer
     private HologramFrame _frame;
     private Label _speaker;
     private Label _playerLine;
-    private Label _message;
+    private RichTextLabel _message;
     private VBoxContainer _choices;
     private Label _incoming;
     private Font _font;
@@ -128,8 +128,19 @@ public partial class PhoneCallHud : CanvasLayer
         _playerLine.Visible = false;
         _leftCol.AddChild(_playerLine);
 
-        _message = Lbl("", 17, new Color(0.82f, 0.96f, 0.98f));
-        _message.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        // 직원 이름 · 작업실 이름에 강조색을 입히려고 RichTextLabel 을 쓴다(글자 수는 원문과 같다).
+        _message = new RichTextLabel
+        {
+            BbcodeEnabled = true,
+            FitContent = true,
+            ScrollActive = false,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        _message.AddThemeFontOverride("normal_font", _font);
+        _message.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(17));
+        _message.AddThemeColorOverride("default_color", new Color(0.82f, 0.96f, 0.98f));
         // 답변 두 줄이 들어갈 만큼만. 넉넉히 잡으면 창 아래가 통째로 빈다.
         _message.CustomMinimumSize = new Vector2(0, 54);
         _leftCol.AddChild(_message);
@@ -493,7 +504,10 @@ public partial class PhoneCallHud : CanvasLayer
         // 대사는 같은 색에 흰색을 많이 섞어 읽기 편한 밝은 톤으로.
         Color own = def?.IconColor ?? Cyan;
         _speaker.AddThemeColorOverride("font_color", Readable(own));
-        _message.AddThemeColorOverride("font_color", Readable(own).Lerp(Colors.White, 0.62f));
+        _message.AddThemeColorOverride("default_color", Readable(own).Lerp(Colors.White, 0.62f));
+        // 「선택한 자료로 질문 / 두 자료 비교」 도 그 직원의 고유색으로(토끼 = 분홍 …).
+        TintAction(_askBtn, Readable(own));
+        TintAction(_confrontBtn, Readable(own));
 
         ClearChoices();
 
@@ -561,7 +575,7 @@ public partial class PhoneCallHud : CanvasLayer
         _shownChars = 0;
         _typing = true;
         _after = after;
-        _message.Text = text;
+        _message.Text = DialogueHighlight.Colorize(text);
         _message.VisibleCharacters = 0;
         // 통화 중 카메라는 전혀 움직이지 않는다(예전의 '말하며 끄덕이는' 흔들림 제거).
     }
@@ -731,7 +745,7 @@ public partial class PhoneCallHud : CanvasLayer
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
         ShowPlayerLine("");
-        _message.Text = "— " + text;
+        _message.Text = DialogueHighlight.Colorize("— " + text);
         _message.VisibleCharacters = -1;
     }
 
@@ -778,6 +792,20 @@ public partial class PhoneCallHud : CanvasLayer
     {
         ClearChoices();
         AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
+    }
+
+    private static void TintAction(Button b, Color c)
+    {
+        if (b == null) return;
+        b.AddThemeColorOverride("font_color", c);
+        b.AddThemeColorOverride("font_disabled_color", c with { A = 0.55f });
+        foreach (string state in new[] { "normal", "hover", "pressed", "disabled" })
+            if (b.GetThemeStylebox(state) is StyleBoxFlat box)
+            {
+                var tinted = (StyleBoxFlat)box.Duplicate();
+                tinted.BorderColor = c with { A = state == "disabled" ? 0.25f : state == "normal" ? 0.55f : 1f };
+                b.AddThemeStyleboxOverride(state, tinted);
+            }
     }
 
     private Button ChoiceButton(string text, System.Action onPressed)

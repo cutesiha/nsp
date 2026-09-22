@@ -159,7 +159,12 @@ def lint_file(cid):
     all_lines = []
     for (owner, slot), lines in slots.items():
         if owner != cid: errs.append(f"@char {owner} 가 {cid}.txt 에 있음"); continue
-        if slot not in ALLOWED and not slot.startswith("phrase."):
+        if slot.startswith("about."):
+            # 동료 인상 — about.<직원 id> / about.any. 변수는 {who} 하나.
+            if slot[6:] not in IDS + ["any"]: warns.append(f"[{slot}] 알 수 없는 직원 id")
+            if slot[6:] == cid: errs.append(f"[{slot}] 자기 자신에 대한 인상")
+            ALLOWED.setdefault(slot, ["who"])
+        elif slot not in ALLOWED and not slot.startswith("phrase."):
             warns.append(f"[{slot}] 알 수 없는 슬롯(오타?)")
         if not lines: errs.append(f"[{slot}] 문장이 없음")
         for n, t in lines:
@@ -186,16 +191,26 @@ def lint_file(cid):
 
     texts = [t for _, t in all_lines]
     total = max(1, len(texts))
+    # 2026-09-22 작성자 지정 말투: 양은 항상 더듬고, 토끼는 느낌표가 많고, 여우는 "~" 를 자주 쓴다.
+    # (예전의 '더듬기 12% 이하' · '느낌표 45% 이하' 권장은 폐기 — 캐릭터가 서로 비슷해지는 원인이었다.)
     if cid == "sheep":
-        ell = sum(("..." in t or "…" in t) for t in texts)
-        stut = sum(bool(re.search(r"(^|\s)(\S),\s\2", t)) for t in texts)
-        if ell / total > 0.3: warns.append(f"말줄임 비율 {ell}/{total} — 30% 이하 권장")
-        if stut > total * 0.12: warns.append(f"더듬기 {stut}/{total} — 12% 이하 권장")
+        def opn(c): return chr(0xAC00 + (ord(c) - 0xAC00) // 28 * 28) if "가" <= c <= "힣" else c
+        def stutters(t): return any(opn(a) == opn(b) for a, b in re.findall(r"(?:^|\s)([가-힣]), ([가-힣])", t))
+        stut = [t for t in texts if not stutters(t)]
+        if len(stut) > total * 0.15:
+            warns.append(f"더듬기 없는 문장 {len(stut)}/{total} — 양은 거의 모든 문장에서 더듬어야 함")
+        for t in texts:
+            if re.match(r"(아|어|음|네|예), (아|어|음|네|예)(\W|$)", t):
+                errs.append(f"반응어 더듬기는 자연스러움 필터가 지운다: {t}")
     if cid == "rabbit":
         ex = sum("!" in t for t in texts)
-        if ex / total > 0.45: warns.append(f"느낌표 문장 {ex}/{total} — 45% 이하 권장")
-        multi = [t for t in texts if t.count("!") >= 2]
-        for t in multi: warns.append(f"느낌표 2개 이상: {t}")
+        if ex / total < 0.6: warns.append(f"느낌표 문장 {ex}/{total} — 토끼는 60% 이상 권장")
+    if cid == "fox":
+        tl = sum("~" in t for t in texts)
+        if tl / total < 0.5: warns.append(f"'~' 문장 {tl}/{total} — 여우는 50% 이상 권장")
+    if cid == "cat":
+        for t in texts:
+            if "!" in t: warns.append(f"고양이는 느낌표를 거의 쓰지 않는다: {t}")
     if cid == "dog":
         yes = sum(t.startswith(("네", "예")) for t in texts)
         if yes / total > 0.15: warns.append(f"'네'로 시작 {yes}/{total} — 15% 이하 권장")

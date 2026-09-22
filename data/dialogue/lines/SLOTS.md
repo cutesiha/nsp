@@ -127,6 +127,21 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | mem.with.vague | (결번자 흉내 어긋남) 사람 기억이 뭉뚱그려짐 | — |
 | slip.assert / slip.concern.vague | (결번자 흉내 어긋남) 지나친 단정 / 구체성 없는 걱정 | — |
 
+### 동료 인상 — 캐릭터 파일에만
+| 슬롯 | 뜻 | 변수 |
+|---|---|---|
+| about.<직원 id> | 답변에 그 동료가 이름으로 나오면 뒤에 붙는 "그 사람을 어떻게 보는가" 한마디(예: 강아지 about.cat "오늘따라 예민해 보이시더라고요. ㅎㅎ") | who |
+| about.any | 위 슬롯이 없을 때 | who |
+
+- 붙는 빈도는 `data/dialogue/voices/<id>_voice.tres` 의 `ImpressionChance`. 사람을 물은 질문(같이 있던 사람 등)에서는 그 확률 그대로, 근무 기억 속 동료에는 절반 확률로 붙는다.
+- 핵심 문장 틀이 이미 두 문장 이상이면(자기 한마디를 품고 있으면) 붙지 않는다.
+- 사건 사실을 새로 만들지 않는다 — 인상 · 감정만. 나중에 인물 관계도가 생기면 이 슬롯을 채우면 된다.
+
+### 말버릇 안전망(`DialogueVoiceTics`)
+`<id>_voice.tres` 의 `StutterChance`(첫 낱말 더듬기) · `TrailOffChance`(말끝 흐리기) · `TildeChance`("요." → "요~")는
+대사 뱅크 문장이 그 표식을 놓쳤을 때만 한 번 덧댄다. 양 · 여우 문장은 되도록 뱅크에서 직접 표식을 넣는다.
+더듬기는 받침을 뺀 음절로 쓴다("바, 발전실" · "자, 잘"). '아, 어, 음, 네' 로 더듬지 않는다.
+
 ### 표현 조각(common.txt 의 `@char any`)
 `phrase.direct.<사건종류>` / `phrase.sound.<사건종류>` — 과거형 동사 줄기("설비가 멈췄"). 말투에 따라 "어요/습니다" 가 붙습니다.
 `echo.wrap`(subject) · `echo.certain/seen/heard/where` · `time.vague` — 되받기와 시간 표현.

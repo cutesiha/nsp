@@ -31,6 +31,6 @@ BehaviorLine3 = "이상한 상황을 목격해도 다른 직원을 쉽게 범인
 
 IncomingCallPatienceSeconds = 7.0
 StartRoomId = "core_room"
-IconColor = Color(0.95, 0.72, 0.24, 1)
+IconColor = Color(0.86, 0.76, 0.58, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")

@@ -208,11 +208,12 @@ public partial class VoiceStyleTest : Node
     private void CheckH(Dictionary<string, List<string>> corpus)
     {
         var bad = corpus.SelectMany(kv => kv.Value).Where(t => DoubleYes.IsMatch(t)).ToList();
-        int tooMany = corpus.SelectMany(kv => kv.Value).Count(t => t.Count(c => c == '!') > 1);
-        GD.Print($"[H] '네! 네!' {bad.Count}건 · 느낌표 2개 이상 {tooMany}건");
+        // 느낌표 상한은 캐릭터마다 다르다(토끼는 밝고 솔직해서 여럿) — 말투 설정의 MaxExclamations 를 넘지 않으면 된다.
+        int tooMany = corpus.Sum(kv => kv.Value.Count(t => t.Count(c => c == '!') > DialogueVoices.Get(kv.Key).MaxExclamations));
+        GD.Print($"[H] '네! 네!' {bad.Count}건 · 느낌표 상한 초과 {tooMany}건");
         foreach (string b in bad.Take(3)) GD.Print("     " + b);
         Check(bad.Count == 0, "H 한 답변에 같은 긍정이 두 번 나오지 않는다");
-        Check(tooMany == 0, "H 한 답변에 느낌표가 두 개 이상 붙지 않는다");
+        Check(tooMany == 0, "H 한 답변의 느낌표가 그 캐릭터의 상한을 넘지 않는다");
     }
 
     // --- 도우미 ------------------------------------------------------------

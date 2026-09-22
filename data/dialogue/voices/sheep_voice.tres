@@ -2,8 +2,8 @@
 
 ; 양 — 겁 많음 / 예민 / 관찰 / 확신 낮춤
 ; 조심스럽게 말하고, 확신이 없으면 절대 단정하지 않는다. 대신 작은 소리·변화는 누구보다 먼저 알아챈다.
-; 소심함은 말줄임표가 아니라 "자기 판단을 먼저 낮추는 순서"와 "본 것/들은 것/추측을 나누는 방식"으로 드러낸다.
-; 그래서 PauseChance 는 옛 해파리(0.45)보다 낮췄다 — 망설임은 가끔만.
+; 2026-09-22 작성자 지정: 양은 "항상" 말을 더듬고 말끝을 흐린다("저, 저는 … 제, 제가 뭘 잘못했나요...?").
+; StutterChance/TrailOffChance 는 대사 뱅크 문장이 더듬기를 놓쳤을 때의 안전망이다.
 ; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
 
 [ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
@@ -16,12 +16,12 @@ Talkativeness = 0.4
 MaxSentences = 3
 QuestionEchoChance = 0.15
 VolunteerInfoChance = 0.35
-BackQuestionChance = 0.0
+BackQuestionChance = 0.35
 ReactionIntensity = 0.5
 HedgeChance = 0.7
 Directness = 0.2
 ExclamationChance = 0.0
-PauseChance = 0.3
+PauseChance = 0.6
 MaxExclamations = 0
 VoiceAxis = "겁 많음 / 예민 / 관찰 / 확신 낮춤"
 LeadWith = 2
@@ -33,3 +33,6 @@ ImpostorTells = 7
 ImpostorTellLine1 = "위험한 이상이 났는데도 평소의 양보다 눈에 띄게 침착하다(놀란 기색 없이 상황을 정리해 말한다)."
 ImpostorTellLine2 = "위험 설비 근처에 필요 이상으로 오래 있었다는 사실을 굳이 피하지 않는다."
 ImpostorTellLine3 = "자기가 직접 보지 않은 일을, 평소 양답지 않게 '확실하다'고 말한다."
+StutterChance = 1.0
+TrailOffChance = 0.8
+ImpressionChance = 0.5

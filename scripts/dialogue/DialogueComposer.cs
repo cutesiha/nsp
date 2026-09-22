@@ -19,13 +19,13 @@ public static class DialogueComposer
     // 같은 답변이 연달아 나오면 몇 번까지 다시 뽑아 볼 것인가.
     private const int RetryOnRepeat = 6;
 
-    private enum Part { Opener, Core, Caveat, Memory, Extra, Back }
+    private enum Part { Opener, Core, Caveat, Memory, Impression, Extra, Back }
 
     // 검증용 — 마지막 답변이 어떤 슬롯과 어떤 근무 기억으로 만들어졌는지(DialogueSampleDump 가 읽는다).
     public static string LastTrace { get; private set; } = "";
 
     // 문장 수 상한을 넘으면 이 순서대로(앞쪽부터) 뺀다.
-    private static readonly Part[] DropOrder = { Part.Back, Part.Extra, Part.Opener, Part.Memory };
+    private static readonly Part[] DropOrder = { Part.Back, Part.Extra, Part.Opener, Part.Memory, Part.Impression };
 
     public static string Compose(ReplyFrame f)
     {
@@ -76,9 +76,28 @@ public static class DialogueComposer
             if (!CaveatCovered(slot, core))
                 TryAdd(parts, Part.Caveat, Pick(id, slot, f.Vars, formal));
 
+        // ── 동료에 대한 인상 — 핵심이 사람을 댔을 때(같이 있던 사람 · 본 사람) ──
+        // 질문이 그 사람을 물었으므로 근무 기억보다 먼저 남는다.
+        // 핵심 문장 틀이 이미 한마디를 품고 있으면("{who} 씨요. 같이 있어서 든든했어요.") 겹쳐 붙이지 않는다.
+        string whoInCore = WhoMentioned(core, f.Vars);
+        if (whoInCore.Length > 0 && SentenceCount(core) <= 1 && GD.Randf() < voice.ImpressionChance)
+            TryAdd(parts, Part.Impression, Impression(id, whoInCore, formal));
+
         // ── 근무 기억 ─────────────────────────────────────────────────
+        string memWho = "";
         foreach (var a in f.Addenda)
-            TryAdd(parts, Part.Memory, Pick(id, a.Slot, Merge(f.Vars, a.Vars), formal));
+        {
+            var vars = Merge(f.Vars, a.Vars);
+            string line = Pick(id, a.Slot, vars, formal);
+            int before = parts.Count;
+            TryAdd(parts, Part.Memory, line);
+            if (parts.Count > before && memWho.Length == 0) memWho = WhoMentioned(line, vars);
+        }
+        // 기억 속 동료 이야기에는 가끔만, 문장 수에 여유가 있을 때만 인상을 붙인다(묻지 않은 사람 이야기라서).
+        int budget = f.MaxSentences > 0 ? f.MaxSentences : voice.MaxSentences;
+        if (memWho.Length > 0 && !parts.Any(p => p.Kind == Part.Impression) && parts.Count < budget
+            && GD.Randf() < voice.ImpressionChance * 0.5f)
+            TryAdd(parts, Part.Impression, Impression(id, memWho, formal));
 
         // ── 덧붙임 · 되묻기 ────────────────────────────────────────────
         if (!string.IsNullOrEmpty(f.ExtraSlot) && !AlreadyCovered(f.ExtraSlot, core))
@@ -87,7 +106,9 @@ public static class DialogueComposer
             TryAdd(parts, Part.Back, Pick(id, f.BackSlot, f.Vars, formal));
 
         // ── 문장 수 상한 ─────────────────────────────────────────────
-        int max = f.MaxSentences > 0 ? f.MaxSentences : voice.MaxSentences;
+        int max = budget;
+        // 사람을 물은 답에 붙은 인상은 상한을 한 칸 넘겨도 된다 — 그게 그 사람의 대답이다.
+        if (whoInCore.Length > 0 && parts.Any(p => p.Kind == Part.Impression)) max++;
         int keep = parts.Count(p => p.Kind is Part.Core or Part.Caveat);
         max = Mathf.Max(max, keep);
         foreach (var drop in DropOrder)
@@ -99,12 +120,63 @@ public static class DialogueComposer
                 parts.RemoveAt(at);
             }
         }
+        // 기억 속 동료에 붙은 인상은 그 기억이 잘려 나가면 같이 빠진다.
+        if (whoInCore.Length == 0 && memWho.Length > 0
+            && !parts.Any(p => p.Kind == Part.Memory && p.Text.Contains(CodenameOf(memWho))))
+            parts.RemoveAll(p => p.Kind == Part.Impression);
 
         LastTrace = f.Slot + (f.Addenda.Count == 0 ? "" : " + 기억[" + string.Join(", ",
             f.Addenda.Select(a => a.Slot + (parts.Any(p => p.Kind == Part.Memory) ? "" : "(잘림)"))) + "]");
         string joined = Finalize(string.Join(" ", parts.Select(p => p.Text)));
         int ex = f.MaxExclamations >= 0 ? f.MaxExclamations : voice.MaxExclamations;
-        return DialogueNaturalnessFilter.Clean(joined, ex);
+        // 말끝을 흐리는 게 버릇인 사람(양)은 말줄임을 더 허용한다.
+        int ellipses = voice.TrailOffChance >= 0.5f ? 4 : 2;
+        return DialogueVoiceTics.Apply(DialogueNaturalnessFilter.Clean(joined, ex, ellipses), voice);
+    }
+
+    // --- 동료 인상 ---------------------------------------------------------
+
+    // 문장이 실제로 동료 이름을 말했는가. 말했으면 그 직원 id.
+    private static string WhoMentioned(string line, Dictionary<string, string> vars)
+    {
+        if (string.IsNullOrEmpty(line)) return "";
+        foreach (string k in new[] { "who", "dname" })
+            if (vars.TryGetValue(k, out var name) && !string.IsNullOrEmpty(name) && line.Contains(name))
+                return IdOfCodename(name);
+        return "";
+    }
+
+    // 말하는 사람이 그 동료를 어떻게 보는가 — about.<대상 id>, 없으면 about.any.
+    private static string Impression(string speakerId, string targetId, bool formal)
+    {
+        if (string.IsNullOrEmpty(targetId) || targetId == speakerId) return "";
+        string codename = CodenameOf(targetId);
+        var vars = new Dictionary<string, string> { ["who"] = codename };
+        string text = Pick(speakerId, "about." + targetId, vars, formal);
+        return text.Length > 0 ? text : Pick(speakerId, "about.any", vars, formal);
+    }
+
+    private static readonly Dictionary<string, string> KnownCodenames = new()
+    {
+        ["고양이"] = "cat", ["강아지"] = "dog", ["여우"] = "fox",
+        ["토끼"] = "rabbit", ["양"] = "sheep", ["늑대"] = "wolf",
+    };
+
+    private static string IdOfCodename(string codename)
+    {
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        if (sim != null)
+            foreach (string eid in sim.GetEmployeeIds())
+                if (sim.GetEmployeeDef(eid)?.Codename == codename) return eid;
+        return KnownCodenames.GetValueOrDefault(codename, "");
+    }
+
+    private static string CodenameOf(string employeeId)
+    {
+        string name = NSP.Facility.FacilitySimulation.Instance?.GetEmployeeDef(employeeId)?.Codename;
+        if (!string.IsNullOrEmpty(name)) return name;
+        foreach (var kv in KnownCodenames) if (kv.Value == employeeId) return kv.Key;
+        return "";
     }
 
     // 같은 뜻을 두 번 말하지 않는다 — 이미 들어간 문장과 겹치면 붙이지 않는다.
@@ -113,9 +185,23 @@ public static class DialogueComposer
         if (string.IsNullOrWhiteSpace(text)) return;
         foreach (var p in parts)
             if (DialogueNaturalnessFilter.Repeats(p.Text, text)) return;
-        // 같은 종결 어미가 연달아 나오면 말버릇만 반복하는 것처럼 들린다.
-        if (parts.Count > 0 && parts[^1].Text.EndsWith("죠.") && text.EndsWith("죠.")) return;
+        // 같은 종결 어미가 연달아 나오면 말버릇만 반복하는 것처럼 들린다("…밀렸는데요. …일했는데요.").
+        // 보정은 사실 정확성 때문에 빠질 수 없으므로 예외.
+        if (kind != Part.Caveat && parts.Count > 0 && SameTic(parts[^1].Text, text)) return;
         parts.Add((kind, text));
+    }
+
+    private static readonly Regex SentenceBreak = new(@"[.!?~…](?=\s)", RegexOptions.Compiled);
+
+    private static int SentenceCount(string text) => SentenceBreak.Matches(text).Count + 1;
+
+    private static readonly string[] TicEndings = { "죠.", "는데요.", "거든요.", "잖아요.", "더군요.", "고요." };
+
+    private static bool SameTic(string a, string b)
+    {
+        foreach (string e in TicEndings)
+            if (a.EndsWith(e) && b.EndsWith(e)) return true;
+        return false;
     }
 
     private static Dictionary<string, string> Merge(Dictionary<string, string> a, Dictionary<string, string> b)
@@ -217,7 +303,7 @@ public static class DialogueComposer
         text = TokenPattern.Replace(text, "");
         text = Regex.Replace(text, @"\s+", " ").Trim();
         text = Regex.Replace(text, @"\s+([.,!?…])", "$1");
-        if (text.Length > 0 && !".!?…~".Contains(text[^1])) text += ".";
+        if (text.Length > 0 && !".!?…~ㅎ".Contains(text[^1])) text += ".";
         return text;
     }
 }

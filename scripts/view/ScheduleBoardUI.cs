@@ -229,10 +229,9 @@ public partial class ScheduleBoardUI : Control
             .ToList();
 
         float headY = showTaboo ? 186f : 100f;
-        AddLabel(_form, "작업실  ·  직원 카드를 끌어다 놓거나 카드를 고른 뒤 방을 누르세요", new Vector2(DocLeft, headY), 12, InkDim, _body);
 
         // 글자를 키운 만큼 행도 키우되, 작업실이 많은 날에는 하단 구분선 위에서 끝나도록 줄인다.
-        float y = headY + 30f;
+        float y = headY + 12f;
         float rowStep = rooms.Count > 0
             ? Mathf.Clamp((RowsBottomLimit - y) / rooms.Count, 34f, 50f)
             : 40f;
@@ -252,6 +251,7 @@ public partial class ScheduleBoardUI : Control
                 Occupants = here,
                 CodenameOf = id => sim.GetEmployeeDef(id)?.Codename ?? id,
                 JustWrote = _justWrote,
+                Focused = roomId == _focusRoom,
                 OnNameClick = OnRoomClicked,
                 OnClearOcc = OnClearOccupant,
                 OnHover = OnRoomHover,
@@ -447,8 +447,6 @@ public partial class ScheduleBoardUI : Control
         if (def.FacePortrait != null)
             _info.AddChild(MakeClippedPortrait(def.FacePortrait, new Vector2(px, py), new Vector2(36, 36)));
         AddLabel(_info, def.Codename, new Vector2(px + 44, py - 2), 21, Ink, _serif);
-        if (!string.IsNullOrEmpty(def.Trait))
-            AddLabel(_info, def.Trait, new Vector2(px + 44, py + 22), 13, InkDim, _body);
 
         float sy = py + 48;
         if (DayFeatures.StatsEnabled)
@@ -461,7 +459,7 @@ public partial class ScheduleBoardUI : Control
 
         // 능력치 대신 오늘의 기분을 그대로 다시 보여준다(카드에서 읽은 것과 같은 값).
         string mood = sim.GetDailyMood(employeeId);
-        AddLabel(_info, "오늘의 기분", new Vector2(px, sy), 12, InkDim, _body);
+        AddLabel(_info, "오늘의 기분", new Vector2(px, sy), 13, Ink, _body);
         AddLabel(_info, string.IsNullOrEmpty(mood) ? "—" : mood, new Vector2(px, sy + 15), 19, InkRed, _serif);
     }
 
@@ -503,7 +501,19 @@ public partial class ScheduleBoardUI : Control
         }
         _focusRoom = roomId;
         _focusEmp = "";
+        RefreshRowFocus();
         RefreshInfoPanel();
+    }
+
+    // 고른 작업실은 다른 작업실을 누르거나 직원을 고를 때까지 붉은 글자 + 밑줄로 남는다.
+    private void RefreshRowFocus()
+    {
+        foreach (var r in _rows)
+        {
+            if (!IsInstanceValid(r)) continue;
+            bool f = r.RoomId == _focusRoom;
+            if (r.Focused != f) { r.Focused = f; r.QueueRedraw(); }
+        }
     }
 
     private void OnEmployeeClicked(string employeeId)
@@ -712,8 +722,8 @@ public partial class ScheduleBoardUI : Control
             DrawString(_serif, new Vector2(textX, nameBase), (Selected ? "▶" : "") + _def.Codename,
                 HorizontalAlignment.Left, -1, ViewFont.S(19), ink);
 
-            // 윗줄 오른쪽은 배치처(있으면) 아니면 특성 — 둘을 겹쳐 그리지 않는다.
-            string right = assigned ? "→ " + AssignedRoomName : _def.Trait;
+            // 윗줄 오른쪽은 배치처만(특성 키워드는 싣지 않는다).
+            string right = assigned ? "→ " + AssignedRoomName : "";
             if (!string.IsNullOrEmpty(right))
                 DrawString(_body, new Vector2(Size.X - 104f, nameBase - 1f), right,
                     HorizontalAlignment.Right, 96f, ViewFont.S(11), dim);
@@ -730,7 +740,7 @@ public partial class ScheduleBoardUI : Control
 
             // 능력치가 잠긴 날 — 카드 아랫줄 전체를 "오늘의 기분"에 준다(작은 보조정보가 아니다).
             DrawString(_body, new Vector2(portraitX + 1f, moodBase - 1f), "오늘의 기분",
-                HorizontalAlignment.Left, -1, ViewFont.S(11), dim);
+                HorizontalAlignment.Left, -1, ViewFont.S(12), darkBg ? new Color(0.96f, 0.90f, 0.76f) : ink);
             DrawString(_serif, new Vector2(portraitX + 84f, moodBase), string.IsNullOrEmpty(DailyMood) ? "—" : DailyMood,
                 HorizontalAlignment.Left, Size.X - portraitX - 92f, ViewFont.S(17),
                 darkBg ? new Color(1f, 0.90f, 0.72f) : new Color(0.45f, 0.13f, 0.09f));
@@ -780,6 +790,7 @@ public partial class ScheduleBoardUI : Control
         public Action<string, bool> OnHover;
         public Func<string, string, bool> TryDropAssign;
         public bool ManualHover;     // ScheduleBoardUI 의 수동 드래그가 이 행 위에 있을 때
+        public bool Focused;         // 지금 골라 둔 작업실 — 마우스가 떠나도 강조가 남는다
 
         private readonly RoomDef _def;
         private readonly Font _serif, _body;
@@ -807,7 +818,7 @@ public partial class ScheduleBoardUI : Control
             int slotSize = ViewFont.S(15);
 
             // 마우스를 올리면 작업실 이름이 붉게 밝아지고 밑줄이 그어진다.
-            bool nameHot = _hover || dh;
+            bool nameHot = _hover || dh || Focused;
             var nameCol = nameHot ? new Color(0.60f, 0.13f, 0.08f) : ink;
             DrawString(_serif, new Vector2(0, baseY), _def.DisplayName, HorizontalAlignment.Left, NameW, nameSize, nameCol);
             if (nameHot)

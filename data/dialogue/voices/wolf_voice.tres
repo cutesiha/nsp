@@ -33,3 +33,4 @@ ImpostorTells = 28
 ImpostorTellLine1 = "평소보다 더 단정적이다 — 정상 늑대라면 '그 이후는 모릅니다'라고 끊을 자리에서도 끝까지 단정한다."
 ImpostorTellLine2 = "직접 관찰하지 않은 정보까지 확신한다."
 ImpostorTellLine3 = "행동 이유를 물으면 이유가 비정상적으로 빈약하거나 같은 설명을 되풀이한다(정상 늑대는 짧아도 이유가 있다)."
+ImpressionChance = 0.3
