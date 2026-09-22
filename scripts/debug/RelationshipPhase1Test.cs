@@ -201,7 +201,8 @@ public partial class RelationshipPhase1Test : Node
         float s0 = Stress("fox");
         cfg.UneasyArgumentChance = 1f; cfg.UneasyArgumentCheckSeconds = 5f;
         Run(12f);
-        Check(Mathf.IsEqualApprox(Stress("fox"), s0), "DAY1 은 스트레스가 잠겨 있어 긴장·언쟁 스트레스가 없다");
+        // 경영 리워크: 스트레스가 DAY1 부터 켜져 있다 — 불편 쌍은 바로 스트레스를 받는다.
+        Check(Stress("fox") > s0, "DAY1 부터 긴장·언쟁 스트레스가 쌓인다");
         var args = EventLog.Instance.GetAllEntries().Where(e => e.EventType == LogEventType.Argument).ToList();
         Check(args.Count > 0 && args.All(e => e.RoomId == "guard_room"), $"언쟁이 경비실에서만 로그로 남는다({args.Count}건)");
         var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);

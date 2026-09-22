@@ -71,7 +71,11 @@ public partial class ScheduleConsoleTest : Node
         var got = _sim.GetRoomIds().Where(id => ScheduleMapView.IsAssignable(_sim, id)).OrderBy(x => x).ToList();
         GD.Print($"   DAY1 배치 가능: {string.Join(", ", got)}");
         Check(expected.SequenceEqual(got), "배치 가능 작업실 목록이 같다");
-        Check(!got.Contains("vent_room") && !got.Contains("medical_room"), "DAY1 잠긴 방(환기실·의무실)은 배치 불가");
+        Check(got.Contains("vent_room") && got.Contains("medical_room"), "경영 리워크: 환기실·의무실은 DAY1 부터 배치 가능");
+        // 표시만이 아니라 실제 배치(길찾기 포함)가 되는지 — 배치 후 되돌린다.
+        bool ventOk = _sim.AssignToRoom("wolf", "vent_room"); _sim.ClearAssignment("wolf");
+        bool medOk = _sim.AssignToRoom("wolf", "medical_room"); _sim.ClearAssignment("wolf");
+        Check(ventOk && medOk, $"환기실·의무실에 실제로 배치된다(환기실 {ventOk} · 의무실 {medOk})");
         Check(!got.Contains("central_office") && !got.Contains("isolation_room"), "제한 구역은 배치 불가");
 
         _map.ComputeLayout(_sim);
@@ -136,8 +140,10 @@ public partial class ScheduleConsoleTest : Node
     private async System.Threading.Tasks.Task Refused()
     {
         Head("E", "잠긴 방 · 제한 구역에는 놓이지 않는다");
+        // 경영 리워크: 환기실은 DAY1 부터 열려 있다 — 끌어다 놓으면 실제로 배치된다.
         await DragFromTo(_map.RosterCardOf("fox").GetCenter(), _map.CellOf("vent_room").GetCenter());
-        Check(Assigned("fox") == "", "환기실(DAY1 잠김)에 놓아도 배치 안 됨");
+        Check(Assigned("fox") == "vent_room", "환기실에 끌어다 놓으면 배치된다");
+        _sim.ClearAssignment("fox");
         await DragFromTo(_map.RosterCardOf("fox").GetCenter(), _map.CellOf("central_office").GetCenter());
         Check(Assigned("fox") == "", "중앙 제어실(관리자)에 놓아도 배치 안 됨");
         await DragFromTo(_map.RosterCardOf("fox").GetCenter(), new Vector2(300f, 560f));

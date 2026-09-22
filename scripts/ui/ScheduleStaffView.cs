@@ -58,10 +58,8 @@ public partial class ScheduleStaffView : Control
         if (string.IsNullOrEmpty(emp)) emp = map?.SelectedEmployeeId ?? "";
         string hover = map?.HoverRoomId ?? "";
 
-        if (DayFeatures.StatsEnabled && !string.IsNullOrEmpty(emp) && !string.IsNullOrEmpty(hover)
-            && ScheduleMapView.IsAssignable(sim, hover))
-            DrawCompare(sim, emp, hover);
-        else if (!string.IsNullOrEmpty(map?.FocusEmployeeId))
+        // 경영 리워크: 능력치 비교(ASSIGNMENT CHECK)는 쓰지 않는다 — 끌어다 놓으면 바로 배치.
+        if (!string.IsNullOrEmpty(map?.FocusEmployeeId))
             DrawEmployee(sim, map.FocusEmployeeId);
         else if (!string.IsNullOrEmpty(map?.FocusRoomId))
             DrawRoom(sim, map.FocusRoomId);
@@ -139,19 +137,7 @@ public partial class ScheduleStaffView : Control
         DrawRect(new Rect2(x, y - 22f, 4f, 30f), def.IconColor);
         DrawString(_font, new Vector2(x + 14f, y), def.Codename, HorizontalAlignment.Left, 420f, ViewFont.S(30), Ink);
         y += 34f;
-        if (!string.IsNullOrEmpty(def.Trait))
-        {
-            DrawString(_font, new Vector2(x, y), "특성   " + def.Trait, HorizontalAlignment.Left, 440f, ViewFont.S(16), Mint);
-            y += 32f;
-        }
-
-        if (DayFeatures.StatsEnabled)
-        {
-            Stat("기술", def.Tech, x, y); y += 30f;
-            Stat("담력", def.Courage, x, y); y += 30f;
-            Stat("관찰", def.Observation, x, y); y += 40f;
-        }
-        else
+        // 경영 리워크: 특성 · 능력치는 싣지 않는다(EmployeeDef 필드는 남아 있음).
         {
             // 능력치가 잠긴 날 — 오늘의 기분이 주 정보다(직원 본인의 자기보고).
             DrawString(_font, new Vector2(x, y), "오늘의 기분", HorizontalAlignment.Left, 440f, ViewFont.S(14), Dim);
@@ -204,14 +190,6 @@ public partial class ScheduleStaffView : Control
             DrawDescription(roomId, x, y);
             Footer("이 작업실에는 직원을 배치할 수 없습니다.", Dim);
             return;
-        }
-
-        if (DayFeatures.StatsEnabled)
-        {
-            var stats = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RequiredStat).Distinct();
-            DrawString(_font, new Vector2(x, y), "요구 능력   " + string.Join("  ·  ", stats.Select(StatLabel)),
-                HorizontalAlignment.Left, 680f, ViewFont.S(16), Amber);
-            y += 34f;
         }
 
         var here = ScheduleMapView.AssignedTo(sim, roomId);

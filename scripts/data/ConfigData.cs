@@ -30,6 +30,10 @@ public partial class ConfigData : Resource
     [Export] public float StressCautionFrom = 11f;
     [Export] public float StressDangerFrom = 31f;
     [Export] public float StressFaintFrom = 46f;
+    // 기절 → 의무실에서 이 시간(초) 뒤 회복해 원래 배치로 복귀. 0 이하면 예전처럼 당일 복귀 없음.
+    [Export] public float StressFaintRecoverySeconds = 45f;
+    // 회복 직후 스트레스 값(다시 바로 기절하지 않게 '주의' 구간 근처로 내려 둔다).
+    [Export] public float StressAfterRecovery = 20f;
     [Export] public float StressWorkRateNormal = 1.00f;
     [Export] public float StressWorkRateCaution = 0.85f;
     [Export] public float StressWorkRateDanger = 0.65f;
@@ -107,7 +111,7 @@ public partial class ConfigData : Resource
     // --- 작업실 무인 방치 → 사고 -------------------------------------------
     // 근무자가 한 명도 없는 상태가 이 시간을 넘기면 그 방의 사고가 발생한다.
     // 방마다 다르게 하려면 RoomDef.UnstaffedAccidentSeconds 를 0 보다 크게 준다.
-    [Export] public float UnstaffedAccidentSecondsDefault = 25f;
+    [Export] public float UnstaffedAccidentSecondsDefault = 75f;
 
     // --- 작업실 상시 효과 ---------------------------------------------------
     // 환기실 무인: 이 주기마다 전 직원 스트레스 +1.

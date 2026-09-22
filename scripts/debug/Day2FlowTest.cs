@@ -90,14 +90,15 @@ public partial class Day2FlowTest : Node
                  $"금기 {DayFeatures.TaboosEnabled} 환기실 {_sim.IsRoomActive("vent_room")} " +
                  $"의무실 {_sim.IsRoomActive("medical_room")}");
 
-        Check(!d1Stats && !d1Stress && !d1Taboo, "DAY1 에는 능력치·스트레스·금기가 꺼져 있다");
-        Check(!DayFeatures.StatsEnabled && !DayFeatures.StressEnabled && !DayFeatures.TaboosEnabled,
-            "DAY2 에도 능력치·스트레스·금기는 꺼져 있다(DAY1 시스템 유지)");
-        Check(!d1Vent && !d1Med && !_sim.IsRoomActive("vent_room") && !_sim.IsRoomActive("medical_room"),
-            "환기실·의무실은 DAY2 에도 열리지 않는다");
+        // 경영 리워크: 능력치 · 금기는 걷어냈고(잠금 유지), 스트레스와 환기실 · 의무실은 DAY1 부터 켜진다.
+        Check(!d1Stats && d1Stress && !d1Taboo, "DAY1 에는 능력치·금기가 꺼져 있고 스트레스는 켜져 있다");
+        Check(!DayFeatures.StatsEnabled && DayFeatures.StressEnabled && !DayFeatures.TaboosEnabled,
+            "DAY2 도 같은 규칙(능력치·금기 없음, 스트레스 있음)");
+        Check(d1Vent && d1Med && _sim.IsRoomActive("vent_room") && _sim.IsRoomActive("medical_room"),
+            "환기실·의무실은 DAY1 부터 열려 있다(작업실 7개)");
         GameState.Instance.ResetRun(5);
-        Check(!DayFeatures.StatsEnabled && !DayFeatures.TaboosEnabled && !_sim.IsRoomActive("vent_room"),
-            "DAY5 까지 DAY1 시스템이 그대로다");
+        Check(!DayFeatures.StatsEnabled && !DayFeatures.TaboosEnabled && _sim.IsRoomActive("vent_room"),
+            "DAY5 까지 같은 규칙이 유지된다");
         GameState.Instance.ResetRun(2);
 
         // 능력치가 실제 작업 효율에 들어가는가 — 같은 직원의 배율이 날마다 다르다.
@@ -306,8 +307,7 @@ public partial class Day2FlowTest : Node
         Check(d1.UnorderedMoves == 0 && d2.UnorderedMoves == 0,
             "DAY2 에서도 직원은 플레이어 명령으로만 움직인다");
         Check(!d2.SpawnedTasks.Contains("power_generator_check"), "DAY2 에도 발전기 점검(2명 고정 업무)은 없다");
-        Check(!d2.SpawnedTasks.Contains("vent_circulation_check"), "DAY2 에도 환기 업무는 없다");
-        Check(!d2.SpawnedTasks.Contains("staff_treatment"), "DAY2 에도 의무실 업무는 없다");
+        // 경영 리워크: 환기실 · 의무실이 DAY1 부터 열려 있으므로 그 방 업무가 생기는 것이 정상이다.
         Check(!d1.SpawnedTasks.Contains("vent_circulation_check"), "DAY1 에는 환기 업무가 뜨지 않는다");
         // DAY2 는 DAY1 과 같은 시스템에서 숫자만 조금 조였다. 무작위 근무 몇 번의 결과라
         // 편차가 크므로 "무너지지도, 훨씬 쉬워지지도 않는다" 만 본다.

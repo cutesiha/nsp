@@ -33,6 +33,9 @@ public partial class FacilityMinimap : Control
         ["guard_room"] = new(0.17f, 0.70f),
         ["maintenance_room"] = new(0.83f, 0.70f),
         ["isolation_room"] = new(0.50f, 0.88f),
+        // 환기실 · 의무실 — 배치 지도(RoomDef.MapPosition)와 같은 쪽(왼쪽 아래 / 오른쪽 아래)에 둔다.
+        ["vent_room"] = new(0.17f, 0.88f),
+        ["medical_room"] = new(0.83f, 0.88f),
     };
 
     // 방 이름(위) / 직원 아이콘(가운데) / 직원 코드네임(아래)이 서로 안 겹치도록 잡은 크기.

@@ -33,7 +33,7 @@ WarningCheckSeconds = 11.0
 WarningResponseSeconds = 14.0
 WarningRequiredStaff = 2
 WarningCooldownSeconds = 14.0
-UnstaffedAccidentSeconds = 0.0
+UnstaffedAccidentSeconds = 75.0
 RepairSeconds = 16.0
 RepairMinWorkers = 2
 
@@ -83,7 +83,7 @@ WarningCheckSeconds = 15.0
 WarningResponseSeconds = 14.0
 WarningRequiredStaff = 2
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 0.0
+UnstaffedAccidentSeconds = 75.0
 RepairSeconds = 12.0
 RepairMinWorkers = 1
 
@@ -109,7 +109,7 @@ WarningCheckSeconds = 18.0
 WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 0.0
+UnstaffedAccidentSeconds = 75.0
 RepairSeconds = 10.0
 RepairMinWorkers = 1
 
@@ -135,7 +135,7 @@ WarningCheckSeconds = 18.0
 WarningResponseSeconds = 13.0
 WarningRequiredStaff = 2
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 0.0
+UnstaffedAccidentSeconds = 75.0
 RepairSeconds = 10.0
 RepairMinWorkers = 1
 

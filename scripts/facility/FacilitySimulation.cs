@@ -259,19 +259,42 @@ public partial class FacilitySimulation : Node
         CheckFaint(st);
     }
 
-    // 46~50 = 기절. 근무에서 빠지고 의무실로 옮겨진다(당일 복귀 없음).
+    // 46~50 = 기절. 근무에서 빠지고 의무실로 옮겨졌다가, 회복 시간이 지나면 복귀한다.
     private void CheckFaint(EmployeeState st)
     {
         var cfg = Config.Instance.Data;
         if (st.Incapacitated || st.Stress < cfg.StressFaintFrom || !st.Alive) return;
 
         st.Incapacitated = true;
+        st.FaintRecoverTimer = cfg.StressFaintRecoverySeconds;
         EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
-            $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (당일 업무 불가)");
+            cfg.StressFaintRecoverySeconds > 0f
+                ? $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (약 {cfg.StressFaintRecoverySeconds:0}초 회복)"
+                : $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (당일 업무 불가)");
 
         // 격리 중이 아니면 의무실로 옮긴다. 배치는 유지해 두어 관리자가 상황을 볼 수 있게 한다.
         if (!st.Isolated && _roomDefs.ContainsKey(MedicalRoomId))
             BeginPathTo(st, MedicalRoomId);
+    }
+
+    // 기절 회복 — 의무실에서 회복 시간이 지나면 스트레스를 낮추고 원래 배치로 돌려보낸다.
+    private void TickFaintRecovery(float delta)
+    {
+        var cfg = Config.Instance.Data;
+        if (cfg.StressFaintRecoverySeconds <= 0f) return;
+        foreach (var st in _employeeStates.Values)
+        {
+            if (!st.Incapacitated || !st.Alive) continue;
+            st.FaintRecoverTimer -= delta;
+            if (st.FaintRecoverTimer > 0f) continue;
+
+            st.Incapacitated = false;
+            st.Stress = Mathf.Clamp(cfg.StressAfterRecovery, cfg.StressMin, cfg.StressFaintFrom - 1f);
+            EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
+                $"{Codename(st.EmployeeId)} 회복 — 스트레스 {st.Stress:0}, 근무 복귀");
+            if (!st.Isolated && !string.IsNullOrEmpty(st.AssignedRoomId) && st.AssignedRoomId != st.CurrentRoomId)
+                BeginPathTo(st, st.AssignedRoomId);
+        }
     }
 
     // 스트레스 구간별 업무 속도 배율. 1~10 정상 / 11~30 주의 / 31~45 위험 / 46+ 기절(0).
@@ -592,6 +615,14 @@ public partial class FacilitySimulation : Node
         CorridorElbow.Compute(GetRoomPosition(fromRoomId), GetRoomPosition(toRoomId),
             GetRoomPosition(DeployOriginRoomId));
 
+    // 통로로 이어진 방(양방향). RoomDef.ConnectedRoomIds 는 한쪽에만 적혀 있을 수 있다.
+    private IEnumerable<string> Neighbors(string roomId)
+    {
+        var def = _roomDefs.GetValueOrDefault(roomId);
+        var own = def?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
+        return own.Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId)).Distinct();
+    }
+
     private List<string> FindPath(string fromRoomId, string toRoomId)
     {
         var result = new List<string>();
@@ -611,7 +642,9 @@ public partial class FacilitySimulation : Node
             var def = _roomDefs.GetValueOrDefault(current);
             if (def == null) continue;
 
-            foreach (var neighborId in def.ConnectedRoomIds)
+            // 통로는 양방향이다. 데이터에는 한쪽 방에만 적힌 연결이 있어서(예: 의무실 → 중앙 제어실)
+            // 반대편 방의 목록도 함께 본다 — 안 그러면 환기실 · 의무실로 가는 길이 없다고 판정돼 배치가 조용히 실패했다.
+            foreach (var neighborId in Neighbors(current))
             {
                 if (!_roomDefs.ContainsKey(neighborId) || !visited.Add(neighborId)) continue;
                 cameFrom[neighborId] = current;
@@ -671,7 +704,9 @@ public partial class FacilitySimulation : Node
             var def = _roomDefs.GetValueOrDefault(current);
             if (def == null) continue;
 
-            foreach (var neighborId in def.ConnectedRoomIds)
+            // 통로는 양방향이다. 데이터에는 한쪽 방에만 적힌 연결이 있어서(예: 의무실 → 중앙 제어실)
+            // 반대편 방의 목록도 함께 본다 — 안 그러면 환기실 · 의무실로 가는 길이 없다고 판정돼 배치가 조용히 실패했다.
+            foreach (var neighborId in Neighbors(current))
             {
                 if (!_roomDefs.ContainsKey(neighborId) || !visited.Add(neighborId)) continue;
                 if (CanAssignToRoom(neighborId))
@@ -768,6 +803,7 @@ public partial class FacilitySimulation : Node
         {
             emp.InitialDeployDone = false;
             emp.Incapacitated = false;
+            emp.FaintRecoverTimer = 0f;
             emp.Stress = Mathf.Clamp(emp.Stress, Config.Instance.Data.StressMin, Config.Instance.Data.StressMax);
         }
         _ventStressTimer = 0f;
@@ -842,6 +878,7 @@ public partial class FacilitySimulation : Node
         TickRoomTension(d);
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
+        TickFaintRecovery(d);
         _warnings.Tick(d, this);
         _behavior.Tick(d, this);
         TickGuardPatrol(d);

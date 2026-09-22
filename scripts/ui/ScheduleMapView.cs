@@ -341,16 +341,7 @@ public partial class ScheduleMapView : Control
         DrawString(_font, new Vector2(Canvas.X - 220f, 46f), DayFeatures.DayLabel(day), HorizontalAlignment.Right,
             196f, ViewFont.S(26), Ink);
 
-        // 금기가 해금된 날에만 싣는다(종이 배치표와 같은 조건).
-        if (DayFeatures.TaboosEnabled)
-        {
-            var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
-            string text = taboos == null || taboos.Count == 0
-                ? "오늘의 금기  —  특이사항 없음"
-                : "⚠ 오늘의 금기  " + string.Join("   ⚠ ", taboos.Select(t => t.Description));
-            DrawString(_font, new Vector2(24f, 86f), text, HorizontalAlignment.Left, Canvas.X - 48f,
-                ViewFont.S(13), Amber);
-        }
+        // 경영 리워크: 금기는 게임에서 걷어냈다 — 배치 화면에 싣지 않는다.
         DrawRect(new Rect2(24f, 93f, Canvas.X - 48f, 1f), Mint with { A = 0.16f });
     }
 
@@ -685,9 +676,7 @@ public partial class ScheduleMapView : Control
 
             string sub = assigned
                 ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
-                : DayFeatures.StatsEnabled
-                    ? $"기{def.Tech} 담{def.Courage} 관{def.Observation}"
-                    : "기분 · " + (string.IsNullOrEmpty(st.DailyMood) ? "—" : st.DailyMood);
+                : "기분 · " + (string.IsNullOrEmpty(st.DailyMood) ? "—" : st.DailyMood);
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f + 14f), sub,
                 HorizontalAlignment.Left, card.End.X - tx - 4f, ViewFont.S(10), assigned ? Mint : Amber);
         }

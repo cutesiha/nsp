@@ -54,6 +54,12 @@ public partial class Day1OpsTest : Node
         GD.Print("################ DAY1 운영 루프 검증 ################");
         var profile = OpsProfile.For(1);
         if (profile == null) { GD.PrintErr("data/ops/day1.tres 를 읽지 못했습니다."); return; }
+        // 이 테스트는 작업실 5개(코어·발전·정비·경비·저장) 체제의 운영 밸런스를 비교한다.
+        // 경영 리워크로 환기실 · 의무실 · 스트레스가 DAY1 부터 켜졌지만, 여기서는 비교 조건을 같게 두려고 예전 조건으로 돌린다.
+        var cfg0 = Config.Instance.Data;
+        cfg0.StressUnlockDay = 99;
+        foreach (var rid in new[] { "vent_room", "medical_room" })
+            if (_sim.GetRoomDef(rid) is { } rd) rd.UnlockDay = 99;
         GD.Print($"프로필 로드 OK — Day={profile.Day} 목표복구 {profile.TargetCoreGain:0}% " +
                  $"작업실표 {profile.Rooms.Count}개 예약경고 {profile.ScheduledWarnings.Count}개");
 

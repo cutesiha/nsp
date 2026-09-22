@@ -14,9 +14,10 @@ public class EmployeeState
     public string EmployeeId;
     // 스트레스 1~50. 46 이상이면 기절 상태가 되어 의무실로 강제 송환되고 당일 업무 불가.
     public float Stress = 1f;
-    // 기절 — 스트레스 46 이상에서 발동. 그날 근무가 끝날 때까지 어떤 업무도 처리하지 못한다.
-    // (스트레스가 다시 내려가도 당일에는 복귀하지 않는다.)
+    // 기절 — 스트레스 46 이상에서 발동. 의무실로 옮겨져 업무를 못 하다가
+    // Config.StressFaintRecoverySeconds 가 지나면 회복해 원래 배치로 돌아간다.
     public bool Incapacitated = false;
+    public float FaintRecoverTimer;
     public string CurrentRoomId;
     public string AssignedRoomId = "";
     public string TargetRoomId;

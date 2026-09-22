@@ -398,7 +398,7 @@ public partial class FacilityMonitorView : Control
             var task = sim.GetActiveTaskForRoom(st.CurrentRoomId);
             string status = !st.Alive ? "[color=#ff5555]활동 중단[/color]"
                 : st.Isolated ? "[color=#dd88dd]격리됨[/color]"
-                : st.Incapacitated ? "[color=#ff5555]기절 — 당일 업무 불가[/color]"
+                : st.Incapacitated ? "[color=#ff5555]기절 — 의무실에서 회복 중[/color]"
                 : st.IsMoving ? "이동 중" : "정상";
 
             string doing = st.IsMoving ? "이동 중" : task?.DisplayName ?? "대기";
@@ -436,8 +436,8 @@ public partial class FacilityMonitorView : Control
             else
             {
                 string mood = sim.GetDailyMood(_selEmp);
-                detail = $"오늘의 기분 · [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "—" : mood)}[/color]"
-                         + (string.IsNullOrEmpty(def.Trait) ? "" : $"\n[color=#8a99a8]{def.Trait}[/color]");
+                // 경영 리워크: 특성(Trait)은 싣지 않는다.
+                detail = $"오늘의 기분 · [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "—" : mood)}[/color]";
             }
 
             SetFace(def.FacePortrait);
