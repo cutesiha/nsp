@@ -174,7 +174,13 @@ public partial class InterviewCCTVView : Control
         BindRoomFeed();
 
         string empId = RestRosterView.Instance?.SelectedEmployeeId ?? "";
-        if (empId == _lastEmployee) return;
+        // 말하는 입 모양 · 표정이 있는 직원(standing_v2)은 매 프레임 원화를 갈아 끼운다.
+        if (empId == _lastEmployee)
+        {
+            var talking = EmployeeMouthAnimator.PortraitFor(empId);
+            if (talking != null && talking != _portrait.Texture) ApplyPortrait(talking);
+            return;
+        }
         _lastEmployee = empId;
 
         var sim = FacilitySimulation.Instance;
@@ -193,7 +199,7 @@ public partial class InterviewCCTVView : Control
         }
 
         _stateLabel.Visible = false;
-        ApplyPortrait(def.StandingImage ?? def.FacePortrait);
+        ApplyPortrait(EmployeeMouthAnimator.PortraitFor(empId) ?? def.StandingImage ?? def.FacePortrait);
         _namePlate.Visible = true;
         _nameLabel.Text = def.Codename;
         _statusLabel.Text = !st.Alive ? "응답 없음 · 기록 종료"

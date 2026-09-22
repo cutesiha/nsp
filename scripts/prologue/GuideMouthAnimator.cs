@@ -81,7 +81,7 @@ public static class GuideMouthAnimator
     public const double GlitchDuration = 0.09;
 
     // 손으로 짠 말하기 패턴. 닫힘/작게/크게가 섞여 돌지만 순서가 정해져 있어 떨리지 않는다.
-    private static readonly GuideMouthFrame[] Pattern =
+    internal static readonly GuideMouthFrame[] Pattern =
     {
         GuideMouthFrame.Closed, GuideMouthFrame.Small, GuideMouthFrame.Open, GuideMouthFrame.Small,
         GuideMouthFrame.Closed, GuideMouthFrame.Small, GuideMouthFrame.Open, GuideMouthFrame.Open,

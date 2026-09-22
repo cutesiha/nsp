@@ -577,6 +577,8 @@ public partial class PhoneCallHud : CanvasLayer
         _after = after;
         _message.Text = DialogueHighlight.Colorize(text);
         _message.VisibleCharacters = 0;
+        // 스탠딩 원화의 입 모양 · 표정(휴게 심문 화면이 읽는다).
+        EmployeeMouthAnimator.StartTalking(_employeeId, text);
         // 통화 중 카메라는 전혀 움직이지 않는다(예전의 '말하며 끄덕이는' 흔들림 제거).
     }
 
@@ -586,19 +588,24 @@ public partial class PhoneCallHud : CanvasLayer
         if (_incoming != null && _incoming.Visible)
             _incoming.Modulate = new Color(1, 1, 1, 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(_blink * 4f)));
 
+        EmployeeMouthAnimator.Tick(delta);
         if (!_typing) return;
         _typeTimer += delta;
         int shown = Mathf.Min(_fullText.Length, (int)(_typeTimer / CharDelay));
         if (shown != _shownChars)
         {
             for (int i = _shownChars; i < shown; i++)
+            {
                 Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i]);
+                EmployeeMouthAnimator.NoticeCharacter(_fullText[i]);
+            }
             _shownChars = shown;
         }
         _message.VisibleCharacters = shown;
         if (shown >= _fullText.Length)
         {
             _typing = false;
+            EmployeeMouthAnimator.StopTalking();
             switch (_after)
             {
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
@@ -744,6 +751,7 @@ public partial class PhoneCallHud : CanvasLayer
     {
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
+        EmployeeMouthAnimator.StopTalking();
         ShowPlayerLine("");
         _message.Text = DialogueHighlight.Colorize("— " + text);
         _message.VisibleCharacters = -1;
@@ -929,6 +937,7 @@ public partial class PhoneCallHud : CanvasLayer
         _panel.Visible = false;
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
+        EmployeeMouthAnimator.Reset();
         ClearChoices();
         _session = null;
         _followUps.Clear();
