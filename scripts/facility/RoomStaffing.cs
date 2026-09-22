@@ -14,11 +14,38 @@ public static class RoomStaffing
     public static int Count(string roomId) => Sim?.OnDutyCount(roomId) ?? 0;
 
     // 그 방 업무의 진행 속도 배율. 0명이면 0.
+    // 같은 방에 불편(Uneasy) 관계 쌍이 있으면 쌍마다 config UneasyEfficiencyMultiplier 가 곱해진다.
     public static float Efficiency(string roomId)
     {
         var ops = OpsProfile.Room(roomId);
-        if (ops == null) return Mathf.Max(0, Count(roomId));   // 표가 없으면 옛 방식(머릿수 합)
-        return OpsProfile.Curve(ops.Efficiency, Count(roomId), 0f);
+        float baseRate = ops == null
+            ? Mathf.Max(0, Count(roomId))                        // 표가 없으면 옛 방식(머릿수 합)
+            : OpsProfile.Curve(ops.Efficiency, Count(roomId), 0f);
+        return baseRate * RelationEfficiency(roomId);
+    }
+
+    // --- 직원 관계 (RelationshipSystem) -------------------------------------
+
+    // 그 방에서 지금 근무 중인 사람들 가운데 사이가 나쁜(Uneasy 이하) 쌍.
+    // 동실 거부(Refuse) 쌍은 배치 화면이 막지만, 근무 중 재배치로 모였다면 불편과 같은 페널티를 받는다.
+    public static System.Collections.Generic.List<(string A, string B)> TensePairs(string roomId)
+    {
+        var pairs = new System.Collections.Generic.List<(string, string)>();
+        var ids = Sim?.OnDutyEmployeeIds(roomId);
+        if (ids == null) return pairs;
+        for (int i = 0; i < ids.Count; i++)
+            for (int j = i + 1; j < ids.Count; j++)
+                if (RelationshipSystem.Band(ids[i], ids[j]) <= PairBand.Uneasy)
+                    pairs.Add((ids[i], ids[j]));
+        return pairs;
+    }
+
+    public static float RelationEfficiency(string roomId)
+    {
+        int tense = TensePairs(roomId).Count;
+        if (tense == 0) return 1f;
+        float m = Config.Instance?.Data?.UneasyEfficiencyMultiplier ?? 1f;
+        return Mathf.Pow(Mathf.Clamp(m, 0f, 1f), tense);
     }
 
     // 시설 전체 업무에 걸리는 배율. 발전실 인원(그리고 발전실 고장)이 여기에 들어온다.

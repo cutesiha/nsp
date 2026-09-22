@@ -127,6 +127,22 @@ public partial class ConfigData : Resource
     // 발생 업무가 완료/실패한 뒤 방 카드에 결과 배지를 몇 초 더 보여줄지.
     [Export] public float ResolvedTaskDisplaySeconds = 2.5f;
 
+    // --- 직원 관계 (docs/NSP_관계시스템_설계.md) -----------------------------
+    // 관계 시드 테이블. 게임 시작 · 처음부터 다시 시작 때 RelationshipSystem.Load 로 읽는다.
+    [Export(PropertyHint.File, "*.tres")] public string RelationshipTablePath = "res://data/relationships/relationships.tres";
+    // 불편(Uneasy) 쌍이 같은 방에서 근무할 때의 소프트 페널티. 배치는 막지 않는다.
+    //  · 업무 속도 배율 — 그 방에 불편 쌍이 하나 있을 때마다 곱해진다.
+    [Export] public float UneasyEfficiencyMultiplier = 0.85f;
+    //  · 긴장(스트레스): 이 주기마다 두 사람 스트레스 +. 스트레스가 잠긴 날에는 움직이지 않는다.
+    [Export] public float UneasyStressIntervalSeconds = 20f;
+    [Export] public float UneasyStressAmount = 1f;
+    //  · 말다툼: 이 주기마다 한 번 굴려 성공하면 시설 로그에 언쟁이 남고 두 사람 스트레스 +.
+    [Export] public float UneasyArgumentCheckSeconds = 30f;
+    [Export(PropertyHint.Range, "0,1,0.01")] public float UneasyArgumentChance = 0.35f;
+    [Export] public float UneasyArgumentStress = 2f;
+    // CCTV 로 엿듣는 같은 방 두 사람의 대화(Phase 2). 문장 · 간격은 이 파일 안에 있다.
+    [Export(PropertyHint.File, "*.tres")] public string OverheardLinesPath = "res://data/relationships/overheard_lines.tres";
+
     // ── 심문 스탠딩 일러 CRT 셰이더 ──────────────────────────────────────
     // 일러 셰이더는 "청록 톤 + 어둡게 + 중앙 발광"만 맡는다. 스캔라인 · 그레인은 모니터
     // 셰이더(crt_screen.gdshader)가 이미 그리므로 여기서는 끈다(겹치면 모아레).

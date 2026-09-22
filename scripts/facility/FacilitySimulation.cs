@@ -93,6 +93,7 @@ public partial class FacilitySimulation : Node
         LoadDefinitions("res://data/rooms/", _roomDefs, d => d.RoomId);
         LoadDefinitions("res://data/tasks/", _taskDefs, d => d.TaskId);
         LoadSchedule("res://data/spawns/");
+        LoadRelationships();
 
         // 데이터가 하나도 안 실리면(특히 내보낸 빌드) 게임이 통째로 비어버리므로 항상 로그를 남긴다.
         GD.Print($"FacilitySimulation: employees={_employeeDefs.Count} rooms={_roomDefs.Count} tasks={_taskDefs.Count} spawns={_schedule.Count}");
@@ -171,7 +172,22 @@ public partial class FacilitySimulation : Node
         _forcedSurveillanceUntil = -1;
         _roomVisualCenters.Clear();
         _roomVisualColors.Clear();
+        _tensionStressTimers.Clear();
+        _argumentTimers.Clear();
+        // 관계값도 시드로 되돌린다(Phase 3 의 근무 중 변화가 다음 판으로 넘어가지 않게).
+        LoadRelationships();
         BuildInitialStates();
+    }
+
+    private static void LoadRelationships()
+    {
+        string path = Config.Instance?.Data?.RelationshipTablePath;
+        if (string.IsNullOrEmpty(path)) RelationshipSystem.Load();
+        else RelationshipSystem.Load(path);
+
+        string lines = Config.Instance?.Data?.OverheardLinesPath;
+        if (string.IsNullOrEmpty(lines)) OverheardDialogue.Load();
+        else OverheardDialogue.Load(lines);
     }
 
     private void LoadSchedule(string folder)
@@ -731,6 +747,8 @@ public partial class FacilitySimulation : Node
         _killsToday = 0;
         _cctvWasOperational = true;
         _powerLossMurderTriggeredThisShift = false;
+        _tensionStressTimers.Clear();
+        _argumentTimers.Clear();
         GameState.Instance.ResetFacilityFaults();
         foreach (var room in _roomStates.Values)
         {
@@ -821,6 +839,7 @@ public partial class FacilitySimulation : Node
         TickSaboteur(d);
         TickPowerRestoreReveal();
         TickVentilationFault(d);
+        TickRoomTension(d);
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
         _warnings.Tick(d, this);
@@ -1233,6 +1252,84 @@ public partial class FacilitySimulation : Node
     }
 
     // 그 방에서 실제로 일할 수 있는 인원(생존 + 배치됨 + 기절 아님).
+    // 그 방에서 지금 실제로 근무 중인 사람(살아 있고 격리·기절이 아닌) — OnDutyCount 와 같은 기준.
+    public List<string> OnDutyEmployeeIds(string roomId)
+    {
+        var list = new List<string>();
+        var room = _roomStates.GetValueOrDefault(roomId);
+        if (room == null) return list;
+        foreach (var id in room.OccupantEmployeeIds)
+        {
+            var e = _employeeStates.GetValueOrDefault(id);
+            if (e is { Alive: true, Isolated: false, Incapacitated: false }) list.Add(id);
+        }
+        return list;
+    }
+
+    // 불편(Uneasy) 관계 동실 근무의 소프트 페널티 중 "긴장"과 "말다툼".
+    // 업무 속도 쪽은 RoomStaffing.Efficiency 가 맡는다. 수치는 전부 config.tres 의 Uneasy* 값.
+    //  · 긴장: UneasyStressIntervalSeconds 마다 두 사람 스트레스 +UneasyStressAmount
+    //  · 말다툼: UneasyArgumentCheckSeconds 마다 UneasyArgumentChance 로 언쟁 → 로그 + 두 사람 스트레스
+    // 불편 쌍이 흩어지면 그 방의 타이머는 처음부터 다시 잰다.
+    private readonly Dictionary<string, float> _tensionStressTimers = new();
+    private readonly Dictionary<string, float> _argumentTimers = new();
+    private void TickRoomTension(float delta)
+    {
+        var cfg = Config.Instance.Data;
+        foreach (var roomId in _roomStates.Keys)
+        {
+            var pairs = RoomStaffing.TensePairs(roomId);
+            if (pairs.Count == 0)
+            {
+                _tensionStressTimers.Remove(roomId);
+                _argumentTimers.Remove(roomId);
+                continue;
+            }
+
+            if (cfg.UneasyStressIntervalSeconds > 0f && cfg.UneasyStressAmount > 0f)
+            {
+                float t = _tensionStressTimers.GetValueOrDefault(roomId) + delta;
+                while (t >= cfg.UneasyStressIntervalSeconds)
+                {
+                    t -= cfg.UneasyStressIntervalSeconds;
+                    foreach (var (a, b) in pairs)
+                    {
+                        AddStress(a, cfg.UneasyStressAmount);
+                        AddStress(b, cfg.UneasyStressAmount);
+                    }
+                }
+                _tensionStressTimers[roomId] = t;
+            }
+
+            if (cfg.UneasyArgumentCheckSeconds > 0f && cfg.UneasyArgumentChance > 0f)
+            {
+                float t = _argumentTimers.GetValueOrDefault(roomId) + delta;
+                while (t >= cfg.UneasyArgumentCheckSeconds)
+                {
+                    t -= cfg.UneasyArgumentCheckSeconds;
+                    if (_rng.NextDouble() >= cfg.UneasyArgumentChance) continue;
+                    var (a, b) = pairs[_rng.Next(pairs.Count)];
+                    LogArgument(roomId, a, b);
+                }
+                _argumentTimers[roomId] = t;
+            }
+        }
+    }
+
+    // 언쟁 한 번 — 시설 로그(경고) + 두 사람 스트레스.
+    public void LogArgument(string roomId, string a, string b)
+    {
+        var cfg = Config.Instance.Data;
+        string roomName = _roomDefs.GetValueOrDefault(roomId)?.DisplayName ?? roomId;
+        EventLog.Instance?.LogEvent(LogEventType.Argument, a, roomId,
+            $"{roomName} — {Codename(a)} · {Codename(b)} 언쟁", new[] { b });
+        if (cfg.UneasyArgumentStress > 0f)
+        {
+            AddStress(a, cfg.UneasyArgumentStress);
+            AddStress(b, cfg.UneasyArgumentStress);
+        }
+    }
+
     public int OnDutyCount(string roomId)
     {
         var room = _roomStates.GetValueOrDefault(roomId);

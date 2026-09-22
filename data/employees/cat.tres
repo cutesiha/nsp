@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
 [ext_resource type="Texture2D" path="res://assets/characters/standing_v2/cat/cat_bad_closedmouth.png" id="2_img"]
-[ext_resource type="AtlasTexture" path="res://assets/characters/standing_v1/faces/cat_face.tres" id="3_face"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits/cat_portrait.png" id="3_face"]
 
 [resource]
 script = ExtResource("1_emp")

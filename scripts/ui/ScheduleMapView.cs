@@ -16,6 +16,9 @@ namespace NSP.Ui;
 //   · 배치/해제는 FacilitySimulation.AssignToRoom / ClearAssignment 만 쓴다(같은 방이면 그대로).
 //   · 배치 대상 작업실 = 제한 구역이 아니고 · 오늘 열려 있고 · 업무가 있는 방(종이 배치표와 같은 조건).
 //   · "근무 시작"은 코어실에 1명 이상 배치됐을 때만 눌린다. 누르면 StartPressed 로 알린다.
+//   · 관계(RelationshipSystem): 동실 거부 쌍이 한 방에 있으면 근무 시작이 막히고 두 칩 사이에 붉은 스파크,
+//     불편 쌍은 주황 경고(배치는 허용 — 근무 중 소프트 페널티는 RoomStaffing/FacilitySimulation 이 맡는다),
+//     밀접/우호는 방 칸 모서리에 하트/고리. 아이콘·스파크 위에 마우스를 올리면 설명 말풍선.
 //   · 금기(DayFeatures.TaboosEnabled 인 날)는 머리말 아래 한 줄로 싣는다.
 //
 // 방 위치는 RoomDef.MapPosition, 통로는 ConnectedRoomIds(실선) / AdjacentRoomIds(점선)를 그대로 그린다.
@@ -45,7 +48,7 @@ public partial class ScheduleMapView : Control
     private static readonly Rect2 MapRect = new(20f, 100f, 548f, 384f);
     private static readonly Rect2 RosterRect = new(580f, 100f, 204f, 384f);
     private static readonly Vector2 CellSize = new(150f, 54f);
-    // 방 칸 오른쪽 위 — Phase 1 관계 아이콘(거부/불편/우호)이 들어갈 자리. 지금은 비워 둔다.
+    // 방 칸 오른쪽 위 — 관계 아이콘(거부 스파크 / 불편 경고 / 밀접 하트 / 우호 고리) 자리.
     private static readonly Vector2 RelationSlotSize = new(16f, 16f);
 
     // ── 콘솔 색(시설 모니터와 같은 계열) ─────────────────────────────────
@@ -55,6 +58,9 @@ public partial class ScheduleMapView : Control
     private static readonly Color Dim = new(0.40f, 0.52f, 0.50f);
     private static readonly Color Amber = new(0.95f, 0.72f, 0.25f);
     private static readonly Color Alert = new(1f, 0.38f, 0.30f);
+    // 관계 표시 — 불편(주황) · 밀접(하트).
+    private static readonly Color Warn = new(1f, 0.56f, 0.18f);
+    private static readonly Color Heart = new(1f, 0.45f, 0.62f);
     private static readonly Color CellFill = new(0.07f, 0.13f, 0.13f);
     private static readonly Color CellLocked = new(0.06f, 0.07f, 0.08f);
     private static readonly Color Corridor = new(0.26f, 0.36f, 0.34f);
@@ -72,6 +78,8 @@ public partial class ScheduleMapView : Control
     // (종이 배치표 · 근무 중 미니맵과 같은 방식).
     private string _dragEmp = "";
     private Vector2 _pressPos, _lastPos;
+    // 말풍선(관계 설명) 판정용 마우스 위치.
+    private Vector2 _mouse = new(-100f, -100f);
     private bool _dragging;
 
     public override void _Ready()
@@ -111,7 +119,13 @@ public partial class ScheduleMapView : Control
         _t += (float)delta;
         var sim = FacilitySimulation.Instance;
         ComputeLayout(sim);
-        if (_start != null) _start.Disabled = !CoreStaffed(sim);
+        // 동실 거부(Refuse) 쌍이 한 방에 있으면 근무를 시작할 수 없다 — 버튼도 붉게 죽인다.
+        if (_start != null)
+        {
+            bool refused = RefusedPairs(sim).Count > 0;
+            _start.Disabled = !CoreStaffed(sim) || refused;
+            _start.Modulate = refused ? new Color(1f, 0.5f, 0.45f, 0.8f) : Colors.White;
+        }
         QueueRedraw();
     }
 
@@ -176,6 +190,62 @@ public partial class ScheduleMapView : Control
     private static bool CoreStaffed(FacilitySimulation sim) =>
         sim != null && sim.GetActiveEmployeeIds().Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
 
+    // ── 직원 관계(RelationshipSystem) ───────────────────────────────────
+    // 판정은 RelationshipSystem.Band 하나만 쓴다(두 방향 평균 → 밴드, 임계치는 relationships.tres).
+
+    // 한 방에 배치된 사람들의 쌍과 그 밴드. 중립(Neutral) 쌍은 뺀다.
+    public static List<(string A, string B, PairBand Band)> RoomPairs(FacilitySimulation sim, string roomId)
+    {
+        var here = AssignedTo(sim, roomId);
+        var list = new List<(string, string, PairBand)>();
+        for (int i = 0; i < here.Count; i++)
+            for (int j = i + 1; j < here.Count; j++)
+            {
+                var band = RelationshipSystem.Band(here[i], here[j]);
+                if (band != PairBand.Neutral) list.Add((here[i], here[j], band));
+            }
+        return list;
+    }
+
+    // 배치 전체에서 같은 방 근무를 거부하는 쌍(방 id 포함). 하나라도 있으면 근무 시작이 막힌다.
+    public static List<(string RoomId, string A, string B)> RefusedPairs(FacilitySimulation sim)
+    {
+        var list = new List<(string, string, string)>();
+        if (sim == null) return list;
+        foreach (var roomId in sim.GetRoomIds())
+        {
+            if (!IsAssignable(sim, roomId)) continue;
+            RelationshipSystem.CanCoAssignAll(AssignedTo(sim, roomId), out var refused);
+            foreach (var (a, b) in refused) list.Add((roomId, a, b));
+        }
+        return list;
+    }
+
+    // 방 아이콘에 올릴 대표 밴드 — 거부 > 불편 > 밀접 > 우호. 없으면 null.
+    public static PairBand? RoomBand(FacilitySimulation sim, string roomId)
+    {
+        var pairs = RoomPairs(sim, roomId);
+        foreach (var b in new[] { PairBand.Refuse, PairBand.Uneasy, PairBand.Close, PairBand.Friendly })
+            if (pairs.Any(p => p.Band == b)) return b;
+        return null;
+    }
+
+    // "고양이와 여우는 같은 방 근무를 거부합니다" 같은 한 줄 설명.
+    public static string PairText(FacilitySimulation sim, string a, string b, PairBand band)
+    {
+        string na = sim?.GetEmployeeDef(a)?.Codename ?? a;
+        string nb = sim?.GetEmployeeDef(b)?.Codename ?? b;
+        string both = NSP.Dialogue.KoreanParticle.With(na) + " " + NSP.Dialogue.KoreanParticle.Topic(nb);
+        return band switch
+        {
+            PairBand.Refuse => both + " 같은 방 근무를 거부합니다",
+            PairBand.Uneasy => both + " 사이가 불편합니다 — 효율 저하 · 긴장 · 언쟁 위험",
+            PairBand.Close => both + " 각별한 사이입니다",
+            PairBand.Friendly => both + " 사이가 좋습니다",
+            _ => "",
+        };
+    }
+
     // 권장 인원 — 종이 배치표와 같은 기준(그 방 업무의 RecommendedHeadcount 최댓값).
     public static int RecommendedHeadcount(FacilitySimulation sim, string roomId) =>
         sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
@@ -234,7 +304,7 @@ public partial class ScheduleMapView : Control
         return def != null && def.UnlockDay <= maxDays ? $"LOCKED  ·  DAY {def.UnlockDay}~" : "LOCKED";
     }
 
-    // Phase 1 에서 관계 아이콘을 그릴 자리(방 칸 오른쪽 위 모서리).
+    // 관계 아이콘 자리(방 칸 오른쪽 위 모서리).
     public Rect2 RelationSlotOf(string roomId) =>
         _cells.TryGetValue(roomId, out var r)
             ? new Rect2(r.End.X - RelationSlotSize.X - 3f, r.Position.Y + 3f, RelationSlotSize.X, RelationSlotSize.Y)
@@ -256,6 +326,7 @@ public partial class ScheduleMapView : Control
         DrawRoster(sim);
         DrawFooter(sim);
         DrawDragGhost(sim);
+        DrawTooltip(sim);
         Scanlines();
     }
 
@@ -328,10 +399,16 @@ public partial class ScheduleMapView : Control
         bool focused = roomId == FocusRoomId;
 
         DrawRect(cell, locked || restricted ? CellLocked : CellFill);
+        // 관계 경고가 걸린 방은 테두리 색으로도 알린다(거부 = 붉게 맥동, 불편 = 주황).
+        PairBand? band = assignable ? RoomBand(sim, roomId) : null;
+        float pulse = 0.55f + 0.45f * Mathf.Sin(_t * 6f);
         Color border = isHover ? (assignable ? Mint : Alert)
+            : band == PairBand.Refuse ? Alert with { A = 0.5f + 0.5f * pulse }
+            : band == PairBand.Uneasy ? Warn
             : focused ? Mint
             : assignable ? Mint with { A = 0.35f } : Dim with { A = 0.35f };
-        DrawRect(cell, border, false, isHover || focused ? 2.2f : 1.1f);
+        bool thick = isHover || focused || band is PairBand.Refuse or PairBand.Uneasy;
+        DrawRect(cell, border, false, thick ? 2.2f : 1.1f);
         if (isHover && assignable) DrawRect(cell, Mint with { A = 0.07f });
 
         var nameCol = assignable ? Ink : Dim;
@@ -364,7 +441,8 @@ public partial class ScheduleMapView : Control
         DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 30f), $"수리 {repair}",
             HorizontalAlignment.Right, cell.Size.X - 24f, ViewFont.S(9), Dim);
 
-        // RelationSlotOf(roomId) — Phase 1 관계 아이콘 자리. 지금은 아무것도 그리지 않는다.
+        // 관계 아이콘(방 칸 오른쪽 위) — 거부 > 불편 > 밀접 > 우호 중 가장 센 것 하나.
+        if (band != null) DrawRelationIcon(RelationSlotOf(roomId), band.Value, pulse);
 
         // 배치된 직원 칩(자리는 ComputeLayout 이 잡아 둔다).
         int shown = 0;
@@ -379,7 +457,183 @@ public partial class ScheduleMapView : Control
         }
         if (shown < here.Count)
             DrawString(_font, new Vector2(lastX, cell.End.Y - 8f), "…", HorizontalAlignment.Left, 12f, ViewFont.S(11), Dim);
+
+        // 동실 거부 쌍 — 두 칩 사이에 붉은 스파크.
+        foreach (var (a, b, pb) in RoomPairs(sim, roomId))
+        {
+            if (pb != PairBand.Refuse) continue;
+            var ca = ChipOf(a); var cb = ChipOf(b);
+            if (ca.Size == Vector2.Zero || cb.Size == Vector2.Zero) continue;
+            DrawSpark(ca, cb, pulse);
+        }
     }
+
+    // ── 관계 표시 ────────────────────────────────────────────────────────
+
+    // 두 칩 위를 잇는 붉은 번개 + 가운데 불꽃. 판정 영역은 SparkRect 와 같다.
+    private void DrawSpark(Rect2 ca, Rect2 cb, float pulse)
+    {
+        if (ca.Position.X > cb.Position.X) (ca, cb) = (cb, ca);
+        float y = ca.Position.Y - 3f;
+        Vector2 a = new(ca.GetCenter().X, y), b = new(cb.GetCenter().X, y);
+        // 칩 윗변에서 살짝 뜬 지그재그 — 시간에 따라 꺾임이 흔들린다.
+        int seg = Mathf.Max(4, (int)(a.DistanceTo(b) / 7f));
+        var pts = new Vector2[seg + 1];
+        for (int i = 0; i <= seg; i++)
+        {
+            float k = (float)i / seg;
+            float jag = (i == 0 || i == seg) ? 0f : ((i % 2 == 0 ? 1f : -1f) * (2.5f + 1.5f * Mathf.Sin(_t * 23f + i)));
+            pts[i] = a.Lerp(b, k) + new Vector2(0f, jag - 4f * Mathf.Sin(k * Mathf.Pi));
+        }
+        var glow = Alert with { A = 0.25f * pulse };
+        for (int i = 0; i < seg; i++) DrawLine(pts[i], pts[i + 1], glow, 4f);
+        for (int i = 0; i < seg; i++) DrawLine(pts[i], pts[i + 1], Alert with { A = 0.6f + 0.4f * pulse }, 1.4f);
+        DrawSparkBurst(SparkCenter(ca, cb), 6f, pulse);
+    }
+
+    private static Vector2 SparkCenter(Rect2 ca, Rect2 cb)
+    {
+        float y = Mathf.Min(ca.Position.Y, cb.Position.Y) - 7f;
+        return new Vector2((ca.GetCenter().X + cb.GetCenter().X) * 0.5f, y);
+    }
+
+    // 작은 불꽃(여덟 갈래 별).
+    private void DrawSparkBurst(Vector2 c, float r, float pulse)
+    {
+        DrawCircle(c, r * 0.9f, Alert with { A = 0.18f * pulse });
+        for (int i = 0; i < 8; i++)
+        {
+            float ang = i * Mathf.Pi / 4f + _t * 1.5f;
+            float len = (i % 2 == 0 ? r : r * 0.55f) * (0.8f + 0.2f * pulse);
+            var d = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+            DrawLine(c + d * 1.2f, c + d * len, i % 2 == 0 ? Alert : Warn, 1.4f);
+        }
+        DrawCircle(c, 1.8f, Ink);
+    }
+
+    // 방 칸 모서리 아이콘. 글꼴 기호 대신 직접 그린다(콘솔 글꼴에 없는 기호가 있다).
+    private void DrawRelationIcon(Rect2 slot, PairBand band, float pulse)
+    {
+        var c = slot.GetCenter();
+        float r = slot.Size.X * 0.5f;
+        switch (band)
+        {
+            case PairBand.Refuse:
+                DrawSparkBurst(c, r, pulse);
+                break;
+            case PairBand.Uneasy:
+            {
+                // 경고 삼각형 + 느낌표.
+                var tri = new[] { c + new Vector2(0f, -r), c + new Vector2(r, r * 0.8f), c + new Vector2(-r, r * 0.8f) };
+                DrawColoredPolygon(tri, Warn with { A = 0.25f });
+                DrawPolyline(new[] { tri[0], tri[1], tri[2], tri[0] }, Warn, 1.4f);
+                DrawLine(c + new Vector2(0f, -r * 0.4f), c + new Vector2(0f, r * 0.25f), Warn, 1.6f);
+                DrawCircle(c + new Vector2(0f, r * 0.55f), 1.1f, Warn);
+                break;
+            }
+            case PairBand.Close:
+            {
+                // 하트 — 두 원 + 역삼각형.
+                float s = r * 0.55f;
+                DrawCircle(c + new Vector2(-s * 0.72f, -s * 0.35f), s * 0.78f, Heart);
+                DrawCircle(c + new Vector2(s * 0.72f, -s * 0.35f), s * 0.78f, Heart);
+                DrawColoredPolygon(new[] { c + new Vector2(-s * 1.45f, -s * 0.1f), c + new Vector2(s * 1.45f, -s * 0.1f),
+                    c + new Vector2(0f, s * 1.5f) }, Heart);
+                break;
+            }
+            case PairBand.Friendly:
+                // 연결 고리 — 겹친 두 고리.
+                DrawArc(c + new Vector2(-r * 0.32f, 0f), r * 0.5f, 0f, Mathf.Tau, 16, Mint, 1.4f);
+                DrawArc(c + new Vector2(r * 0.32f, 0f), r * 0.5f, 0f, Mathf.Tau, 16, Mint, 1.4f);
+                break;
+        }
+    }
+
+    // 마우스가 관계 아이콘 · 스파크 위에 있으면 그 설명을 말풍선으로 띄운다.
+    // 직원을 고르거나 끌고 방 위에 올리면, 놓았을 때 생길 관계를 미리 보여 준다.
+    private List<(string Text, PairBand Band)> TooltipLines(FacilitySimulation sim, out Vector2 anchor)
+    {
+        var lines = new List<(string, PairBand)>();
+        anchor = _mouse;
+
+        string mover = _dragging ? _dragEmp : SelectedEmployeeId;
+        if (!string.IsNullOrEmpty(mover) && !string.IsNullOrEmpty(HoverRoomId) && IsAssignable(sim, HoverRoomId))
+        {
+            foreach (var other in AssignedTo(sim, HoverRoomId))
+            {
+                if (other == mover) continue;
+                var band = RelationshipSystem.Band(mover, other);
+                if (band != PairBand.Neutral) lines.Add((PairText(sim, mover, other, band), band));
+            }
+            anchor = _dragging ? _lastPos : _mouse;
+            return lines;
+        }
+        if (_dragging) return lines;
+
+        foreach (var (roomId, _) in _cells)
+        {
+            if (!IsAssignable(sim, roomId)) continue;
+            var pairs = RoomPairs(sim, roomId);
+            if (pairs.Count == 0) continue;
+            // 말풍선은 방 칸 바로 아래에 띄운다 — 칩과 스파크를 가리지 않게.
+            var below = new Vector2(_mouse.X - 24f, _cells[roomId].End.Y - 10f);
+            if (RelationSlotOf(roomId).Grow(3f).HasPoint(_mouse))
+            {
+                foreach (var (a, b, band) in pairs.OrderBy(p => p.Band)) lines.Add((PairText(sim, a, b, band), band));
+                anchor = below;
+                return lines;
+            }
+            foreach (var (a, b, band) in pairs)
+            {
+                if (band != PairBand.Refuse) continue;
+                var ca = ChipOf(a); var cb = ChipOf(b);
+                if (ca.Size == Vector2.Zero || cb.Size == Vector2.Zero) continue;
+                var sc = SparkCenter(ca, cb);
+                if (new Rect2(sc - new Vector2(9f, 9f), new Vector2(18f, 18f)).HasPoint(_mouse))
+                {
+                    lines.Add((PairText(sim, a, b, band), band));
+                    anchor = below;
+                    return lines;
+                }
+            }
+        }
+        return lines;
+    }
+
+    // 검증용 — 지금 떠 있는 말풍선 문구.
+    public List<string> TooltipTexts() =>
+        TooltipLines(FacilitySimulation.Instance, out _).Select(l => l.Text).ToList();
+
+    private void DrawTooltip(FacilitySimulation sim)
+    {
+        var lines = TooltipLines(sim, out var anchor);
+        if (lines.Count == 0) return;
+        int fs = ViewFont.S(12);
+        float w = lines.Max(l => _font.GetStringSize(l.Text, HorizontalAlignment.Left, -1, fs).X) + 24f;
+        float h = lines.Count * 20f + 10f;
+        var box = new Rect2(anchor + new Vector2(14f, 16f), new Vector2(w, h));
+        // 화면 밖으로 나가지 않게.
+        if (box.End.X > Canvas.X - 12f) box.Position = new Vector2(Canvas.X - 12f - w, box.Position.Y);
+        if (box.End.Y > Canvas.Y - 12f) box.Position = new Vector2(box.Position.X, anchor.Y - 12f - h);
+        DrawRect(box, new Color(0.02f, 0.05f, 0.05f, 0.96f));
+        var edge = lines.Any(l => l.Band == PairBand.Refuse) ? Alert : lines.Any(l => l.Band == PairBand.Uneasy) ? Warn : Mint;
+        DrawRect(box, edge, false, 1.4f);
+        float y = box.Position.Y + 20f;
+        foreach (var (text, band) in lines)
+        {
+            DrawString(_font, new Vector2(box.Position.X + 12f, y), text, HorizontalAlignment.Left, w - 16f, fs, BandColor(band));
+            y += 20f;
+        }
+    }
+
+    private static Color BandColor(PairBand band) => band switch
+    {
+        PairBand.Refuse => Alert,
+        PairBand.Uneasy => Warn,
+        PairBand.Close => Heart,
+        PairBand.Friendly => Mint,
+        _ => Ink,
+    };
 
     private void DrawChip(Rect2 chip, EmployeeDef def, string name, string emp, int fontSize)
     {
@@ -446,13 +700,26 @@ public partial class ScheduleMapView : Control
         int placed = roster.Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
         int missing = total - placed;
         bool core = CoreStaffed(sim);
+        var refused = RefusedPairs(sim);
+        var uneasy = sim.GetRoomIds().Where(r => IsAssignable(sim, r))
+            .SelectMany(r => RoomPairs(sim, r)).Where(p => p.Band == PairBand.Uneasy).ToList();
 
-        string status = !core
-            ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
-            : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
+        // 거부 > 코어 미배치 > 인원 순. 불편 쌍은 시작을 막지 않으므로 인원 줄 위에 따로 싣는다.
+        string status = refused.Count > 0
+            ? "✕ " + PairText(sim, refused[0].A, refused[0].B, PairBand.Refuse) + (refused.Count > 1 ? $" 외 {refused.Count - 1}건" : "")
+            : !core
+                ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
+                : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
+        Color statusCol = refused.Count > 0 ? Alert : !core || missing > 0 ? Amber : Mint;
         DrawRect(new Rect2(24f, Canvas.Y - 104f, Canvas.X - 48f, 1f), Mint with { A = 0.16f });
-        DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 500f,
-            ViewFont.S(15), !core || missing > 0 ? Amber : Mint);
+        if (uneasy.Count > 0)
+        {
+            var u = uneasy[0];
+            string warn = "⚠ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
+            DrawString(_font, new Vector2(24f, Canvas.Y - 80f), warn, HorizontalAlignment.Left, 520f, ViewFont.S(11), Warn);
+        }
+        DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 520f,
+            ViewFont.S(15), statusCol);
         DrawString(_font, new Vector2(24f, Canvas.Y - 28f), "클릭 = 선택 · 끌기 = 배치 · 대기 인원으로 끌기/우클릭 = 해제",
             HorizontalAlignment.Left, 520f, ViewFont.S(10), Dim);
     }
@@ -518,11 +785,9 @@ public partial class ScheduleMapView : Control
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
 
-        if (e is InputEventMouseMotion mm && !_dragging)
-        {
-            SetHover(RoomAt(mm.Position));
-            return;
-        }
+        // 마우스 이동(호버)은 _Input 이 추적한다 — PushInput 으로 들어오는 CRT 에서는 버튼을 누르지 않은
+        // 이동이 _GuiInput 까지 오지 않는 경우가 있다.
+        if (e is InputEventMouseMotion) return;
 
         if (e is not InputEventMouseButton { Pressed: true } mb) return;
         string emp = EmployeeAt(mb.Position);
@@ -555,13 +820,24 @@ public partial class ScheduleMapView : Control
     // 끌기 중 이동/뗌은 칩 밖에서도 받아야 한다 — 루트 _Input 에서 추적한다.
     public override void _Input(InputEvent e)
     {
-        if (string.IsNullOrEmpty(_dragEmp)) return;
+        if (!IsVisibleInTree()) return;
         // 이 뷰는 스케일 프레임(AddScaledView) 안에 있어 _Input 은 확대 좌표로 들어온다 — 로컬로 맞춘다.
+        if (string.IsNullOrEmpty(_dragEmp))
+        {
+            // 끌지 않을 때의 이동 = 호버(방 강조 · 오른쪽 모니터 비교 · 관계 말풍선).
+            if (MakeInputLocal(e) is InputEventMouseMotion hover)
+            {
+                _mouse = hover.Position;
+                SetHover(RoomAt(hover.Position));
+            }
+            return;
+        }
         e = MakeInputLocal(e);
 
         if (e is InputEventMouseMotion mm)
         {
             _lastPos = mm.Position;
+            _mouse = mm.Position;
             if (!_dragging && mm.Position.DistanceTo(_pressPos) > 6f) _dragging = true;
             if (_dragging) SetHover(RoomAt(mm.Position));
         }

@@ -65,6 +65,12 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
     [Export] public Vector3 BeaconOffset = new(0.16f, 0.87f, -0.18f);
     [Export] public Vector3 LedOffset = new(0.44f, 0.6f, 0.04f);
 
+    // 몸체 백라이트 — 모델에 밝게 칠해진 부분(테두리 · 표식)만 아주 약하게 발광시켜 어둠 속에서 형태가 보이게.
+    // 화면은 이미 밝으므로 스위치박스보다 약하게. 0 이면 끔(DeviceBacklight).
+    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 0.3f;
+    [Export(PropertyHint.Range, "0,1,0.01")] public float BacklightThreshold = 0.35f;
+    [Export] public Color BacklightTint = new(0.75f, 0.9f, 0.95f);
+
     public SubViewport TargetViewport => _screenVp;
 
     // 화면 쿼드에 마우스 레이를 쏴서 센서 화면(SubViewport)의 2D 좌표를 구한다.
@@ -113,6 +119,9 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
             BuildScreenQuad(null);
             return;
         }
+
+        // GLB 몸체에만 — 아래에서 만드는 화면 · LED · 경광등은 자체 머티리얼이라 영향 없음.
+        DeviceBacklight.ApplyToTree(GetNodeOrNull("SensorModel"), BacklightThreshold, BacklightTint, BacklightEnergy);
 
         // 표시창(SubViewport 투사). 렌더 해상도 = 논리 캔버스 × UiScale (글자도 같은 배율로 확대).
         var logical = new Vector2I(560, 300);

@@ -35,6 +35,7 @@ public partial class LightingShot : Node
         string variant = args.Length > 1 ? args[1] : "";
         if (variant is "noshadow" or "nothing")
             foreach (var l in scene.FindChildren("*ScreenLight", "SpotLight3D", true, false).Cast<SpotLight3D>()) l.ShadowEnabled = false;
+        if (variant == "nofill" && scene.FindChild("DeskFillLight", true, false) is Light3D fl) fl.Visible = false;
         if (variant is "noglow" or "nothing")
             ((WorldEnvironment)scene.FindChild("WorldEnvironment", true, false)).Environment.GlowEnabled = false;
         if (variant != "") GD.Print("variant = " + variant);

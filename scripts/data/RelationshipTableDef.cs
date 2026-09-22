@@ -20,6 +20,7 @@ public enum RelationType
 
 // 관계 테이블 전체를 담는 데이터 리소스.
 // 위치: res://data/relationships/relationships.tres
+// 파일 이름 = 클래스 이름이어야 Godot 가 .tres 의 스크립트를 찾는다(RelationshipDef.cs → RelationshipTableDef.cs).
 //
 // 한 줄이 "방향 하나"의 감정을 뜻한다. 대칭 관계도 두 줄로 각각 적는다.
 // 방향을 나누는 이유: 짝사랑, 편향된 증언, "무서워하면서 좋아함" 같은

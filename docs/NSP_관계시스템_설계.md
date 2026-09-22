@@ -162,9 +162,9 @@ MVP는 밴드×상황별 **미리 쓴 짧은 대사** 몇 개. 확장은 `Dialog
 
 ## 7. 데이터 스키마
 
-동봉 파일: `RelationshipDef.cs`, `RelationshipSystem.cs`, `relationships.tres`.
+동봉 파일: `RelationshipTableDef.cs`(원래 이름 RelationshipDef.cs — Godot 는 파일명=클래스명이어야 .tres 가 읽혀 이름을 바꿨다), `RelationshipSystem.cs`, `relationships.tres`.
 
-- **`RelationshipDef.cs`** (`NSP.Data`) — `RelationType` enum + `RelationshipTableDef : Resource`. 시드를 `"from,to,affinity,type[,flags]"` 문자열 배열로 담아 손으로 쉽게 편집. 밴드 임계치도 여기 export.
+- **`scripts/data/RelationshipTableDef.cs`** (`NSP.Data`) — `RelationType` enum + `RelationshipTableDef : Resource`. 시드를 `"from,to,affinity,type[,flags]"` 문자열 배열로 담아 손으로 쉽게 편집. 밴드 임계치도 여기 export.
 - **`relationships.tres`** (`res://data/relationships/`) — 위 3장 시드가 채워진 실제 데이터.
 - **`RelationshipSystem.cs`** (`NSP.Facility`) — `RoomStaffing`과 같은 **정적 창구**. `Affinity / PairScore / Band / CanCoAssign / CanCoAssignAll / Apply / ReportBias` 제공. `Load()`로 시드를 파싱한다.
 

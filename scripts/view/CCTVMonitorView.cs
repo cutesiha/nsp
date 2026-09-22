@@ -31,6 +31,7 @@ public partial class CCTVMonitorView : Control
     private Label _recLabel;
     private Label _camLabel;
     private Label _clock;
+    private CctvOverheardCaption _overheard;
     private TextureRect _noise;
     private ImageTexture[] _noiseFrames;
     private float _noiseSwap;
@@ -107,6 +108,14 @@ public partial class CCTVMonitorView : Control
         _camLabel.Position = new Vector2(44, 512);
         AddChild(_camLabel);
 
+        // 같은 방 두 사람의 대화 자막(관계 시스템 Phase 2) — 상태 줄 바로 위.
+        _overheard = new CctvOverheardCaption
+        {
+            Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y - 112f),
+            Size = new Vector2(Frame.Size.X, 50f),
+        };
+        AddChild(_overheard);
+
         _clock = Lbl("--:--", 18, new Color(0.75f, 0.85f, 0.8f));
         _clock.Position = new Vector2(600, 24);
         _clock.Size = new Vector2(156, 24);
@@ -140,6 +149,14 @@ public partial class CCTVMonitorView : Control
         float d = (float)delta;
         var sim = FacilitySimulation.Instance;
         string roomId = sim?.SurveillanceTargetRoomId ?? "";
+        bool feed = UpdateFeed(d, sim, roomId);
+        // 엿들은 대화 — 정상 피드가 나오고 근무 중일 때만 들린다.
+        _overheard?.Tick(d, roomId, feed && GameState.Instance?.CurrentPhase == GamePhase.Live);
+    }
+
+    // 화면 상태를 갱신하고, 방 영상이 정상적으로 나오고 있으면 true.
+    private bool UpdateFeed(float d, FacilitySimulation sim, string roomId)
+    {
 
         _clock.Text = FacilityClock(GameState.Instance?.DayTimeSeconds ?? 0f);
 
@@ -166,7 +183,7 @@ public partial class CCTVMonitorView : Control
         {
             ShowState("── SIGNAL LOST ──", darken: 0.94f);
             _noise.Modulate = new Color(1, 1, 1, 0.62f + _glitch * 0.3f);
-            return;
+            return false;
         }
         bool forceFeed = now < _forceFeedUntil;
 
@@ -175,7 +192,7 @@ public partial class CCTVMonitorView : Control
             ShowState("MONITOR 01에서 방을 선택하세요", darken: 1f);
             _camLabel.Text = "";
             _noise.Modulate = new Color(1, 1, 1, 0.05f + _glitch * 0.5f);
-            return;
+            return false;
         }
 
         var def = sim.GetRoomDef(roomId);
@@ -202,19 +219,19 @@ public partial class CCTVMonitorView : Control
             // FAIL-04: 경비실 감시 설비 고장 — 전력을 줘도 수리 전까지 신호 없음.
             ShowState("SIGNAL FAILURE\nSURVEILLANCE SYSTEM DOWN", darken: 0.92f);
             _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
-            return;
+            return false;
         }
         if (!forceFeed && disconnected)
         {
             ShowState("── SIGNAL LOST ──", darken: 0.92f);
             _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
-            return;
+            return false;
         }
         if (!forceFeed && !powered)
         {
             ShowState("NO SIGNAL\nCCTV POWER OFF", darken: 0.9f);
             _noise.Modulate = new Color(1, 1, 1, 0.16f);
-            return;
+            return false;
         }
 
         // 정상 피드 — 실제 3D 작업실 월드 텍스처를 그대로 깐다. 아직 준비 전이면 2D 폴백.
@@ -235,6 +252,8 @@ public partial class CCTVMonitorView : Control
         _noise.Modulate = new Color(1, 1, 1, (red ? 0.14f : 0.06f) + _glitch * 0.55f);
 
         RebuildEmployees(sim, state);
+    
+        return true;
     }
 
     private void ShowState(string text, float darken)

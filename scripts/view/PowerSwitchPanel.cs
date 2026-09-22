@@ -31,6 +31,12 @@ public partial class PowerSwitchPanel : Node3D
     private const float LeverPivotY = 0.452f;     // 회전축(레버 밑동)
     private const float LeverPivotZ = 0.248f;
 
+    // 앞면 백라이트 — switch.glb 에 새겨진 라벨(LIGHTING/CCTV/SENSOR) 등 밝게 칠한 부분만 은은하게 발광.
+    // 모니터 빛이 뒤에서 오기 때문에 앞면 글자가 안 읽혀서 넣었다(DeviceBacklight). 0 이면 끔.
+    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 0.45f;
+    [Export(PropertyHint.Range, "0,1,0.01")] public float BacklightThreshold = 0.42f;   // 이 밝기를 넘는 텍스처만 빛남
+    [Export] public Color BacklightTint = new(0.80f, 0.95f, 0.88f);
+
     private const float LeverOn = 0f;     // 모델이 만들어진 그대로 = 올라간 상태(ON)
     private const float LeverOff = 42f;   // 앞으로 넘겨 아래로 내린 상태(OFF)
 
@@ -204,7 +210,7 @@ public partial class PowerSwitchPanel : Node3D
             list.Add(index[i]); list.Add(index[i + 1]); list.Add(index[i + 2]);
         }
 
-        var material = src.Mesh.SurfaceGetMaterial(0);
+        var material = DeviceBacklight.Make(src.Mesh.SurfaceGetMaterial(0), BacklightThreshold, BacklightTint, BacklightEnergy);
 
         // 본체 — 원본 노드의 메시를 레버가 빠진 것으로 교체한다.
         var bodyMesh = BuildSubMesh(arrays, tris[0], Vector3.Zero);

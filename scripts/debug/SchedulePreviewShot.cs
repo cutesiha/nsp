@@ -50,6 +50,28 @@ public partial class SchedulePreviewShot : Node
         await Frames(3);
         Save(staffVp, dir, "schedule_staff_room.png");
 
+        // 관계 Phase 1 — 동실 거부(고양이+여우) · 우호(늑대+토끼) · 불편(고양이+양).
+        foreach (var id in sim.GetActiveEmployeeIds()) sim.ClearAssignment(id);
+        sim.AssignToRoom("cat", "storage_room");
+        sim.AssignToRoom("fox", "storage_room");
+        sim.AssignToRoom("wolf", "core_room");
+        sim.AssignToRoom("rabbit", "core_room");
+        sim.AssignToRoom("dog", "power_room");
+        sim.AssignToRoom("sheep", "guard_room");
+        await Frames(2);
+        m.ComputeLayout(sim);
+        Hover(mapVp, m.RelationSlotOf("storage_room").GetCenter());
+        await Frames(3);
+        Save(mapVp, dir, "schedule_map_refuse.png");
+
+        sim.AssignToRoom("fox", "guard_room");
+        sim.AssignToRoom("sheep", "storage_room");
+        await Frames(2);
+        m.ComputeLayout(sim);
+        Hover(mapVp, m.RelationSlotOf("storage_room").GetCenter());
+        await Frames(3);
+        Save(mapVp, dir, "schedule_map_uneasy.png");
+
         var panel = new SettingsPanel();
         AddChild(panel);
         await Frames(2);
@@ -78,6 +100,9 @@ public partial class SchedulePreviewShot : Node
         vp.PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = at, GlobalPosition = at }, true);
         vp.PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = at, GlobalPosition = at }, true);
     }
+
+    private static void Hover(SubViewport vp, Vector2 at) =>
+        vp.PushInput(new InputEventMouseMotion { Position = at, GlobalPosition = at }, true);
 
     private static void Save(SubViewport vp, string dir, string name) =>
         vp.GetTexture().GetImage().SavePng(dir + "/" + name);

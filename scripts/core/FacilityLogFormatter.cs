@@ -113,6 +113,7 @@ public static class FacilityLogFormatter
         LogEventType.ResourceShortage => Row(e, Pipe(e.Description),
             (e.Description ?? "").Contains("재개") ? DisplayLogSeverity.Recovery : DisplayLogSeverity.Warning),
         LogEventType.CctvDisconnect => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning),
+        LogEventType.Argument => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),
         LogEventType.Death => Death(e, s),
         LogEventType.Isolation => Isolation(e, s),
         LogEventType.FalseOrderFollowed => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),

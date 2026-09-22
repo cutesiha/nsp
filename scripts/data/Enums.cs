@@ -157,4 +157,6 @@ public enum LogEventType
     PowerCapacityChanged,
     // 자원이 모자라 업무가 멈추거나 다시 돌기 시작한 순간(상태가 바뀔 때 한 번만).
     ResourceShortage,
+    // 불편(Uneasy) 관계인 두 직원이 같은 방에서 언쟁을 벌임(관계 시스템 Phase 1).
+    Argument,
 }

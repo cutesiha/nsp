@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="RelationshipTableDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/data/RelationshipDef.cs" id="1_rel"]
+[ext_resource type="Script" path="res://scripts/data/RelationshipTableDef.cs" id="1_rel"]
 
 [resource]
 script = ExtResource("1_rel")
