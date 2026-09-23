@@ -37,6 +37,9 @@ public static class InterviewScenarioTest
         TestF();
         TestG();
         TestNoAutoChallenge();
+        // 2차 — 결번자의 "설비 근처에 가지 않았다" 거짓말(§3-2).
+        TestEquipmentDenial();
+        TestInnocentAdmitsBehavior();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
 
@@ -281,6 +284,87 @@ public static class InterviewScenarioTest
     private static void Head(string id, string title)
     {
         GD.Print($"\n===== [증거심문 {id}] {title} =====");
+    }
+
+    // ── §5-6 : 결번자는 "설비 쪽엔 손도 안 댔다"고 한 번 정하면 끝까지 그 말을 한다 ──
+    //
+    // 알리바이(ClaimedRoomId)와 같은 규칙이다 — 물을 때마다 말이 달라지면 추리가 성립하지 않는다.
+    private static void TestEquipmentDenial()
+    {
+        Head("2차-A", "결번자의 설비 접촉 부인 — 한 번 정하면 바뀌지 않는다");
+        Reset();
+        Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
+                       ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
+        GameState.Instance.SetSaboteur("cat");
+        // 고양이가 저지른 방해공작. SelectSubjectIncident 가 이걸 주제로 고른다.
+        Log(LogEventType.Sabotage, "cat", Maintenance, At(40), new[] { "wolf" });
+
+        string key = ClaimKeyOf(Maintenance, At(40));
+        var claim = DialogueClaimState.Get("cat", 1, key);
+        // 전략은 무작위로 정해지므로 검사에서는 Omit 으로 고정한다(§5-6 의 전제).
+        claim.Mode = DeceptionMode.Omit;
+        claim.ModeDecided = true;
+
+        string first = LocalDialogueGenerator.InterviewAnswer("cat", DialogueQuestions.Where);
+        GD.Print($"   1차: {first}");
+        Check(claim.EquipmentDenialDecided, "한 번 물으면 설비 접촉 여부가 정해진다");
+        Check(claim.DeniesEquipmentContact, "Omit 전략이면 '설비 근처에 안 갔다'고 주장한다");
+        Check(first.Contains("설비") || first.Contains("기계") || first.Contains("장비"),
+            "그 주장이 실제 문장으로 나간다");
+
+        // 두 번째 질문 — 값이 바뀌면 안 된다. 전략이 흔들려도 마찬가지다.
+        claim.Mode = DeceptionMode.Minimize;
+        string second = LocalDialogueGenerator.InterviewAnswer("cat", DialogueQuestions.Where);
+        GD.Print($"   2차: {second}");
+        Check(claim.DeniesEquipmentContact, "두 번 물어도 주장이 뒤집히지 않는다");
+
+        // 결백한 직원은 이 주장을 아예 하지 않는다.
+        Reset();
+        Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
+                       ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
+        Log(LogEventType.TaskFailed, "", Maintenance, At(40));
+        string innocent = LocalDialogueGenerator.InterviewAnswer("cat", DialogueQuestions.Where);
+        var clean = DialogueClaimState.Get("cat", 1, ClaimKeyOf(Maintenance, At(40)));
+        GD.Print($"   결백: {innocent}");
+        Check(!clean.DeniesEquipmentContact, "결백한 직원은 설비 접촉을 부인하지 않는다");
+    }
+
+    // ── §5-7 : 가짜 단서의 주인(결백한 직원)은 행동 추궁에 순순히 인정한다 ──
+    //
+    // EmployeeBehaviorSystem 이 만드는 가짜 단서 때문에 결백한 직원도 "설비 쪽에 오래
+    // 머물렀다"는 증언의 대상이 된다. 그때 흐리면 결백한 사람이 범인처럼 보인다.
+    private static void TestInnocentAdmitsBehavior()
+    {
+        Head("2차-B", "결백한 직원의 행동 추궁 — honest");
+        Reset();
+        Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
+                       ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
+        // 결번자는 다른 사람이다. 고양이는 결백하지만 같은 행동이 목격됐다.
+        GameState.Instance.SetSaboteur("fox");
+        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(30), Odd);
+        Log(LogEventType.TaskFailed, "", Maintenance, At(40));
+
+        var board = InterviewEvidenceBoard.Build("cat");
+        var say = board.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony);
+        var inc = board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        if (!Check(say != null && inc != null, "증언과 사고 기록이 자료로 뜬다")) return;
+
+        var r = EvidenceContradiction.Check("cat", say, inc);
+        Check(r.Kind == ConfrontKind.Behavior, "행동 추궁이 성립한다");
+        string answer = InterviewReplyPlanner.ConfrontAnswer("cat", r, out string variant);
+        GD.Print($"   Q: {r.QuestionText}\n   A: ({variant}) {answer}");
+        Check(variant == "honest", "결백한 직원은 인정한다(honest)");
+    }
+
+    // 목격 증언에 실리는 행동 — SaboteurPlan.TickPrecursors 가 남기는 문구 그대로.
+    private const string Odd = "설비 쪽에 평소보다 오래 머물렀다";
+
+    // 그 사건의 주장 키. DialogueContextBuilder 가 ctx.ClaimKey 로 쓰는 값과 같다.
+    private static string ClaimKeyOf(string roomId, float at)
+    {
+        var e = EventLog.Instance.GetAllEntries()
+            .FirstOrDefault(x => x.RoomId == roomId && Mathf.IsEqualApprox(x.GameTimeSeconds, at));
+        return e == null ? "" : DialogueFact.From(e, KnowledgeLevel.None).Key;
     }
 
     private static bool Check(bool ok, string what)

@@ -20,6 +20,12 @@ public sealed class DialogueClaim
     // 이미 언급한 다른 직원(REDIRECT). 두 번째 질문에서 다른 사람으로 갈아타지 않는다.
     public string MentionedSuspectId = "";
 
+    // "설비 근처에는 가지 않았다" — 결번자가 이 사건에 대해 대는 단 하나의 반박 가능한 거짓말.
+    // 알리바이와 똑같은 규칙으로 다룬다: 한 번 정하면 그 사건 동안 바뀌지 않는다(Mode/ModeDecided).
+    // 물을 때마다 말이 달라지면 "기록과 맞대어 본다"는 이 게임의 추리가 성립하지 않는다.
+    public bool DeniesEquipmentContact;
+    public bool EquipmentDenialDecided;
+
     public readonly Dictionary<string, int> AskCounts = new();
 
     // 증가시키지 않고 지금까지 몇 번 물었는지만 본다.
