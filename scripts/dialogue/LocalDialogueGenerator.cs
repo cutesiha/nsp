@@ -119,14 +119,43 @@ public static class LocalDialogueGenerator
                     plan.Time == TimeRef.Exact, when);
                 break;
             case CoreKind.SuspiciousSighting:
+                // "누구를 어디서 봤다" 뿐 아니라 "그때 무엇을 하고 있었다" 까지 남긴다.
+                // 이 게임에서 가장 중요한 단서가 바로 이 한 줄이다(§1-3).
                 PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId,
-                    plan.IncidentRoomId, ctx.KnownSuspicious?.TimeSeconds ?? when);
+                    plan.IncidentRoomId, ctx.KnownSuspicious?.TimeSeconds ?? when,
+                    ctx.KnownSuspiciousDetail);
                 break;
             case CoreKind.SightingPlace:
                 PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId,
-                    plan.RoomId, ctx.KnownSuspicious?.TimeSeconds ?? when);
+                    plan.RoomId, ctx.KnownSuspicious?.TimeSeconds ?? when,
+                    ctx.KnownSuspiciousDetail);
+                break;
+
+            // 최초 진술(이상한 점)에서 "저도 그 방에 있었어요" 라고 말한 것도 위치 진술이다.
+            // 예전에는 이 분기가 없어 화면에 크게 뜨는 답변이 자료로는 쓰이지 못했다(§1-4).
+            case CoreKind.IncidentDirect:
+            case CoreKind.IncidentIndirect:
+                string said = SpokenRoom(ctx, plan, key);
+                if (ctx.HasSubjectTime && !string.IsNullOrEmpty(said))
+                    PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, said,
+                        plan.Time == TimeRef.Exact, when);
                 break;
         }
+    }
+
+    // 이 답변에서 직원이 "자기가 있었다"고 말한 작업실.
+    //
+    // 사건을 말하는 답(PlanAnomaly)은 plan.RoomId 를 채우지 않는다 — 그 계산은 위치를
+    // 묻는 답(PlanWhere)에만 있다. 여기서 같은 규칙을 그대로 쓴다.
+    //   결번자 : 자기가 대고 있는 방(ClaimedRoomId) — 실제 방을 남기면 진술이 아니라 진실이 샌다
+    //   그 외   : 그 시각 실제로 있던 방
+    private static string SpokenRoom(DialogueContext ctx, DialogueResponsePlan plan, string claimKey)
+    {
+        if (!string.IsNullOrEmpty(plan.RoomId)) return plan.RoomId;
+        string room = ctx.IsSaboteur
+            ? DialogueClaimState.Get(ctx.EmployeeId, DialogueContextBuilder.Day(), claimKey).ClaimedRoomId
+            : ctx.RoomAtSubject;
+        return string.IsNullOrEmpty(room) ? ctx.AssignedRoomId : room;
     }
 
     // --- 플레이어가 거는 일반 통화 ---------------------------------------

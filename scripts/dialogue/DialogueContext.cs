@@ -55,6 +55,10 @@ public sealed class DialogueContext
     // --- 다른 직원에 대해 실제로 목격한 것 -------------------------------
     public DialogueFact KnownSuspicious;
     public string KnownSuspiciousActorId = "";
+    // 그때 무엇을 하고 있었는지("설비 쪽에 평소보다 오래 머물렀다").
+    // DialogueFact 는 로그 원문을 밖으로 내보내지 않으므로 이 한 줄만 따로 들고 온다 —
+    // 이것이 빠지면 목격 증언이 "정비실에서 봤다" 로만 남아 단서의 알맹이가 사라진다.
+    public string KnownSuspiciousDetail = "";
     // 오늘 이 직원이 눈으로 본 다른 직원 목록(Q3 지목/REDIRECT 후보의 상한).
     public readonly List<string> SeenEmployeeIds = new();
 

@@ -238,6 +238,15 @@ public static class DialogueContextBuilder
             .FirstOrDefault();
     }
 
+    // RecordOddBehaviour 가 남기는 문구는 "{코드네임} — {무엇을 했는가}" 형식이다.
+    // 앞의 이름은 증언 카드가 따로 붙이므로 뒤쪽만 잘라 쓴다. 형식이 다르면 빈 값(= 내용 없음).
+    private static string OddBehaviourDetail(string description)
+    {
+        if (string.IsNullOrEmpty(description)) return "";
+        int i = description.IndexOf(" — ", System.StringComparison.Ordinal);
+        return i < 0 ? "" : description[(i + 3)..].Trim();
+    }
+
     // 오늘 이 직원과 같은 작업실에 있었던(= 실제로 얼굴을 본) 다른 직원들.
     private static List<string> SeenEmployees(string employeeId, int day)
     {
@@ -343,6 +352,7 @@ public static class DialogueContextBuilder
         {
             ctx.KnownSuspicious = DialogueFact.From(suspicious, KnowledgeLevel.Direct);
             ctx.KnownSuspiciousActorId = suspicious.ActorEmployeeId;
+            ctx.KnownSuspiciousDetail = OddBehaviourDetail(suspicious.Description);
         }
         ctx.SeenEmployeeIds.AddRange(SeenEmployees(employeeId, day));
 

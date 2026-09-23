@@ -491,10 +491,18 @@ public partial class RestEvidenceTest : Node
         GD.Print($"   질문 7개 → 자료 {before}장 → {after}장");
         Check(after == before, "추리에 쓸 수 없는 답변은 자료를 늘리지 않는다");
 
-        // 반대로 위치를 묻는 질문은 자료를 늘린다.
+        // 반대로 위치를 묻는 질문의 답은 자료로 남는다.
+        //
+        // 장수로 세지 않는다 — 심문 리워크(§3-4) 이후로는 최초 진술("이상한 점")이 이미
+        // 같은 사건의 위치 진술을 남기므로, 같은 사건을 다시 물어도 그 카드가 갱신될 뿐
+        // 새로 불어나지 않는다(한 사건당 진술 한 장은 예전부터의 규칙이다 — Test H).
         session.Ask(InterviewQuestionFactory.Make("dog", incident, InterviewIntent.AskWhereAtIncident));
-        GD.Print($"   위치 질문 1개 → 자료 {session.Board.Count}장");
-        Check(session.Board.Count == before + 1, "위치 진술은 자료로 남는다");
+        var claimCard = session.Board.FirstOrDefault(e => e.Kind == EvidenceKind.OwnStatement
+                                                          && e.SubjectEmployeeId == "dog");
+        GD.Print($"   위치 질문 1개 → 자료 {session.Board.Count}장 · 진술 카드 {claimCard?.OneLine ?? "없음"}");
+        Check(claimCard != null, "위치 진술은 자료로 남는다");
+        Check(claimCard != null && claimCard.CanAnchorPosition, "그 진술 카드는 시각·위치를 함께 가진다");
+        Check(session.Board.Count >= before, "자료가 줄어들지 않는다");
     }
 
     // ── J : 심문 대상을 바꿔도 오늘의 자료는 남는다 ───────────────────────

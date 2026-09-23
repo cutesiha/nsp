@@ -184,13 +184,19 @@ public static class InterviewEvidenceBoard
         foreach (var o in PlayerKnownEvidence.CctvSightingsOf(target))
         {
             n++;
+            // 그 화면에 설비 쪽 움직임이 잡혀 있었으면 카드에 그 사실을 싣는다.
+            // 누가 그랬는지는 화면도 모른다 — "그 방에 그런 움직임이 있었다"까지만이다.
+            string detail = o.SuspiciousAction ? "설비 쪽에 접근" : "";
             var ev = new InterviewEvidence
             {
                 Id = $"cctv:{target}:{n}:{o.Time:0.0}",
                 Kind = EvidenceKind.Cctv,
                 Header = "CCTV",
                 TimeText = DialogueClock.Text(o.Time),
-                Body = $"{RoomName(o.RoomId)}에서 확인",
+                Body = string.IsNullOrEmpty(detail)
+                    ? $"{RoomName(o.RoomId)}에서 확인"
+                    : $"{RoomName(o.RoomId)} · {detail}",
+                BehaviorDetail = detail,
                 SubjectEmployeeId = target,
                 AnchorTime = o.Time,
                 HasTime = true,
@@ -216,7 +222,11 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(s.SpeakerId) + "의 증언",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
-                Body = $"{Codename(s.SpeakerId)} · {RoomName(s.RoomId)}에서 봤다",
+                // 무엇을 하고 있었는지까지 들었으면 그것을 싣는다 — 방 이름은 시각 옆 태그로 충분하다.
+                Body = string.IsNullOrEmpty(s.Detail)
+                    ? $"{Codename(s.SpeakerId)} · {RoomName(s.RoomId)}에서 봤다"
+                    : $"{Codename(s.SpeakerId)} · {s.Detail}",
+                BehaviorDetail = s.Detail,
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = s.SpeakerId,
                 AnchorTime = s.AnchorTime,
