@@ -5,7 +5,9 @@ namespace NSP.Dialogue;
 // 추궁이 어떤 규칙으로 성립했는가. 규칙은 셋뿐이고, 위에서 아래로 검사해 처음 걸리는 것을 쓴다.
 //
 //   Presence — 사고가 난 그 방에 있었다                (사고 기록 + 그 사람의 위치 자료)
-//   Behavior — 사고 직전 그 방에서 이상 행동이 목격됐다 (행동이 실린 자료 + 사고 기록)
+//   Behavior — 그 방에서의 행동이 문제가 된다
+//              ㉠ 본인의 행동 주장 + 그와 어긋나는 동료의 목격 증언
+//              ㉡ 행동이 실린 자료 + 같은 방의 사고 기록
 //   Location — 두 자료가 같은 시각에 다른 방을 가리킨다 (예전부터 있던 규칙)
 //
 // None 은 "성립하지 않음"이지 "물을 수 없음"이 아니다 — 틀린 조합을 들이미는 것도 추리다.
@@ -100,15 +102,46 @@ public static class EvidenceContradiction
         };
     }
 
-    // ── ② 행동 추궁 — 사고 직전 그 방에서 이상 행동이 목격됐다 ─────────────
+    // ── ② 행동 추궁 — 그 방에서의 행동이 문제가 된다 ───────────────────────
     //
-    // 이 게임의 추리는 "그 방에 있던 사람 중 누가 이상 행동을 했는가" 다.
-    // 행동이 실린 자료(동료 증언 · 설비 접근이 보이던 CCTV)와 같은 방의 사고 기록이
-    // 짝이 되면 성립한다. 결백한 직원도 같은 행동을 할 수 있으므로(가짜 단서),
-    // 성립했다는 것이 곧 범인이라는 뜻은 아니다.
+    // 이 게임의 추리는 "그 방에 있던 사람 중 누가 이상 행동을 했는가" 다. 두 갈래로 선다.
+    //   ㉠ 본인이 "그런 행동은 안 했다"고 한 말 + 동료가 "하고 있었다"고 한 증언
+    //   ㉡ 행동이 실린 자료(동료 증언 · 설비 접근 CCTV) + 같은 방의 사고 기록
+    // 결백한 직원도 같은 행동을 할 수 있으므로(가짜 단서), 성립했다는 것이 곧 범인이라는
+    // 뜻은 아니다 — 결백한 직원은 ㉠ 을 만들지 않지만 ㉡ 에는 얼마든지 걸린다.
     private static Result Behavior(string target, InterviewEvidence a, InterviewEvidence b,
                                    InterviewEvidence earlier, InterviewEvidence later)
     {
+        // ② - ㉠ 본인이 "그런 행동은 하지 않았다"고 한 말 + 동료가 "하고 있었다"고 한 증언.
+        //
+        // 결번자에게서 잡을 수 있는 **유일한 정면 충돌**이다(§3-2). 사고 기록이 필요 없다 —
+        // 두 사람의 말이 같은 방·같은 시간대에서 서로를 부정하는 것 자체가 물을 거리다.
+        var own = Claim(a, target) ?? Claim(b, target);
+        if (own != null)
+        {
+            var witness = own == a ? b : a;
+            if (witness.Kind == EvidenceKind.Testimony
+                && witness.SubjectEmployeeId == target
+                && !string.IsNullOrEmpty(witness.BehaviorDetail)
+                && witness.SubjectRoomId == own.SubjectRoomId
+                && witness.HasTime && own.HasTime
+                && Mathf.Abs(witness.AnchorTime - own.AnchorTime) <= BehaviorWindowSeconds)
+            {
+                return new Result
+                {
+                    IsContradiction = true,
+                    Kind = ConfrontKind.Behavior,
+                    Earlier = earlier,
+                    Later = later,
+                    RoomA = own.SubjectRoomId,
+                    RoomB = witness.SubjectRoomId,
+                    AnchorTime = witness.AnchorTime,
+                    QuestionText = DenialQuestion(own, witness),
+                };
+            }
+        }
+
+        // ② - ㉡ 행동이 실린 자료 + 같은 방의 사고 기록.
         var incident = a.Kind == EvidenceKind.Incident ? a : b.Kind == EvidenceKind.Incident ? b : null;
         if (incident == null || !incident.HasTime || string.IsNullOrEmpty(incident.SubjectRoomId)) return null;
 
@@ -129,6 +162,11 @@ public static class EvidenceContradiction
             QuestionText = BehaviorQuestion(act),
         };
     }
+
+    // 본인이 자기 행동에 대해 한 주장("설비 근처에 가지 않았다"). 아니면 null.
+    private static InterviewEvidence Claim(InterviewEvidence ev, string target) =>
+        ev.Kind == EvidenceKind.OwnStatement && ev.SubjectEmployeeId == target
+        && !string.IsNullOrEmpty(ev.BehaviorDetail) ? ev : null;
 
     // ── ③ 위치 추궁 — 같은 시각에 두 자료가 다른 방을 가리킨다 ─────────────
     //
@@ -194,6 +232,17 @@ public static class EvidenceContradiction
         string room = InterviewEvidenceBoard.RoomName(incident.SubjectRoomId);
         return KoreanParticle.Resolve(
             $"{when}경 {room}에서 사고가 났을 때 그 방에 계셨습니다. 무엇을 하고 있었습니까?");
+    }
+
+    // 본인의 말과 동료의 말이 정면으로 부딪힐 때. 둘 다 그대로 인용한다 —
+    // 어느 쪽이 거짓인지는 화면이 정하지 않는다.
+    private static string DenialQuestion(InterviewEvidence own, InterviewEvidence witness)
+    {
+        string room = InterviewEvidenceBoard.RoomName(own.SubjectRoomId);
+        string who = InterviewEvidenceBoard.Codename(witness.SpeakerEmployeeId);
+        return KoreanParticle.Resolve(
+            $"{room}에서 {own.BehaviorDetail}고 하셨습니다. 하지만 {who} 직원은 "
+            + $"{witness.BehaviorDetail}고 진술했습니다. 설명해 주시죠.");
     }
 
     private static string BehaviorQuestion(InterviewEvidence act)

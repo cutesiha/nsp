@@ -40,6 +40,7 @@ public static class InterviewScenarioTest
         // 2차 — 결번자의 "설비 근처에 가지 않았다" 거짓말(§3-2).
         TestEquipmentDenial();
         TestInnocentAdmitsBehavior();
+        TestDenialVersusWitness();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
 
@@ -309,8 +310,11 @@ public static class InterviewScenarioTest
         GD.Print($"   1차: {first}");
         Check(claim.EquipmentDenialDecided, "한 번 물으면 설비 접촉 여부가 정해진다");
         Check(claim.DeniesEquipmentContact, "Omit 전략이면 '설비 근처에 안 갔다'고 주장한다");
-        Check(first.Contains("설비") || first.Contains("기계") || first.Contains("장비"),
-            "그 주장이 실제 문장으로 나간다");
+        // 어느 문장이 뽑힐지는 매번 다르므로 낱말이 아니라 **그 슬롯의 문장인지**로 본다.
+        Check(EndsWithDenialLine("cat", first), "그 주장이 실제 문장으로 나간다");
+        Check(PlayerKnownEvidence.BehaviorClaimsBy("cat")
+                .Any(x => x.Text == KoreanDialogueComposer.EquipmentDenialText),
+            "그 주장이 플레이어가 아는 자료로 남는다");
 
         // 두 번째 질문 — 값이 바뀌면 안 된다. 전략이 흔들려도 마찬가지다.
         claim.Mode = DeceptionMode.Minimize;
@@ -356,8 +360,55 @@ public static class InterviewScenarioTest
         Check(variant == "honest", "결백한 직원은 인정한다(honest)");
     }
 
+    // ── §3-2 마무리 : 부인 카드 + 동료 목격 증언 = 행동 추궁 ──────────────
+    //
+    // 결번자에게서 잡을 수 있는 유일한 거짓말이 실제로 잡히는지 끝까지 본다.
+    private static void TestDenialVersusWitness()
+    {
+        Head("2차-C", "결번자의 부인 진술 + 동료 목격 증언 → 행동 추궁 · deny");
+        Reset();
+        Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
+                       ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
+        GameState.Instance.SetSaboteur("cat");
+        Log(LogEventType.Sabotage, "cat", Maintenance, At(40), new[] { "wolf" });
+
+        var claim = DialogueClaimState.Get("cat", 1, ClaimKeyOf(Maintenance, At(40)));
+        claim.Mode = DeceptionMode.Omit;
+        claim.ModeDecided = true;
+
+        // ① 고양이에게 물어 "설비 근처에 안 갔다" 를 받아 낸다.
+        GD.Print("   A: " + LocalDialogueGenerator.InterviewAnswer("cat", DialogueQuestions.Where));
+        // ② 늑대에게 물어 "설비 쪽에 오래 머물렀다" 를 받아 낸다(여기서는 직접 넣는다).
+        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(36), Odd);
+
+        var board = InterviewEvidenceBoard.Build("cat");
+        var deny = board.FirstOrDefault(e => e.BehaviorDetail == KoreanDialogueComposer.EquipmentDenialText);
+        var say = board.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony);
+        if (!Check(deny != null, "부인 진술이 조사 자료 카드가 된다")) return;
+        GD.Print($"   부인 카드: {deny.OneLine}");
+        if (!Check(say != null, "동료 목격 증언도 자료로 있다")) return;
+
+        var r = EvidenceContradiction.Check("cat", deny, say);
+        Check(r.Kind == ConfrontKind.Behavior, "두 장을 맞대면 행동 추궁이 성립한다");
+        Check(EvidenceContradiction.Check("cat", say, deny).Kind == ConfrontKind.Behavior,
+            "고른 순서와 무관하다");
+
+        string answer = InterviewReplyPlanner.ConfrontAnswer("cat", r, out string variant);
+        GD.Print($"   Q: {r.QuestionText}\n   A: ({variant}) {answer}");
+        Check(variant == "deny", "결번자는 물러서지 않는다(deny)");
+    }
+
     // 목격 증언에 실리는 행동 — SaboteurPlan.TickPrecursors 가 남기는 문구 그대로.
     private const string Odd = "설비 쪽에 평소보다 오래 머물렀다";
+
+    // 답변이 그 직원의 Denial.equipment 문장으로 끝나는가.
+    private static bool EndsWithDenialLine(string employeeId, string answer)
+    {
+        bool formal = DialogueVoices.Get(employeeId).Formal;
+        foreach (string line in DialogueLineBank.Get(employeeId, KoreanDialogueComposer.EquipmentDenialSlot, formal))
+            if (answer.Contains(line)) return true;
+        return false;
+    }
 
     // 그 사건의 주장 키. DialogueContextBuilder 가 ctx.ClaimKey 로 쓰는 값과 같다.
     private static string ClaimKeyOf(string roomId, float at)
