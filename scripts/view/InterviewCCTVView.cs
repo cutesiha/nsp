@@ -230,15 +230,24 @@ public partial class InterviewCCTVView : Control
     public void ResetCrtIntensity() => SetCrtIntensity(_baseDarkness, _baseGlowAmt);
 
     // 긴장 순간 — 확 어두워지며 빛이 번졌다가, 잠시 뒤 평소 값으로 서서히 돌아온다.
-    public void PulseTension()
+    // strength 는 0~1. 어떤 답이 돌아왔는지에 따라 세기가 달라진다(§3-5).
+    // 설정값(StandingTension*)은 가장 센 반응의 세기이고, 약한 반응은 평소 상태 쪽으로 당긴다.
+    public void PulseTension(float strength = 1f)
     {
         if (_standingMat == null) return;
+        strength = Mathf.Clamp(strength, 0f, 1f);
+        if (strength <= 0.01f) return;
         var cfg = Config.Instance?.Data;
         float dark = cfg?.StandingTensionDarkness ?? 0.5f;
         // 발광은 직원 비율대로 — 기본 직원은 설정값 그대로, 발광을 낮춰 둔 흰 옷 직원은 그만큼 덜 번진다.
         float glow = (cfg?.StandingTensionGlowAmt ?? 2.2f) * (_baseGlowAmt / _defaultGlowAmt);
         float hold = cfg?.StandingTensionHoldSeconds ?? 2.5f;
         float fade = cfg?.StandingTensionFadeSeconds ?? 1.2f;
+
+        // 약한 반응은 덜 어두워지고 덜 번지고 더 짧게 머문다.
+        dark = Mathf.Lerp(_baseDarkness, dark, strength);
+        glow = Mathf.Lerp(_baseGlowAmt, glow, strength);
+        hold *= Mathf.Lerp(0.45f, 1f, strength);
 
         StopTension();
         _standingMat.SetShaderParameter("darkness", dark);
@@ -261,11 +270,27 @@ public partial class InterviewCCTVView : Control
     // 심문 중 모순 추궁이 성립한 순간 — 지금 화면에 떠 있는 그 직원이면 긴장 연출.
     // 자료 두 장을 함께 들이민 순간. 성립하지 않은 조합(None)에는 긴장 연출을 넣지 않는다 —
     // 화면이 "지금 뭔가 맞았다"고 알려 주면 추리가 사라진다.
-    // (kind/variant 별 세기 차등은 2차 작업 §4 19번이다.)
     private void OnConfronted(string employeeId, NSP.Dialogue.ConfrontKind kind, string variant)
     {
-        if (employeeId == _lastEmployee && kind != NSP.Dialogue.ConfrontKind.None) PulseTension();
+        if (employeeId != _lastEmployee || kind == NSP.Dialogue.ConfrontKind.None) return;
+        PulseTension(TensionOf(variant));
     }
+
+    // 돌아온 답이 어땠는가로 세기를 나눈다(§3-5).
+    //
+    // 부인(deny)이 가장 세다 — 자료와 정면으로 어긋나는 말을 한 순간이다. 말을 돌리면
+    // (evasive) 그 중간, 순순히 인정하면(honest) 약하게 흔들리고 만다. 되물었을 뿐인
+    // neutral 은 아무 연출도 없다 — 성립하지 않은 조합에 반응하면 화면이 정답을 알려 준다.
+    //
+    // 세기는 "얼마나 동요했는가"이지 "얼마나 범인 같은가"가 아니다. 결백한 직원도
+    // 가짜 단서를 들이밀면 부인한다.
+    private static float TensionOf(string variant) => variant switch
+    {
+        "deny" => 1f,
+        "evasive" => 0.62f,
+        "honest" => 0.3f,
+        _ => 0f,
+    };
 
     public override void _Process(double delta)
     {
