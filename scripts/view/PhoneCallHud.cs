@@ -599,7 +599,7 @@ public partial class PhoneCallHud : CanvasLayer
         var mark = new Button
         {
             Text = star ? "★" : "☆",
-            CustomMinimumSize = new Vector2(28, 32),
+            CustomMinimumSize = new Vector2(30, CardHeight),
             TooltipText = "중요 표시",
         };
         mark.AddThemeFontOverride("font", _font);
@@ -611,15 +611,80 @@ public partial class PhoneCallHud : CanvasLayer
         mark.Pressed += () => { _session.ToggleStar(captured.Id); RefreshEvidence(); };
         row.AddChild(mark);
 
-        string prefix = !usable ? "· " : on ? "▣ " : "□ ";
-        string text = prefix + line1 + (string.IsNullOrEmpty(line2) ? "" : "\n     " + line2);
-        var b = CardButton(text, on, near.Contains(ev.Id), usable);
+        // 태그는 아이콘 대신 색 띠 + 두 글자. 종류가 색으로 먼저 읽히고, 글자는 확인용이다.
+        row.AddChild(TagStrip(ev));
+
+        // 카드 본문 — 한 줄에 다 싣지 않는다. 전문은 카드를 누르면 아래 상세칸에 뜬다.
+        string slot = SlotBadge(ev);
+        string body = string.IsNullOrEmpty(line2) ? line1 : line1 + "  " + line2;
+        var b = CardButton(slot + Short(StripTag(body), 12), on, near.Contains(ev.Id), usable);
         b.Pressed += () =>
         {
             _session.Toggle(captured.Id);
             OnEvidencePicked();
         };
         row.AddChild(b);
+
+        // 시각은 오른쪽 끝에 붙인다 — 카드들이 세로로 줄을 맞춰 훑기 쉬워진다.
+        var when = Lbl(ev.TimeText, 14, Cyan with { A = usable ? 0.75f : 0.4f });
+        when.HorizontalAlignment = HorizontalAlignment.Right;
+        when.VerticalAlignment = VerticalAlignment.Center;
+        when.CustomMinimumSize = new Vector2(132, CardHeight);
+        when.MouseFilter = Control.MouseFilterEnum.Ignore;
+        row.AddChild(when);
+    }
+
+    // 카드 한 장의 높이. 기울어진 CRT 에서 읽히려면 이 정도는 되어야 한다.
+    private const float CardHeight = 44f;
+
+    // 자료 종류 = 색 + 두 글자. 색은 시설 로그 화면의 팔레트와 같은 계열로 맞춘다.
+    private static Color TagColor(InterviewEvidence ev) => ev.Kind switch
+    {
+        EvidenceKind.Movement => new Color(0.36f, 0.86f, 0.82f),   // 기록  청록
+        EvidenceKind.Cctv => new Color(0.92f, 0.94f, 0.96f),       // CCTV  흰색
+        EvidenceKind.Testimony => new Color(1f, 0.82f, 0.36f),     // 증언  노랑
+        EvidenceKind.Incident => new Color(1f, 0.42f, 0.34f),      // 사고  빨강
+        EvidenceKind.Mood => new Color(0.60f, 0.66f, 0.70f),       // 기분  회색
+        // 진술은 그 직원의 고유색 — 누구의 말인지가 색으로 먼저 읽힌다.
+        _ => Readable(FacilitySimulation.Instance?.GetEmployeeDef(ev.SubjectEmployeeId)?.IconColor ?? Cyan),
+    };
+
+    private Control TagStrip(InterviewEvidence ev)
+    {
+        var c = TagColor(ev);
+        var host = new PanelContainer { CustomMinimumSize = new Vector2(52, CardHeight), MouseFilter = Control.MouseFilterEnum.Ignore };
+        host.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = c with { A = 0.22f },
+            BorderColor = c,
+            BorderWidthLeft = 4,
+            ContentMarginLeft = 4, ContentMarginRight = 2, ContentMarginTop = 2, ContentMarginBottom = 2,
+        });
+        var l = Lbl(ev.Tag, 14, c);
+        l.HorizontalAlignment = HorizontalAlignment.Center;
+        l.VerticalAlignment = VerticalAlignment.Center;
+        l.MouseFilter = Control.MouseFilterEnum.Ignore;
+        host.AddChild(l);
+        return host;
+    }
+
+    // 슬롯에 담긴 카드에는 A / B 가 붙는다 — 아래 슬롯 칸을 보지 않아도 무엇을 골랐는지 안다.
+    private string SlotBadge(InterviewEvidence ev)
+    {
+        if (_session == null) return "";
+        var sel = _session.Selected;
+        for (int i = 0; i < sel.Count && i < 2; i++)
+            if (sel[i] == ev.Id) return i == 0 ? "[A] " : "[B] ";
+        return "";
+    }
+
+    // OneLine 등에 앞머리로 붙은 태그는 이제 색 띠가 맡는다 — 본문에서 뗀다.
+    private static string StripTag(string text)
+    {
+        text = (text ?? "").Trim();
+        foreach (string t in new[] { "기록", "사고", "CCTV", "증언", "진술", "기분" })
+            if (text.StartsWith(t + "  ", System.StringComparison.Ordinal)) return text[(t.Length + 2)..].Trim();
+        return text;
     }
 
     private Button CardButton(string text, bool on, bool near, bool usable)
@@ -628,12 +693,12 @@ public partial class PhoneCallHud : CanvasLayer
         {
             Text = text,
             Alignment = HorizontalAlignment.Left,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            CustomMinimumSize = new Vector2(0, 32),
+            ClipText = true,
+            CustomMinimumSize = new Vector2(0, CardHeight),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
         b.AddThemeFontOverride("font", _font);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.S(13));
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(16));
         b.AddThemeColorOverride("font_color", on ? Colors.White : usable ? Cyan : Cyan with { A = 0.5f });
         b.AddThemeColorOverride("font_hover_color", Colors.White);
         var box = new StyleBoxFlat
