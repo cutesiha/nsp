@@ -48,6 +48,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private ScrollContainer _logScroll;
     private ScrollContainer _dialogueScroll;
     private VBoxContainer _logRows;
+    // 로그 창 맨 위의 띠 시간표. 아래 텍스트 목록을 대신하지 않고, 어디를 봐야 할지만 가리킨다.
+    private StaffTimelineView _logBand;
+    private Tween _logFlash;
     private VBoxContainer _dialogueRows;
     private Font _body;
     private Font _serif;
@@ -312,10 +315,22 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _logPanel.AddChild(title);
         _logPanel.AddChild(CloseButton(false));
 
+        // 띠 시간표 — 텍스트가 길게 늘어서면 "누가 언제 어디 있었는지"가 안 읽힌다는
+        // 플레이테스트 의견에 대한 자리다(§3-7). 목록보다 위에 두고, 구간을 누르면
+        // 아래 목록이 그 시각으로 내려간다.
+        _logBand = new StaffTimelineView
+        {
+            AnchorRight = 1f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 86f, OffsetBottom = 86f + LogBandH,
+        };
+        _logBand.SegmentPressed = (_, time) => ScrollLogTo(time);
+        _logBand.IncidentPressed = ScrollLogToRow;
+        _logPanel.AddChild(_logBand);
+
         _logScroll = new ScrollContainer
         {
             AnchorRight = 1f, AnchorBottom = 1f,
-            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 88f, OffsetBottom = -28f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 86f + LogBandH + 12f, OffsetBottom = -28f,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
             VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
             MouseFilter = Control.MouseFilterEnum.Stop,
@@ -329,6 +344,40 @@ public partial class Day1HistoryOverlay : CanvasLayer
         };
         _logRows.AddThemeConstantOverride("separation", 8);
         _logScroll.AddChild(_logRows);
+    }
+
+    // 띠 높이. 직원 여섯 줄 + 시각 눈금 + 사고 라벨이 겹치지 않는 최소치다.
+    private const float LogBandH = 158f;
+
+    // 오늘 근무에 나온 직원만 띠에 올린다(배치표 · 휴게 명단과 같은 명단).
+    private void RefreshLogBand()
+    {
+        _logBand?.SetData(FacilitySimulation.Instance?.GetActiveEmployeeIds(), _displayLog);
+    }
+
+    // 띠에서 구간을 누르면 아래 텍스트 목록을 그 시각으로 내린다.
+    private void ScrollLogTo(float time)
+    {
+        if (_displayLog == null) return;
+        for (int i = 0; i < _displayLog.Count; i++)
+            if (_displayLog[i].Timestamp >= time - 0.01f) { ScrollLogToRow(i); return; }
+        ScrollLogToRow(_displayLog.Count - 1);
+    }
+
+    // 사고 세로선을 누르면 그 줄 자체로 내린다.
+    private void ScrollLogToRow(int index)
+    {
+        if (_logScroll == null || _logRows == null) return;
+        if (index < 0 || index >= _logRows.GetChildCount()) return;
+        if (_logRows.GetChild(index) is not Control row) return;
+        _logScroll.ScrollVertical = Mathf.Max(0, (int)row.Position.Y - 6);
+
+        // 어느 줄로 왔는지 한 번 밝혔다 돌아온다. 붉은 필터처럼 판독을 가리지 않는 정도로만.
+        _logFlash?.Kill();
+        row.Modulate = Colors.White;
+        _logFlash = CreateTween();
+        _logFlash.TweenProperty(row, "modulate", new Color(1.5f, 1.5f, 1.5f), 0.08f);
+        _logFlash.TweenProperty(row, "modulate", Colors.White, 0.42f);
     }
 
     private void BuildDialoguePanel(Control root)
@@ -626,6 +675,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _displayLog = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
             GameState.Instance?.CurrentDay ?? 1);
         foreach (var row in _displayLog) AppendLogRow(row);
+        RefreshLogBand();
         if (_logRendered == 0) AddEmpty(_logRows, "아직 기록된 시설 로그가 없습니다.", Cyan with { A = 0.65f });
         QueueLogScroll(true, 0);
     }
@@ -724,7 +774,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (_mode != WindowMode.Log) return;
         var rebuilt = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
             GameState.Instance?.CurrentDay ?? 1);
-        if (rebuilt.Count == _displayLog.Count) { _displayLog = rebuilt; return; }
+        if (rebuilt.Count == _displayLog.Count) { _displayLog = rebuilt; RefreshLogBand(); return; }
         if (rebuilt.Count < _logRendered) { _displayLog = rebuilt; RebuildLog(); return; }
 
         bool stick = IsAtBottom(_logScroll);
@@ -732,6 +782,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (_logRendered == 0) ClearRows(_logRows);
         for (int i = _logRendered; i < rebuilt.Count; i++) AppendLogRow(rebuilt[i]);
         _displayLog = rebuilt;
+        RefreshLogBand();
         QueueLogScroll(stick, old);
     }
 
