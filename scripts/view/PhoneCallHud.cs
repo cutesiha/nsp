@@ -8,8 +8,14 @@ namespace NSP.View;
 // 전화 통화 자막 UI. 화면 하단의 작은 홀로그램 '창' 으로만 표시한다 — 중앙 대형 팝업 금지.
 //  - 일반 통화(플레이어 발신): 인사 → 질문 → 대답 …
 //  - 이벤트 통화(직원 발신: 사고/비명/정전/목격): 첫 대사 → 2지선다 → 대답 → 종료
-//  - 휴게시간 심문: 왼쪽에 대화, 오른쪽에 「조사 자료」. 플레이어가 자료를 골라 질문을
-//    만들고, 자료 두 장을 직접 맞대어 모순을 제시한다(InterviewSession 이 규칙을 쥔다).
+//  - 휴게시간 심문: 이 창이 대화 전부를 맡는다 — 직전 문답 · 현재 답변 · 선택지.
+//    자리와 크기는 일반 통화와 같다(1.5차에서 자막 띠 방식을 버리고 되돌렸다).
+//    조사 자료는 MONITOR 01 의 RestInterviewConsole 에 있고, 여기서는 그 카드를 읽어
+//    "무엇을 물을 수 있는가"만 선택지로 만든다(추리 규칙은 InterviewSession 이 쥔다).
+//
+//    이 창은 **스스로 말을 이어 가지 않는다.** 답변은 플레이어가 선택지를 누를 때만 나온다.
+//    세션을 끝내는 길도 둘뿐이다 — 선택지 맨 아래 「통화를 종료한다.」 와 3D 전화기 클릭.
+//    가리는 것이 문제라면 끊지 말고 손잡이 오른쪽의 「▼ 접기」로 이름 한 줄만 남긴다.
 // 모든 대사는 LocalDialogueGenerator(로컬 규칙 기반 생성기)가 실제 게임 로그/상태에서 만든다.
 // DialogueRepository 는 질문 목록과, 생성이 불가능할 때의 폴백 대사로만 남는다.
 // CanvasLayer 자체는 항상 켜두고 통화창(_panel)만 여닫는다 — 벨이 울리는 동안 아주 작은
@@ -33,8 +39,6 @@ public partial class PhoneCallHud : CanvasLayer
         None, GeneralQuestions, EventChoices, EndOnly,
         // 휴게시간 심문: 기본 질문 / 고른 자료의 질문 / 중립 꼬리질문
         InterviewMenu, InterviewIntents, InterviewFollowUps,
-        // 최초 진술을 한 문장씩 말하는 동안. 마지막 문장이 끝나면 InterviewMenu 로 간다.
-        InterviewOpening,
     }
 
     private Panel _panel;
@@ -70,6 +74,20 @@ public partial class PhoneCallHud : CanvasLayer
     // 창 윗부분을 잡고 끌어 옮기는 손잡이(심문 창에서만 쓴다).
     private Control _dragBar;
     private bool _dragging;
+    // 손잡이 위의 이름(접었을 때 남는 한 줄)과 접기 버튼.
+    private Label _barName;
+    private Button _collapseBtn;
+    // 접힘 — 창을 치우되 통화는 유지한다. MONITOR 01 을 조작하는 동안 쓰는 상태다.
+    private bool _collapsed;
+    private float _openAnchorTop, _openAnchorBottom, _openOffsetTop, _openOffsetBottom;
+
+    // 이미 들어 본 근무 진술(✓ 표시용). 목록에서 빼지는 않는다.
+    private readonly System.Collections.Generic.HashSet<int> _heardOpenings = new();
+    // 직전 문답 두세 개. 현재 답변 위에 흐리게 남는다(전체 기록은 D 대화 기록).
+    private RichTextLabel _history;
+    private readonly System.Collections.Generic.List<(string Q, string A)> _log = new();
+    // 마지막으로 그린 자료 A/B. 바뀔 때만 콘솔에 알린다(매 프레임 알리지 않게).
+    private string _lastSlots = "";
 
     private string _employeeId = "";
     private string _dialogueEvent = DialogueRepository.EventGeneralCall;
@@ -82,8 +100,6 @@ public partial class PhoneCallHud : CanvasLayer
     private int _shownChars;
     private bool _typing;
     private AfterMode _after;
-    // 지금 몇 번째 최초 진술까지 말했는가.
-    private int _openingIndex;
     private float _blink;
 
     // 3D CRT 입력기가 통화창 뒤의 버튼까지 같은 마우스 입력을 전달하지 않도록,
@@ -148,6 +164,22 @@ public partial class PhoneCallHud : CanvasLayer
 
         _speaker = Lbl("", 19, Amber);
         _leftCol.AddChild(_speaker);
+
+        // 직전 문답 — 지금 답변 위에 흐리게 쌓인다. 대화가 한 문장씩 사라지지 않게 하는 자리다.
+        _history = new RichTextLabel
+        {
+            BbcodeEnabled = true,
+            FitContent = true,
+            ScrollActive = false,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            Visible = false,
+        };
+        _history.AddThemeFontOverride("normal_font", _font);
+        _history.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(13));
+        _history.AddThemeColorOverride("default_color", new Color(0.62f, 0.72f, 0.76f, 0.4f));
+        _leftCol.AddChild(_history);
 
         // 플레이어가 방금 던진 질문. 심문에서 "무엇을 물었는지"가 남아야 흐름이 읽힌다.
         _playerLine = Lbl("", 15, new Color(0.62f, 0.72f, 0.76f));
@@ -224,6 +256,60 @@ public partial class PhoneCallHud : CanvasLayer
         };
         _dragBar.GuiInput += OnDragBarInput;
         _panel.AddChild(_dragBar);
+
+        // 접었을 때 남는 한 줄. 누구와 통화 중인지는 항상 보여야 한다.
+        _barName = Lbl("", 15, Amber);
+        _barName.AnchorLeft = 0f; _barName.AnchorRight = 0f;
+        _barName.OffsetLeft = 26f; _barName.OffsetRight = 320f;
+        _barName.OffsetTop = 6f; _barName.OffsetBottom = 30f;
+        _barName.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _barName.Visible = false;
+        _dragBar.AddChild(_barName);
+
+        // 창을 치우는 방법은 끊는 것 말고 하나 더 있어야 한다 — 접기.
+        _collapseBtn = MonitorUi.Button("▼ 접기", Cyan, _font, () => SetCollapsed(!_collapsed), ViewFont.FS(13));
+        _collapseBtn.AnchorLeft = 1f; _collapseBtn.AnchorRight = 1f;
+        _collapseBtn.OffsetLeft = -112f; _collapseBtn.OffsetRight = -14f;
+        _collapseBtn.OffsetTop = 4f; _collapseBtn.OffsetBottom = 32f;
+        _collapseBtn.MouseFilter = Control.MouseFilterEnum.Stop;
+        _dragBar.AddChild(_collapseBtn);
+    }
+
+    // --- 접기 -------------------------------------------------------------
+
+    // 접으면 이름 한 줄만 남는다. **세션도 선택지도 타이핑 상태도 그대로다** —
+    // 통화를 끊는 것과는 완전히 다른 동작이다(끊는 길은 선택지와 전화기 둘뿐).
+    public bool Collapsed => _collapsed;
+
+    private const float CollapsedHeight = DragBarHeight;
+
+    public void SetCollapsed(bool on)
+    {
+        if (_session == null) on = false;          // 일반 통화는 접지 않는다
+        if (_collapsed == on || _panel == null) return;
+        _collapsed = on;
+
+        if (on)
+        {
+            _openAnchorTop = _panel.AnchorTop; _openAnchorBottom = _panel.AnchorBottom;
+            _openOffsetTop = _panel.OffsetTop; _openOffsetBottom = _panel.OffsetBottom;
+            _panel.AnchorBottom = _panel.AnchorTop;
+            _panel.OffsetBottom = _panel.OffsetTop + CollapsedHeight;
+        }
+        else
+        {
+            _panel.AnchorTop = _openAnchorTop; _panel.AnchorBottom = _openAnchorBottom;
+            _panel.OffsetTop = _openOffsetTop; _panel.OffsetBottom = _openOffsetBottom;
+        }
+        if (_root != null) _root.Visible = !on;
+        if (_barName != null) _barName.Visible = on;
+        if (_collapseBtn != null) _collapseBtn.Text = on ? "▲ 펼치기" : "▼ 접기";
+    }
+
+    // MONITOR 01 이 "대화창 펼치기" 를 눌렀거나 슬롯이 바뀌었을 때 — 선택지가 달라졌으니 편다.
+    private void ExpandForConsole()
+    {
+        SetCollapsed(false);
     }
 
     private const float DragBarHeight = 36f;
@@ -289,7 +375,10 @@ public partial class PhoneCallHud : CanvasLayer
 
         _noteTabs = con.NoteTabs;
         _evidenceList = con.EvidenceList;
-        con.EndPressed += CloseCall;
+        // 콘솔에는 통화 종료가 없다 — 이 신호는 "접어 둔 대화창을 다시 펴 달라" 다.
+        con.ExpandRequested += ExpandForConsole;
+        // 자료 A/B 가 바뀌면 선택지도 바뀐다 — 접혀 있으면 펴서 보여 준다.
+        con.SlotsChanged += ExpandForConsole;
 
         // 보기 — 기본은 지금 심문 중인 직원의 자료다. 다른 직원 자료는 아예 뜨지 않는다
         // (회색으로 깔아 두면 읽을 수 없는 카드가 화면의 절반을 먹는다).
@@ -585,6 +674,10 @@ public partial class PhoneCallHud : CanvasLayer
             foreach (string st in new[] { "normal", "hover", "pressed" }) slot.AddThemeStyleboxOverride(st, box);
         }
 
+        // 자료 A/B 가 바뀌었다 — 접어 둔 대화창이 있으면 펴진다(선택지가 달라졌으므로).
+        string picked = string.Join("|", _session.Selected);
+        if (picked != _lastSlots) { _lastSlots = picked; _console?.NotifySlotsChanged(); }
+
         // 고른 자료의 전문을 MON01 상세칸에 펼친다 — 카드 한 줄로는 다 실리지 않는다.
         var focus = _session.EvidenceAt(_session.Selected.Count - 1);
         _console?.SetDetail(focus == null
@@ -650,6 +743,7 @@ public partial class PhoneCallHud : CanvasLayer
 
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
         _speaker.Text = "▶ " + (def?.Codename ?? employeeId);
+        if (_barName != null) _barName.Text = "▶ " + (def?.Codename ?? employeeId);
         _frame.Accent = def?.IconColor ?? Cyan;
 
         // 이름은 그 직원의 고유색 그대로(어두운 색만 살짝 띄워 가독성 확보),
@@ -676,11 +770,13 @@ public partial class PhoneCallHud : CanvasLayer
             _playerLine.Visible = false;
             _console.SetGoal(InvestigationGoal(_session));
             RefreshEvidence();
+            _heardOpenings.Clear();
+            ClearHistory();
             string greeting = _session.Greeting();
             RecordNpc(greeting, DialogueEntryType.NpcLine, DialogueConversationType.Interview);
-            // 최초 진술은 블록으로 쌓아 두지 않는다 — 인사 뒤에 한 문장씩 말한다(§3-6).
-            _openingIndex = 0;
-            StartTyping("\"" + greeting + "\"", AfterMode.InterviewOpening);
+            // 인사만 하고 멈춘다. 근무 진술은 플레이어가 기본 질문을 골라야 나온다 —
+            // 자동으로 흘려보내면 읽을 새가 없다(1차 플레이테스트에서 확인).
+            StartTyping("\"" + greeting + "\"", AfterMode.InterviewMenu);
             return;
         }
         _session = null;
@@ -769,7 +865,6 @@ public partial class PhoneCallHud : CanvasLayer
             {
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
                 case AfterMode.EventChoices: BuildEventChoices(); break;
-                case AfterMode.InterviewOpening: NextOpening(); break;
                 case AfterMode.InterviewMenu: BuildInterviewMenu(); break;
                 case AfterMode.InterviewIntents: BuildIntentChoices(); break;
                 case AfterMode.InterviewFollowUps: BuildInterviewFollowUps(); break;
@@ -819,10 +914,17 @@ public partial class PhoneCallHud : CanvasLayer
         RefreshEvidence();
         if (_session == null) return;
 
-        // 최초 진술은 이제 블록으로 남지 않고 한 문장씩 지나간다 — 고를 블록이 없으므로
-        // 세 진술에서 나온 꼬리질문을 한 목록으로 합쳐 띄운다. 이미 물은 것은 뒤로 민다.
-        int room = 3;
-        foreach (var fq in AllOpeningFollowUps())
+        // ① 기본 질문 세 개. 이미 들은 것은 ✓ — 목록에서 빠지지 않는다(다시 들을 수 있다).
+        foreach (var st in _session.Openings)
+        {
+            var captured = st;
+            string label = (_heardOpenings.Contains(st.Index) ? "✓  " : "") + OpeningLabel(st.QuestionId);
+            _choices.AddChild(InterviewChoiceButton(label, () => PlayOpening(captured)));
+        }
+
+        // ② 방금 들은 진술에서 이어지는 꼬리질문(최대 2).
+        int room = 2;
+        foreach (var fq in _session.OpeningFollowUps())
         {
             if (room-- <= 0) break;
             var captured = fq;
@@ -830,20 +932,17 @@ public partial class PhoneCallHud : CanvasLayer
             _choices.AddChild(InterviewChoiceButton(text, () => AskOpeningFollowUp(captured)));
         }
 
+        // ③ MONITOR 01 에서 고른 자료로 묻기 / 두 자료 제시.
         AddEvidenceChoice();
+        // ④ 세션을 끝내는 유일한 버튼.
         AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall));
     }
 
-    // 세 진술의 꼬리질문을 한 줄로 모은다(중복 제거). 아직 안 물어본 것이 앞에 온다.
-    private System.Collections.Generic.List<FollowUpQuestion> AllOpeningFollowUps()
+    // 카드 본문을 선택지 라벨에 넣을 만큼만 자른다.
+    private static string Short(string text, int max)
     {
-        var all = new System.Collections.Generic.List<FollowUpQuestion>();
-        var seen = new System.Collections.Generic.HashSet<string>();
-        foreach (var st in _session.Openings)
-            foreach (var fq in st.FollowUps)
-                if (seen.Add(fq.Text)) all.Add(fq);
-        all.Sort((x, y) => _session.WasAskedFollowUp(x).CompareTo(_session.WasAskedFollowUp(y)));
-        return all;
+        text = (text ?? "").Trim();
+        return text.Length <= max ? text : text[..max] + "…";
     }
 
     // 조사 노트에서 자료를 고르거나 뺐다 — 목록과 함께 자막 띠의 선택지도 다시 그린다.
@@ -872,7 +971,7 @@ public partial class PhoneCallHud : CanvasLayer
         if (picked == 1)
         {
             var one = _session.EvidenceAt(0);
-            _choices.AddChild(InterviewChoiceButton($"이 자료로 묻는다.  ({one?.OneLine})", OnAskWithEvidence));
+            _choices.AddChild(InterviewChoiceButton($"[{Short(one?.Body, 10)}]로 묻는다.", OnAskWithEvidence));
             return;
         }
 
@@ -909,21 +1008,36 @@ public partial class PhoneCallHud : CanvasLayer
             : $"{when} {room} 사고 — 그 시각 {room}에 있던 사람은?";
     }
 
-    // 최초 진술을 한 문장씩. 한 문장이 끝날 때마다 조사 노트를 다시 그리고 한 번 점멸시킨다 —
-    // "말한 것이 그 자리에서 자료가 된다"를 보여 주는 장면이다.
-    private void NextOpening()
+    // 기본 질문 하나를 고르면 그 답(세션이 만들어 둔 최초 진술)을 그대로 말한다.
+    //
+    // 새로 생성하지 않는 이유 — 같은 질문을 다시 골랐을 때 문장이 바뀌면 "아까 뭐라고 했더라"
+    // 를 확인할 수가 없다. 진술은 근무 한 번에 하나로 고정이고, 몇 번이든 다시 들을 수 있다.
+    private void PlayOpening(InterviewSession.OpeningStatement st)
     {
-        if (_session == null) { BuildInterviewMenu(); return; }
-        if (_openingIndex >= _session.Openings.Count) { BuildInterviewMenu(); return; }
+        if (_session == null || st == null) return;
+        ClearChoices();
+        // 이 진술의 꼬리질문이 목록에 뜨도록 고른 상태로 만든다(같은 것을 다시 눌러도 유지).
+        if (_session.SelectedOpening != st.Index) _session.SelectOpening(st.Index);
+        _heardOpenings.Add(st.Index);
 
-        var st = _session.Openings[_openingIndex];
-        _openingIndex++;
+        string question = OpeningLabel(st.QuestionId);
+        LocalInterviewDialogue.RecordTurn(_employeeId, question, st.Text);
+        RecordPlayer(question, DialogueConversationType.Interview);
         RecordNpc(st.Text, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        ShowPlayerLine("");
+        PushHistory(question, st.Text);
+        ShowPlayerLine(question);
         RefreshEvidence();
         _console?.FlashNotes();
-        StartTyping("\"" + st.Text + "\"", AfterMode.InterviewOpening);
+        StartTyping("\"" + st.Text + "\"", AfterMode.InterviewMenu);
     }
+
+    // 기본 질문의 문구. InterviewQuestionFactory.BasicQuestions 와 같은 문장을 쓴다.
+    private static string OpeningLabel(string questionId) => questionId switch
+    {
+        DialogueQuestions.ShiftReview => "오늘 근무는 어땠습니까?",
+        DialogueQuestions.Suspicious => "수상한 행동을 한 사람을 봤습니까?",
+        _ => "오늘 이상한 점을 느꼈습니까?",
+    };
 
     private static Label Wrap(Label l)
     {
@@ -940,8 +1054,10 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        PushHistory(turn.QuestionText, turn.Answer);
         ShowPlayerLine(turn.QuestionText);
         RefreshEvidence();
+        _console?.FlashNotes();
         StartTyping("\"" + turn.Answer + "\"", AfterMode.InterviewMenu);
     }
 
@@ -981,9 +1097,11 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        PushHistory(turn.QuestionText, turn.Answer);
         // 방금 내가 고른 질문을 다시 보여 주지 않는다 — 답변만 뜬다.
         ShowPlayerLine("");
         RefreshEvidence();
+        _console?.FlashNotes();
         StartTyping("\"" + turn.Answer + "\"",
             _followUps.Count > 0 ? AfterMode.InterviewFollowUps : AfterMode.InterviewMenu);
     }
@@ -1014,10 +1132,42 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        PushHistory(turn.QuestionText, turn.Answer);
         ShowPlayerLine(turn.QuestionText);
         _session.ClearSelection();
         RefreshEvidence();
         StartTyping("\"" + turn.Answer + "\"", AfterMode.InterviewMenu);
+    }
+
+    // --- 직전 문답 ---------------------------------------------------------
+
+    // 새 답변이 나오기 직전에 부른다. 지금까지의 문답을 흐리게 올리고, 이번 것을 뒤에 쌓는다
+    // (이번 답변은 아직 _message 가 맡는다 — 다음 턴에 여기로 밀려 올라온다).
+    private void PushHistory(string question, string answer)
+    {
+        RenderHistory();
+        _log.Add((question ?? "", answer ?? ""));
+        while (_log.Count > 3) _log.RemoveAt(0);
+    }
+
+    private void ClearHistory()
+    {
+        _log.Clear();
+        if (_history != null) { _history.Text = ""; _history.Visible = false; }
+    }
+
+    private void RenderHistory()
+    {
+        if (_history == null) return;
+        if (_log.Count == 0) { _history.Text = ""; _history.Visible = false; return; }
+        var sb = new System.Text.StringBuilder();
+        foreach (var (q, a) in _log)
+        {
+            if (!string.IsNullOrEmpty(q)) sb.Append("관리자 ▸ ").Append(q).Append('\n');
+            if (!string.IsNullOrEmpty(a)) sb.Append("직원 ▸ ").Append(a).Append('\n');
+        }
+        _history.Text = sb.ToString().TrimEnd('\n');
+        _history.Visible = true;
     }
 
     private void ShowPlayerLine(string text)
@@ -1140,32 +1290,18 @@ public partial class PhoneCallHud : CanvasLayer
         return b;
     }
 
-    // 「L 로그 / D 대화 기록」 버튼이 쓰는 화면 아래 자리. 여기까지만 내려온다.
-    private const float InterviewBottomGap = 86f;
-
-    // 심문 중 자막 띠 높이(화면 px). 이름 · 질문 · 답변 두세 줄.
-    // 심문 자막 띠 — 대사 한두 줄 + 선택지 네 줄이 함께 들어갈 높이.
-    // 대화(대사 · 질문 · 선택지)를 전부 여기서 끝내기 위해 키웠다(§3-6).
-    private const float SubtitleHeight = 268f;
-
+    // 심문 창도 일반 통화와 **같은 자리 · 같은 크기**다. 1차의 자막 띠 레이아웃은 버렸다 —
+    // 화면 아래 띠로는 답변이 한 문장씩만 남아 대화가 되지 않았고, MONITOR 01 을 가렸다.
+    // 가리는 것이 문제라면 끊지 말고 접는다(SetCollapsed).
     private void SetInterviewLayout(bool interview)
     {
+        // 손잡이(와 접기 버튼)는 심문 창에서만 쓴다.
         if (_dragBar != null) _dragBar.Visible = interview;
         _dragging = false;
-
-        if (interview)
-        {
-            // 심문 UI 는 MONITOR 01 에 있고 MONITOR 02 에는 직원이 서 있다 — 통화창은 두 모니터와
-            // 책상을 가리지 않도록 화면 아래 얇은 자막 띠로만 쓴다(질문 · 답변 한 줄 남짓).
-            _panel.AnchorLeft = 0.18f;
-            _panel.AnchorRight = 0.82f;
-            _panel.AnchorTop = 1f;
-            _panel.AnchorBottom = 1f;
-            _panel.OffsetBottom = -InterviewBottomGap;
-            _panel.OffsetTop = -InterviewBottomGap - SubtitleHeight;
-            if (_hangUp != null) _hangUp.Visible = false;
-            return;
-        }
+        _collapsed = false;
+        if (_root != null) _root.Visible = true;
+        if (_barName != null) _barName.Visible = false;
+        if (_collapseBtn != null) _collapseBtn.Text = "▼ 접기";
 
         _panel.AnchorLeft = 0.24f;
         _panel.AnchorRight = 0.76f;
@@ -1173,7 +1309,8 @@ public partial class PhoneCallHud : CanvasLayer
         _panel.AnchorBottom = 0.95f;
         _panel.OffsetTop = 0f;
         _panel.OffsetBottom = 0f;
-        if (_hangUp != null) _hangUp.Visible = true;
+        // 심문 중에는 위쪽 ✕ 를 숨긴다 — 끊는 길은 선택지 맨 아래 한 곳뿐이어야 한다.
+        if (_hangUp != null) _hangUp.Visible = !interview;
     }
 
     // ESC — 통화 중이면 끊는다(심문 콘솔은 자기 종료 흐름을 쓴다).
@@ -1203,6 +1340,7 @@ public partial class PhoneCallHud : CanvasLayer
     private void CloseCall()
     {
         _panel.Visible = false;
+        ClearHistory();
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
         EmployeeMouthAnimator.Reset();

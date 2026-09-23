@@ -17,6 +17,9 @@ namespace NSP.View;
 //
 // 이 콘솔은 자리(컨테이너)와 표시만 갖는다. 내용물(카드 · 슬롯)은 PhoneCallHud 가
 // InterviewSession 을 들고 채운다 — 추리 규칙은 여기 없다.
+//
+// **통화를 끊는 버튼은 여기 없다.** 세션을 끝내는 길은 대화창 선택지의 「통화를 종료한다.」
+// 와 3D 전화기 클릭 둘뿐이다. 이 화면이 대화창에 보내는 신호는 "펼쳐 달라" 하나다.
 public partial class RestInterviewConsole : Control
 {
     public static RestInterviewConsole Instance { get; private set; }
@@ -27,7 +30,10 @@ public partial class RestInterviewConsole : Control
     private static readonly Color Dim = new(0.5f, 0.6f, 0.66f);
     private static readonly Color Amber = new(1f, 0.80f, 0.36f);
 
-    public event Action EndPressed;
+    // 대화창을 접어 둔 채로 이 화면을 보다가 다시 펼치고 싶을 때. 통화를 끊지 않는다.
+    public event Action ExpandRequested;
+    // 자료 A/B 가 바뀌었다 — 대화창의 선택지가 달라지므로 접혀 있으면 펼쳐야 한다.
+    public event Action SlotsChanged;
 
     // PhoneCallHud 가 채우는 자리.
     public HFlowContainer NoteTabs { get; private set; }
@@ -39,7 +45,7 @@ public partial class RestInterviewConsole : Control
     private Label _goal;
     private Label _detail;
     private Panel _listFrame;
-    private Button _endBtn;
+    private Button _expandBtn;
     private ScrollContainer _listScroll;
     // 카드가 새로 들어온 순간 목록 테두리가 한 번 밝아진다(§3-6 "말한 것이 자료가 된다").
     private float _flash;
@@ -66,10 +72,10 @@ public partial class RestInterviewConsole : Control
         _name.Size = new Vector2(300, 30);
         AddChild(_name);
 
-        _endBtn = MonitorUi.Button("통화 종료", new Color(1f, 0.55f, 0.45f), _font, () => EndPressed?.Invoke(), ViewFont.S(15));
-        _endBtn.Position = new Vector2(648, 12);
-        _endBtn.Size = new Vector2(136, 38);
-        AddChild(_endBtn);
+        _expandBtn = MonitorUi.Button("대화창 펼치기", Cyan, _font, () => ExpandRequested?.Invoke(), ViewFont.S(15));
+        _expandBtn.Position = new Vector2(624, 12);
+        _expandBtn.Size = new Vector2(160, 38);
+        AddChild(_expandBtn);
 
         // ── 조사 목표 — 오늘 무엇을 밝혀야 하는가 한 줄 ────────────────
         // 로그에 이미 공개된 사실만 쓴다(범인 이름은 어디에도 없다).
@@ -141,6 +147,9 @@ public partial class RestInterviewConsole : Control
         _detail.Text = has ? text : "자료를 고르면 전문이 여기에 표시됩니다.";
         _detail.AddThemeColorOverride("font_color", has ? new Color(0.86f, 0.92f, 0.94f) : Dim);
     }
+
+    // 자료 A/B 가 바뀌었다고 알린다(PhoneCallHud 가 슬롯을 다시 그린 뒤 부른다).
+    public void NotifySlotsChanged() => SlotsChanged?.Invoke();
 
     // 새 자료가 들어왔다 — 목록 테두리를 한 번 밝히고 짧은 소리를 낸다.
     public void FlashNotes()
