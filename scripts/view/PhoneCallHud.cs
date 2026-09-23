@@ -33,6 +33,8 @@ public partial class PhoneCallHud : CanvasLayer
         None, GeneralQuestions, EventChoices, EndOnly,
         // 휴게시간 심문: 기본 질문 / 고른 자료의 질문 / 중립 꼬리질문
         InterviewMenu, InterviewIntents, InterviewFollowUps,
+        // 최초 진술을 한 문장씩 말하는 동안. 마지막 문장이 끝나면 InterviewMenu 로 간다.
+        InterviewOpening,
     }
 
     private Panel _panel;
@@ -51,18 +53,14 @@ public partial class PhoneCallHud : CanvasLayer
     private VBoxContainer _leftInner;
     // 심문 UI 는 MONITOR 01 의 심문 콘솔(RestInterviewConsole) 안에 있다. 아래는 그 콘솔의 자리를 가리킨다.
     private RestInterviewConsole _console;
+    // 창 오른쪽 위의 통화 종료 버튼(심문 콘솔에서는 숨긴다 — 그쪽은 콘솔이 종료를 맡는다).
+    private Button _hangUp;
     private bool _consoleWired;
-    private Label _statementsHead;
-    private VBoxContainer _statements;
-    private VBoxContainer _ivChoices;
-    private VBoxContainer _ivTail;
     private VBoxContainer _evidenceList;
     private HFlowContainer _noteTabs;
     private Button _slotA;
     private Button _slotB;
     private VBoxContainer _tail;
-    private Button _askBtn;
-    private Button _confrontBtn;
     private InterviewSession _session;
     private System.Collections.Generic.List<InterviewQuestion> _intents = new();
     // 조사 노트 화면 상태(보기 방식일 뿐 — 판정에 쓰지 않는다).
@@ -84,6 +82,8 @@ public partial class PhoneCallHud : CanvasLayer
     private int _shownChars;
     private bool _typing;
     private AfterMode _after;
+    // 지금 몇 번째 최초 진술까지 말했는가.
+    private int _openingIndex;
     private float _blink;
 
     // 3D CRT 입력기가 통화창 뒤의 버튼까지 같은 마우스 입력을 전달하지 않도록,
@@ -119,6 +119,15 @@ public partial class PhoneCallHud : CanvasLayer
         _frame = new HologramFrame { MouseFilter = Control.MouseFilterEnum.Ignore };
         _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _panel.AddChild(_frame);
+
+        // 통화는 언제든 끊을 수 있어야 한다 — 선택지가 없는 구간(상대가 말하는 중, 사건 전화 등)
+        // 에서도 창 오른쪽 위의 이 버튼으로 바로 끊는다. ESC 도 같은 동작이다.
+        _hangUp = MonitorUi.Button("통화 종료 ✕", new Color(1f, 0.55f, 0.45f), _font, CloseCall, ViewFont.FS(13));
+        _hangUp.AnchorLeft = 1f; _hangUp.AnchorRight = 1f;
+        _hangUp.OffsetLeft = -128f; _hangUp.OffsetRight = -14f;
+        _hangUp.OffsetTop = 10f; _hangUp.OffsetBottom = 36f;
+        _hangUp.MouseFilter = Control.MouseFilterEnum.Stop;
+        _panel.AddChild(_hangUp);
 
         // 위 = [왼쪽 대화 | 오른쪽 조사 노트], 아래 = 자료 A/B · 질문 · 비교 · 통화 종료(심문에서만).
         // 일반 통화에서는 오른쪽 열과 아래 줄을 숨긴다.
@@ -278,18 +287,17 @@ public partial class PhoneCallHud : CanvasLayer
         if (_consoleWired) return;
         _consoleWired = true;
 
-        _statementsHead = con.StatementsHead;
-        _statements = con.Statements;
-        _ivChoices = con.Choices;
-        _ivTail = con.Tail;
         _noteTabs = con.NoteTabs;
         _evidenceList = con.EvidenceList;
         con.EndPressed += CloseCall;
 
-        // 보기 탭 — 사건별(기본) / 현재 직원 / ★ 중요.
+        // 보기 — 기본은 지금 심문 중인 직원의 자료다. 다른 직원 자료는 아예 뜨지 않는다
+        // (회색으로 깔아 두면 읽을 수 없는 카드가 화면의 절반을 먹는다).
+        // [전원] 을 켰을 때만 오늘 확보한 자료 전부를 사건별로 묶어 보여 준다.
         foreach (var (label, tab) in new (string, NoteTab)[]
                  {
-                     ("사건별", NoteTab.ByIncident), ("현재 직원", NoteTab.CurrentEmployee), ("★ 중요", NoteTab.Starred),
+                     ("현재 직원", NoteTab.CurrentEmployee), ("★ 중요", NoteTab.Starred),
+                     ("전원", NoteTab.ByIncident),
                  })
         {
             var t = tab;
@@ -303,21 +311,11 @@ public partial class PhoneCallHud : CanvasLayer
             _noteTabs.AddChild(chip);
         }
 
-        // [자료 A] [자료 B]
+        // [자료 A] [자료 B] — 질문/비교 버튼은 없다. 자막 띠의 선택지가 그 역할을 한다.
         _slotA = SlotButton(0);
         _slotB = SlotButton(1);
         con.SlotRow.AddChild(_slotA);
         con.SlotRow.AddChild(_slotB);
-
-        // [이 자료로 질문] [두 자료 비교 / 모순 추궁]
-        _askBtn = ChoiceButton("이 자료로 질문", OnAskWithEvidence);
-        _askBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        _askBtn.SizeFlagsVertical = Control.SizeFlags.Fill;
-        con.ActionRow.AddChild(_askBtn);
-        _confrontBtn = ChoiceButton("두 자료 비교 / 모순 추궁", OnConfront);
-        _confrontBtn.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        _confrontBtn.SizeFlagsVertical = Control.SizeFlags.Fill;
-        con.ActionRow.AddChild(_confrontBtn);
     }
 
     // 심문 콘솔(MONITOR 01) 안의 글자는 SubViewport 논리 크기, 통화 자막은 화면 크기.
@@ -345,7 +343,7 @@ public partial class PhoneCallHud : CanvasLayer
             var ev = _session?.EvidenceAt(index);
             if (ev == null) return;
             _session.Toggle(ev.Id);
-            RefreshEvidence();
+            OnEvidencePicked();
         };
         return b;
     }
@@ -530,7 +528,7 @@ public partial class PhoneCallHud : CanvasLayer
         b.Pressed += () =>
         {
             _session.Toggle(captured.Id);
-            RefreshEvidence();
+            OnEvidencePicked();
         };
         row.AddChild(b);
     }
@@ -587,9 +585,12 @@ public partial class PhoneCallHud : CanvasLayer
             foreach (string st in new[] { "normal", "hover", "pressed" }) slot.AddThemeStyleboxOverride(st, box);
         }
 
-        int picked = _session.Selected.Count;
-        _askBtn.Disabled = picked != 1;
-        _confrontBtn.Disabled = picked != 2;
+        // 고른 자료의 전문을 MON01 상세칸에 펼친다 — 카드 한 줄로는 다 실리지 않는다.
+        var focus = _session.EvidenceAt(_session.Selected.Count - 1);
+        _console?.SetDetail(focus == null
+            ? ""
+            : $"[{focus.Header}]  {focus.OneLine}"
+              + (string.IsNullOrEmpty(focus.BehaviorDetail) ? "" : "\n· " + focus.BehaviorDetail));
     }
 
     private Label Lbl(string t, int size, Color c)
@@ -665,24 +666,21 @@ public partial class PhoneCallHud : CanvasLayer
             // 휴게시간 심문 — 직원이 먼저 근무 진술을 몇 마디 하고(세션이 한 번만 만든다),
             // 플레이어는 진술을 골라 캐묻거나 조사 노트의 자료로 묻는다.
             _session = new InterviewSession(employeeId);
-            _session.SetTab(NoteTab.ByIncident);
+            // MON01 은 조사 노트 전용이다 — 시작 탭은 이 직원의 자료(세션 기본값).
             AttachConsole();
             _console.Open(def?.Codename ?? employeeId, Readable(own));
-            // 「이 자료로 질문 / 두 자료 비교」 도 그 직원의 고유색으로(토끼 = 분홍 …).
-            TintAction(_askBtn, Readable(own));
-            TintAction(_confrontBtn, Readable(own));
             _expandedCards.Clear();
             _collapsedGroups.Clear();
             _followUps.Clear();
             _intents.Clear();
             _playerLine.Visible = false;
+            _console.SetGoal(InvestigationGoal(_session));
             RefreshEvidence();
             string greeting = _session.Greeting();
             RecordNpc(greeting, DialogueEntryType.NpcLine, DialogueConversationType.Interview);
-            foreach (var st in _session.Openings)
-                RecordNpc(st.Text, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-            BuildStatements();
-            StartTyping("\"" + greeting + "\"", AfterMode.InterviewMenu);
+            // 최초 진술은 블록으로 쌓아 두지 않는다 — 인사 뒤에 한 문장씩 말한다(§3-6).
+            _openingIndex = 0;
+            StartTyping("\"" + greeting + "\"", AfterMode.InterviewOpening);
             return;
         }
         _session = null;
@@ -771,6 +769,7 @@ public partial class PhoneCallHud : CanvasLayer
             {
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
                 case AfterMode.EventChoices: BuildEventChoices(); break;
+                case AfterMode.InterviewOpening: NextOpening(); break;
                 case AfterMode.InterviewMenu: BuildInterviewMenu(); break;
                 case AfterMode.InterviewIntents: BuildIntentChoices(); break;
                 case AfterMode.InterviewFollowUps: BuildInterviewFollowUps(); break;
@@ -808,65 +807,128 @@ public partial class PhoneCallHud : CanvasLayer
 
     // 심문 기본 화면 — 직원의 근무 진술 블록과, 고른 진술에서 이어지는 꼬리질문만.
     // (예전의 기본 질문 세 개는 목록으로 띄우지 않는다 — 그 답이 곧 진술 블록이다.)
+    // 심문 기본 선택지 — 전부 자막 띠 안에 있다.
+    //   ① 방금 진술에서 이어지는 꼬리질문(0~2)
+    //   ② 조사 노트에서 고른 자료로 묻기 / 두 자료를 함께 제시하기
+    //   ③ 통화 종료(항상 맨 아래)
     private void BuildInterviewMenu()
     {
         ClearChoices();
         _followUps.Clear();
         _intents.Clear();
         RefreshEvidence();
-        BuildStatements();
         if (_session == null) return;
 
-        if (_session.SelectedOpening < 0)
+        // 최초 진술은 이제 블록으로 남지 않고 한 문장씩 지나간다 — 고를 블록이 없으므로
+        // 세 진술에서 나온 꼬리질문을 한 목록으로 합쳐 띄운다. 이미 물은 것은 뒤로 민다.
+        int room = 3;
+        foreach (var fq in AllOpeningFollowUps())
         {
-            if (_session.Openings.Count > 0)
-                _ivChoices.AddChild(Wrap(Lbl("진술을 누르면 그 내용에 대해 물어볼 수 있습니다.  조사 노트의 자료로도 질문할 수 있습니다.",
+            if (room-- <= 0) break;
+            var captured = fq;
+            string text = (_session.WasAskedFollowUp(fq) ? "✓  " : "") + fq.Text;
+            _choices.AddChild(InterviewChoiceButton(text, () => AskOpeningFollowUp(captured)));
+        }
+
+        AddEvidenceChoice();
+        AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall));
+    }
+
+    // 세 진술의 꼬리질문을 한 줄로 모은다(중복 제거). 아직 안 물어본 것이 앞에 온다.
+    private System.Collections.Generic.List<FollowUpQuestion> AllOpeningFollowUps()
+    {
+        var all = new System.Collections.Generic.List<FollowUpQuestion>();
+        var seen = new System.Collections.Generic.HashSet<string>();
+        foreach (var st in _session.Openings)
+            foreach (var fq in st.FollowUps)
+                if (seen.Add(fq.Text)) all.Add(fq);
+        all.Sort((x, y) => _session.WasAskedFollowUp(x).CompareTo(_session.WasAskedFollowUp(y)));
+        return all;
+    }
+
+    // 조사 노트에서 자료를 고르거나 뺐다 — 목록과 함께 자막 띠의 선택지도 다시 그린다.
+    // (무엇을 물을 수 있는지가 곧 고른 자료에 달려 있으므로 둘은 항상 같이 움직인다.)
+    private void OnEvidencePicked()
+    {
+        RefreshEvidence();
+        if (!_typing && _after == AfterMode.InterviewMenu) BuildInterviewMenu();
+    }
+
+    // 조사 노트에서 고른 자료로 물을 수 있는 것. 자료를 고르지 않았으면 안내만 남긴다.
+    //
+    // 두 장을 골랐을 때 추궁이 성립하면 선택지 글이 곧 추궁 문장이다 — 무엇을 들이밀게
+    // 되는지 누르기 전에 읽을 수 있어야 한다. 성립하지 않아도 누를 수 있다(§3-1).
+    private void AddEvidenceChoice()
+    {
+        int picked = _session.Selected.Count;
+        if (picked == 0)
+        {
+            // 물어볼 꼬리질문이 하나도 없을 때만 안내를 남긴다 — 선택지 네 줄을 넘기지 않게.
+            if (_choices.GetChildCount() == 0)
+                _choices.AddChild(Wrap(Lbl("MONITOR 01 의 조사 노트에서 자료를 고르면 그 자료로 물어볼 수 있습니다.",
                     13, new Color(0.55f, 0.66f, 0.70f))));
             return;
         }
-
-        var fus = _session.OpeningFollowUps();
-        if (fus.Count == 0)
+        if (picked == 1)
         {
-            _ivChoices.AddChild(Wrap(Lbl("이 진술에서 더 물어볼 것은 없습니다.", 13, new Color(0.55f, 0.66f, 0.70f))));
+            var one = _session.EvidenceAt(0);
+            _choices.AddChild(InterviewChoiceButton($"이 자료로 묻는다.  ({one?.OneLine})", OnAskWithEvidence));
             return;
         }
-        foreach (var fq in fus)
+
+        var result = _session.CheckContradiction();
+        bool holds = result.Kind != ConfrontKind.None;
+        string label = holds ? result.QuestionText : "두 자료를 함께 제시한다.";
+        var b = InterviewChoiceButton(label, OnConfront);
+        // 성립한 추궁만 붉게 — 성립하지 않은 조합에는 아무 표시도 붙지 않는다.
+        if (holds) TintAction(b, new Color(1f, 0.45f, 0.38f));
+        _choices.AddChild(b);
+    }
+
+    // MON01 맨 위 한 줄 — 오늘 무엇을 밝혀야 하는가.
+    //
+    // 조사 자료(= 시설 로그 화면에 실제로 뜬 줄)에서만 만든다. 방해공작 기록이 있으면
+    // 그것을, 없으면 가장 이른 사고를 쓴다. 범인 이름은 어디에도 없다 — 그건 여전히
+    // 플레이어가 좁혀야 할 몫이다.
+    private static string InvestigationGoal(InterviewSession session)
+    {
+        InterviewEvidence pick = null;
+        foreach (var e in InterviewEvidenceBoard.BuildAll(session.EmployeeId))
         {
-            var captured = fq;
-            string text = (_session.WasAskedFollowUp(fq) ? "✓  " : "") + fq.Text;
-            _ivChoices.AddChild(InterviewChoiceButton(text, () => AskOpeningFollowUp(captured)));
+            if (e.Kind != EvidenceKind.Incident) continue;
+            bool sabotage = e.IncidentType == NSP.Data.LogEventType.Sabotage;
+            if (pick == null || (sabotage && pick.IncidentType != NSP.Data.LogEventType.Sabotage)) pick = e;
+            if (sabotage) break;
         }
+        if (pick == null) return "오늘 시설 기록에 남은 사건이 없습니다.";
+
+        string room = InterviewEvidenceBoard.RoomName(pick.SubjectRoomId);
+        string when = DialogueClock.Text(pick.AnchorTime);
+        return pick.IncidentType == NSP.Data.LogEventType.Sabotage
+            ? $"{when} {room} 방해공작 — 그 시각 {room}에 있던 사람은?"
+            : $"{when} {room} 사고 — 그 시각 {room}에 있던 사람은?";
+    }
+
+    // 최초 진술을 한 문장씩. 한 문장이 끝날 때마다 조사 노트를 다시 그리고 한 번 점멸시킨다 —
+    // "말한 것이 그 자리에서 자료가 된다"를 보여 주는 장면이다.
+    private void NextOpening()
+    {
+        if (_session == null) { BuildInterviewMenu(); return; }
+        if (_openingIndex >= _session.Openings.Count) { BuildInterviewMenu(); return; }
+
+        var st = _session.Openings[_openingIndex];
+        _openingIndex++;
+        RecordNpc(st.Text, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        ShowPlayerLine("");
+        RefreshEvidence();
+        _console?.FlashNotes();
+        StartTyping("\"" + st.Text + "\"", AfterMode.InterviewOpening);
     }
 
     private static Label Wrap(Label l)
     {
         l.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         return l;
-    }
-
-    // 근무 진술 블록(클릭 가능). 긴 한 문단으로 합치지 않는다.
-    private void BuildStatements()
-    {
-        if (_statements == null) return;
-        foreach (var c in _statements.GetChildren()) { _statements.RemoveChild(c); c.QueueFree(); }
-        bool any = _session != null && _session.Openings.Count > 0;
-        _statementsHead.Visible = any;
-        if (!any) return;
-
-        foreach (var st in _session.Openings)
-        {
-            int idx = st.Index;
-            bool on = _session.SelectedOpening == idx;
-            var b = CardButton($"[근무 진술 {idx + 1}]\n\"{st.Text}\"", on, false, true);
-            b.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
-            b.Pressed += () =>
-            {
-                _session.SelectOpening(idx);
-                if (!_typing) BuildInterviewMenu(); else BuildStatements();
-            };
-            _statements.AddChild(b);
-        }
     }
 
     // 진술에서 나온 꼬리질문 → 기존 꼬리질문 답변(FollowUpAnswer).
@@ -894,7 +956,6 @@ public partial class PhoneCallHud : CanvasLayer
             return;
         }
         BuildIntentChoices();
-        _console?.ShowPage(RestInterviewConsole.Page.Interview);
     }
 
     private void BuildIntentChoices()
@@ -903,9 +964,9 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _intents)
         {
             var captured = q;
-            _ivChoices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
+            _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
-        _ivTail.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
     // 이미 물어본 질문에는 체크 표시만 붙인다 — 목록에서 사라지지는 않는다.
@@ -935,21 +996,17 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _followUps)
         {
             var captured = q;
-            _ivChoices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
+            _choices.AddChild(InterviewChoiceButton(q.Text, () => AskInterview(captured)));
         }
-        _ivTail.AddChild(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
     }
 
-    // 「두 자료를 비교」 — 모순인지 아닌지는 여기서 처음 밝혀진다.
+    // 두 자료를 함께 제시한다. 성립하든 아니든 직원은 대답한다 —
+    // 화면이 "그건 아니다" 라고 막으면 틀린 조합을 대 볼 자유가 사라진다(§3-1).
     private void OnConfront()
     {
         if (_session == null || !_session.CanTryConfront) return;
         var result = _session.CheckContradiction();
-        if (!result.IsContradiction)
-        {
-            ShowSystemLine(result.Notice);
-            return;
-        }
 
         ClearChoices();
         var turn = _session.Confront(result);
@@ -1087,7 +1144,9 @@ public partial class PhoneCallHud : CanvasLayer
     private const float InterviewBottomGap = 86f;
 
     // 심문 중 자막 띠 높이(화면 px). 이름 · 질문 · 답변 두세 줄.
-    private const float SubtitleHeight = 168f;
+    // 심문 자막 띠 — 대사 한두 줄 + 선택지 네 줄이 함께 들어갈 높이.
+    // 대화(대사 · 질문 · 선택지)를 전부 여기서 끝내기 위해 키웠다(§3-6).
+    private const float SubtitleHeight = 268f;
 
     private void SetInterviewLayout(bool interview)
     {
@@ -1104,6 +1163,7 @@ public partial class PhoneCallHud : CanvasLayer
             _panel.AnchorBottom = 1f;
             _panel.OffsetBottom = -InterviewBottomGap;
             _panel.OffsetTop = -InterviewBottomGap - SubtitleHeight;
+            if (_hangUp != null) _hangUp.Visible = false;
             return;
         }
 
@@ -1113,11 +1173,21 @@ public partial class PhoneCallHud : CanvasLayer
         _panel.AnchorBottom = 0.95f;
         _panel.OffsetTop = 0f;
         _panel.OffsetBottom = 0f;
+        if (_hangUp != null) _hangUp.Visible = true;
+    }
+
+    // ESC — 통화 중이면 끊는다(심문 콘솔은 자기 종료 흐름을 쓴다).
+    public override void _UnhandledInput(InputEvent e)
+    {
+        if (_panel is not { Visible: true } || _hangUp is not { Visible: true }) return;
+        if (e is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
+        CloseCall();
+        GetViewport().SetInputAsHandled();
     }
 
     private void ClearChoices()
     {
-        foreach (var box in new Control[] { _choices, _tail, _ivChoices, _ivTail })
+        foreach (var box in new Control[] { _choices, _tail })
         {
             if (box == null) continue;
             foreach (var c in box.GetChildren()) { box.RemoveChild(c); c.QueueFree(); }
@@ -1138,7 +1208,6 @@ public partial class PhoneCallHud : CanvasLayer
         EmployeeMouthAnimator.Reset();
         ClearChoices();
         _session = null;
-        BuildStatements();
         _console?.Close();
         _followUps.Clear();
         _intents.Clear();
