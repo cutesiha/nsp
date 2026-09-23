@@ -1,6 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=48 format=3]
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 
 [sub_resource type="BoxMesh" id="BM_Shelf"]
 size = Vector3(2.4, 0.08, 0.8)
@@ -20,6 +21,192 @@ roughness = 0.55
 albedo_color = Color(0.3, 0.25, 0.18, 1)
 metallic = 0.0
 roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="MAT_steel"]
+albedo_color = Color(0.62, 0.36, 0.14, 1)
+roughness = 0.55
+metallic = 0.4
+
+[sub_resource type="StandardMaterial3D" id="MAT_crate"]
+albedo_color = Color(0.58, 0.44, 0.27, 1)
+roughness = 0.98
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="MAT_dark"]
+albedo_color = Color(0.09, 0.09, 0.1, 1)
+roughness = 0.95
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="MAT_yellow"]
+albedo_color = Color(0.84, 0.68, 0.16, 1)
+roughness = 0.75
+metallic = 0.0
+
+[sub_resource type="StandardMaterial3D" id="MAT_shelfmat"]
+albedo_color = Color(0.3, 0.32, 0.36, 1)
+roughness = 0.45
+metallic = 0.65
+
+[sub_resource type="BoxMesh" id="RM01"]
+size = Vector3(0.72, 0.07, 0.52)
+
+[sub_resource type="BoxMesh" id="RM02"]
+size = Vector3(0.72, 0.3, 0.04)
+
+[sub_resource type="CylinderMesh" id="RM03"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.55
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM04"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.55
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM05"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.64
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM06"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM07"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM08"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM09"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM10"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM11"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM12"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM13"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM14"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM15"]
+size = Vector3(0.72, 0.07, 0.52)
+
+[sub_resource type="BoxMesh" id="RM16"]
+size = Vector3(0.72, 0.3, 0.04)
+
+[sub_resource type="CylinderMesh" id="RM17"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.55
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM18"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.55
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM19"]
+top_radius = 0.022
+bottom_radius = 0.022
+height = 0.64
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM20"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM21"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM22"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM23"]
+top_radius = 0.075
+bottom_radius = 0.075
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM24"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM25"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM26"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM27"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM28"]
+size = Vector3(0.3, 0.22, 0.24)
+
+[sub_resource type="BoxMesh" id="RM29"]
+size = Vector3(0.44, 0.3, 0.38)
+
+[sub_resource type="BoxMesh" id="RM30"]
+size = Vector3(0.44, 0.3, 0.38)
+
+[sub_resource type="BoxMesh" id="RM31"]
+size = Vector3(0.44, 0.3, 0.38)
+
+[sub_resource type="BoxMesh" id="RM32"]
+size = Vector3(0.44, 0.3, 0.38)
+
+[sub_resource type="BoxMesh" id="RM33"]
+size = Vector3(0.14, 0.012, 3.0)
+
+[sub_resource type="BoxMesh" id="RM34"]
+size = Vector3(0.5, 0.26, 0.03)
+
+[sub_resource type="BoxMesh" id="RM35"]
+size = Vector3(2.0, 0.06, 0.45)
 
 [node name="StorageRoom" type="Node3D"]
 
@@ -79,3 +266,243 @@ surface_material_override/0 = SubResource("Mat_Crate")
 transform = Transform3D(0.85, 0, 0, 0, 0.85, 0, 0, 0, 0.85, 1.6, 0.32, -0.7)
 mesh = SubResource("BM_Crate")
 surface_material_override/0 = SubResource("Mat_Crate")
+
+; ───────────── 5단계: 작업 설비 / WorkSpot ─────────────
+; 아래는 전부 표현 전용이다. 업무 판정/수치와는 무관하며,
+; RoomWorkVisualController 가 WorkSpots 밑의 자리를 읽어 직원을 배치한다.
+
+[node name="WorkSpots" type="Node3D" parent="."]
+
+[node name="Cart1" type="Node3D" parent="."]
+transform = Transform3D(0.95534, 0.00000, -0.29552, 0.00000, 1.00000, 0.00000, 0.29552, 0.00000, 0.95534, 1.30000, 0.00000, 0.75000)
+
+[node name="Cart1Deck" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.34000, 0.00000)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart1Rail" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.50000, 0.24000)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart1HandleL" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.32000, 0.60000, 0.26000)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart1HandleR" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.32000, 0.60000, 0.26000)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart1HandleBar" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.86000, 0.26000)
+mesh = SubResource("RM05")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart1Wheel0" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.30000, 0.07500, -0.20000)
+mesh = SubResource("RM06")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart1Wheel1" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.30000, 0.07500, -0.20000)
+mesh = SubResource("RM07")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart1Wheel2" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.30000, 0.07500, 0.20000)
+mesh = SubResource("RM08")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart1Wheel3" type="MeshInstance3D" parent="Cart1"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.30000, 0.07500, 0.20000)
+mesh = SubResource("RM09")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart1Load" type="Node3D" parent="Cart1"]
+
+[node name="Cart1LoadBox0" type="MeshInstance3D" parent="Cart1/Cart1Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.16000, 0.49000, -0.02000)
+mesh = SubResource("RM10")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart1LoadBox1" type="MeshInstance3D" parent="Cart1/Cart1Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.16000, 0.49000, -0.02000)
+mesh = SubResource("RM11")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart1LoadBox2" type="MeshInstance3D" parent="Cart1/Cart1Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.16000, 0.72000, -0.02000)
+mesh = SubResource("RM12")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart1LoadBox3" type="MeshInstance3D" parent="Cart1/Cart1Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.16000, 0.72000, -0.02000)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart1LoadBox4" type="MeshInstance3D" parent="Cart1/Cart1Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.16000, 0.95000, -0.02000)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart2" type="Node3D" parent="."]
+transform = Transform3D(0.98007, 0.00000, 0.19867, 0.00000, 1.00000, 0.00000, -0.19867, 0.00000, 0.98007, 0.35000, 0.00000, 1.75000)
+
+[node name="Cart2Deck" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.34000, 0.00000)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart2Rail" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.50000, 0.24000)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart2HandleL" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.32000, 0.60000, 0.26000)
+mesh = SubResource("RM17")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart2HandleR" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.32000, 0.60000, 0.26000)
+mesh = SubResource("RM18")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart2HandleBar" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.86000, 0.26000)
+mesh = SubResource("RM19")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Cart2Wheel0" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.30000, 0.07500, -0.20000)
+mesh = SubResource("RM20")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart2Wheel1" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.30000, 0.07500, -0.20000)
+mesh = SubResource("RM21")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart2Wheel2" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.30000, 0.07500, 0.20000)
+mesh = SubResource("RM22")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart2Wheel3" type="MeshInstance3D" parent="Cart2"]
+transform = Transform3D(-0.00000, 1.00000, 0.00000, -1.00000, -0.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.30000, 0.07500, 0.20000)
+mesh = SubResource("RM23")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="Cart2Load" type="Node3D" parent="Cart2"]
+
+[node name="Cart2LoadBox0" type="MeshInstance3D" parent="Cart2/Cart2Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.16000, 0.49000, -0.02000)
+mesh = SubResource("RM24")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart2LoadBox1" type="MeshInstance3D" parent="Cart2/Cart2Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.16000, 0.49000, -0.02000)
+mesh = SubResource("RM25")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart2LoadBox2" type="MeshInstance3D" parent="Cart2/Cart2Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.16000, 0.72000, -0.02000)
+mesh = SubResource("RM26")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart2LoadBox3" type="MeshInstance3D" parent="Cart2/Cart2Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.16000, 0.72000, -0.02000)
+mesh = SubResource("RM27")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="Cart2LoadBox4" type="MeshInstance3D" parent="Cart2/Cart2Load"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.16000, 0.95000, -0.02000)
+mesh = SubResource("RM28")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="SupplyStack0" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -1.95000, 0.15000, 1.35000)
+mesh = SubResource("RM29")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="SupplyStack1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -1.45000, 0.15000, 1.35000)
+mesh = SubResource("RM30")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="SupplyStack2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -1.95000, 0.46000, 1.35000)
+mesh = SubResource("RM31")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="SupplyStack3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -1.45000, 0.46000, 1.35000)
+mesh = SubResource("RM32")
+surface_material_override/0 = SubResource("MAT_crate")
+
+[node name="StorageFloorLane" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00600, 0.40000)
+mesh = SubResource("RM33")
+surface_material_override/0 = SubResource("MAT_yellow")
+
+[node name="StorageZoneSign" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -2.30000, 1.75000, -2.90000)
+mesh = SubResource("RM34")
+surface_material_override/0 = SubResource("MAT_yellow")
+
+[node name="StorageShelfExtra" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 1.50000, 1.35000, -2.70000)
+mesh = SubResource("RM35")
+surface_material_override/0 = SubResource("MAT_shelfmat")
+
+[node name="SupplyPickSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(-1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, -0.00000, 0.00000, -1.00000, -1.70000, 0.00000, 0.85000)
+script = ExtResource("1_spot")
+SpotId = "SupplyPickSpot"
+SupportedTaskIds = PackedStringArray("inventory_sorting")
+AnimationName = "pickup_box"
+Priority = 20
+IsSeated = false
+SeatHeight = 0.0
+Capacity = 3
+SharedSpot = true
+
+[node name="CartDropSpotA" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 1.30000, 0.00000, 1.35000)
+script = ExtResource("1_spot")
+SpotId = "CartDropSpotA"
+SupportedTaskIds = PackedStringArray("inventory_sorting")
+AnimationName = "place_box"
+Priority = 15
+IsSeated = false
+SeatHeight = 0.0
+Capacity = 3
+SharedSpot = true
+
+[node name="ShelfRepairSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.00000, 0.00000, 0.00000, 1.00000, 0.55000, 0.00000, -2.05000)
+script = ExtResource("1_spot")
+SpotId = "ShelfRepairSpot"
+SupportedTaskIds = PackedStringArray("repair_storage")
+AnimationName = "repair"
+Priority = 10
+IsSeated = false
+SeatHeight = 0.0
+Capacity = 1
+SharedSpot = false
+
+[node name="StorageFallbackSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(-0.57346, 0.00000, 0.81923, 0.00000, 1.00000, 0.00000, -0.81923, 0.00000, -0.57346, -0.60000, 0.00000, -1.00000)
+script = ExtResource("1_spot")
+SpotId = "StorageFallbackSpot"
+SupportedTaskIds = PackedStringArray()
+AnimationName = "inspect"
+Priority = -10
+IsSeated = false
+SeatHeight = 0.0
+Capacity = 1
+SharedSpot = false
+

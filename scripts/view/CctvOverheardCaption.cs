@@ -14,6 +14,10 @@ namespace NSP.View;
 // 들리지 않는다. 대사 · 간격은 전부 data/relationships/overheard_lines.tres.
 public partial class CctvOverheardCaption : Control
 {
+    // CCTV 3D 직원이 "지금 누가 대화 중인지"를 읽어 talk 애니메이션을 고를 때만 쓴다.
+    // 자막 표시 로직 자체는 바뀌지 않는다.
+    public static CctvOverheardCaption Instance { get; private set; }
+
     private enum Phase { Waiting, SpeakA, SpeakB }
 
     private static readonly Color Ink = new(0.84f, 0.92f, 0.88f);
@@ -41,8 +45,14 @@ public partial class CctvOverheardCaption : Control
     public string CurrentLine => _phase == Phase.Waiting ? "" : _plain;
     public int ExchangesPlayed { get; private set; }
 
+    public override void _ExitTree()
+    {
+        if (Instance == this) Instance = null;
+    }
+
     public override void _Ready()
     {
+        Instance = this;
         MouseFilter = MouseFilterEnum.Ignore;
         var font = ViewFont.Default;
 

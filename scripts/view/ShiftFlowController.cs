@@ -214,6 +214,7 @@ public partial class ShiftFlowController : Node
             _wiredSchedule = true;
         }
         RefreshSkipButton();
+        TickStressCautionHint();
 
         // 최대 근무시간이 다 되면 필수 업무를 못 끝냈어도 근무가 끝난다(막히지 않게).
         // 필수 업무를 끝냈다고 저절로 끝나지는 않는다 — 더 일할지는 플레이어가 고른다.
@@ -225,6 +226,59 @@ public partial class ShiftFlowController : Node
                 RequestEndShift();
             }
         }
+    }
+
+    // --- 스트레스 '주의' 최초 1회 안내 -------------------------------------
+
+    // 표현 전용이다. 스트레스 수치도 구간 판정도 FacilitySimulation 이 이미 끝냈고,
+    // 여기서는 "주의 구간에 들어간 직원이 생겼는가"만 읽어 GUIDE-0 한 줄을 띄운다.
+    // 한 회차에 한 번만 뜬다 — 그 뒤로는 주의/위험이 몇 번이 되든 다시 말하지 않는다.
+    private bool _stressHintShown;
+
+    private void TickStressCautionHint()
+    {
+        if (_stressHintShown || _stage != Stage.Shift) return;
+        // DAY0 교육과 스트레스가 잠겨 있는 날에는 뜨지 않는다.
+        if (DayFeatures.IsTutorialDay || !DayFeatures.StressEnabled) return;
+
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return;
+
+        foreach (var id in sim.GetEmployeeIds())
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null || !st.Alive || st.Isolated) continue;
+            if (sim.StressBandName(st) != "주의") continue;
+
+            _stressHintShown = true;   // 먼저 세운다 — 다음 프레임에 두 번 뜨지 않게.
+            ShowStressCautionHint(sim.GetEmployeeDef(id)?.Codename ?? id);
+            return;
+        }
+    }
+
+    // 화면을 빼앗지 않는다. 근무를 그대로 두고 자막 띠 한 줄 + 구석 얼굴창만 잠깐 띄운다.
+    // 문구는 코드가 아니라 런타임 문서(NSP_PROLOGUE_RUNTIME.md)가 소유한다.
+    private async void ShowStressCautionHint(string employeeName)
+    {
+        string text = NSP.Prologue.PrologueScript.GetScripted("hint_stress_caution");
+        if (string.IsNullOrEmpty(text)) return;
+
+        var hud = NSP.Prologue.GuideSubtitleHud.Instance;
+        var face = NSP.Prologue.GuideArt.Portrait("normal", out bool mouthless);
+        NSP.Prologue.GuideCornerFace.SetPortraitAll("normal", face, mouthless);
+        NSP.Prologue.GuideCornerFace.ShowAll(true);
+        hud?.SetTopAligned(false);
+        hud?.SetActive(true);
+        hud?.SetLine(text.Replace("{NAME}", employeeName));
+        Sfx.Instance?.Play("alert_beep3", -12f);
+
+        await Wait(6.5);
+        if (!IsInstanceValid(this)) return;
+        // 교육이 자막 띠를 쓰고 있는 중이라면 건드리지 않는다(DAY0 에서는 애초에 안 뜬다).
+        if (NSP.Prologue.TutorialDirector.Instance?.IsRunning == true) return;
+        hud?.Clear();
+        hud?.SetActive(false);
+        NSP.Prologue.GuideCornerFace.ShowAll(false);
     }
 
     // 왼쪽/오른쪽 CRT 안의 View 들은 SubViewport 안에서 지연 생성되므로, 준비될 때까지
@@ -252,6 +306,7 @@ public partial class ShiftFlowController : Node
         // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
         // 그 값이 남지 않게 모든 런 상태를 비운다.
         StartNewRun(PlayPrologue ? 0 : 1);
+        _stressHintShown = false;
         // 시작 화면에 남아 있던 결말의 흔적(붉은 CRT / 아침빛)도 새 근무와 함께 지운다.
         EndingState.Clear();
         EndingState.PendingWake = EndingState.Kind.None;
@@ -287,7 +342,10 @@ public partial class ShiftFlowController : Node
 
         // 프롤로그를 끄고 곧장 시작한 경우에도 새 게임 초기화는 반드시 한 번 지난다.
         if (_stage == Stage.Title)
+        {
             StartNewRun(1);
+            _stressHintShown = false;
+        }
 
         _stage = Stage.Schedule;
 

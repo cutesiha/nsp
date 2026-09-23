@@ -1,20 +1,18 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene format=3 uid="uid://br4kkd1j024w6"]
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://bkv4k7wqd3lf8" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 
 [sub_resource type="BoxMesh" id="BM_Desk"]
 size = Vector3(2.8, 0.9, 0.8)
-
-[sub_resource type="BoxMesh" id="BM_Mon"]
-size = Vector3(0.7, 0.5, 0.08)
-
-[sub_resource type="BoxMesh" id="BM_Chair"]
-size = Vector3(0.55, 1.0, 0.55)
 
 [sub_resource type="StandardMaterial3D" id="Mat_Console"]
 albedo_color = Color(0.12, 0.13, 0.15, 1)
 metallic = 0.3
 roughness = 0.6
+
+[sub_resource type="BoxMesh" id="BM_Mon"]
+size = Vector3(0.7, 0.5, 0.08)
 
 [sub_resource type="StandardMaterial3D" id="Mat_Screen"]
 albedo_color = Color(0.03, 0.05, 0.06, 1)
@@ -22,47 +20,333 @@ emission_enabled = true
 emission = Color(0.2, 0.6, 0.75, 1)
 emission_energy_multiplier = 1.6
 
-[node name="GuardRoom" type="Node3D"]
+[sub_resource type="BoxMesh" id="BM_Chair"]
+size = Vector3(0.55, 1, 0.55)
 
-[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+[sub_resource type="BoxMesh" id="RM01"]
+size = Vector3(0.42, 0.06, 0.4)
 
-[node name="Desk" type="MeshInstance3D" parent="."]
+[sub_resource type="StandardMaterial3D" id="MAT_seat"]
+albedo_color = Color(0.13, 0.16, 0.26, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="RM02"]
+size = Vector3(0.42, 0.4, 0.06)
+
+[sub_resource type="CylinderMesh" id="RM03"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.38
+radial_segments = 8
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_leg"]
+albedo_color = Color(0.42, 0.44, 0.48, 1)
+metallic = 0.85
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="RM04"]
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.03
+radial_segments = 10
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM05"]
+size = Vector3(0.52, 0.03, 0.18)
+
+[sub_resource type="StandardMaterial3D" id="MAT_dark"]
+albedo_color = Color(0.08, 0.08, 0.1, 1)
+metallic = 0.2
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="RM06"]
+size = Vector3(0.34, 0.16, 0.12)
+
+[sub_resource type="StandardMaterial3D" id="MAT_steel"]
+albedo_color = Color(0.22, 0.23, 0.26, 1)
+metallic = 0.6
+roughness = 0.45
+
+[sub_resource type="CylinderMesh" id="RM07"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.02
+radial_segments = 6
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_amber"]
+albedo_color = Color(0.88, 0.52, 0.12, 1)
+metallic = 0.2
+roughness = 0.55
+emission_enabled = true
+emission = Color(0.95, 0.45, 0.08, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="CylinderMesh" id="RM08"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.02
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM09"]
+top_radius = 0.018
+bottom_radius = 0.018
+height = 0.02
+radial_segments = 6
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM10"]
+size = Vector3(1.05, 0.06, 0.55)
+
+[sub_resource type="BoxMesh" id="RM11"]
+size = Vector3(0.06, 0.78, 0.5)
+
+[sub_resource type="BoxMesh" id="RM12"]
+size = Vector3(0.06, 0.78, 0.5)
+
+[sub_resource type="BoxMesh" id="RM13"]
+size = Vector3(0.05, 0.42, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="MAT_screen"]
+albedo_color = Color(0.08, 0.22, 0.32, 1)
+roughness = 0.18
+emission_enabled = true
+emission = Color(0.3, 0.75, 1, 1)
+emission_energy_multiplier = 1.8
+
+[sub_resource type="BoxMesh" id="RM14"]
+size = Vector3(0.16, 0.03, 0.22)
+
+[sub_resource type="BoxMesh" id="RM15"]
+size = Vector3(0.22, 0.05, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="MAT_paper"]
+albedo_color = Color(0.78, 0.76, 0.7, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="RM16"]
+size = Vector3(0.3, 1.3, 0.8)
+
+[sub_resource type="BoxMesh" id="RM17"]
+size = Vector3(0.1, 0.2, 0.55)
+
+[sub_resource type="BoxMesh" id="RM18"]
+size = Vector3(0.1, 0.2, 0.55)
+
+[sub_resource type="BoxMesh" id="RM19"]
+size = Vector3(0.1, 0.2, 0.55)
+
+[sub_resource type="BoxMesh" id="RM20"]
+size = Vector3(0.62, 0.4, 0.05)
+
+[sub_resource type="BoxMesh" id="RM21"]
+size = Vector3(0.62, 0.4, 0.05)
+
+[sub_resource type="SphereMesh" id="RM22"]
+radius = 0.09
+height = 0.18
+radial_segments = 10
+rings = 5
+
+[sub_resource type="BoxMesh" id="RM23"]
+size = Vector3(0.55, 1, 0.42)
+
+[sub_resource type="BoxMesh" id="RM24"]
+size = Vector3(5.4, 0.012, 0.1)
+
+[node name="GuardRoom" type="Node3D" unique_id=1188417504]
+
+[node name="RoomBase" parent="." unique_id=1125805252 instance=ExtResource("1_base")]
+
+[node name="Desk" type="MeshInstance3D" parent="." unique_id=774206302]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0.45, -2.2)
 mesh = SubResource("BM_Desk")
 surface_material_override/0 = SubResource("Mat_Console")
 
-[node name="Monitor1" type="MeshInstance3D" parent="."]
+[node name="Monitor1" type="MeshInstance3D" parent="." unique_id=28073818]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.8, 1.25, -2.4)
 mesh = SubResource("BM_Mon")
 surface_material_override/0 = SubResource("Mat_Screen")
 
-[node name="Monitor2" type="MeshInstance3D" parent="."]
+[node name="Monitor2" type="MeshInstance3D" parent="." unique_id=400649522]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.25, -2.4)
 mesh = SubResource("BM_Mon")
 surface_material_override/0 = SubResource("Mat_Screen")
 
-[node name="Monitor3" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.25, -2.4)
+[node name="Monitor3" type="MeshInstance3D" parent="." unique_id=1287098880]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, -2.4)
 mesh = SubResource("BM_Mon")
 surface_material_override/0 = SubResource("Mat_Screen")
 
-[node name="Monitor4" type="MeshInstance3D" parent="."]
+[node name="Monitor4" type="MeshInstance3D" parent="." unique_id=1547597213]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, 1.78, -2.42)
 mesh = SubResource("BM_Mon")
 surface_material_override/0 = SubResource("Mat_Screen")
 
-[node name="Monitor5" type="MeshInstance3D" parent="."]
+[node name="Monitor5" type="MeshInstance3D" parent="." unique_id=1288357708]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.45, 1.78, -2.42)
 mesh = SubResource("BM_Mon")
 surface_material_override/0 = SubResource("Mat_Screen")
 
-[node name="Chair" type="MeshInstance3D" parent="."]
+[node name="Chair" type="MeshInstance3D" parent="." unique_id=1321029793]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0.5, -1.3)
+visible = false
 mesh = SubResource("BM_Chair")
 surface_material_override/0 = SubResource("Mat_Console")
 
-[node name="ScreenGlow" type="OmniLight3D" parent="."]
+[node name="ScreenGlow" type="OmniLight3D" parent="." unique_id=299859215]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 1.4, -1.9)
 light_color = Color(0.35, 0.7, 0.85, 1)
 light_energy = 0.9
 omni_range = 4.5
+
+[node name="WorkSpots" type="Node3D" parent="." unique_id=163403685]
+
+[node name="MainSurveillanceSeat" type="Node3D" parent="WorkSpots" unique_id=5447871]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0, -1.32)
+script = ExtResource("1_spot")
+SpotId = "MainSurveillanceSeat"
+SupportedTaskIds = PackedStringArray("surveillance_monitoring")
+AnimationName = "sit_typing"
+Priority = 20
+IsSeated = true
+SeatHeight = 0.44
+
+[node name="SecurityControlSpot" type="Node3D" parent="WorkSpots" unique_id=1384957906]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.62, 0, 0.25)
+script = ExtResource("1_spot")
+SpotId = "SecurityControlSpot"
+SupportedTaskIds = PackedStringArray("lockdown_gear_check", "repair_guard")
+Priority = 10
+
+[node name="GuardFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1969555919]
+transform = Transform3D(0.98434, 0, -0.1763, 0, 1, 0, 0.1763, 0, 0.98434, 0.6, 0, 1.35)
+script = ExtResource("1_spot")
+SpotId = "GuardFallbackSpot"
+AnimationName = "inspect"
+Priority = -10
+
+[node name="GuardChair" type="Node3D" parent="." unique_id=177685770]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0, -1.32)
+
+[node name="GuardChairSeat" type="MeshInstance3D" parent="GuardChair" unique_id=1610840188]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_seat")
+
+[node name="GuardChairBack" type="MeshInstance3D" parent="GuardChair" unique_id=1803329740]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.67, 0.17)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_seat")
+
+[node name="GuardChairPost" type="MeshInstance3D" parent="GuardChair" unique_id=1834875629]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, 0)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_leg")
+
+[node name="GuardChairFoot" type="MeshInstance3D" parent="GuardChair" unique_id=34037483]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_leg")
+
+[node name="GuardKeyboard" type="MeshInstance3D" parent="." unique_id=888553402]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0.94, -1.95)
+mesh = SubResource("RM05")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="GuardCctvPanel" type="MeshInstance3D" parent="." unique_id=2065015397]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0.98, -2.05)
+mesh = SubResource("RM06")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="GuardPanelLed0" type="MeshInstance3D" parent="." unique_id=29258649]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.09, 1.07, -2.05)
+mesh = SubResource("RM07")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="GuardPanelLed1" type="MeshInstance3D" parent="." unique_id=1562378944]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.18, 1.07, -2.05)
+mesh = SubResource("RM08")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="GuardPanelLed2" type="MeshInstance3D" parent="." unique_id=967078650]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.27, 1.07, -2.05)
+mesh = SubResource("RM09")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="SecDeskTop" type="MeshInstance3D" parent="." unique_id=1053543748]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.8, 0.25)
+mesh = SubResource("RM10")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="SecDeskLegA" type="MeshInstance3D" parent="." unique_id=534598039]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.39, 0.72)
+mesh = SubResource("RM11")
+surface_material_override/0 = SubResource("MAT_leg")
+
+[node name="SecDeskLegB" type="MeshInstance3D" parent="." unique_id=787395958]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.39, -0.22)
+mesh = SubResource("RM12")
+surface_material_override/0 = SubResource("MAT_leg")
+
+[node name="SecScreen" type="MeshInstance3D" parent="." unique_id=1982250809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 1.12, 0.25)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_screen")
+
+[node name="SecKeypad" type="MeshInstance3D" parent="." unique_id=488055974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.02, 0.84, 0.05)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="SecDocTray" type="MeshInstance3D" parent="." unique_id=1255636744]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.02, 0.86, 0.52)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_paper")
+
+[node name="SecGearRack" type="MeshInstance3D" parent="." unique_id=22348659]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.62, 0.65, -1.5)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="SecGearItem0" type="MeshInstance3D" parent="." unique_id=663233256]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.44, 0.35, -1.5)
+mesh = SubResource("RM17")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="SecGearItem1" type="MeshInstance3D" parent="." unique_id=1449648559]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.44, 0.75, -1.5)
+mesh = SubResource("RM18")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="SecGearItem2" type="MeshInstance3D" parent="." unique_id=281399587]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.44, 1.15, -1.5)
+mesh = SubResource("RM19")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="GuardWallScreen0" type="MeshInstance3D" parent="." unique_id=148725141]
+transform = Transform3D(-0.022416761, 0, 0.9997487, 0, 1, 0, -0.9997487, 0, -0.022416761, -2.906869, 2.5327592, 0.6217222)
+mesh = SubResource("RM20")
+surface_material_override/0 = SubResource("MAT_screen")
+
+[node name="GuardWallScreen1" type="MeshInstance3D" parent="." unique_id=1413240589]
+transform = Transform3D(-0.022416761, 0, 0.9997487, 0, 1, 0, -0.9997487, 0, -0.022416761, -2.9248028, 2.5327592, -0.17807674)
+mesh = SubResource("RM21")
+surface_material_override/0 = SubResource("MAT_screen")
+
+[node name="GuardAlarmLamp" type="MeshInstance3D" parent="." unique_id=1366170294]
+transform = Transform3D(1.500448, 0, 0, 0, 1.126574, 0, 0, 0, 1, 1.6875101, 2.547298, -2.85)
+mesh = SubResource("RM22")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="GuardCabinet" type="MeshInstance3D" parent="." unique_id=1122030518]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.6, 0.5, 1.4)
+mesh = SubResource("RM23")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="GuardFloorLine" type="MeshInstance3D" parent="." unique_id=1075710086]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 1.1)
+mesh = SubResource("RM24")
+surface_material_override/0 = SubResource("MAT_amber")

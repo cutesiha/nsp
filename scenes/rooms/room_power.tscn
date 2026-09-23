@@ -1,27 +1,15 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://bvb2xn1ekct7"]
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://bkv4k7wqd3lf8" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 
 [sub_resource type="BoxMesh" id="BM_Gen"]
-size = Vector3(1.4, 1.5, 1.0)
-
-[sub_resource type="CylinderMesh" id="CM_Pipe"]
-top_radius = 0.12
-bottom_radius = 0.12
-height = 3.0
-
-[sub_resource type="BoxMesh" id="BM_Panel"]
-size = Vector3(1.0, 1.3, 0.25)
+size = Vector3(1.4, 1.5, 1)
 
 [sub_resource type="StandardMaterial3D" id="Mat_Metal"]
 albedo_color = Color(0.26, 0.27, 0.3, 1)
 metallic = 0.7
 roughness = 0.4
-
-[sub_resource type="StandardMaterial3D" id="Mat_Pipe"]
-albedo_color = Color(0.3, 0.28, 0.24, 1)
-metallic = 0.6
-roughness = 0.5
 
 [sub_resource type="StandardMaterial3D" id="Mat_Amber"]
 albedo_color = Color(0.25, 0.15, 0.03, 1)
@@ -29,42 +17,337 @@ emission_enabled = true
 emission = Color(1, 0.6, 0.12, 1)
 emission_energy_multiplier = 2.2
 
-[node name="PowerRoom" type="Node3D"]
+[sub_resource type="CylinderMesh" id="CM_Pipe"]
+top_radius = 0.12
+bottom_radius = 0.12
+height = 3.0
 
-[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+[sub_resource type="StandardMaterial3D" id="Mat_Pipe"]
+albedo_color = Color(0.3, 0.28, 0.24, 1)
+metallic = 0.6
+roughness = 0.5
 
-[node name="Generator1" type="MeshInstance3D" parent="."]
+[sub_resource type="BoxMesh" id="BM_Panel"]
+size = Vector3(1, 1.3, 0.25)
+
+[sub_resource type="BoxMesh" id="RM01"]
+size = Vector3(0.62, 0.42, 0.06)
+
+[sub_resource type="StandardMaterial3D" id="MAT_dark"]
+albedo_color = Color(0.1, 0.1, 0.09, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="RM02"]
+top_radius = 0.1
+bottom_radius = 0.1
+height = 0.03
+radial_segments = 12
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_amber"]
+albedo_color = Color(0.9, 0.58, 0.1, 1)
+metallic = 0.15
+roughness = 0.55
+emission_enabled = true
+emission = Color(0.95, 0.5, 0.08, 1)
+emission_energy_multiplier = 1.6
+
+[sub_resource type="CylinderMesh" id="RM03"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.03
+radial_segments = 12
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_green"]
+albedo_color = Color(0.22, 0.66, 0.32, 1)
+roughness = 0.35
+emission_enabled = true
+emission = Color(0.2, 0.95, 0.35, 1)
+emission_energy_multiplier = 1.5
+
+[sub_resource type="BoxMesh" id="RM04"]
+size = Vector3(0.06, 0.55, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="MAT_rust"]
+albedo_color = Color(0.45, 0.26, 0.14, 1)
+metallic = 0.1
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="RM05"]
+size = Vector3(0.55, 0.28, 0.05)
+
+[sub_resource type="CylinderMesh" id="RM06"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 1.6
+radial_segments = 8
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_cable"]
+albedo_color = Color(0.07, 0.07, 0.08, 1)
+roughness = 0.98
+
+[sub_resource type="CylinderMesh" id="RM07"]
+top_radius = 0.06
+bottom_radius = 0.06
+height = 1.3
+radial_segments = 8
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM08"]
+size = Vector3(1.7, 1.45, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="MAT_steel"]
+albedo_color = Color(0.31, 0.32, 0.24, 1)
+metallic = 0.35
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="RM09"]
+size = Vector3(1.55, 1.25, 0.05)
+
+[sub_resource type="BoxMesh" id="RM10"]
+size = Vector3(0.1, 0.2, 0.06)
+
+[sub_resource type="BoxMesh" id="RM11"]
+size = Vector3(0.1, 0.2, 0.06)
+
+[sub_resource type="BoxMesh" id="RM12"]
+size = Vector3(0.1, 0.2, 0.06)
+
+[sub_resource type="BoxMesh" id="RM13"]
+size = Vector3(0.1, 0.2, 0.06)
+
+[sub_resource type="BoxMesh" id="RM14"]
+size = Vector3(0.1, 0.2, 0.06)
+
+[sub_resource type="BoxMesh" id="RM15"]
+size = Vector3(0.1, 0.2, 0.06)
+
+[sub_resource type="CylinderMesh" id="RM16"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.03
+radial_segments = 10
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM17"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.03
+radial_segments = 10
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM18"]
+top_radius = 0.08
+bottom_radius = 0.08
+height = 0.03
+radial_segments = 10
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM19"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 1.1
+radial_segments = 8
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM20"]
+size = Vector3(2.6, 0.012, 1.2)
+
+[sub_resource type="BoxMesh" id="RM21"]
+size = Vector3(2.35, 0.016, 0.95)
+
+[sub_resource type="StandardMaterial3D" id="MAT_floor2"]
+albedo_color = Color(0.12, 0.13, 0.16, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="RM22"]
+size = Vector3(0.42, 0.3, 0.03)
+
+[sub_resource type="BoxMesh" id="RM23"]
+size = Vector3(0.4, 0.55, 0.22)
+
+[node name="PowerRoom" type="Node3D" unique_id=1885507625]
+
+[node name="RoomBase" parent="." unique_id=1137819866 instance=ExtResource("1_base")]
+
+[node name="Generator1" type="MeshInstance3D" parent="." unique_id=129416058]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.75, -1.9)
 mesh = SubResource("BM_Gen")
 surface_material_override/0 = SubResource("Mat_Metal")
 
-[node name="Generator2" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1, 0.75, -2.2)
+[node name="Generator2" type="MeshInstance3D" parent="." unique_id=1556452969]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.75, -0.3)
 mesh = SubResource("BM_Gen")
 surface_material_override/0 = SubResource("Mat_Metal")
 
-[node name="GenStrip1" type="MeshInstance3D" parent="."]
+[node name="GenStrip1" type="MeshInstance3D" parent="." unique_id=1214193687]
 transform = Transform3D(1.3, 0, 0, 0, 0.12, 0, 0, 0, 0.05, -1.7, 1.2, -1.38)
 mesh = SubResource("BM_Gen")
 surface_material_override/0 = SubResource("Mat_Amber")
 
-[node name="Pipe1" type="MeshInstance3D" parent="."]
+[node name="Pipe1" type="MeshInstance3D" parent="." unique_id=1820638356]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -2.7, 2.7, -1)
 mesh = SubResource("CM_Pipe")
 surface_material_override/0 = SubResource("Mat_Pipe")
 
-[node name="Pipe2" type="MeshInstance3D" parent="."]
+[node name="Pipe2" type="MeshInstance3D" parent="." unique_id=2024450343]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -2.7, 2.4, 0.6)
 mesh = SubResource("CM_Pipe")
 surface_material_override/0 = SubResource("Mat_Pipe")
 
-[node name="BreakerPanel" type="MeshInstance3D" parent="."]
+[node name="BreakerPanel" type="MeshInstance3D" parent="." unique_id=1170571384]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8, 1.3, 1.2)
 mesh = SubResource("BM_Panel")
 surface_material_override/0 = SubResource("Mat_Metal")
 
-[node name="AccentLight" type="OmniLight3D" parent="."]
+[node name="AccentLight" type="OmniLight3D" parent="." unique_id=1620040071]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 1.6, -1.2)
 light_color = Color(1, 0.72, 0.4, 1)
-light_energy = 1.0
-omni_range = 5.0
+
+[node name="WorkSpots" type="Node3D" parent="." unique_id=1542383445]
+
+[node name="GeneratorSpotA" type="Node3D" parent="WorkSpots" unique_id=449380463]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0, -0.85)
+script = ExtResource("1_spot")
+SpotId = "GeneratorSpotA"
+SupportedTaskIds = PackedStringArray("power_generator_check", "repair_generator")
+AnimationName = "inspect"
+Priority = 20
+
+[node name="GeneratorSpotB" type="Node3D" parent="WorkSpots" unique_id=944715929]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.62, 0, -1.9)
+script = ExtResource("1_spot")
+SpotId = "GeneratorSpotB"
+SupportedTaskIds = PackedStringArray("power_generator_check", "repair_generator")
+Priority = 15
+
+[node name="DistributionPanelSpot" type="Node3D" parent="WorkSpots" unique_id=947502826]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, -2.15)
+script = ExtResource("1_spot")
+SpotId = "DistributionPanelSpot"
+SupportedTaskIds = PackedStringArray("power_panel_cleaning")
+Priority = 10
+
+[node name="PowerFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=968490971]
+transform = Transform3D(0.78405, 0, -0.6207, 0, 1, 0, 0.6207, 0, 0.78405, 0.9, 0, 1.2)
+script = ExtResource("1_spot")
+SpotId = "PowerFallbackSpot"
+AnimationName = "inspect"
+Priority = -10
+
+[node name="GenUnitPanel" type="MeshInstance3D" parent="." unique_id=1311203142]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 1.05, -1.37)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="GenUnitDial" type="MeshInstance3D" parent="." unique_id=216295155]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -1.88, 1.12, -1.33)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="GenUnitDial2" type="MeshInstance3D" parent="." unique_id=1597169292]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -1.54, 1.12, -1.33)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="GenUnitSideHatch" type="MeshInstance3D" parent="." unique_id=32115962]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.42, 0.8, -1.9)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_rust")
+
+[node name="GenUnitVent" type="MeshInstance3D" parent="." unique_id=493346029]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 1.52, -1.37)
+mesh = SubResource("RM05")
+surface_material_override/0 = SubResource("MAT_rust")
+
+[node name="GenCableA" type="MeshInstance3D" parent="." unique_id=2017243695]
+transform = Transform3D(1, 0, 0, 0, 0.40849, 0.91276, 0, -0.91276, 0.40849, -1.7, 1.9, -2.25)
+mesh = SubResource("RM06")
+surface_material_override/0 = SubResource("MAT_cable")
+
+[node name="GenCableB" type="MeshInstance3D" parent="." unique_id=135202169]
+transform = Transform3D(1, 0, 0, 0, 0.49757, 0.86742, 0, -0.86742, 0.49757, -1.28, 1.75, -2.2)
+mesh = SubResource("RM07")
+surface_material_override/0 = SubResource("MAT_cable")
+
+[node name="DistPanelBody" type="MeshInstance3D" parent="." unique_id=1461271696]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0.95, -2.78)
+mesh = SubResource("RM08")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="DistPanelDoor" type="MeshInstance3D" parent="." unique_id=200992156]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0.95, -2.61)
+mesh = SubResource("RM09")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="DistSwitch0" type="MeshInstance3D" parent="." unique_id=1300164715]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 1.28, -2.56)
+mesh = SubResource("RM10")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="DistSwitch1" type="MeshInstance3D" parent="." unique_id=632895870]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 1.28, -2.56)
+mesh = SubResource("RM11")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="DistSwitch2" type="MeshInstance3D" parent="." unique_id=1521595543]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 1.28, -2.56)
+mesh = SubResource("RM12")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="DistSwitch3" type="MeshInstance3D" parent="." unique_id=799177465]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.35, 0.9, -2.56)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="DistSwitch4" type="MeshInstance3D" parent="." unique_id=660822193]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.65, 0.9, -2.56)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="DistSwitch5" type="MeshInstance3D" parent="." unique_id=1274096282]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0.9, -2.56)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="DistGauge0" type="MeshInstance3D" parent="." unique_id=1219728683]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.42, 0.62, -2.56)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="DistGauge1" type="MeshInstance3D" parent="." unique_id=1377555549]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.72, 0.62, -2.56)
+mesh = SubResource("RM17")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="DistGauge2" type="MeshInstance3D" parent="." unique_id=1109444800]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1.02, 0.62, -2.56)
+mesh = SubResource("RM18")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="DistConduitA" type="MeshInstance3D" parent="." unique_id=1051394423]
+transform = Transform3D(0, 1, 0, -1, 0, 0, 0, 0, 1, 0.15, 2.2, -2.83)
+mesh = SubResource("RM19")
+surface_material_override/0 = SubResource("MAT_cable")
+
+[node name="PowerFloorHazard" type="MeshInstance3D" parent="." unique_id=1831890919]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.55, 0.006, 0.05)
+mesh = SubResource("RM20")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="PowerFloorHazardIn" type="MeshInstance3D" parent="." unique_id=1455761538]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.55, 0.008, 0.05)
+mesh = SubResource("RM21")
+surface_material_override/0 = SubResource("MAT_floor2")
+
+[node name="PowerWarnSign" type="MeshInstance3D" parent="." unique_id=1120142129]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.35, 2.4045339, -2.9)
+mesh = SubResource("RM22")
+surface_material_override/0 = SubResource("MAT_amber")
+
+[node name="PowerBreakerBox" type="MeshInstance3D" parent="." unique_id=706323042]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -2.72, 1.3, -0.1)
+mesh = SubResource("RM23")
+surface_material_override/0 = SubResource("MAT_rust")

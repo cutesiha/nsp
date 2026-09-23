@@ -1,142 +1,515 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene format=3 uid="uid://dwowr8aacysob"]
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://bkv4k7wqd3lf8" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 [ext_resource type="PackedScene" uid="uid://cuj80gufgiajr" path="res://assets/models/NSP_Quarantine_room.glb" id="2_glb"]
 
-[sub_resource type="StandardMaterial3D" id="Mat_Blood"]
-albedo_color = Color(0.2, 0.02, 0.02, 1)
-metallic = 0.0
-roughness = 0.55
-
-[sub_resource type="StandardMaterial3D" id="Mat_BloodDry"]
-albedo_color = Color(0.11, 0.015, 0.02, 1)
-metallic = 0.0
-roughness = 0.8
-
-[sub_resource type="StandardMaterial3D" id="Mat_TrashBag"]
-albedo_color = Color(0.03, 0.03, 0.035, 1)
-metallic = 0.1
-roughness = 0.35
-
-[sub_resource type="StandardMaterial3D" id="Mat_Web"]
-transparency = 1
-albedo_color = Color(0.8, 0.82, 0.85, 0.3)
-metallic = 0.0
-roughness = 1.0
+[sub_resource type="BoxMesh" id="BM_Bunk"]
+size = Vector3(2, 0.12, 0.85)
 
 [sub_resource type="StandardMaterial3D" id="Mat_Bunk"]
 albedo_color = Color(0.24, 0.25, 0.27, 1)
 metallic = 0.4
 roughness = 0.55
 
+[sub_resource type="StandardMaterial3D" id="Mat_TrashBag"]
+albedo_color = Color(0.03, 0.03, 0.035, 1)
+metallic = 0.1
+roughness = 0.35
+
 [sub_resource type="PlaneMesh" id="PM_Pool1"]
 size = Vector2(1.7, 1.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_Blood"]
+albedo_color = Color(0.2, 0.02, 0.02, 1)
+roughness = 0.55
 
 [sub_resource type="PlaneMesh" id="PM_Pool2"]
 size = Vector2(0.9, 0.7)
 
+[sub_resource type="StandardMaterial3D" id="Mat_BloodDry"]
+albedo_color = Color(0.11, 0.015, 0.02, 1)
+roughness = 0.8
+
 [sub_resource type="QuadMesh" id="QM_Smear"]
 size = Vector2(1.3, 1.7)
-
-[sub_resource type="QuadMesh" id="QM_Web"]
-size = Vector2(1.2, 1.2)
 
 [sub_resource type="SphereMesh" id="SM_Bag"]
 radius = 0.35
 height = 0.7
 
-[sub_resource type="BoxMesh" id="BM_Bunk"]
-size = Vector3(2, 0.12, 0.85)
+[sub_resource type="QuadMesh" id="QM_Web"]
+size = Vector2(1.2, 1.2)
 
-[node name="IsolationRoom" type="Node3D"]
+[sub_resource type="StandardMaterial3D" id="Mat_Web"]
+transparency = 1
+albedo_color = Color(0.8, 0.82, 0.85, 0.3)
 
-[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+[sub_resource type="BoxMesh" id="RM01"]
+size = Vector3(0.82, 0.1, 1.95)
 
-[node name="Quarantine" parent="." instance=ExtResource("2_glb")]
+[sub_resource type="StandardMaterial3D" id="MAT_steel"]
+albedo_color = Color(0.26, 0.27, 0.3, 1)
+metallic = 0.55
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="RM02"]
+size = Vector3(0.78, 0.12, 1.88)
+
+[sub_resource type="StandardMaterial3D" id="MAT_sheet"]
+albedo_color = Color(0.44, 0.45, 0.47, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="RM03"]
+size = Vector3(0.54, 0.09, 0.28)
+
+[sub_resource type="CylinderMesh" id="RM04"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM05"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM06"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM07"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM08"]
+size = Vector3(1.05, 0.05, 0.13)
+
+[sub_resource type="StandardMaterial3D" id="MAT_strap"]
+albedo_color = Color(0.09, 0.09, 0.1, 1)
+roughness = 0.97
+
+[sub_resource type="BoxMesh" id="RM09"]
+size = Vector3(1.05, 0.05, 0.13)
+
+[sub_resource type="BoxMesh" id="RM10"]
+size = Vector3(0.94, 0.05, 0.14)
+
+[sub_resource type="BoxMesh" id="RM11"]
+size = Vector3(0.9, 0.05, 0.12)
+
+[sub_resource type="BoxMesh" id="RM12"]
+size = Vector3(0.09, 0.07, 0.09)
+
+[sub_resource type="StandardMaterial3D" id="MAT_buckle"]
+albedo_color = Color(0.55, 0.56, 0.6, 1)
+metallic = 0.9
+roughness = 0.25
+
+[sub_resource type="BoxMesh" id="RM13"]
+size = Vector3(0.09, 0.07, 0.09)
+
+[sub_resource type="BoxMesh" id="RM14"]
+size = Vector3(0.09, 0.07, 0.09)
+
+[sub_resource type="BoxMesh" id="RM15"]
+size = Vector3(0.82, 0.1, 1.95)
+
+[sub_resource type="BoxMesh" id="RM16"]
+size = Vector3(0.78, 0.12, 1.88)
+
+[sub_resource type="BoxMesh" id="RM17"]
+size = Vector3(0.54, 0.09, 0.28)
+
+[sub_resource type="CylinderMesh" id="RM18"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM19"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM20"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM21"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 0.3
+radial_segments = 6
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM22"]
+size = Vector3(1.05, 0.05, 0.13)
+
+[sub_resource type="BoxMesh" id="RM23"]
+size = Vector3(1.05, 0.05, 0.13)
+
+[sub_resource type="BoxMesh" id="RM24"]
+size = Vector3(0.94, 0.05, 0.14)
+
+[sub_resource type="BoxMesh" id="RM25"]
+size = Vector3(0.9, 0.05, 0.12)
+
+[sub_resource type="BoxMesh" id="RM26"]
+size = Vector3(0.09, 0.07, 0.09)
+
+[sub_resource type="BoxMesh" id="RM27"]
+size = Vector3(0.09, 0.07, 0.09)
+
+[sub_resource type="BoxMesh" id="RM28"]
+size = Vector3(0.09, 0.07, 0.09)
+
+[sub_resource type="BoxMesh" id="RM29"]
+size = Vector3(0.18, 0.14, 0.26)
+
+[sub_resource type="StandardMaterial3D" id="MAT_dark"]
+albedo_color = Color(0.1, 0.1, 0.12, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="RM30"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="SphereMesh" id="RM31"]
+radius = 0.022
+height = 0.044
+radial_segments = 10
+rings = 5
+
+[sub_resource type="StandardMaterial3D" id="MAT_redlamp"]
+albedo_color = Color(0.7, 0.16, 0.14, 1)
+roughness = 0.55
+emission_enabled = true
+emission = Color(0.95, 0.15, 0.1, 1)
+emission_energy_multiplier = 1.8
+
+[sub_resource type="BoxMesh" id="RM32"]
+size = Vector3(0.7, 0.45, 0.06)
+
+[sub_resource type="BoxMesh" id="RM33"]
+size = Vector3(0.6, 0.34, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="MAT_glass"]
+albedo_color = Color(0.24, 0.34, 0.38, 1)
+metallic = 0.4
+roughness = 0.25
+
+[node name="IsolationRoom" type="Node3D" unique_id=73239658]
+
+[node name="RoomBase" parent="." unique_id=2044703705 instance=ExtResource("1_base")]
+
+[node name="CeilingLamp" parent="RoomBase/Shell" index="4"]
+visible = false
+
+[node name="RoomLight" parent="RoomBase/Lights" index="0"]
+visible = false
+
+[node name="FillLight" parent="RoomBase/Lights" index="1"]
+light_color = Color(0.6, 0.25, 0.22, 1)
+light_energy = 0.35
+
+[node name="Quarantine" parent="." unique_id=945390728 instance=ExtResource("2_glb")]
 transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, -1.3, 0.03, -1.4)
 
-[node name="BunkFrame" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.42, -2.3)
+[node name="Node" parent="Quarantine" index="0" unique_id=866210493]
+visible = false
+
+[node name="Node2" parent="Quarantine" index="1" unique_id=985970684]
+visible = false
+
+[node name="Node3" parent="Quarantine" index="2" unique_id=753184445]
+visible = false
+
+[node name="Node4" parent="Quarantine" index="3" unique_id=464072870]
+visible = false
+
+[node name="bed_top" parent="Quarantine/Node4" index="0" unique_id=543225984]
+visible = false
+
+[node name="Node5" parent="Quarantine" index="4" unique_id=1504539276]
+visible = false
+
+[node name="bed_frame" parent="Quarantine/Node5" index="0" unique_id=1860139969]
+visible = false
+
+[node name="BunkFrame" type="MeshInstance3D" parent="." unique_id=1252083512]
+transform = Transform3D(-0.0060999454, 0, 0.9999814, 0, 1, 0, -0.9999814, 0, -0.0060999454, -2.7388115, 0.42, 0.74244523)
 mesh = SubResource("BM_Bunk")
 surface_material_override/0 = SubResource("Mat_Bunk")
 
-[node name="BunkMattress" type="MeshInstance3D" parent="."]
-transform = Transform3D(1.9, 0, 0, 0, 0.14, 0, 0, 0, 0.78, -1.7, 0.55, -2.3)
+[node name="BunkMattress" type="MeshInstance3D" parent="." unique_id=30594514]
+transform = Transform3D(-0.011589896, 0, 0.7799855, 0, 0.14000002, 0, -1.8999649, 0, -0.004757958, -2.7388115, 0.55, 0.74244523)
 mesh = SubResource("BM_Bunk")
 surface_material_override/0 = SubResource("Mat_TrashBag")
 
-[node name="BloodPool1" type="MeshInstance3D" parent="."]
+[node name="BloodPool1" type="MeshInstance3D" parent="." unique_id=778111780]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.014, 0.7)
 mesh = SubResource("PM_Pool1")
 surface_material_override/0 = SubResource("Mat_Blood")
 
-[node name="BloodPool2" type="MeshInstance3D" parent="."]
+[node name="BloodPool2" type="MeshInstance3D" parent="." unique_id=393768963]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.012, 1.5)
 mesh = SubResource("PM_Pool2")
 surface_material_override/0 = SubResource("Mat_BloodDry")
 
-[node name="BloodSmearWall" type="MeshInstance3D" parent="."]
+[node name="BloodSmearWall" type="MeshInstance3D" parent="." unique_id=1228099034]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 1.15, -2.9)
 mesh = SubResource("QM_Smear")
 surface_material_override/0 = SubResource("Mat_BloodDry")
 
-[node name="TrashBag1" type="MeshInstance3D" parent="."]
+[node name="TrashBag1" type="MeshInstance3D" parent="." unique_id=2061765133]
 transform = Transform3D(1, 0, 0, 0, 0.65, 0, 0, 0, 1, 1.9, 0.22, -1.9)
 mesh = SubResource("SM_Bag")
 surface_material_override/0 = SubResource("Mat_TrashBag")
 
-[node name="TrashBag2" type="MeshInstance3D" parent="."]
+[node name="TrashBag2" type="MeshInstance3D" parent="." unique_id=1238187562]
 transform = Transform3D(1.2, 0, 0, 0, 0.6, 0, 0, 0, 1, 2.2, 0.2, -1.1)
 mesh = SubResource("SM_Bag")
 surface_material_override/0 = SubResource("Mat_TrashBag")
 
-[node name="TrashBag3" type="MeshInstance3D" parent="."]
-transform = Transform3D(0.9, 0, 0, 0, 0.55, 0, 0, 0, 0.9, 2.0, 0.16, -0.4)
+[node name="TrashBag3" type="MeshInstance3D" parent="." unique_id=749951315]
+transform = Transform3D(0.9, 0, 0, 0, 0.55, 0, 0, 0, 0.9, 2, 0.16, -0.4)
 mesh = SubResource("SM_Bag")
 surface_material_override/0 = SubResource("Mat_TrashBag")
 
-[node name="WebCornerBack" type="MeshInstance3D" parent="."]
+[node name="WebCornerBack" type="MeshInstance3D" parent="." unique_id=1587972843]
 transform = Transform3D(0.707107, 0.707107, 0, -0.5, 0.5, 0.707107, 0.5, -0.5, 0.707107, -2.6, 2.85, -2.6)
+visible = false
 mesh = SubResource("QM_Web")
 surface_material_override/0 = SubResource("Mat_Web")
 
-[node name="WebCornerRight" type="MeshInstance3D" parent="."]
+[node name="WebCornerRight" type="MeshInstance3D" parent="." unique_id=2116903279]
 transform = Transform3D(0, -0.707107, 0.707107, 0, 0.707107, 0.707107, -1, 0, 0, 2.85, 2.85, 2.6)
 mesh = SubResource("QM_Web")
 surface_material_override/0 = SubResource("Mat_Web")
 
-[node name="RedLight" type="OmniLight3D" parent="."]
+[node name="RedLight" type="OmniLight3D" parent="." unique_id=76995985]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.7, 0.3)
 light_color = Color(1, 0.14, 0.1, 1)
 light_energy = 3.2
 shadow_enabled = true
 omni_range = 11.0
 
-[node name="RedFill" type="OmniLight3D" parent="."]
+[node name="RedFill" type="OmniLight3D" parent="." unique_id=1452637035]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1.4, 2)
 light_color = Color(0.9, 0.35, 0.3, 1)
 light_energy = 0.8
 omni_range = 8.0
 
+[node name="WorkSpots" type="Node3D" parent="." unique_id=1477636110]
+
+[node name="IsolationBedSpot1" type="Node3D" parent="WorkSpots" unique_id=746360123]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.7, 0, -0.35)
+script = ExtResource("1_spot")
+SpotId = "IsolationBedSpot1"
+AnimationName = "isolated_struggle"
+Priority = 30
+IsSeated = true
+SeatHeight = 0.52
+
+[node name="IsolationBedSpot2" type="Node3D" parent="WorkSpots" unique_id=284650355]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.6, 0, -0.35)
+script = ExtResource("1_spot")
+SpotId = "IsolationBedSpot2"
+AnimationName = "isolated_struggle"
+Priority = 28
+IsSeated = true
+SeatHeight = 0.52
+
+[node name="IsoStandSpot" type="Node3D" parent="WorkSpots" unique_id=1586189860]
+transform = Transform3D(0.78632, 0, 0.61782, 0, 1, 0, -0.61782, 0, 0.78632, -0.55, 0, 1.1)
+script = ExtResource("1_spot")
+SpotId = "IsoStandSpot"
+AnimationName = "idle"
+Priority = -5
+
+[node name="RestraintBed1Frame" type="MeshInstance3D" parent="." unique_id=1251921660]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.34, -1.3)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed1Mattress" type="MeshInstance3D" parent="." unique_id=998113761]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.45, -1.3)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_sheet")
+
+[node name="RestraintBed1Pillow" type="MeshInstance3D" parent="." unique_id=577307631]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.55, -2.08)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_sheet")
+
+[node name="RestraintBed1Leg0" type="MeshInstance3D" parent="." unique_id=114828358]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.03, 0.15, -2.12)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed1Leg1" type="MeshInstance3D" parent="." unique_id=87609517]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 0.15, -2.12)
+mesh = SubResource("RM05")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed1Leg2" type="MeshInstance3D" parent="." unique_id=884839444]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.03, 0.15, -0.48)
+mesh = SubResource("RM06")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed1Leg3" type="MeshInstance3D" parent="." unique_id=2115609579]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.37, 0.15, -0.48)
+mesh = SubResource("RM07")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed1StrapX0" type="MeshInstance3D" parent="." unique_id=928187743]
+transform = Transform3D(0.81388, 0, -0.58104, 0, 1, 0, 0.58104, 0, 0.81388, -1.7, 0.62, -1.58)
+mesh = SubResource("RM08")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed1StrapX1" type="MeshInstance3D" parent="." unique_id=142809605]
+transform = Transform3D(0.81388, 0, 0.58104, 0, 1, 0, -0.58104, 0, 0.81388, -1.7, 0.62, -1.58)
+mesh = SubResource("RM09")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed1StrapWaist" type="MeshInstance3D" parent="." unique_id=1104702556]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.6, -1.05)
+mesh = SubResource("RM10")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed1StrapLeg" type="MeshInstance3D" parent="." unique_id=2056513950]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.58, -0.62)
+mesh = SubResource("RM11")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed1Buckle0" type="MeshInstance3D" parent="." unique_id=2029615399]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.64, -1.58)
+mesh = SubResource("RM12")
+surface_material_override/0 = SubResource("MAT_buckle")
+
+[node name="RestraintBed1Buckle1" type="MeshInstance3D" parent="." unique_id=948146720]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.64, -1.05)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_buckle")
+
+[node name="RestraintBed1Buckle2" type="MeshInstance3D" parent="." unique_id=268083825]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0.64, -0.62)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_buckle")
+
+[node name="RestraintBed2Frame" type="MeshInstance3D" parent="." unique_id=1306607831]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.34, -1.3)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed2Mattress" type="MeshInstance3D" parent="." unique_id=640114224]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.45, -1.3)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_sheet")
+
+[node name="RestraintBed2Pillow" type="MeshInstance3D" parent="." unique_id=1692637905]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.55, -2.08)
+mesh = SubResource("RM17")
+surface_material_override/0 = SubResource("MAT_sheet")
+
+[node name="RestraintBed2Leg0" type="MeshInstance3D" parent="." unique_id=398811615]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27, 0.15, -2.12)
+mesh = SubResource("RM18")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed2Leg1" type="MeshInstance3D" parent="." unique_id=548927703]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.93, 0.15, -2.12)
+mesh = SubResource("RM19")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed2Leg2" type="MeshInstance3D" parent="." unique_id=2146187806]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27, 0.15, -0.48)
+mesh = SubResource("RM20")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed2Leg3" type="MeshInstance3D" parent="." unique_id=2105194982]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.93, 0.15, -0.48)
+mesh = SubResource("RM21")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="RestraintBed2StrapX0" type="MeshInstance3D" parent="." unique_id=1168900970]
+transform = Transform3D(0.81388, 0, -0.58104, 0, 1, 0, 0.58104, 0, 0.81388, 0.6, 0.62, -1.58)
+mesh = SubResource("RM22")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed2StrapX1" type="MeshInstance3D" parent="." unique_id=1008376455]
+transform = Transform3D(0.81388, 0, 0.58104, 0, 1, 0, -0.58104, 0, 0.81388, 0.6, 0.62, -1.58)
+mesh = SubResource("RM23")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed2StrapWaist" type="MeshInstance3D" parent="." unique_id=988015701]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.6, -1.05)
+mesh = SubResource("RM24")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed2StrapLeg" type="MeshInstance3D" parent="." unique_id=187053811]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.58, -0.62)
+mesh = SubResource("RM25")
+surface_material_override/0 = SubResource("MAT_strap")
+
+[node name="RestraintBed2Buckle0" type="MeshInstance3D" parent="." unique_id=1967920324]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.64, -1.58)
+mesh = SubResource("RM26")
+surface_material_override/0 = SubResource("MAT_buckle")
+
+[node name="RestraintBed2Buckle1" type="MeshInstance3D" parent="." unique_id=1234606649]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.64, -1.05)
+mesh = SubResource("RM27")
+surface_material_override/0 = SubResource("MAT_buckle")
+
+[node name="RestraintBed2Buckle2" type="MeshInstance3D" parent="." unique_id=328254139]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.64, -0.62)
+mesh = SubResource("RM28")
+surface_material_override/0 = SubResource("MAT_buckle")
+
+[node name="IsoCamBody" type="MeshInstance3D" parent="." unique_id=1228470883]
+transform = Transform3D(0.37988487, 0.27391526, 0.8835476, 0.34551975, 0.8440021, -0.4102155, -0.8580787, 0.46111506, 0.22597706, -2.6758943, 3.1025395, -2.7817395)
+mesh = SubResource("RM29")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="IsoCamLens" type="MeshInstance3D" parent="." unique_id=228629142]
+transform = Transform3D(0.3965883, -0.3109862, 0.86371577, -0.39228025, 0.7932295, 0.46572852, -0.8299601, -0.52352136, 0.19259188, -2.734982, 2.9409306, -2.7049854)
+mesh = SubResource("RM30")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="IsoCamLed" type="MeshInstance3D" parent="." unique_id=865863910]
+transform = Transform3D(0.8597499, 0.40511447, 0.3109862, 0, 0.6089228, -0.7932295, -0.5107153, 0.681979, 0.5235213, -2.5679631, 3.0737736, -2.7175267)
+mesh = SubResource("RM31")
+surface_material_override/0 = SubResource("MAT_redlamp")
+
+[node name="IsoObsPanel" type="MeshInstance3D" parent="." unique_id=1773248694]
+transform = Transform3D(1.5447057, 0, 0, 0, 1.3419908, 0, 0, 0, 1, 1.6446159, 1.55, -2.9)
+mesh = SubResource("RM32")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="IsoObsGlass" type="MeshInstance3D" parent="." unique_id=1477690290]
+transform = Transform3D(1.5447057, 0, 0, 0, 1.3419908, 0, 0, 0, 1, 1.6446159, 1.55, -2.85)
+mesh = SubResource("RM33")
+surface_material_override/0 = SubResource("MAT_glass")
+
 [editable path="RoomBase"]
-
-[node name="RoomLight" parent="RoomBase/Lights"]
-visible = false
-
-[node name="FillLight" parent="RoomBase/Lights"]
-light_color = Color(0.6, 0.25, 0.22, 1)
-light_energy = 0.35
-
-[node name="CeilingLamp" parent="RoomBase/Shell"]
-visible = false
-
 [editable path="Quarantine"]
-
-[node name="Node" parent="Quarantine"]
-visible = false
-
-[node name="Node2" parent="Quarantine"]
-visible = false
-
-[node name="Node3" parent="Quarantine"]
-visible = false

@@ -489,6 +489,50 @@ line: 먼저 현장 직원들을 확인하십시오.
 @guide tut_mood
 portrait: normal
 line: 오늘의 기분은 직원들이 직접 작성한 것입니다. 배치할 때 참고할 수 있습니다.
+line: 또한 직원들은 근무 중 스트레스를 받을 수 있습니다.
+line: 스트레스가 높아지면 작업 효율이 떨어지고, 한계에 도달하면 기절할 수 있으니 상태를 확인하십시오.
+
+# ── 시설 CCTV 투어 (tut_mood 와 tut_assign 사이) ──────────────────────
+# MONITOR 02 가 잠시 CCTV 로 바뀌어 방을 하나씩 비춘다. 한 방당 한 줄만 쓴다.
+@guide tut_facility_intro
+portrait: normal
+line: 배치에 앞서 작업실의 기능을 간단히 안내하겠습니다.
+
+@guide tut_room_core
+portrait: normal
+line: 코어실은 봉쇄 코어를 관리하고 복구하는 시설의 핵심 작업실입니다.
+
+@guide tut_room_maintenance
+portrait: normal
+line: 정비실에서는 시설 복구에 필요한 자재를 생산하고 손상된 설비를 수리합니다.
+
+@guide tut_room_storage
+portrait: normal
+line: 저장고에서는 시설에 필요한 자재와 재고를 관리합니다.
+
+@guide tut_room_guard
+portrait: normal
+line: 경비실은 시설을 감시합니다. 인원을 배치하면 방해공작 억제에도 도움이 됩니다.
+
+@guide tut_room_power
+portrait: normal
+line: 발전실은 시설 전체에 필요한 전력을 공급하고 전력 설비를 관리합니다.
+
+@guide tut_room_vent
+portrait: normal
+line: 환기실은 시설 공조를 유지해 직원들의 스트레스 상승을 억제합니다.
+
+@guide tut_room_medical
+portrait: normal
+line: 의무실에서는 스트레스가 높은 직원을 회복시킬 수 있습니다. 기절한 직원도 이곳으로 이송됩니다.
+
+@guide tut_room_isolation
+portrait: sneer
+line: 격리실은 의심되는 직원을 다른 직원들과 분리하는 공간입니다.
+
+@guide tut_facility_end
+portrait: smile
+line: 설명은 여기까지입니다. 이제 직접 배치해 보시죠.
 
 # STEP 2 — 배치
 @guide tut_assign
@@ -526,6 +570,15 @@ line: 직원을 끌어다 방을 옮길 수 있습니다. 토끼를 {ROOM}로 �
 portrait: smile
 line: 좋습니다.
 
+# 교육용 사고를 고친 직후 — 실제 근무의 방해공작을 설명한다(DAY0 에 방해자는 없다).
+@guide tut_sabotage_intro
+portrait: normal
+line: 실제 근무에서는 단순한 설비 고장뿐 아니라, 누군가 의도적으로 시설을 방해하는 경우도 발생할 수 있습니다.
+portrait: sneer
+line: 방해공작이 발생해도 시스템이 범인의 신원까지 알려주지는 않습니다.
+portrait: normal
+line: CCTV, 시설 기록, 직원들의 진술을 비교해 누가 그곳에 있었는지 직접 판단해야 합니다.
+
 # STEP 4 — 시설 로그
 @guide tut_log
 portrait: normal
@@ -557,6 +610,9 @@ line: 근무를 종료하고 나서, 직원들을 심문할 수 있습니다.
 portrait: sneer
 line: 우리를 방해하려는... 그 정체불명의 개체를 추리해야 합니다.
 portrait: normal
+line: 시설 기록, CCTV, 직원들의 진술을 비교해 방해공작자를 추리하십시오.
+line: 충분히 의심되는 직원은 격리할 수도 있습니다.
+line: 격리된 직원은 근무에서 빠지므로, 판단은 신중하게 하십시오.
 line: 토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오.
 
 @guide tut_ask_where
@@ -580,6 +636,11 @@ line: 관리자 교육이 성공적으로 완료되었습니다.
 line: 가상 시뮬레이션이 완료되었습니다.
 line: 그럼 이제, DAY 1 근무를 시작합니다.
 line: 행운을 빌어요.
+
+# 근무 중 1회성 안내 — 어떤 직원이 처음으로 스트레스 '주의' 에 들어갔을 때 한 번만 뜬다.
+# {NAME} = 해당 직원 이름. 한 회차에 한 번뿐이라 이후 주의/위험에는 다시 뜨지 않는다.
+@scripted hint_stress_caution
+text: {NAME}의 스트레스가 '주의' 단계에 진입했습니다. 직원 상태를 확인하십시오.
 
 # STEP 6 — 토끼의 고정 진술(교육용 모순). {FROM_ROOM} = 로그에 남은 원래 작업실.
 @scripted tut_rabbit_where

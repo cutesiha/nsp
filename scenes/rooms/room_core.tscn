@@ -1,20 +1,12 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://deihr18fca4ut"]
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://bkv4k7wqd3lf8" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 
 [sub_resource type="CylinderMesh" id="CM_Column"]
 top_radius = 0.45
 bottom_radius = 0.58
 height = 2.7
-
-[sub_resource type="CylinderMesh" id="CM_Ring"]
-top_radius = 1.2
-bottom_radius = 1.2
-height = 0.25
-
-[sub_resource type="TorusMesh" id="TM_Halo"]
-inner_radius = 0.9
-outer_radius = 1.05
 
 [sub_resource type="StandardMaterial3D" id="Mat_CoreGlow"]
 albedo_color = Color(0.1, 0.2, 0.24, 1)
@@ -22,10 +14,19 @@ emission_enabled = true
 emission = Color(0.25, 0.85, 1, 1)
 emission_energy_multiplier = 2.6
 
+[sub_resource type="CylinderMesh" id="CM_Ring"]
+top_radius = 1.2
+bottom_radius = 1.2
+height = 0.25
+
 [sub_resource type="StandardMaterial3D" id="Mat_Base"]
 albedo_color = Color(0.16, 0.18, 0.22, 1)
 metallic = 0.6
 roughness = 0.4
+
+[sub_resource type="TorusMesh" id="TM_Halo"]
+inner_radius = 0.9
+outer_radius = 1.05
 
 [sub_resource type="StandardMaterial3D" id="Mat_Halo"]
 albedo_color = Color(0.1, 0.15, 0.18, 1)
@@ -33,27 +34,281 @@ emission_enabled = true
 emission = Color(0.3, 0.8, 1, 1)
 emission_energy_multiplier = 1.8
 
-[node name="CoreRoom" type="Node3D"]
+[sub_resource type="BoxMesh" id="RM01"]
+size = Vector3(1.3, 0.95, 0.55)
 
-[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+[sub_resource type="StandardMaterial3D" id="MAT_steel"]
+albedo_color = Color(0.2, 0.26, 0.34, 1)
+metallic = 0.8
+roughness = 0.35
 
-[node name="CoreColumn" type="MeshInstance3D" parent="."]
+[sub_resource type="BoxMesh" id="RM02"]
+size = Vector3(1.34, 0.07, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="MAT_dark"]
+albedo_color = Color(0.07, 0.09, 0.12, 1)
+metallic = 0.3
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="RM03"]
+size = Vector3(0.36, 0.28, 0.04)
+
+[sub_resource type="StandardMaterial3D" id="MAT_screen"]
+albedo_color = Color(0.06, 0.24, 0.3, 1)
+roughness = 0.2
+emission_enabled = true
+emission = Color(0.25, 0.85, 1, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxMesh" id="RM04"]
+size = Vector3(0.36, 0.28, 0.04)
+
+[sub_resource type="BoxMesh" id="RM05"]
+size = Vector3(0.36, 0.28, 0.04)
+
+[sub_resource type="BoxMesh" id="RM06"]
+size = Vector3(1, 0.03, 0.22)
+
+[sub_resource type="CylinderMesh" id="RM07"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_warn"]
+albedo_color = Color(0.86, 0.66, 0.14, 1)
+metallic = 0.15
+roughness = 0.65
+
+[sub_resource type="CylinderMesh" id="RM08"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM09"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM10"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.05
+radial_segments = 8
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM11"]
+size = Vector3(0.75, 1.05, 0.62)
+
+[sub_resource type="BoxMesh" id="RM12"]
+size = Vector3(0.52, 0.34, 0.05)
+
+[sub_resource type="CylinderMesh" id="RM13"]
+top_radius = 0.05
+bottom_radius = 0.05
+height = 0.08
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM14"]
+top_radius = 0.072
+bottom_radius = 0.072
+height = 1.5
+radial_segments = 8
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_cable"]
+albedo_color = Color(0.06, 0.06, 0.08, 1)
+roughness = 0.95
+
+[sub_resource type="CylinderMesh" id="RM15"]
+top_radius = 0.055
+bottom_radius = 0.055
+height = 1.3
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM16"]
+top_radius = 1.85
+bottom_radius = 1.85
+height = 0.015
+radial_segments = 24
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM17"]
+top_radius = 1.62
+bottom_radius = 1.62
+height = 0.02
+radial_segments = 24
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_floor"]
+albedo_color = Color(0.12, 0.13, 0.16, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="RM18"]
+size = Vector3(0.44, 0.3, 0.03)
+
+[sub_resource type="BoxMesh" id="RM19"]
+size = Vector3(0.7, 0.36, 0.06)
+
+[sub_resource type="CylinderMesh" id="RM20"]
+top_radius = 0.11
+bottom_radius = 0.11
+height = 0.03
+radial_segments = 12
+rings = 0
+
+[node name="CoreRoom" type="Node3D" unique_id=1712248656]
+
+[node name="RoomBase" parent="." unique_id=1216016259 instance=ExtResource("1_base")]
+
+[node name="CoreColumn" type="MeshInstance3D" parent="." unique_id=960626770]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 1.5, -1.3)
 mesh = SubResource("CM_Column")
 surface_material_override/0 = SubResource("Mat_CoreGlow")
 
-[node name="CoreBase" type="MeshInstance3D" parent="."]
+[node name="CoreBase" type="MeshInstance3D" parent="." unique_id=1692972323]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 0.12, -1.3)
 mesh = SubResource("CM_Ring")
 surface_material_override/0 = SubResource("Mat_Base")
 
-[node name="CoreHalo" type="MeshInstance3D" parent="."]
+[node name="CoreHalo" type="MeshInstance3D" parent="." unique_id=1968477590]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 1.95, -1.3)
 mesh = SubResource("TM_Halo")
 surface_material_override/0 = SubResource("Mat_Halo")
 
-[node name="CoreLight" type="OmniLight3D" parent="."]
+[node name="CoreLight" type="OmniLight3D" parent="." unique_id=990626977]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 1.6, -1.3)
 light_color = Color(0.35, 0.8, 1, 1)
 light_energy = 2.4
 omni_range = 7.5
+
+[node name="WorkSpots" type="Node3D" parent="." unique_id=1126893636]
+
+[node name="CoreManagementSpot" type="Node3D" parent="WorkSpots" unique_id=151229466]
+transform = Transform3D(-0.81388, 0, -0.58104, 0, 1, 0, 0.58104, 0, -0.81388, 0.35, 0, -1.05)
+script = ExtResource("1_spot")
+SpotId = "CoreManagementSpot"
+SupportedTaskIds = PackedStringArray("core_log_review")
+Priority = 10
+
+[node name="CoreRepairSpot" type="Node3D" parent="WorkSpots" unique_id=1188492071]
+transform = Transform3D(0.60691, 0, -0.79477, 0, 1, 0, 0.79477, 0, 0.60691, -1.9, 0, 0.62)
+script = ExtResource("1_spot")
+SpotId = "CoreRepairSpot"
+SupportedTaskIds = PackedStringArray("core_direct_repair", "repair_core")
+AnimationName = "repair"
+Priority = 10
+
+[node name="CoreFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1570559472]
+transform = Transform3D(0.65362, 0, -0.75682, 0, 1, 0, 0.75682, 0, 0.65362, 0.9, 0, 0.6)
+script = ExtResource("1_spot")
+SpotId = "CoreFallbackSpot"
+AnimationName = "inspect"
+Priority = -10
+
+[node name="CoreConsoleBody" type="MeshInstance3D" parent="." unique_id=897090646]
+transform = Transform3D(0.81388, 0, 0.58104, 0, 1, 0, -0.58104, 0, 0.81388, 0.35, 0.475, -1.55)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="CoreConsoleTop" type="MeshInstance3D" parent="." unique_id=1173331018]
+transform = Transform3D(0.81388, 0, 0.58104, 0, 1, 0, -0.58104, 0, 0.81388, 0.35, 0.99, -1.55)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="CoreConsoleScreen0" type="MeshInstance3D" parent="." unique_id=1923293188]
+transform = Transform3D(0.78218, -0.27636, 0.55841, 0.22492, 0.96106, 0.16057, -0.58104, 0, 0.81388, 0.0098, 1.22, -1.3022)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_screen")
+
+[node name="CoreConsoleScreen1" type="MeshInstance3D" parent="." unique_id=2035438383]
+transform = Transform3D(0.78218, -0.27636, 0.55841, 0.22492, 0.96106, 0.16057, -0.58104, 0, 0.81388, 0.35, 1.22, -1.55)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_screen")
+
+[node name="CoreConsoleScreen2" type="MeshInstance3D" parent="." unique_id=1638215004]
+transform = Transform3D(0.78218, -0.27636, 0.55841, 0.22492, 0.96106, 0.16057, -0.58104, 0, 0.81388, 0.6902, 1.22, -1.7978)
+mesh = SubResource("RM05")
+surface_material_override/0 = SubResource("MAT_screen")
+
+[node name="CoreConsoleKeys" type="MeshInstance3D" parent="." unique_id=793471721]
+transform = Transform3D(0.81388, 0, 0.58104, 0, 1, 0, -0.58104, 0, 0.81388, 0.35, 1.03, -1.4)
+mesh = SubResource("RM06")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="CoreConsoleKnob0" type="MeshInstance3D" parent="." unique_id=1707479114]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.107, 1.05, -1.443)
+mesh = SubResource("RM07")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreConsoleKnob1" type="MeshInstance3D" parent="." unique_id=852599706]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.269, 1.05, -1.561)
+mesh = SubResource("RM08")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreConsoleKnob2" type="MeshInstance3D" parent="." unique_id=89340484]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.431, 1.05, -1.679)
+mesh = SubResource("RM09")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreConsoleKnob3" type="MeshInstance3D" parent="." unique_id=1969780894]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.593, 1.05, -1.797)
+mesh = SubResource("RM10")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreRepairUnit" type="MeshInstance3D" parent="." unique_id=1584326618]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.45, 0.525, 0.2)
+mesh = SubResource("RM11")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="CoreRepairPanel" type="MeshInstance3D" parent="." unique_id=1562367748]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.45, 0.98, -0.12)
+mesh = SubResource("RM12")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="CoreRepairKnob" type="MeshInstance3D" parent="." unique_id=1330855258]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -2.26, 0.62, -0.12)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreCableA" type="MeshInstance3D" parent="." unique_id=872149057]
+transform = Transform3D(0.5403, -0.84147, 0, 0.84147, 0.5403, 0, 0, 0, 1, -2, 0.88, -0.45)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_cable")
+
+[node name="CoreCableB" type="MeshInstance3D" parent="." unique_id=1708445913]
+transform = Transform3D(0.4536, -0.89121, 0, 0.89121, 0.4536, 0, 0, 0, 1, -2.02, 0.6, -0.62)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_cable")
+
+[node name="CoreFloorRing" type="MeshInstance3D" parent="." unique_id=1769527628]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 0.008, -1.3)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreFloorRingInner" type="MeshInstance3D" parent="." unique_id=1948173302]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3, 0.012, -1.3)
+mesh = SubResource("RM17")
+surface_material_override/0 = SubResource("MAT_floor")
+
+[node name="CoreWarnSign" type="MeshInstance3D" parent="." unique_id=1407649398]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.27713037, 1.75, -2.9)
+mesh = SubResource("RM18")
+surface_material_override/0 = SubResource("MAT_warn")
+
+[node name="CoreWallGauge" type="MeshInstance3D" parent="." unique_id=1310287302]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1456046, 1.7, -2.88)
+mesh = SubResource("RM19")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="CoreGaugeDial" type="MeshInstance3D" parent="." unique_id=288718922]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 1.1456046, 1.7, -2.84)
+mesh = SubResource("RM20")
+surface_material_override/0 = SubResource("MAT_screen")

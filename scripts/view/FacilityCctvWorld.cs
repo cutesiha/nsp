@@ -55,8 +55,23 @@ public partial class FacilityCctvWorld : Node3D
         new(0.4f, 0f, 0.9f), new(1.4f, 0f, 0.1f), new(-1.0f, 0f, 1.3f),
     };
 
+    // 직원 ID → CCTV 3D 캐릭터 씬. 표시 전용이며 시뮬레이션 좌표/판정에는 관여하지 않는다.
+    // 없는 ID 는 예전 원통 플레이스홀더로 대체된다(fallback).
+    private static readonly Dictionary<string, string> EmployeeScenes = new()
+    {
+        ["fox"] = "res://scenes/cctv_characters/employees/FoxEmployee3D.tscn",
+        ["dog"] = "res://scenes/cctv_characters/employees/DogEmployee3D.tscn",
+        ["cat"] = "res://scenes/cctv_characters/employees/CatEmployee3D.tscn",
+        ["sheep"] = "res://scenes/cctv_characters/employees/SheepEmployee3D.tscn",
+        ["rabbit"] = "res://scenes/cctv_characters/employees/RabbitEmployee3D.tscn",
+        ["wolf"] = "res://scenes/cctv_characters/employees/WolfEmployee3D.tscn",
+    };
+
     private readonly Dictionary<string, Node3D> _rooms = new();
-    private readonly Dictionary<string, EmployeePlaceholder> _employees = new();
+    private readonly Dictionary<string, Node3D> _employees = new();
+    private readonly Dictionary<string, EmployeeCctvAnimator> _animators = new();
+    // 방 안 작업 자리 배치(표현 전용).
+    private readonly RoomWorkVisualController _workVisual = new();
     private Node3D _entity;
     private Camera3D _camera;
 
@@ -110,16 +125,33 @@ public partial class FacilityCctvWorld : Node3D
         var ids = sim.GetEmployeeIds();
         if (ids.Count == 0) return;
 
-        var ps = GD.Load<PackedScene>("res://scenes/props/employee_placeholder.tscn");
-        if (ps == null) { _employeesBuilt = true; return; }
+        var fallback = GD.Load<PackedScene>("res://scenes/props/employee_placeholder.tscn");
 
+        int seed = 0;
         foreach (var id in ids)
         {
-            var ph = ps.Instantiate<EmployeePlaceholder>();
-            ph.Visible = false;
-            AddChild(ph);
-            ph.SetColor(sim.GetEmployeeDef(id)?.IconColor ?? new Color(0.7f, 0.7f, 0.72f));
-            _employees[id] = ph;
+            Node3D actor = null;
+            if (EmployeeScenes.TryGetValue(id, out var path))
+            {
+                var ps = GD.Load<PackedScene>(path);
+                if (ps != null) actor = ps.Instantiate<Node3D>();
+                else GD.PushWarning($"FacilityCctvWorld: 직원 3D 씬 로드 실패 — {path} (플레이스홀더로 대체)");
+            }
+            // 씬이 없거나 로드에 실패해도 게임이 멈추지 않게 예전 도형으로 대체한다.
+            if (actor == null && fallback != null)
+            {
+                var ph = fallback.Instantiate<EmployeePlaceholder>();
+                ph.SetColor(sim.GetEmployeeDef(id)?.IconColor ?? new Color(0.7f, 0.7f, 0.72f));
+                actor = ph;
+            }
+            if (actor == null) continue;
+
+            actor.Visible = false;
+            AddChild(actor);
+            _employees[id] = actor;
+
+            var anim = actor.GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
+            if (anim != null) _animators[id] = new EmployeeCctvAnimator(anim, ++seed);
         }
         _employeesBuilt = true;
     }
@@ -138,6 +170,7 @@ public partial class FacilityCctvWorld : Node3D
 
     public override void _Process(double delta)
     {
+        _lastDelta = delta;
         WireHorror();
         if (!_employeesBuilt) BuildEmployees();
 
@@ -313,11 +346,23 @@ public partial class FacilityCctvWorld : Node3D
         _dimmedLights.Clear();
     }
 
+    // 화면에 보이는 자리(슬롯)를 기억해 둔다 — 대화 상대를 바라보게 할 때만 쓴다.
+    private readonly Dictionary<string, Vector3> _shownSlots = new();
+
     private void UpdateEmployees(FacilitySimulation sim, string target)
     {
         if (sim == null) return;
+
+        // 지금 이 방에서 누가 말하고 있는지(자막이 재생 중일 때만 값이 있다).
+        var caption = CctvOverheardCaption.Instance;
+        var talk = caption?.Current;
+        string talkA = "", talkB = "";
+        if (talk != null && talk.RoomId == target && !string.IsNullOrEmpty(caption.CurrentSpeaker))
+        { talkA = talk.A; talkB = talk.B; }
+
+        _shownSlots.Clear();
         int slot = 0;
-        foreach (var (id, ph) in _employees)
+        foreach (var (id, actor) in _employees)
         {
             var st = sim.GetEmployeeState(id);
             string room = st == null ? "" : st.Isolated ? "isolation_room" : st.CurrentRoomId;
@@ -325,12 +370,67 @@ public partial class FacilityCctvWorld : Node3D
             bool onShift = st != null && (st.Isolated || sim.IsOnDuty(id));
             bool show = st is { Alive: true } && onShift && room == target && _rooms.ContainsKey(target);
 
-            ph.Visible = show;
+            var pos = Slots[slot % Slots.Length];
+            if (actor.Visible != show)
+            {
+                actor.Visible = show;
+                if (show)
+                {
+                    _animators.GetValueOrDefault(id)?.Restart();
+                    // 방에 막 들어온 순간에만 기본 슬롯에 세운다. 그 뒤 위치는
+                    // RoomWorkVisualController 가 작업 자리까지 걸어가며 직접 옮긴다.
+                    actor.Position = pos;
+                }
+            }
             if (!show) continue;
 
-            ph.Position = Slots[slot % Slots.Length];
+            _shownSlots[id] = pos;
             slot++;
-            ph.RotationDegrees = new Vector3(0, 135, 0); // 카메라(+X/+Z 코너) 쪽을 대충 바라봄
+
+            var animator = _animators.GetValueOrDefault(id);
+            if (animator == null) { actor.RotationDegrees = new Vector3(0, 135, 0); continue; }
+
+            // 표현 동작만 정하고, 실제 위치·회전·애니메이션 재생은 아래 컨트롤러 한 곳이 소유한다.
+            // (두 곳에서 같이 만지면 매 프레임 서로 덮어써서 동작이 멈춘 것처럼 보인다.)
+            var action = CctvActionResolver.Resolve(sim, st, id, target, talkA, talkB);
+            _workQueue.Add((id, actor, animator, action, pos));
+        }
+
+        // 작업 자리 배치는 위치/회전을 덮어쓰므로 마지막에 한 번만 돌린다.
+        _rooms.TryGetValue(target, out var roomNode);
+        _workVisual.Update(sim, roomNode, target, _workQueue, (float)_lastDelta);
+        _workQueue.Clear();
+    }
+
+    private readonly List<(string, Node3D, EmployeeCctvAnimator, CctvEmployeeAction, Vector3)> _workQueue = new();
+    private double _lastDelta;
+
+    // 행동에 따라 바라보는 방향만 바꾼다. 새 내비게이션은 만들지 않는다.
+    //   카메라는 +X/+Z 코너에 있고, 캐릭터는 자기 -Z 를 본다.
+    //   (작업 자리에 붙어 있을 때의 방향은 RoomWorkVisualController 가 WorkSpot 회전으로 정한다.)
+    public float FacingDegrees(CctvEmployeeAction action, string id, string talkA, string talkB, Vector3 pos)
+    {
+        switch (action)
+        {
+            case CctvEmployeeAction.Walking:
+                return 315f;                 // 방 안쪽(출입구 방향)으로 걸어가는 것처럼
+            case CctvEmployeeAction.Working:
+            case CctvEmployeeAction.Repairing:
+            case CctvEmployeeAction.Suspicious:
+                return 200f;                 // 방 안쪽 설비 쪽
+            case CctvEmployeeAction.Talking:
+            {
+                string other = id == talkA ? talkB : talkA;
+                if (!string.IsNullOrEmpty(other) && _shownSlots.TryGetValue(other, out var op))
+                {
+                    var d = op - pos;
+                    if (d.LengthSquared() > 0.0001f)
+                        return Mathf.RadToDeg(Mathf.Atan2(-d.X, -d.Z));
+                }
+                return 135f;
+            }
+            default:
+                return 135f;                 // 평소 — 예전 플레이스홀더와 같은 방향
         }
     }
 

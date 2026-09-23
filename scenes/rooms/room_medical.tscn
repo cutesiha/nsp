@@ -1,26 +1,13 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://c777woqr2mrf5"]
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://bkv4k7wqd3lf8" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 
 [sub_resource type="BoxMesh" id="BM_Bed"]
-size = Vector3(2.0, 0.16, 0.85)
-
-[sub_resource type="BoxMesh" id="BM_Cabinet"]
-size = Vector3(0.9, 2.0, 0.5)
-
-[sub_resource type="CylinderMesh" id="CM_Pole"]
-top_radius = 0.03
-bottom_radius = 0.03
-height = 1.9
-
-[sub_resource type="StandardMaterial3D" id="Mat_White"]
-albedo_color = Color(0.72, 0.75, 0.78, 1)
-metallic = 0.1
-roughness = 0.5
+size = Vector3(2, 0.16, 0.85)
 
 [sub_resource type="StandardMaterial3D" id="Mat_Sheet"]
 albedo_color = Color(0.55, 0.62, 0.7, 1)
-metallic = 0.0
 roughness = 0.7
 
 [sub_resource type="StandardMaterial3D" id="Mat_Chrome"]
@@ -28,43 +15,412 @@ albedo_color = Color(0.6, 0.62, 0.66, 1)
 metallic = 0.85
 roughness = 0.25
 
+[sub_resource type="BoxMesh" id="BM_Cabinet"]
+size = Vector3(0.9, 2, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="Mat_White"]
+albedo_color = Color(0.72, 0.75, 0.78, 1)
+metallic = 0.1
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CM_Pole"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 1.9
+
 [sub_resource type="StandardMaterial3D" id="Mat_Cross"]
 albedo_color = Color(0.1, 0.12, 0.13, 1)
 emission_enabled = true
 emission = Color(0.2, 0.85, 0.4, 1)
 emission_energy_multiplier = 1.4
 
-[node name="MedicalRoom" type="Node3D"]
+[sub_resource type="BoxMesh" id="RM01"]
+size = Vector3(0.85, 0.12, 2)
 
-[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+[sub_resource type="StandardMaterial3D" id="MAT_steel"]
+albedo_color = Color(0.66, 0.68, 0.72, 1)
+metallic = 0.9
+roughness = 0.2
 
-[node name="ExamBed" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0.7, -1.6)
+[sub_resource type="BoxMesh" id="RM02"]
+size = Vector3(0.8, 0.14, 1.92)
+
+[sub_resource type="StandardMaterial3D" id="MAT_sheet"]
+albedo_color = Color(0.58, 0.74, 0.72, 1)
+roughness = 0.95
+
+[sub_resource type="BoxMesh" id="RM03"]
+size = Vector3(0.56, 0.1, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="MAT_white"]
+albedo_color = Color(0.86, 0.88, 0.88, 1)
+roughness = 0.55
+
+[sub_resource type="CylinderMesh" id="RM04"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM05"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM06"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM07"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM08"]
+size = Vector3(0.85, 0.12, 2)
+
+[sub_resource type="BoxMesh" id="RM09"]
+size = Vector3(0.8, 0.14, 1.92)
+
+[sub_resource type="BoxMesh" id="RM10"]
+size = Vector3(0.56, 0.1, 0.3)
+
+[sub_resource type="CylinderMesh" id="RM11"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM12"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM13"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM14"]
+top_radius = 0.035
+bottom_radius = 0.035
+height = 0.4
+radial_segments = 6
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM15"]
+size = Vector3(1.4, 0.07, 0.55)
+
+[sub_resource type="BoxMesh" id="RM16"]
+size = Vector3(1.34, 0.78, 0.5)
+
+[sub_resource type="BoxMesh" id="RM17"]
+size = Vector3(0.32, 0.06, 0.24)
+
+[sub_resource type="BoxMesh" id="RM18"]
+size = Vector3(0.32, 0.06, 0.24)
+
+[sub_resource type="BoxMesh" id="RM19"]
+size = Vector3(0.32, 0.06, 0.24)
+
+[sub_resource type="CylinderMesh" id="RM20"]
+top_radius = 0.045
+bottom_radius = 0.045
+height = 0.16
+radial_segments = 8
+rings = 0
+
+[sub_resource type="StandardMaterial3D" id="MAT_green"]
+albedo_color = Color(0.22, 0.72, 0.48, 1)
+roughness = 0.3
+emission_enabled = true
+emission = Color(0.2, 0.95, 0.5, 1)
+emission_energy_multiplier = 1.6
+
+[sub_resource type="CylinderMesh" id="RM21"]
+top_radius = 0.045
+bottom_radius = 0.045
+height = 0.16
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM22"]
+top_radius = 0.045
+bottom_radius = 0.045
+height = 0.16
+radial_segments = 8
+rings = 0
+
+[sub_resource type="CylinderMesh" id="RM23"]
+top_radius = 0.045
+bottom_radius = 0.045
+height = 0.16
+radial_segments = 8
+rings = 0
+
+[sub_resource type="BoxMesh" id="RM24"]
+size = Vector3(1.2, 0.75, 0.3)
+
+[sub_resource type="BoxMesh" id="RM25"]
+size = Vector3(1.1, 0.03, 0.04)
+
+[sub_resource type="BoxMesh" id="RM26"]
+size = Vector3(0.14, 0.5, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="MAT_red"]
+albedo_color = Color(0.78, 0.18, 0.16, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="RM27"]
+size = Vector3(0.5, 0.14, 0.03)
+
+[sub_resource type="BoxMesh" id="RM28"]
+size = Vector3(0.34, 0.26, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="MAT_dark"]
+albedo_color = Color(0.13, 0.14, 0.16, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="RM29"]
+size = Vector3(0.28, 0.2, 0.03)
+
+[sub_resource type="CylinderMesh" id="RM30"]
+top_radius = 0.03
+bottom_radius = 0.03
+height = 1.1
+radial_segments = 6
+rings = 0
+
+[node name="MedicalRoom" type="Node3D" unique_id=1811119040]
+
+[node name="RoomBase" parent="." unique_id=164475507 instance=ExtResource("1_base")]
+
+[node name="ExamBed" type="MeshInstance3D" parent="." unique_id=1935793694]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.3, 0.7, 0.95)
 mesh = SubResource("BM_Bed")
 surface_material_override/0 = SubResource("Mat_Sheet")
 
-[node name="BedFrame" type="MeshInstance3D" parent="."]
-transform = Transform3D(2.05, 0, 0, 0, 0.6, 0, 0, 0, 0.9, -0.8, 0.35, -1.6)
+[node name="BedFrame" type="MeshInstance3D" parent="." unique_id=954095572]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.3, 0.35, 0.95)
 mesh = SubResource("BM_Bed")
 surface_material_override/0 = SubResource("Mat_Chrome")
 
-[node name="Cabinet" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1.0, -2.3)
+[node name="Cabinet" type="MeshInstance3D" parent="." unique_id=51328887]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 1, -2.3)
 mesh = SubResource("BM_Cabinet")
 surface_material_override/0 = SubResource("Mat_White")
 
-[node name="IVPole" type="MeshInstance3D" parent="."]
+[node name="IVPole" type="MeshInstance3D" parent="." unique_id=1439503575]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0.95, -1.9)
 mesh = SubResource("CM_Pole")
 surface_material_override/0 = SubResource("Mat_Chrome")
 
-[node name="CrossSign" type="MeshInstance3D" parent="."]
+[node name="CrossSign" type="MeshInstance3D" parent="." unique_id=446502387]
 transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.1, -1.2, 2.4, -2.9)
 mesh = SubResource("BM_Cabinet")
 surface_material_override/0 = SubResource("Mat_Cross")
 
-[node name="CleanLight" type="OmniLight3D" parent="."]
+[node name="CleanLight" type="OmniLight3D" parent="." unique_id=1910899186]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 2.6, -1.2)
 light_color = Color(0.85, 0.92, 0.95, 1)
 light_energy = 1.4
 omni_range = 6.0
+
+[node name="WorkSpots" type="Node3D" parent="." unique_id=2012947568]
+
+[node name="MedicalBedSpot1" type="Node3D" parent="WorkSpots" unique_id=1623367687]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, -0.2)
+script = ExtResource("1_spot")
+SpotId = "MedicalBedSpot1"
+SupportedTaskIds = PackedStringArray("staff_treatment")
+AnimationName = "lying_idle"
+Priority = 20
+IsSeated = true
+SeatHeight = 0.66
+
+[node name="MedicalBedSpot2" type="Node3D" parent="WorkSpots" unique_id=297834832]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.95, 0, -0.2)
+script = ExtResource("1_spot")
+SpotId = "MedicalBedSpot2"
+SupportedTaskIds = PackedStringArray("staff_treatment")
+AnimationName = "lying_idle"
+Priority = 18
+IsSeated = true
+SeatHeight = 0.66
+
+[node name="MedicineStationSpot" type="Node3D" parent="WorkSpots" unique_id=433125569]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 0, -1.35)
+script = ExtResource("1_spot")
+SpotId = "MedicineStationSpot"
+SupportedTaskIds = PackedStringArray("medicine_sorting", "repair_medical")
+Priority = 15
+
+[node name="MedicalFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1368064125]
+transform = Transform3D(0.8, 0, -0.6, 0, 1, 0, 0.6, 0, 0.8, 0.6, 0, 1.2)
+script = ExtResource("1_spot")
+SpotId = "MedicalFallbackSpot"
+AnimationName = "inspect"
+Priority = -10
+
+[node name="Bed1Frame" type="MeshInstance3D" parent="." unique_id=800627182]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0.46, -1.1)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed1Mattress" type="MeshInstance3D" parent="." unique_id=1957798855]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0.59, -1.1)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_sheet")
+
+[node name="Bed1Pillow" type="MeshInstance3D" parent="." unique_id=220483072]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0.7, -1.9)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_white")
+
+[node name="Bed1Leg0" type="MeshInstance3D" parent="." unique_id=1131349122]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.44, 0.2, -1.95)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed1Leg1" type="MeshInstance3D" parent="." unique_id=1484508808]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.76, 0.2, -1.95)
+mesh = SubResource("RM05")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed1Leg2" type="MeshInstance3D" parent="." unique_id=1096164855]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.44, 0.2, -0.25)
+mesh = SubResource("RM06")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed1Leg3" type="MeshInstance3D" parent="." unique_id=2075016471]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.76, 0.2, -0.25)
+mesh = SubResource("RM07")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed2Frame" type="MeshInstance3D" parent="." unique_id=1877542869]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.46, -1.1)
+mesh = SubResource("RM08")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed2Mattress" type="MeshInstance3D" parent="." unique_id=1277325701]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.59, -1.1)
+mesh = SubResource("RM09")
+surface_material_override/0 = SubResource("MAT_sheet")
+
+[node name="Bed2Pillow" type="MeshInstance3D" parent="." unique_id=448290175]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.7, -1.9)
+mesh = SubResource("RM10")
+surface_material_override/0 = SubResource("MAT_white")
+
+[node name="Bed2Leg0" type="MeshInstance3D" parent="." unique_id=1492073854]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.29, 0.2, -1.95)
+mesh = SubResource("RM11")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed2Leg1" type="MeshInstance3D" parent="." unique_id=1547051593]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.61, 0.2, -1.95)
+mesh = SubResource("RM12")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed2Leg2" type="MeshInstance3D" parent="." unique_id=117835534]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.29, 0.2, -0.25)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="Bed2Leg3" type="MeshInstance3D" parent="." unique_id=1434790990]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.61, 0.2, -0.25)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="MedStationTop" type="MeshInstance3D" parent="." unique_id=1696527724]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 0.86, -1.9)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_white")
+
+[node name="MedStationBody" type="MeshInstance3D" parent="." unique_id=208808585]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 0.43, -1.9)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_white")
+
+[node name="MedTray0" type="MeshInstance3D" parent="." unique_id=411914927]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0.92, -1.85)
+mesh = SubResource("RM17")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="MedTray1" type="MeshInstance3D" parent="." unique_id=719179377]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.49, 0.92, -1.85)
+mesh = SubResource("RM18")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="MedTray2" type="MeshInstance3D" parent="." unique_id=182809056]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.93, 0.92, -1.85)
+mesh = SubResource("RM19")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="MedBottle0" type="MeshInstance3D" parent="." unique_id=725081844]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1, 1, -2.06)
+mesh = SubResource("RM20")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="MedBottle1" type="MeshInstance3D" parent="." unique_id=1574814973]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 1, -2.06)
+mesh = SubResource("RM21")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="MedBottle2" type="MeshInstance3D" parent="." unique_id=1182788117]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.7, 1, -2.06)
+mesh = SubResource("RM22")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="MedBottle3" type="MeshInstance3D" parent="." unique_id=978920310]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, -2.06)
+mesh = SubResource("RM23")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="MedWallCabinet" type="MeshInstance3D" parent="." unique_id=232106013]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 1.8, -2.82)
+mesh = SubResource("RM24")
+surface_material_override/0 = SubResource("MAT_white")
+
+[node name="MedCabinetLine" type="MeshInstance3D" parent="." unique_id=2132997716]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 1.8, -2.66)
+mesh = SubResource("RM25")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="MedCrossV" type="MeshInstance3D" parent="." unique_id=1507671035]
+transform = Transform3D(0.034590065, 0, 0.7640271, 0, 1.7740897, 0, -1.8907161, 0, 0.013977651, -2.916525, 2.1390896, -0.03340888)
+mesh = SubResource("RM26")
+surface_material_override/0 = SubResource("MAT_red")
+
+[node name="MedCrossH" type="MeshInstance3D" parent="." unique_id=260703028]
+transform = Transform3D(0.034590065, 0, 0.7640271, 0, 1.7740897, 0, -1.8907161, 0, 0.013977651, -2.916525, 2.1390896, -0.03340888)
+mesh = SubResource("RM27")
+surface_material_override/0 = SubResource("MAT_red")
+
+[node name="MedMonitorBody" type="MeshInstance3D" parent="." unique_id=848693033]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 1.25, -2.4)
+mesh = SubResource("RM28")
+surface_material_override/0 = SubResource("MAT_dark")
+
+[node name="MedMonitorScreen" type="MeshInstance3D" parent="." unique_id=876959745]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 1.25, -2.29)
+mesh = SubResource("RM29")
+surface_material_override/0 = SubResource("MAT_green")
+
+[node name="MedMonitorPole" type="MeshInstance3D" parent="." unique_id=1310097732]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 0.55, -2.4)
+mesh = SubResource("RM30")
+surface_material_override/0 = SubResource("MAT_steel")

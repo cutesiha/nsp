@@ -88,6 +88,9 @@ public partial class TutorialDirector : Node
         await Say("tut_intro");
         await Say("tut_mood");
 
+        // ── STEP 1.5 : 시설 CCTV 투어 ────────────────────────────────
+        await RunFacilityTour();
+
         // ── STEP 2 : 배치 ────────────────────────────────────────────
         await Say("tut_assign");
         await WaitForTutorialAssign(sim);
@@ -118,6 +121,8 @@ public partial class TutorialDirector : Node
             _rabbitOriginRoomName = RoomName(originRoomId);
         await Until(() => sim?.HasRepairPending(AccidentRoomId) == false);
         await Say("tut_repair_done");
+        // 실제 근무의 방해공작을 설명만 한다 — DAY0 에는 방해자를 만들지 않는다.
+        await Say("tut_sabotage_intro");
 
         // ── STEP 4 : 시설 로그 ────────────────────────────────────────
         await SayThen("tut_log", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
@@ -281,6 +286,44 @@ public partial class TutorialDirector : Node
         FacilitySimulation.Instance?.GetRoomDef(roomId)?.DisplayName ?? roomId ?? "";
 
     // --- await 헬퍼 -------------------------------------------------------
+
+    // ── 시설 CCTV 투어 ──────────────────────────────────────────────────
+    // 배치 단계의 MONITOR 02(직원 정보)를 잠시 기존 CCTV 화면으로 바꿔 방을 하나씩 비춘다.
+    // 새 UI 를 만들지 않고 ControlRoom3DController.CctvViewport + FacilitySimulation 의
+    // 감시 대상 전환을 그대로 쓴다. 끝나면 반드시 원래 직원 화면으로 되돌린다.
+    private static readonly (string RoomId, string GuideId)[] TourRooms =
+    {
+        ("core_room", "tut_room_core"),
+        ("maintenance_room", "tut_room_maintenance"),
+        ("storage_room", "tut_room_storage"),
+        ("guard_room", "tut_room_guard"),
+        ("power_room", "tut_room_power"),
+        ("vent_room", "tut_room_vent"),
+        ("medical_room", "tut_room_medical"),
+        ("isolation_room", "tut_room_isolation"),
+    };
+
+    private async Task RunFacilityTour()
+    {
+        var ctl = ControlRoom3DController.Instance;
+        var sim = FacilitySimulation.Instance;
+        if (ctl == null || sim == null) return;
+
+        await Say("tut_facility_intro");
+
+        // MONITOR 02 만 CCTV 로. MONITOR 01 의 시설 지도는 그대로 둔다.
+        ctl.SetRightScreen(ctl.CctvViewport);
+        foreach (var (roomId, guideId) in TourRooms)
+        {
+            sim.ForceSurveillanceTarget(roomId, 600f);   // 투어 동안만 이 방을 비춘다
+            await Say(guideId);
+        }
+        sim.ReleaseForcedSurveillance();
+
+        await Say("tut_facility_end");
+        // 배치 화면으로 복귀 — 이후 기존 토끼 배치 교육이 그대로 이어진다.
+        ctl.SetRightScreen(ctl.ScheduleStaffViewport);
+    }
 
     private Task Say(string guideId, System.Collections.Generic.Dictionary<string, string> replacements = null)
     {
