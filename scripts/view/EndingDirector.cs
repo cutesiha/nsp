@@ -11,13 +11,18 @@ namespace NSP.View;
 //
 // 엔딩은 코어 100% 하나로만 갈린다. 두 엔딩은 따로 된 컷신이 아니라 같은 길의 끝만 다르다:
 //
-//   공통 : 암전 → 불 꺼진 중앙관리실 → CRT 노이즈 → 두 모니터 동시 재부팅 → FINAL RECOVERY SEQUENCE
-//   진엔딩(100%)   : 97.4 → 98.8 → 99.6 → 100.0 · 기계음이 딱 끊기고 조명이 밝아짐 · 정적
-//                    → "야간 근무가 종료되었습니다 / 관리자님, 수고하셨습니다" → 의자에 기대며 눈을 감음
-//                    → TRUE END — 근무 종료
-//   배드엔딩(미달) : 숫자가 멈춤 → FINAL RECOVERY FAILED · 조명 한 번 꺼졌다 켜짐 · 경고음
-//                    → 경고음이 커지며 조명 깜빡 → 팡! 붉은 섬광 · 흔들림(프롤로그의 피격 그대로)
-//                    → 책상으로 쓰러지며 암전 → BAD END — 복구 실패
+//   공통 : 암전 → 불 꺼진 중앙관리실 → CRT 노이즈 → 두 모니터 동시 재부팅
+//          → 왼쪽 = FINAL RECOVERY SEQUENCE 진행 막대 / 오른쪽 = 점검 콘솔
+//   진엔딩(100%)   : 막대가 100.0% 까지 차고 "복구 완료"
+//                    → 오른쪽 콘솔에 SYSTEM STATUS 가 한 줄씩 찍힌다
+//                    → 왼쪽에 GUIDE-0(smile) 얼굴창 → 오른쪽에 "야간 근무가 종료되었습니다 /
+//                       관리자님, 수고하셨습니다" 가 찍히는 동안 GUIDE-0 이 말한다
+//                    → 의자에 기대며 눈을 감음 → TRUE END — 근무 종료
+//   배드엔딩(미달) : 막대가 멈춤 → FINAL RECOVERY FAILED · 조명 한 번 꺼졌다 켜짐 · 경고음
+//                    → 두 모니터가 시뻘개지고 오른쪽에 SYSTEM WARNING
+//                    → 노이즈가 심해지며 왼쪽에 GUIDE-0(sneer) 얼굴창
+//                    → "최종 복구에 실패했습니다 / 야간 근무 기록을 종료합니다"
+//                    → 팡! 붉은 섬광 · 흔들림(프롤로그의 피격 그대로) → BAD END — 복구 실패
 //   → 5일간의 근무 기록(성적표) → [타이틀로] → 변한 시작 화면에서 다시 눈을 뜬다.
 //
 // 생존자 · 방해자 격리 · 업무 점수로는 엔딩을 나누지 않는다 — 그건 성적표에만 적는다.
@@ -44,6 +49,10 @@ public partial class EndingDirector : Node
     private float _flickerT;
     private readonly RandomNumberGenerator _rng = new();
 
+    // GUIDE-0 이 말하는 중인가 — 화면에 글자가 찍힐 때마다 입과 보이스가 그 신호를 받는다.
+    private bool _guideTalking;
+    private int _keyCount;
+
     public void Play(ControlRoom3DController ctl, TitleOverlay title)
     {
         _ctl = ctl;
@@ -54,6 +63,8 @@ public partial class EndingDirector : Node
     public override void _Ready()
     {
         IsPlaying = true;
+        // 엔딩 동안 GUIDE-0 의 입은 이 연출기가 직접 돌린다(홀로그램 화면은 떠 있지 않다).
+        GuideMouthAnimator.ExternallyDriven = true;
         _rng.Randomize();
         _layer = new CanvasLayer { Layer = 130 };   // 통화창(114) · 경보(122) 위
         AddChild(_layer);
@@ -84,6 +95,14 @@ public partial class EndingDirector : Node
 
     public override void _Process(double delta)
     {
+        // GUIDE-0 입모양 — 평소에는 GuideHologramView 가 돌리지만 엔딩에는 그 화면이 없다.
+        // 말하는 동안은 매 프레임 다시 그린다(얼굴창이 스스로 다시 그리는 간격은 입모양보다 느리다).
+        if (GuideMouthAnimator.Talking)
+        {
+            GuideMouthAnimator.Tick(delta);
+            GuideCornerFace.NotifyMouthChangedAll();
+        }
+
         if (!_flicker) return;
         // 배드엔딩 — 경고음이 커지는 동안 조명이 불규칙하게 깜빡인다.
         _flickerT -= (float)delta;
@@ -99,6 +118,11 @@ public partial class EndingDirector : Node
     {
         IsPlaying = false;
         ControlRoom3DHorror.ExternalLightingOverride = false;
+        GuideCornerFace.ShowAll(false);
+        GuideCornerFace.SetEndingWindow(false);
+        GuideCornerFace.SetAlarmTint(false);
+        GuideMouthAnimator.Reset();
+        GuideMouthAnimator.ExternallyDriven = false;
         foreach (var k in new[] { "machinery_loop", "drone_loop", "alarm" }) Sfx.Instance?.StopLoop(k);
     }
 
@@ -137,6 +161,8 @@ public partial class EndingDirector : Node
         var right = EndingMonitorView.Right;
         left?.Clear();
         right?.Clear();
+        HookTyping(left);
+        HookTyping(right);
         _ctl?.SetLeftScreen(_ctl.EndingLeftViewport);
         _ctl?.SetRightScreen(_ctl.EndingRightViewport);
         _ctl?.SetScreenNoise(0.55f);
@@ -153,13 +179,12 @@ public partial class EndingDirector : Node
         boot.TweenMethod(Callable.From<float>(v => SetLights(v, v * 0.6f)), 0.06f, 0.85f, 1.0);
         await Wait(1.4);
 
+        // 왼쪽 막대가 먼저 돈다. 오른쪽 콘솔은 그 결과가 나온 뒤에 딱 한 번 찍힌다
+        // (먼저 점검 목록을 띄웠다가 다시 지우면 같은 콘솔이 두 번 뜬 것처럼 보인다).
         left?.Clear("CONTAINMENT CORE", "FINAL RECOVERY SEQUENCE");
         left?.SetBar(0f);
-        right?.Clear("SYSTEM STATUS");
-        right?.Push("CORE ........ CHECKING", EndingMonitorView.Tone.Dim);
-        right?.Push("POWER ....... CHECKING", EndingMonitorView.Tone.Dim);
-        right?.Push("CONTAINMENT . CHECKING", EndingMonitorView.Tone.Dim);
-        await Wait(1.1);
+        right?.Clear();
+        await Wait(0.6);
 
         if (success) await TrueEnd(left, right);
         else await BadEnd(left, right, core);
@@ -170,6 +195,7 @@ public partial class EndingDirector : Node
     // ── 진엔딩 ───────────────────────────────────────────────────────────
     private async Task TrueEnd(EndingMonitorView left, EndingMonitorView right)
     {
+        // ① 왼쪽 — 막대가 100.0% 까지 차오르고 "복구 완료".
         foreach (float v in new[] { 97.4f, 98.8f, 99.6f, 100f })
         {
             left?.SetBar(v);
@@ -177,7 +203,7 @@ public partial class EndingDirector : Node
             await Wait(v >= 100f ? 0.2 : 0.75);
         }
         await Wait(0.9);   // 잠깐 정적
-        left?.Push("CONTAINMENT CORE — STABLE", EndingMonitorView.Tone.Good, 24);
+        left?.Push("");
         left?.Push("복구 완료", EndingMonitorView.Tone.Good, 30);
 
         // 그 순간까지 울리던 기계음이 딱 끊기고, 관리실 조명이 평소보다 밝아진다.
@@ -188,13 +214,16 @@ public partial class EndingDirector : Node
         var up = CreateTween().SetParallel(true);
         up.TweenMethod(Callable.From<float>(v => SetLights(v, v)), 0.85f, 1.45f, 0.9);
         if (_emergency != null) { _emergency.LightEnergy = 0f; _emergency.Visible = false; }
+        await AwaitTyping(left, 1.0);
 
+        // ② 오른쪽 — 점검 결과가 한 줄씩 찍힌다.
         right?.Clear("SYSTEM STATUS");
         right?.Push("CORE ........ STABLE", EndingMonitorView.Tone.Good);
         right?.Push("POWER ....... NORMAL", EndingMonitorView.Tone.Good);
         right?.Push("CONTAINMENT . RESTORED", EndingMonitorView.Tone.Good);
         right?.Push("");
         right?.Push("5일간의 복구 작업이 완료되었습니다.", EndingMonitorView.Tone.Normal, 20);
+        await AwaitTyping(right);
 
         // 경고등이 하나씩 꺼진다.
         for (int i = 0; i < 3; i++)
@@ -202,22 +231,21 @@ public partial class EndingDirector : Node
             await Wait(0.45);
             Sfx.Instance?.Play("relay_click", -13f - i * 2f);
         }
-        await Wait(2.2);   // 처음으로 완전한 정적
+        await Wait(1.6);   // 처음으로 완전한 정적
 
+        // ③ 왼쪽 — GUIDE-0 이 웃는 얼굴로 뜬다.
         left?.Clear();
+        _ctl?.SetScreenNoise(0.06f);
+        Sfx.Instance?.Play("window_open", -10f);
+        ShowGuide("smile");
+        await Wait(0.25);
+        _ctl?.SetScreenNoise(0.012f);
+        await Wait(0.9);
+
+        // ④ 오른쪽 — GUIDE-0 이 말하는 동안 글자가 찍히고 입이 움직인다.
         right?.Clear();
-        left?.Push("");
-        left?.Push("");
-        left?.Push("복구가 완료되었습니다.", EndingMonitorView.Tone.Normal, 28, center: true);
-        right?.Push("");
-        right?.Push("");
-        right?.Push("5일간의 야간 근무가 종료되었습니다.", EndingMonitorView.Tone.Normal, 24, center: true);
-        await Wait(3.0);
-        left?.Push("");
-        left?.Push("야간 근무가 종료되었습니다.", EndingMonitorView.Tone.Title, 26, center: true);
-        right?.Push("");
-        right?.Push("관리자님, 수고하셨습니다.", EndingMonitorView.Tone.Title, 26, center: true);
-        await Wait(2.6);
+        await GuideSpeak(right, "야간 근무가 종료되었습니다.", "관리자님, 수고하셨습니다.");
+        await Wait(2.2);
 
         // 조명이 조금 따뜻해지고, 긴장이 풀려 의자에 기대며 천천히 눈을 감는다(피격음 · 흔들림 없음).
         var warm = new Color(1f, 0.84f, 0.66f);
@@ -229,6 +257,7 @@ public partial class EndingDirector : Node
         _ctl?.LeanBackInChair(3.4f);
         await Wait(1.0);
         await Fade(_black, 1f, 2.8f);
+        HideGuide();
         await Wait(0.8);
         await Banner("TRUE END — 근무 종료", new Color(0.72f, 0.96f, 0.88f));
         EndingState.Record(EndingState.Kind.True);
@@ -237,7 +266,7 @@ public partial class EndingDirector : Node
     // ── 배드엔딩 ─────────────────────────────────────────────────────────
     private async Task BadEnd(EndingMonitorView left, EndingMonitorView right, float core)
     {
-        // 숫자가 차오르다가 어느 순간 더 이상 오르지 않는다.
+        // ① 숫자가 차오르다가 어느 순간 더 이상 오르지 않는다.
         float from = Mathf.Max(0f, core - 9f);
         const float climb = 2.4f;
         double t = 0;
@@ -258,60 +287,65 @@ public partial class EndingDirector : Node
         left?.Push("REQUIRED ........ 100.0%", EndingMonitorView.Tone.Dim);
         left?.Push($"CURRENT ......... {core:0.0}%", EndingMonitorView.Tone.Bad);
         left?.Push("FINAL RECOVERY FAILED", EndingMonitorView.Tone.Bad, 26);
+        await AwaitTyping(left, 0.5);
 
-        // 조명이 한 번 꺼졌다 켜지고, 경고음.
-        await Wait(0.6);
+        // ② 조명이 한 번 꺼졌다 켜지고, 경고음.
         SetLights(0f, 0f);
-        await Wait(0.14);
+        await Wait(0.16);
         SetLights(0.85f, 0.5f);
+        await Wait(0.35);
         Sfx.Instance?.Play("alert_beep3", -3f);
+        await Wait(0.7);
+
+        // ③ 두 모니터가 한꺼번에 시뻘개진다.
+        left?.SetAlarm(true);
+        right?.SetAlarm(true);
+        _ctl?.SetScreenTint(new Color(1f, 0.58f, 0.52f));
+        if (_emergency != null) { _emergency.Visible = true; _emergency.LightColor = new Color(0.95f, 0.1f, 0.08f); _emergency.LightEnergy = 1.6f; }
+        Sfx.Instance?.Play("relay_click", -6f);
         right?.Clear("SYSTEM WARNING");
-        right?.SetAccent(new Color(0.98f, 0.32f, 0.26f));
         right?.Push("CORE ........ UNSTABLE", EndingMonitorView.Tone.Bad);
         right?.Push("CONTAINMENT . FAILED", EndingMonitorView.Tone.Bad);
         right?.Push("");
         right?.Push("복구 가능 시간을 초과했습니다.", EndingMonitorView.Tone.Normal, 20);
-        await Wait(2.6);   // 잠깐 정적
+        await AwaitTyping(right, 1.4);
 
-        // 경고음이 점점 커지면서 조명이 깜빡이고, CRT 노이즈가 점점 심해진다.
+        // ④ CRT 와 시야의 노이즈가 한 단계 심해지고, 왼쪽에 GUIDE-0 이 비웃는 얼굴로 뜬다.
+        Sfx.Instance?.Loop("alarm", -26f);
+        var noiseUp = CreateTween().SetParallel(true);
+        noiseUp.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenNoise(v)), 0.04f, 0.18f, 0.8);
+        noiseUp.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenDistortion(v)), 0f, 0.10f, 0.8);
+        NSP.Ui.AmbientOverlay.Instance?.PulseNoise(0.5f);
+        await Wait(0.8);
         left?.Clear();
-        left?.SetAccent(new Color(0.98f, 0.32f, 0.26f));
-        left?.Push("");
-        left?.Push("CORE OUTPUT UNSTABLE", EndingMonitorView.Tone.Bad, 30, center: true);
+        Sfx.Instance?.Play("noise", -14f, 1.3f);
+        GuideCornerFace.SetAlarmTint(true);
+        ShowGuide("sneer");
+        NSP.Ui.AmbientOverlay.Instance?.PulseNoise(0.4f);
+        await Wait(1.1);
+
+        // ⑤ 오른쪽 — GUIDE-0 이 말하는 동안 글자가 찍히고 입이 움직인다.
         right?.Clear();
-        right?.SetAccent(new Color(0.98f, 0.32f, 0.26f));
-        right?.Push("");
-        right?.Push("CONTAINMENT FAILURE", EndingMonitorView.Tone.Bad, 30, center: true);
-        if (_emergency != null) { _emergency.Visible = true; _emergency.LightColor = new Color(0.95f, 0.1f, 0.08f); }
-        Sfx.Instance?.Loop("alarm", -30f);
+        await GuideSpeak(right, "최종 복구에 실패했습니다.", "야간 근무 기록을 종료합니다.");
+        await Wait(1.6);
+
+        // ⑥ 경고음이 점점 커지면서 조명이 깜빡인다.
         _flicker = true;
-        const float rise = 5.0f;
+        const float rise = 2.8f;
         t = 0;
-        bool saidFail = false, saidEnd = false;
         while (t < rise)
         {
             await NextFrame();
             t += GetProcessDeltaTime();
             float k = Mathf.Clamp((float)(t / rise), 0f, 1f);
-            Sfx.Instance?.SetLoopVolume("alarm", Mathf.Lerp(-30f, -3f, k));
-            _ctl?.SetScreenNoise(Mathf.Lerp(0.05f, 0.5f, k * k));
-            _ctl?.SetScreenDistortion(Mathf.Lerp(0f, 0.35f, k * k));
-            if (!saidFail && t > 1.4)
-            {
-                saidFail = true;
-                left?.Push("");
-                left?.Push("최종 복구에 실패했습니다.", EndingMonitorView.Tone.Normal, 24, center: true);
-            }
-            if (!saidEnd && t > 3.2)
-            {
-                saidEnd = true;
-                right?.Push("");
-                right?.Push("야간 근무 기록을 종료합니다.", EndingMonitorView.Tone.Dim, 22, center: true);
-            }
+            Sfx.Instance?.SetLoopVolume("alarm", Mathf.Lerp(-26f, -3f, k));
+            _ctl?.SetScreenNoise(Mathf.Lerp(0.18f, 0.5f, k * k));
+            _ctl?.SetScreenDistortion(Mathf.Lerp(0.10f, 0.35f, k * k));
         }
 
-        // 팡! — 프롤로그에서 머리를 맞고 쓰러질 때와 같은 피격 · 흐림 · 먹먹한 소리.
+        // ⑦ 팡! — 프롤로그에서 머리를 맞고 쓰러질 때와 같은 피격 · 흐림 · 먹먹한 소리.
         _flicker = false;
+        HideGuide();
         Sfx.Instance?.Play("boom", -1f);
         Sfx.Instance?.Play("impact_blunt", -1f);
         _red.Color = _red.Color with { A = 0.85f };
@@ -351,6 +385,72 @@ public partial class EndingDirector : Node
         };
         _layer.AddChild(rec);
         return tcs.Task;
+    }
+
+    // ── GUIDE-0 얼굴창 ───────────────────────────────────────────────────
+
+    // 교육 때 쓰던 얼굴창 그대로 — 엔딩에서는 왼쪽 CRT 한가운데에 크게 뜬다.
+    private static void ShowGuide(string expression)
+    {
+        var tex = GuideArt.Portrait(expression, out bool mouthless);
+        GuideCornerFace.SetEndingWindow(true);
+        GuideCornerFace.SetPortraitAll(expression, tex, mouthless);
+        GuideCornerFace.ShowAll(true);
+    }
+
+    private static void HideGuide()
+    {
+        GuideMouthAnimator.Reset();
+        GuideCornerFace.ShowAll(false);
+        GuideCornerFace.SetEndingWindow(false);
+        GuideCornerFace.SetAlarmTint(false);
+    }
+
+    // GUIDE-0 이 말하는 속도 — 콘솔 출력보다 느리게, 사람이 말하듯 또박또박.
+    private const double GuideCharTime = 0.075;
+    private const int GuideFontSize = 30;
+
+    // 글자가 찍히는 동안 GUIDE-0 이 말한다(입모양 + 보이스 블립).
+    private async Task GuideSpeak(EndingMonitorView view, params string[] lines)
+    {
+        _guideTalking = true;
+        GuideMouthAnimator.StartTalking();
+        view?.SetBlockCenter(true);
+        foreach (var text in lines)
+            view?.Push(text, EndingMonitorView.Tone.Title, GuideFontSize, center: true, charTime: GuideCharTime);
+        await AwaitTyping(view);
+        GuideMouthAnimator.StopTalking();
+        GuideCornerFace.NotifyMouthChangedAll();
+        _guideTalking = false;
+    }
+
+    // 화면에 한 글자 찍힐 때마다 — 말하는 중이면 GUIDE-0 의 입/보이스, 아니면 콘솔 타건음.
+    private void HookTyping(EndingMonitorView view)
+    {
+        if (view == null) return;
+        view.CharTyped += OnCharTyped;
+    }
+
+    private void OnCharTyped(char c)
+    {
+        if (_guideTalking)
+        {
+            GuideMouthAnimator.NoticeCharacter(c);
+            Sfx.Instance?.PlayVoiceBlip("guide0", c);
+            return;
+        }
+        if (char.IsWhiteSpace(c)) return;
+        // 콘솔 타건음 — 글자마다 울리면 시끄럽다.
+        if (++_keyCount % 3 != 0) return;
+        Sfx.Instance?.Play("key_single", -26f, _rng.RandfRange(0.92f, 1.12f));
+    }
+
+    // 밀어 넣은 줄이 다 찍힐 때까지 기다린다.
+    private async Task AwaitTyping(EndingMonitorView view, double after = 0)
+    {
+        int guard = 0;
+        while (view != null && view.Typing && guard++ < 2000) await NextFrame();
+        if (after > 0) await Wait(after);
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────

@@ -42,6 +42,26 @@ public partial class GuideCornerFace : Control
 
     private static bool _lifted;
 
+    // 엔딩 — 왼쪽 CRT 를 통째로 쓰는 자리. 구석 창이 아니라 화면 가운데에 크게 뜬다.
+    public static void SetEndingWindow(bool on)
+    {
+        if (_ending == on) return;
+        _ending = on;
+        foreach (var f in All) if (GodotObject.IsInstanceValid(f)) f.QueueRedraw();
+    }
+
+    private static bool _ending;
+
+    // 배드엔딩 — 창 전체가 붉은 신호로 뜬다.
+    public static void SetAlarmTint(bool on)
+    {
+        if (_alarmTint == on) return;
+        _alarmTint = on;
+        foreach (var f in All) if (GodotObject.IsInstanceValid(f)) f.QueueRedraw();
+    }
+
+    private static bool _alarmTint;
+
     // 마지막으로 켜진 상태 — 화면을 바꿔 끼운 뒤에도 같은 얼굴로 되살린다.
     private static bool _shownAll;
     private static Texture2D _lastTexture;
@@ -49,6 +69,10 @@ public partial class GuideCornerFace : Control
 
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+    private static readonly Color Alarm = new(1f, 0.42f, 0.34f);
+
+    // 지금 이 창의 신호색.
+    private static Color Signal => _alarmTint ? Alarm : Cyan;
 
     // 창 전체 자리 — CCTV 화면 오른쪽 아래 구석. 창의 오른쪽 아래 모서리가 모니터 화면 모서리에 닿는다.
     private const float WinW = 212f, WinH = 236f;
@@ -56,6 +80,8 @@ public partial class GuideCornerFace : Control
     private const float BarH = 22f;
     // 위로 올렸을 때의 자리(화면 위쪽 정보 줄 아래).
     private const float LiftedY = 46f;
+    // 엔딩에서 화면 가운데에 크게 뜨는 창.
+    private const float EndW = 360f, EndH = 400f;
 
     private Font _font;
     private Texture2D _texture;
@@ -118,19 +144,34 @@ public partial class GuideCornerFace : Control
     {
         if (!_shown) return;
 
-        float winY = _lifted ? LiftedY : Canvas.Y - WinH - MarginY;
-        var win = new Rect2(Canvas.X - WinW - MarginX, winY, WinW, WinH);
-        DrawRect(win, new Color(0.04f, 0.15f, 0.18f, 0.92f));
-        DrawRect(win, Cyan with { A = 0.8f }, false, 1.5f);
+        Rect2 win;
+        float barH = BarH;
+        int titleSize = 11;
+        if (_ending)
+        {
+            // 화면 한가운데, 구석 창의 약 1.7배. 엔딩에서는 이 창 말고 볼 것이 없다.
+            const float w = EndW, h = EndH;
+            win = new Rect2((Canvas.X - w) * 0.5f, (Canvas.Y - h) * 0.5f - 12f, w, h);
+            barH = 34f;
+            titleSize = 15;
+        }
+        else
+        {
+            float winY = _lifted ? LiftedY : Canvas.Y - WinH - MarginY;
+            win = new Rect2(Canvas.X - WinW - MarginX, winY, WinW, WinH);
+        }
+        var signal = Signal;
+        DrawRect(win, _alarmTint ? new Color(0.20f, 0.03f, 0.03f, 0.94f) : new Color(0.04f, 0.15f, 0.18f, 0.92f));
+        DrawRect(win, signal with { A = 0.85f }, false, _alarmTint ? 2.2f : 1.5f);
 
-        var bar = new Rect2(win.Position.X, win.Position.Y, win.Size.X, BarH);
-        DrawRect(bar, new Color(0.10f, 0.32f, 0.36f, 0.95f));
-        DrawString(_font, bar.Position + new Vector2(8f, 16f), "GUIDE-0.exe",
-            HorizontalAlignment.Left, win.Size.X - 16f, ViewFont.S(11), Cyan with { A = 0.95f });
+        var bar = new Rect2(win.Position.X, win.Position.Y, win.Size.X, barH);
+        DrawRect(bar, _alarmTint ? new Color(0.42f, 0.07f, 0.06f, 0.95f) : new Color(0.10f, 0.32f, 0.36f, 0.95f));
+        DrawString(_font, bar.Position + new Vector2(10f, barH * 0.72f), "GUIDE-0.exe",
+            HorizontalAlignment.Left, win.Size.X - 16f, ViewFont.S(titleSize), signal with { A = 0.95f });
 
-        var face = new Rect2(win.Position.X + 8f, win.Position.Y + BarH + 8f,
-            win.Size.X - 16f, win.Size.Y - BarH - 16f);
-        DrawRect(face, new Color(0.02f, 0.10f, 0.13f, 0.95f));
+        var face = new Rect2(win.Position.X + 8f, win.Position.Y + barH + 8f,
+            win.Size.X - 16f, win.Size.Y - barH - 16f);
+        DrawRect(face, _alarmTint ? new Color(0.14f, 0.02f, 0.02f, 0.95f) : new Color(0.02f, 0.10f, 0.13f, 0.95f));
 
         if (_texture != null)
         {
@@ -140,13 +181,13 @@ public partial class GuideCornerFace : Control
                 float k = Mathf.Min(face.Size.X / src.X, face.Size.Y / src.Y);
                 var dst = src * k;
                 var at = face.Position + (face.Size - dst) * 0.5f;
-                GuideFacePaint.Draw(this, _texture, _mouthless, new Rect2(at, dst), Cyan);
+                GuideFacePaint.Draw(this, _texture, _mouthless, new Rect2(at, dst), signal);
             }
         }
-        DrawRect(face, Cyan with { A = 0.55f }, false, 1f);
+        DrawRect(face, signal with { A = 0.55f }, false, 1f);
 
         // 스캔라인 — 옆의 CCTV 화면과 질감을 맞춘다.
-        for (float y = win.Position.Y + BarH; y < win.End.Y; y += 4f)
-            DrawRect(new Rect2(win.Position.X, y, win.Size.X, 1f), new Color(0.55f, 0.95f, 1f, 0.05f));
+        for (float y = win.Position.Y + barH; y < win.End.Y; y += 4f)
+            DrawRect(new Rect2(win.Position.X, y, win.Size.X, 1f), signal with { A = 0.05f });
     }
 }

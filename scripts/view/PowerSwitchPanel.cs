@@ -573,7 +573,13 @@ public partial class PowerSwitchPanel : Node3D
             sparkE = Mathf.Lerp(_sparkMat.EmissionEnergyMultiplier, 0f, (float)delta * 12f);
         _sparkMat.EmissionEnergyMultiplier = sparkE;
         _sparkMat.AlbedoColor = _sparkMat.AlbedoColor with { A = Mathf.Clamp(sparkE * 0.25f, 0f, 0.9f) };
-        if (_spark.GetNodeOrNull<OmniLight3D>("SparkLight") is { } sl) sl.LightEnergy = Mathf.Min(sparkE, 4f);
+        if (_spark.GetNodeOrNull<OmniLight3D>("SparkLight") is { } sl)
+        {
+            sl.LightEnergy = Mathf.Min(sparkE, 4f);
+            // 밝기 0 이어도 켜져 있으면 조명 계산에 계속 들어간다 — 꺼질 땐 노드를 숨긴다.
+            bool want = sl.LightEnergy > 0.01f;
+            if (sl.Visible != want) sl.Visible = want;
+        }
 
         // ── 레버 자동 반영(외부 차단) + LED ──
         foreach (var (channel, _, _) in Switches)
@@ -595,7 +601,11 @@ public partial class PowerSwitchPanel : Node3D
                 am.AlbedoColor = am.AlbedoColor with { A = Mathf.Clamp(am.EmissionEnergyMultiplier * 0.2f, 0f, 0.85f) };
             }
             if (_arcLights.TryGetValue(channel, out var al))
+            {
                 al.LightEnergy = Mathf.Min(_arcMats[channel].EmissionEnergyMultiplier, 3.5f);
+                bool arcOn = al.LightEnergy > 0.01f;
+                if (al.Visible != arcOn) al.Visible = arcOn;
+            }
 
             var mat = _ledMats[channel];
             bool rejecting = _rejectUntil.GetValueOrDefault(channel) > now;

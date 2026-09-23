@@ -208,6 +208,9 @@ public partial class PrologueDirector : Node
     // (기립성 저혈압으로 눈앞이 도는 그 느낌.)
     private const float DizzySeconds = 6.0f;       // 전체 길이
     private const float DizzyHoldSeconds = 1.1f;   // 이만큼은 최대치로 버틴 뒤 풀리기 시작한다
+    // 배드엔딩에서 다시 깨어날 때는 같은 연출을 이 배율만큼 빠르게 돌린다
+    // (프롤로그의 첫 기상은 처음 보는 장면이라 느려도 되지만, 엔딩에서는 늘어진다).
+    private const float WakeDizzySpeed = 2.0f;
     private const float DizzyNoise = 0.62f;        // CRT 표면 노이즈(오버레이와 별개)
     private const float DizzyDistortion = 0.22f;   // CRT 표면 일그러짐
 
@@ -223,10 +226,10 @@ public partial class PrologueDirector : Node
         if (harsh)
         {
             Sfx.Instance?.Play("tinnitus", -8f);
-            await Wait(0.9);
+            await Wait(0.45);
             Sfx.Instance?.Play("breath_faint", -14f);
             _title?.FadeFromBlack(0.8f);
-            await DizzyRecovery(settleNoise);
+            await DizzyRecovery(settleNoise, WakeDizzySpeed);
             return;
         }
 
@@ -243,15 +246,17 @@ public partial class PrologueDirector : Node
         _dizzy?.Clear();
     }
 
-    private async Task DizzyRecovery(float baseNoise = 0.035f)   // baseNoise = 평소 게임 화면의 노이즈
+    // speed = 시간 배율(1 = 프롤로그 기본, 2 = 두 배 빠르게).
+    private async Task DizzyRecovery(float baseNoise = 0.035f, float speed = 1f)   // baseNoise = 평소 게임 화면의 노이즈
     {
         double t = 0;
         double nextLurch = 0.25;
+        speed = Mathf.Max(0.1f, speed);
 
         while (t < DizzySeconds)
         {
             await NextFrame();
-            double dt = GetProcessDeltaTime();
+            double dt = GetProcessDeltaTime() * speed;
             t += dt;
             // 남은 어지러움. 한동안 최대치로 버티다가 뒤로 갈수록 가파르게 잦아든다.
             double past = Mathf.Max(0.0, t - DizzyHoldSeconds);

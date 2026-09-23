@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "cat_mask"
+albedo_color = Color(0.24, 0.4, 0.8, 1)
+roughness = 0.8
+metallic = 0.0

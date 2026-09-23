@@ -80,8 +80,8 @@ public partial class EndingShot : Node
         _start = Time.GetTicksMsec() / 1000.0;
 
         var shots = mode == "bad"
-            ? new[] { (6.5, "1_seq"), (10.0, "2_stall"), (13.0, "3_failed"), (18.5, "4_unstable"), (22.3, "5_bang"), (27.5, "6_banner"), (36.0, "7_record") }
-            : new[] { (8.0, "1_seq"), (12.5, "2_stable"), (21.0, "3_thanks"), (27.0, "4_lean"), (33.0, "5_banner"), (41.0, "6_record") };
+            ? new[] { (9.5, "1_seq"), (13.0, "2_failed"), (17.0, "3_warning"), (21.0, "4_guide"), (26.8, "5_bang"), (31.0, "6_banner"), (35.0, "7_record") }
+            : new[] { (9.0, "1_seq"), (12.5, "2_status"), (16.8, "3_guide"), (19.0, "4_thanks"), (26.0, "5_banner"), (31.0, "6_record") };
         foreach (var (at, name) in shots)
         {
             await Until(at);

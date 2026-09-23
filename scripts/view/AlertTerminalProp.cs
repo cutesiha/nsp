@@ -317,6 +317,9 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
         {
             _beaconLight.LightColor = col;
             _beaconLight.LightEnergy = energy;
+            // 꺼져 있을 때 노드를 숨겨 조명 패스에서 빼 준다.
+            bool beaconOn = energy > 0.01f;
+            if (_beaconLight.Visible != beaconOn) _beaconLight.Visible = beaconOn;
         }
         if (_beaconBulbMat != null)
         {

@@ -1,0 +1,350 @@
+[gd_scene format=3 uid="uid://b70wmq0ljp5d1"]
+
+[ext_resource type="Material" path="res://scenes/cctv_characters/materials/body_white.tres" id="1_white"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/materials/accent.tres" id="2_accent"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/materials/dark_sole.tres" id="3_sole"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/materials/skin_or_glove.tres" id="4_skin"]
+[ext_resource type="AnimationLibrary" path="res://scenes/cctv_characters/anim/employee_common.tres" id="5_anim"]
+
+[sub_resource type="BoxMesh" id="BM_Hips"]
+size = Vector3(0.28, 0.18, 0.2)
+
+[sub_resource type="BoxMesh" id="BM_Torso"]
+size = Vector3(0.285, 0.29, 0.19)
+
+[sub_resource type="BoxMesh" id="BM_Chest"]
+size = Vector3(0.345, 0.3, 0.205)
+
+[sub_resource type="BoxMesh" id="BM_ChestBand"]
+size = Vector3(0.352, 0.045, 0.212)
+
+[sub_resource type="BoxMesh" id="BM_Pocket"]
+size = Vector3(0.085, 0.07, 0.014)
+
+[sub_resource type="CylinderMesh" id="CM_Collar"]
+top_radius = 0.09
+bottom_radius = 0.096
+height = 0.07211914
+radial_segments = 12
+rings = 0
+
+[sub_resource type="CylinderMesh" id="CM_CollarBand"]
+top_radius = 0.093
+bottom_radius = 0.095
+height = 0.024
+radial_segments = 12
+rings = 0
+
+[sub_resource type="CylinderMesh" id="CM_Neck"]
+top_radius = 0.045
+bottom_radius = 0.048
+height = 0.13
+radial_segments = 10
+rings = 0
+
+[sub_resource type="SphereMesh" id="SM_Head"]
+radius = 0.129
+height = 0.3
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="SM_Shoulder"]
+radius = 0.073
+height = 0.146
+radial_segments = 10
+rings = 5
+
+[sub_resource type="CylinderMesh" id="CM_UpperArm"]
+top_radius = 0.052
+bottom_radius = 0.046
+height = 0.315
+radial_segments = 10
+rings = 0
+
+[sub_resource type="CylinderMesh" id="CM_SleeveBand"]
+top_radius = 0.0535
+bottom_radius = 0.0535
+height = 0.05
+radial_segments = 10
+rings = 0
+
+[sub_resource type="CylinderMesh" id="CM_LowerArm"]
+top_radius = 0.046
+bottom_radius = 0.04
+height = 0.29
+radial_segments = 10
+rings = 0
+
+[sub_resource type="CylinderMesh" id="CM_Cuff"]
+top_radius = 0.0475
+bottom_radius = 0.0475
+height = 0.045
+radial_segments = 10
+rings = 0
+
+[sub_resource type="BoxMesh" id="BM_Hand"]
+size = Vector3(0.075, 0.115, 0.05)
+
+[sub_resource type="CylinderMesh" id="CM_UpperLeg"]
+top_radius = 0.078
+bottom_radius = 0.064
+height = 0.5
+radial_segments = 10
+rings = 0
+
+[sub_resource type="BoxMesh" id="BM_ThighPocket"]
+size = Vector3(0.022, 0.095, 0.07)
+
+[sub_resource type="CylinderMesh" id="CM_LowerLeg"]
+top_radius = 0.064
+bottom_radius = 0.052
+height = 0.42
+radial_segments = 10
+rings = 0
+
+[sub_resource type="BoxMesh" id="BM_Foot"]
+size = Vector3(0.1, 0.06, 0.20179687)
+
+[sub_resource type="BoxMesh" id="BM_Sole"]
+size = Vector3(0.105, 0.03, 0.20441894)
+
+[sub_resource type="CylinderMesh" id="CM_ThighBand"]
+top_radius = 0.0665
+bottom_radius = 0.0665
+height = 0.075
+radial_segments = 10
+rings = 0
+
+[node name="EmployeeCctvBase_M" type="Node3D" unique_id=1977319593]
+
+[node name="VisualRoot" type="Node3D" parent="." unique_id=988434377]
+
+[node name="RigRoot" type="Node3D" parent="VisualRoot" unique_id=1925317557]
+
+[node name="Hips" type="Node3D" parent="VisualRoot/RigRoot" unique_id=901211464]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.0, 0)
+
+[node name="HipsMesh" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips" unique_id=563871257]
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_Hips")
+
+[node name="Torso" type="Node3D" parent="VisualRoot/RigRoot/Hips" unique_id=221682896]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.115, 0)
+
+[node name="TorsoMesh" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso" unique_id=570736121]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_Torso")
+
+[node name="Chest" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso" unique_id=873189456]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.245, 0)
+
+[node name="ChestMesh" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest" unique_id=948745509]
+transform = Transform3D(1, 0, 0, 0, 0.8453446, 0, 0, 0, 0.8933563, 0, 0.07500005, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_Chest")
+
+[node name="ChestBand" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest" unique_id=1324881492]
+transform = Transform3D(1, 0, 0, 0, 1.4374583, 0, 0, 0, 1, 0, 0.044999957, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("BM_ChestBand")
+
+[node name="ChestPocket" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest" unique_id=947081608]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08575298, 0.041662335, -0.107)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_Pocket")
+
+[node name="Neck" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest" unique_id=441613077]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.21, 0)
+
+[node name="CollarMesh" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" unique_id=234119032]
+transform = Transform3D(1.231046, 0, 0, 0, 1.0077257, 0, 0, 0, 1, 0, 0.028943539, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_Collar")
+
+[node name="CollarBand" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" unique_id=1997149230]
+transform = Transform3D(1.231046, 0, 0, 0, 1.7019345, 0, 0, 0, 1.0790869, 0, 0.026114702, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("CM_CollarBand")
+
+[node name="NeckMesh" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" unique_id=1220426295]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, 0)
+material_override = ExtResource("4_skin")
+mesh = SubResource("CM_Neck")
+
+[node name="Head" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" unique_id=748432806]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09, 0)
+
+[node name="HeadMesh" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" unique_id=601225685]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, 0)
+material_override = ExtResource("4_skin")
+mesh = SubResource("SM_Head")
+
+[node name="HairAnchor" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" unique_id=458749375]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.16, 0)
+
+[node name="MaskAnchor" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" unique_id=2072944236]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.105)
+
+[node name="ShoulderL" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest" unique_id=1766895592]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.128, 0.165, 0)
+
+[node name="ShoulderMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL" unique_id=287701660]
+transform = Transform3D(1.4300112, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("SM_Shoulder")
+
+[node name="UpperArmL" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL" unique_id=763783934]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.053, -0.02, 0)
+
+[node name="UpperArmMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL" unique_id=812784071]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1575, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_UpperArm")
+
+[node name="SleeveBandL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL" unique_id=1976599066]
+transform = Transform3D(1, 0, 0, 0, 1.3546038, 0, 0, 0, 1, 0, -0.0964, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("CM_SleeveBand")
+
+[node name="LowerArmL" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL" unique_id=1218260968]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.315, 0)
+
+[node name="LowerArmMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL" unique_id=797894996]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.145, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_LowerArm")
+
+[node name="CuffL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL" unique_id=110810591]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.267, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("CM_Cuff")
+
+[node name="HandL" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL" unique_id=1992722554]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.29, 0)
+
+[node name="HandMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL/HandL" unique_id=830320187]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.055, 0)
+material_override = ExtResource("4_skin")
+mesh = SubResource("BM_Hand")
+
+[node name="ShoulderR" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest" unique_id=1870321511]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.128, 0.165, 0)
+
+[node name="ShoulderMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR" unique_id=1145272617]
+transform = Transform3D(1.3757182, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("SM_Shoulder")
+
+[node name="UpperArmR" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR" unique_id=253892737]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.053, -0.02, 0)
+
+[node name="UpperArmMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR" unique_id=2130215844]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1575, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_UpperArm")
+
+[node name="SleeveBandR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR" unique_id=785277675]
+transform = Transform3D(1, 0, 0, 0, 1.3631203, 0, 0, 0, 1, 0, -0.0939, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("CM_SleeveBand")
+
+[node name="LowerArmR" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR" unique_id=278095433]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.315, 0)
+
+[node name="LowerArmMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR" unique_id=1153581258]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.145, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_LowerArm")
+
+[node name="CuffR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR" unique_id=1750640346]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.267, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("CM_Cuff")
+
+[node name="HandR" type="Node3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR" unique_id=1926355063]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.29, 0)
+
+[node name="HandMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR/HandR" unique_id=867810375]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.055, 0)
+material_override = ExtResource("4_skin")
+mesh = SubResource("BM_Hand")
+
+[node name="UpperLegL" type="Node3D" parent="VisualRoot/RigRoot/Hips" unique_id=111173917]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.085, -0.02, 0)
+
+[node name="UpperLegMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegL" unique_id=1839596614]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_UpperLeg")
+
+[node name="ThighPocketL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegL" unique_id=598050148]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.072, -0.238, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_ThighPocket")
+
+[node name="LowerLegL" type="Node3D" parent="VisualRoot/RigRoot/Hips/UpperLegL" unique_id=62687396]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="LowerLegMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegL/LowerLegL" unique_id=402089302]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.21, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_LowerLeg")
+
+[node name="FootL" type="Node3D" parent="VisualRoot/RigRoot/Hips/UpperLegL/LowerLegL" unique_id=1351734840]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.42, 0)
+
+[node name="FootMeshL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegL/LowerLegL/FootL" unique_id=460904275]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.015000001, -0.054101564)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_Foot")
+
+[node name="SoleL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegL/LowerLegL/FootL" unique_id=1724425166]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.045, -0.055290528)
+material_override = ExtResource("3_sole")
+mesh = SubResource("BM_Sole")
+
+[node name="UpperLegR" type="Node3D" parent="VisualRoot/RigRoot/Hips" unique_id=1391379780]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.085, -0.02, 0)
+
+[node name="UpperLegMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegR" unique_id=1620800523]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.25, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_UpperLeg")
+
+[node name="ThighPocketR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegR" unique_id=1157779014]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.072, -0.238, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_ThighPocket")
+
+[node name="ThighBandL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegL"]
+transform = Transform3D(1, 0, 0, 0, 1.2198429, 0, 0, 0, 1, 0.0002521, -0.466, 0)
+material_override = ExtResource("2_accent")
+mesh = SubResource("CM_ThighBand")
+
+[node name="LowerLegR" type="Node3D" parent="VisualRoot/RigRoot/Hips/UpperLegR" unique_id=373094856]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="LowerLegMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegR/LowerLegR" unique_id=1753835984]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.21, 0)
+material_override = ExtResource("1_white")
+mesh = SubResource("CM_LowerLeg")
+
+[node name="FootR" type="Node3D" parent="VisualRoot/RigRoot/Hips/UpperLegR/LowerLegR" unique_id=242381356]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.42, 0)
+
+[node name="FootMeshR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegR/LowerLegR/FootR" unique_id=2126261272]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.015, -0.045)
+material_override = ExtResource("1_white")
+mesh = SubResource("BM_Foot")
+
+[node name="SoleR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/UpperLegR/LowerLegR/FootR" unique_id=743641263]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.045, -0.045)
+material_override = ExtResource("3_sole")
+mesh = SubResource("BM_Sole")
+
+[node name="AccessoryAnchor" type="Node3D" parent="." unique_id=1377769933]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.28, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=875965315]
+libraries/ = ExtResource("5_anim")

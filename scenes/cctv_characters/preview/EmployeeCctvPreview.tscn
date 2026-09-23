@@ -1,0 +1,145 @@
+[gd_scene load_steps=12 format=3]
+
+; 직원 6명 비교용 작업 씬. 캐릭터를 복사해 두지 않고 실제 variant 씬을 instance 한다 —
+; FoxEmployee3D.tscn 등을 고치면 여기에도, 나중에 게임에도 그대로 반영된다.
+; 왼쪽부터 여우 · 강아지 · 고양이 · 양 · 토끼 · 늑대.
+
+[ext_resource type="Script" path="res://scripts/debug/EmployeeCctvPreview.cs" id="1_script"]
+[ext_resource type="PackedScene" path="res://scenes/cctv_characters/employees/FoxEmployee3D.tscn" id="2_fox"]
+[ext_resource type="PackedScene" path="res://scenes/cctv_characters/employees/DogEmployee3D.tscn" id="3_dog"]
+[ext_resource type="PackedScene" path="res://scenes/cctv_characters/employees/CatEmployee3D.tscn" id="4_cat"]
+[ext_resource type="PackedScene" path="res://scenes/cctv_characters/employees/SheepEmployee3D.tscn" id="5_sheep"]
+[ext_resource type="PackedScene" path="res://scenes/cctv_characters/employees/RabbitEmployee3D.tscn" id="6_rabbit"]
+[ext_resource type="PackedScene" path="res://scenes/cctv_characters/employees/WolfEmployee3D.tscn" id="7_wolf"]
+
+[sub_resource type="Environment" id="Env_Preview"]
+background_mode = 1
+background_color = Color(0.09, 0.1, 0.12, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.64, 0.72, 1)
+ambient_light_energy = 0.75
+tonemap_mode = 2
+
+[sub_resource type="PlaneMesh" id="PM_Floor"]
+size = Vector2(14, 10)
+
+[sub_resource type="StandardMaterial3D" id="SM_Floor"]
+albedo_color = Color(0.24, 0.25, 0.28, 1)
+roughness = 0.95
+
+[node name="EmployeeCctvPreview" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_Preview")
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("PM_Floor")
+material_override = SubResource("SM_Floor")
+
+[node name="KeyLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766044, -0.321394, 0.55667, 0, 0.866025, 0.5, -0.642788, -0.383022, 0.663414, 0, 3, 0)
+light_energy = 1.45
+shadow_enabled = true
+
+[node name="FillLight" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.8, 1.8, -2.6)
+light_energy = 0.9
+omni_range = 12.0
+
+[node name="Fox" parent="." instance=ExtResource("2_fox")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.125, 0, 0)
+
+[node name="FoxLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.125, 2.12, 0)
+rotation = Vector3(0, 3.141593, 0)
+pixel_size = 0.00085
+billboard = 1
+text = "여우"
+font_size = 72
+outline_size = 18
+modulate = Color(1, 1, 1, 1)
+
+[node name="Dog" parent="." instance=ExtResource("3_dog")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.275, 0, 0)
+
+[node name="DogLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.275, 2.12, 0)
+rotation = Vector3(0, 3.141593, 0)
+pixel_size = 0.00085
+billboard = 1
+text = "강아지"
+font_size = 72
+outline_size = 18
+modulate = Color(1, 1, 1, 1)
+
+[node name="Cat" parent="." instance=ExtResource("4_cat")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.425, 0, 0)
+
+[node name="CatLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.425, 2.12, 0)
+rotation = Vector3(0, 3.141593, 0)
+pixel_size = 0.00085
+billboard = 1
+text = "고양이"
+font_size = 72
+outline_size = 18
+modulate = Color(1, 1, 1, 1)
+
+[node name="Sheep" parent="." instance=ExtResource("5_sheep")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.425, 0, 0)
+
+[node name="SheepLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.425, 2.12, 0)
+rotation = Vector3(0, 3.141593, 0)
+pixel_size = 0.00085
+billboard = 1
+text = "양"
+font_size = 72
+outline_size = 18
+modulate = Color(1, 1, 1, 1)
+
+[node name="Rabbit" parent="." instance=ExtResource("6_rabbit")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.275, 0, 0)
+
+[node name="RabbitLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.275, 2.12, 0)
+rotation = Vector3(0, 3.141593, 0)
+pixel_size = 0.00085
+billboard = 1
+text = "토끼"
+font_size = 72
+outline_size = 18
+modulate = Color(1, 1, 1, 1)
+
+[node name="Wolf" parent="." instance=ExtResource("7_wolf")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.125, 0, 0)
+
+[node name="WolfLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.125, 2.12, 0)
+rotation = Vector3(0, 3.141593, 0)
+pixel_size = 0.00085
+billboard = 1
+text = "늑대"
+font_size = 72
+outline_size = 18
+modulate = Color(1, 1, 1, 1)
+
+; 1번 — 6명 전신 비교
+[node name="FullBodyCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, -5.4)
+rotation = Vector3(-0.01852, -3.14159, 0)
+current = true
+fov = 42
+
+; 2번 — 실제 CCTV 와 비슷한 거리·내려다보는 각도
+[node name="CctvCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 3.4, -4.6)
+rotation = Vector3(-0.44116, 2.66071, 0)
+fov = 40
+
+; 3번 — 가면/머리 가까이 확인
+[node name="CloseCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9, 1.25, -2.0)
+rotation = Vector3(-0.02394, -2.85014, 0)
+fov = 34

@@ -103,8 +103,6 @@ public partial class ShiftReportView : Control
         sb.AppendLine(missed > 0
             ? $"[font_size=26][color=#ff6b5a]{DayFeatures.DayLabel(gs.CurrentDay)} — 필수 업무 미달성[/color][/font_size]"
             : $"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} — SHIFT COMPLETE[/font_size]");
-        if (missed > 0)
-            sb.AppendLine($"[color=#ff9a8a]근무 시간이 끝났습니다. 끝내지 못한 필수 업무 {missed}건.[/color]");
         sb.AppendLine("");
         sb.AppendLine($"CORE        {Signed(coreDelta)}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
         sb.AppendLine($"MATERIAL    {Signed(materialsDelta)}   [color=#8899aa](현재 {gs.Materials})[/color]\n");
@@ -119,24 +117,16 @@ public partial class ShiftReportView : Control
         sb.AppendLine($"격리          {isolated}");
         sb.AppendLine($"생존          {(aliveCount < total ? "[color=#ff6a55]" : "")}{aliveCount} / {total}{(aliveCount < total ? "[/color]" : "")}");
 
-        // 오늘의 업무 결과. 못 끝낸 업무가 있어도 다음 날로 넘어간다 — 다만
-        // 계속 놓치면 DAY5 까지 코어 100% 를 못 채운다는 게 그대로 보인다.
+        // 업무 목록은 여기 적지 않는다 — 근무 정산은 숫자만 보고 넘어가는 자리다.
+        // 어떤 업무가 남았는지는 근무 중 화면과 L 키 시설 로그에 그대로 있다.
         var lines = DayObjectives.Lines();
         if (lines.Count > 0)
         {
-            sb.AppendLine("\n[color=#8899aa]오늘의 업무[/color]");
-            foreach (var l in lines)
-            {
-                string mark = l.Required ? (l.Done ? "☑" : "□") : (l.Done ? "★" : "☆");
-                string state = l.Done
-                    ? "[color=#88ddaa]완료[/color]"
-                    : (l.Required ? "[color=#ffb347]미달성[/color]" : "[color=#8899aa]미달성[/color]");
-                sb.AppendLine($"{mark} {l.Def.DisplayText}   [color=#8899aa]{l.ProgressText}[/color]   {state}");
-            }
-            int earned = lines.Count(l => !l.Required && l.Done);
-            if (earned > 0)
-                sb.AppendLine($"[color=#88ddaa]업무평가 +{earned}[/color]" +
-                              $"   [color=#8899aa](누적 {gs.EvaluationScore})[/color]");
+            int required = lines.Count(l => l.Required);
+            int requiredDone = lines.Count(l => l.Required && l.Done);
+            bool short_ = requiredDone < required;
+            sb.AppendLine($"필수 업무     {(short_ ? "[color=#ff6a55]" : "")}{requiredDone} / {required}{(short_ ? "[/color]" : "")}");
+            sb.AppendLine($"업무 평가     {Signed(lines.Count(l => !l.Required && l.Done))}   [color=#8899aa](누적 {gs.EvaluationScore})[/color]");
         }
         _body.Text = sb.ToString();
         FitBody(final ? ViewFont.S(18) : ViewFont.S(22));

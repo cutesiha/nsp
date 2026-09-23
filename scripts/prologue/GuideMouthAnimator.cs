@@ -90,6 +90,11 @@ public static class GuideMouthAnimator
     };
 
     public static bool Talking { get; private set; }
+
+    // 엔딩처럼 GuideHologramView 가 화면에 없는 장면에서는 다른 연출기가 입을 직접 돌린다.
+    // 그동안 홀로그램 화면은 입에 손대지 않는다(화면 밖에서도 _Process 가 계속 돌기 때문에,
+    // 그냥 두면 매 프레임 StopTalking 이 불려 입이 전혀 움직이지 않는다).
+    public static bool ExternallyDriven { get; set; }
     public static GuideMouthFrame Frame { get; private set; } = GuideMouthFrame.Closed;
 
     // 호러 얼굴이 스치는 중인가. 두 화면이 이 값을 보고 얼굴을 갈아 끼운다.

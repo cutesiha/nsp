@@ -153,10 +153,24 @@ public static class GameSettings
     }
 
     // 3D 렌더 배율만 낮춘다. 창 크기·UI 해상도는 그대로라 글자는 선명하게 유지된다.
+    // 글로우(블룸)도 같이 끈다 — 내장 GPU 에서 단일 항목으로는 가장 비싼 후처리다
+    // (측정: 1080p 기준 프레임의 약 1/4). 씬이 원래 글로우를 쓰는지 기억해 뒀다가
+    // '높음' 으로 돌아오면 그대로 되살린다.
+    private static bool? _sceneWantsGlow;
+
     private static void ApplyQuality()
     {
-        if (Engine.GetMainLoop() is SceneTree tree && tree.Root != null)
-            tree.Root.Scaling3DScale = QualityLevels[(int)_quality].Scale;
+        if (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null) return;
+        tree.Root.Scaling3DScale = QualityLevels[(int)_quality].Scale;
+        ApplyEnvironmentQuality(tree.Root.World3D?.Environment);
+    }
+
+    // 씬이 바뀌어 Environment 가 새로 올라온 뒤에도 한 번 불러 준다.
+    public static void ApplyEnvironmentQuality(Godot.Environment env)
+    {
+        if (env == null) return;
+        _sceneWantsGlow ??= env.GlowEnabled;
+        env.GlowEnabled = _sceneWantsGlow.Value && _quality == Quality.High;
     }
 
     // 렌더러는 초기화 전에만 고를 수 있다. 내보낸 게임에서는 선택 직후 재시작한다.

@@ -140,6 +140,8 @@ public partial class ControlRoom3DController : Node3D
         AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
         CollectScreens(this);
         BuildViewports();
+        // 씬의 Environment 가 올라온 뒤 그래픽 품질을 한 번 더 반영한다(글로우 on/off).
+        NSP.Core.GameSettings.ApplyEnvironmentQuality(GetViewport()?.World3D?.Environment);
 
         CallDeferred(nameof(AfterReady));
     }
@@ -277,6 +279,8 @@ public partial class ControlRoom3DController : Node3D
 
         _endingLeftVp = MakeViewport();
         AddScaledView(_endingLeftVp, new EndingMonitorView(true), MonitorCanvasSize);
+        // 엔딩 마지막에 왼쪽 CRT 가운데로 뜨는 GUIDE-0 얼굴창(교육 때 쓰던 그 창 그대로).
+        _endingLeftVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
         _endingRightVp = MakeViewport();
         AddScaledView(_endingRightVp, new EndingMonitorView(false), MonitorCanvasSize);
     }

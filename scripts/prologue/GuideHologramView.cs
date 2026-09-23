@@ -477,15 +477,20 @@ public partial class GuideHologramView : Control
             }
         }
 
-        // 대사 묶음이 끝났으면 어떤 경로로 끝났든 입을 다문다.
-        if (_guide == null && GuideMouthAnimator.Talking) GuideMouthAnimator.StopTalking();
-        // 다 읽고도 넘기지 않는 동안에만 얼굴이 가끔 일그러진다.
-        GuideMouthAnimator.SetIdleWaiting(_guide != null && _line.VisibleRatio >= 1f);
-        if (GuideMouthAnimator.Tick(delta))
+        // 다른 연출기(엔딩)가 입을 돌리는 동안에는 손대지 않는다 — 이 화면은 떠 있지 않아도
+        // _Process 가 계속 돌기 때문에, 그냥 두면 남의 대사 중에 입을 닫아 버린다.
+        if (!GuideMouthAnimator.ExternallyDriven)
         {
-            _portrait.QueueRedraw();
-            GuideFaceView.Instance?.NotifyMouthChanged();
-            GuideCornerFace.NotifyMouthChangedAll();
+            // 대사 묶음이 끝났으면 어떤 경로로 끝났든 입을 다문다.
+            if (_guide == null && GuideMouthAnimator.Talking) GuideMouthAnimator.StopTalking();
+            // 다 읽고도 넘기지 않는 동안에만 얼굴이 가끔 일그러진다.
+            GuideMouthAnimator.SetIdleWaiting(_guide != null && _line.VisibleRatio >= 1f);
+            if (GuideMouthAnimator.Tick(delta))
+            {
+                _portrait.QueueRedraw();
+                GuideFaceView.Instance?.NotifyMouthChanged();
+                GuideCornerFace.NotifyMouthChangedAll();
+            }
         }
 
         float noise = Time.GetTicksMsec() / 1000.0 < _noiseUntil ? 1f : 0f;

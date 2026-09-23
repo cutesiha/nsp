@@ -27,12 +27,28 @@ public partial class EndingMonitorView : Control
         public int Size = 22;
         public bool Center;
         public double At;   // 찍히기 시작한 시각
+        public double Ct = CharTime;   // 이 줄의 글자 간격
     }
 
     private bool _isLeft;
     private readonly List<Line> _lines = new();
     private Font _font;
     private double _t;
+
+    // 줄은 밀어 넣은 순서대로 "한 줄 다 찍힌 뒤 다음 줄"로 찍힌다. 여러 줄을 한꺼번에
+    // 밀어 넣어도 동시에 타이핑되지 않게, 예약된 마지막 시각을 들고 다닌다.
+    private const double LineGap = 0.16;
+    private double _queueEnd;
+
+    // 방금 찍힌 글자 — GUIDE-0 입모양·보이스가 이 신호에 맞춰 움직인다.
+    public event System.Action<char> CharTyped;
+    private int _pumpLine, _pumpChar;
+
+    // 경보 모드 — 화면 전체가 붉어진다(배드엔딩).
+    private bool _alarm;
+
+    // 줄 묶음을 화면 세로 한가운데에 놓는다(GUIDE-0 이 말하는 화면).
+    private bool _blockCenter;
 
     // 진행 막대(왼쪽 화면). 음수면 그리지 않는다.
     private float _bar = -1f;
@@ -63,7 +79,28 @@ public partial class EndingMonitorView : Control
     public override void _Process(double delta)
     {
         _t += delta;
+        PumpTypedChars();
         QueueRedraw();
+    }
+
+    // 새로 드러난 글자를 하나씩 알린다(입모양·보이스·타건음).
+    private void PumpTypedChars()
+    {
+        int guard = 0;
+        while (_pumpLine < _lines.Count && guard++ < 256)
+        {
+            var l = _lines[_pumpLine];
+            int shown = Mathf.Clamp((int)((_t - l.At) / l.Ct), 0, l.Text.Length);
+            if (_pumpChar < shown)
+            {
+                char c = l.Text[_pumpChar++];
+                CharTyped?.Invoke(c);
+                continue;
+            }
+            if (shown < l.Text.Length) break;   // 아직 이 줄을 찍는 중
+            _pumpLine++;
+            _pumpChar = 0;
+        }
     }
 
     // --- EndingDirector 가 부르는 것 -----------------------------------------
@@ -75,13 +112,39 @@ public partial class EndingMonitorView : Control
         _barFailed = false;
         _header = header;
         _sub = sub;
-        _accent = Mint;
+        _accent = _alarm ? Err : Mint;
+        _queueEnd = _t;
+        _pumpLine = 0;
+        _pumpChar = 0;
+        _blockCenter = false;
     }
+
+    // 머리말·막대가 없는 화면에서 줄 묶음을 세로 한가운데로.
+    public void SetBlockCenter(bool on) => _blockCenter = on;
 
     public void SetAccent(Color c) => _accent = c;
 
-    public void Push(string text, Tone tone = Tone.Normal, int size = 22, bool center = false) =>
-        _lines.Add(new Line { Text = text ?? "", Tone = tone, Size = size, Center = center, At = _t });
+    // 배드엔딩 — 두 화면이 한꺼번에 붉어진다. 켠 뒤에 Clear 해도 붉은 상태가 유지된다.
+    public void SetAlarm(bool on)
+    {
+        _alarm = on;
+        if (on) _accent = Err;
+        QueueRedraw();
+    }
+
+    // charTime 을 주면 그 줄만 느리게/빠르게 찍힌다(0 = 기본 속도).
+    public void Push(string text, Tone tone = Tone.Normal, int size = 22, bool center = false,
+        double charTime = 0)
+    {
+        text ??= "";
+        double ct = charTime > 0 ? charTime : CharTime;
+        double at = System.Math.Max(_t, _queueEnd);
+        _lines.Add(new Line { Text = text, Tone = tone, Size = size, Center = center, At = at, Ct = ct });
+        _queueEnd = at + text.Length * ct + LineGap;
+    }
+
+    // 밀어 넣은 줄이 전부 찍힐 때까지 남은 시간(초).
+    public double TypingSecondsLeft => System.Math.Max(0.0, _queueEnd - _t);
 
     // 마지막 줄을 바꿔 쓴다(숫자가 올라가는 줄 등).
     public void ReplaceLast(string text, Tone tone)
@@ -90,6 +153,9 @@ public partial class EndingMonitorView : Control
         _lines[^1].Text = text;
         _lines[^1].Tone = tone;
         _lines[^1].At = _t - 99;   // 다시 타이핑하지 않는다
+        _queueEnd = _t;
+        _pumpLine = _lines.Count;
+        _pumpChar = 0;
     }
 
     public void SetBar(float percent, bool failed = false)
@@ -98,24 +164,23 @@ public partial class EndingMonitorView : Control
         _barFailed = failed;
     }
 
-    public bool Typing
-    {
-        get
-        {
-            foreach (var l in _lines)
-                if ((_t - l.At) / CharTime < l.Text.Length) return true;
-            return false;
-        }
-    }
+    public bool Typing => _t < _queueEnd;
 
     // --- 그리기 ------------------------------------------------------------
 
     public override void _Draw()
     {
-        DrawRect(new Rect2(Vector2.Zero, Canvas), new Color(0.018f, 0.028f, 0.030f));
+        DrawRect(new Rect2(Vector2.Zero, Canvas),
+            _alarm ? new Color(0.20f, 0.018f, 0.018f) : new Color(0.018f, 0.028f, 0.030f));
+        if (_alarm)
+        {
+            // 붉은 경보 — 위아래로 옅은 그라데이션 띠를 얹어 화면 전체가 달아오른 것처럼 보이게.
+            DrawRect(new Rect2(0f, 0f, Canvas.X, Canvas.Y), new Color(0.85f, 0.06f, 0.05f, 0.22f));
+            DrawRect(new Rect2(16f, 14f, Canvas.X - 32f, Canvas.Y - 28f), Err with { A = 0.85f }, false, 3f);
+        }
         DrawRect(new Rect2(16f, 14f, Canvas.X - 32f, Canvas.Y - 28f), _accent with { A = 0.28f }, false, 1.4f);
         DrawString(_font, new Vector2(30f, 38f), _isLeft ? "CONTAINMENT CONTROL" : "SYSTEM MONITOR",
-            HorizontalAlignment.Left, 420f, ViewFont.S(12), Dim);
+            HorizontalAlignment.Left, 420f, ViewFont.S(12), _alarm ? Err with { A = 0.8f } : Dim);
         DrawString(_font, new Vector2(Canvas.X - 150f, 38f), "NSP-07",
             HorizontalAlignment.Right, 120f, ViewFont.S(12), Dim);
 
@@ -145,9 +210,16 @@ public partial class EndingMonitorView : Control
             y += 64f;
         }
 
+        if (_blockCenter)
+        {
+            float total = 0f;
+            foreach (var l in _lines) total += ViewFont.S(l.Size) + 14f;
+            y = Mathf.Max(y, (Canvas.Y - total) * 0.5f);
+        }
+
         foreach (var l in _lines)
         {
-            int n = Mathf.Clamp((int)((_t - l.At) / CharTime), 0, l.Text.Length);
+            int n = Mathf.Clamp((int)((_t - l.At) / l.Ct), 0, l.Text.Length);
             if (n <= 0) { y += ViewFont.S(l.Size) + 14f; continue; }   // 아직 안 찍힌 줄도 자리는 차지한다
             var col = l.Tone switch
             {
