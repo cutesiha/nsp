@@ -148,7 +148,8 @@ public partial class TutorialDirector : Node
         await Say("tut_rest");
         await Until(() => PhoneCallHud.Instance?.IsOpen == true
                           && PhoneCallHud.Instance.CurrentEmployeeId == TutorialEmployeeId);
-        // 심문 창이 화면 아래를 통째로 차지한다 — 지시문도 얼굴창도 위로 올라가야 보인다.
+        // 심문 대화창이 화면 아래 절반을 차지한다(일반 통화와 같은 자리) —
+        // 지시문도 얼굴창도 위로 올라가야 가리지 않는다. 대화창을 접어도 이 자리는 그대로 둔다.
         GuideSubtitleHud.Instance?.SetTopAligned(true);
         GuideCornerFace.SetLifted(true);
 

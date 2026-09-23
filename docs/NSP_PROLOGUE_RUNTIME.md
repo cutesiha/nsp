@@ -645,8 +645,9 @@ line: 토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오
 
 @guide tut_ask_where
 portrait: normal
-line: 오른쪽 「조사 자료」에 그 직원의 기록이 모여 있습니다.
-line: 토끼 직원의 이동 기록을 고른 뒤, 그 기록으로 질문하십시오.
+line: 왼쪽 MONITOR 01 의 /5조사 자료/0에 그 직원의 기록이 모여 있습니다.
+line: 토끼 직원의 이동 기록을 누르면, 대화창에 그 자료로 묻는 선택지가 생깁니다.
+line: 대화창이 가리면 끊지 말고 「접기」를 누르십시오.
 
 @guide tut_contradiction
 portrait: normal
