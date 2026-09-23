@@ -561,18 +561,23 @@ public partial class PhoneCallHud : CanvasLayer
         bool anySelected = card.Items.Exists(e => _session.IsSelected(e.Id));
         bool anyNear = card.Items.Exists(e => near.Contains(e.Id));
         bool usable = card.Items.Exists(e => _session.CanUse(e));
-        string title = (open ? "▾ " : "▸ ") + InterviewEvidenceDisplay.Title(card) + $"   · 기록 {card.Items.Count}건";
-        var b = CardButton(title + "\n" + InterviewEvidenceDisplay.Body(card), anySelected, anyNear, usable);
+
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 3);
+        row.AddChild(new Control { CustomMinimumSize = new Vector2(30, CardHeight) });   // ★ 칸 자리 맞춤
+        row.AddChild(TagStrip(card.First));
+
+        string label = (open ? "▾ " : "▸ ") + Short(InterviewEvidenceDisplay.Body(card), CardBodyChars)
+                       + $"  ·{card.Items.Count}건";
+        var b = CardButton(label, anySelected, anyNear, usable);
         string key = card.Key;
         b.Pressed += () =>
         {
             if (!_expandedCards.Remove(key)) _expandedCards.Add(key);
             RefreshEvidence();
         };
-        var row = new HBoxContainer();
-        row.AddThemeConstantOverride("separation", 3);
-        row.AddChild(new Control { CustomMinimumSize = new Vector2(28, 0) });   // ★ 칸 자리 맞춤
         row.AddChild(b);
+        row.AddChild(TimeLabel(DialogueClock.Range(card.First.AnchorTime, card.Last.AnchorTime), usable));
         _evidenceList.AddChild(row);
 
         if (!open) return;
@@ -615,10 +620,10 @@ public partial class PhoneCallHud : CanvasLayer
         // 태그는 아이콘 대신 색 띠 + 두 글자. 종류가 색으로 먼저 읽히고, 글자는 확인용이다.
         row.AddChild(TagStrip(ev));
 
-        // 카드 본문 — 한 줄에 다 싣지 않는다. 전문은 카드를 누르면 아래 상세칸에 뜬다.
-        string slot = SlotBadge(ev);
-        string body = string.IsNullOrEmpty(line2) ? line1 : line1 + "  " + line2;
-        var b = CardButton(slot + Short(StripTag(body), 12), on, near.Contains(ev.Id), usable);
+        // 카드 본문은 "누가 · 어디서" 만. 태그는 왼쪽 색 띠가, 시각은 오른쪽 라벨이 맡는다.
+        // 한 줄에 다 싣지 않는다 — 전문은 카드를 누르면 아래 상세칸에 뜬다.
+        string body = string.IsNullOrEmpty(line2) ? StripHead(line1) : line2;
+        var b = CardButton(SlotBadge(ev) + Short(body, CardBodyChars), on, near.Contains(ev.Id), usable);
         b.Pressed += () =>
         {
             _session.Toggle(captured.Id);
@@ -626,14 +631,22 @@ public partial class PhoneCallHud : CanvasLayer
         };
         row.AddChild(b);
 
-        // 시각은 오른쪽 끝에 붙인다 — 카드들이 세로로 줄을 맞춰 훑기 쉬워진다.
-        var when = Lbl(ev.TimeText, 14, Cyan with { A = usable ? 0.75f : 0.4f });
-        when.HorizontalAlignment = HorizontalAlignment.Right;
-        when.VerticalAlignment = VerticalAlignment.Center;
-        when.CustomMinimumSize = new Vector2(132, CardHeight);
-        when.MouseFilter = Control.MouseFilterEnum.Ignore;
-        row.AddChild(when);
+        row.AddChild(TimeLabel(ev.TimeText, usable));
     }
+
+    // 시각은 오른쪽 끝에 붙인다 — 카드들이 세로로 줄을 맞춰 훑기 쉬워진다.
+    private Label TimeLabel(string text, bool usable)
+    {
+        var l = Lbl(text ?? "", 14, Cyan with { A = usable ? 0.75f : 0.4f });
+        l.HorizontalAlignment = HorizontalAlignment.Right;
+        l.VerticalAlignment = VerticalAlignment.Center;
+        l.CustomMinimumSize = new Vector2(150, CardHeight);
+        l.MouseFilter = Control.MouseFilterEnum.Ignore;
+        return l;
+    }
+
+    // 카드 본문에 들어가는 글자 수. 넘치면 … 로 자르고 전문은 상세칸이 맡는다.
+    private const int CardBodyChars = 14;
 
     // 카드 한 장의 높이. 기울어진 CRT 에서 읽히려면 이 정도는 되어야 한다.
     private const float CardHeight = 44f;
@@ -679,13 +692,12 @@ public partial class PhoneCallHud : CanvasLayer
         return "";
     }
 
-    // OneLine 등에 앞머리로 붙은 태그는 이제 색 띠가 맡는다 — 본문에서 뗀다.
-    private static string StripTag(string text)
+    // "[태그]  시각" 앞머리는 이제 색 띠와 오른쪽 라벨이 맡는다 — 본문에서 뗀다.
+    private static string StripHead(string text)
     {
         text = (text ?? "").Trim();
-        foreach (string t in new[] { "기록", "사고", "CCTV", "증언", "진술", "기분" })
-            if (text.StartsWith(t + "  ", System.StringComparison.Ordinal)) return text[(t.Length + 2)..].Trim();
-        return text;
+        int close = text.StartsWith('[') ? text.IndexOf(']') : -1;
+        return close < 0 ? text : text[(close + 1)..].Trim();
     }
 
     private Button CardButton(string text, bool on, bool near, bool usable)
