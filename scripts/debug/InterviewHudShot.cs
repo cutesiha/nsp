@@ -63,7 +63,7 @@ public partial class InterviewHudShot : Node
         var claim = session.Board.FirstOrDefault(e => e.Kind == EvidenceKind.OwnStatement && e.SubjectEmployeeId == "fox");
         if (claim != null) session.Toggle(claim.Id);
         Call(hud, "RefreshEvidence");
-        RestInterviewConsole.Instance?.ShowPage(RestInterviewConsole.Page.Notes);
+        // MON01 은 이제 조사 노트 한 장뿐이다(페이지 전환이 없다).
         await Frames(4);
         Save(dir, "interview_3_notes.png");
         GD.Print("saved → " + dir);
