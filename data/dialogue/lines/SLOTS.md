@@ -103,6 +103,7 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | ExactTime.exact / vague | 정확한 시각 | time |
 | Confront.honest / evasive / deny | 자료 두 장으로 모순을 들이밀었을 때 | room, time |
 | Confront.neutral | 자료 두 장이 어떤 추궁 규칙에도 걸리지 않았을 때(거절 대신 되묻는다) | room, time |
+| Denial.equipment | 결번자가 "설비 근처에 가지 않았다"고 못 박을 때 답변 뒤에 붙는 한 줄 | room, time |
 
 ### 근무 기억(ShiftMemory) — 답변 뒤에 덧붙는 한 문장
 실제 로그·통화 기록에서 골라 붙습니다. 캐릭터 말투가 몇 개를, 무엇을 먼저 꺼낼지 정합니다.
