@@ -7,6 +7,15 @@ namespace NSP.Dialogue;
 // 게임은 "무엇과 무엇이 모순인지" 를 먼저 알려주지 않는다. 플레이어가 두 장을 골라야만
 // 이 판정이 돌고, 말이 되지 않는 조합은 여기서 막힌다. 판정은 문장 비교가 아니라
 // 자료 구조의 (직원 · 시각 · 작업실) 세 값으로만 한다.
+// 추궁이 어떤 규칙으로 성립했는가. 규칙은 셋뿐이고, 위에서 아래로 검사해 처음 걸리는 것을 쓴다.
+//
+//   Presence — 사고가 난 그 방에 있었다                (사고 기록 + 그 사람의 위치 자료)
+//   Behavior — 사고 직전 그 방에서 이상 행동이 목격됐다 (행동이 실린 자료 + 사고 기록)
+//   Location — 두 자료가 같은 시각에 다른 방을 가리킨다 (예전부터 있던 규칙)
+//
+// None 은 "성립하지 않음"이지 "물을 수 없음"이 아니다 — 틀린 조합을 들이미는 것도 추리다.
+public enum ConfrontKind { None, Presence, Behavior, Location }
+
 public static class EvidenceContradiction
 {
     // 같은 순간으로 볼 수 있는 시간 폭(게임 안의 분). 이 값 하나만 조정하면 된다.
@@ -17,6 +26,8 @@ public static class EvidenceContradiction
     public sealed class Result
     {
         public bool IsContradiction;
+        // 어떤 규칙으로 성립했는가. None 이면 성립하지 않은 것이고, 그래도 질문은 할 수 있다.
+        public ConfrontKind Kind = ConfrontKind.None;
         // 성립하지 않을 때 화면에 띄울 안내.
         public string Notice = "";
 

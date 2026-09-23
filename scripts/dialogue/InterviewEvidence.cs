@@ -73,6 +73,10 @@ public sealed class InterviewEvidence
     // 기분 자료일 때의 문구.
     public string MoodText = "";
 
+    // 이 자료가 말하는 "행동". 목격 증언(무엇을 하고 있었는지 들은 경우)과
+    // 설비 접근이 보이던 CCTV 에만 붙는다. 행동 추궁(ConfrontKind.Behavior)의 근거다.
+    public string BehaviorDetail = "";
+
     // 모순 판정에 쓸 수 있는 자료인가 — 직원과 시각과 위치가 모두 있어야 한다.
     public bool CanAnchorPosition =>
         Position != PositionClaim.None && HasTime && !string.IsNullOrEmpty(SubjectRoomId);

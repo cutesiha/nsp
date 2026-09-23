@@ -54,6 +54,12 @@ public partial class RestEvidenceTest : Node
         TestNewF();
         TestNewG();
         TestNewH();
+        // 심문 리워크 1차(docs/NSP_INTERVIEW_REWORK.md §5) — 추궁 규칙 셋 · 카드 내용 · 최초 진술.
+        TestNewI();
+        TestNewJ();
+        TestNewK();
+        TestNewL();
+        TestNewM();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
 
@@ -531,6 +537,156 @@ public partial class RestEvidenceTest : Node
         Check(!day2.Any(e => e.Kind == EvidenceKind.Cctv),
             "지난 DAY 의 CCTV 기록도 섞이지 않는다");
     }
+
+
+    // ── 신규 I : 사고 기록 + 그 방에 있었다는 자료 → 재석 추궁(Presence) ───
+    //
+    // 예전에는 사고 기록이 "이 직원의 위치를 확인할 수 있는 자료가 아닙니다" 로 막혀
+    // 플레이어가 가장 먼저 집는 카드로 아무것도 못 물었다(NSP_INTERVIEW_REWORK §1-1).
+    private void TestNewI()
+    {
+        Head("신규 I", "사고 기록 + CCTV → 재석 추궁 성립 / 다른 방이면 불성립");
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Maintenance, At(40));
+        PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(38), new[] { "cat" });
+
+        var s = new InterviewSession("cat");
+        var inc = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        var cam = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Cctv);
+        if (!Check(inc != null && cam != null, "사고 기록과 CCTV 가 모두 자료로 뜬다")) return;
+
+        var r = EvidenceContradiction.Check("cat", inc, cam);
+        GD.Print($"   자료1: {inc.OneLine}\n   자료2: {cam.OneLine}\n   Kind: {r.Kind}\n   Q: {r.QuestionText}");
+        Check(r.Kind == ConfrontKind.Presence, "재석 추궁(Presence)으로 성립한다");
+        Check(r.QuestionText.Contains("정비실"), "질문문에 사고가 난 작업실이 들어간다");
+        Check(r.QuestionText.Contains(DialogueClock.Spoken(At(40))), "질문문에 사고 시각이 들어간다");
+
+        // 고른 순서가 반대여도 같은 판정이 나와야 한다.
+        Check(EvidenceContradiction.Check("cat", cam, inc).Kind == ConfrontKind.Presence,
+            "자료를 고른 순서와 무관하게 성립한다");
+
+        // ── 다른 방이면 성립하지 않는다. 그래도 물을 수는 있다(거절하지 않는다).
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Maintenance, At(40));
+        PlayerKnownEvidence.RecordCctvObservation(Storage, At(38), new[] { "cat" });
+
+        var s2 = new InterviewSession("cat");
+        var inc2 = s2.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        var cam2 = s2.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Cctv);
+        if (!Check(inc2 != null && cam2 != null, "두 자료가 모두 뜬다")) return;
+
+        var r2 = EvidenceContradiction.Check("cat", inc2, cam2);
+        Check(r2.Kind == ConfrontKind.None, "다른 방이면 성립하지 않는다");
+
+        s2.Toggle(inc2.Id);
+        s2.Toggle(cam2.Id);
+        var turn = s2.Confront(r2);
+        GD.Print($"   Q: {turn.QuestionText}\n   A: {turn.Answer}");
+        Check(!string.IsNullOrWhiteSpace(turn.QuestionText), "성립하지 않아도 질문 문장이 나온다");
+        Check(!string.IsNullOrWhiteSpace(turn.Answer) && turn.Answer != "…",
+            "성립하지 않아도 빈 턴이 아니라 중립 답변이 돌아온다");
+    }
+
+    // ── 신규 J : 행동이 실린 증언 + 사고 기록 → 행동 추궁(Behavior) ────────
+    private void TestNewJ()
+    {
+        Head("신규 J", "설비 쪽 목격 증언 + 사고 기록 → 행동 추궁");
+        Reset();
+        Deploy();
+        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(30), Odd);
+        Incident(LogEventType.TaskFailed, Maintenance, At(40));
+
+        var s = new InterviewSession("cat");
+        var say = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony);
+        var inc = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        if (!Check(say != null && inc != null, "증언과 사고 기록이 모두 자료로 뜬다")) return;
+
+        GD.Print($"   증언 카드: {say.OneLine}");
+        // §5-4 — 증언 카드에 "무엇을 봤는지"가 남아야 한다(예전에는 방 이름만 남았다).
+        Check(say.Body == $"{"늑대"} · {Odd}", $"증언 카드 본문이 '늑대 · {Odd}' 다");
+        Check(say.BehaviorDetail == Odd, "그 내용이 BehaviorDetail 로도 실린다");
+
+        var r = EvidenceContradiction.Check("cat", say, inc);
+        GD.Print($"   Kind: {r.Kind}\n   Q: {r.QuestionText}");
+        Check(r.Kind == ConfrontKind.Behavior, "행동 추궁(Behavior)으로 성립한다");
+        Check(r.QuestionText.Contains(Odd), "질문문에 목격된 행동이 그대로 들어간다");
+    }
+
+    // ── 신규 K : 최초 진술이 그 자리에서 자료가 된다 ──────────────────────
+    //
+    // 화면에 크게 뜨는 "이상한 점" 답변이 카드가 되지 않아 쓸 수 없었다(§1-4).
+    private void TestNewK()
+    {
+        Head("신규 K", "최초 진술(사고 목격) → 시각이 붙은 진술 자료");
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Storage, At(30));   // 고양이가 근무하던 방
+
+        var turn = LocalDialogueGenerator.Interview("cat", DialogueQuestions.Anomaly);
+        GD.Print($"   A: {turn.Answer}");
+        var said = PlayerKnownEvidence.StatementsBy("cat");
+        foreach (var st in said)
+            GD.Print($"   진술: {RoomNameOf(st.RoomId)} · {(st.HasTime ? DialogueClock.Text(st.AnchorTime) : "시각 없음")}");
+        Check(said.Count >= 1, "진술이 플레이어가 아는 자료로 남는다");
+        Check(said.Any(x => x.HasTime), "그 진술에 시각이 붙는다");
+
+        var board = InterviewEvidenceBoard.Build("cat");
+        var card = board.FirstOrDefault(e => e.Kind == EvidenceKind.OwnStatement && e.CanAnchorPosition);
+        Check(card != null, "그 진술이 위치를 말하는 카드로 조사 자료에 올라온다");
+    }
+
+    // ── 신규 L : 예전 위치 모순 규칙은 그대로 살아 있다 ────────────────────
+    private void TestNewL()
+    {
+        Head("신규 L", "같은 시각 다른 방 → 위치 추궁(Location) 유지");
+        Reset();
+        Deploy();
+        PlayerKnownEvidence.RecordLocationStatement("cat", "t:119", Storage, true, At(119));
+        PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(121), new[] { "cat" });
+
+        var s = new InterviewSession("cat");
+        var claim = s.Board.First(e => e.Kind == EvidenceKind.OwnStatement);
+        var cam = s.Board.First(e => e.Kind == EvidenceKind.Cctv);
+        var r = EvidenceContradiction.Check("cat", claim, cam);
+        GD.Print($"   Kind: {r.Kind}\n   Q: {r.QuestionText}");
+        Check(r.IsContradiction, "모순으로 판정된다(기존 동작)");
+        Check(r.Kind == ConfrontKind.Location, "위치 추궁(Location)으로 분류된다");
+    }
+
+    // ── 신규 M : DAY0 교육이 듣는 Asked 이벤트가 그대로 돈다 ───────────────
+    private void TestNewM()
+    {
+        Head("신규 M", "InterviewSession.Asked — 교육 진행 조건");
+        Reset();
+        Deploy();
+        Incident(LogEventType.TaskFailed, Storage, At(30));
+
+        int fired = 0;
+        string who = "";
+        void OnAsked(string id, InterviewQuestion q) { fired++; who = id; }
+        InterviewSession.Asked += OnAsked;
+        try
+        {
+            var s = new InterviewSession("rabbit");
+            var basic = s.BasicQuestions().FirstOrDefault();
+            if (Check(basic != null, "기본 질문이 있다")) s.Ask(basic);
+
+            var follow = s.Openings.SelectMany(o => o.FollowUps).FirstOrDefault();
+            if (follow != null) s.AskFollowUp(follow);
+        }
+        finally { InterviewSession.Asked -= OnAsked; }
+
+        GD.Print($"   Asked {fired}회 · 대상 {who}");
+        Check(fired >= 1, "질문할 때마다 Asked 가 발신된다");
+        Check(who == "rabbit", "발신에 심문 대상 직원이 실린다");
+    }
+
+    // 목격 증언에 실리는 행동 — SaboteurPlan.TickPrecursors 가 남기는 문구 그대로.
+    private const string Odd = "설비 쪽에 평소보다 오래 머물렀다";
+
+    private static string RoomNameOf(string roomId) => InterviewEvidenceBoard.RoomName(roomId);
 
     // --- 도우미 -----------------------------------------------------------
 

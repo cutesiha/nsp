@@ -42,6 +42,9 @@ public static class PlayerKnownEvidence
         public string RoomId = "";
         public float AnchorTime;
         public bool HasTime;
+        // 그때 무엇을 하고 있었는지까지 들었을 때만 채워진다("설비 쪽에 평소보다 오래 머물렀다").
+        // 방 이름만 남기면 이 게임에서 가장 중요한 단서의 알맹이가 빠진다.
+        public string Detail = "";
     }
 
     // 시설 로그 화면에 실제로 떴던 이동 한 건.
@@ -62,6 +65,9 @@ public static class PlayerKnownEvidence
         public string RoomId = "";
         public float Time;
         public List<string> Occupants = new();
+        // 그 화면을 볼 때 그 방에서 누군가 설비 쪽에 붙어 있었는가(화면에 그렇게 떴는가).
+        // 누가 그랬는지는 남기지 않는다 — 관리자도 화면에서는 "그 방에 그런 움직임이 있었다"까지만 본다.
+        public bool SuspiciousAction;
     }
 
     private static readonly List<LocationStatement> _locations = new();
@@ -110,7 +116,8 @@ public static class PlayerKnownEvidence
     }
 
     // CCTV 시청 기록. FacilitySimulation 이 3초 연속 시청마다 한 번씩 호출한다.
-    public static void RecordCctvObservation(string roomId, float time, IEnumerable<string> occupants)
+    public static void RecordCctvObservation(string roomId, float time, IEnumerable<string> occupants,
+        bool suspiciousAction = false)
     {
         if (string.IsNullOrEmpty(roomId)) return;
 
@@ -128,6 +135,7 @@ public static class PlayerKnownEvidence
             RoomId = roomId,
             Time = time,
             Occupants = occupants != null ? new List<string>(occupants) : new List<string>(),
+            SuspiciousAction = suspiciousAction,
         });
         // 하루치가 계속 쌓이지 않게 상한만 둔다.
         while (_cctv.Count > 200) _cctv.RemoveAt(0);
@@ -170,16 +178,26 @@ public static class PlayerKnownEvidence
     public static bool HasRoomRecord(string roomId) =>
         !string.IsNullOrEmpty(roomId) && _cctv.Any(o => o.Day == Today && o.RoomId == roomId);
 
-    public static void RecordSighting(string speakerId, string subjectId, string roomId, float anchorTime = -1f)
+    // detail 은 "그 사람이 그때 무엇을 하고 있었는가". 들은 적이 없으면 빈 값 그대로 둔다 —
+    // 이 클래스의 규칙은 여전히 "플레이어가 실제로 들은 것만 남긴다" 다.
+    public static void RecordSighting(string speakerId, string subjectId, string roomId, float anchorTime = -1f,
+        string detail = "")
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId)) return;
-        if (_sightings.Any(x => x.Day == Today && x.SpeakerId == speakerId
-            && x.SubjectId == subjectId && x.RoomId == roomId)) return;
+        var found = _sightings.FirstOrDefault(x => x.Day == Today && x.SpeakerId == speakerId
+            && x.SubjectId == subjectId && x.RoomId == roomId);
+        if (found != null)
+        {
+            // 같은 목격을 다시 들었을 때 내용이 더 자세해졌다면 그것만 채워 넣는다.
+            if (string.IsNullOrEmpty(found.Detail) && !string.IsNullOrEmpty(detail)) found.Detail = detail;
+            return;
+        }
         _sightings.Add(new SightingStatement
         {
             Day = Today,
             SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "",
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
+            Detail = detail ?? "",
         });
     }
 
