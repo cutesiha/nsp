@@ -394,6 +394,8 @@ public partial class ShiftFlowController : Node
         sim.ResetRun();
         EventLog.Instance?.ClearAll();
         DialogueHistory.Instance?.ClearAll();
+        // 지난 판의 추궁 메모가 새 근무의 휴게실에 남아 있으면 안 된다.
+        ConfrontMarks.Clear();
 
         // DAY0 교육에는 방해자가 없다 — DAY1 근무가 시작될 때 ControlRoom3DController 가 뽑는다.
         if (!DayFeatures.SaboteurActive) return;
@@ -545,6 +547,8 @@ public partial class ShiftFlowController : Node
         else
         {
             _stage = Stage.DayTransition;
+            // 추궁 표식은 그날 심문의 메모다 — 하루가 끝나면 지운다.
+            ConfrontMarks.Clear();
             AdvanceToNextDay();
         }
     }

@@ -2,9 +2,53 @@ using System;
 using System.Collections.Generic;
 using Godot;
 using NSP.Data;
+using NSP.Dialogue;
 using NSP.Facility;
 
 namespace NSP.View;
+
+// 추궁 표식 — **플레이어의 메모다.**
+//
+// 오늘 누구를 몇 번 흔들었고 몇 번 해명을 들었는지, 심문하다 보면 금방 뒤섞인다.
+// 아이콘 옆에 그 횟수를 남겨 두는 것뿐이고, 그 이상은 아무 뜻이 없다.
+//
+// **어떤 판정도 이 값을 읽지 않는다** — 격리 판정도, 엔딩 판정도, 결번자 AI 도.
+// 읽는 순간 "흔들린 사람이 범인"이 되어, 플레이어가 자료를 맞춰 볼 이유가 사라진다.
+// 자백을 받아 내는 게임이 아니라 기록을 맞춰 보는 게임이기 때문이다(§3-5).
+//
+// 다음 날로 넘어가면 지운다(ShiftFlowController 의 Rest → DayTransition).
+public static class ConfrontMarks
+{
+    // evasive / deny — 말을 돌리거나 부인했다.
+    private static readonly Dictionary<string, int> _shaken = new();
+    // honest — 순순히 인정하거나 설명했다.
+    private static readonly Dictionary<string, int> _explained = new();
+
+    public static int Shaken(string employeeId) => _shaken.GetValueOrDefault(employeeId, 0);
+    public static int Explained(string employeeId) => _explained.GetValueOrDefault(employeeId, 0);
+
+    // neutral 은 아무 표식도 남기지 않는다 — 추궁이 성립하지 않아 되물은 것뿐이다.
+    public static void Note(string employeeId, string variant)
+    {
+        if (string.IsNullOrEmpty(employeeId)) return;
+        switch (variant)
+        {
+            case "evasive":
+            case "deny":
+                _shaken[employeeId] = Shaken(employeeId) + 1;
+                break;
+            case "honest":
+                _explained[employeeId] = Explained(employeeId) + 1;
+                break;
+        }
+    }
+
+    public static void Clear()
+    {
+        _shaken.Clear();
+        _explained.Clear();
+    }
+}
 
 // 왼쪽 CRT — 휴게시간. 휴게실(BREAK ROOM)을 위에서 내려다본 2D 도식 화면이다.
 // 직원은 동물 얼굴 아이콘(EmployeeDef.FacePortrait)으로 크게 표시되고, 클릭하면
@@ -39,6 +83,7 @@ public partial class RestRosterView : Control
     public override void _Ready()
     {
         Instance = this;
+        InterviewSession.Confronted += OnConfronted;
         _font = ViewFont.Default;
         SetAnchorsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Stop;
@@ -95,7 +140,16 @@ public partial class RestRosterView : Control
 
     public override void _ExitTree()
     {
+        InterviewSession.Confronted -= OnConfronted;
         if (Instance == this) Instance = null;
+    }
+
+    // 추궁했다 — 그 직원 아이콘 옆 횟수를 하나 올린다. 그뿐이다(ConfrontMarks 주석 참조).
+    private void OnConfronted(string employeeId, ConfrontKind kind, string variant)
+    {
+        if (kind == ConfrontKind.None) return;
+        ConfrontMarks.Note(employeeId, variant);
+        _map?.Refresh();
     }
 
     // DAY0 교육 중에는 다음 날로 넘어가지 못하게 잠근다(TutorialDirector 가 제어).
@@ -417,6 +471,32 @@ public partial class RestRosterView : Control
                 else if (st is { Isolated: true })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[격리]",
                         HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.88f, 0.52f, 0.9f));
+
+                DrawConfrontMarks(d);
+            }
+
+            // 오늘 이 직원을 몇 번 흔들었고 몇 번 해명을 들었는가 — 코드네임 아래 한 줄씩.
+            // 색은 두 가지뿐이다. 붉은 점이 많다고 범인인 것은 아니고, 화면도 그렇게 말하지 않는다.
+            private void DrawConfrontMarks(float d)
+            {
+                float y = d + 30f;
+                y = MarkLine(y, d, ConfrontMarks.Shaken(EmployeeId), "진술 흔들림",
+                    new Color(0.93f, 0.33f, 0.31f));
+                MarkLine(y, d, ConfrontMarks.Explained(EmployeeId), "해명",
+                    new Color(0.62f, 0.66f, 0.70f));
+            }
+
+            private float MarkLine(float y, float d, int count, string text, Color col)
+            {
+                if (count <= 0) return y;
+                var f = ViewFont.Default;
+                int fs = ViewFont.S(12);
+                string label = $"{text} ×{count}";
+                float w = f.GetStringSize(label, HorizontalAlignment.Left, -1f, fs).X;
+                float left = d * 0.5f - (w + 12f) * 0.5f;
+                DrawCircle(new Vector2(left + 4f, y - fs * 0.32f), 3.4f, col);
+                DrawString(f, new Vector2(left + 12f, y), label, HorizontalAlignment.Left, -1f, fs, col);
+                return y + fs + 2f;
             }
         }
     }
