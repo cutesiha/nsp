@@ -169,7 +169,7 @@ public static class InterviewEvidenceBoard
 
     // 화면 줄에는 RoomId 가 직접 실려 있지 않다. EventLog 에서 같은 시각·같은 종류의
     // 사건을 찾아 방만 가져온다(문장은 화면에 뜬 것을 그대로 쓴다).
-    private static string IncidentRoomOf(DisplayLogEntry r)
+    public static string IncidentRoomOf(DisplayLogEntry r)
     {
         var e = EventLog.Instance?.GetAllEntries()
             .FirstOrDefault(x => x.EventType == r.SourceEventType

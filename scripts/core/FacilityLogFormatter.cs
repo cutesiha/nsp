@@ -73,6 +73,9 @@ public static class FacilityLogFormatter
                 Severity = DisplayLogSeverity.Normal,
                 RelatedEmployeeId = id,
                 SourceEventType = LogEventType.Relocation,
+                // 띠 시간표가 "오늘 어디서 시작했는가"를 문장 해석 없이 알 수 있게 한다.
+                // 이 방 이름은 위 Text 에 이미 떠 있다 — 새로 새는 정보가 아니다.
+                ToRoomId = roomId,
             });
 
         rows.AddRange(body);

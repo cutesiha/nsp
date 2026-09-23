@@ -5,6 +5,7 @@ using NSP.Core;
 using NSP.Data;
 using NSP.Dialogue;
 using NSP.Facility;
+using NSP.View;
 
 namespace NSP.Debug;
 
@@ -60,6 +61,8 @@ public partial class RestEvidenceTest : Node
         TestNewK();
         TestNewL();
         TestNewM();
+        // 심문 리워크 2차(§5-14) — 띠 시간표.
+        TestNewN();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
 
@@ -689,6 +692,90 @@ public partial class RestEvidenceTest : Node
         GD.Print($"   Asked {fired}회 · 대상 {who}");
         Check(fired >= 1, "질문할 때마다 Asked 가 발신된다");
         Check(who == "rabbit", "발신에 심문 대상 직원이 실린다");
+    }
+
+    // ── 신규 N : 띠 시간표 구간 계산 (§5-14) ──────────────────────────────
+    //
+    // 여우가 22:00 정비실에 배치되고 23:10 저장고로 옮기면, 여우의 띠는
+    // [22:00, 23:10) 정비실 · [23:10, 04:00) 저장고 두 구간이어야 한다.
+    // 23:47 방해공작은 그 시각에 세로선이 되고, 경고 줄은 띠에 나타나지 않는다.
+    //
+    // 부르는 것은 StaffTimelineView 의 static 함수뿐이다 — 화면 없이 확인하기 위해서다.
+    // 넘기는 자료도 FacilityLogFormatter.Build() 결과뿐이다. EventLog 원본을 넘기면
+    // 플레이어가 보지 못한 이동이 띠에 서게 되고, 그 순간 이 검사는 의미가 없어진다.
+    private void TestNewN()
+    {
+        Head("신규 N", "띠 시간표 — 구간 계산과 사고 세로선 (§5-14)");
+        Reset();
+
+        var rooms = new Dictionary<string, string>
+        {
+            ["fox"] = Maintenance, ["cat"] = Storage, ["dog"] = Guard,
+            ["wolf"] = Core, ["rabbit"] = Power, ["sheep"] = Medical,
+        };
+        var sim = FacilitySimulation.Instance;
+        foreach (var kv in rooms)
+        {
+            var st = sim.GetEmployeeState(kv.Key);
+            if (st == null) continue;
+            st.AssignedRoomId = kv.Value;
+            st.CurrentRoomId = kv.Value;
+            st.Alive = true;
+            st.Isolated = false;
+        }
+        foreach (var kv in rooms) Log(LogEventType.TaskStart, kv.Key, kv.Value, 1f);
+
+        Move("fox", Maintenance, Storage, At(70));             // 23:10 이동
+        Incident(LogEventType.CctvDisconnect, Core, At(90));   // 23:30 경고 — 띠에 뜨면 안 된다
+        Log(LogEventType.Sabotage, "fox", Maintenance, At(107)); // 23:47 방해공작
+
+        var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);
+        float len = Mathf.Max(1f, Config.Instance?.Data?.DayLengthSeconds ?? 120f);
+        var bands = StaffTimelineView.BuildSegments(rooms.Keys, rows, len);
+
+        // --- 여우: 두 구간 ---
+        var fox = bands.GetValueOrDefault("fox");
+        if (!Check(fox != null && fox.Count == 2, $"여우 띠가 두 구간이다 (실제 {fox?.Count ?? 0})"))
+        {
+            foreach (var g in fox ?? new List<StaffTimelineView.Segment>())
+                GD.Print($"   구간: {RoomNameOf(g.RoomId)} {g.Start:0.0}~{g.End:0.0}");
+            return;
+        }
+        GD.Print($"   구간1: {RoomNameOf(fox[0].RoomId)} {fox[0].Start:0.0}~{fox[0].End:0.0}");
+        GD.Print($"   구간2: {RoomNameOf(fox[1].RoomId)} {fox[1].Start:0.0}~{fox[1].End:0.0}");
+        Check(fox[0].RoomId == Maintenance, "첫 구간은 배치받은 정비실이다");
+        Check(Mathf.IsZeroApprox(fox[0].Start), "첫 구간은 근무 시작(22:00)에서 열린다");
+        Check(Mathf.Abs(fox[0].End - At(70)) < 0.5f, "첫 구간은 이동 시각(23:10)에 닫힌다");
+        Check(fox[1].RoomId == Storage, "둘째 구간은 옮겨 간 저장고다");
+        Check(Mathf.Abs(fox[1].Start - At(70)) < 0.5f, "둘째 구간은 이동 시각에 열린다");
+        Check(Mathf.Abs(fox[1].End - len) < 0.5f, "둘째 구간은 근무 끝(04:00)까지 이어진다");
+
+        // --- 움직이지 않은 직원: 한 구간이 하루를 덮는다 ---
+        var cat = bands.GetValueOrDefault("cat");
+        Check(cat != null && cat.Count == 1 && cat[0].RoomId == Storage
+              && Mathf.IsZeroApprox(cat[0].Start) && Mathf.Abs(cat[0].End - len) < 0.5f,
+            "이동이 없던 직원은 배치받은 방 한 구간뿐이다");
+
+        // --- 사고 세로선 ---
+        var lines = StaffTimelineView.IncidentRowIndices(rows);
+        foreach (int i in lines)
+            GD.Print($"   세로선: {rows[i].Severity} {rows[i].Timestamp:0.0} {rows[i].Text}");
+        if (Check(lines.Count == 1, $"세로선은 사고 하나뿐이다 (실제 {lines.Count})"))
+        {
+            var line = rows[lines[0]];
+            Check(line.Severity == DisplayLogSeverity.Sabotage, "그 줄은 방해공작이다");
+            Check(Mathf.Abs(line.Timestamp - At(107)) < 0.5f, "23:47 그 시각에 선다");
+        }
+        Check(rows.Any(r => r.Severity == DisplayLogSeverity.Warning),
+            "경고 줄은 로그 목록에는 남아 있다");
+        Check(!lines.Any(i => rows[i].Severity == DisplayLogSeverity.Warning),
+            "경고 줄은 띠에 나타나지 않는다");
+
+        // --- 띠는 화면에 뜬 줄만 본다 ---
+        // 구간을 만드는 근거는 "도착한 방이 적힌 줄"이다. 여우에게 그런 줄은
+        // 최초 배치 한 줄과 23:10 이동 한 줄, 화면에 실제로 뜬 둘뿐이어야 한다.
+        Check(rows.Count(r => r.RelatedEmployeeId == "fox" && !string.IsNullOrEmpty(r.ToRoomId)) == 2,
+            "여우의 방 이동 줄은 시설 로그 화면에 뜬 두 줄뿐이다");
     }
 
     // 목격 증언에 실리는 행동 — SaboteurPlan.TickPrecursors 가 남기는 문구 그대로.
