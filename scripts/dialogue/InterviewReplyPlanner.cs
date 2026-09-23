@@ -69,8 +69,13 @@ public static class InterviewReplyPlanner
             variant = "honest";
             if (ctx.IsSaboteur && !claim.ClaimTruthful)
                 variant = ctx.EvidenceAgainstCount >= 2 || plan.Deception == DeceptionMode.Deny ? "deny" : "evasive";
-            // 행동 추궁에서 결번자가 "설비 근처에 가지 않았다"고 이미 주장했다면 정면 부정으로 간다.
-            // 그 주장(DeniesEquipmentContact)은 2차 작업(§4 13~16)에서 붙는다.
+
+            // 행동 추궁 — 이미 "설비 근처에 가지 않았다"고 못 박아 둔 사건이라면 물러설 수 없다.
+            // 여기서 흐리면 방금 한 주장을 스스로 접는 셈이고, 알리바이 일관성이 깨진다.
+            // 결번자는 위치에 대해서는 거짓말하지 않으므로(제자리 범행) ClaimTruthful 이 참일 때가
+            // 많다 — 그 경우 위 조건만으로는 영영 honest 가 나온다. 이 한 줄이 §3-2 의 요점이다.
+            if (result.Kind == ConfrontKind.Behavior && ctx.IsSaboteur && claim.DeniesEquipmentContact)
+                variant = "deny";
         }
 
         var frame = new ReplyFrame { EmployeeId = employeeId, Topic = ReplyTopic.Confront, Variant = variant };
@@ -326,6 +331,11 @@ public static class InterviewReplyPlanner
             var mem = ShiftMemory.Recall(req);
             f.Addenda.AddRange(mem.Addenda);
         }
+
+        // 결번자의 "설비 쪽엔 손도 안 댔다" — 자기 위치 · 그 방에 있던 이유 · 거기서 한 일을
+        // 답할 때만 붙는다(KoreanDialogueComposer 와 같은 규칙). 결백한 직원은 오지 않는다.
+        KoreanDialogueComposer.ApplyEquipmentDenial(f, ctx,
+            f.Topic is ReplyTopic.PresenceReason or ReplyTopic.ActionThere);
         return f;
     }
 

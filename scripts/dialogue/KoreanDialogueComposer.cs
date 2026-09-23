@@ -48,6 +48,7 @@ public static class KoreanDialogueComposer
             case UtteranceShape.CoreBackQuestion: f.BackSlot = up.BackQuestionSlot; break;
         }
         f.Caveats.AddRange(up.CaveatSlots);
+        ApplyEquipmentDenial(f, ctx, plan.Core is CoreKind.SelfLocation);
 
         if (memory != null)
         {
@@ -57,6 +58,31 @@ public static class KoreanDialogueComposer
         }
         return f;
     }
+
+    // 결번자가 "설비 근처에는 가지 않았다"고 못 박은 사건이면, 그 답변 뒤에 한 줄을 붙인다.
+    //
+    // 붙는 자리는 Caveats 다 — 문장 수 상한에 걸려 빠지면 안 되기 때문이다. 이 한 줄은
+    // 꾸밈이 아니라 **주장**이고, 나가는 순간 조사 자료의 진술 카드가 된다(§3-2).
+    // 그래서 여기서 바로 기록한다.
+    //
+    // 붙는 답변은 셋뿐이다 — 자기 위치(SelfLocation) · 그 방에 있던 이유(PresenceReason) ·
+    // 거기서 한 일(ActionAtDestination). 그 밖의 질문에 끼워 넣으면 묻지도 않은 변명이 된다.
+    // 결백한 직원은 애초에 DeniesEquipmentContact 가 false 라 이 자리에 오지 않는다.
+    public static void ApplyEquipmentDenial(ReplyFrame f, DialogueContext ctx, bool topicFits)
+    {
+        if (f == null || ctx == null || !topicFits || string.IsNullOrEmpty(ctx.ClaimKey)) return;
+        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
+        if (!claim.DeniesEquipmentContact) return;
+        if (f.Caveats.Contains(EquipmentDenialSlot)) return;
+
+        f.Caveats.Add(EquipmentDenialSlot);
+        PlayerKnownEvidence.RecordBehaviorClaim(ctx.EmployeeId, ctx.ClaimKey, EquipmentDenialText,
+            ctx.HasSubjectTime ? ctx.SubjectTime : -1f);
+    }
+
+    public const string EquipmentDenialSlot = "Denial.equipment";
+    // 카드에 남는 주장 문구. 표현(슬롯 문장)은 캐릭터마다 달라도 주장은 하나다.
+    public const string EquipmentDenialText = "설비 근처에 가지 않았다";
 
     // --- 슬롯 결정 ------------------------------------------------------
 

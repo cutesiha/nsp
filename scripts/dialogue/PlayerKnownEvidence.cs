@@ -33,6 +33,20 @@ public static class PlayerKnownEvidence
         public bool HasTime;
     }
 
+    // 어떤 직원이 "그때 나는 이런 행동은 하지 않았다"고 말한 내용.
+    //
+    // 지금은 결번자의 "설비 근처에 가지 않았다" 하나뿐이다. 위치 진술과 따로 두는 이유는
+    // 이것이 **행동**에 대한 주장이라 동료의 목격 증언과 맞대어지기 때문이다(행동 추궁).
+    public sealed class BehaviorClaim
+    {
+        public int Day = 1;
+        public string SpeakerId = "";
+        public string IncidentKey = "";
+        public string Text = "";
+        public float AnchorTime;
+        public bool HasTime;
+    }
+
     // 어떤 직원이 "그 사람을 여기서 봤다"고 말한 내용.
     public sealed class SightingStatement
     {
@@ -72,6 +86,7 @@ public static class PlayerKnownEvidence
 
     private static readonly List<LocationStatement> _locations = new();
     private static readonly List<SightingStatement> _sightings = new();
+    private static readonly List<BehaviorClaim> _behaviors = new();
     private static readonly List<CctvObservation> _cctv = new();
     // 플레이어가 손으로 찍어 둔 「중요」 표시. 게임이 판정하지 않는다 — 순전히 메모다.
     private static readonly HashSet<string> _starred = new();
@@ -114,6 +129,34 @@ public static class PlayerKnownEvidence
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
         });
     }
+
+    // 직원이 관리자에게 "그런 행동은 하지 않았다"고 말한 것을 남긴다.
+    //
+    // 이 클래스의 규칙 그대로 — **플레이어가 실제로 들은 말만** 들어온다. 그래서 호출부는
+    // 그 문장이 실제로 답변에 실려 나갈 때 한 번만 부른다. 같은 사건에 대해 두 번 말해도
+    // 자료는 한 장이다(진술이 늘어나는 것이 아니라 같은 주장을 반복한 것이므로).
+    public static void RecordBehaviorClaim(string speakerId, string incidentKey, string text,
+        float anchorTime = -1f)
+    {
+        if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(text)) return;
+        var found = _behaviors.FirstOrDefault(x => x.Day == Today
+            && x.SpeakerId == speakerId && x.IncidentKey == (incidentKey ?? "") && x.Text == text);
+        if (found != null)
+        {
+            if (anchorTime >= 0f) { found.AnchorTime = anchorTime; found.HasTime = true; }
+            return;
+        }
+        _behaviors.Add(new BehaviorClaim
+        {
+            Day = Today,
+            SpeakerId = speakerId, IncidentKey = incidentKey ?? "", Text = text,
+            AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
+        });
+    }
+
+    // 이 직원이 관리자에게 한 행동 주장 전부.
+    public static IReadOnlyList<BehaviorClaim> BehaviorClaimsBy(string employeeId) =>
+        _behaviors.Where(x => x.Day == Today && x.SpeakerId == employeeId).ToList();
 
     // CCTV 시청 기록. FacilitySimulation 이 3초 연속 시청마다 한 번씩 호출한다.
     public static void RecordCctvObservation(string roomId, float time, IEnumerable<string> occupants,
@@ -246,6 +289,7 @@ public static class PlayerKnownEvidence
     {
         _locations.Clear();
         _sightings.Clear();
+        _behaviors.Clear();
         _cctv.Clear();
         _starred.Clear();
     }

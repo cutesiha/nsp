@@ -27,6 +27,7 @@ public static class DialogueResponsePlanner
         var mode = ctx.IsSaboteur ? DecideMode(ctx, claim, profile) : DeceptionMode.None;
         plan.Deception = mode;
         if (ctx.IsSaboteur) EnsureClaimedRoom(ctx, claim, mode);
+        EnsureEquipmentDenial(ctx, claim, mode);
 
         // 꼬리질문은 기본 질문과 같은 사건을 기준으로, 이미 한 주장과 어긋나지 않게 답한다.
         if (ctx.QuestionId.StartsWith(DialogueQuestions.FollowUpPrefix, System.StringComparison.Ordinal))
@@ -502,6 +503,27 @@ public static class DialogueResponsePlanner
 
         claim.ClaimedRoomId = hides && cover != real ? cover : real;
         claim.ClaimTruthful = claim.ClaimedRoomId == real;
+    }
+
+    // 결번자가 이 사건에 대해 "설비 근처에는 가지 않았다"고 못 박을 것인가(§3-2).
+    //
+    // 이 게임에서 결번자가 대는 **유일하게 반박 가능한 거짓말**이다. 위치는 거짓말하지
+    // 않으므로(제자리 범행) 잡을 거리가 없었는데, 이 주장 하나가 동료의 목격 증언과
+    // 정면으로 부딪친다. 그래서 알리바이와 똑같이 한 번만 정하고 끝까지 밀고 간다 —
+    // 물을 때마다 말이 달라지면 맞대어 볼 수가 없다.
+    //
+    // 흐리는 전략(Omit/Vague/Deny)일 때만 나온다. Minimize/Justify 는 "했지만 별일 아니다"
+    // 쪽이라 접촉 자체를 부인하면 앞뒤가 맞지 않는다. 결백한 직원은 아예 이 자리에 오지 않는다.
+    private static void EnsureEquipmentDenial(DialogueContext ctx, DialogueClaim claim, DeceptionMode mode)
+    {
+        if (claim.EquipmentDenialDecided) return;
+        // 아직 사건이 정해지지 않은 대화(일반 통화 등)에서는 결정하지 않는다 —
+        // 사건별로 하나씩 정해지는 주장이기 때문이다.
+        if (string.IsNullOrEmpty(ctx.ClaimKey)) return;
+
+        claim.EquipmentDenialDecided = true;
+        claim.DeniesEquipmentContact = ctx.IsSaboteur && ctx.IsSubjectActor
+            && mode is DeceptionMode.Omit or DeceptionMode.Vague or DeceptionMode.Deny;
     }
 
     // 주장한 위치에서 그 사건을 어디까지 알 수 있는가 — 거짓말도 앞뒤가 맞아야 한다.
