@@ -32,6 +32,7 @@ public static class InterviewEvidenceBoard
         AddCctv(list, targetEmployeeId);
         AddTestimonies(list, targetEmployeeId);
         AddOwnStatements(list, targetEmployeeId);
+        AddBehaviorClaims(list, targetEmployeeId);
 
         foreach (var e in list) e.Day = day;
         return Sort(list);
@@ -262,6 +263,44 @@ public static class InterviewEvidenceBoard
                 IncidentKey = st.IncidentKey,
             });
         }
+    }
+
+    // --- 이 직원이 "하지 않았다"고 말한 행동 -------------------------------
+    //
+    // 위치 진술과 따로 카드가 된다. 이 카드가 동료의 목격 증언과 짝이 되면 행동 추궁이
+    // 성립한다 — 결번자에게서 잡을 수 있는 유일한 거짓말이 여기서 자료가 된다(§3-2).
+    private static void AddBehaviorClaims(List<InterviewEvidence> list, string target)
+    {
+        int n = 0;
+        foreach (var b in PlayerKnownEvidence.BehaviorClaimsBy(target))
+        {
+            n++;
+            list.Add(new InterviewEvidence
+            {
+                Id = $"deny:{target}:{n}:{b.IncidentKey}",
+                Kind = EvidenceKind.OwnStatement,
+                Header = Codename(target) + "의 진술",
+                TimeText = b.HasTime ? DialogueClock.Text(b.AnchorTime) : "",
+                Body = $"본인 · {b.Text}",
+                SubjectEmployeeId = target,
+                SpeakerEmployeeId = target,
+                AnchorTime = b.AnchorTime,
+                HasTime = b.HasTime,
+                // 위치를 말하는 진술이 아니다 — 위치 추궁의 근거로 쓰이면 안 된다.
+                Position = PositionClaim.None,
+                SubjectRoomId = IncidentRoomOfKey(b.IncidentKey),
+                IncidentKey = b.IncidentKey,
+                BehaviorDetail = b.Text,
+            });
+        }
+    }
+
+    // 주장 키(EventType:Room:Time)에서 방만 꺼낸다. 행동 추궁이 "같은 방"을 보기 때문이다.
+    private static string IncidentRoomOfKey(string incidentKey)
+    {
+        if (string.IsNullOrEmpty(incidentKey)) return "";
+        var parts = incidentKey.Split(':');
+        return parts.Length >= 2 ? parts[1] : "";
     }
 
     // --- 공통 -----------------------------------------------------------
