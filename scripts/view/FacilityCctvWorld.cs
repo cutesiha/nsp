@@ -86,6 +86,16 @@ public partial class FacilityCctvWorld : Node3D
     private bool _hauntActive;
     private readonly List<(Light3D light, float energy)> _dimmedLights = new();
 
+    // ── 괴물(GhostHauntSystem) 표현 ────────────────────────────────────
+    // 판정은 전부 시뮬레이션이 한다. 여기서는 "그 방을 보고 있을 때 무엇이 보이는가"만 만든다.
+    private bool _ghostWired;
+    private bool _ghostShowing;
+    private Vector3 _ghostWander;        // 지금 걸어가고 있는 목표 지점
+    private float _ghostRepathIn;
+    private float _ghostBob;
+    private bool _ghostVanishing;        // 소멸 연출 중 — 이 동안에는 위치를 건드리지 않는다
+    private CpuParticles3D _ghostDust;
+
     public override void _Ready()
     {
         Instance = this;
@@ -113,6 +123,13 @@ public partial class FacilityCctvWorld : Node3D
     {
         if (_horrorWired && HorrorDirector.Instance != null)
             HorrorDirector.Instance.Level3Started -= OnHorrorLevel3;
+        var ghost = FacilitySimulation.Instance?.Ghost;
+        if (_ghostWired && ghost != null)
+        {
+            ghost.Screamed -= OnGhostScreamed;
+            ghost.Dispelled -= OnGhostDispelled;
+            ghost.Struck -= OnGhostStruck;
+        }
         if (Instance == this) Instance = null;
     }
 
@@ -197,7 +214,9 @@ public partial class FacilityCctvWorld : Node3D
         else
         {
             UpdateEmployees(sim, target);
-            if (!_hauntActive) UpdateEntity(target);
+            WireGhost(sim);
+            if (!_hauntActive) UpdateGhost(sim, target, (float)delta);
+            if (!_hauntActive && !_ghostShowing && !_ghostVanishing) UpdateEntity(target);
         }
 
         // 카메라 흔들림(카메라 공격 연출).
@@ -444,6 +463,179 @@ public partial class FacilityCctvWorld : Node3D
         }
         if (_entity.Visible && !string.IsNullOrEmpty(target) && _rooms.ContainsKey(target))
             _entity.Position = new Vector3(-2.0f, EntityFloorOriginY, -2.0f);
+    }
+
+    // ── 괴물 ───────────────────────────────────────────────────────────
+
+    private void WireGhost(FacilitySimulation sim)
+    {
+        if (_ghostWired || sim?.Ghost == null) return;
+        sim.Ghost.Screamed += OnGhostScreamed;
+        sim.Ghost.Dispelled += OnGhostDispelled;
+        sim.Ghost.Struck += OnGhostStruck;
+        _ghostWired = true;
+    }
+
+    // 지금 보고 있는 방에 괴물이 있으면 보인다. 다른 방을 보고 있으면 아무것도 없다 —
+    // 그래서 관리자가 직접 돌려 봐야 한다.
+    private void UpdateGhost(FacilitySimulation sim, string target, float delta)
+    {
+        if (_ghostVanishing) return;
+        var ghost = sim?.Ghost;
+        bool here = ghost is { Active: true } && ghost.ActiveRoomId == target && _rooms.ContainsKey(target);
+
+        if (!here)
+        {
+            if (!_ghostShowing) return;
+            _ghostShowing = false;
+            if (_entity != null) _entity.Visible = false;
+            RestoreRoomLights();
+            return;
+        }
+
+        if (!_ghostShowing)
+        {
+            _ghostShowing = true;
+            if (_entity == null) return;
+            _entity.Visible = true;
+            _entity.Scale = Vector3.One * EntityScale;
+            _entity.RotationDegrees = Vector3.Zero;
+            _entity.Position = new Vector3(-1.9f, EntityFloorOriginY, -1.9f);
+            _ghostWander = NextWanderPoint();
+            _ghostRepathIn = 0f;
+            // 그 방만 어두워진다 — 화면을 돌리다 "여기만 이상하다"가 먼저 눈에 들어와야 한다.
+            DimRoomLights(target, 0.45f);
+        }
+        if (_entity == null) return;
+
+        // 어슬렁거림 — 느리게 목표 지점으로 걸어가고, 닿으면 다음 지점을 고른다.
+        _ghostRepathIn -= delta;
+        Vector3 pos = _entity.Position;
+        Vector3 flat = new(_ghostWander.X - pos.X, 0f, _ghostWander.Z - pos.Z);
+        if (flat.Length() < 0.18f || _ghostRepathIn <= 0f)
+        {
+            _ghostWander = NextWanderPoint();
+            _ghostRepathIn = 4.5f;
+        }
+        else
+        {
+            Vector3 step = flat.Normalized() * Mathf.Min(delta * 0.55f, flat.Length());
+            pos += step;
+            // 가는 쪽을 본다. 가만히 미끄러지지 않게 상체를 조금 흔든다.
+            _entity.LookAt(_entity.GlobalPosition + flat.Normalized(), Vector3.Up);
+        }
+        _ghostBob += delta * 2.4f;
+        pos.Y = EntityFloorOriginY + Mathf.Sin(_ghostBob) * 0.035f;
+        _entity.Position = pos;
+        _entity.RotationDegrees = new Vector3(0f, _entity.RotationDegrees.Y,
+            Mathf.Sin(_ghostBob * 0.7f) * 2.6f);
+    }
+
+    private Vector3 NextWanderPoint()
+    {
+        // 방 바닥 대략적인 범위. 카메라 쪽(양수)으로 너무 나오면 화면을 가린다.
+        return new Vector3(
+            (float)GD.RandRange(-2.5, 0.4),
+            EntityFloorOriginY,
+            (float)GD.RandRange(-2.5, 0.4));
+    }
+
+    // 비명 — 보고 있는 화면이면 카메라 쪽으로 한 번 확 튀어오른다.
+    private void OnGhostScreamed(string roomId)
+    {
+        if (!_ghostShowing || _entity == null || roomId != _shownRoom) return;
+        HauntLunge();
+        ShakeCamera(5.5f, 0.4f);
+        var t = CreateTween();
+        t.TweenProperty(_entity, "scale", Vector3.One * EntityScale * 1.22f, 0.07);
+        t.TweenProperty(_entity, "scale", Vector3.One * EntityScale, 0.22);
+    }
+
+    // 관리자가 끝까지 지켜봤다 — 머리를 감싸 쥐듯 몸이 접히고 가루처럼 흩어진다.
+    private async void OnGhostDispelled(string roomId)
+    {
+        if (!_ghostShowing || _entity == null) { RestoreRoomLights(); return; }
+        _ghostVanishing = true;
+        _ghostShowing = false;
+
+        // ① 괴로워한다 — 몸이 웅크러들며 잘게 떨린다.
+        var writhe = CreateTween();
+        for (int i = 0; i < 10; i++)
+            writhe.TweenProperty(_entity, "rotation_degrees:z", i % 2 == 0 ? -13f : 13f, 0.05);
+        var fold = CreateTween();
+        fold.TweenProperty(_entity, "scale",
+            new Vector3(EntityScale * 1.14f, EntityScale * 0.78f, EntityScale * 1.14f), 0.5)
+            .SetTrans(Tween.TransitionType.Sine);
+        await ToSignal(GetTree().CreateTimer(0.52), SceneTreeTimer.SignalName.Timeout);
+        // 기다리는 사이에 씬이 바뀌었을 수 있다(근무 종료 · 다음 날).
+        if (!IsInstanceValid(this) || !IsInstanceValid(_entity)) { _ghostVanishing = false; return; }
+
+        // ② 파스스 — 가루가 되어 올라가며 사라진다.
+        SpawnGhostDust(_entity.Position);
+        var gone = CreateTween();
+        gone.SetParallel(true);
+        gone.TweenProperty(_entity, "scale", new Vector3(0.05f, EntityScale * 1.5f, 0.05f), 0.45)
+            .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.In);
+        gone.TweenProperty(_entity, "position:y", EntityFloorOriginY + 0.9f, 0.45);
+        await ToSignal(GetTree().CreateTimer(0.5), SceneTreeTimer.SignalName.Timeout);
+        if (!IsInstanceValid(this)) return;
+
+        if (IsInstanceValid(_entity))
+        {
+            _entity.Visible = false;
+            _entity.Scale = Vector3.One * EntityScale;
+            _entity.RotationDegrees = Vector3.Zero;
+        }
+        RestoreRoomLights();
+        _ghostVanishing = false;
+    }
+
+    // 끝내 못 찾았다 — 화면 밖에서 벌어진 일이므로 조용히 사라지고 방 조명만 돌아온다.
+    private void OnGhostStruck(string roomId)
+    {
+        _ghostShowing = false;
+        if (_entity != null) _entity.Visible = false;
+        RestoreRoomLights();
+    }
+
+    private void SpawnGhostDust(Vector3 at)
+    {
+        _ghostDust ??= BuildGhostDust();
+        if (_ghostDust == null) return;
+        _ghostDust.Position = at + new Vector3(0f, 0.4f, 0f);
+        _ghostDust.Emitting = false;
+        _ghostDust.Restart();
+        _ghostDust.Emitting = true;
+    }
+
+    private CpuParticles3D BuildGhostDust()
+    {
+        var p = new CpuParticles3D
+        {
+            Amount = 46,
+            Lifetime = 1.15,
+            OneShot = true,
+            Explosiveness = 0.72f,
+            Emitting = false,
+            Mesh = new QuadMesh { Size = new Vector2(0.06f, 0.06f) },
+            Direction = Vector3.Up,
+            Spread = 34f,
+            Gravity = new Vector3(0f, -0.35f, 0f),
+            InitialVelocityMin = 0.5f,
+            InitialVelocityMax = 1.5f,
+            ScaleAmountMin = 0.5f,
+            ScaleAmountMax = 1.4f,
+        };
+        p.MaterialOverride = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
+            AlbedoColor = new Color(0.82f, 0.80f, 0.80f, 0.85f),
+            VertexColorUseAsAlbedo = true,
+        };
+        AddChild(p);
+        return p;
     }
 
     private void WireHorror()

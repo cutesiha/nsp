@@ -33,6 +33,15 @@ public partial class CCTVMonitorView : Control
     private Label _clock;
     private CctvOverheardCaption _overheard;
     private TextureRect _noise;
+
+    // ── 괴물 ───────────────────────────────────────────────────────────
+    // 비명 자막과 "얼마나 더 봐야 사라지는가" 게이지. 둘 다 **지금 보고 있는 방**에만 뜬다 —
+    // 다른 방에 있는 괴물은 이 화면 어디에도 나타나지 않는다.
+    private Label _screamLabel;
+    private float _screamLeft;
+    private ColorRect _dispelBack, _dispelFill;
+    private Label _dispelLabel;
+    private bool _ghostWired;
     private ImageTexture[] _noiseFrames;
     private float _noiseSwap;
     private int _noiseIdx;
@@ -121,10 +130,105 @@ public partial class CCTVMonitorView : Control
         _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);
+
+        BuildGhostOverlay();
+    }
+
+    // 괴물이 지르는 비명과 소멸 게이지.
+    private void BuildGhostOverlay()
+    {
+        _screamLabel = Lbl("크와아아악!!!!!!!!!", 54, new Color(1f, 0.20f, 0.18f));
+        _screamLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + 120f);
+        _screamLabel.Size = new Vector2(Frame.Size.X, 80f);
+        _screamLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _screamLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
+        _screamLabel.AddThemeConstantOverride("outline_size", 10);
+        _screamLabel.Visible = false;
+        AddChild(_screamLabel);
+
+        // 게이지는 화면 아래쪽 — 방 안을 가리지 않는 자리에 둔다.
+        float gy = Frame.Position.Y + Frame.Size.Y - 44f;
+        _dispelBack = new ColorRect
+        {
+            Color = new Color(0f, 0f, 0f, 0.55f),
+            Position = new Vector2(Frame.Position.X + 150f, gy),
+            Size = new Vector2(Frame.Size.X - 300f, 14f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        AddChild(_dispelBack);
+        _dispelFill = new ColorRect
+        {
+            Color = new Color(0.62f, 0.95f, 0.78f, 0.92f),
+            Position = _dispelBack.Position + new Vector2(2f, 2f),
+            Size = new Vector2(0f, 10f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        AddChild(_dispelFill);
+        _dispelLabel = Lbl("관측 유지 — 시선을 떼지 마십시오", 15, new Color(0.72f, 0.96f, 0.84f));
+        _dispelLabel.Position = new Vector2(Frame.Position.X, gy - 26f);
+        _dispelLabel.Size = new Vector2(Frame.Size.X, 22f);
+        _dispelLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _dispelLabel.Visible = false;
+        AddChild(_dispelLabel);
+    }
+
+    // 지금 보고 있는 방에 괴물이 있는 동안에만 게이지가 차오른다.
+    private void TickGhostOverlay(float d, FacilitySimulation sim, string roomId, bool feed)
+    {
+        var ghost = sim?.Ghost;
+        if (ghost != null && !_ghostWired)
+        {
+            ghost.Screamed += OnGhostScream;
+            _ghostWired = true;
+        }
+
+        if (_screamLeft > 0f)
+        {
+            _screamLeft -= d;
+            // 글자가 떨린다 — 읽을 수 없을 정도는 아니다.
+            _screamLabel.Position = new Vector2(
+                Frame.Position.X + _rng.RandfRange(-5f, 5f),
+                Frame.Position.Y + 120f + _rng.RandfRange(-4f, 4f));
+            if (_screamLeft <= 0f) _screamLabel.Visible = false;
+        }
+
+        bool show = feed && ghost is { Active: true } && ghost.ActiveRoomId == roomId;
+        if (_dispelBack.Visible != show)
+        {
+            _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = show;
+            if (!show && _screamLabel != null) { _screamLabel.Visible = false; _screamLeft = 0f; }
+        }
+        if (!show) return;
+
+        float w = (_dispelBack.Size.X - 4f) * ghost.DispelRatio;
+        _dispelFill.Size = new Vector2(w, 10f);
+        _dispelLabel.Text = ghost.DispelRatio >= 0.999f
+            ? "관측 완료"
+            : $"관측 유지 — 시선을 떼지 마십시오  ({ghost.DispelRatio * 100f:0}%)";
+    }
+
+    private void OnGhostScream(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null || sim.SurveillanceTargetRoomId != roomId) return;
+        _screamLabel.Visible = true;
+        _screamLeft = 1.15f;
+        Shake(6f, 0.5f);
+        FlashGlitch(0.9f);
+        Sfx.Instance?.Play("alert_beep3", 2f);
     }
 
     public override void _ExitTree()
     {
+        // 괴물 시스템은 시뮬레이션(오토로드)과 함께 살아 있다 — 이 화면이 사라질 때
+        // 손을 떼지 않으면 해제된 노드로 신호가 들어온다.
+        if (_ghostWired && FacilitySimulation.Instance?.Ghost != null)
+        {
+            FacilitySimulation.Instance.Ghost.Screamed -= OnGhostScream;
+            _ghostWired = false;
+        }
         if (Instance == this) Instance = null;
     }
 
@@ -150,6 +254,7 @@ public partial class CCTVMonitorView : Control
         var sim = FacilitySimulation.Instance;
         string roomId = sim?.SurveillanceTargetRoomId ?? "";
         bool feed = UpdateFeed(d, sim, roomId);
+        TickGhostOverlay(d, sim, roomId, feed);
         // 엿들은 대화 — 정상 피드가 나오고 근무 중일 때만 들린다.
         _overheard?.Tick(d, roomId, feed && GameState.Instance?.CurrentPhase == GamePhase.Live);
     }

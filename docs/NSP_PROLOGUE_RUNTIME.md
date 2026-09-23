@@ -607,6 +607,29 @@ line: /1방해공작/0이 발생해도 시스템이 범인의 신원까지 알�
 portrait: normal
 line: /5CCTV, 시설 기록/0, 직원들의 진술을 비교해 누가 그곳에 있었는지 직접 판단해야 합니다.
 
+# STEP 3-B — 이상 개체 (관측으로 소멸)
+@guide tut_anomaly_intro
+portrait: normal
+line: 이 시설의 봉쇄가 느슨해진 이후, 작업실에 /1설명되지 않는 개체/0가 목격되고 있습니다.
+portrait: sneer
+line: 센서에는 잡히지 않습니다. 경고도 울리지 않습니다. /1지금 하나가 들어와 있습니다./0
+
+@guide tut_anomaly_find
+portrait: normal
+line: 어느 작업실인지는 알려드릴 수 없습니다. /5CCTV/0를 직접 돌려 찾으십시오.
+
+@guide tut_anomaly_watch
+portrait: normal
+line: 찾으셨군요. 그 개체는 /4관측되는 것을 견디지 못합니다./0
+portrait: normal
+line: 화면을 돌리지 말고 /1그대로 계속 보십시오./0 시선을 떼면 처음부터입니다.
+
+@guide tut_anomaly_done
+portrait: normal
+line: 소멸했습니다. 관측이 유일한 대응 수단입니다.
+portrait: sneer
+line: 놓치면... 그 작업실 설비가 어떻게 되는지는 직접 보시게 될 겁니다.
+
 # STEP 4 — 시설 로그
 @guide tut_log
 portrait: normal

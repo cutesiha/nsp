@@ -89,6 +89,63 @@ public partial class ConfigData : Resource
 
     [Export] public int IsolationCapacity = 1;
 
+    // ─────────────────────────────────────────────────────────────────────
+    //  괴물(귀신) — 작업실 사고와 **완전히 분리된** 두 번째 사고 계통.
+    //
+    //  어디에 언제 나타나는지 게임은 알려주지 않는다. 관리자가 CCTV 를 직접 돌려 보고
+    //  찾아내 GhostDispelSeconds 동안 계속 봐야 사라진다. 놓치면 그 작업실에 사고가 터진다.
+    //  → CCTV 를 "가끔 확인하는 화면"이 아니라 "계속 돌려야 하는 화면"으로 만드는 장치다.
+    // ─────────────────────────────────────────────────────────────────────
+    // 등장 판정 간격(초)과 그때의 확률.
+    [Export] public float GhostCheckSeconds = 14f;
+    [Export] public float GhostAppearChance = 0.34f;
+    // 근무 시작 직후에는 나오지 않는다 — 배치를 확인할 시간을 준다.
+    [Export] public float GhostFirstAppearSeconds = 22f;
+    // 한 번 사라진 뒤 다음 등장까지 최소 간격.
+    [Export] public float GhostCooldownSeconds = 20f;
+    [Export] public int GhostMaxPerDay = 3;
+    // 발견하지 못하고 이 시간이 지나면 그 작업실에 사고가 터진다.
+    [Export] public float GhostGraceSeconds = 34f;
+    // CCTV 로 이만큼 **연속해서** 봐야 사라진다.
+    [Export] public float GhostDispelSeconds = 5f;
+    // 화면에서 눈을 떼면 본 시간이 이 속도로 되감긴다(0 이면 즉시 초기화).
+    [Export] public float GhostWatchDecayPerSecond = 1.6f;
+    // 괴물이 있는 방의 직원이 초당 받는 스트레스(성격 배율은 EmployeeTraits 가 곱한다).
+    [Export] public float GhostPresenceStressPerSecond = 0.22f;
+    // 끝내 방치해 사고가 터졌을 때 그 방 직원이 한 번에 받는 스트레스.
+    [Export] public float GhostIncidentStress = 22f;
+    // 괴물이 비명을 지르는 간격(초). 그 방 CCTV 를 보고 있으면 화면에 그대로 뜬다.
+    [Export] public float GhostScreamIntervalSeconds = 7f;
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  조명이 오래 꺼져 있으면 — 결번자가 어둠 속에서 서두른다.
+    // ─────────────────────────────────────────────────────────────────────
+    // 조명 전력이 이 시간(초) 이상 끊겨 있으면 "어둠" 상태로 본다.
+    [Export] public float BlackoutMurderAfterSeconds = 18f;
+    // 어둠 상태에서의 범행 준비 시간(초). 평소 KillAttemptSeconds 를 대신한다.
+    [Export] public float BlackoutKillAttemptSeconds = 4f;
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  방심하고 있을 때의 점프스케어(연출 전용 — 게임 상태를 바꾸지 않는다).
+    // ─────────────────────────────────────────────────────────────────────
+    // 사고·경고·통화가 하나도 없이 이만큼 조용하면 한 번 놀래킨다.
+    [Export] public float CalmScareAfterSeconds = 26f;
+    [Export] public float CalmScareCooldownSeconds = 55f;
+    [Export] public int CalmScareMaxPerShift = 2;
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  동료의 죽음을 본 뒤의 패닉 — 그날 하루 업무 불능.
+    // ─────────────────────────────────────────────────────────────────────
+    // 죽음 직후, 패닉에 빠질 성향(EmployeeTraits.AvoidsDanger)이 이 값 이상이면 무너진다.
+    [Export] public int PanicAvoidsDangerFrom = 3;
+    [Export] public float PanicStress = 14f;
+
+    // 직원이 먼저 거는 잡담 전화 — 아무 사고도 없이 조용할 때만 걸려온다.
+    [Export] public float IdleCallCheckSeconds = 20f;
+    [Export] public float IdleCallChance = 0.45f;
+    [Export] public int IdleCallMaxPerDay = 2;
+    [Export] public float IdleCallQuietSeconds = 14f;
+
     [Export] public float SaboteurDecisionIntervalSeconds = 4f;
     [Export] public float SaboteurSabotageChance = 0.35f;
     [Export] public float KillAttemptChance = 0.3f;

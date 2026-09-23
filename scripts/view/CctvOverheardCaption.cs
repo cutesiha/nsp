@@ -108,6 +108,18 @@ public partial class CctvOverheardCaption : Control
         {
             case Phase.Waiting:
                 if (_timer > 0f) return;
+                // 이 방에 무너진 직원이 있으면 대화 대신 그 사람의 혼잣말이 계속 들린다.
+                // 옆에 누가 있어도 마찬가지다 — 아무도 대답하지 않는다.
+                string broken = PanickedHere(roomId);
+                if (!string.IsNullOrEmpty(broken))
+                {
+                    Current = null;
+                    Speak(Phase.SpeakA, broken,
+                        FacilitySimulation.PanicMutter(broken), table);
+                    _soloMutter = true;
+                    return;
+                }
+                _soloMutter = false;
                 if (!OverheardDialogue.TryPick(roomId, out var ex))
                 {
                     _timer = 1.5f;   // 아직 두 사람이 모이지 않았다 — 잠시 뒤 다시 본다
@@ -123,6 +135,8 @@ public partial class CctvOverheardCaption : Control
                 _shown += delta * Mathf.Max(1f, table.CharsPerSecond);
                 _text.VisibleCharacters = Mathf.Min(_text.GetTotalCharacterCount(), NamePrefixLength + (int)_shown);
                 if (_timer > 0f) return;
+                // 혼잣말은 상대가 없다 — 짧게 쉬었다 같은 말을 다시 한다.
+                if (_soloMutter) { Reset(_rng.RandfRange(2.2f, 4.0f)); break; }
                 // 두 사람 중 한 명이라도 자리를 뜨면(재배치 · 기절 · 사망) 대화는 거기서 끊긴다.
                 var here = FacilitySimulation.Instance?.OnDutyEmployeeIds(roomId);
                 bool stillBoth = here != null && here.Contains(Current.A) && here.Contains(Current.B);
@@ -130,6 +144,19 @@ public partial class CctvOverheardCaption : Control
                 else Reset(_rng.RandfRange(table.CooldownMinSeconds, Mathf.Max(table.CooldownMinSeconds, table.CooldownMaxSeconds)));
                 break;
         }
+    }
+
+    // 지금 나오는 것이 두 사람의 대화가 아니라 한 사람의 혼잣말인가.
+    private bool _soloMutter;
+
+    // 이 방에서 무너진 사람(여럿이면 첫 사람).
+    private static string PanickedHere(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return "";
+        foreach (string id in sim.OnDutyEmployeeIds(roomId))
+            if (sim.IsPanicked(id)) return id;
+        return "";
     }
 
     private int NamePrefixLength { get; set; }

@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://d2sjolus4jcn2"]
 
-[ext_resource type="Script" path="res://scripts/debug/DeveloperHub.cs" id="1_hub"]
+[ext_resource type="Script" uid="uid://cs4nbvmmuieur" path="res://scripts/debug/DeveloperHub.cs" id="1_hub"]
 
-[node name="DeveloperHub" type="Node"]
+[node name="DeveloperHub" type="Node" unique_id=245063766]
 script = ExtResource("1_hub")

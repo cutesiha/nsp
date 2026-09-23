@@ -105,6 +105,8 @@ public partial class Phone3D : Node3D
 
         if (_area != null) _area.InputEvent += OnAreaInput;
         if (_hud != null) _hud.Closed += HangUp;
+        // 벨이 울리는 동안 「전화 끊기」를 누르면 받지 않고 끊는다.
+        if (_hud != null) _hud.RejectRequested += RejectIncoming;
 
         // 구식 전화벨 — "따르릉 따르릉" 이 벨이 울리는 동안 계속 반복되도록 재생이 끝나면 다시 건다.
         if (_ring != null) _ring.Finished += () =>
@@ -237,6 +239,14 @@ public partial class Phone3D : Node3D
         _ring?.Play();
         _hud?.ShowIncoming(CallerColor());
         EmitSignal(SignalName.RingStarted);
+    }
+
+    // 관리자가 **직접** 받지 않고 끊었다. 직원이 기다리다 포기한 것과 결과는 같다 —
+    // 그 상황의 다음 전화는 IncomingCallDirector 의 큐가 그대로 잇는다.
+    public void RejectIncoming()
+    {
+        if (_state != PhoneState.Ringing || !_isIncoming) return;
+        GiveUp();
     }
 
     // 관리자가 시간 안에 받지 않음 → 직원이 끊는다. 벨을 바로 끊고 "뚝" 소리, LED 회색 복귀.

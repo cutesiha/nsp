@@ -78,15 +78,23 @@ public partial class IncomingCallDirector : Node
     private readonly List<double> _recentCalls = new();
     private double _lastRingAt = -1000.0;
     private bool _eventWired, _phoneWired, _hudWired;
+    // 잡담 전화 — 마지막으로 무슨 일이 있었던 시각과 오늘 건 횟수.
+    private float _lastTroubleAt;
+    private float _nextIdleCheckAt;
+    private int _idleCallsToday;
+    private int _idleCallDay = -1;
     private readonly RandomNumberGenerator _rng = new();
 
     // 첫 선택지가 "그 방으로 가보라"는 지시인 이벤트 — 원본 대사 목록 기준.
     private static bool IsDispatchEvent(string dialogueEvent) =>
-        dialogueEvent is DialogueRepository.EventAccidentNearby or DialogueRepository.EventScreamNextRoom;
+        dialogueEvent is DialogueRepository.EventAccidentNearby or DialogueRepository.EventScreamNextRoom
+            // 잡담 전화도 첫 선택지가 "가도 좋다" 다 — 허락하면 실제로 그 방으로 옮겨 간다.
+            or DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry;
 
     public override void _Process(double delta)
     {
         Wire();
+        TickIdleCalls();
 
         // DAY0(교육)에는 자동 전화가 걸려오지 않는다 — 튜토리얼이 정해진 한 통만 직접 건다.
         if (GameState.Instance?.CurrentPhase != GamePhase.Live || !DayFeatures.AutoCallsEnabled)
@@ -150,6 +158,9 @@ public partial class IncomingCallDirector : Node
         var entries = EventLog.Instance?.GetAllEntries();
         if (entries == null || entries.Count == 0) return;
         var e = entries[^1];
+
+        // 방금 무슨 일이 있었다 — 잡담 전화는 한동안 오지 않는다.
+        if (IsTrouble(e.EventType)) _lastTroubleAt = GameState.Instance?.DayTimeSeconds ?? 0f;
 
         switch (e.EventType)
         {
@@ -282,6 +293,75 @@ public partial class IncomingCallDirector : Node
             RoomId = roomId ?? "",
             QueuedAt = Time.GetTicksMsec() / 1000.0,
         });
+    }
+
+    // 잡담 전화를 막는 사건들. 사고 · 방해공작 · 경고 · 죽음 · 정전 · 이상 개체.
+    private static bool IsTrouble(LogEventType t) => t is LogEventType.TaskFailed
+        or LogEventType.TaskSpawned or LogEventType.Sabotage or LogEventType.Death
+        or LogEventType.PowerOutage or LogEventType.CctvDisconnect or LogEventType.TabooViolation
+        or LogEventType.AnomalyIncident or LogEventType.AnomalyDispelled;
+
+    // 아무 일도 없이 조용한 시간에만 걸려온다.
+    //
+    // 근무가 사고 대응으로만 채워지면 직원은 배경이 된다. 사고가 없을 때 사람 목소리가
+    // 한 번 끼어들어야 이 여섯 명이 시설을 돌리고 있다는 것이 남는다.
+    // 다만 **시끄러운 동안에는 절대 걸지 않는다** — 사고 신고 전화와 겹치면 방해가 된다.
+    private void TickIdleCalls()
+    {
+        var cfg = Config.Instance?.Data;
+        var sim = FacilitySimulation.Instance;
+        if (cfg == null || sim == null) return;
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        // 교육일(DAY0)에는 대본이 흐르는 중이라 끼어들지 않는다.
+        if (!DayFeatures.AutoIncidentsEnabled) return;
+
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        if (_idleCallDay != day)
+        {
+            _idleCallDay = day;
+            _idleCallsToday = 0;
+            _lastTroubleAt = 0f;
+            _nextIdleCheckAt = 0f;
+        }
+        if (_idleCallsToday >= cfg.IdleCallMaxPerDay) return;
+
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        if (now - _lastTroubleAt < cfg.IdleCallQuietSeconds) return;
+        // 지금 처리해야 할 일이 하나라도 걸려 있으면 조용한 게 아니다.
+        if (sim.Warnings.Active.Count > 0 || sim.Ghost.Active) return;
+        if (_active != null || _queue.Count > 0) return;
+
+        if (_nextIdleCheckAt <= 0f) { _nextIdleCheckAt = now + cfg.IdleCallCheckSeconds; return; }
+        if (now < _nextIdleCheckAt) return;
+        _nextIdleCheckAt = now + cfg.IdleCallCheckSeconds;
+        if (_rng.Randf() >= cfg.IdleCallChance) return;
+
+        // 혼자 근무 중인 사람이 건다 — 심심하다는 말도, 옆 방 소리를 들었다는 말도
+        // 혼자 있어야 나온다.
+        var alone = sim.GetActiveEmployeeIds()
+            .Where(id => Available(id) && sim.OnDutyCount(sim.GetEmployeeState(id)?.CurrentRoomId ?? "") == 1)
+            .ToList();
+        if (alone.Count == 0) return;
+        string caller = alone[_rng.RandiRange(0, alone.Count - 1)];
+        string from = sim.GetEmployeeState(caller)?.CurrentRoomId ?? "";
+
+        // 갈 만한 다른 작업실. 사람이 있는 방이면 "소리를 들었다", 비어 있으면 "놀러 가도 되나".
+        var others = sim.GetActiveEmployeeIds()
+            .Where(id => id != caller)
+            .Select(id => sim.GetEmployeeState(id)?.CurrentRoomId ?? "")
+            .Where(r => !string.IsNullOrEmpty(r) && r != from)
+            .Distinct().ToList();
+        if (others.Count == 0) return;
+        string target = others[_rng.RandiRange(0, others.Count - 1)];
+
+        // 그 방에 스트레스가 높은 사람이 있으면 "이상한 소리를 들었다"가 된다.
+        bool worry = sim.OnDutyEmployeeIds(target)
+            .Any(id => (sim.GetEmployeeState(id)?.Stress ?? 0f)
+                       >= (Config.Instance?.Data?.StressDangerFrom ?? 31f) || sim.IsPanicked(id));
+
+        _idleCallsToday++;
+        Enqueue(caller, worry ? DialogueRepository.EventIdleWorry : DialogueRepository.EventIdleVisit,
+            $"idle:{day}:{_idleCallsToday}", target);
     }
 
     private void PumpQueue()

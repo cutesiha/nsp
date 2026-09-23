@@ -47,6 +47,52 @@ public partial class FacilitySimulation : Node
     // 사고가 나기 전에 대응할 시간을 주는 경고 시스템(data/ops/*.tres 가 수치를 쥔다).
     private readonly FacilityWarningSystem _warnings = new();
     public FacilityWarningSystem Warnings => _warnings;
+
+    // 괴물 — 작업실 사고와 분리된 두 번째 사고 계통. CCTV 로 찾아내 계속 보고 있어야 사라진다.
+    private readonly GhostHauntSystem _ghost = new();
+    public GhostHauntSystem Ghost => _ghost;
+
+    // 오늘 무너진 직원. 동료의 죽음이 확인된 순간, 겁이 많은 사람은 여기 들어온다.
+    //
+    // 기절(Incapacitated)과 다르다 — 의무실로 옮겨지지도 않고 근무표에서 빠지지도 않는다.
+    // 자기 자리에 그대로 앉아 같은 말만 되뇌며 아무 일도 하지 않는다. 그 모습 자체가
+    // 관리자가 CCTV 에서 보게 되는 결과다. 하루가 끝나면 풀린다.
+    private readonly HashSet<string> _panicked = new();
+    public bool IsPanicked(string employeeId) =>
+        !string.IsNullOrEmpty(employeeId) && _panicked.Contains(employeeId);
+
+    // 그 사람이 되뇌는 말. 성격마다 다르지만 전부 "오늘 여기서 나가고 싶다"는 소리다.
+    public static string PanicMutter(string employeeId) => employeeId switch
+    {
+        "sheep" => "다 죽을 거야... 다 죽을 거야...",
+        "rabbit" => "아니야, 아니야, 나 아니야...",
+        "dog" => "제가... 제가 더 빨리 갔어야 했는데...",
+        "cat" => "...여기서 나가야 해. 지금.",
+        "fox" => "그냥 오늘만... 오늘만 넘기면 되는 거잖아...",
+        "wolf" => "다음은 누구지. 다음은 누구야.",
+        _ => "...여기서 나가야 해.",
+    };
+
+    // 죽음이 확인됐다 — 겁이 많은 사람부터 무너진다.
+    private void SpreadPanic(string victimId, string roomId)
+    {
+        var cfg = Config.Instance.Data;
+        foreach (var st in _employeeStates.Values)
+        {
+            if (st.EmployeeId == victimId || !st.Alive || st.Isolated) continue;
+            if (_panicked.Contains(st.EmployeeId)) continue;
+            // 성향이 이 선을 넘는 사람만 무너진다. 나머지는 스트레스만 받고 계속 일한다.
+            if (EmployeeTraits.Get(st.EmployeeId).AvoidsDanger < cfg.PanicAvoidsDangerFrom)
+            {
+                AddStress(st.EmployeeId, cfg.PanicStress * 0.5f, "동료 사망");
+                continue;
+            }
+            _panicked.Add(st.EmployeeId);
+            AddStress(st.EmployeeId, cfg.PanicStress, "동료 사망");
+            EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
+                $"{Codename(st.EmployeeId)} | 업무 중단 — 극도의 불안 상태");
+        }
+    }
     // 오늘 이미 성공시킨 방해공작 횟수 — DAY1 은 한 번으로 제한한다.
     private int _sabotageActionsToday;
     // 결번자가 "언제 어디서" 손을 댈지 정하는 기회 판정(이동·체류 전조를 남긴다).
@@ -64,6 +110,12 @@ public partial class FacilitySimulation : Node
     private int _killsToday = 0;
     private bool _cctvWasOperational = true;
     private bool _powerLossMurderTriggeredThisShift;
+    // 조명 전력이 끊긴 채로 흐른 시간. 관리자가 다시 켜면 0 으로 돌아간다.
+    private float _darknessSeconds;
+    public float DarknessSeconds => _darknessSeconds;
+    // 지금이 "어둠"인가 — 조명이 BlackoutMurderAfterSeconds 이상 꺼져 있었다.
+    public bool IsDarknessCritical =>
+        _darknessSeconds >= (Config.Instance?.Data?.BlackoutMurderAfterSeconds ?? 18f);
 
     // DAY1 고정 스케줄(data/spawns/*.tres, SpawnAtSeconds 순) + 실제로 발생한 업무 인스턴스들.
     private readonly List<TaskSpawnDef> _schedule = new();
@@ -171,6 +223,7 @@ public partial class FacilitySimulation : Node
         _killsToday = 0;
         _cctvWasOperational = true;
         _powerLossMurderTriggeredThisShift = false;
+        _darknessSeconds = 0f;
         _surveillanceTargetRoomId = "";
         _forcedSurveillanceRoomId = "";
         _forcedSurveillanceUntil = -1;
@@ -802,6 +855,7 @@ public partial class FacilitySimulation : Node
         _killsToday = 0;
         _cctvWasOperational = true;
         _powerLossMurderTriggeredThisShift = false;
+        _darknessSeconds = 0f;
         _tensionStressTimers.Clear();
         _argumentTimers.Clear();
         GameState.Instance.ResetFacilityFaults();
@@ -840,6 +894,8 @@ public partial class FacilitySimulation : Node
         // 지난 근무의 진술·알리바이는 새 근무로 넘어오지 않는다.
         NSP.Dialogue.DialogueClaimState.ResetAll();
         IncidentTracker.Reset();
+        _ghost.Reset();
+        _panicked.Clear();
 
         // 근무 시작 — 배치된 직원은 전부 중앙 제어실에서 출발해 자기 작업실로 걸어간다.
         // (예전에는 지난 근무의 자리나 캐릭터 기본 시작실에서 출발했는데, 그 방이 지도에 없으면
@@ -890,7 +946,7 @@ public partial class FacilitySimulation : Node
         }
         TickActiveTasks(d);
         TickLighting();
-        TickPowerLossMurder();
+        TickPowerLossMurder(d);
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
         TickPowerRestoreReveal();
@@ -899,6 +955,7 @@ public partial class FacilitySimulation : Node
         TickRoomTension(d);
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
+        _ghost.Tick(d, this);
         TickFaintRecovery(d);
         _warnings.Tick(d, this);
         _behavior.Tick(d, this);
@@ -984,19 +1041,30 @@ public partial class FacilitySimulation : Node
         return (_roomStates.GetValueOrDefault(GuardRoomId)?.OccupantEmployeeIds.Count ?? 0) > 0;
     }
 
-    // CCTV 또는 미니맵용 조명 전력이 끊기면 그 사각을 이용한 살인이 DAY1 근무당 딱 한 번 발생한다.
-    // 기존 MurderMaxPerDay/_killsToday를 같이 사용하므로 일반 방해자 AI가 추가 살인을 만들지 못한다.
-    private void TickPowerLossMurder()
+    // 조명 전력을 오래 끊어 두면 그 어둠 속에서 살인이 한 번 일어난다.
+    //
+    // 예전에는 조명이나 CCTV 전력이 끊긴 **그 순간** 바로 사람이 죽었다. 전력을 잠깐
+    // 돌려 쓰는 것조차 즉사로 이어져, 관리자가 전력 패널을 만질 수 없었다.
+    // 지금은 어둠이 BlackoutMurderAfterSeconds 만큼 **이어졌을 때만** 일어난다 —
+    // 잠깐 끄는 것은 판단이고, 오래 끄는 것은 방치다.
+    //
+    // 이 경로만 오늘의 AllowMurder 를 보지 않는다. 다른 날에 살인이 없는 것은 결번자가
+    // 그럴 생각이 없어서가 아니라 기회가 없어서이고, 그 기회를 만든 것은 관리자다.
+    private void TickPowerLossMurder(float delta)
     {
-        if (_powerLossMurderTriggeredThisShift
-            || _killsToday >= Config.Instance.Data.MurderMaxPerDay)
+        var dcfg = Config.Instance.Data;
+        // 조명이 살아 있으면 어둠은 없던 일이 된다(다시 처음부터 쌓인다).
+        if (GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting))
+        {
+            _darknessSeconds = 0f;
             return;
-        // 오늘의 운영 규칙이 살인을 허용하는가(DAY1 은 운영을 배우는 날이라 꺼 둔다).
-        if (!(OpsProfile.Today?.AllowMurder ?? true)) return;
+        }
+        _darknessSeconds += delta;
 
-        bool cctvCut = !GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
-        bool mapLightingCut = !GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting);
-        if (!cctvCut && !mapLightingCut) return;
+        if (_powerLossMurderTriggeredThisShift
+            || _killsToday >= dcfg.MurderMaxPerDay)
+            return;
+        if (_darknessSeconds < dcfg.BlackoutMurderAfterSeconds) return;
 
         string saboteurId = GameState.Instance.SaboteurEmployeeId;
         if (string.IsNullOrEmpty(saboteurId)
@@ -1209,7 +1277,9 @@ public partial class FacilitySimulation : Node
 
         // 이 함수는 판정 주기(SaboteurDecisionIntervalSeconds)마다 불리므로 그 간격만큼 쌓는다.
         _killAttemptTimer += cfg.SaboteurDecisionIntervalSeconds;
-        if (_killAttemptTimer < cfg.KillAttemptSeconds) return false;
+        // 조명이 오래 꺼져 있으면 훨씬 빨리 끝낸다 — 아무도 보고 있지 않다는 것을 안다.
+        float needed = IsDarknessCritical ? cfg.BlackoutKillAttemptSeconds : cfg.KillAttemptSeconds;
+        if (_killAttemptTimer < needed) return false;
 
         _killAttemptVictimId = "";
         _killAttemptTimer = 0f;
@@ -1241,6 +1311,7 @@ public partial class FacilitySimulation : Node
         var def = _employeeDefs.GetValueOrDefault(victimId);
         EventLog.Instance?.LogEvent(LogEventType.Death, victimId, roomId,
             $"⚠ {def?.Codename ?? victimId} 활동 중단 확인. 발견 당시 목격자 없음.");
+        SpreadPanic(victimId, roomId);
     }
 
     // CCTV 전력이 꺼졌다가(정전 등) 다시 들어오는 순간, 그동안 아무도 모르게 벌어진 죽음이
@@ -1262,6 +1333,9 @@ public partial class FacilitySimulation : Node
                 EventLog.Instance?.LogEvent(LogEventType.Death, emp.EmployeeId, emp.CurrentRoomId,
                     $"⚠ LIFE SIGNAL LOST — {def?.Codename ?? emp.EmployeeId} 신호 소실. " +
                     $"{roomDef?.DisplayName ?? emp.CurrentRoomId}에서 발견, 목격자 없음.");
+                // 정전 중에 벌어진 죽음도 **발견된 이 순간**부터 퍼진다.
+                // 아무도 몰랐던 동안에는 아무도 무너지지 않는다.
+                SpreadPanic(emp.EmployeeId, emp.CurrentRoomId);
             }
         }
         _cctvWasOperational = poweredNow;
@@ -1814,6 +1888,28 @@ public partial class FacilitySimulation : Node
         _behavior.OnIncident(this, roomId, OpsProfile.Today);
     }
 
+    // 이상 개체를 끝내 찾지 못했다 — 그 작업실 설비가 부서진다.
+    //
+    // 수리 · 시설 손실 · 미니맵 표시는 무인 방치 사고와 **같은 경로**를 쓴다(고장은 고장이다).
+    // 다른 것은 로그 종류와 원인뿐이다 — 관리자가 나중에 "사람 탓이었나 그것 탓이었나"를
+    // 구분할 수 있어야 하기 때문이다.
+    public void TriggerGhostAccident(string roomId)
+    {
+        var def = _roomDefs.GetValueOrDefault(roomId);
+        if (def == null || def.AccidentConsequence == RoomAccidentNone) return;
+        if (HasActiveRepair(roomId)) return;
+
+        EventLog.Instance?.LogEvent(LogEventType.AnomalyIncident, "", roomId,
+            $"🚨 {RoomName(roomId)} — {def.AccidentName} (이상 개체 접촉)");
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"⚠ {RoomName(roomId)}에서 원인 불명의 손상이 발생했습니다.", NSP.Ui.NoticeLevel.Critical);
+        IncidentTracker.Open(roomId, def.AccidentName, "이상 개체 접촉",
+            "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
+        TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
+        AddRepairTask(roomId, def, 0);
+        _behavior.OnIncident(this, roomId, OpsProfile.Today);
+    }
+
     // 그 방에 수리 업무를 띄운다. 수리가 걸려 있는 동안 그 방의 평소 업무는 멈춘다.
     private void AddRepairTask(string roomId, RoomDef def, int minWorkersOverride)
     {
@@ -2015,9 +2111,11 @@ public partial class FacilitySimulation : Node
 
             var room = _roomStates.GetValueOrDefault(st.RoomId);
             // 기절(스트레스 46+)한 직원은 방에 있어도 업무 인원으로 세지 않는다.
+            // 동료의 죽음을 보고 무너진 직원(_panicked)도 마찬가지다 — 자리에는 있지만 일은 못 한다.
             var workers = room == null ? new List<EmployeeState>() : room.OccupantEmployeeIds
                 .Select(id => _employeeStates.GetValueOrDefault(id))
-                .Where(e => e != null && e.Alive && !e.Isolated && !e.Incapacitated)
+                .Where(e => e != null && e.Alive && !e.Isolated && !e.Incapacitated
+                            && !_panicked.Contains(e.EmployeeId))
                 .ToList();
 
             bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress

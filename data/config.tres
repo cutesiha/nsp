@@ -81,3 +81,32 @@ StandingTensionDarkness = 0.6
 StandingTensionGlowAmt = 1.5
 StandingTensionHoldSeconds = 2.5
 StandingTensionFadeSeconds = 1.2
+
+; ── 괴물(귀신) — 작업실 사고와 분리된 두 번째 사고 계통 ────────────────
+; 등장은 알려주지 않는다. CCTV 로 GhostDispelSeconds 만큼 계속 봐야 사라진다.
+GhostCheckSeconds = 14.0
+GhostAppearChance = 0.34
+GhostFirstAppearSeconds = 22.0
+GhostCooldownSeconds = 20.0
+GhostMaxPerDay = 3
+GhostGraceSeconds = 34.0
+GhostDispelSeconds = 5.0
+GhostWatchDecayPerSecond = 1.6
+GhostPresenceStressPerSecond = 0.22
+GhostIncidentStress = 22.0
+GhostScreamIntervalSeconds = 7.0
+; ── 조명이 오래 꺼져 있으면 결번자가 서두른다 ──────────────────────────
+BlackoutMurderAfterSeconds = 18.0
+BlackoutKillAttemptSeconds = 4.0
+; ── 방심했을 때의 점프스케어(연출 전용) ────────────────────────────────
+CalmScareAfterSeconds = 26.0
+CalmScareCooldownSeconds = 55.0
+CalmScareMaxPerShift = 2
+; ── 동료의 죽음을 본 뒤의 패닉 ────────────────────────────────────────
+PanicAvoidsDangerFrom = 3
+PanicStress = 14.0
+; ── 직원이 먼저 거는 잡담 전화 ────────────────────────────────────────
+IdleCallCheckSeconds = 20.0
+IdleCallChance = 0.45
+IdleCallMaxPerDay = 2
+IdleCallQuietSeconds = 14.0

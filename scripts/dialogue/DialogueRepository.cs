@@ -23,6 +23,11 @@ public static class DialogueRepository
     public const string EventInterviewSuspected = "interview_suspected";
     // 플레이어가 먼저 거는 일반 통화.
     public const string EventGeneralCall = "general_call";
+    // 아무 일도 없을 때 직원이 먼저 거는 전화. 사건이 아니라 사람이 거는 전화다 —
+    // 근무가 조용하기만 한 시간을 메우고, 관리자가 "가도 된다 / 안 된다"를 정하게 한다.
+    // 허락하면 그 직원이 실제로 그 작업실로 옮겨 간다(배치가 바뀐다).
+    public const string EventIdleVisit = "idle_visit";     // 심심하다 — 옆 방에 가도 되나
+    public const string EventIdleWorry = "idle_worry";     // 옆 방에서 이상한 소리를 들었다
     // 가상 시뮬레이션(교육) 전용 고정 통화 — 수리를 끝낸 직원이 복귀를 묻는다.
     // 생성기를 태우지 않고 대사 파일의 문장을 그대로 쓴다.
     public const string EventTutorialRepairDone = "tutorial_repair_done";

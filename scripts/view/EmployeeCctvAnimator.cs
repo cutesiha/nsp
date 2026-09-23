@@ -19,6 +19,12 @@ public enum CctvEmployeeAction
     Handoff,
     // 격리 — 다른 모든 행동보다 우선한다(구속 침대 위 표현).
     Isolated,
+    // 같은 방에 이상 개체가 있다. 성격에 따라 셋으로 갈린다 —
+    // 담담하거나(GhostUneasy) 놀라거나(GhostStartled) 주저앉거나(GhostTerrified).
+    // 어느 쪽이든 업무는 멈춘다.
+    GhostUneasy,
+    GhostStartled,
+    GhostTerrified,
 }
 
 // 직원 3D 캐릭터 한 명의 애니메이션만 담당하는 작은 도우미. AI 는 없다.
@@ -33,11 +39,14 @@ public sealed class EmployeeCctvAnimator
     {
         "idle", "walk", "talk", "work", "repair", "inspect", "suspicious", "handoff",
         "isolated_struggle",
+        "ghost_uneasy", "ghost_startle", "ghost_panic",
     };
 
     private static readonly bool[] LoopOf =
     {
         true, true, true, true, true, false, false, false, true,
+        // 괴물이 사라질 때까지 계속 그 상태다 — 셋 다 반복한다.
+        true, true, true,
     };
 
     private readonly AnimationPlayer _anim;

@@ -206,6 +206,10 @@ public static class LocalDialogueGenerator
         // 교육용 고정 통화는 생성하지 않는다 — 대사 파일의 문장을 그대로 쓴다.
         if (dialogueEvent == DialogueRepository.EventTutorialRepairDone) return null;
 
+        // 잡담 전화는 사건 기록을 필요로 하지 않는다 — 사건이 아니기 때문이다.
+        if (dialogueEvent is DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry)
+            return BuildIdleCall(employeeId, dialogueEvent, roomId);
+
         var subject = FindEventSubject(employeeId, dialogueEvent, roomId);
         var line = new CallLine();
 
@@ -239,6 +243,64 @@ public static class LocalDialogueGenerator
         line.Opening = KoreanDialogueComposer.Compose(ctx, plan);
         AddChoices(line, employeeId, "확인하러 가주세요.", "지금 자리에서 대기하세요.");
         return line;
+    }
+
+    // 조용한 시간의 전화. 사실을 만들지 않는다 — 말하는 것은 "가도 되느냐" 하나뿐이고,
+    // 그 판단은 관리자가 한다. 허락 여부에 따라 대답만 달라진다.
+    //
+    // 선택지 0 이 "가라"인 것은 사고 신고 전화와 같은 규약이다(IncomingCallDirector 의
+    // 출동 처리가 그 순서에 의존한다).
+    private static CallLine BuildIdleCall(string employeeId, string dialogueEvent, string roomId)
+    {
+        bool worry = dialogueEvent == DialogueRepository.EventIdleWorry;
+        string room = InterviewEvidenceBoard.RoomName(roomId);
+        string who = worry ? CodenameIn(roomId, employeeId) : "";
+        // 걱정하는 전화인데 그 방에 아무도 없으면 할 말이 없다.
+        if (worry && string.IsNullOrEmpty(who)) return null;
+        if (string.IsNullOrEmpty(room)) return null;
+
+        var line = new CallLine
+        {
+            Opening = Slot(employeeId, worry ? "idle.worry" : "idle.visit",
+                worry ? $"{room}에서 이상한 소리가 납니다. 확인하러 가도 되겠습니까?"
+                      : $"여기 혼자라서요. 옆 작업실에 잠깐 가 봐도 될까요?",
+                ("room", room), ("who", who)),
+        };
+        line.Choices.Add(new CallChoice
+        {
+            Text = worry ? "그러십시오." : "그렇게 하십시오.",
+            Reply = Slot(employeeId, (worry ? "idle.worry" : "idle.visit") + ".allowed",
+                "알겠습니다. 다녀오겠습니다.", ("room", room), ("who", who)),
+        });
+        line.Choices.Add(new CallChoice
+        {
+            Text = worry ? "아니오. 제가 확인해 보겠습니다." : "안 됩니다. 작업을 계속 하십시오.",
+            Reply = Slot(employeeId, (worry ? "idle.worry" : "idle.visit") + ".denied",
+                "…알겠습니다.", ("room", room), ("who", who)),
+        });
+        return line;
+    }
+
+    // 그 방에 있는 사람의 코드네임(전화 건 사람 자신은 뺀다).
+    private static string CodenameIn(string roomId, string exceptId)
+    {
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        if (sim == null || string.IsNullOrEmpty(roomId)) return "";
+        foreach (string id in sim.OnDutyEmployeeIds(roomId))
+            if (id != exceptId) return sim.GetEmployeeDef(id)?.Codename ?? "";
+        return "";
+    }
+
+    // 변수를 끼운 슬롯 한 줄. 뱅크에 없거나 변수가 비면 폴백을 쓴다.
+    private static string Slot(string employeeId, string slot, string fallback,
+        params (string Key, string Value)[] vars)
+    {
+        var f = new ReplyFrame { EmployeeId = employeeId, CustomSlot = slot, MaxSentences = 2 };
+        foreach (var (k, v) in vars) f.Set(k, v);
+        string text = DialogueLineBank.Has(employeeId, slot, DialogueVoices.Get(employeeId).Formal)
+            ? DialogueComposer.Compose(f) : "";
+        return string.IsNullOrEmpty(text) || text == "…"
+            ? KoreanParticle.Resolve(fallback) : text;
     }
 
     private static void AddChoices(CallLine line, string employeeId, string goText, string stayText)

@@ -31,6 +31,22 @@ public static class CctvActionResolver
         // 방 사이 이동 중.
         if (st.IsMoving) return CctvEmployeeAction.Walking;
 
+        // 동료의 죽음을 보고 무너졌다 — 그날 내내 이 상태다. 괴물보다도 앞선다.
+        if (sim.IsPanicked(employeeId)) return CctvEmployeeAction.GhostTerrified;
+
+        // 같은 방에 이상 개체가 있다 — 업무보다 우선한다. 눈앞에 그것이 있는데
+        // 하던 일을 계속하는 사람은 없다.
+        //
+        // 어떤 동작이 나오는지는 성격 축 하나(AvoidsDanger)가 정한다. 같은 것을 봐도
+        // 늑대는 물러서서 노려보고 양은 주저앉는다 — 스트레스 폭과 같은 기준이다.
+        if (sim.Ghost is { Active: true } && sim.Ghost.ActiveRoomId == roomId)
+            return NSP.Facility.EmployeeTraits.Get(employeeId).AvoidsDanger switch
+            {
+                <= 0 => CctvEmployeeAction.GhostUneasy,
+                1 or 2 => CctvEmployeeAction.GhostStartled,
+                _ => CctvEmployeeAction.GhostTerrified,
+            };
+
         // 방해공작이 '실행된' 짧은 순간. 기존 sabotage 이벤트를 읽기만 한다.
         var plan = sim.Saboteur;
         if (plan is { HasActed: true }

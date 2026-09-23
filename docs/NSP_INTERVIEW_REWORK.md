@@ -1,7 +1,7 @@
 # NSP 휴게시간 심문 리워크 — 추리 규칙 · 자료 카드 · UI 배치
 
 > 대상 브랜치: `ver3(simple_version)`
-> 작성 기준 커밋: `40f1939` (2026-09-23 "작업실 가구 추가 및 애니 적용")
+> 작성 기준 커밋: `40f1939` → 1차 반영 후 `cefe396` 기준으로 §3-6 개정, §3-7 추가 (2026-09-24)
 > 마감: 1차 10/15 (교내 대회) · 최종 10/31 (직업계고 IT 게임개발대회)
 > 이 문서는 "왜 고치는가 → 무엇을 어떻게 고치는가 → 파일별 작업 → 수용 기준" 순서다. 코드를 고치는 사람(Claude Code 에이전트 포함)은 §4 작업 목록과 §5 수용 기준만 보고도 작업할 수 있어야 한다.
 
@@ -165,35 +165,60 @@ case CoreKind.IncidentIndirect:
 
 이 표식은 **플레이어의 메모**다. 게임 판정(격리 성공 여부)에 쓰지 않는다. 결백한 직원도 evasive 슬롯을 쓸 수 있으므로(SLOTS.md 규칙) 붉은 점 = 범인이 아니다.
 
-### 3-6. UI 배치
+### 3-6. UI 배치 (1.5차에서 개정)
+
+> 1차 커밋(`4f199f4`, `5ef7aca`)의 "대화를 자막 띠 한 곳으로" 방식은 플레이테스트에서 실패했다. 최초 진술이 자동 재생으로 지나가고, 답변이 남지 않으며, 자막 띠가 MON01 을 가리고, 대화창을 치우려면 통화를 끊어야 했다. **대화창은 맨 처음 휴게시간 방식(화면 중앙 아래 창 + 선택지 목록)으로 되돌린다.** 1차의 추리 규칙 커밋(`8a59cc1`, `675039d`)은 그대로 둔다.
 
 세 면의 역할:
 
 | 면 | 역할 | 내용 |
 |---|---|---|
 | MON02 (`InterviewCCTVView`) | 얼굴 | 스탠딩 · 입 모양 · 긴장 발광 (변경 없음) |
-| 하단 자막 띠 (`PhoneCallHud` 심문 레이아웃) | **대화 전부** | 직원 대사 타이핑 · 플레이어 질문 표시 · **선택지 2~4개** |
-| MON01 (`RestInterviewConsole`) | **조사 노트만** | 조사 목표 한 줄 · 시간축 띠 · 카드 목록 · 상세칸 · 슬롯 A/B |
+| 대화창 (`PhoneCallHud`, 일반 통화와 같은 위치·크기) | **대화 전부** | 직전 문답 2~3개(흐리게) · 현재 답변 · **선택지 목록** · 접기 |
+| MON01 (`RestInterviewConsole`) | **조사 자료** | 조사 목표 한 줄 · 큼직한 카드 · 상세칸 · 슬롯 A/B · (2차) 직원별 띠 시간표 |
 
-**자막 띠**
-- 최초 진술 3개는 MON01 에 블록으로 띄우지 않는다. 인사 뒤 한 문장씩 타이핑으로 말한다. 각 문장이 끝날 때 MON01 에 카드가 추가되는 짧은 연출(카드 테두리 1회 점멸 + 효과음)을 넣는다 — "말한 것이 자료가 된다"를 보여 주는 장면이다.
-- 선택지는 기존 일반 통화용 `_choices` / `_tail` 컨테이너에 그린다. `AfterMode.InterviewMenu / InterviewIntents / InterviewFollowUps` 의 빌드 함수가 `_ivChoices` 대신 `_choices` 에 붙이도록 바꾼다. `SubtitleHeight` 를 선택지 4줄이 들어갈 만큼 키운다(대략 168 → 260).
-- 기본 메뉴(`BuildInterviewMenu`) 구성: 고른 진술의 꼬리질문(0~2) → 슬롯에 카드가 1장이면 `이 자료로 묻기`, 2장이면 `두 자료를 제시한다` (규칙 성립 시 붉은색 + 질문문 미리보기, 아니면 기본색) → `통화 종료`.
-- 추궁 성립 시: 선택지 텍스트가 `QuestionText` 그대로(예: "22:47경 정비실에서 사고가 났을 때 그 방에 계셨습니다…"). 누르면 `Confronted` 발신 → MON02 긴장 발광(이미 있음).
+**대화창**
+- 위치·크기는 일반 통화(`AnchorLeft 0.24 / Right 0.76 / Top 0.62 / Bottom 0.95`)와 같다. `SetInterviewLayout(true)` 의 자막 띠 레이아웃은 버린다.
+- **자동 재생 금지.** `AfterMode.InterviewOpening` / `NextOpening()` 을 제거한다. 최초 진술은 인사 뒤 선택지로 고른다.
+- 선택지 구성(위에서 아래로):
+  1. 기본 질문 3개 — "오늘 근무는 어땠습니까?" · "오늘 이상한 점을 느꼈습니까?" · "수상한 행동을 한 사람을 봤습니까?" (`InterviewSession.Openings` 를 그대로 쓴다. 이미 들은 것은 ✓ 표시, 다시 골라 다시 들을 수 있다.)
+  2. 방금 답변의 꼬리질문 0~2개 (`OpeningFollowUps()` / `Turn.FollowUps`)
+  3. MON01 슬롯에 카드가 1장이면 `[자료: 본문 앞 10자]로 묻는다`, 2장이면 `두 자료를 제시한다` — `CheckContradiction().Kind != None` 이면 붉은색 + 질문문 미리보기, 아니면 기본색(중립 반응)
+  4. `통화를 종료한다.` — **세션을 끝내는 유일한 버튼.** 확인 없이 바로 끊는다(기존 동작).
+- 답변이 나오는 순간 MON01 에 카드가 추가되면 `FlashNotes()` 1회. 기존 커밋의 연출을 재사용한다.
+- **직전 문답 남기기**: `_message` 위에 `RichTextLabel _history` 를 두고, 마지막 2~3 문답(`관리자 ▸ 질문` / `직원 ▸ 답변`)을 40% 밝기로 표시한다. 새 답변이 들어오면 위로 밀린다. 전체 기록은 그대로 `D 대화 기록`.
+- **접기**: 창 손잡이(`_dragBar`) 오른쪽 끝에 `▼ 접기` 버튼. 접으면 이름 한 줄(높이 36px)만 남고 세션·선택지·타이핑 상태는 유지된다. 다시 누르면 펼쳐진다. MON01 을 조작하는 동안 접어 두는 용도다. 접힌 상태에서 MON01 슬롯이 바뀌면 자동으로 펼친다(선택지가 바뀌었으니).
+- 상단의 `통화 종료 ✕`(`_hangUp`) 는 심문 중에는 숨긴다(일반 통화에서는 그대로). 콘솔 상단의 `통화 종료` 버튼은 제거하고 같은 자리에 `대화창 펼치기` 를 둔다 (`EndPressed` → `ExpandRequested` 로 이름 변경).
+- `BlocksCrtInput()`: 대화창 사각형 위를 누를 때만 CRT 입력을 막는다(지금 심문 분기 동작 유지). 접힌 상태에서는 이름 줄 위만 막는다.
 
-**MON01 (조사 노트)**
-- `RestInterviewConsole.BuildInterviewPage()` 와 `Page.Interview` 를 제거한다. Notes 페이지가 전체 화면이 된다.
-- 상단 한 줄 **조사 목표**: 오늘 사고 기록 중 `Sabotage` 가 있으면 `"{time} {room} 방해공작 — 그 시각 {room}에 있던 사람은?"`. 없으면 가장 무거운 사고로. 로그에 이미 공개된 사실만 쓴다(범인 이름 없음).
-- **시간축 띠**(가로 1줄): 근무 시작~끝을 눈금으로, 사고 시각을 붉은 눈금, 카드가 있는 시각을 작은 점으로. 카드를 고르면 그 시각이 밝아진다. `SameWindowIds()` 를 이 띠에서 표현한다.
-- 카드 한 장 = **한 줄**: `[태그] 시각  본문(최대 14자)`. 넘치면 `…`. 전문은 카드를 누르면 하단 **상세칸**(3줄)에 표시.
-- 시작 탭은 `NoteTab.CurrentEmployee`. `전원` 은 토글 버튼 하나로 내리고 다른 직원 카드는 회색 대신 **숨긴다**(토글을 켰을 때만 보인다).
-- 슬롯 A/B 는 유지. **[이 자료로 질문] [두 자료 비교] 버튼은 MON01 에서 제거**한다 — 자막 띠 선택지가 그 역할을 한다.
-- `★ 중요` 는 유지.
+**MON01 (조사 자료, 1.5차)**
+- 1차 커밋의 조사 목표 줄 · 상세칸 · 시작 탭 `CurrentEmployee` · 전원 토글 · ★ 은 유지한다.
+- 카드를 **큼직하게**: 한 장 높이 44px 이상, 글자 `ViewFont.S(16)`, 한 화면 6~7장. 왼쪽에 태그를 아이콘 대신 **색 띠 + 두 글자**(`기록` 청록 / `CCTV` 흰색 / `증언` 노랑 / `진술` 직원 고유색 / `사고` 빨강 / `기분` 회색)로. 본문은 12자 안팎, 넘치면 `…`. 시각은 오른쪽 정렬.
+- 카드를 누르면: 상세칸에 전문, 같은 시간대 카드(`SameWindowIds`) 테두리 밝게. 다시 누르면 슬롯에 담긴다(지금 토글 동작). 슬롯에 담기면 카드에 `A` / `B` 배지.
+- 슬롯 A/B 는 하단 유지. `[이 자료로 질문] [두 자료 비교]` 버튼은 MON01 에 두지 않는다 — 대화창 선택지가 그 역할을 한다.
+- 다른 직원의 카드는 전원 토글을 켰을 때만 보인다(회색으로 나열하지 않는다).
 
-**휴게실 화면(`RestRosterView`)**
-- §3-5 표식 표시.
+### 3-7. 직원별 띠 시간표 (2차)
 
----
+시설 로그의 텍스트 나열이 헷갈린다는 의견에 대한 답이다. 추리 질문이 "그 시각 그 방에 누가 있었나"이므로, 그 답이 한눈에 보이는 형태로 그린다. **새 데이터 구조는 만들지 않는다** — `FacilityLogFormatter.Build()` 가 주는 `DisplayLogEntry` 의 최초 배치·이동 줄(`FromRoomId`/`ToRoomId`/`Timestamp`)만으로 그린다.
+
+```
+        22:00      23:00      00:00      01:00      02:00      03:00
+여우   ▓▓정비실▓▓▓▓▓▓▓▓▓▓░░저장고░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+고양이 ▓▓발전실▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+늑대   ▓▓정비실▓▓▓▓▓▓▓▓▓●▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+                        ▲ 23:47 정비실 방해공작 (붉은 세로선)      ● = CCTV/증언/진술 핀
+```
+
+- 새 컨트롤 `scripts/view/StaffTimelineView.cs` 하나. 입력: `List<DisplayLogEntry>`, 직원 id 목록, 사고 목록, 핀 목록(`InterviewEvidence`, 선택). 출력: `_Draw()` 로 그린다(노드 수백 개 만들지 않는다).
+- 가로축 = `DayLengthSeconds`(120초) 를 22:00~04:00 으로 환산(`SaboteurPlan.Clock()` 과 같은 식). 세로 = 활성 직원(격리·사망 포함, 흐리게).
+- 띠 색 = 방. `RoomDef` 에 `[Export] Color MapColor` 를 추가하고 `data/rooms/*.tres` 5개에 값을 넣는다. 통로(빈 값)는 어두운 회색.
+- 사고(`Severity == Critical/Sabotage`)는 **모든 띠를 관통하는 세로선**. 방해공작 빨강, 실제 고장 주황(시설 로그 팔레트 그대로). 위쪽 라벨에 `①  23:47 · 정비실 · 방해공작` + 방 색 네모. 방은 `InterviewEvidenceBoard.IncidentRoomOf()` 로 찾는다. 사고가 여럿이면 ①②③ 번호를 붙이고 띠 아래 한 줄 범례에 전문을, 라벨이 겹치면 위에는 번호만 남긴다. 세로선을 누르면 상세칸에 로그 원문 한 줄이 뜨고, MON01 에서는 그 `사고` 카드를 고른 것과 같게 동작한다. 경고·안정화·자재·순찰 줄은 **그리지 않는다** — 선이 서너 개를 넘지 않게.
+- 핀: 심문 중 MON01 에서는 `InterviewSession.Board` 의 `Cctv/Testimony/OwnStatement/Mood(시각 없음 → 왼쪽 끝)` 카드를 그 직원 띠 위 해당 시각에 점으로 찍는다. 핀을 누르면 그 카드가 선택된다(카드 목록의 같은 카드를 누른 것과 동일).
+- 두 곳에 쓴다:
+  1. 근무 중 `L 로그` 창(`Day1HistoryOverlay.BuildLogPanel`) 상단에 띠를 두고, 아래 텍스트 목록은 그대로 둔다. 띠의 구간을 누르면 텍스트 목록이 그 시각으로 스크롤한다.
+  2. 휴게시간 MON01 상단(조사 목표 줄 아래). 카드 목록은 띠 아래에 남는다. 세로 공간은 띠 6줄 × 18px ≈ 130px.
+- 게임 판정에는 전혀 쓰지 않는다. 그리기 전용.
 
 ## 4. 파일별 작업 목록
 
@@ -214,17 +239,29 @@ case CoreKind.IncidentIndirect:
 | 11 | `scripts/view/RestInterviewConsole.cs` | Interview 페이지 제거, Notes 전체 화면, 조사 목표 줄, 상세칸, 시작 탭 `CurrentEmployee`, 전원 토글. |
 | 12 | `scripts/debug/RestEvidenceTest.cs`, `scripts/dialogue/InterviewScenarioTest.cs` | §5 수용 기준의 케이스 추가. 기존 위치 모순 케이스는 그대로 통과해야 한다. |
 
-### 2차 (10/31 마감 전 · 결번자에게 거짓말을 주고 피드백을 닫는다)
+### 1.5차 (10/15 마감 전 · 1차 UI 원복)
+
+| # | 파일 | 작업 |
+|---|---|---|
+| 12a | `scripts/view/PhoneCallHud.cs` | `AfterMode.InterviewOpening` · `NextOpening()` · `_openingIndex` 제거. `SetInterviewLayout(true)` 를 일반 통화와 같은 레이아웃으로. `BuildInterviewMenu()` 를 §3-6 선택지 구성으로 재작성. `_history`(직전 문답) 추가. 접기 버튼 + `Collapsed` 상태. 심문 중 `_hangUp` 숨김. `BlocksCrtInput` 접힘 대응. |
+| 12b | `scripts/view/RestInterviewConsole.cs` | `EndPressed` → `ExpandRequested`, 버튼 라벨 `대화창 펼치기`. 카드 크기·글자·태그 색 띠·A/B 배지(§3-6). 슬롯 변경 시 `SlotsChanged` 이벤트(대화창 자동 펼침용). |
+| 12c | `scripts/debug/InterviewHudShot.cs` | 캡처 씬을 새 레이아웃에 맞춤. |
+| 12d | `scripts/prologue/TutorialDirector.cs` | DAY0 교육이 자막 띠 위치·"진술 자동 재생"을 전제로 하는 단계가 있으면 선택지 방식에 맞게 문구·조건 수정. |
+
+### 2차 (10/31 마감 전 · 결번자에게 거짓말을 주고, 띠 시간표를 넣고, 피드백을 닫는다)
 
 | # | 파일 | 작업 |
 |---|---|---|
 | 13 | `scripts/dialogue/DialogueClaimState.cs`, `DialogueResponsePlanner.cs` | `DeniesEquipmentContact` 결정(§3-2). |
 | 14 | `scripts/dialogue/KoreanDialogueComposer.cs` 또는 `InterviewReplyComposer.cs` | `Denial.equipment` 슬롯 덧붙이기. `PlayerKnownEvidence.RecordBehaviorClaim` 호출. |
-| 15 | `data/dialogue/lines/*.txt` | `Denial.equipment` 슬롯(6명, 각 3줄). 결번자 전용이지만 성격은 유지. |
+| 15 | `data/dialogue/lines/*.txt`, `SLOTS.md` | `Denial.equipment` 슬롯(6명, 각 3줄). 결번자 전용이지만 성격은 유지. |
 | 16 | `scripts/dialogue/InterviewEvidenceBoard.cs` | `AddOwnStatements` 에 행동 주장 카드(`Body = "본인 · 설비 쪽에 안 갔다"`, `BehaviorDetail` 채움). |
-| 17 | `scripts/view/RestRosterView.cs` / `BreakRoomTopView` | `Confronted` 구독, 표식 누적(§3-5). 다음 날로 넘어가면 초기화. |
-| 18 | `scripts/view/RestInterviewConsole.cs` | 시간축 띠. |
-| 19 | `scripts/view/InterviewCCTVView.cs` | `Confronted` 의 Kind/variant 에 따라 긴장 발광 세기 차등(deny 최대). |
+| 17 | `scripts/data/RoomDef.cs`, `data/rooms/*.tres` | `MapColor` 추가 · 5개 방 색 지정. |
+| 18 | `scripts/view/StaffTimelineView.cs` (신규) | §3-7 띠 시간표 컨트롤. |
+| 19 | `scripts/view/Day1HistoryOverlay.cs` | `L 로그` 창 상단에 띠, 구간 클릭 → 목록 스크롤. |
+| 20 | `scripts/view/RestInterviewConsole.cs`, `PhoneCallHud.cs` | MON01 상단에 띠 + 핀. 핀 클릭 = 카드 선택. |
+| 21 | `scripts/view/RestRosterView.cs` / `BreakRoomTopView` | `Confronted` 구독, 표식 누적(§3-5). 다음 날로 넘어가면 초기화. |
+| 22 | `scripts/view/InterviewCCTVView.cs` | `Confronted` 의 Kind/variant 에 따라 긴장 발광 세기 차등(deny 최대). |
 
 ### 건드리지 않는 것
 
@@ -250,6 +287,10 @@ case CoreKind.IncidentIndirect:
 8. **기존 위치 모순 케이스**: `RestEvidenceTest` 의 기존 케이스 전부 통과(`Kind == Location`).
 9. **UI 스모크**: `scenes/debug/InterviewHudShot.tscn` 에서 심문을 열었을 때 MON01 에 진술 블록이 없고, 자막 띠에 선택지가 있으며, 시작 탭이 현재 직원이다.
 10. **DAY0 튜토리얼**: `TutorialDirector` 의 "무엇이든 물었는가" 조건이 여전히 통과한다.
+11. **자동 재생 없음(1.5차)**: 심문을 열고 인사가 끝난 뒤 아무 입력 없이 5초가 지나도 `_message` 내용이 바뀌지 않는다.
+12. **접기(1.5차)**: 접은 뒤 `IsOpen == true`, `_session != null`. 펼치면 접기 전 선택지가 그대로 있다.
+13. **종료 경로(1.5차)**: 세션을 `null` 로 만드는 경로는 `통화를 종료한다.` 선택지와 3D 전화기 클릭(`RequestClose`) 둘뿐이다. 콘솔에는 종료 버튼이 없다.
+14. **띠 시간표(2차)**: 여우가 22:00 정비실 배치 → 23:10 저장고 이동이면 여우 띠는 [22:00,23:10) 정비실 색, [23:10,04:00) 저장고 색. 23:47 방해공작 붉은 선이 그 시각에 있다. 경고·안정화 줄은 띠에 나타나지 않는다.
 
 ---
 

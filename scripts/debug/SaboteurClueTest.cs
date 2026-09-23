@@ -100,6 +100,12 @@ public partial class SaboteurClueTest : Node
                 var st = _sim.GetEmployeeState(id);
                 if (st == null || st.CurrentRoomId == where[id]) continue;
                 // 지시한 방에 도착할 때까지는 그 명령의 이동이다(통로를 지나는 것 포함).
+                // 기절한 직원의 의무실 이송은 시설이 하는 일이라 자율 이동이 아니다
+                // (스트레스 46 이상 → TickStressFaint 가 강제로 옮긴다).
+                if (st.Incapacitated) { where[id] = st.CurrentRoomId; continue; }
+                // 기절한 직원의 의무실 이송은 시설이 하는 일이라 자율 이동이 아니다
+                // (스트레스 46 이상 → TickStressFaint 가 강제로 옮긴다).
+                if (st.Incapacitated) { where[id] = st.CurrentRoomId; continue; }
                 if (!_orderedMoves.ContainsKey(id))
                 {
                     _unorderedMoves++;

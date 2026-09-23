@@ -91,9 +91,9 @@ public sealed class SaboteurPlan
             _firedPrecursors.Clear();
         }
 
-        // 아직 이동 중이거나, 손댈 수 있는 방이 아니면 그냥 일한다.
         // 플레이어가 재배치를 지시하는 순간(=걷기 시작) 준비는 그 자리에서 깨진다.
-        if (saboteur.IsMoving || !IsWorkableTarget(sim, ops, room))
+        // 자리를 뜨는 것은 관리자의 개입이고, 그 개입이 방해공작을 막는 유일한 수단이다.
+        if (saboteur.IsMoving || !ops.SabotageTargetRooms.Contains(room) || !sim.IsRoomActive(room))
         {
             SettledSeconds = PrepareSeconds = 0f;
             if (Phase != SaboteurPhase.Idle)
@@ -104,6 +104,13 @@ public sealed class SaboteurPlan
             }
             return;
         }
+
+        // 그 방이 지금 시끄럽다(경고가 떠 있거나 수리가 걸려 있다) — 손대지 않고 **기다린다**.
+        //
+        // 예전에는 여기서도 준비를 0으로 지웠다. 그런데 경고는 근무 내내 이 방 저 방에서
+        // 뜨기 때문에, 결번자는 준비를 채우는 족족 잃고 5일을 해도 한 번밖에 못 저질렀다.
+        // 자리를 뜨지 않았는데 준비가 사라지는 것도 앞뒤가 맞지 않는다 — 그대로 멈춰 둔다.
+        if (sim.HasRepairPending(room) || sim.Warnings.HasActive(room)) return;
 
         SettledSeconds += delta;
 
@@ -137,24 +144,17 @@ public sealed class SaboteurPlan
         TickPrecursors(sim, saboteur, room, now);
     }
 
-    // 지금 이 방에서 손댈 수 있는가. 방 자체 조건만 본다(시간·준비는 위에서 본다).
-    private static bool IsWorkableTarget(FacilitySimulation sim, OpsProfileDef ops, string roomId)
-    {
-        if (string.IsNullOrEmpty(roomId) || !ops.SabotageTargetRooms.Contains(roomId)) return false;
-        if (!sim.IsRoomActive(roomId)) return false;
-        if (sim.HasRepairPending(roomId) || sim.Warnings.HasActive(roomId)) return false;
-        return true;
-    }
-
     // 준비에 걸리는 시간. 사람이 많을수록, 경비가 볼수록 오래 걸린다.
     // 다만 "3명이면 절대 불가" 같은 규칙은 두지 않는다 — 악용되면 추리가 아니라 공식이 된다.
     private static float PrepareTime(FacilitySimulation sim, OpsProfileDef ops, string roomId, string saboteurId)
     {
         float need = Mathf.Lerp(ops.SabotagePrepareMinSeconds, ops.SabotagePrepareMaxSeconds, GD.Randf());
         int others = Mathf.Max(0, sim.OnDutyCount(roomId) - 1);
-        need *= others switch { 0 => 0.85f, 1 => 1f, 2 => 1.45f, _ => 1.8f };
+        // 사람이 많으면 오래 걸리지만, 예전 배율(1.45/1.8)은 경비실 배율까지 겹쳐 두 배 가까이
+        // 되면서 근무 안에 준비가 끝나지 않는 날이 많았다. 억제력은 남기고 폭만 줄인다.
+        need *= others switch { 0 => 0.85f, 1 => 1f, 2 => 1.25f, _ => 1.45f };
         // 경비실에 사람이 있으면 그만큼 눈치를 본다.
-        need *= 1f + 0.22f * sim.OnDutyCount(FacilitySimulation.GuardRoomIdPublic);
+        need *= 1f + 0.13f * sim.OnDutyCount(FacilitySimulation.GuardRoomIdPublic);
         return Mathf.Max(3f, need);
     }
 

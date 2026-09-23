@@ -52,6 +52,16 @@ public partial class HorrorDirector : Node
     private double _postTabooJumpscareAt = -1;
     private GamePhase _lastPhase = GamePhase.Prep;
 
+    // ── 방심했을 때의 점프스케어 ──────────────────────────────────────
+    // 아무 일도 일어나지 않는 조용한 구간이 길어지면 한 번 놀래킨다.
+    //
+    // **게임 상태를 전혀 바꾸지 않는다.** 스트레스도 사고도 없고, 놀란 뒤에 확인할 것도
+    // 없다. 순전히 "이 시설은 조용해도 안전하지 않다"만 남기는 연출이다.
+    // 그래서 조용한 시간을 재는 기준은 화면에 뜬 사건뿐이고, 상한(CalmScareMaxPerShift)이 있다.
+    private double _calmSince = -1;
+    private double _lastCalmScareMsec = -1_000_000;
+    private int _calmScareCount;
+
     private int _level3Count;
     private double _lastLevel3Msec = -1_000_000;
     private double _lastLevel2Msec = -1_000_000;
@@ -277,6 +287,34 @@ public partial class HorrorDirector : Node
         return false;
     }
 
+    // 지금 시설이 조용한가 — 경고도 사고도 괴물도 통화도 없다.
+    private static bool IsCalm(FacilitySimulation sim)
+    {
+        if (sim.Warnings.Active.Count > 0) return false;
+        if (sim.Ghost is { Active: true }) return false;
+        if (NSP.Core.IncidentTracker.ActiveCount > 0) return false;
+        if (NSP.View.Phone3D.Instance is { IsBusy: true }) return false;
+        return true;
+    }
+
+    private void TickCalmScare(double now, FacilitySimulation sim)
+    {
+        var cfg = NSP.Core.Config.Instance?.Data;
+        if (cfg == null || _faceJumpscarePlaying) return;
+
+        if (!IsCalm(sim)) { _calmSince = -1; return; }
+        if (_calmSince < 0) { _calmSince = now; return; }
+
+        if (_calmScareCount >= cfg.CalmScareMaxPerShift) return;
+        if (now - _lastCalmScareMsec < cfg.CalmScareCooldownSeconds) return;
+        if (now - _calmSince < cfg.CalmScareAfterSeconds) return;
+
+        _calmSince = -1;
+        _lastCalmScareMsec = now;
+        _calmScareCount++;
+        PlayEntityFaceJumpscare();
+    }
+
     public override void _Process(double delta)
     {
         var phase = GameState.Instance?.CurrentPhase ?? GamePhase.Prep;
@@ -285,6 +323,8 @@ public partial class HorrorDirector : Node
             _postTabooJumpscareScheduled = false;
             _postTabooJumpscarePlayed = false;
             _postTabooJumpscareAt = -1;
+            _calmSince = -1;
+            _calmScareCount = 0;
         }
         _lastPhase = phase;
 
@@ -298,10 +338,14 @@ public partial class HorrorDirector : Node
         }
 
         if (_playing || CustomEventActive || phase != GamePhase.Live) return;
+
+        var sim0 = FacilitySimulation.Instance;
+        if (sim0 == null) return;
+        TickCalmScare(nowSeconds, sim0);
+
         if (Time.GetTicksMsec() - _lastLevel2Msec < Level2CooldownMsec) return;
 
-        var sim = FacilitySimulation.Instance;
-        if (sim == null) return;
+        var sim = sim0;
 
         // "터지기 직전" 상태(제한시간 임박 / 금기 홀드 진행) → LEVEL 2 사전 징후.
         // 성능: 매 프레임 도는 검사라 LINQ(클로저/이터레이터 할당) 대신 foreach 로 돈다.

@@ -31,6 +31,9 @@ public partial class Day1OpsTest : Node
         public float Materials;
         public float WarnRaised, WarnPrevented, WarnFailed;
         public float Breakdowns;
+        // 이상 개체(괴물)로 생긴 사고. 배치로는 막을 수 없고 CCTV 감시로만 막는다 —
+        // 이 검사는 배치를 보는 검사라 설비 고장과 따로 센다.
+        public float Anomalies;
         public float Sabotages;
         public float PatrolLogs;
     }
@@ -113,6 +116,8 @@ public partial class Day1OpsTest : Node
 
         GD.Print("\n---------------- 판정 ----------------");
         int pass = 0, fail = 0;
+        // 배치가 안정적이면 **설비 고장**은 나지 않는다. 이상 개체 사고는 배치와 무관하므로
+        // 여기서 보지 않는다 — 그건 CCTV 를 돌려 봤는가의 문제다(검사에서는 아무도 안 본다).
         Check("A 안정 배치는 사고 없이 끝난다", a.Breakdowns < 0.6f, ref pass, ref fail);
         // 하루 경고 총량 상한(MaxWarningsPerDay)이 생긴 뒤로는 총 발생 수가 상한에 붙는다 —
         // 발전실 1명의 부담은 '더 많이 뜨거나, 더 많이 놓친다' 둘 중 하나로 드러난다.
@@ -193,6 +198,10 @@ public partial class Day1OpsTest : Node
         if (ok) pass++; else fail++;
     }
 
+    // 이번 근무에 이상 개체로 생긴 사고 수.
+    private static int AnomalyCount() => EventLog.Instance?.GetAllEntries()
+        .Count(e => e.EventType == LogEventType.AnomalyIncident) ?? 0;
+
     // --- 한 시나리오를 여러 번 돌려 평균 ------------------------------------
 
     private Result Average(Plan plan)
@@ -207,6 +216,7 @@ public partial class Day1OpsTest : Node
             sum.WarnPrevented += r.WarnPrevented;
             sum.WarnFailed += r.WarnFailed;
             sum.Breakdowns += r.Breakdowns;
+            sum.Anomalies += r.Anomalies;
             sum.Sabotages += r.Sabotages;
             sum.PatrolLogs += r.PatrolLogs;
         }
@@ -218,6 +228,7 @@ public partial class Day1OpsTest : Node
             WarnPrevented = sum.WarnPrevented / Runs,
             WarnFailed = sum.WarnFailed / Runs,
             Breakdowns = sum.Breakdowns / Runs,
+            Anomalies = sum.Anomalies / Runs,
             Sabotages = sum.Sabotages / Runs,
             PatrolLogs = sum.PatrolLogs / Runs,
         };
@@ -245,7 +256,8 @@ public partial class Day1OpsTest : Node
             WarnRaised = _sim.Warnings.Raised,
             WarnPrevented = _sim.Warnings.Prevented,
             WarnFailed = _sim.Warnings.Failed,
-            Breakdowns = IncidentTracker.OpenedCount,
+            Breakdowns = IncidentTracker.OpenedCount - AnomalyCount(),
+            Anomalies = AnomalyCount(),
             Sabotages = entries.Count(x => x.EventType == LogEventType.Sabotage),
             PatrolLogs = entries.Count(x => x.Description.Contains("경비 순찰 기록")),
         };

@@ -159,4 +159,10 @@ public enum LogEventType
     ResourceShortage,
     // 불편(Uneasy) 관계인 두 직원이 같은 방에서 언쟁을 벌임(관계 시스템 Phase 1).
     Argument,
+    // 이상 개체(괴물)를 CCTV 로 끝까지 지켜봐 소멸시킴. 관리자가 잘한 일이다.
+    AnomalyDispelled,
+    // 이상 개체를 끝내 찾지 못해 그 작업실에 사고가 남음.
+    // 설비 고장(TaskFailed)과 **따로 둔다** — 원인이 다르고, 막는 방법도 다르기 때문이다.
+    // 사람이 저지른 일이 아니므로 심문의 주제(DialogueContextBuilder.IsIncident)도 되지 않는다.
+    AnomalyIncident,
 }

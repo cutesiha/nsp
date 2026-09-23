@@ -26,6 +26,10 @@ public partial class TutorialDirector : Node
     [Export] public string TutorialEmployeeId = "rabbit";
     [Export] public string AssignRoomId = "maintenance_room";
     [Export] public string AccidentRoomId = "storage_room";
+    // 교육용 이상 개체가 나타나는 작업실. 사고가 난 방(storage_room)과 달라야 한다 —
+    // 같은 방이면 "고장 난 곳만 보면 된다"로 배우게 된다.
+    // DAY0 에 열려 있는 작업실은 코어실 · 정비실 · 저장고 셋뿐이다(RoomDef.UnlockDay).
+    [Export] public string AnomalyRoomId = "core_room";
     // 근무 시작 후 교육용 사고가 나기까지의 시간.
     [Export] public float IncidentDelaySeconds = 8f;
 
@@ -123,6 +127,11 @@ public partial class TutorialDirector : Node
         await Say("tut_repair_done");
         // 실제 근무의 방해공작을 설명만 한다 — DAY0 에는 방해자를 만들지 않는다.
         await Say("tut_sabotage_intro");
+
+        // ── STEP 3-B : 이상 개체 ──────────────────────────────────────
+        // 설명만 하고 넘어가면 근무 중에 화면을 돌려 볼 이유가 생기지 않는다.
+        // 그래서 한 번 실제로 나타나게 하고, 직접 찾아 직접 지켜보게 한다.
+        await RunAnomalyLesson(sim);
 
         // ── STEP 4 : 시설 로그 ────────────────────────────────────────
         await SayThen("tut_log", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
@@ -285,6 +294,28 @@ public partial class TutorialDirector : Node
 
     private static string RoomName(string roomId) =>
         FacilitySimulation.Instance?.GetRoomDef(roomId)?.DisplayName ?? roomId ?? "";
+
+    // ── 이상 개체 교육 ───────────────────────────────────────────────
+    //
+    // 순서가 중요하다. 먼저 나타나게 해 두고, 그 다음에 "찾아보라"고 말한다 —
+    // 설명을 다 듣고 나서야 나타나면 관리자는 찾은 것이 아니라 안내받은 것이 된다.
+    //
+    // 교육 중에는 사고로 번지지 않는다(유예 9999초). 헤매도 벌은 없고, 배우기만 하면 된다.
+    private async Task RunAnomalyLesson(FacilitySimulation sim)
+    {
+        if (sim?.Ghost == null) return;
+        if (!sim.Ghost.ForceAppear(AnomalyRoomId, sim, 9999f)) return;
+
+        await Say("tut_anomaly_intro");
+        // 찾을 때까지 — 그 방을 CCTV 로 띄우는 순간이 "찾았다" 다.
+        await SayThen("tut_anomaly_find", () => sim.SurveillanceTargetRoomId == AnomalyRoomId
+                                                || !sim.Ghost.Active);
+        if (!sim.Ghost.Active) return;
+
+        // 지켜보는 동안 — 화면을 돌리면 게이지가 되감기는 것도 여기서 배운다.
+        await SayThen("tut_anomaly_watch", () => !sim.Ghost.Active);
+        await Say("tut_anomaly_done");
+    }
 
     // --- await 헬퍼 -------------------------------------------------------
 

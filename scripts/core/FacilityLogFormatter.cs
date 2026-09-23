@@ -116,6 +116,9 @@ public static class FacilityLogFormatter
         LogEventType.ResourceShortage => Row(e, Pipe(e.Description),
             (e.Description ?? "").Contains("재개") ? DisplayLogSeverity.Recovery : DisplayLogSeverity.Warning),
         LogEventType.CctvDisconnect => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning),
+        // 이상 개체 — 소멸은 관리자가 막아 낸 것이고, 사고는 놓친 것이다.
+        LogEventType.AnomalyDispelled => Row(e, Pipe(e.Description), DisplayLogSeverity.Recovery),
+        LogEventType.AnomalyIncident => Row(e, Pipe(e.Description), DisplayLogSeverity.Critical),
         LogEventType.Argument => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),
         LogEventType.Death => Death(e, s),
         LogEventType.Isolation => Isolation(e, s),

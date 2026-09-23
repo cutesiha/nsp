@@ -48,6 +48,9 @@ public partial class PhoneCallHud : CanvasLayer
     private RichTextLabel _message;
     private VBoxContainer _choices;
     private Label _incoming;
+    private Button _rejectBtn;
+    // 울리는 전화를 받지 않고 끊었다. Phone3D 가 받아 벨을 멈춘다.
+    public event System.Action RejectRequested;
     private Font _font;
 
     // 휴게시간 심문 전용 — 왼쪽 대화(진술 · 질문), 오른쪽 「조사 노트」, 아래 「자료 A / B」.
@@ -220,6 +223,20 @@ public partial class PhoneCallHud : CanvasLayer
         _incoming.AddThemeColorOverride("font_outline_color", Colors.Black);
         _incoming.AddThemeConstantOverride("outline_size", 4);
         AddChild(_incoming);
+
+        // 받지 않고 끊는다. 전화를 받을지 말지도 관리자의 판단이다 —
+        // 지금 다른 작업실을 보고 있어야 할 때 울리는 벨을 무시할 수단이 있어야 한다.
+        // (그냥 두면 직원이 기다리다 스스로 끊지만, 그동안 벨은 계속 울린다.)
+        _rejectBtn = MonitorUi.Button("전화 끊기", new Color(1f, 0.52f, 0.46f), _font,
+            () => RejectRequested?.Invoke(), ViewFont.FS(14));
+        _rejectBtn.Visible = false;
+        _rejectBtn.AnchorLeft = 0.5f; _rejectBtn.AnchorRight = 0.5f;
+        _rejectBtn.AnchorTop = 0.9f; _rejectBtn.AnchorBottom = 0.9f;
+        _rejectBtn.OffsetLeft = -62f; _rejectBtn.OffsetRight = 62f;
+        _rejectBtn.OffsetTop = 36f; _rejectBtn.OffsetBottom = 72f;
+        _rejectBtn.MouseFilter = Control.MouseFilterEnum.Stop;
+        _rejectBtn.TooltipText = "받지 않고 끊는다";
+        AddChild(_rejectBtn);
     }
 
     // --- 창 옮기기 -------------------------------------------------------
@@ -791,11 +808,13 @@ public partial class PhoneCallHud : CanvasLayer
         if (_incoming == null) return;
         _incoming.AddThemeColorOverride("font_color", accent.Lerp(Colors.White, 0.2f));
         _incoming.Visible = true;
+        if (_rejectBtn != null) _rejectBtn.Visible = true;
     }
 
     public void HideIncoming()
     {
         if (_incoming != null) _incoming.Visible = false;
+        if (_rejectBtn != null) _rejectBtn.Visible = false;
     }
 
     // 이 화면 좌표가 통화창 위인가. 통화창 밖을 클릭했다면 그건 통화가 아니라
