@@ -9,6 +9,8 @@ DisplayName = "저장고"
 ConnectedRoomIds = Array[String](["central_office", "maintenance_room", "core_room"])
 AdjacentRoomIds = Array[String](["core_room", "maintenance_room"])
 MapPosition = Vector2(450, 170)
+; 띠 시간표에서 이 방을 나타내는 색 — 저장고 황토
+MapColor = Color(0.80, 0.56, 0.30, 1)
 IsCoreRoom = false
 UnlockDay = 0
 ManagedResource = 7

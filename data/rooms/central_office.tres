@@ -9,5 +9,7 @@ DisplayName = "중앙 제어실"
 ConnectedRoomIds = Array[String](["core_room", "power_room", "storage_room", "guard_room", "maintenance_room", "isolation_room"])
 AdjacentRoomIds = Array[String]([])
 MapPosition = Vector2(270, 270)
+; 띠 시간표에서 이 방을 나타내는 색 — 중앙제어실 회색(관리자 구역)
+MapColor = Color(0.26, 0.28, 0.32, 1)
 IsCoreRoom = false
 IsRestricted = true

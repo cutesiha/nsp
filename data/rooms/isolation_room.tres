@@ -9,6 +9,8 @@ DisplayName = "격리실"
 ConnectedRoomIds = Array[String](["central_office"])
 AdjacentRoomIds = Array[String](["medical_room"])
 MapPosition = Vector2(270, 470)
+; 띠 시간표에서 이 방을 나타내는 색 — 격리실 어두운 적갈
+MapColor = Color(0.52, 0.32, 0.38, 1)
 IsCoreRoom = false
 IsRestricted = true
 ManagedResource = 8

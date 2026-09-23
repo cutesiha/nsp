@@ -14,6 +14,9 @@ public partial class RoomDef : Resource
     // 통로로 이어져 있지 않아도 옆방일 수 있어 따로 둔다. 비어 있으면 통로를 그대로 쓴다.
     [Export] public Array<string> AdjacentRoomIds = new();
     [Export] public Vector2 MapPosition = Vector2.Zero;
+    // 띠 시간표(StaffTimelineView)에서 이 작업실을 나타내는 색. 그리기 전용이다 —
+    // 어떤 판정도 이 값을 읽지 않는다. 비워 두면 통로와 같은 어두운 회색으로 그려진다.
+    [Export] public Color MapColor = new(0.30f, 0.33f, 0.36f);
     [Export] public bool IsCoreRoom = false;
     [Export] public bool IsRestricted = false;
     [Export] public RoomResourceType ManagedResource = RoomResourceType.None;

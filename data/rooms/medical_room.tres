@@ -9,6 +9,8 @@ DisplayName = "의무실"
 ConnectedRoomIds = Array[String](["central_office", "vent_room", "maintenance_room", "isolation_room"])
 AdjacentRoomIds = Array[String](["vent_room", "maintenance_room", "isolation_room"])
 MapPosition = Vector2(450, 560)
+; 띠 시간표에서 이 방을 나타내는 색 — 의무실 분홍
+MapColor = Color(0.86, 0.46, 0.52, 1)
 IsCoreRoom = false
 UnlockDay = 1
 ManagedResource = 4
