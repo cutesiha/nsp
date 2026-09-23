@@ -259,9 +259,12 @@ public partial class InterviewCCTVView : Control
     }
 
     // 심문 중 모순 추궁이 성립한 순간 — 지금 화면에 떠 있는 그 직원이면 긴장 연출.
-    private void OnConfronted(string employeeId)
+    // 자료 두 장을 함께 들이민 순간. 성립하지 않은 조합(None)에는 긴장 연출을 넣지 않는다 —
+    // 화면이 "지금 뭔가 맞았다"고 알려 주면 추리가 사라진다.
+    // (kind/variant 별 세기 차등은 2차 작업 §4 19번이다.)
+    private void OnConfronted(string employeeId, NSP.Dialogue.ConfrontKind kind, string variant)
     {
-        if (employeeId == _lastEmployee) PulseTension();
+        if (employeeId == _lastEmployee && kind != NSP.Dialogue.ConfrontKind.None) PulseTension();
     }
 
     public override void _Process(double delta)

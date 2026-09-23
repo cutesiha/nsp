@@ -46,20 +46,32 @@ public static class InterviewReplyPlanner
     }
 
     // 플레이어가 자료 두 장으로 들이민 모순에 대한 대응.
-    public static string ConfrontAnswer(string employeeId, EvidenceContradiction.Result result)
+    public static string ConfrontAnswer(string employeeId, EvidenceContradiction.Result result) =>
+        ConfrontAnswer(employeeId, result, out _);
+
+    // 자료 두 장을 함께 들이밀었을 때의 답. variant 는 화면 연출(긴장 발광 · 휴게실 표식)이 쓴다.
+    //
+    // 규칙이 성립하지 않아도 답은 한다 — 거절이 아니라 중립으로 받는다(Confront.neutral).
+    // 성립한 경우, 결백한 직원은 기록을 받아들이고 진술을 정정하며(새 알리바이를 만들지 않는다),
+    // 결번자는 이미 정해 둔 전략대로 흐리거나 불리한 기록이 쌓였으면 정면 부정한다.
+    public static string ConfrontAnswer(string employeeId, EvidenceContradiction.Result result, out string variant)
     {
-        if (string.IsNullOrEmpty(employeeId) || result == null || !result.IsContradiction) return "…";
+        variant = "neutral";
+        if (string.IsNullOrEmpty(employeeId) || result == null) return "…";
 
         int day = DialogueContextBuilder.Day();
         var ctx = Anchor(employeeId, result.AnchorTime, result.Later?.IncidentKey ?? "");
         var plan = DialogueResponsePlanner.Plan(ctx);
         var claim = DialogueClaimState.Get(employeeId, day, ctx.ClaimKey);
 
-        // 결백한 직원은 기록을 받아들이고 진술을 정정한다 — 새 알리바이를 만들지 않는다.
-        // 방해자는 이미 정해 둔 전략대로 흐리거나, 불리한 기록이 쌓였으면 정면 부정한다.
-        string variant = "honest";
-        if (ctx.IsSaboteur && !claim.ClaimTruthful)
-            variant = ctx.EvidenceAgainstCount >= 2 || plan.Deception == DeceptionMode.Deny ? "deny" : "evasive";
+        if (result.Kind != ConfrontKind.None)
+        {
+            variant = "honest";
+            if (ctx.IsSaboteur && !claim.ClaimTruthful)
+                variant = ctx.EvidenceAgainstCount >= 2 || plan.Deception == DeceptionMode.Deny ? "deny" : "evasive";
+            // 행동 추궁에서 결번자가 "설비 근처에 가지 않았다"고 이미 주장했다면 정면 부정으로 간다.
+            // 그 주장(DeniesEquipmentContact)은 2차 작업(§4 13~16)에서 붙는다.
+        }
 
         var frame = new ReplyFrame { EmployeeId = employeeId, Topic = ReplyTopic.Confront, Variant = variant };
         frame.Set("room", RoomName(result.RoomA)).Set("time", DialogueClock.Spoken(result.AnchorTime));

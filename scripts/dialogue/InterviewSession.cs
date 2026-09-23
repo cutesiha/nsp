@@ -229,8 +229,10 @@ public sealed class InterviewSession
     // 플레이어가 무엇을 물었는지 알린다. DAY0 교육이 진행 조건으로만 듣는다
     // (게임 규칙은 이 이벤트를 쓰지 않는다).
     public static event System.Action<string, InterviewQuestion> Asked;
-    // 플레이어가 자료 두 장으로 모순을 들이밀어 추궁이 성립한 순간. 연출(심문 일러의 긴장 효과)만 듣는다.
-    public static event System.Action<string> Confronted;
+    // 플레이어가 자료 두 장을 함께 들이민 순간. 연출(심문 일러의 긴장 효과)만 듣는다.
+    // kind 는 어떤 규칙으로 성립했는가(None = 성립 안 함), variant 는 직원이 어떻게 받았는가
+    // (honest / evasive / deny / neutral). 게임 판정에는 쓰지 않는다.
+    public static event System.Action<string, ConfrontKind, string> Confronted;
 
     public Turn Ask(InterviewQuestion q)
     {
@@ -265,14 +267,16 @@ public sealed class InterviewSession
         return turn;
     }
 
+    // 두 자료를 함께 들이민다. **성립하지 않아도 턴이 만들어진다** —
+    // 틀린 조합을 대 보는 것도 추리의 일부이고, 직원은 중립으로 받는다(Confront.neutral).
     public Turn Confront(EvidenceContradiction.Result result)
     {
         var turn = new Turn();
-        if (result == null || !result.IsContradiction) return turn;
-        _asked.Add($"Confront|{result.Earlier?.Id}|{result.Later?.Id}");
+        if (result == null || result.Earlier == null || result.Later == null) return turn;
+        _asked.Add($"Confront|{result.Earlier.Id}|{result.Later.Id}");
         turn.QuestionText = result.QuestionText;
-        turn.Answer = InterviewReplyPlanner.ConfrontAnswer(EmployeeId, result);
-        Confronted?.Invoke(EmployeeId);
+        turn.Answer = InterviewReplyPlanner.ConfrontAnswer(EmployeeId, result, out string variant);
+        Confronted?.Invoke(EmployeeId, result.Kind, variant);
         Refresh();
         return turn;
     }
