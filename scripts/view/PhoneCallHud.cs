@@ -361,6 +361,14 @@ public partial class PhoneCallHud : CanvasLayer
         con.ExpandRequested += ExpandForConsole;
         // 자료 A/B 가 바뀌면 선택지도 바뀐다 — 접혀 있으면 펴서 보여 준다.
         con.SlotsChanged += ExpandForConsole;
+        // 띠에 꽂힌 핀 · 사고 세로선을 눌렀다 = 목록에서 그 카드를 누른 것.
+        // 카드 버튼과 **같은 두 줄**을 탄다 — 고르는 길이 둘로 갈라지면 규칙도 둘이 된다.
+        con.EvidencePinPressed += id =>
+        {
+            if (_session == null) return;
+            _session.Toggle(id);
+            OnEvidencePicked();
+        };
 
         // 보기 — 기본은 지금 심문 중인 직원의 자료다. 다른 직원 자료는 아예 뜨지 않는다
         // (회색으로 깔아 두면 읽을 수 없는 카드가 화면의 절반을 먹는다).
@@ -491,7 +499,21 @@ public partial class PhoneCallHud : CanvasLayer
                 ? "★ 로 표시한 자료가 없습니다."
                 : "확보한 자료가 없습니다.", 13, new Color(0.55f, 0.62f, 0.66f)));
 
+        RefreshTimeline();
         UpdateSlots();
+    }
+
+    // 조사 노트 위의 띠 시간표를 다시 채운다. 카드가 늘어나면 핀도 늘어난다.
+    //
+    // 띠에 넘기는 로그는 조사 자료를 만들 때와 **같은 요약본**이다 — 자료판에는 없는
+    // 이동이 띠에 뜨면 플레이어가 보지 못한 사실로 추리하게 된다.
+    private void RefreshTimeline()
+    {
+        if (_console == null || _session == null) return;
+        var rows = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
+            GameState.Instance?.CurrentDay ?? 1);
+        _console.SetTimeline(FacilitySimulation.Instance?.GetActiveEmployeeIds(), rows,
+            _session.Board, _session.EmployeeId, _session.Selected);
     }
 
     // 사건 묶음 머리 — 누르면 접고 편다.

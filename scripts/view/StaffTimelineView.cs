@@ -110,8 +110,15 @@ public partial class StaffTimelineView : Control
     private Dictionary<string, List<Segment>> _segments = new();
     private readonly List<int> _incidents = new();
 
-    // 지금 선택된 자료 카드. 같은 핀을 밝게 그려 목록과 띠가 같은 것을 가리키게 한다.
-    public string SelectedEvidenceId = "";
+    // 지금 골라 둔 자료 카드(최대 두 장). 같은 핀을 밝게 그려 목록과 띠가 같은 것을 가리키게 한다.
+    private readonly HashSet<string> _selected = new();
+
+    public void SetSelected(IEnumerable<string> evidenceIds)
+    {
+        _selected.Clear();
+        if (evidenceIds != null) foreach (var id in evidenceIds) _selected.Add(id ?? "");
+        QueueRedraw();
+    }
 
     private Font _font;
     private float _dayLength = 120f;
@@ -298,7 +305,7 @@ public partial class StaffTimelineView : Control
             float x = e.HasTime ? XOf(e.AnchorTime) : TrackX + 3f;
             float y = RowTop(row);
             var col = PinColor(e.Kind);
-            bool on = !string.IsNullOrEmpty(SelectedEvidenceId) && SelectedEvidenceId == e.Id;
+            bool on = _selected.Contains(e.Id);
             bool hot = _hover.Kind == 3 && _hover.Index == p;
 
             // 띠 위쪽에 걸쳐 앉는 작은 못. 띠 색을 가리지 않게 절반만 덮는다.

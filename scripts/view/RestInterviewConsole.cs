@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Godot;
+using NSP.Core;
+using NSP.Dialogue;
 
 namespace NSP.View;
 
@@ -34,6 +38,10 @@ public partial class RestInterviewConsole : Control
     public event Action ExpandRequested;
     // 자료 A/B 가 바뀌었다 — 대화창의 선택지가 달라지므로 접혀 있으면 펼쳐야 한다.
     public event Action SlotsChanged;
+    // 띠에 꽂힌 핀(또는 사고 세로선)을 눌렀다. 받는 쪽(PhoneCallHud)은 목록에서 같은
+    // 카드를 누른 것과 **똑같이** 처리한다 — 띠는 카드를 가리키는 또 하나의 손가락일 뿐,
+    // 따로 고르는 방법이 아니다.
+    public event Action<string> EvidencePinPressed;
 
     // PhoneCallHud 가 채우는 자리.
     public HFlowContainer NoteTabs { get; private set; }
@@ -45,6 +53,10 @@ public partial class RestInterviewConsole : Control
     private Label _goal;
     private Label _detail;
     private Panel _listFrame;
+    private StaffTimelineView _band;
+    // 사고 세로선을 눌렀을 때 어느 카드를 누른 셈으로 칠지 찾기 위해 들고 있는 자료판.
+    private IReadOnlyList<InterviewEvidence> _board = new List<InterviewEvidence>();
+    private List<DisplayLogEntry> _rows = new();
     private Button _expandBtn;
     private ScrollContainer _listScroll;
     // 카드가 새로 들어온 순간 목록 테두리가 한 번 밝아진다(§3-6 "말한 것이 자료가 된다").
@@ -87,6 +99,10 @@ public partial class RestInterviewConsole : Control
         BuildNotes();
     }
 
+    // 띠 높이 · 그 아래 첫 줄. 조사 목표(46~68) 바로 아래에서 시작한다.
+    private const float BandY = 72f;
+    private const float BandH = 130f;
+
     public override void _ExitTree()
     {
         if (Instance == this) Instance = null;
@@ -96,15 +112,30 @@ public partial class RestInterviewConsole : Control
     // [이 자료로 질문] [두 자료 비교] 버튼은 없다. 그건 자막 띠의 선택지가 맡는다.
     private void BuildNotes()
     {
-        NoteTabs = new HFlowContainer { Position = new Vector2(16, 72), Size = new Vector2(768, 34) };
+        // ── 띠 시간표 — 카드 목록이 "언제 · 어디"로 읽히게 하는 줄 ──────
+        // 심문 중인 직원의 자료 카드가 그 시각 위에 핀으로 꽂힌다. 핀을 누르면
+        // 목록에서 같은 카드를 누른 것과 같다 — 고르는 길이 둘로 갈라지지 않는다.
+        _band = new StaffTimelineView
+        {
+            Position = new Vector2(16, BandY), Size = new Vector2(768, BandH),
+        };
+        _band.PinPressed = id => EvidencePinPressed?.Invoke(id);
+        _band.IncidentPressed = OnIncidentLinePressed;
+        AddChild(_band);
+
+        NoteTabs = new HFlowContainer
+        {
+            Position = new Vector2(16, BandY + BandH + 6), Size = new Vector2(768, 34),
+        };
         NoteTabs.AddThemeConstantOverride("h_separation", 6);
         AddChild(NoteTabs);
 
-        _listFrame = FramePanel(new Vector2(16, 110), new Vector2(768, 306));
+        // 카드 목록은 그대로 남기고 스크롤 높이만 줄인다(띠가 목록을 대신하지 않는다).
+        _listFrame = FramePanel(new Vector2(16, BandY + BandH + 44), new Vector2(768, 170));
         AddChild(_listFrame);
         _listScroll = new ScrollContainer
         {
-            Position = new Vector2(24, 116), Size = new Vector2(752, 294),
+            Position = new Vector2(24, BandY + BandH + 50), Size = new Vector2(752, 158),
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
         };
         AddChild(_listScroll);
@@ -146,6 +177,38 @@ public partial class RestInterviewConsole : Control
         bool has = !string.IsNullOrEmpty(text);
         _detail.Text = has ? text : "자료를 고르면 전문이 여기에 표시됩니다.";
         _detail.AddThemeColorOverride("font_color", has ? new Color(0.86f, 0.92f, 0.94f) : Dim);
+    }
+
+    // 띠에 그릴 것을 받는다. PhoneCallHud 가 자료판을 다시 만들 때마다 부른다.
+    //
+    // rows 는 시설 로그 **화면**의 줄(FacilityLogFormatter 결과)이다. EventLog 원본을
+    // 넘기면 플레이어가 보지 못한 이동이 띠에 서고, 그 순간 이 화면은 추리를 대신 해 준다.
+    //
+    // 핀이 되는 자료는 네 가지 — CCTV 로 직접 본 장면 · 동료의 증언 · 본인의 진술 ·
+    // 근무 전 기분이다. 시각이 없는 기분은 띠 왼쪽 끝에 선다. 시설 로그에서 온 카드
+    // (이동 · 사고)는 핀이 되지 않는다 — 그건 이미 띠와 세로선 그 자체다.
+    public void SetTimeline(IEnumerable<string> employeeIds, List<DisplayLogEntry> rows,
+        IReadOnlyList<InterviewEvidence> board, string subjectId, IEnumerable<string> selectedIds)
+    {
+        if (_band == null) return;
+        _rows = rows ?? new List<DisplayLogEntry>();
+        _board = board ?? new List<InterviewEvidence>();
+        var pins = _board.Where(e => e.SubjectEmployeeId == subjectId
+            && e.Kind is EvidenceKind.Cctv or EvidenceKind.Testimony
+                       or EvidenceKind.OwnStatement or EvidenceKind.Mood);
+        _band.SetData(employeeIds, _rows, pins);
+        _band.SetSelected(selectedIds);
+    }
+
+    // 사고 세로선을 눌렀다 = 그 사고 카드를 누른 것으로 친다.
+    // 같은 시각의 사고 카드를 자료판에서 찾아 그 id 를 그대로 올려보낸다.
+    private void OnIncidentLinePressed(int logIndex)
+    {
+        if (logIndex < 0 || logIndex >= _rows.Count) return;
+        float at = _rows[logIndex].Timestamp;
+        var card = _board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident
+            && e.HasTime && Mathf.Abs(e.AnchorTime - at) < 0.5f);
+        if (card != null) EvidencePinPressed?.Invoke(card.Id);
     }
 
     // 캡처/검증 씬 전용 — 버튼을 실제로 누르지 않고 같은 신호만 보낸다.
