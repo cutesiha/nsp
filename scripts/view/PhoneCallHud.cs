@@ -218,9 +218,10 @@ public partial class PhoneCallHud : CanvasLayer
         _choices.AddThemeConstantOverride("separation", 7);
         _leftInner.AddChild(_choices);
 
-        // 맨 아래 한 줄(통화를 종료한다 / 다른 질문을 한다)은 따로 둔다 — 위가 어떻게 바뀌든 제일 밑이다.
+        // 맨 아래 한 줄(통화를 종료한다 / 다른 질문을 한다)은 **스크롤 밖**에 둔다.
+        // 안에 두면 선택지가 길어질 때 끊는 버튼이 화면 밖으로 밀린다 — 1차에서 나온 불만이다.
         _tail = new VBoxContainer();
-        _leftInner.AddChild(_tail);
+        _leftCol.AddChild(_tail);
 
         BuildDragBar();
 
@@ -1211,8 +1212,10 @@ public partial class PhoneCallHud : CanvasLayer
     private void PushHistory(string question, string answer)
     {
         RenderHistory();
-        _log.Add((question ?? "", answer ?? ""));
-        while (_log.Count > 3) _log.RemoveAt(0);
+        // 같은 진술을 다시 들었을 때 같은 문답이 두 번 쌓이지 않게 한다(창이 좁다).
+        var pair = (question ?? "", answer ?? "");
+        if (_log.Count == 0 || _log[^1] != pair) _log.Add(pair);
+        while (_log.Count > 2) _log.RemoveAt(0);
     }
 
     private void ClearHistory()

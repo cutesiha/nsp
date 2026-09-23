@@ -148,6 +148,9 @@ public partial class RestInterviewConsole : Control
         _detail.AddThemeColorOverride("font_color", has ? new Color(0.86f, 0.92f, 0.94f) : Dim);
     }
 
+    // 캡처/검증 씬 전용 — 버튼을 실제로 누르지 않고 같은 신호만 보낸다.
+    public void EmitExpandForTest() => ExpandRequested?.Invoke();
+
     // 자료 A/B 가 바뀌었다고 알린다(PhoneCallHud 가 슬롯을 다시 그린 뒤 부른다).
     public void NotifySlotsChanged() => SlotsChanged?.Invoke();
 
