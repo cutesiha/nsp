@@ -8,7 +8,7 @@ namespace NSP.View;
 // 전화 통화 자막 UI. 화면 하단의 작은 홀로그램 '창' 으로만 표시한다 — 중앙 대형 팝업 금지.
 //  - 일반 통화(플레이어 발신): 인사 → 질문 → 대답 …
 //  - 이벤트 통화(직원 발신: 사고/비명/정전/목격): 첫 대사 → 2지선다 → 대답 → 종료
-//  - 휴게시간 심문: 이 창이 대화 전부를 맡는다 — 직전 문답 · 현재 답변 · 선택지.
+//  - 휴게시간 심문: 이 창이 대화 전부를 맡는다 — 지금 질문 · 지금 답변 · 선택지.
 //    자리와 크기는 일반 통화와 같다(1.5차에서 자막 띠 방식을 버리고 되돌렸다).
 //    조사 자료는 MONITOR 01 의 RestInterviewConsole 에 있고, 여기서는 그 카드를 읽어
 //    "무엇을 물을 수 있는가"만 선택지로 만든다(추리 규칙은 InterviewSession 이 쥔다).
@@ -83,9 +83,6 @@ public partial class PhoneCallHud : CanvasLayer
 
     // 이미 들어 본 근무 진술(✓ 표시용). 목록에서 빼지는 않는다.
     private readonly System.Collections.Generic.HashSet<int> _heardOpenings = new();
-    // 직전 문답 두세 개. 현재 답변 위에 흐리게 남는다(전체 기록은 D 대화 기록).
-    private RichTextLabel _history;
-    private readonly System.Collections.Generic.List<(string Q, string A)> _log = new();
     // 마지막으로 그린 자료 A/B. 바뀔 때만 콘솔에 알린다(매 프레임 알리지 않게).
     private string _lastSlots = "";
 
@@ -164,22 +161,6 @@ public partial class PhoneCallHud : CanvasLayer
 
         _speaker = Lbl("", 19, Amber);
         _leftCol.AddChild(_speaker);
-
-        // 직전 문답 — 지금 답변 위에 흐리게 쌓인다. 대화가 한 문장씩 사라지지 않게 하는 자리다.
-        _history = new RichTextLabel
-        {
-            BbcodeEnabled = true,
-            FitContent = true,
-            ScrollActive = false,
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-            Visible = false,
-        };
-        _history.AddThemeFontOverride("normal_font", _font);
-        _history.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(13));
-        _history.AddThemeColorOverride("default_color", new Color(0.62f, 0.72f, 0.76f, 0.4f));
-        _leftCol.AddChild(_history);
 
         // 플레이어가 방금 던진 질문. 심문에서 "무엇을 물었는지"가 남아야 흐름이 읽힌다.
         _playerLine = Lbl("", 15, new Color(0.62f, 0.72f, 0.76f));
@@ -849,7 +830,6 @@ public partial class PhoneCallHud : CanvasLayer
             _console.SetGoal(InvestigationGoal(_session));
             RefreshEvidence();
             _heardOpenings.Clear();
-            ClearHistory();
             string greeting = _session.Greeting();
             RecordNpc(greeting, DialogueEntryType.NpcLine, DialogueConversationType.Interview);
             // 인사만 하고 멈춘다. 근무 진술은 플레이어가 기본 질문을 골라야 나온다 —
@@ -1102,7 +1082,6 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, question, st.Text);
         RecordPlayer(question, DialogueConversationType.Interview);
         RecordNpc(st.Text, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        PushHistory(question, st.Text);
         ShowPlayerLine(question);
         RefreshEvidence();
         _console?.FlashNotes();
@@ -1132,7 +1111,6 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        PushHistory(turn.QuestionText, turn.Answer);
         ShowPlayerLine(turn.QuestionText);
         RefreshEvidence();
         _console?.FlashNotes();
@@ -1175,7 +1153,6 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        PushHistory(turn.QuestionText, turn.Answer);
         // 방금 내가 고른 질문을 다시 보여 주지 않는다 — 답변만 뜬다.
         ShowPlayerLine("");
         RefreshEvidence();
@@ -1210,44 +1187,10 @@ public partial class PhoneCallHud : CanvasLayer
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
-        PushHistory(turn.QuestionText, turn.Answer);
         ShowPlayerLine(turn.QuestionText);
         _session.ClearSelection();
         RefreshEvidence();
         StartTyping("\"" + turn.Answer + "\"", AfterMode.InterviewMenu);
-    }
-
-    // --- 직전 문답 ---------------------------------------------------------
-
-    // 새 답변이 나오기 직전에 부른다. 지금까지의 문답을 흐리게 올리고, 이번 것을 뒤에 쌓는다
-    // (이번 답변은 아직 _message 가 맡는다 — 다음 턴에 여기로 밀려 올라온다).
-    private void PushHistory(string question, string answer)
-    {
-        RenderHistory();
-        // 같은 진술을 다시 들었을 때 같은 문답이 두 번 쌓이지 않게 한다(창이 좁다).
-        var pair = (question ?? "", answer ?? "");
-        if (_log.Count == 0 || _log[^1] != pair) _log.Add(pair);
-        while (_log.Count > 2) _log.RemoveAt(0);
-    }
-
-    private void ClearHistory()
-    {
-        _log.Clear();
-        if (_history != null) { _history.Text = ""; _history.Visible = false; }
-    }
-
-    private void RenderHistory()
-    {
-        if (_history == null) return;
-        if (_log.Count == 0) { _history.Text = ""; _history.Visible = false; return; }
-        var sb = new System.Text.StringBuilder();
-        foreach (var (q, a) in _log)
-        {
-            if (!string.IsNullOrEmpty(q)) sb.Append("관리자 ▸ ").Append(q).Append('\n');
-            if (!string.IsNullOrEmpty(a)) sb.Append("직원 ▸ ").Append(a).Append('\n');
-        }
-        _history.Text = sb.ToString().TrimEnd('\n');
-        _history.Visible = true;
     }
 
     private void ShowPlayerLine(string text)
@@ -1420,7 +1363,6 @@ public partial class PhoneCallHud : CanvasLayer
     private void CloseCall()
     {
         _panel.Visible = false;
-        ClearHistory();
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
         EmployeeMouthAnimator.Reset();
