@@ -116,6 +116,13 @@ public partial class ConfigData : Resource
     [Export] public float UnstaffedAccidentSecondsDefault = 75f;
 
     // --- 작업실 상시 효과 ---------------------------------------------------
+    // 야간 근무 자체의 피로 — 배치된 직원 전원이 이 주기마다 조금씩 오른다.
+    // 0 이하면 이 항목이 통째로 꺼진다(예전 동작).
+    [Export] public float ShiftStressIntervalSeconds = 18f;
+    [Export] public float ShiftStressAmount = 1f;
+    // 자기 작업실에 수리해야 할 사고가 열려 있는 동안의 추가 압박.
+    [Export] public float IncidentStressIntervalSeconds = 12f;
+    [Export] public float IncidentStressAmount = 1.5f;
     // 환기실 무인: 이 주기마다 전 직원 스트레스 +1.
     [Export] public float VentUnstaffedStressIntervalSeconds = 15f;
     [Export] public float VentUnstaffedStressAmount = 1f;

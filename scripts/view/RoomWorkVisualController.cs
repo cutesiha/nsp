@@ -98,6 +98,21 @@ public sealed class RoomWorkVisualController
             // 격리가 풀리면 표현 타이머도 초기화한다(다시 격리되면 0초부터).
             actor.IsolatedFor = -1f;
 
+            // 기절한 직원은 '환자'다 — 의무실 침대에 눕힌다.
+            // 반대로 멀쩡히 일하는 직원은 눕는 자리를 절대 쓰지 않는다(아래 PickSpot).
+            if (sim?.GetEmployeeState(v.Id)?.Incapacitated == true)
+            {
+                var bed = PickSpot(spots, "__patient__", actor.Spot, used);
+                if (bed != null)
+                {
+                    used[bed] = used.GetValueOrDefault(bed) + 1;
+                    if (actor.Spot != bed) { actor.Spot = bed; actor.Arrived = false; }
+                    MoveToSpot(v.Node, v.Anim, actor, bed, IsFemale(v.Node), delta, "lying_idle");
+                    continue;
+                }
+                // 침대가 없는 방에서 기절했으면 그 자리에 그대로 둔다(기존 동작).
+            }
+
             // 대화·이동·방해공작 중에는 자리를 잡지 않는다(기존 연출을 그대로 둔다).
             bool freeAction = v.Action is CctvEmployeeAction.Walking or CctvEmployeeAction.Talking
                                         or CctvEmployeeAction.Suspicious or CctvEmployeeAction.Handoff;
@@ -166,6 +181,17 @@ public sealed class RoomWorkVisualController
     private static RoomWorkSpot PickSpot(List<RoomWorkSpot> spots, string taskId,
                                          RoomWorkSpot current, Dictionary<RoomWorkSpot, int> used)
     {
+        // 기절한 직원(환자)은 눕는 자리만 쓴다 — 업무 목록과 무관하게 비어 있는 침대를 고른다.
+        if (taskId == "__patient__")
+        {
+            if (current != null && IsLyingSpot(current) && !IsIsolationSpot(current)
+                && used.GetValueOrDefault(current) < current.Capacity) return current;
+            foreach (var s in spots)
+                if (IsLyingSpot(s) && !IsIsolationSpot(s) && used.GetValueOrDefault(s) < s.Capacity)
+                    return s;
+            return null;
+        }
+
         // 격리 직원은 격리 침대(AnimationName 이 isolated_ 로 시작하는 자리)만 쓴다.
         bool wantIsolation = taskId == "__isolation__";
         if (wantIsolation)
@@ -180,14 +206,14 @@ public sealed class RoomWorkVisualController
         // 일반 업무는 격리 침대를 쓰지 않는다.
 
         // 이미 쓰던 자리가 아직 유효하면 그대로 유지한다(자리 사이를 왔다갔다 하지 않게).
-        if (current != null && !current.AnimationName.StartsWith("isolated_")
+        if (current != null && !IsLyingSpot(current)
             && current.Supports(taskId)
             && used.GetValueOrDefault(current) < current.Capacity)
             return current;
 
         foreach (var s in spots)
         {
-            if (s.AnimationName.StartsWith("isolated_")) continue;
+            if (IsLyingSpot(s)) continue;          // 눕는 자리는 환자·격리 전용이다
             if (!s.Supports(taskId)) continue;
             if (!s.SharedSpot && used.GetValueOrDefault(s) >= s.Capacity) continue;
             return s;
@@ -256,6 +282,12 @@ public sealed class RoomWorkVisualController
 
     // 누운 몸을 매트리스 위로 올리는 높이(몸 두께의 절반).
     private const float LyingBackLift = 0.12f;
+
+    private static bool IsIsolationSpot(RoomWorkSpot s) =>
+        s != null && s.AnimationName.StartsWith("isolated_");
+
+    // 눕는 자리(의무실 병상 · 격리실 구속 침대). 평소 업무에는 쓰지 않는다.
+    private static bool IsLyingSpot(RoomWorkSpot s) => s != null && IsLyingClip(s.AnimationName);
 
     private static bool IsLyingClip(string clip) =>
         !string.IsNullOrEmpty(clip) && (clip.StartsWith("lying") || clip.StartsWith("isolated_"));

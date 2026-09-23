@@ -124,6 +124,7 @@ public partial class FacilityMinimap : Control
 
         DrawDragHint(sim);
 
+        BuildIconPositions(sim);
         foreach (var id in sim.GetEmployeeIds())
             DrawEmployee(sim, id);
 
@@ -363,6 +364,49 @@ public partial class FacilityMinimap : Control
     private static bool TabooRuleSystemAtRisk(string roomId) =>
         NSP.Taboo.TabooRuleSystem.Instance?.IsRoomAtTabooRisk(roomId) ?? false;
 
+    // ⑧ 한 방에 서 있는 직원들의 아이콘 자리. 시뮬레이션 좌표(EmployeeState.Position)는
+    // 그대로 두고, **그리는 자리만** 좌우로 벌린다. 걷는 중인 직원은 통로 위 실제 위치 그대로다.
+    private readonly Dictionary<string, Vector2> _iconPos = new();
+    private const float IconSpread = 23f;
+
+    private void BuildIconPositions(FacilitySimulation sim)
+    {
+        _iconPos.Clear();
+        var perRoom = new Dictionary<string, List<string>>();
+        foreach (var id in sim.GetEmployeeIds())
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null) continue;
+            if (st.IsMoving || string.IsNullOrEmpty(st.CurrentRoomId))
+            {
+                _iconPos[id] = st.Position;      // 이동 중 — 통로 위 실제 위치
+                continue;
+            }
+            if (!perRoom.TryGetValue(st.CurrentRoomId, out var list))
+                perRoom[st.CurrentRoomId] = list = new List<string>();
+            list.Add(id);
+        }
+
+        foreach (var (roomId, ids) in perRoom)
+        {
+            // 방 안에서 순서가 매 프레임 흔들리지 않게 ID 로 정렬한다.
+            ids.Sort(System.StringComparer.Ordinal);
+            // 상자를 넘지 않는 선에서 벌린다(3명까지는 여유, 그 이상은 간격을 좁힌다).
+            float half = BoxSize.X * 0.5f - EmpDotRadius - 4f;
+            float step = ids.Count <= 1 ? 0f : Mathf.Min(IconSpread, half * 2f / (ids.Count - 1));
+            for (int i = 0; i < ids.Count; i++)
+            {
+                var st = sim.GetEmployeeState(ids[i]);
+                float dx = (i - (ids.Count - 1) * 0.5f) * step;
+                _iconPos[ids[i]] = st.Position + new Vector2(dx, 0f);
+            }
+        }
+    }
+
+    // 화면에서 이 직원의 아이콘이 실제로 그려지는 자리(클릭 판정도 같은 값을 쓴다).
+    private Vector2 IconPos(FacilitySimulation sim, string id) =>
+        _iconPos.TryGetValue(id, out var p) ? p : sim.GetEmployeeState(id)?.Position ?? Vector2.Zero;
+
     private void DrawEmployee(FacilitySimulation sim, string id)
     {
         var st = sim.GetEmployeeState(id);
@@ -383,7 +427,7 @@ public partial class FacilityMinimap : Control
         // 금기 페널티(위치 두절) 중인 직원도 지도에서 사라진다 — 데이터는 그대로다.
         if (NSP.Taboo.TabooRuleSystem.Instance?.IsTrackingLost(id) == true) return;
 
-        Vector2 p = st.Position;
+        Vector2 p = IconPos(sim, id);
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
 
         // 직원 아이콘은 고유색으로 구분한다 — 작게 그리면 색이 안 읽히므로 넉넉한 크기로.
@@ -450,8 +494,8 @@ public partial class FacilityMinimap : Control
         {
             var st = sim.GetEmployeeState(id);
             if (st == null) continue;
-            float d = st.Position.DistanceTo(pos);
-            if (d <= EmpDotRadius + 10f && d < bestDist) { best = id; bestDist = d; }
+            float d = IconPos(sim, id).DistanceTo(pos);
+            if (d <= EmpDotRadius + 6f && d < bestDist) { best = id; bestDist = d; }
         }
         return best;
     }

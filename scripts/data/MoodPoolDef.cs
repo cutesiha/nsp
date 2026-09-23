@@ -27,4 +27,9 @@ public partial class MoodPoolDef : Resource
 
     // 이후 DAY 확장용 — 전날 강한 사건(동료 사망 / 시신 발견 / 공격 피해 / 심각한 이상현상).
     [Export] public Array<string> StrongEventMoods = new();
+
+    // 근무 배치 화면에서 하루에 한 줄 뜨는 "오늘의 한마디".
+    // 기분과 같은 규칙이다 — 캐릭터 말투 안에서만 고르고, 방해자 여부와는 무관하며,
+    // 어제와 같은 줄은 연달아 나오지 않는다. 게임 판정에는 전혀 쓰지 않는 표시용 문구다.
+    [Export] public Array<string> DailyRemarks = new();
 }

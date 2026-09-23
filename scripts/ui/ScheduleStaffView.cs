@@ -26,6 +26,8 @@ public partial class ScheduleStaffView : Control
     private static readonly Color Amber = new(0.95f, 0.72f, 0.25f);
     private static readonly Color Err = new(0.92f, 0.28f, 0.24f);
     private static readonly Color Good = new(0.45f, 0.95f, 0.55f);
+    // 누를 수 있는 블록의 호버 테두리 — 시작 화면 신원 카드와 같은 하늘색.
+    private static readonly Color Cyan = NSP.View.GuideTextMarkup.ChoiceCyan;
 
     private Font _font;
     private float _t;
@@ -33,6 +35,13 @@ public partial class ScheduleStaffView : Control
     // 이 화면(모니터 2)에서 직접 고른 직원. 왼쪽 지도에서 직원을 눌러도 여기는 바뀌지 않는다.
     private string _detailEmp = "";
     private readonly List<(Rect2 Rect, string Id)> _cards = new();
+    // ⑬ 마우스가 올라간 직원 블록. CRT 안이라 이동 이벤트는 _Input 에서 받는다
+    //    (ScheduleMapView 와 같은 방식).
+    private string _hoverCard = "";
+    // ⑮ 오늘의 한마디 타이핑 진행도 — 블록을 새로 열 때마다 처음부터 찍는다.
+    private float _remarkTime;
+    private int _remarkSpoken;
+    private string _remarkFor = "";
     private static readonly Rect2 CloseRect = new(Canvas.X - 104f, 28f, 64f, 56f);
     private bool _closeVisible;
 
@@ -61,12 +70,42 @@ public partial class ScheduleStaffView : Control
         }
         if (!_closeVisible)
             foreach (var (r, id) in _cards)
-                if (r.HasPoint(p)) { _detailEmp = id; AcceptEvent(); return; }
+                if (r.HasPoint(p))
+                {
+                    _detailEmp = id;
+                    Sfx.Instance?.Play("relay_click", -8f);
+                    AcceptEvent();
+                    return;
+                }
+    }
+
+    // 호버는 여기서 받는다 — CRT 로 밀려 들어오는 이동 이벤트는 _GuiInput 까지 오지 않는다.
+    public override void _Input(InputEvent e)
+    {
+        if (!IsVisibleInTree() || _cards.Count == 0) return;
+        if (MakeInputLocal(e) is not InputEventMouseMotion mm) return;
+        string hit = "";
+        foreach (var (r, id) in _cards)
+            if (r.HasPoint(mm.Position)) { hit = id; break; }
+        if (_hoverCard == hit) return;
+        _hoverCard = hit;
+        if (!string.IsNullOrEmpty(hit)) Sfx.Instance?.Play("tick", -22f);
     }
 
     public override void _Process(double delta)
     {
         _t += (float)delta;
+        // 상세로 연 직원이 바뀌면 한마디를 처음부터 다시 찍는다.
+        if (_remarkFor != _detailEmp)
+        {
+            _remarkFor = _detailEmp;
+            _remarkTime = 0f;
+            _remarkSpoken = 0;
+        }
+        else if (!string.IsNullOrEmpty(_detailEmp))
+        {
+            _remarkTime += (float)delta;
+        }
         QueueRedraw();
     }
 
@@ -148,15 +187,21 @@ public partial class ScheduleStaffView : Control
             bool assigned = !string.IsNullOrEmpty(st.AssignedRoomId);
             _cards.Add((r, roster[i]));
 
-            DrawRect(r, new Color(0.04f, 0.09f, 0.10f, 0.9f));
-            DrawRect(r, (assigned ? Mint : Dim) with { A = assigned ? 0.6f : 0.4f }, false, 1.2f);
+            bool hot = _hoverCard == roster[i];
+            DrawRect(r, hot ? new Color(0.06f, 0.14f, 0.16f, 0.95f) : new Color(0.04f, 0.09f, 0.10f, 0.9f));
+            // 마우스를 올리면 테두리가 하늘색으로 — 누를 수 있다는 표시(타이틀 화면과 같은 규칙).
+            DrawRect(r, hot ? Cyan : (assigned ? Mint : Dim) with { A = assigned ? 0.6f : 0.4f },
+                false, hot ? 2.4f : 1.2f);
             var face = new Rect2(r.Position.X + (w - 72f) * 0.5f, r.Position.Y + 14f, 72f, 72f);
             Portrait(def, face);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 112f), def.Codename,
                 HorizontalAlignment.Center, w, Fs(19), Ink);
-            string where = assigned ? "→ " + RoomName(sim, st.AssignedRoomId) : "미배치";
+            // ⑭ 이 화면은 "기분"을 맡는다 — 배치 상태는 왼쪽 지도의 대기 인원 카드가 보여 준다.
+            string mood = sim.GetDailyMood(roster[i]);
+            string where = st.Isolated ? "격리실 · 근무 불가"
+                : "기분: " + (string.IsNullOrEmpty(mood) ? "—" : mood);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 140f), where,
-                HorizontalAlignment.Center, w, Fs(13), assigned ? Mint : Amber);
+                HorizontalAlignment.Center, w, Fs(13), st.Isolated ? Err : Amber);
         }
         Footer("직원 블록을 누르면 상세 정보가 표시됩니다.", Dim);
     }
@@ -185,29 +230,52 @@ public partial class ScheduleStaffView : Control
         DrawString(_font, new Vector2(x + 14f, y), def.Codename, HorizontalAlignment.Left, 420f, Fs(30), Ink);
         y += 34f;
         // 경영 리워크: 특성 · 능력치는 싣지 않는다(EmployeeDef 필드는 남아 있음).
-        {
-            // 능력치가 잠긴 날 — 오늘의 기분이 주 정보다(직원 본인의 자기보고).
-            DrawString(_font, new Vector2(x, y), "오늘의 기분", HorizontalAlignment.Left, 440f, Fs(14), Dim);
-            y += 30f;
-            string mood = sim.GetDailyMood(id);
-            DrawString(_font, new Vector2(x, y), string.IsNullOrEmpty(mood) ? "—" : mood,
-                HorizontalAlignment.Left, 440f, Fs(24), Amber);
-            y += 26f;
-            DrawString(_font, new Vector2(x, y), "※ 직원 본인이 근무 전에 적어 낸 자기보고입니다.",
-                HorizontalAlignment.Left, 440f, Fs(11), Dim);
-            y += 34f;
-        }
+        // 항목 이름이 너무 흐려 읽히지 않았다 — 본문보다 한 단계만 어둡게 한다.
+        var label = Ink with { A = 0.75f };
+        DrawString(_font, new Vector2(x, y), "오늘의 기분", HorizontalAlignment.Left, 440f, Fs(14), label);
+        y += 30f;
+        string mood = sim.GetDailyMood(id);
+        DrawString(_font, new Vector2(x, y), string.IsNullOrEmpty(mood) ? "—" : mood,
+            HorizontalAlignment.Left, 440f, Fs(24), Amber);
+        y += 38f;
 
         string room = st.AssignedRoomId;
-        DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, Fs(14), Dim);
+        DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, Fs(14), label);
         y += 30f;
-        DrawString(_font, new Vector2(x, y), string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
-            HorizontalAlignment.Left, 440f, Fs(22), string.IsNullOrEmpty(room) ? Amber : Mint);
+        DrawString(_font, new Vector2(x, y),
+            st.Isolated ? "격리실 · 근무 불가" : string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
+            HorizontalAlignment.Left, 440f, Fs(22),
+            st.Isolated ? Err : string.IsNullOrEmpty(room) ? Amber : Mint);
+        y += 52f;
+
+        DrawRemark(sim, id, x, y);
 
         bool selected = ScheduleMapView.Instance?.SelectedEmployeeId == id;
         Footer(selected ? $"{def.Codename} 선택됨 — 배치할 작업실을 누르십시오." : $"{def.Codename}   시설 직원 신원 확인됨.",
             selected ? Mint : Ink);
     }
+
+    // 오늘의 한마디 — 하루에 한 줄(FacilitySimulation.GetDailyRemark). 한 글자씩 찍히고,
+    // 찍히는 동안 그 직원의 보이스가 울린다(대사 시스템과 같은 PlayVoiceBlip 경로).
+    private void DrawRemark(FacilitySimulation sim, string id, float x, float y)
+    {
+        string remark = sim.GetDailyRemark(id);
+        if (string.IsNullOrEmpty(remark)) return;
+
+        string full = "\u201c" + remark + "\u201d";
+        int shown = Mathf.Clamp(Mathf.FloorToInt(_remarkTime / RemarkCharSeconds), 0, full.Length);
+        // 새로 드러난 글자만큼 보이스를 울린다.
+        while (_remarkSpoken < shown)
+        {
+            char c = full[_remarkSpoken];
+            _remarkSpoken++;
+            Sfx.Instance?.PlayVoiceBlip(id, c);
+        }
+        DrawString(_font, new Vector2(x, y), full[..shown], HorizontalAlignment.Left, 440f,
+            Fs(17), Ink with { A = 0.92f });
+    }
+
+    private const float RemarkCharSeconds = 0.055f;
 
     private void Stat(string label, int v, float x, float y)
     {

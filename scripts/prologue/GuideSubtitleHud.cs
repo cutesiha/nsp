@@ -35,7 +35,8 @@ public partial class GuideSubtitleHud : CanvasLayer
 
     private Panel _panel;
     private RichTextLabel _label;
-    private string _raw = "";   // 강조색 BBCode 를 입히기 전 원문 — 홀로그램 창의 문장과 비교한다
+    // 강조 명령과 BBCode 를 뺀 순수 문장 — 홀로그램 창의 CurrentLineText 와 이 값을 비교한다.
+    private string _raw = "";
     private Label _arrow;          // 다음으로 넘길 수 있을 때 오른쪽 끝에서 둥둥 떠다니는 ▶
     private VBoxContainer _choices;
     private bool _active;
@@ -135,7 +136,7 @@ public partial class GuideSubtitleHud : CanvasLayer
             var captured = c;
             // 이미 고른 선택지는 같은 하늘색에서 아주 살짝만 뺀 색.
             // 많이 빼면 어두운 배경에서 글자가 통째로 사라진다.
-            var accent = c.Disabled ? new Color(0.48f, 0.82f, 0.88f) : new Color(0.55f, 0.95f, 1f);
+            var accent = c.Disabled ? new Color(0.48f, 0.82f, 0.88f) : GuideTextMarkup.ChoiceCyan;
             var b = MonitorUi.Button(c.Text, accent, ViewFont.Default,
                 () => captured.OnPick?.Invoke(), ViewFont.FS(15));
             b.AddThemeColorOverride("font_disabled_color", accent);
@@ -161,11 +162,15 @@ public partial class GuideSubtitleHud : CanvasLayer
     public bool HasChoices => _choices != null && _choices.GetChildCount() > 0;
     public bool IsActive => _active;
 
+    // text 는 원고 그대로 — 강조 명령(`/0~/6`)이 들어 있을 수 있다.
     public void SetLine(string text)
     {
-        _raw = text ?? "";
-        // 직원 이름 · 작업실 이름에 강조색("먼저 토끼를 끌어다 정비실에" → 토끼 분홍, 정비실 호박색).
-        _label.Text = DialogueHighlight.Colorize(_raw);
+        string authored = text ?? "";
+        // 화면에 실제로 읽히는 문장(명령 제외). 타이핑 동기화 비교도 이 값으로 한다.
+        _raw = GuideTextMarkup.PlainText(authored);
+        // 수동 강조(`/1~6`) 범위는 그 색으로, 나머지는 기존 자동 강조로
+        // ("먼저 토끼를 끌어다 정비실에" → 토끼 분홍, 정비실 호박색).
+        _label.Text = GuideTextMarkup.RichText(authored);
         // 새 문장은 0 에서 시작해 홀로그램 창과 같은 속도로 드러난다.
         _label.VisibleRatio = string.IsNullOrEmpty(_raw) ? 1f : 0f;
         Visible = _active && (!string.IsNullOrEmpty(_raw) || HasChoices);

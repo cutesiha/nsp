@@ -257,9 +257,13 @@ public partial class ScheduleMapView : Control
         var sim = FacilitySimulation.Instance;
         if (sim == null || !IsAssignable(sim, roomId)) return false;
         var st = sim.GetEmployeeState(employeeId);
+        if (st != null && st.Isolated) return false;            // 격리 중에는 배치할 수 없다
         if (st != null && st.AssignedRoomId == roomId) return true; // 이미 그 방
-        sim.ClearAssignment(employeeId);
-        return sim.AssignToRoom(employeeId, roomId);
+        // ClearAssignment 를 먼저 부르면 걷던 상태가 지워져, 재배치가 "왔던 길을 되돌아가는"
+        // 경로로 다시 계산된다. AssignToRoom 이 이미 재배치를 처리하므로 그대로 넘긴다.
+        bool ok = sim.AssignToRoom(employeeId, roomId);
+        if (ok) Sfx.Instance?.Play("assign", -6f);
+        return ok;
     }
 
     private void Unassign(string employeeId)
@@ -428,11 +432,12 @@ public partial class ScheduleMapView : Control
         var here = AssignedTo(sim, roomId);
         int rec = RecommendedHeadcount(sim, roomId);
         int repair = RoomStaffing.RepairMinWorkers(roomId, def);
+        // "0/1" 은 한 명만 넣으라는 뜻으로 읽힌다 — 실제로는 몇 명이든 넣을 수 있다.
         Color countCol = here.Count == 0 ? Dim : here.Count >= rec ? Mint : Amber;
-        DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 17f), $"{here.Count}/{rec}",
+        DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 17f), $"현재 {here.Count}명",
             HorizontalAlignment.Right, cell.Size.X - 24f, Fs(12), countCol);
-        DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 30f), $"수리 {repair}",
-            HorizontalAlignment.Right, cell.Size.X - 24f, Fs(9), Dim);
+        DrawString(_font, new Vector2(cell.Position.X, cell.Position.Y + 31f), $"수리 {repair}명",
+            HorizontalAlignment.Right, cell.Size.X - 24f, Fs(10), Ink with { A = 0.78f });
 
         // 관계 아이콘(방 칸 오른쪽 위) — 거부 > 불편 > 밀접 > 우호 중 가장 센 것 하나.
         if (band != null) DrawRelationIcon(RelationSlotOf(roomId), band.Value, pulse);
@@ -660,9 +665,15 @@ public partial class ScheduleMapView : Control
             bool assigned = !string.IsNullOrEmpty(st.AssignedRoomId);
             bool selected = emp == SelectedEmployeeId || emp == FocusEmployeeId;
             bool dragged = _dragging && _dragEmp == emp;
-            DrawRect(card, new Color(0.05f, 0.11f, 0.11f, dragged ? 0.4f : 0.95f));
-            DrawRect(new Rect2(card.Position, new Vector2(3f, card.Size.Y)), def.IconColor);
-            DrawRect(card, selected ? Ink : Mint with { A = assigned ? 0.18f : 0.45f }, false, selected ? 1.8f : 1f);
+            // 격리된 직원 — 오늘 근무에 넣을 수 없다. 칸 전체를 붉게 칠해 구분한다.
+            DrawRect(card, st.Isolated
+                ? new Color(0.20f, 0.05f, 0.06f, 0.95f)
+                : new Color(0.05f, 0.11f, 0.11f, dragged ? 0.4f : 0.95f));
+            DrawRect(new Rect2(card.Position, new Vector2(3f, card.Size.Y)),
+                st.Isolated ? Alert : def.IconColor);
+            DrawRect(card, st.Isolated ? Alert with { A = 0.85f }
+                    : selected ? Ink : Mint with { A = assigned ? 0.18f : 0.45f },
+                false, st.Isolated || selected ? 1.8f : 1f);
 
             // 얼굴.
             float ps = Mathf.Min(h - 8f, 38f);
@@ -676,11 +687,14 @@ public partial class ScheduleMapView : Control
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f - 2f), def.Codename,
                 HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(14), assigned ? Ink with { A = 0.7f } : Ink);
 
-            string sub = assigned
-                ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
-                : "기분 · " + (string.IsNullOrEmpty(st.DailyMood) ? "—" : st.DailyMood);
+            // 기분은 모니터 2 가 맡는다 — 여기는 "지금 어디에 있는가" 만.
+            string sub = st.Isolated
+                ? "격리실 · 근무 불가"
+                : assigned ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
+                : "미배치";
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f + 14f), sub,
-                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(10), assigned ? Mint : Amber);
+                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(10),
+                st.Isolated ? Alert : assigned ? Mint : Amber);
         }
     }
 
@@ -711,7 +725,7 @@ public partial class ScheduleMapView : Control
         }
         DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 520f,
             Fs(15), statusCol);
-        DrawString(_font, new Vector2(24f, Canvas.Y - 28f), "클릭 = 선택 · 끌기 = 배치 · 대기 인원으로 끌기/우클릭 = 해제",
+        DrawString(_font, new Vector2(24f, Canvas.Y - 28f), "",
             HorizontalAlignment.Left, 520f, Fs(10), Dim);
     }
 
@@ -848,13 +862,34 @@ public partial class ScheduleMapView : Control
         if (sim == null) return;
         if (RosterRect.HasPoint(pos)) { Unassign(emp); FocusEmp(emp); return; }
 
-        string room = RoomAt(pos);
+        // 칸을 살짝 빗나가게 놓아도 배치가 되게 한다 — 여기서 자꾸 헛놓였다.
+        string room = RoomAt(pos) ?? NearestRoom(pos, 26f);
         if (room != null && AssignEmp(emp, room))
         {
             SelectedEmployeeId = "";
             FocusRoomId = room;
             FocusEmployeeId = "";
+            return;
         }
+        // 배치가 안 됐으면 고른 상태로 남겨 둔다 — 작업실을 한 번 더 누르면 들어간다.
+        SelectedEmployeeId = emp;
+        FocusEmp(emp);
+    }
+
+    // 놓은 지점에서 가장 가까운 배치 가능 작업실(허용 오차 안).
+    private string NearestRoom(Vector2 p, float tolerance)
+    {
+        var sim = FacilitySimulation.Instance;
+        string best = null;
+        float bestD = tolerance;
+        foreach (var (roomId, rect) in _cells)
+        {
+            if (!IsAssignable(sim, roomId)) continue;
+            var c = p.Clamp(rect.Position, rect.End);
+            float d = c.DistanceTo(p);
+            if (d < bestD) { bestD = d; best = roomId; }
+        }
+        return best;
     }
 
     // 오른쪽 모니터의 X 버튼 — 작업실 정보 보기를 닫고 직원 목록으로 돌아간다.

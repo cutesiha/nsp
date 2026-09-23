@@ -128,7 +128,7 @@ public partial class FacilityMonitorView : Control
         _alertLine.Size = new Vector2(776, 20);
         AddChild(_alertLine);
 
-        _protocol = MakeLabel("TODAY'S PROTOCOL", 13, Amber);
+        _protocol = MakeLabel("", 14, Amber);
         _protocol.Position = new Vector2(12, 66);
         _protocol.Size = new Vector2(776, 24);
         _protocol.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -393,12 +393,18 @@ public partial class FacilityMonitorView : Control
         _inspector.Size = new Vector2(304, bottom - top);
     }
 
+    // 화면 위 한 줄 — 근무 중 가장 자주 확인해야 하는 자재 보유/한도를 싣는다.
+    // (금기가 켜진 날에는 그 뒤에 함께 붙는다. 금기가 없으면 자재만 뜬다.)
     private void UpdateProtocol()
     {
-        var sb = new StringBuilder("TODAY'S PROTOCOL   ");
+        var gs = NSP.Core.GameState.Instance;
+        var sb = new StringBuilder();
+        sb.Append($"자재  {gs?.Materials ?? 0} / {gs?.MaterialsCap ?? 0}");
+        int cost = NSP.Facility.RoomStaffing.CoreMaterialCost();
+        sb.Append($"    코어 복구 1회당 {cost}");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
-        if (taboos == null || taboos.Count == 0) sb.Append("—");
-        else sb.Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
+        if (taboos is { Count: > 0 })
+            sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
         string protocol = sb.ToString();
         if (_protocol.Text != protocol) _protocol.Text = protocol;
     }

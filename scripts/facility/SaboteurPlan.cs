@@ -38,6 +38,8 @@ public sealed class SaboteurPlan
     public float ActedAtSeconds { get; private set; } = -1f;
     public string ActedRoomId { get; private set; } = "";
     public int CancelCount { get; private set; }
+    // 오늘 몇 번 저질렀는가(하루 한도는 OpsProfileDef.MaxSabotageActionsPerDay 가 정한다).
+    public int ActionCount { get; private set; }
 
     // 디버그 전용 기록(플레이어에게 보여주지 않는다).
     public readonly List<string> Conditions = new();
@@ -58,6 +60,7 @@ public sealed class SaboteurPlan
         SettledSeconds = PrepareSeconds = PrepareNeeded = 0f;
         PreparingStartedAt = ActedAtSeconds = -1f;
         CancelCount = 0;
+        ActionCount = 0;
         _windowOffset = GD.Randf() * 6f;
         Conditions.Clear();
         Clues.Clear();
@@ -74,8 +77,6 @@ public sealed class SaboteurPlan
 
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
         SaboteurId = saboteur.EmployeeId;
-
-        if (HasActed) { Phase = SaboteurPhase.Done; return; }
 
         string room = saboteur.CurrentRoomId;
 
@@ -108,8 +109,9 @@ public sealed class SaboteurPlan
 
         // ① 활성 시각 전에는 기회 자체가 열리지 않는다.
         if (now < ops.SaboteurStartSeconds) return;
-        // ② 지금 시설이 실제로 고장 나 수습 중이면 손대지 않는다 — 너무 눈에 띈다.
-        if (sim.HasSeriousIncidentActive()) return;
+        // ② 지금 **이 방**이 수습 중이면 손대지 않는다 — 사람이 몰려 너무 눈에 띈다.
+        //    (다른 방의 사고까지 보면, 사고가 잦은 날에는 결번자가 아무것도 못 한다.)
+        if (sim.HasRepairPending(room)) return;
         // ③ 배치된 자리에 자리를 잡아야 한다.
         if (SettledSeconds < ops.SabotageSettleSeconds) return;
 
@@ -211,7 +213,20 @@ public sealed class SaboteurPlan
         Note(Conditions, "PreparedLongEnough");
         Note(Conditions, "InsideSabotageWindow");
         CollectClues(sim, saboteur, roomId);
+        ActionCount++;
         Phase = SaboteurPhase.Done;
+    }
+
+    // 오늘 몫이 남았다 — 다음 차례를 연다. 준비는 처음부터 다시 채운다.
+    // (전조도 다시 나오므로, 두 번째 방해공작도 미리 눈치챌 여지가 남는다.)
+    public void ArmNextAction()
+    {
+        Phase = SaboteurPhase.Idle;
+        WatchedRoomId = "";
+        SettledSeconds = PrepareSeconds = PrepareNeeded = 0f;
+        PreparingStartedAt = -1f;
+        _windowOffset = GD.Randf() * 6f;
+        _firedPrecursors.Clear();
     }
 
     private void CollectClues(FacilitySimulation sim, EmployeeState saboteur, string roomId)

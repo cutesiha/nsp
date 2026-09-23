@@ -14,9 +14,15 @@ namespace NSP.Debug;
 //   L        이름표 켜기/끄기
 public partial class EmployeeCctvPreview : Node3D
 {
-    // 공용 라이브러리의 애니메이션 이름. 순서 = 숫자키 1~8.
+    // 공용 라이브러리(employee_common.tres)에 실제로 들어 있는 애니메이션 전부.
+    // 앞의 여덟 개는 숫자키 1~8 로도 고를 수 있고, 나머지는 버튼으로 고른다.
     public static readonly string[] Clips =
-        { "idle", "walk", "talk", "work", "repair", "inspect", "suspicious", "handoff" };
+    {
+        "idle", "walk", "talk", "work", "repair", "inspect", "suspicious", "handoff",
+        "sit_typing", "sit_assemble", "hammer_work", "lying_idle",
+        "carry_box_normal", "carry_box_heavy", "pickup_box", "place_box",
+        "isolated_struggle", "isolated_exhausted",
+    };
 
     [Export] public NodePath FullBodyCameraPath = "FullBodyCamera";
     [Export] public NodePath CctvCameraPath = "CctvCamera";
@@ -108,6 +114,7 @@ public partial class EmployeeCctvPreview : Node3D
             case Key.X: if (_cctv != null) _cctv.Current = true; break;
             case Key.C: if (_close != null) _close.Current = true; break;
             case Key.L: foreach (var l in _labels) l.Visible = !l.Visible; break;
+            case Key.F10: GetTree().ChangeSceneToFile("res://scenes/debug/DeveloperHub.tscn"); break;
         }
     }
 
@@ -118,19 +125,24 @@ public partial class EmployeeCctvPreview : Node3D
         var layer = new CanvasLayer();
         AddChild(layer);
 
+        // 18개라 한 줄에 다 넣으면 화면을 넘는다 — 9개씩 두 줄.
         var row = new HBoxContainer { Position = new Vector2(20, 64) };
         row.AddThemeConstantOverride("separation", 6);
         layer.AddChild(row);
+        var rowB = new HBoxContainer { Position = new Vector2(20, 102) };
+        rowB.AddThemeConstantOverride("separation", 6);
+        layer.AddChild(rowB);
         for (int i = 0; i < Clips.Length; i++)
         {
             int idx = i;
-            var b = new Button { Text = $"{i + 1}. {Clips[i]}", CustomMinimumSize = new Vector2(112, 34) };
+            string label = i < 8 ? $"{i + 1}. {Clips[i]}" : Clips[i];
+            var b = new Button { Text = label, CustomMinimumSize = new Vector2(112, 34) };
             b.Pressed += () => Play(idx);
-            row.AddChild(b);
+            (i < 9 ? row : rowB).AddChild(b);
             _buttons.Add(b);
         }
 
-        var row2 = new HBoxContainer { Position = new Vector2(20, 104) };
+        var row2 = new HBoxContainer { Position = new Vector2(20, 142) };
         row2.AddThemeConstantOverride("separation", 6);
         layer.AddChild(row2);
         foreach (var (text, act) in new (string, System.Action)[]
@@ -146,6 +158,11 @@ public partial class EmployeeCctvPreview : Node3D
             b.Pressed += act;
             row2.AddChild(b);
         }
+
+        // Developer Hub 로 복귀.
+        var back = new Button { Text = "◀ DEV HUB (F10)", Position = new Vector2(20, 180) };
+        back.Pressed += () => GetTree().ChangeSceneToFile("res://scenes/debug/DeveloperHub.tscn");
+        layer.AddChild(back);
 
         _hint = new Label { Position = new Vector2(20, 16) };
         _hint.AddThemeFontSizeOverride("font_size", 17);

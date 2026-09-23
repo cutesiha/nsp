@@ -35,7 +35,7 @@ MaterialsPerCoreGauge = 2
 ResolvedTaskDisplaySeconds = 2.5
 RelationshipTablePath = "res://data/relationships/relationships.tres"
 UneasyEfficiencyMultiplier = 0.85
-UneasyStressIntervalSeconds = 20.0
+UneasyStressIntervalSeconds = 14.0
 UneasyStressAmount = 1.0
 UneasyArgumentCheckSeconds = 30.0
 UneasyArgumentChance = 0.35
@@ -58,10 +58,17 @@ MaterialsStart = 14
 MaterialsCapBase = 30
 MaterialsCapMax = 60
 UnstaffedAccidentSecondsDefault = 75.0
-VentUnstaffedStressIntervalSeconds = 15.0
-VentUnstaffedStressAmount = 1.0
-VentFaultStressIntervalSeconds = 10.0
-VentFaultStressAmount = 2.0
+; 야간 근무 자체의 피로 — 근무 중인 직원 전원이 이 간격마다 조금씩 오른다.
+; 0 이하로 두면 이 항목이 통째로 꺼진다(예전 동작).
+ShiftStressIntervalSeconds = 18.0
+ShiftStressAmount = 1.0
+; 자기 작업실에 수리해야 할 사고가 열려 있는 동안의 추가 압박.
+IncidentStressIntervalSeconds = 12.0
+IncidentStressAmount = 1.5
+VentUnstaffedStressIntervalSeconds = 10.0
+VentUnstaffedStressAmount = 1.5
+VentFaultStressIntervalSeconds = 7.0
+VentFaultStressAmount = 2.5
 CoreUnstableIntervalSeconds = 20.0
 CoreUnstableCoreLoss = 1.0
 MaintenanceFaultMaterialLoss = 4

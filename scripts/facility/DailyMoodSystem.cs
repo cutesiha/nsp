@@ -53,7 +53,19 @@ public sealed class DailyMoodSystem
             var level = levelOf?.Invoke(st.EmployeeId) ?? MoodEventLevel.None;
             st.PreviousMood = st.DailyMood;
             st.DailyMood = Pick(st.EmployeeId, level, st.PreviousMood, ref vagueLeft);
+            st.PreviousRemark = st.DailyRemark;
+            st.DailyRemark = PickRemark(st.EmployeeId, st.PreviousRemark);
         }
+    }
+
+    // 오늘의 한마디 — 어제와 같은 줄은 피한다(풀이 한 줄뿐이면 어쩔 수 없이 같은 줄).
+    private string PickRemark(string employeeId, string previousRemark)
+    {
+        var pool = _pools.GetValueOrDefault(employeeId);
+        if (pool == null || pool.DailyRemarks.Count == 0) return "";
+        var pick = pool.DailyRemarks.Where(r => r != previousRemark).ToList();
+        if (pick.Count == 0) pick = pool.DailyRemarks.ToList();
+        return pick[_rng.Next(pick.Count)];
     }
 
     private string Pick(string employeeId, MoodEventLevel level, string previousMood, ref int vagueLeft)

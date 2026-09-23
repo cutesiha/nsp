@@ -13,3 +13,5 @@ CalmMoods = Array[String](["평온함", "괜찮음", "무난함", "집중 잘됨
 VagueMoods = Array[String](["별생각 없음"])
 LightEventMoods = Array[String](["신경 쓰임", "피곤함", "경계됨"])
 StrongEventMoods = Array[String](["화가 가라앉지 않음", "계속 신경 쓰임", "누군가 의심됨", "오늘은 조심하고 싶음"])
+; 오늘의 한마디(근무 배치 화면). 매일 하나가 뽑히고 어제와 같은 줄은 피한다.
+DailyRemarks = Array[String](["배치나 빨리 끝내시죠.", "쓸데없는 말은 안 하겠습니다.", "위험한 곳이면 제가 갑니다.", "오늘은 아무도 다치지 않게 하십시오.", "…지시만 주시면 됩니다."])

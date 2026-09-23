@@ -25,7 +25,7 @@ public partial class GuideHologramView : Control
     public const string PortraitDir = "res://assets/ui/guide0/";
 
     private static readonly Vector2 Canvas = new(800f, 600f);
-    private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+    private static readonly Color Cyan = GuideTextMarkup.ChoiceCyan;
     // 이미 확인한 선택지의 색 — 같은 하늘색에서 아주 살짝만 뺀 값.
     // (회색 쪽으로 많이 빼면 어두운 배경에서 글자가 사라진다.)
     private static readonly Color AnsweredInk = new(0.48f, 0.82f, 0.88f);
@@ -38,7 +38,9 @@ public partial class GuideHologramView : Control
     private Control _holoRoot;
     private PortraitBox _portrait;
     private Label _name;
-    private Label _line;
+    private RichTextLabel _line;
+    // 지금 줄의 순수 문장(강조 명령·BBCode 없음). 타이핑 길이 · 보이스 · 자막 비교가 전부 이 값 기준이다.
+    private string _linePlain = "";
     private HBoxContainer _icons;
     private VBoxContainer _choices;
     private Label _hint;
@@ -229,7 +231,7 @@ public partial class GuideHologramView : Control
     }
 
     // 자막 띠가 같은 속도로 글자를 드러내기 위해 읽어 가는 값.
-    public string CurrentLineText => _line?.Text ?? "";
+    public string CurrentLineText => _linePlain;
     public float CurrentLineRatio => _line?.VisibleRatio ?? 1f;
 
     // 창 오른쪽 보조 정보판 — none / alert / authority / mission.
@@ -398,15 +400,19 @@ public partial class GuideHologramView : Control
     // GuideSubtitleHud 가 이 이벤트를 받아 같은 문장을 화면 아래에 띄운다.
     public event Action<string> LineShown;
 
+    // text 는 치환(`{ROOM}`)까지 끝난 원고 — 강조 명령(`/0~/6`)은 아직 그대로 들어 있다.
+    // 자막 띠도 같은 원고를 받아 같은 색으로 칠한다(LineShown).
     private void StartLine(string text)
     {
         LineShown?.Invoke(text);
+        _linePlain = GuideTextMarkup.PlainText(text);
         // 교육일에는 가이드의 말도 대화 기록에 남는다(그 화면을 쓰는 법을 여기서 배운다).
+        // 기록에는 강조 명령도 BBCode 도 남기지 않는다 — 읽히는 문장 그대로다.
         if ((NSP.Core.GameState.Instance?.CurrentDay ?? 1) <= 0)
             NSP.Core.DialogueHistory.Instance?.AddEntry("guide0", "GUIDE-0",
-                NSP.Core.DialogueEntryType.NpcLine, text,
+                NSP.Core.DialogueEntryType.NpcLine, _linePlain,
                 NSP.Core.DialogueConversationType.IncomingCall);
-        _line.Text = text;
+        _line.Text = "[center]" + GuideTextMarkup.RichText(text) + "[/center]";
         _line.VisibleRatio = 0f;
         _lineElapsed = 0;
         _spokenChars = 0;
@@ -414,7 +420,8 @@ public partial class GuideHologramView : Control
         // 글자가 찍히기 시작하면 입도 같이 움직이기 시작한다.
         GuideMouthAnimator.StartTalking();
         // 타이핑 속도는 프롤로그 자막과 같은 값(PrologueTextStyle)을 쓴다.
-        _lineDuration = PrologueTextStyle.TypeSeconds(text);
+        // 명령·태그가 빠진 순수 문장 길이로 잰다 — 색을 넣었다고 느려지면 안 된다.
+        _lineDuration = PrologueTextStyle.TypeSeconds(_linePlain);
         _hint.Visible = !_compact;
     }
 
@@ -468,7 +475,7 @@ public partial class GuideHologramView : Control
         if (_guide != null && _line.VisibleRatio < 1f)
         {
             _lineElapsed += delta;
-            _line.VisibleRatio = PrologueTextStyle.Ratio(_line.Text, _lineElapsed);
+            _line.VisibleRatio = PrologueTextStyle.Ratio(_linePlain, _lineElapsed);
             SpeakRevealed();
             if (_line.VisibleRatio >= 1f)
             {
@@ -595,7 +602,7 @@ public partial class GuideHologramView : Control
         {
             _line.VisibleRatio = 1f;
             _lineElapsed = _lineDuration;
-            _spokenChars = _line.Text.Length;
+            _spokenChars = _linePlain.Length;
             Sfx.Instance?.StopVoiceBlip();
             // 즉시 출력 완료 — 입도 그 자리에서 멈춘다.
             GuideMouthAnimator.StopTalking();
@@ -611,7 +618,7 @@ public partial class GuideHologramView : Control
         if (_guide == null) return;
         _line.VisibleRatio = 1f;
         _lineElapsed = _lineDuration;
-        _spokenChars = _line.Text.Length;
+        _spokenChars = _linePlain.Length;
         Sfx.Instance?.StopVoiceBlip();
         GuideMouthAnimator.StopTalking();
         _hint.Visible = false;
@@ -640,10 +647,10 @@ public partial class GuideHologramView : Control
     private void SpeakRevealed()
     {
         string voice = _guide?.VoiceId ?? "";
-        int shown = Mathf.RoundToInt(_line.VisibleRatio * _line.Text.Length);
+        int shown = Mathf.RoundToInt(_line.VisibleRatio * _linePlain.Length);
         while (_spokenChars < shown)
         {
-            char c = _line.Text[_spokenChars];
+            char c = _linePlain[_spokenChars];
             _spokenChars++;
             // 입은 글자마다 모양을 바꾸지 않는다 — 문장부호에서 잠깐 다물 때만 쓴다.
             GuideMouthAnimator.NoticeCharacter(c);
@@ -717,10 +724,20 @@ public partial class GuideHologramView : Control
         _name.HorizontalAlignment = HorizontalAlignment.Center;
         _holoRoot.AddChild(_name);
 
-        _line = MakeLabel("", 20, new Color(0.88f, 0.98f, 1f), new Vector2(126f, 292f));
-        _line.Size = new Vector2(548f, 84f);
-        _line.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        _line.HorizontalAlignment = HorizontalAlignment.Center;
+        // 문장 중간에서 색이 바뀌어야 해서 RichTextLabel 이다. 자리 · 크기 · 폰트 · 줄바꿈은 그대로.
+        // 가운데 정렬은 RichTextLabel 에 속성이 없어 대사마다 [center] 로 감싼다(StartLine).
+        _line = new RichTextLabel
+        {
+            BbcodeEnabled = true,
+            Position = new Vector2(126f, 292f),
+            Size = new Vector2(548f, 84f),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            ScrollActive = false,
+            MouseFilter = MouseFilterEnum.Ignore,
+        };
+        _line.AddThemeFontOverride("normal_font", _font);
+        _line.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(20));
+        _line.AddThemeColorOverride("default_color", new Color(0.88f, 0.98f, 1f));
         _holoRoot.AddChild(_line);
 
         _icons = new HBoxContainer

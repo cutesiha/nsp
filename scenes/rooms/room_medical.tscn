@@ -245,7 +245,7 @@ omni_range = 6.0
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, -0.2)
 script = ExtResource("1_spot")
 SpotId = "MedicalBedSpot1"
-SupportedTaskIds = PackedStringArray("staff_treatment")
+SupportedTaskIds = PackedStringArray()
 AnimationName = "lying_idle"
 Priority = 20
 IsSeated = true
@@ -255,7 +255,7 @@ SeatHeight = 0.66
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.95, 0, -0.2)
 script = ExtResource("1_spot")
 SpotId = "MedicalBedSpot2"
-SupportedTaskIds = PackedStringArray("staff_treatment")
+SupportedTaskIds = PackedStringArray()
 AnimationName = "lying_idle"
 Priority = 18
 IsSeated = true
@@ -265,7 +265,7 @@ SeatHeight = 0.66
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 0, -1.35)
 script = ExtResource("1_spot")
 SpotId = "MedicineStationSpot"
-SupportedTaskIds = PackedStringArray("medicine_sorting", "repair_medical")
+SupportedTaskIds = PackedStringArray("medicine_sorting", "repair_medical", "staff_treatment")
 Priority = 15
 
 [node name="MedicalFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1368064125]
