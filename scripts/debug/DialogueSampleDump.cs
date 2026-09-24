@@ -37,6 +37,19 @@ public partial class DialogueSampleDump : Node
     private readonly List<string> _answers = new();
     private int _pass, _fail;
 
+    // 답변 한 줄의 출처 — 기계 검사(같은 세션 동료 언급 · 미배치 직원 이름)가 쓴다.
+    private sealed class Said
+    {
+        public string Scene = "";
+        public string Speaker = "";
+        public string Anchor = "";   // 질문 기준 시각(10분 단위), 모르면 "?"
+        public string Answer = "";
+        public string Trace = "";
+    }
+
+    private readonly List<Said> _said = new();
+    private string _scene = "";
+
     public override void _Ready()
     {
         _sim = FacilitySimulation.Instance;
@@ -57,6 +70,7 @@ public partial class DialogueSampleDump : Node
         CheckBank();
         VoiceCompare();
         NormalDay();
+        UnassignedAndRelocatedDay();
         foreach (string sab in new[] { "sheep", "wolf", "dog" }) SaboteurDay(sab);
         MachineChecks();
 
@@ -64,6 +78,7 @@ public partial class DialogueSampleDump : Node
         using (var f = FileAccess.Open(OutPath, FileAccess.ModeFlags.Write))
             f?.StoreString(_md.ToString());
         GD.Print($"\n샘플 {_answers.Count}개 → {path}");
+        GD.Print($"'씨' 가 들어간 답변 {_answers.Count(a => a.Contains("씨"))} / {_answers.Count}");
         GD.Print($"################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
 
@@ -144,6 +159,69 @@ public partial class DialogueSampleDump : Node
         }
     }
 
+    // ── 미배치 · 재배치: 오늘 근무하지 않은 직원과 근무 중에 옮겨진 직원 ─────────────
+    // 실제 게임처럼 배치표 로그를 남기지 않는다 — BeginShift 가 배치 화면 뒤에 EventLog 를 비우므로
+    // 근무 시작 위치는 로그 한 줄 없이 "그 자리에 서 있다"로만 시작한다.
+    //   양   : 배치되지 않았다. 기본 시작실(저장고)에 서 있을 뿐 오늘 근무자가 아니다.
+    //   여우 : 코어실에서 근무를 시작해 22:20 저장고로 옮겨졌다.
+    private void UnassignedAndRelocatedDay()
+    {
+        const string idle = "sheep", moved = "fox";
+        NewDay("");
+        var plan = new (string Id, string Room)[]
+        {
+            ("rabbit", Maint), ("cat", Maint), (moved, Core), ("wolf", Guard), ("dog", Guard),
+        };
+        foreach (var p in plan)
+        {
+            var st = _sim.GetEmployeeState(p.Id);
+            st.AssignedRoomId = p.Room; st.CurrentRoomId = p.Room; st.Alive = true; st.Isolated = false;
+        }
+        var idleSt = _sim.GetEmployeeState(idle);
+        idleSt.AssignedRoomId = "";
+        idleSt.CurrentRoomId = _sim.GetEmployeeDef(idle)?.StartRoomId ?? Storage;
+
+        // 22:10 코어실 설비 고장 — 여우 혼자 봤다.
+        Log(LogEventType.TaskFailed, "", Core, At(10), witnesses: new[] { moved });
+        // 22:20 여우를 저장고로 재배치.
+        Relocate(moved, Core, Storage, At(20), TaskName("inventory_sorting", "재고 정리"));
+        // 22:40 저장고 설비 고장 — 여우가 봤다(양은 거기 서 있었지만 근무자가 아니다).
+        Log(LogEventType.TaskFailed, "", Storage, At(40), witnesses: new[] { moved });
+        // 23:00 정비실 설비 고장 — 토끼 · 고양이가 봤다.
+        Log(LogEventType.TaskFailed, "", Maint, At(60), witnesses: new[] { "rabbit", "cat" });
+        GameState.Instance.AdvanceDayTime(At(90));
+
+        Section("장면 — 미배치 · 재배치",
+            "배치: 토끼·고양이=정비실 · 여우=코어실 · 늑대·강아지=경비실 · 양=배치 안 됨(시작실 저장고에 서 있음)\n" +
+            "배치표 로그 없음(실제 게임처럼 근무 시작 시 로그가 비워진 상태)\n" +
+            "22:10 코어실 설비 고장(여우 목격) / 22:20 여우 저장고로 재배치 / 22:40 저장고 설비 고장(여우 목격)\n" +
+            "23:00 정비실 설비 고장(토끼·고양이 목격)\n" +
+            "여우는 22:10 에 코어실에 혼자, 22:40 에 저장고에 혼자였다. 양의 이름은 어디에도 나오면 안 된다.");
+
+        Check(!DialogueContextBuilder.OccupantsAt(Storage, 1, At(40), moved).Contains(idle),
+            "미배치 — 22:40 저장고 동석자에 근무하지 않은 양이 없다");
+        Check(DialogueContextBuilder.RoomAt(idle, 1, At(40)) == "",
+            "미배치 — 근무하지 않은 양에게는 동선이 없다");
+        Check(DialogueContextBuilder.RoomAt(moved, 1, At(10)) == Core,
+            $"재배치 — 여우는 옮겨지기 전(22:10)에 코어실에 있었다 ({RoomName(DialogueContextBuilder.RoomAt(moved, 1, At(10)))})");
+
+        int from = _said.Count;
+        foreach (string id in new[] { moved, "rabbit", "dog" }) InterviewAll(id, maxEvidence: 4);
+        Sub("근무 중 전화(23:30)");
+        foreach (var p in plan)
+        {
+            Answer(p.Id, "작업은 잘 되어가나요?", LocalDialogueGenerator.GeneralAnswer(p.Id, 0));
+            Answer(p.Id, "주변에 이상현상은 없었나요?", LocalDialogueGenerator.GeneralAnswer(p.Id, 2));
+        }
+
+        // (a) 근무하지 않은 직원의 이름("양 씨", "양 직원", "양이랑" …)이 누구의 답에도 나오지 않는다.
+        string name = Nm(idle);
+        var named = new Regex($@"(?<![가-힣]){Regex.Escape(name)}(?= 씨| 직원|이랑|하고|도 |이 )");
+        var leaks = _said.Skip(from).Where(x => named.IsMatch(x.Answer)).ToList();
+        foreach (var x in leaks.Take(5)) GD.Print($"   미배치 누설: [{Nm(x.Speaker)}] {x.Answer}");
+        Check(leaks.Count == 0, $"(a) 배치되지 않은 직원({name}) 이름이 어떤 답변에도 나오지 않는다 ({leaks.Count}건)");
+    }
+
     // ── 말투 비교: 같은 질문을 6명에게 여러 번 ─────────────────────────────
     // 캐릭터 말투가 실제로 갈리는지 한눈에 본다. 둘씩 같은 방에 둬서 "누구랑 있었나"에 모두 이름이 나오게 한다.
     private void VoiceCompare()
@@ -176,7 +254,7 @@ public partial class DialogueSampleDump : Node
             foreach (var intent in new[] { InterviewIntent.AskWhereAtIncident, InterviewIntent.AskWhoWasPresent })
             {
                 var q = InterviewQuestionFactory.Make(id, incident, intent);
-                for (int i = 0; i < 3; i++) Answer(id, q.Text, InterviewReplyPlanner.Answer(q));
+                for (int i = 0; i < 3; i++) Answer(id, q.Text, InterviewReplyPlanner.Answer(q), anchor: q.AnchorTime);
             }
             Answer(id, "당신을 의심하고 있습니다.", LocalDialogueGenerator.InterviewAnswer(id, DialogueQuestions.Accuse));
         }
@@ -236,7 +314,7 @@ public partial class DialogueSampleDump : Node
             {
                 var q = InterviewQuestionFactory.Make(sab, incident, intent);
                 string a = session.Ask(q).Answer;
-                Answer(sab, q.Text, a, "[결번자]");
+                Answer(sab, q.Text, a, "[결번자]", anchor: q.HasAnchorTime ? q.AnchorTime : -1f);
                 if (intent == InterviewIntent.AskWhereAtIncident)
                 {
                     // 결번자 전략이 '축소·합리화'면 위치 자체는 인정한다 — 그때는 누설 검사가 아니다.
@@ -258,7 +336,8 @@ public partial class DialogueSampleDump : Node
         {
             var ms = new InterviewSession(mate);
             var q = InterviewQuestionFactory.Make(mate, incident, InterviewIntent.AskWhoWasPresent);
-            Answer(mate, q.Text, ms.Ask(q).Answer, "(같은 배치의 정상 직원)");
+            Answer(mate, q.Text, ms.Ask(q).Answer, "(같은 배치의 정상 직원)",
+                anchor: q.HasAnchorTime ? q.AnchorTime : -1f);
         }
     }
 
@@ -269,6 +348,10 @@ public partial class DialogueSampleDump : Node
         var s = new InterviewSession(id);
         _md.AppendLine($"> {s.Greeting()}");
         _md.AppendLine();
+        // 최초 진술 — 심문을 열면 직원이 먼저 하는 말. 조사 카드가 되는 문장들이다.
+        // (세션을 만들 때 한꺼번에 생성되므로 틀 이름은 남지 않는다.)
+        foreach (var o in s.Openings)
+            Answer(id, $"(최초 진술 · {o.QuestionId})", o.Text, "", "최초 진술");
         foreach (var q in s.BasicQuestions())
             Answer(id, q.Text, s.Ask(q).Answer);
 
@@ -282,7 +365,7 @@ public partial class DialogueSampleDump : Node
             _md.AppendLine($"*자료: {ev.OneLine}*");
             _md.AppendLine();
             foreach (var q in qs.Take(2))
-                Answer(id, q.Text, s.Ask(q).Answer);
+                Answer(id, q.Text, s.Ask(q).Answer, anchor: q.HasAnchorTime ? q.AnchorTime : -1f);
         }
     }
 
@@ -357,6 +440,40 @@ public partial class DialogueSampleDump : Node
         Check(dup.Count == 0, $"한 답변 안에서 같은 말을 두 번 하지 않는다 ({dup.Count}건)");
 
         Check(_answers.Count >= 100, $"샘플 100개 이상 ({_answers.Count})");
+
+        // (b) 같은 세션(장면 · 직원 · 질문 시각)에서 동료 이야기(같이 있던 사람 · 혼자였다)는 한 번까지.
+        var over = _said
+            .Select(x => (x, n: CompanionMemories(x.Trace)))
+            .Where(p => p.n > 0)
+            .GroupBy(p => $"{p.x.Scene} | {Nm(p.x.Speaker)} | {p.x.Anchor}")
+            .Where(g => g.Sum(p => p.n) > 1)
+            .ToList();
+        foreach (var g in over.Take(5))
+            GD.Print($"   동료 반복: {g.Key} ×{g.Sum(p => p.n)} — " + string.Join(" / ", g.Select(p => p.x.Answer)));
+        Check(over.Count == 0, $"(b) 같은 세션에서 동료 언급이 한 번을 넘지 않는다 ({over.Count}개 세션)");
+
+        // (c) 한 답 안에서 같은 작업실 이름을 두 번 말하지 않는다.
+        var roomNames = _sim.GetRoomIds().Select(RoomName).Where(n => n.Length > 0).Distinct().ToList();
+        var twice = _answers.Where(a => roomNames.Any(n => Count(a, n) >= 2)).ToList();
+        foreach (var a in twice.Take(5)) GD.Print("   방 반복: " + a);
+        Check(twice.Count == 0, $"(c) 한 답 안에 같은 작업실을 두 번 말한 답 0개 ({twice.Count}개)");
+    }
+
+    // 트레이스에서 실제로 답에 남은 동료 기억 줄(mem.with* · mem.alone)의 수.
+    private static int CompanionMemories(string trace)
+    {
+        var m = Regex.Match(trace ?? "", @"기억\[(.*)\]");
+        if (!m.Success) return 0;
+        return m.Groups[1].Value.Split(", ")
+            .Count(s => (s.StartsWith("mem.with") || s.StartsWith("mem.alone")) && !s.EndsWith("(잘림)"));
+    }
+
+    private static int Count(string text, string word)
+    {
+        int n = 0;
+        for (int i = text.IndexOf(word, System.StringComparison.Ordinal); i >= 0;
+             i = text.IndexOf(word, i + word.Length, System.StringComparison.Ordinal)) n++;
+        return n;
     }
 
     private static bool HasRepeatedSentence(string a)
@@ -371,6 +488,7 @@ public partial class DialogueSampleDump : Node
     // ── 출력 ─────────────────────────────────────────────────────────
     private void Section(string title, string setup)
     {
+        _scene = title;
         _md.AppendLine($"## {title}");
         _md.AppendLine();
         foreach (string line in setup.Split('\n')) _md.AppendLine($"- {KoreanParticle.Resolve(line)}");
@@ -384,10 +502,16 @@ public partial class DialogueSampleDump : Node
         _md.AppendLine();
     }
 
-    private void Answer(string id, string question, string answer, string tag = "", string traceOverride = null)
+    private void Answer(string id, string question, string answer, string tag = "", string traceOverride = null,
+        float anchor = -1f)
     {
         _answers.Add(answer ?? "");
         string trace = traceOverride ?? DialogueComposer.LastTrace;
+        _said.Add(new Said
+        {
+            Scene = _scene, Speaker = id, Answer = answer ?? "", Trace = trace,
+            Anchor = anchor >= 0f ? ((int)(anchor / At(10))).ToString() : "?",
+        });
         _md.AppendLine($"**{Nm(id)}** {tag} — Q: {question}  ");
         _md.AppendLine($"A: {answer}  ");
         _md.AppendLine($"<sub>틀: {trace}</sub>");

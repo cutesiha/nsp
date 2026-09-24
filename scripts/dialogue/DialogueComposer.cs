@@ -85,12 +85,15 @@ public static class DialogueComposer
 
         // ── 근무 기억 ─────────────────────────────────────────────────
         string memWho = "";
-        foreach (var a in f.Addenda)
+        var memLines = new string[f.Addenda.Count];
+        for (int i = 0; i < f.Addenda.Count; i++)
         {
+            var a = f.Addenda[i];
             var vars = Merge(f.Vars, a.Vars);
             string line = Pick(id, a.Slot, vars, formal);
             int before = parts.Count;
             TryAdd(parts, Part.Memory, line);
+            if (parts.Count > before) memLines[i] = line;
             if (parts.Count > before && memWho.Length == 0) memWho = WhoMentioned(line, vars);
         }
         // 기억 속 동료 이야기에는 가끔만, 문장 수에 여유가 있을 때만 인상을 붙인다(묻지 않은 사람 이야기라서).
@@ -125,14 +128,18 @@ public static class DialogueComposer
             && !parts.Any(p => p.Kind == Part.Memory && p.Text.Contains(CodenameOf(memWho))))
             parts.RemoveAll(p => p.Kind == Part.Impression);
 
+        // 기억 한 줄마다 실제로 답에 남았는지 표시한다(겹쳐서 안 붙었거나 상한에 잘렸으면 "(잘림)").
         LastTrace = f.Slot + (f.Addenda.Count == 0 ? "" : " + 기억[" + string.Join(", ",
-            f.Addenda.Select(a => a.Slot + (parts.Any(p => p.Kind == Part.Memory) ? "" : "(잘림)"))) + "]");
+            f.Addenda.Select((a, i) => a.Slot + (Kept(parts, memLines[i]) ? "" : "(잘림)"))) + "]");
         string joined = Finalize(string.Join(" ", parts.Select(p => p.Text)));
         int ex = f.MaxExclamations >= 0 ? f.MaxExclamations : voice.MaxExclamations;
         // 말끝을 흐리는 게 버릇인 사람(양)은 말줄임을 더 허용한다.
         int ellipses = voice.TrailOffChance >= 0.5f ? 4 : 2;
         return DialogueVoiceTics.Apply(DialogueNaturalnessFilter.Clean(joined, ex, ellipses), voice);
     }
+
+    private static bool Kept(List<(Part Kind, string Text)> parts, string line) =>
+        line != null && parts.Any(p => p.Kind == Part.Memory && p.Text == line);
 
     // --- 동료 인상 ---------------------------------------------------------
 
