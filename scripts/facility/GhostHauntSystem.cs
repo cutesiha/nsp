@@ -82,7 +82,10 @@ public sealed class GhostHauntSystem
     {
         // 교육일(DAY0)에는 스스로 나오지 않는다. 튜토리얼이 정해진 시점에 직접 부른다.
         if (!DayFeatures.AutoIncidentsEnabled) return;
-        if (AppearedToday >= cfg.GhostMaxPerDay) return;
+        // 오늘의 운영 규칙이 한도를 정해 두었으면 그것을 쓰고, 없을 때만 전역 기본값을 쓴다.
+        int max = OpsProfile.Today?.GhostMaxPerDay ?? -1;
+        if (max < 0) max = cfg.GhostMaxPerDay;
+        if (AppearedToday >= max) return;
         if (now < cfg.GhostFirstAppearSeconds || now < _cooldownUntil) return;
 
         if (_nextCheckAt <= 0f) _nextCheckAt = now + cfg.GhostCheckSeconds;

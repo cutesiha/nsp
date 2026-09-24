@@ -185,6 +185,7 @@ ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_maintenance
 SaboteurStartSeconds = 58.0
 MaxSabotageActionsPerDay = 1
 AllowMurder = false
+GhostMaxPerDay = 1
 SabotageTargetRooms = Array[String](["core_room", "power_room", "maintenance_room", "storage_room", "guard_room"])
 SabotageSettleSeconds = 5.0
 SabotagePrepareMinSeconds = 10.0
