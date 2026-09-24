@@ -68,6 +68,7 @@ public partial class DialogueSampleDump : Node
         _md.AppendLine();
 
         CheckBank();
+        DutyByLogDetail();
         VoiceCompare();
         NormalDay();
         UnassignedAndRelocatedDay();
@@ -157,6 +158,30 @@ public partial class DialogueSampleDump : Node
             var q = s.BasicQuestions()[1];
             Answer(id, q.Text + " (다시)", s.Ask(q).Answer);
         }
+    }
+
+    // ── 근무 구간은 로그 문구가 아니라 세부 종류(LogDetail)로 가린다 ──────────────────
+    // 문구를 일부러 "기절" · "근무 복귀" · "배치 해제" 없이 적는다 — 그래도 판정이 같아야 한다.
+    private void DutyByLogDetail()
+    {
+        NewDay("");
+        foreach (string id in new[] { "rabbit", "cat" })
+        {
+            var st = _sim.GetEmployeeState(id);
+            st.AssignedRoomId = Maint; st.CurrentRoomId = Maint; st.Alive = true; st.Isolated = false;
+            Log(LogEventType.Relocation, id, Maint, 0f);
+        }
+        Log(LogEventType.Neglect, "cat", Maint, At(20), "(문구 없음)", detail: LogDetail.Fainted);
+        Log(LogEventType.Neglect, "cat", Maint, At(40), "(문구 없음)", detail: LogDetail.Recovered);
+        Log(LogEventType.TaskEnd, "cat", Maint, At(60), "(문구 없음)", detail: LogDetail.Unassigned);
+        // 반대로 문구만 있고 종류가 없으면 근무 상태는 바뀌지 않는다.
+        Log(LogEventType.Neglect, "rabbit", Maint, At(20), "토끼 — 기절, 의무실로 이송");
+
+        bool With(float m) => DialogueContextBuilder.OccupantsAt(Maint, 1, At(m), "rabbit").Contains("cat");
+        GD.Print("\n===== 근무 구간(LogDetail) =====");
+        Check(With(10) && !With(30) && With(50) && !With(70),
+            "기절 · 회복 · 배치 해제는 LogDetail 로 가린다 (22:10 있음 · 22:30 기절 · 22:50 복귀 · 23:10 해제)");
+        Check(DialogueContextBuilder.OnDutyAt("rabbit", 1, At(30)), "문구에 '기절'만 있고 종류가 없으면 근무 중으로 본다");
     }
 
     // ── 미배치 · 재배치: 오늘 근무하지 않은 직원과 근무 중에 옮겨진 직원 ─────────────
@@ -589,12 +614,12 @@ public partial class DialogueSampleDump : Node
     }
 
     private static void Log(LogEventType type, string actor, string room, float at, string desc = null,
-        IEnumerable<string> witnesses = null)
+        IEnumerable<string> witnesses = null, LogDetail detail = LogDetail.None)
     {
         EventLog.Instance.Log(new LogEntry
         {
             Day = 1, GameTimeSeconds = at, EventType = type, ActorEmployeeId = actor, RoomId = room,
-            Description = desc ?? $"(샘플 {type} {room})",
+            Description = desc ?? $"(샘플 {type} {room})", Detail = detail,
             WitnessEmployeeIds = witnesses != null ? new List<string>(witnesses) : new List<string>(),
         });
     }

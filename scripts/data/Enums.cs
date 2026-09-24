@@ -166,3 +166,14 @@ public enum LogEventType
     // 사람이 저지른 일이 아니므로 심문의 주제(DialogueContextBuilder.IsIncident)도 되지 않는다.
     AnomalyIncident,
 }
+
+// 로그 한 줄의 세부 종류. EventType 만으로는 갈리지 않는 근무 상태 변화를 적는다 —
+// 기절 · 회복은 Neglect, 배치 해제는 TaskEnd 로 남아 표시 문구 말고는 구분이 안 되기 때문이다.
+// 표시 문구는 언제든 바뀔 수 있으므로 판정(대화 쪽 근무 구간)은 문구가 아니라 이 값을 본다.
+public enum LogDetail
+{
+    None,
+    Fainted,        // 기절 — 근무에서 빠짐
+    Recovered,      // 기절 회복 — 근무 복귀
+    Unassigned,     // 관리자가 배치를 해제함
+}

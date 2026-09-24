@@ -328,7 +328,8 @@ public partial class FacilitySimulation : Node
         EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
             cfg.StressFaintRecoverySeconds > 0f
                 ? $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (약 {cfg.StressFaintRecoverySeconds:0}초 회복)"
-                : $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (당일 업무 불가)");
+                : $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (당일 업무 불가)",
+            detail: LogDetail.Fainted);
 
         // 격리 중이 아니면 의무실로 옮긴다. 배치는 유지해 두어 관리자가 상황을 볼 수 있게 한다.
         if (!st.Isolated && _roomDefs.ContainsKey(MedicalRoomId))
@@ -349,7 +350,8 @@ public partial class FacilitySimulation : Node
             st.Incapacitated = false;
             st.Stress = Mathf.Clamp(cfg.StressAfterRecovery, cfg.StressMin, cfg.StressFaintFrom - 1f);
             EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
-                $"{Codename(st.EmployeeId)} 회복 — 스트레스 {st.Stress:0}, 근무 복귀");
+                $"{Codename(st.EmployeeId)} 회복 — 스트레스 {st.Stress:0}, 근무 복귀",
+                detail: LogDetail.Recovered);
             if (!st.Isolated && !string.IsNullOrEmpty(st.AssignedRoomId) && st.AssignedRoomId != st.CurrentRoomId)
                 BeginPathTo(st, st.AssignedRoomId);
         }
@@ -615,7 +617,8 @@ public partial class FacilitySimulation : Node
     {
         if (!_employeeStates.TryGetValue(employeeId, out var emp)) return;
 
-        EventLog.Instance?.LogEvent(LogEventType.TaskEnd, employeeId, emp.CurrentRoomId, $"{Codename(employeeId)} - 배치 해제");
+        EventLog.Instance?.LogEvent(LogEventType.TaskEnd, employeeId, emp.CurrentRoomId, $"{Codename(employeeId)} - 배치 해제",
+            detail: LogDetail.Unassigned);
         emp.AssignedRoomId = "";
         if (!emp.Isolated) RemoveOccupant(emp.CurrentRoomId, employeeId);
         emp.TargetRoomId = emp.CurrentRoomId;

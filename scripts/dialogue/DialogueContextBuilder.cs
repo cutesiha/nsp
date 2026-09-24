@@ -90,16 +90,18 @@ public static class DialogueContextBuilder
                 case LogEventType.Death:
                     list.Add((e.GameTimeSeconds, e.RoomId ?? ""));
                     duty.Add((e.GameTimeSeconds, false));
-                    break;
-                // 기절 · 회복 · 배치 해제는 따로 사건 종류가 없다 — FacilitySimulation 이 남기는 문구로 가린다.
-                case LogEventType.Neglect when (e.Description ?? "").Contains("기절"):
+                    break;            }
+
+            // 기절 · 회복 · 배치 해제는 사건 종류(Neglect / TaskEnd)만으로는 갈리지 않는다 —
+            // FacilitySimulation 이 기록할 때 채우는 세부 종류로 가린다(표시 문구는 보지 않는다).
+            switch (e.Detail)
+            {
+                case LogDetail.Fainted:
+                case LogDetail.Unassigned:
                     duty.Add((e.GameTimeSeconds, false));
                     break;
-                case LogEventType.Neglect when (e.Description ?? "").Contains("근무 복귀"):
+                case LogDetail.Recovered:
                     duty.Add((e.GameTimeSeconds, true));
-                    break;
-                case LogEventType.TaskEnd when (e.Description ?? "").Contains("배치 해제"):
-                    duty.Add((e.GameTimeSeconds, false));
                     break;
             }
         }
