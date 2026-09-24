@@ -17,7 +17,9 @@ namespace NSP.Debug;
 // 여러 번 돌려 평균을 낸다.
 public partial class Day1OpsTest : Node
 {
-    private const int Runs = 12;
+    // 이상 개체(괴물) 사고가 근무마다 무작위로 끼어들면서 열두 번으로는 평균이 흔들린다
+    // ("안정 배치는 사고 없이" 가 0.6 선을 오르내렸다). 표본을 늘려 판정을 믿을 수 있게 한다.
+    private const int Runs = 20;
     private const float Step = 1f / 30f;
 
     private FacilitySimulation _sim;

@@ -12,7 +12,7 @@ MapPosition = Vector2(450, 370)
 ; 띠 시간표에서 이 방을 나타내는 색 — 정비실 초록
 MapColor = Color(0.40, 0.74, 0.44, 1)
 IsCoreRoom = false
-UnlockDay = 0
+UnlockDay = 1
 ManagedResource = 3
 AccidentName = "정비 설비 고장"
 UnstaffedAccidentSeconds = 25.0

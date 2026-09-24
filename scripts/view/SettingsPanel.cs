@@ -114,7 +114,6 @@ public partial class SettingsPanel : CanvasLayer
         sheet.AddChild(vb);
 
         vb.AddChild(Lbl("SYSTEM CONFIG  /  환경 설정", 26, Cyan, _body));
-        vb.AddChild(Lbl("SYSTEM OVERLAY  ·  NSP-00  ·  이 설정은 근무 기록에 남지 않습니다.", 13, InkDim, _body));
         vb.AddChild(Rule());
 
         // ── 음량 ──
@@ -138,21 +137,18 @@ public partial class SettingsPanel : CanvasLayer
         };
         fsRow.AddChild(fsBtn);
         vb.AddChild(fsRow);
-        // 설명은 다음 줄에 접어 싣는다 — 한 줄로 두면 창 오른쪽 밖으로 뻗는다.
-        var fsNote = Lbl("화면 비율은 그대로 유지된 채 모니터 크기에 맞춰 확대됩니다.", 14, InkDim, _body);
-        fsNote.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        vb.AddChild(fsNote);
 
         var qRow = Row();
         qRow.AddChild(Lbl("그래픽 품질", 21, Ink, _body, 240f));
         var qBtn = DocButton(GameSettings.QualityLabel, 140f);
+        qBtn.TooltipText = "낮음에서는 빛 번짐이 꺼집니다.";
         qBtn.Pressed += () =>
         {
+            // 그 자리에서 바뀐다 — 재시작하지 않는다.
             int next = ((int)GameSettings.GraphicsQuality + 1) % GameSettings.QualityLevels.Length;
             GameSettings.GraphicsQuality = (GameSettings.Quality)next;
             qBtn.Text = GameSettings.QualityLabel;
-            if (!GameSettings.RestartForGraphicsQuality())
-                qBtn.TooltipText = "F5 실행에서는 창을 닫지 않습니다. 내보낸 게임에서 선택하면 렌더러가 재시작되어 적용됩니다.";
+            GameSettings.Save();
         };
         qRow.AddChild(qBtn);
         vb.AddChild(qRow);
@@ -263,7 +259,6 @@ public partial class SettingsPanel : CanvasLayer
     {
         var box = new VBoxContainer();
         box.AddThemeConstantOverride("separation", 4);
-        box.AddChild(Lbl("아래 키는 변경할 수 없습니다.", 14, InkDim, _body));
 
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 20);

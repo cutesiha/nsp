@@ -60,8 +60,10 @@ public partial class PhoneCallHud : CanvasLayer
     private VBoxContainer _leftInner;
     // 심문 UI 는 MONITOR 01 의 심문 콘솔(RestInterviewConsole) 안에 있다. 아래는 그 콘솔의 자리를 가리킨다.
     private RestInterviewConsole _console;
-    // 창 오른쪽 위의 통화 종료 버튼(심문 콘솔에서는 숨긴다 — 그쪽은 콘솔이 종료를 맡는다).
-    private Button _hangUp;
+    // 통화가 열려 있는가 — ESC 로 끊을 수 있는지 판정에만 쓴다.
+    // (창 오른쪽 위에 있던 「통화 종료 ✕」 버튼은 없앴다. 끊는 길은 선택지 맨 아래 한 곳과
+    //  책상 위 전화기 클릭, 그리고 ESC 뿐이다 — 대화창 구석의 버튼이 대사를 가리고 있었다.)
+    private bool _callOpen;
     private bool _consoleWired;
     private VBoxContainer _evidenceList;
     private HFlowContainer _noteTabs;
@@ -135,15 +137,6 @@ public partial class PhoneCallHud : CanvasLayer
         _frame = new HologramFrame { MouseFilter = Control.MouseFilterEnum.Ignore };
         _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _panel.AddChild(_frame);
-
-        // 통화는 언제든 끊을 수 있어야 한다 — 선택지가 없는 구간(상대가 말하는 중, 사건 전화 등)
-        // 에서도 창 오른쪽 위의 이 버튼으로 바로 끊는다. ESC 도 같은 동작이다.
-        _hangUp = MonitorUi.Button("통화 종료 ✕", new Color(1f, 0.55f, 0.45f), _font, CloseCall, ViewFont.FS(13));
-        _hangUp.AnchorLeft = 1f; _hangUp.AnchorRight = 1f;
-        _hangUp.OffsetLeft = -128f; _hangUp.OffsetRight = -14f;
-        _hangUp.OffsetTop = 10f; _hangUp.OffsetBottom = 36f;
-        _hangUp.MouseFilter = Control.MouseFilterEnum.Stop;
-        _panel.AddChild(_hangUp);
 
         // 위 = [왼쪽 대화 | 오른쪽 조사 노트], 아래 = 자료 A/B · 질문 · 비교 · 통화 종료(심문에서만).
         // 일반 통화에서는 오른쪽 열과 아래 줄을 숨긴다.
@@ -292,8 +285,10 @@ public partial class PhoneCallHud : CanvasLayer
         {
             _openAnchorTop = _panel.AnchorTop; _openAnchorBottom = _panel.AnchorBottom;
             _openOffsetTop = _panel.OffsetTop; _openOffsetBottom = _panel.OffsetBottom;
-            _panel.AnchorBottom = _panel.AnchorTop;
-            _panel.OffsetBottom = _panel.OffsetTop + CollapsedHeight;
+            // 창의 **아래쪽 변**에 붙여 접는다. 예전에는 위쪽 변 기준이라 접은 막대가
+            // 화면 한가운데에 남아 MONITOR 를 계속 가렸다 — 접는 이유가 그건데.
+            _panel.AnchorTop = _panel.AnchorBottom;
+            _panel.OffsetTop = _panel.OffsetBottom - CollapsedHeight;
         }
         else
         {
@@ -376,8 +371,9 @@ public partial class PhoneCallHud : CanvasLayer
         _evidenceList = con.EvidenceList;
         // 콘솔에는 통화 종료가 없다 — 이 신호는 "접어 둔 대화창을 다시 펴 달라" 다.
         con.ExpandRequested += ExpandForConsole;
-        // 자료 A/B 가 바뀌면 선택지도 바뀐다 — 접혀 있으면 펴서 보여 준다.
-        con.SlotsChanged += ExpandForConsole;
+        // 자료 A/B 가 바뀌어도 창을 억지로 펴지 않는다. 접어 둔 것은 조사 노트를 보려고
+        // 접은 것이고, 자료를 고를 때마다 창이 튀어나오면 그 작업을 방해한다.
+        // (펴는 것은 「대화창 펼치기」 를 눌렀을 때뿐이다.)
         // 띠에 꽂힌 핀 · 사고 세로선을 눌렀다 = 목록에서 그 카드를 누른 것.
         // 카드 버튼과 **같은 두 줄**을 탄다 — 고르는 길이 둘로 갈라지면 규칙도 둘이 된다.
         con.EvidencePinPressed += id =>
@@ -415,8 +411,10 @@ public partial class PhoneCallHud : CanvasLayer
     }
 
     // 심문 콘솔(MONITOR 01) 안의 글자는 SubViewport 논리 크기, 통화 자막은 화면 크기.
-    private bool OnMonitor => _session != null;
-    private int Fz(int px) => OnMonitor ? ViewFont.S(px) : ViewFont.FS(px);
+    // 이 창은 언제나 화면 위(CanvasLayer)에 직접 뜬다 — 심문일 때도 마찬가지다.
+    // 예전에는 심문 UI 가 MONITOR 01 안(SubViewport)에 있어서 그때만 ViewFont.S 를 썼는데,
+    // 1.5차에서 창을 밖으로 되돌린 뒤에도 그 분기가 남아 심문 선택지만 작게 나오고 있었다.
+    private int Fz(int px) => ViewFont.FS(px);
 
     // 선택한 자료 한 칸. 누르면 그 자료의 선택이 풀린다.
     private Button SlotButton(int index)
@@ -964,7 +962,10 @@ public partial class PhoneCallHud : CanvasLayer
             {
                 case AfterMode.GeneralQuestions: BuildGeneralQuestions(); break;
                 case AfterMode.EventChoices: BuildEventChoices(); break;
-                case AfterMode.InterviewMenu: BuildInterviewMenu(); break;
+                // 자료를 골라 둔 채라면 맨 처음 질문 목록이 아니라 **그 자료로 할 수 있는
+                // 질문들** 로 돌아간다. 자료 하나에 물을 것이 여럿인데 매번 처음으로
+                // 튕기면 같은 자료를 다시 고르는 일만 반복하게 된다.
+                case AfterMode.InterviewMenu: BackToInterview(); break;
                 case AfterMode.InterviewIntents: BuildIntentChoices(); break;
                 case AfterMode.InterviewFollowUps: BuildInterviewFollowUps(); break;
                 case AfterMode.EndOnly: BuildEndOnly(); break;
@@ -1002,8 +1003,8 @@ public partial class PhoneCallHud : CanvasLayer
     // 심문 기본 화면 — 직원의 근무 진술 블록과, 고른 진술에서 이어지는 꼬리질문만.
     // (예전의 기본 질문 세 개는 목록으로 띄우지 않는다 — 그 답이 곧 진술 블록이다.)
     // 심문 기본 선택지 — 전부 자막 띠 안에 있다.
-    //   ① 방금 진술에서 이어지는 꼬리질문(0~2)
-    //   ② 조사 노트에서 고른 자료로 묻기 / 두 자료를 함께 제시하기
+    //   ① 조사 노트에서 고른 자료로 묻기 / 두 자료를 함께 제시하기  ← 맨 위
+    //   ② 기본 질문과 꼬리질문
     //   ③ 통화 종료(항상 맨 아래)
     private void BuildInterviewMenu()
     {
@@ -1013,7 +1014,13 @@ public partial class PhoneCallHud : CanvasLayer
         RefreshEvidence();
         if (_session == null) return;
 
-        // ① 기본 질문 세 개. 이미 들은 것은 ✓ — 목록에서 빠지지 않는다(다시 들을 수 있다).
+        // ① 자료로 하는 행동을 **맨 위**에 둔다.
+        //
+        // 목록이 길어지면 스크롤이 생기는데, 방금 MONITOR 01 에서 자료를 고르고 온 사람이
+        // 그 선택지를 찾으려고 아래까지 굴려야 하는 것은 앞뒤가 맞지 않는다.
+        AddEvidenceChoice();
+
+        // ② 기본 질문 세 개. 이미 들은 것은 ✓ — 목록에서 빠지지 않는다(다시 들을 수 있다).
         foreach (var st in _session.Openings)
         {
             var captured = st;
@@ -1021,7 +1028,7 @@ public partial class PhoneCallHud : CanvasLayer
             _choices.AddChild(InterviewChoiceButton(label, () => PlayOpening(captured)));
         }
 
-        // ② 방금 들은 진술에서 이어지는 꼬리질문(최대 2).
+        // ③ 방금 들은 진술에서 이어지는 꼬리질문(최대 2).
         int room = 2;
         foreach (var fq in _session.OpeningFollowUps())
         {
@@ -1031,8 +1038,6 @@ public partial class PhoneCallHud : CanvasLayer
             _choices.AddChild(InterviewChoiceButton(text, () => AskOpeningFollowUp(captured)));
         }
 
-        // ③ MONITOR 01 에서 고른 자료로 묻기 / 두 자료 제시.
-        AddEvidenceChoice();
         // ④ 세션을 끝내는 유일한 버튼.
         AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall));
     }
@@ -1067,20 +1072,30 @@ public partial class PhoneCallHud : CanvasLayer
                     13, new Color(0.55f, 0.66f, 0.70f))));
             return;
         }
+        // 자료를 쓰는 선택지는 그 직원의 고유색으로 칠한다 — 기본 질문들 사이에서
+        // "지금 손에 쥔 자료로 하는 행동" 이 한눈에 구분돼야 한다.
+        var tint = EmployeeTint();
         if (picked == 1)
         {
             var one = _session.EvidenceAt(0);
-            _choices.AddChild(InterviewChoiceButton($"[{Short(one?.Body, 10)}]로 묻는다.", OnAskWithEvidence));
+            var ask = InterviewChoiceButton($"[{Short(one?.Body, 10)}]로 묻는다.", OnAskWithEvidence);
+            TintAction(ask, tint);
+            _choices.AddChild(ask);
             return;
         }
 
-        var result = _session.CheckContradiction();
-        bool holds = result.Kind != ConfrontKind.None;
-        string label = holds ? result.QuestionText : "두 자료를 함께 제시한다.";
-        var b = InterviewChoiceButton(label, OnConfront);
-        // 성립한 추궁만 붉게 — 성립하지 않은 조합에는 아무 표시도 붙지 않는다.
-        if (holds) TintAction(b, new Color(1f, 0.45f, 0.38f));
+        var b = InterviewChoiceButton("두 자료를 함께 제시한다.", OnConfront);
+        TintAction(b, tint);
         _choices.AddChild(b);
+    }
+
+    // 지금 심문 중인 직원의 고유색(배치표 · 미니맵과 같은 색).
+    private Color EmployeeTint()
+    {
+        var c = FacilitySimulation.Instance?.GetEmployeeDef(_employeeId)?.IconColor
+                ?? new Color(0.55f, 0.95f, 1f);
+        // 어두운 고유색은 대화창 배경에 묻힌다 — 읽을 수 있는 밝기까지 올린다.
+        return c.Lerp(Colors.White, 0.35f);
     }
 
     // MON01 맨 위 한 줄 — 오늘 무엇을 밝혀야 하는가.
@@ -1102,9 +1117,9 @@ public partial class PhoneCallHud : CanvasLayer
 
         string room = InterviewEvidenceBoard.RoomName(pick.SubjectRoomId);
         string when = DialogueClock.Text(pick.AnchorTime);
-        return pick.IncidentType == NSP.Data.LogEventType.Sabotage
-            ? $"{when} {room} 방해공작 — 그 시각 {room}에 있던 사람은?"
-            : $"{when} {room} 사고 — 그 시각 {room}에 있던 사람은?";
+        // 두 문장을 가운뎃점이나 긴 작대기로 잇지 않는다 — 그냥 마침표로 끊는다.
+        string what = pick.IncidentType == NSP.Data.LogEventType.Sabotage ? "방해공작" : "사고";
+        return $"{when} {room} {what}. 그 시각 {room}에 있던 사람은?";
     }
 
     // 기본 질문 하나를 고르면 그 답(세션이 만들어 둔 최초 진술)을 그대로 말한다.
@@ -1171,6 +1186,22 @@ public partial class PhoneCallHud : CanvasLayer
         BuildIntentChoices();
     }
 
+    // 답변이 끝난 뒤 돌아갈 자리. 자료를 쥐고 있으면 그 자료의 질문 목록으로.
+    private void BackToInterview()
+    {
+        if (_session is { Selected.Count: > 0 })
+        {
+            _intents = _session.QuestionsForSelection();
+            if (_intents.Count > 0)
+            {
+                RefreshEvidence();
+                BuildIntentChoices();
+                return;
+            }
+        }
+        BuildInterviewMenu();
+    }
+
     private void BuildIntentChoices()
     {
         ClearChoices();
@@ -1179,7 +1210,11 @@ public partial class PhoneCallHud : CanvasLayer
             var captured = q;
             _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
         }
-        AddTail(InterviewChoiceButton("다른 질문을 한다.", BuildInterviewMenu));
+        AddTail(InterviewChoiceButton("자료를 내려놓고 다른 질문을 한다.", () =>
+        {
+            _session?.ClearSelection();
+            BuildInterviewMenu();
+        }));
     }
 
     // 이미 물어본 질문에는 체크 표시만 붙인다 — 목록에서 사라지지는 않는다.
@@ -1217,11 +1252,29 @@ public partial class PhoneCallHud : CanvasLayer
 
     // 두 자료를 함께 제시한다. 성립하든 아니든 직원은 대답한다 —
     // 화면이 "그건 아니다" 라고 막으면 틀린 조합을 대 볼 자유가 사라진다(§3-1).
+    // 두 자료를 함께 제시한다 — **무엇을 들이밀지 먼저 보여 준다.**
+    //
+    // 예전에는 이 버튼이 곧바로 추궁을 실행했다. 그래서 관리자는 자기가 한 적 없는 질문에
+    // 직원이 답하는 것을 보게 됐다. 지금은 실제로 나갈 문장을 선택지로 한 번 더 띄운다 —
+    // 성립하면 추궁 문장이, 성립하지 않으면 그냥 나란히 놓고 묻는 문장이 뜬다(§3-1).
     private void OnConfront()
     {
         if (_session == null || !_session.CanTryConfront) return;
         var result = _session.CheckContradiction();
+        bool holds = result.Kind != ConfrontKind.None;
 
+        ClearChoices();
+        var go = InterviewChoiceButton(
+            holds ? result.QuestionText : "두 자료를 나란히 놓고 설명을 요구한다.",
+            () => DoConfront(result));
+        // 성립한 추궁만 붉게 — 성립하지 않은 조합에는 아무 표시도 붙지 않는다.
+        TintAction(go, holds ? new Color(1f, 0.45f, 0.38f) : EmployeeTint());
+        _choices.AddChild(go);
+        AddTail(InterviewChoiceButton("그만둔다.", BuildInterviewMenu));
+    }
+
+    private void DoConfront(EvidenceContradiction.Result result)
+    {
         ClearChoices();
         var turn = _session.Confront(result);
         _followUps.Clear();
@@ -1229,7 +1282,7 @@ public partial class PhoneCallHud : CanvasLayer
         RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
         RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
         ShowPlayerLine(turn.QuestionText);
-        _session.ClearSelection();
+        // 고른 자료는 그대로 둔다 — 관리자가 직접 뺄 때까지 그 자료로 계속 물을 수 있다.
         RefreshEvidence();
         StartTyping("\"" + turn.Answer + "\"", AfterMode.InterviewMenu);
     }
@@ -1373,14 +1426,14 @@ public partial class PhoneCallHud : CanvasLayer
         _panel.AnchorBottom = 0.95f;
         _panel.OffsetTop = 0f;
         _panel.OffsetBottom = 0f;
-        // 심문 중에는 위쪽 ✕ 를 숨긴다 — 끊는 길은 선택지 맨 아래 한 곳뿐이어야 한다.
-        if (_hangUp != null) _hangUp.Visible = !interview;
+        // 심문 중에는 ESC 로 끊지 않는다 — 끊는 길은 선택지 맨 아래 한 곳뿐이어야 한다.
+        _callOpen = !interview;
     }
 
     // ESC — 통화 중이면 끊는다(심문 콘솔은 자기 종료 흐름을 쓴다).
     public override void _UnhandledInput(InputEvent e)
     {
-        if (_panel is not { Visible: true } || _hangUp is not { Visible: true }) return;
+        if (_panel is not { Visible: true } || !_callOpen) return;
         if (e is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
         CloseCall();
         GetViewport().SetInputAsHandled();

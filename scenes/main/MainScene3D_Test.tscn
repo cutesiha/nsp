@@ -41,9 +41,11 @@ ambient_light_color = Color(0.34, 0.36, 0.44, 1)
 ambient_light_energy = 0.2
 tonemap_mode = 2
 glow_enabled = true
-glow_intensity = 0.55
-glow_strength = 0.9
-glow_bloom = 0.04
+glow_intensity = 0.75
+glow_strength = 1.05
+glow_bloom = 0.07
+glow_hdr_threshold = 0.78
+glow_hdr_scale = 2.4
 fog_enabled = true
 fog_light_color = Color(0.04, 0.04, 0.06, 1)
 fog_density = 0.018
@@ -200,7 +202,22 @@ height = 0.04570166
 radial_segments = 6
 rings = 3
 
+[sub_resource type="StandardMaterial3D" id="Mat_MonitorBezel"]
+albedo_color = Color(0.075, 0.078, 0.085, 1)
+roughness = 0.45
+emission_enabled = true
+emission = Color(0.58, 0.6, 0.63, 1)
+emission_energy_multiplier = 0.022
+
 [sub_resource type="QuadMesh" id="Quad"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_MonitorStand"]
+albedo_color = Color(0.24, 0.24, 0.27, 1)
+metallic = 0.6
+roughness = 0.3
+emission_enabled = true
+emission = Color(0.58, 0.6, 0.63, 1)
+emission_energy_multiplier = 0.018
 
 [sub_resource type="TorusMesh" id="DialRing"]
 inner_radius = 0.018
@@ -948,7 +965,7 @@ transform = Transform3D(0.97, 0, 0.242, 0, 1, 0, -0.242, 0, 0.97, -0.47, 0, -0.7
 [node name="M01_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1587461643]
 transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_DarkPlastic")
+surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
 [node name="M01_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=749959280]
 transform = Transform3D(0.73999995, 0, 0, 0, 0.55499995, 0, 1.4901161e-08, 0, 1, -0.00064590573, 1.1299999, 0.04258895)
@@ -958,12 +975,12 @@ script = ExtResource("3_screen")
 [node name="M01_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=2095575080]
 transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_Metal")
+surface_material_override/0 = SubResource("Mat_MonitorStand")
 
 [node name="M01_Base" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1829738365]
 transform = Transform3D(0.36, 0, 0, 0, 0.035, 0, 0, 0, 0.26, 0, 0.775, -0.02)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_Metal")
+surface_material_override/0 = SubResource("Mat_MonitorStand")
 
 [node name="M01_BezelLabel" type="Label3D" parent="ControlRoom/Monitor01" unique_id=438671256]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
@@ -993,7 +1010,7 @@ transform = Transform3D(0.97, 0, -0.242, 0, 1, 0, 0.242, 0, 0.97, 0.47, 0, -0.75
 [node name="M02_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=668823157]
 transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_DarkPlastic")
+surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
 [node name="M02_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=2035591087]
 transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
@@ -1003,12 +1020,12 @@ script = ExtResource("3_screen")
 [node name="M02_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1492429967]
 transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_Metal")
+surface_material_override/0 = SubResource("Mat_MonitorStand")
 
 [node name="M02_Base" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1079536581]
 transform = Transform3D(0.36, 0, 0, 0, 0.035, 0, 0, 0, 0.26, 0, 0.775, -0.02)
 mesh = SubResource("Box")
-surface_material_override/0 = SubResource("Mat_Metal")
+surface_material_override/0 = SubResource("Mat_MonitorStand")
 
 [node name="M02_BezelLabel" type="Label3D" parent="ControlRoom/Monitor02" unique_id=2105423420]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
@@ -1222,7 +1239,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
-transform = Transform3D(1, 0, 0, 0, 0.9925, 0.1219, 0, -0.1219, 0.9925, 0, 1.16, 0)
+transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.16, 0.018909156)
 current = true
 fov = 64.0
 near = 0.02

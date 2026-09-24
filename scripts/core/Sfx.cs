@@ -164,15 +164,61 @@ public partial class Sfx : Node
             b.Pressed += () => Play("click", -8f);
     }
 
+    // 효과음 파일 하나. 확장자는 넣어 준 순서대로 찾는다 — 새로 넣는 소리가 .ogg 여도
+    // 코드에서는 파일 이름만 쓰면 된다.
+    private static readonly string[] SfxExtensions = { ".wav", ".ogg", ".mp3" };
+
     private AudioStream Load(string key)
     {
         if (_cache.TryGetValue(key, out var s)) return s;
-        string path = key == "electrical_background"
-            ? "res://assets/audio/electrical_noise2_[cut_3sec].mp3"
-            : $"res://assets/audio/sfx/{key}.wav";
-        s = ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;
+        if (key == "electrical_background")
+        {
+            const string bg = "res://assets/audio/electrical_noise2_[cut_3sec].mp3";
+            s = ResourceLoader.Exists(bg) ? GD.Load<AudioStream>(bg) : null;
+            _cache[key] = s;
+            return s;
+        }
+        foreach (string ext in SfxExtensions)
+        {
+            string path = $"res://assets/audio/sfx/{key}{ext}";
+            if (!ResourceLoader.Exists(path)) continue;
+            s = GD.Load<AudioStream>(path);
+            break;
+        }
         _cache[key] = s;
         return s;
+    }
+
+    // ── 괴물의 비명 ───────────────────────────────────────────────────
+    // 두 녹음 중 하나를 무작위로, **아주 크게**, 울리는 버스로 내보낸다.
+    // 이 소리 하나가 "지금 저 방에 그것이 있다"를 알려 주는 유일한 신호라서
+    // 다른 효과음과 같은 크기면 묻힌다.
+    private static readonly string[] GhostScreams =
+    {
+        "귀신비명1_CCTV_괴기", "귀신비명2_CCTV_괴기",
+    };
+
+    // 비명은 전용 재생기를 쓴다. 공용 풀을 빌리면 다음 효과음이 끼어들며 소리가 잘리고,
+    // 울림 버스가 그 재생기에 그대로 남는다.
+    private AudioStreamPlayer _screamPlayer;
+
+    // volumeDb 기본값이 크다. 이 소리는 "지금 저 방에 그것이 있다"를 알려 주는 유일한
+    // 신호라 다른 효과음과 같은 크기면 묻힌다. 버스 쪽 리미터가 찢어지는 것을 막는다.
+    public void PlayGhostScream(float volumeDb = 15f)
+    {
+        string key = GhostScreams[(int)(GD.Randi() % (uint)GhostScreams.Length)];
+        var stream = Load(key);
+        if (stream == null) { Play("alert_beep3", 2f); return; }
+
+        if (_screamPlayer == null)
+        {
+            _screamPlayer = new AudioStreamPlayer { Bus = GameSettings.BusScream };
+            AddChild(_screamPlayer);
+        }
+        _screamPlayer.Stream = stream;
+        _screamPlayer.VolumeDb = volumeDb;
+        _screamPlayer.PitchScale = (float)GD.RandRange(0.92, 1.05);
+        _screamPlayer.Play();
     }
 
     public void Play(string key, float volumeDb = 0f, float pitch = 1f)

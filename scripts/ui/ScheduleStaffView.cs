@@ -145,12 +145,16 @@ public partial class ScheduleStaffView : Control
     private void DrawClose()
     {
         _closeVisible = true;
-        DrawRect(CloseRect, new Color(0.05f, 0.10f, 0.11f, 0.95f));
-        DrawRect(CloseRect, Mint with { A = 0.8f }, false, 2f);
+        // 기울어진 CRT 위에서는 옅은 민트 테두리가 배경에 묻혀 닫는 버튼이 잘 안 보였다.
+        // 바탕을 민트로 채우고 X 를 어둡게 뒤집어 화면에서 가장 밝은 자리로 만든다.
+        DrawRect(CloseRect.Grow(3f), Mint with { A = 0.22f });
+        DrawRect(CloseRect, Mint);
+        DrawRect(CloseRect, Colors.White with { A = 0.85f }, false, 2f);
         var c = CloseRect.GetCenter();
         float k = 13f;
-        DrawLine(c + new Vector2(-k, -k), c + new Vector2(k, k), Mint, 3f);
-        DrawLine(c + new Vector2(-k, k), c + new Vector2(k, -k), Mint, 3f);
+        var ink = new Color(0.03f, 0.10f, 0.11f);
+        DrawLine(c + new Vector2(-k, -k), c + new Vector2(k, k), ink, 4f);
+        DrawLine(c + new Vector2(-k, k), c + new Vector2(k, -k), ink, 4f);
     }
 
     // ── 머리말 ───────────────────────────────────────────────────────────
@@ -296,7 +300,7 @@ public partial class ScheduleStaffView : Control
         if (def == null) { DrawRosterGrid(sim); return; }
         bool assignable = ScheduleMapView.IsAssignable(sim, roomId);
 
-        Header("ROOM  ·  " + def.DisplayName, assignable ? "배치 가능 작업실" : !sim.IsRoomActive(roomId)
+        Header("ROOM  -  " + def.DisplayName, assignable ? "배치 가능 작업실" : !sim.IsRoomActive(roomId)
             ? "비활성 — " + ScheduleMapView.LockedLabel(def) : "제한 구역 — 배치할 수 없음");
 
         float x = 56f, y = 150f;
@@ -312,26 +316,26 @@ public partial class ScheduleStaffView : Control
         if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
         {
             DrawString(_font, new Vector2(x, y), $"인원별 효과   (현재 {here.Count}명)", HorizontalAlignment.Left,
-                680f, Fs(16), Mint);
-            y += 28f;
+                680f, Fs(18), Mint);
+            y += 32f;
             foreach (string line in ops.RoleNote.Split(" / ").Take(4))
             {
                 DrawString(_font, new Vector2(x + 8f, y), "· " + line.Trim(), HorizontalAlignment.Left, 680f,
-                    Fs(14), Ink);
-                y += 24f;
+                    Fs(17), Ink);
+                y += 28f;
             }
         }
         else
         {
             DrawString(_font, new Vector2(x, y),
                 $"권장 인원   {ScheduleMapView.RecommendedHeadcount(sim, roomId)}명   (현재 {here.Count}명)",
-                HorizontalAlignment.Left, 680f, Fs(16), Mint);
-            y += 28f;
+                HorizontalAlignment.Left, 680f, Fs(18), Mint);
+            y += 32f;
         }
         y += 6f;
         DrawString(_font, new Vector2(x, y), $"사고 수리 최소 인원   {RoomStaffing.RepairMinWorkers(roomId, def)}명",
-            HorizontalAlignment.Left, 680f, Fs(15), Dim);
-        y += 34f;
+            HorizontalAlignment.Left, 680f, Fs(18), Amber);
+        y += 38f;
 
         DrawDescription(roomId, x, y);
 
@@ -346,8 +350,8 @@ public partial class ScheduleStaffView : Control
         string desc = RoomDetailCard.Descriptions.GetValueOrDefault(roomId, "");
         if (string.IsNullOrEmpty(desc)) return;
         // 줄바꿈 — DrawMultilineString 으로 폭 안에서 접는다.
-        DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, Fs(14),
-            4, Ink with { A = 0.85f }, TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.Mandatory);
+        DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, Fs(17),
+            4, Ink with { A = 0.92f }, TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.Mandatory);
     }
 
     // ── 적합도 비교 ──────────────────────────────────────────────────────
@@ -398,16 +402,51 @@ public partial class ScheduleStaffView : Control
     }
 
     // 스탠딩 원화의 투명 여백을 잘라 그림 폭을 칸 폭에 맞추고, 머리부터 칸 높이만큼만 그린다.
+    // 원화에서 상반신을 잘라 신원 칸에 채운다.
+    //
+    // 예전에는 **캐릭터마다 자기 그림의 가로폭**에 맞춰 배율을 정했다. 그래서 팔을 벌리거나
+    // 귀가 넓은 캐릭터일수록 배율이 작아져, 여섯 명의 얼굴 크기가 제각각이었다
+    // (고양이만 크게 나오고 나머지는 작게). 지금은 인터뷰 화면(InterviewCCTVView.PortraitUnit)과
+    // 같은 방식으로 **여섯 명이 하나의 공통 배율**을 쓴다 — 가장 큰 원화를 기준으로 잡는다.
     private void FillUpper(Texture2D tex, Rect2 box)
     {
         var c = NSP.View.InterviewCCTVView.ContentBox(tex);
-        float pad = c.Size.X * 0.06f;
-        float srcW = c.Size.X + pad * 2f;
-        float srcH = Mathf.Min(srcW * box.Size.Y / box.Size.X, c.Size.Y + pad);
-        var src = new Rect2(c.Position.X - pad, Mathf.Max(0f, c.Position.Y - pad), srcW, srcH);
-        float k = box.Size.X / srcW;
-        var dst = new Rect2(box.Position, new Vector2(box.Size.X, srcH * k));
-        DrawTextureRectRegion(tex, dst, src);
+        if (c.Size.X <= 0 || c.Size.Y <= 0 || box.Size.Y <= 0f) return;
+
+        float unit = IdentUnit(box.Size.Y);
+        if (unit <= 0f) return;
+        // 표시 칸을 원본 좌표로 되돌린 크기 = 잘라 올 영역.
+        float srcW = box.Size.X / unit;
+        float srcH = box.Size.Y / unit;
+        // 가로는 그림의 중심, 세로는 정수리부터.
+        float left = c.Position.X + c.Size.X * 0.5f - srcW * 0.5f;
+        float top = c.Position.Y;
+        // 원본 밖으로 나가지 않게 민다(배율은 그대로 둔다 — 밀기만 한다).
+        left = Mathf.Clamp(left, 0f, Mathf.Max(0f, tex.GetWidth() - srcW));
+        top = Mathf.Clamp(top, 0f, Mathf.Max(0f, tex.GetHeight() - srcH));
+        DrawTextureRectRegion(tex, box, new Rect2(left, top, srcW, srcH));
+    }
+
+    // 원화에서 위에서부터 이만큼만 보여준다(0.5 = 상반신). 얼굴 크기는 이 값 하나로 조절한다.
+    private const float UpperBodyFraction = 0.52f;
+    private static float _identUnit;
+
+    // 여섯 명이 함께 쓰는 배율. 가장 큰 원화의 상반신이 칸 높이에 딱 맞도록 한 번만 구한다.
+    private static float IdentUnit(float boxHeight)
+    {
+        if (_identUnit > 0f) return _identUnit;
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return 0f;
+
+        float tallest = 0f;
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            var t = sim.GetEmployeeDef(id)?.StandingImage;
+            if (t != null) tallest = Mathf.Max(tallest, NSP.View.InterviewCCTVView.ContentBox(t).Size.Y);
+        }
+        if (tallest <= 0f) return 0f;   // 아직 원화가 준비되지 않았다 — 다음 프레임에 다시 본다
+        _identUnit = boxHeight / (tallest * UpperBodyFraction);
+        return _identUnit;
     }
 
     private void Contain(Texture2D tex, Rect2 box)

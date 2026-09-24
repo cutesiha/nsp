@@ -445,20 +445,20 @@ option: 내가 해야 할 일은? | g_mission
 @guide g_what_happened
 portrait: normal
 panel: alert
-line: 지상에서 대규모 재난이 발생했고, 동시에 시설 내부의 격리 시스템도 붕괴했습니다.
-line: 그 과정에서 생명 유지 장치인 봉쇄 코어가 /1심각하게 손상/0되었습니다.
+line: 지상에서 /1대규모 재난/0이 발생했고, 동시에 시설 내부의 격리 시스템도 붕괴했습니다.
+line: 그 과정에서 생명 유지 장치인 /5봉쇄 코어/0가 심각하게 /1손상/0되었습니다.
 icons: employees
 line: 현재 현장에서 활동 가능한 직원은 여섯 명입니다.
 fx: noise
 portrait: sneer
-line: 그리고... 직원들 사이에 숨어 우리를 방해하려는 정체불명의 개체가 확인되었습니다. 
+line: 그리고... 직원들 사이에 숨어 우리를 방해하려는 /1정체불명의 개체/0가 확인되었습니다. 
 line: 시설을 복구하며 이를 알아내는 것이 당신의 과제이겠군요.
 
 @guide g_who_am_i
 portrait: normal
 panel: authority
 line: 관리자님은 사고 이전까지 이 시설의 관제 업무를 담당했습니다.
-line: 전임 시설 총괄 관리자는 사고 당시 사망했습니다.
+line: 전임 시설 총괄 관리자는 사고 당시 /1사망/0했습니다.
 line: 비상 승계 규정에 따라 모든 관리 권한이 관리자님께 이전되었습니다.
 line: 지금부터 직원 배치와 시설 운영의 최종 판단은 관리자님의 몫입니다.
 
@@ -466,8 +466,8 @@ line: 지금부터 직원 배치와 시설 운영의 최종 판단은 관리자�
 @guide g_mission
 portrait: normal
 panel: mission
-line: 비상 차폐는 /1앞으로 120시간/0만 유지됩니다.
-line: 그 안에 직원들을 지휘하여 봉쇄 코어를 /4100% 복구/0하십시오.
+line: 비상 차폐는 앞으로 /5120시간/0만 유지됩니다.
+line: 그 안에 직원들을 지휘하여 봉쇄 코어를 /5100% 복구/0하십시오.
 line: 그리고 시설 로그와 진술을 비교해 직원들 사이에 숨어 있는 개체를 찾아내십시오.
 
 
@@ -516,47 +516,55 @@ line: 먼저 현장 직원들을 확인하십시오.
 
 @guide tut_mood
 portrait: normal
-line: 오늘의 기분은 직원들이 직접 작성한 것입니다. 배치할 때 참고할 수 있습니다.
-line: 또한 직원들은 근무 중 /2스트레스/0를 받을 수 있습니다.
-line: 스트레스가 높아지면 작업 효율이 떨어지고, 한계에 도달하면 /1기절/0할 수 있으니 상태를 확인하십시오.
+line: 오늘의 기분은 직원들이 직접 작성한 것입니다.
+line: 또한 직원들은 근무 중 /1스트레스/0를 받을 수 있습니다.
+line: 스트레스가 한계에 도달하면 직원이 /1기절/0할 수 있으니 상태를 확인하십시오.
 
 # ── 시설 CCTV 투어 (tut_mood 와 tut_assign 사이) ──────────────────────
-# MONITOR 02 가 잠시 CCTV 로 바뀌어 방을 하나씩 비춘다. 한 방당 한 줄만 쓴다.
+# 왼쪽 지도의 작업실을 **직접 누르면** MONITOR 02 가 그 방 CCTV 로 바뀌고 한 줄이 나온다.
+# 여덟 방을 다 눌러야 넘어간다. 한 방당 한 줄만 쓴다.
 @guide tut_facility_intro
 portrait: normal
 line: 배치에 앞서 작업실의 기능을 간단히 안내하겠습니다.
+portrait: normal
+line: 왼쪽 지도에서 작업실을 하나 눌러 보십시오.
+
+# 두 번째 방을 누를 때 딱 한 번만 뜬다(여덟 번 반복하면 읽지 않게 된다).
+@guide tut_facility_pick
+portrait: normal
+line: 나머지 작업실도 눌러 보십시오.
 
 @guide tut_room_core
 portrait: normal
-line: 코어실은 봉쇄 코어를 관리하고 복구하는 시설의 핵심 작업실입니다.
+line: 코어실은 /5봉쇄 코어/0를 관리하고 복구하는 시설의 핵심 작업실입니다.
 
 @guide tut_room_maintenance
 portrait: normal
-line: 정비실에서는 시설 복구에 필요한 자재를 생산하고 손상된 설비를 수리합니다.
+line: 정비실은 봉쇄 코어 복구에 필요한 /3자재/0를 생산합니다.
 
 @guide tut_room_storage
 portrait: normal
-line: 저장고에서는 시설에 필요한 자재와 재고를 관리합니다.
+line: 저장고는 봉쇄 코어 복구에 필요한 /3자재/0의 상한을 관리합니다.
 
 @guide tut_room_guard
 portrait: normal
-line: 경비실은 시설을 감시합니다. 인원을 배치하면 /1방해공작/0 억제에도 도움이 됩니다.
+line: 경비실은 시설을 감시합니다. 인원을 배치하면 /1방해공작/0 억제에 도움이 됩니다.
 
 @guide tut_room_power
 portrait: normal
-line: 발전실은 시설 전체에 필요한 전력을 공급하고 전력 설비를 관리합니다.
+line: 발전실은 시설 필요한 /5전력/0을 공급합니다. /5전력/0이 없으면 cctv, 조명 등을 켤 수 없습니다.
 
 @guide tut_room_vent
 portrait: normal
-line: 환기실은 시설 공조를 유지해 직원들의 /2스트레스/0 상승을 억제합니다.
+line: 환기실은 시설 공조를 유지해 직원들의 /1스트레스/0 상승을 억제합니다.
 
 @guide tut_room_medical
 portrait: normal
-line: 의무실에서는 스트레스가 높은 직원을 /4회복/0시킬 수 있습니다. 기절한 직원도 이곳으로 이송됩니다.
+line: 의무실은 스트레스가 높은 직원을 /4회복/0시킵니다. /1기절/0한 직원도 이곳으로 이송됩니다.
 
 @guide tut_room_isolation
 portrait: sneer
-line: 격리실은 의심되는 직원을 다른 직원들과 분리하는 공간입니다.
+line: /1격리실/0은 의심되는 직원을 다른 직원들과 분리하는 공간입니다.
 
 @guide tut_facility_end
 portrait: smile
@@ -565,21 +573,20 @@ line: 설명은 여기까지입니다. 이제 직접 배치해 보시죠.
 # STEP 2 — 배치
 @guide tut_assign
 portrait: normal
-line: 직원을 작업실에 배치하면 시설 복구 작업이 시작됩니다.
-line: 먼저 토끼를 끌어다 정비실에 놓아 보십시오.
+line: 먼저 토끼를 끌어다 {ROOM}에 놓아 보십시오.
 
 # 엉뚱하게 놓았을 때의 되짚기. 맞게 놓을 때까지 이 두 줄만 번갈아 뜬다.
 @guide tut_assign_wrong_room
 portrait: normal
-line: 토끼 직원은 정비실에 배치하십시오.
+line: 토끼 직원은 {ROOM}에 배치하십시오.
 
 @guide tut_assign_wrong_person
 portrait: sneer
-line: 눈이 잘못되셨나요? 정비실에는 토끼를 배치해 보십시오.
+line: 눈이 잘못되셨나요? {ROOM}에는 토끼를 배치해 보십시오.
 
 @guide tut_assign_rest
 portrait: smile
-line: 좋습니다. 남은 직원도 배치한 뒤 /3‘근무 시작’/0을 누르십시오.
+line: 좋습니다. 남은 직원도 배치한 뒤 /5‘근무 시작’/0을 누르십시오.
 
 @guide tut_shift_start
 portrait: normal
@@ -588,7 +595,7 @@ line: 직원들이 시설 복구 작업을 하고 있습니다.
 # STEP 3 — 사고
 @guide tut_incident
 portrait: normal
-line: 작업실에 문제가 발생했습니다. 왼쪽 모니터를 확인하십시오.
+line: 작업실에 /1사고/0가 발생했습니다. 왼쪽 모니터를 확인하십시오.
 
 @guide tut_relocate
 portrait: normal
@@ -601,18 +608,18 @@ line: 좋습니다.
 # 교육용 사고를 고친 직후 — 실제 근무의 방해공작을 설명한다(DAY0 에 방해자는 없다).
 @guide tut_sabotage_intro
 portrait: normal
-line: 실제 근무에서는 단순한 설비 고장뿐 아니라, 누군가 의도적으로 시설을 /1방해/0하는 경우도 발생할 수 있습니다.
+line: 실제 근무에서는 방금과 같은 작업실 사고 뿐만 아니라, 누군가 의도적으로 시설을 /1방해/0하는 경우도 있습니다.
 portrait: sneer
 line: /1방해공작/0이 발생해도 시스템이 범인의 신원까지 알려주지는 않습니다.
 portrait: normal
-line: /5CCTV, 시설 기록/0, 직원들의 진술을 비교해 누가 그곳에 있었는지 직접 판단해야 합니다.
+line: 관리자님께서 직접 누가 방해공작을 했는지 알아내셔야 합니다.
 
 # STEP 3-B — 이상 개체 (관측으로 소멸)
 @guide tut_anomaly_intro
 portrait: normal
-line: 이 시설의 봉쇄가 느슨해진 이후, 작업실에 /1설명되지 않는 개체/0가 목격되고 있습니다.
+line: 또한, 최근 작업실에 /1정체불명의 개체/0가 목격되고 있습니다.
 portrait: sneer
-line: 센서에는 잡히지 않습니다. 경고도 울리지 않습니다. /1지금 하나가 들어와 있습니다./0
+line: 해당 개체는 센서에도 잡히지 않고, 경고도 울리지 않습니다. 지금, /1한 마리/0가 들어와 있군요.
 
 @guide tut_anomaly_find
 portrait: normal
@@ -620,24 +627,15 @@ line: 어느 작업실인지는 알려드릴 수 없습니다. /5CCTV/0를 직�
 
 @guide tut_anomaly_watch
 portrait: normal
-line: 찾으셨군요. 그 개체는 /4관측되는 것을 견디지 못합니다./0
+line: 찾으셨군요. 그 개체는 /2관측되는 것을 견디지 못합니다./0
 portrait: normal
-line: 화면을 돌리지 말고 /1그대로 계속 보십시오./0 시선을 떼면 처음부터입니다.
+line: 화면을 돌리지 말고 /5그대로 계속 보십시오./0
 
 @guide tut_anomaly_done
 portrait: normal
-line: 소멸했습니다. 관측이 유일한 대응 수단입니다.
+line: 개체가 /1소멸/0했습니다. 이렇듯, 개체가 나타나면 관측하여 소멸시켜야 합니다.
 portrait: sneer
-line: 놓치면... 그 작업실 설비가 어떻게 되는지는 직접 보시게 될 겁니다.
-
-# STEP 4 — 시설 로그
-@guide tut_log
-portrait: normal
-line: L키를 눌러 /5시설 로그/0를 열어 보십시오.
-
-@guide tut_log_done
-portrait: normal
-line: 이 기록은 /4시설이 확인한 사실/0입니다.
+line: 개체를 놓치면... 어떻게 되는지는 직접 알게 되실 겁니다.
 
 # STEP 5 — 전화
 @guide tut_call
@@ -648,7 +646,7 @@ line: 직원에게 전화가 왔습니다. 수화기를 들어 보십시오.
 portrait: normal
 line: 직원에게 직접 전화를 걸 수도 있고, 직원이 먼저 걸 수도 있습니다.
 portrait: sneer
-line: 다만 직원의 모든 진술이 진실일 거란 /1보장은 없습니다./0
+line: 다만 직원의 모든 진술이 /5진실/0일 거란 보장은 없습니다.
 
 # STEP 6 — 기록 비교
 @guide tut_endshift
@@ -659,18 +657,18 @@ line: 이제 근무를 종료해 보십시오. 왼쪽 모니터 오른쪽 위의
 portrait: normal
 line: 근무를 종료하고 나서, 직원들을 심문할 수 있습니다.
 portrait: sneer
-line: 우리를 방해하려는... 그 정체불명의 개체를 추리해야 합니다.
+line: 직원으로 둔갑하여 숨어있는 개체를 추리해야 합니다.
 portrait: normal
-line: /5시설 기록, CCTV/0, 직원들의 진술을 비교해 방해공작자를 추리하십시오.
-line: 충분히 의심되는 직원은 /1격리/0할 수도 있습니다.
-line: 격리된 직원은 근무에서 빠지므로, 판단은 신중하게 하십시오.
-line: 토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오.
+line: 충분히 의심되는 직원은 /1격리/0할 수 있습니다.
+line: /1격리/0된 직원은 근무에서 빠지므로, 판단은 신중하게 하십시오.
+line: 이제 토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오.
 
 @guide tut_ask_where
 portrait: normal
-line: 왼쪽 MONITOR 01 의 /5조사 자료/0에 그 직원의 기록이 모여 있습니다.
+line: 왼쪽 모니터의 /5조사 자료/0에 그 직원의 기록이 모여 있습니다.
+line: 숫자 키 '1'을 눌러 왼쪽 모니터를 확대할 수 있습니다.
 line: 토끼 직원의 이동 기록을 누르면, 대화창에 그 자료로 묻는 선택지가 생깁니다.
-line: 대화창이 가리면 끊지 말고 「접기」를 누르십시오.
+line: 대화창이 거슬린다면 통화를 종료하지 말고 「접기」를 누르십시오.
 
 @guide tut_contradiction
 portrait: normal
@@ -680,14 +678,13 @@ line: L키로 /5시설 기록/0을 열어 방금 들은 말과 맞대어 보십�
 @guide tut_dialogue_log
 portrait: normal
 line: D키를 눌러 이전 진술을 확인할 수 있습니다.
+line: 이제 통화를 종료해보십시오.
 
 # STEP 7 — 종료
 @guide tut_complete
 portrait: smile
 line: 관리자 교육이 성공적으로 완료되었습니다.
-line: 가상 시뮬레이션이 완료되었습니다.
 line: 그럼 이제, DAY 1 근무를 시작합니다.
-line: 행운을 빌어요.
 
 # 근무 중 1회성 안내 — 어떤 직원이 처음으로 스트레스 '주의' 에 들어갔을 때 한 번만 뜬다.
 # {NAME} = 해당 직원 이름. 한 회차에 한 번뿐이라 이후 주의/위험에는 다시 뜨지 않는다.

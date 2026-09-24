@@ -18,6 +18,7 @@ public partial class FacilitySimulation : Node
     private const string IsolationRoomId = "isolation_room";
     private const string GuardRoomId = "guard_room";
     public static string GuardRoomIdPublic => GuardRoomId;
+    public static string CoreRoomIdPublic => CoreRoomId;
     private const string MedicalRoomId = "medical_room";
     private const string VentRoomId = "vent_room";
     private const string MaintenanceRoomId = "maintenance_room";

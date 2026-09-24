@@ -300,7 +300,9 @@ public partial class SaboteurClueTest : Node
         foreach (var (label, crew, respond) in plans)
         {
             float sum = 0f;
-            const int n = 3;
+            // 이상 개체(괴물) 사고가 근무마다 무작위로 끼어들면서 세 번으로는 전략 차이가
+            // 편차에 묻힌다 — "대응하는 쪽이 낫다" 를 확인하려면 표본이 더 필요하다.
+            const int n = 8;
             for (int i = 0; i < n; i++) sum += RunStrategy(crew, respond);
             float avg = sum / n;
             gains.Add(avg);

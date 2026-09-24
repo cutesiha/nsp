@@ -128,10 +128,13 @@ public partial class FacilityMonitorView : Control
         _alertLine.Size = new Vector2(776, 20);
         AddChild(_alertLine);
 
-        _protocol = MakeLabel("", 14, Amber);
-        _protocol.Position = new Vector2(12, 66);
-        _protocol.Size = new Vector2(776, 24);
-        _protocol.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        // 자재는 근무 내내 가장 자주 보는 숫자인데, 화면 왼쪽 위 경고줄 밑에 주황색으로
+        // 깔려 있어 경고와 섞여 눈에 들어오지 않았다. 「근무 종료」 버튼 바로 아래
+        // 오른쪽 끝에 흰 글씨로 따로 세운다.
+        _protocol = MakeLabel("", 16, Colors.White);
+        _protocol.Position = new Vector2(400, 44);
+        _protocol.Size = new Vector2(394, 24);
+        _protocol.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_protocol);
     }
 
@@ -400,8 +403,12 @@ public partial class FacilityMonitorView : Control
         var gs = NSP.Core.GameState.Instance;
         var sb = new StringBuilder();
         sb.Append($"자재  {gs?.Materials ?? 0} / {gs?.MaterialsCap ?? 0}");
+        // 소모량은 "코어 1% 당" 으로 환산해 쓴다 — 관리자가 실제로 세는 단위가 %다.
+        // (코어 복구 업무 한 번이 몇 % 를 올리는지는 데이터가 정한다.)
+        float perRun = FacilitySimulation.Instance?.GetTaskDef("core_direct_repair")?.EffectAmount ?? 1f;
         int cost = NSP.Facility.RoomStaffing.CoreMaterialCost();
-        sb.Append($"    코어 복구 1회당 {cost}");
+        int perPercent = Mathf.Max(1, Mathf.RoundToInt(cost / Mathf.Max(0.01f, perRun)));
+        sb.Append($"    코어 복구 1%당 {perPercent} 소모");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
         if (taboos is { Count: > 0 })
             sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
@@ -502,9 +509,16 @@ public partial class FacilityMonitorView : Control
             string bar = new string('■', filled) + new string('□', 10 - filled);
 
             SetFace(null);            // 방 선택 — 얼굴 없음
+            // 구분선은 **한 줄에 들어가는 길이**로 긋는다. 예전에는 56칸을 긋고 있었는데
+            // 이 칸의 폭이 304px 뿐이라 자동 줄바꿈으로 네 줄이 되어 있었다
+            // (그래서 구분선이 여러 개처럼 보였다).
+            string rule = $"[font_size={ViewFont.S(10)}][color=#3f5f55]" + new string('─', 30) + "[/color][/font_size]";
+            string desc = NSP.Ui.RoomDetailCard.Descriptions.TryGetValue(_selRoom, out var d0) ? d0 : "";
             SetInspector(
                 $"[font_size={ViewFont.S(27)}][b]{def.DisplayName}[/b][/font_size]\n" +
-                "[color=#3f5f55]" + new string('─', 56) + "[/color]\n" +
+                rule + "\n" +
+                (string.IsNullOrEmpty(desc) ? "" :
+                    $"[font_size={ViewFont.S(15)}][color=#8fa8a0]{desc}[/color][/font_size]\n" + rule + "\n") +
                 $"상태 : [color={statusCol}]{statusLabel}[/color]\n" +
                 $"진행 : [color=#9ee6c4]{bar}[/color]\n" +
                 "직원 :");

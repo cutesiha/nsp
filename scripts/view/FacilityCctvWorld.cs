@@ -90,11 +90,18 @@ public partial class FacilityCctvWorld : Node3D
     // 판정은 전부 시뮬레이션이 한다. 여기서는 "그 방을 보고 있을 때 무엇이 보이는가"만 만든다.
     private bool _ghostWired;
     private bool _ghostShowing;
-    private Vector3 _ghostWander;        // 지금 걸어가고 있는 목표 지점
-    private float _ghostRepathIn;
+    // 지금 무엇을 하고 있는가. 넷 다 "설비가 없는 빈 바닥" 위에서만 일어난다.
+    private enum GhostPose { Crouch, Stare, Roam }
+    private GhostPose _ghostPose;
+    private float _ghostPoseLeft;
+    private Vector3 _ghostFrom, _ghostTo;   // Roam 의 출발 · 도착 지점
+    private float _ghostWalk;               // 0~1 진행
     private float _ghostBob;
+    private float _ghostFaceY;              // 지금 향하고 있는 방향(도)
     private bool _ghostVanishing;        // 소멸 연출 중 — 이 동안에는 위치를 건드리지 않는다
     private CpuParticles3D _ghostDust;
+    // 팔·다리 관절. 원본 glb 에는 뼈가 없어서 메시를 잘라 직접 만든다(EntityRig).
+    private EntityRig _rig;
 
     public override void _Ready()
     {
@@ -183,6 +190,9 @@ public partial class FacilityCctvWorld : Node3D
         // 전용 존재는 화면을 확실히 채우도록 사람보다 훨씬 큰 비율을 사용한다.
         _entity.Scale = Vector3.One * EntityScale;
         AddChild(_entity);
+        // 팔·다리를 따로 움직일 수 있게 메시를 관절 밑으로 쪼갠다.
+        // 실패해도(원화 교체 등) 게임은 그대로 돈다 — 그때는 통짜로만 움직인다.
+        _rig = EntityRig.Build(_entity);
     }
 
     public override void _Process(double delta)
@@ -500,44 +510,129 @@ public partial class FacilityCctvWorld : Node3D
             _entity.Visible = true;
             _entity.Scale = Vector3.One * EntityScale;
             _entity.RotationDegrees = Vector3.Zero;
-            _entity.Position = new Vector3(-1.9f, EntityFloorOriginY, -1.9f);
-            _ghostWander = NextWanderPoint();
-            _ghostRepathIn = 0f;
+            _rig?.Reset();
+            _entity.Position = GhostSpot((int)(GD.Randi() % (uint)GhostSpots.Length));
+            _ghostPoseLeft = 0f;
+            _ghostFaceY = _entity.RotationDegrees.Y;
             // 그 방만 어두워진다 — 화면을 돌리다 "여기만 이상하다"가 먼저 눈에 들어와야 한다.
             DimRoomLights(target, 0.45f);
         }
         if (_entity == null) return;
 
-        // 어슬렁거림 — 느리게 목표 지점으로 걸어가고, 닿으면 다음 지점을 고른다.
-        _ghostRepathIn -= delta;
+        _ghostPoseLeft -= delta;
+        if (_ghostPoseLeft <= 0f) PickGhostPose(sim, target);
+
+        _ghostBob += delta * (_ghostPose == GhostPose.Roam ? 5.2f : 1.6f);
         Vector3 pos = _entity.Position;
-        Vector3 flat = new(_ghostWander.X - pos.X, 0f, _ghostWander.Z - pos.Z);
-        if (flat.Length() < 0.18f || _ghostRepathIn <= 0f)
+        float lean = 0f;
+        Vector3? faceAt = null;
+
+        switch (_ghostPose)
         {
-            _ghostWander = NextWanderPoint();
-            _ghostRepathIn = 4.5f;
+            case GhostPose.Roam:
+                // 자연스럽게 걷는다 — 두 지점 사이를 부드럽게 오가고, 발이 바닥을 짚을 때마다
+                // 몸이 아주 조금 오르내린다. 방향은 가는 쪽.
+                _ghostWalk = Mathf.Min(1f, _ghostWalk + delta * 0.34f);
+                float e = Mathf.SmoothStep(0f, 1f, _ghostWalk);
+                pos = _ghostFrom.Lerp(_ghostTo, e);
+                pos.Y = EntityFloorOriginY + Mathf.Abs(Mathf.Sin(_ghostBob)) * 0.02f;
+                faceAt = _ghostTo;
+                lean = Mathf.Sin(_ghostBob) * 1.6f;
+                // 다리가 실제로 앞뒤로 나간다 — 미끄러지지 않는다.
+                _rig?.SetWalk(_ghostBob, 1f);
+                if (_ghostWalk >= 1f) _ghostPoseLeft = Mathf.Min(_ghostPoseLeft, 0.4f);
+                break;
+
+            case GhostPose.Stare:
+                // 직원을 빤히 쳐다본다. 그 직원은 CctvActionResolver 가 이미 겁먹은 자세로 만든다.
+                faceAt = AnyEmployeePos(sim, target) ?? _camera.Position;
+                pos.Y = EntityFloorOriginY + Mathf.Sin(_ghostBob) * 0.02f;
+                lean = Mathf.Sin(_ghostBob * 0.6f) * 1.4f;
+                _rig?.SetIdle(_ghostBob);
+                break;
+
+            case GhostPose.Crouch:
+                // 웅크린다 — 리그가 없으므로 몸을 눌러 앉은 것처럼 보이게 한다.
+                faceAt = _camera.Position;
+                // 몸을 눌러 찌그러뜨리지 않는다 — 무릎을 접어 실제로 앉는다.
+                pos.Y = EntityFloorOriginY - EntityRig.CrouchDrop * EntityScale
+                        + Mathf.Sin(_ghostBob) * 0.012f;
+                lean = Mathf.Sin(_ghostBob * 0.8f) * 1.0f;
+                _rig?.SetCrouch(1f);
+                break;
         }
-        else
+
+        if (faceAt.HasValue)
         {
-            Vector3 step = flat.Normalized() * Mathf.Min(delta * 0.55f, flat.Length());
-            pos += step;
-            // 가는 쪽을 본다. 가만히 미끄러지지 않게 상체를 조금 흔든다.
-            _entity.LookAt(_entity.GlobalPosition + flat.Normalized(), Vector3.Up);
+            Vector3 d = faceAt.Value - pos;
+            d.Y = 0f;
+            if (d.LengthSquared() > 0.0004f)
+            {
+                float want = Mathf.RadToDeg(Mathf.Atan2(d.X, d.Z));
+                // 홱 돌지 않게 천천히 돌린다.
+                _ghostFaceY = Mathf.RadToDeg(Mathf.LerpAngle(
+                    Mathf.DegToRad(_ghostFaceY), Mathf.DegToRad(want), Mathf.Clamp(delta * 3.2f, 0f, 1f)));
+            }
         }
-        _ghostBob += delta * 2.4f;
-        pos.Y = EntityFloorOriginY + Mathf.Sin(_ghostBob) * 0.035f;
+
         _entity.Position = pos;
-        _entity.RotationDegrees = new Vector3(0f, _entity.RotationDegrees.Y,
-            Mathf.Sin(_ghostBob * 0.7f) * 2.6f);
+        _entity.Scale = _entity.Scale.Lerp(Vector3.One * EntityScale, Mathf.Clamp(delta * 4f, 0f, 1f));
+        _entity.RotationDegrees = new Vector3(0f, _ghostFaceY, lean);
     }
 
-    private Vector3 NextWanderPoint()
+    // 괴물이 설 수 있는 자리.
+    //
+    // 예전에는 x·z 를 -2.5~0.4 에서 아무렇게나 뽑았는데, 그 범위는 방의 **안쪽 구석**이라
+    // 설비와 벽이 있는 곳이었다(그래서 기계를 뚫고 서 있었다). 지금은 직원이 서는 슬롯을
+    // 그대로 쓴다 — 방마다 설비 배치가 달라도 그 자리들은 언제나 비어 있다.
+    private static readonly Vector3[] GhostSpots =
     {
-        // 방 바닥 대략적인 범위. 카메라 쪽(양수)으로 너무 나오면 화면을 가린다.
-        return new Vector3(
-            (float)GD.RandRange(-2.5, 0.4),
-            EntityFloorOriginY,
-            (float)GD.RandRange(-2.5, 0.4));
+        new(1.35f, 0f, 0.35f),    // 카메라 쪽 — 가장 크게 보이는 자리
+        new(0.55f, 0f, 1.05f),
+        new(-0.35f, 0f, -0.45f),
+        new(-1.15f, 0f, 0.35f),
+        new(0.95f, 0f, -1.05f),
+        new(-0.95f, 0f, 1.15f),
+    };
+
+    private Vector3 GhostSpot(int i) =>
+        GhostSpots[Mathf.PosMod(i, GhostSpots.Length)] + new Vector3(0f, EntityFloorOriginY, 0f);
+
+    // 카메라 쪽에 가까운 자리(배회할 때 고른다 — 관리자 눈앞에서 어슬렁거려야 무섭다).
+    private Vector3 NearCameraSpot()
+    {
+        int i = (int)(GD.Randi() % 2);
+        return GhostSpot(i);
+    }
+
+    // 그 방에서 보이는 직원 하나의 위치. 없으면 null.
+    private Vector3? AnyEmployeePos(FacilitySimulation sim, string roomId)
+    {
+        foreach (var (id, node) in _employees)
+        {
+            if (node is not { Visible: true }) continue;
+            if (sim?.GetEmployeeState(id)?.CurrentRoomId != roomId) continue;
+            return node.Position;
+        }
+        return null;
+    }
+
+    // 다음 행동을 고른다. 직원이 있으면 쳐다보는 쪽에 무게를 둔다.
+    private void PickGhostPose(FacilitySimulation sim, string roomId)
+    {
+        bool anyone = AnyEmployeePos(sim, roomId) != null;
+        float r = GD.Randf();
+        _ghostPose = anyone
+            ? (r < 0.45f ? GhostPose.Stare : r < 0.75f ? GhostPose.Roam : GhostPose.Crouch)
+            : (r < 0.55f ? GhostPose.Roam : r < 0.85f ? GhostPose.Crouch : GhostPose.Stare);
+        _ghostPoseLeft = _ghostPose == GhostPose.Roam ? GD.Randf() * 2f + 4f : GD.Randf() * 2f + 3f;
+
+        if (_ghostPose != GhostPose.Roam) return;
+        _ghostFrom = _entity.Position;
+        _ghostTo = NearCameraSpot();
+        // 지금 서 있는 자리와 너무 가까우면 다른 자리로.
+        if (_ghostFrom.DistanceTo(_ghostTo) < 0.5f) _ghostTo = GhostSpot((int)(GD.Randi() % 4) + 2);
+        _ghostWalk = 0f;
     }
 
     // 비명 — 보고 있는 화면이면 카메라 쪽으로 한 번 확 튀어오른다.
@@ -545,10 +640,11 @@ public partial class FacilityCctvWorld : Node3D
     {
         if (!_ghostShowing || _entity == null || roomId != _shownRoom) return;
         HauntLunge();
-        ShakeCamera(5.5f, 0.4f);
+        ShakeCamera(7.5f, 0.6f);
+        // 소리를 지르며 상체를 앞으로 꺾는다.
         var t = CreateTween();
-        t.TweenProperty(_entity, "scale", Vector3.One * EntityScale * 1.22f, 0.07);
-        t.TweenProperty(_entity, "scale", Vector3.One * EntityScale, 0.22);
+        t.TweenProperty(_entity, "rotation_degrees:x", -16f, 0.08);
+        t.TweenProperty(_entity, "rotation_degrees:x", 0f, 0.3);
     }
 
     // 관리자가 끝까지 지켜봤다 — 머리를 감싸 쥐듯 몸이 접히고 가루처럼 흩어진다.
@@ -558,15 +654,29 @@ public partial class FacilityCctvWorld : Node3D
         _ghostVanishing = true;
         _ghostShowing = false;
 
-        // ① 괴로워한다 — 몸이 웅크러들며 잘게 떨린다.
+        // ① 두 손으로 머리를 감싸 쥔다 — 어깨를 들어 팔을 세우고 팔꿈치를 접는다.
+        //    ② 그대로 몸을 심하게 떤다. 둘 다 관절(EntityRig)로 실제로 움직인다.
+        Vector3 anchor = _entity.Position;
         var writhe = CreateTween();
-        for (int i = 0; i < 10; i++)
-            writhe.TweenProperty(_entity, "rotation_degrees:z", i % 2 == 0 ? -13f : 13f, 0.05);
-        var fold = CreateTween();
-        fold.TweenProperty(_entity, "scale",
-            new Vector3(EntityScale * 1.14f, EntityScale * 0.78f, EntityScale * 1.14f), 0.5)
-            .SetTrans(Tween.TransitionType.Sine);
-        await ToSignal(GetTree().CreateTimer(0.52), SceneTreeTimer.SignalName.Timeout);
+        writhe.TweenProperty(_entity, "rotation_degrees:x", -18f, 0.2)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        Sfx.Instance?.Play("alert_beep3", -6f);
+        ShakeCamera(2.2f, 1.2f);
+
+        const double agony = 1.25;
+        double t0 = 0;
+        while (t0 < agony)
+        {
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!IsInstanceValid(this) || !IsInstanceValid(_entity)) { _ghostVanishing = false; return; }
+            t0 += GetProcessDeltaTime();
+            float k = Mathf.Min(1f, (float)(t0 / 0.25));          // 감싸 쥐는 데 0.25초
+            _rig?.SetHeadGrab(k);
+            _rig?.AddTremble((float)t0, k);
+            // 제자리에서 몸이 흔들린다.
+            _entity.Position = anchor + new Vector3(
+                Mathf.Sin((float)t0 * 41f) * 0.03f, 0f, Mathf.Sin((float)t0 * 33f) * 0.02f);
+        }
         // 기다리는 사이에 씬이 바뀌었을 수 있다(근무 종료 · 다음 날).
         if (!IsInstanceValid(this) || !IsInstanceValid(_entity)) { _ghostVanishing = false; return; }
 
@@ -585,6 +695,7 @@ public partial class FacilityCctvWorld : Node3D
             _entity.Visible = false;
             _entity.Scale = Vector3.One * EntityScale;
             _entity.RotationDegrees = Vector3.Zero;
+            _rig?.Reset();
         }
         RestoreRoomLights();
         _ghostVanishing = false;

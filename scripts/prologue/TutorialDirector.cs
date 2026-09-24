@@ -24,8 +24,12 @@ public partial class TutorialDirector : Node
 
     // 교육에 쓰는 고정 배역/장소. 데이터(UnlockDay)와 짝을 이룬다.
     [Export] public string TutorialEmployeeId = "rabbit";
-    [Export] public string AssignRoomId = "maintenance_room";
-    [Export] public string AccidentRoomId = "storage_room";
+    // 교육에서 토끼를 놓아 보게 할 작업실. DAY0 에 열려 있는 방이어야 한다.
+    [Export] public string AssignRoomId = "guard_room";
+    // 교육용 사고가 나는 작업실. 배치한 방과 달라야 토끼가 실제로 옮겨 간 기록이 남고,
+    // 그 기록이 STEP 6 의 모순 추리 재료가 된다.
+    // 발전실은 수리에 두 명이 필요한 방이라 "한 명을 더 보내야 고쳐진다"가 자연스럽다.
+    [Export] public string AccidentRoomId = "power_room";
     // 교육용 이상 개체가 나타나는 작업실. 사고가 난 방(storage_room)과 달라야 한다 —
     // 같은 방이면 "고장 난 곳만 보면 된다"로 배우게 된다.
     // DAY0 에 열려 있는 작업실은 코어실 · 정비실 · 저장고 셋뿐이다(RoomDef.UnlockDay).
@@ -96,7 +100,7 @@ public partial class TutorialDirector : Node
         await RunFacilityTour();
 
         // ── STEP 2 : 배치 ────────────────────────────────────────────
-        await Say("tut_assign");
+        await Say("tut_assign", RoomVars(AssignRoomId));
         await WaitForTutorialAssign(sim);
         Sfx.Instance?.Play("assign", -6f);
         await Say("tut_assign_rest");
@@ -132,10 +136,6 @@ public partial class TutorialDirector : Node
         // 설명만 하고 넘어가면 근무 중에 화면을 돌려 볼 이유가 생기지 않는다.
         // 그래서 한 번 실제로 나타나게 하고, 직접 찾아 직접 지켜보게 한다.
         await RunAnomalyLesson(sim);
-
-        // ── STEP 4 : 시설 로그 ────────────────────────────────────────
-        await SayThen("tut_log", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
-        await Say("tut_log_done");
 
         // ── STEP 5 : 전화 / 대화 ──────────────────────────────────────
         // 벨이 먼저 울리고, 그 소리를 들은 뒤에 안내가 뜬다.
@@ -176,6 +176,10 @@ public partial class TutorialDirector : Node
         await Until(() => PhoneCallHud.Instance?.IsOpen != true);
         GuideSubtitleHud.Instance?.SetTopAligned(false);   // 마무리 대사는 원래 자리로
         GuideCornerFace.SetLifted(false);
+        // 마무리 멘트는 제어실 전체가 보이는 자리에서 한다. 모니터를 확대해 둔 채로 끝나면
+        // 화면 하나만 꽉 찬 상태에서 교육이 닫혀, 이어지는 전환이 보이지 않는다.
+        ControlRoom3DController.Instance?.ClearFocus(0.45f);
+        await Wait(0.5);
         await Say("tut_complete");
         await Wait(0.6);
 
@@ -203,9 +207,14 @@ public partial class TutorialDirector : Node
             if (want == said) { await NextFrame(); continue; }
 
             said = want;
-            await Say(want);
+            await Say(want, RoomVars(AssignRoomId));
         }
     }
+
+    // 대사에 끼울 작업실 이름. 코드의 AssignRoomId / AccidentRoomId 를 바꿔도
+    // 대사가 따라오게 한다 — 예전에는 "정비실" 이 대사 파일에 박혀 있었다.
+    private System.Collections.Generic.Dictionary<string, string> RoomVars(string roomId) =>
+        new() { ["ROOM"] = RoomName(roomId) };
 
     // 그 작업실에 배치된 '교육 대상이 아닌' 직원. 없으면 빈 값.
     private string OtherAssignedTo(FacilitySimulation sim, string roomId)
@@ -323,13 +332,14 @@ public partial class TutorialDirector : Node
     // 배치 단계의 MONITOR 02(직원 정보)를 잠시 기존 CCTV 화면으로 바꿔 방을 하나씩 비춘다.
     // 새 UI 를 만들지 않고 ControlRoom3DController.CctvViewport + FacilitySimulation 의
     // 감시 대상 전환을 그대로 쓴다. 끝나면 반드시 원래 직원 화면으로 되돌린다.
+    // 눌러 보면 설명이 나오는 작업실. 순서는 정해져 있지 않다 — 어느 것부터 눌러도 된다.
     private static readonly (string RoomId, string GuideId)[] TourRooms =
     {
         ("core_room", "tut_room_core"),
+        ("power_room", "tut_room_power"),
+        ("guard_room", "tut_room_guard"),
         ("maintenance_room", "tut_room_maintenance"),
         ("storage_room", "tut_room_storage"),
-        ("guard_room", "tut_room_guard"),
-        ("power_room", "tut_room_power"),
         ("vent_room", "tut_room_vent"),
         ("medical_room", "tut_room_medical"),
         ("isolation_room", "tut_room_isolation"),
@@ -345,9 +355,41 @@ public partial class TutorialDirector : Node
 
         // MONITOR 02 만 CCTV 로. MONITOR 01 의 시설 지도는 그대로 둔다.
         ctl.SetRightScreen(ctl.CctvViewport);
-        foreach (var (roomId, guideId) in TourRooms)
+
+        // 예전에는 여덟 방을 알아서 차례로 비추며 설명만 흘렸다. 그러면 관리자는
+        // 읽기만 하다 끝나고, 정작 "왼쪽 지도를 눌러 오른쪽 화면을 바꾼다"는 이 게임의
+        // 기본 조작을 한 번도 해보지 않은 채 근무에 들어간다.
+        // 지금은 **직접 눌러야** 그 방이 뜨고 설명이 나온다.
+        var left = new System.Collections.Generic.List<(string RoomId, string GuideId)>(TourRooms);
+        string lastSeen = NSP.Ui.ScheduleMapView.Instance?.FocusRoomId ?? "";
+        while (left.Count > 0 && IsRunning && IsInstanceValid(this))
         {
-            sim.ForceSurveillanceTarget(roomId, 600f);   // 투어 동안만 이 방을 비춘다
+            // 남은 방 중 하나를 누를 때까지 기다린다.
+            int picked = -1;
+            // 조건은 여러 번 평가된다(SayThen 이 안내 중에도, 끝난 뒤에도 묻는다) —
+            // 한 번 찾았으면 그대로 붙잡아 둔다. 그러지 않으면 두 번째 질문에서 false 가 되어
+            // 영영 다음으로 넘어가지 못한다.
+            // 첫 방은 tut_facility_intro 가 이미 "눌러 보십시오" 라고 했다 — 바로 기다린다.
+            // 두 번째부터만 "다른 작업실도" 를 덧붙인다.
+            Func<bool> picker = () =>
+            {
+                if (picked >= 0) return true;
+                string now = NSP.Ui.ScheduleMapView.Instance?.FocusRoomId ?? "";
+                if (now == lastSeen) return false;
+                lastSeen = now;
+                int hit = left.FindIndex(t => t.RoomId == now);
+                if (hit < 0) return false;   // 이미 설명한 방을 다시 눌렀다 — 계속 기다린다
+                picked = hit;
+                return true;
+            };
+            // 재촉은 한 번이면 된다. 여덟 번 반복하면 읽지 않게 되고 지겹기만 하다.
+            if (left.Count == TourRooms.Length - 1) await SayThen("tut_facility_pick", picker);
+            else await Until(picker);
+            if (picked < 0 || picked >= left.Count) break;
+
+            var (roomId, guideId) = left[picked];
+            left.RemoveAt(picked);
+            sim.ForceSurveillanceTarget(roomId, 600f);   // 누른 방을 오른쪽 CRT 에 띄운다
             await Say(guideId);
         }
         sim.ReleaseForcedSurveillance();

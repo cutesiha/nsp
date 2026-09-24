@@ -63,8 +63,10 @@ public partial class ScheduleMapView : Control
     // 관계 표시 — 불편(주황) · 밀접(하트).
     private static readonly Color Warn = new(1f, 0.56f, 0.18f);
     private static readonly Color Heart = new(1f, 0.45f, 0.62f);
-    private static readonly Color CellFill = new(0.07f, 0.13f, 0.13f);
-    private static readonly Color CellLocked = new(0.06f, 0.07f, 0.08f);
+    // 열린 방은 화면에서 바로 구분돼야 한다 — 둘의 차이가 거의 없어서 어디에 놓을 수
+    // 있는지 한눈에 안 들어왔다. 열린 방은 하늘색을 띄우고, 잠긴 방은 바닥까지 낮춘다.
+    private static readonly Color CellFill = new(0.10f, 0.24f, 0.27f);
+    private static readonly Color CellLocked = new(0.035f, 0.042f, 0.05f);
     private static readonly Color Corridor = new(0.26f, 0.36f, 0.34f);
 
     private Font _font;
@@ -303,12 +305,9 @@ public partial class ScheduleMapView : Control
         }
     }
 
-    // 잠긴 방 표기. 해금일이 근무 기간(config MaxDays) 안이면 "DAY n~" 를 붙인다.
-    public static string LockedLabel(RoomDef def)
-    {
-        int maxDays = Config.Instance?.Data?.MaxDays ?? 5;
-        return def != null && def.UnlockDay <= maxDays ? $"LOCKED  ·  DAY {def.UnlockDay}~" : "LOCKED";
-    }
+    // 잠긴 방 표기. 언제 열리는지는 쓰지 않는다 — 지금 쓸 수 없다는 것만 알면 되고,
+    // 날짜까지 붙이면 칸 안에서 방 이름보다 긴 줄이 된다.
+    public static string LockedLabel(RoomDef def) => "LOCKED";
 
     // 관계 아이콘 자리(방 칸 오른쪽 위 모서리).
     public Rect2 RelationSlotOf(string roomId) =>
@@ -340,12 +339,14 @@ public partial class ScheduleMapView : Control
     {
         int day = GameState.Instance?.CurrentDay ?? 1;
         DrawRect(new Rect2(10f, 8f, Canvas.X - 20f, Canvas.Y - 16f), Mint with { A = 0.18f }, false, 1.2f);
-        DrawString(_font, new Vector2(24f, 38f), "NIGHT SHIFT ASSIGNMENT", HorizontalAlignment.Left, 360f,
-            Fs(16), Mint);
-        DrawString(_font, new Vector2(24f, 60f), "근무 배치  ·  직원을 끌어 작업실에 놓으십시오", HorizontalAlignment.Left,
-            420f, Fs(12), Dim);
-        DrawString(_font, new Vector2(Canvas.X - 220f, 46f), DayFeatures.DayLabel(day), HorizontalAlignment.Right,
-            196f, Fs(26), Ink);
+        // 제목 한 줄만 둔다.
+        //
+        // 예전에는 영문 표제("NIGHT SHIFT ASSIGNMENT")와 조작 설명이 왼쪽을 차지하고,
+        // 정작 오늘이 며칠인지는 오른쪽 구석 좁은 칸에 밀려 있었다. 그 칸이 좁아서
+        // 교육일의 "가상 시뮬레이션" 은 글자가 잘렸다. 지금은 왼쪽에 크게 한 줄만 쓴다.
+        string title = day <= 0 ? DayFeatures.DayLabel(day) : DayFeatures.DayLabel(day) + " 근무배치";
+        DrawString(_font, new Vector2(24f, 56f), title, HorizontalAlignment.Left,
+            Canvas.X - 48f, Fs(26), Ink);
 
         // 경영 리워크: 금기는 게임에서 걷어냈다 — 배치 화면에 싣지 않는다.
         DrawRect(new Rect2(24f, 93f, Canvas.X - 48f, 1f), Mint with { A = 0.16f });
@@ -396,6 +397,10 @@ public partial class ScheduleMapView : Control
         bool focused = roomId == FocusRoomId;
 
         DrawRect(cell, locked || restricted ? CellLocked : CellFill);
+        // 열린 방에만 옅은 하늘빛 윗면을 얹어 "여기는 쓸 수 있다"가 색으로 먼저 읽히게 한다.
+        if (!locked && !restricted)
+            DrawRect(new Rect2(cell.Position, new Vector2(cell.Size.X, cell.Size.Y * 0.45f)),
+                Mint with { A = 0.10f });
         // 관계 경고가 걸린 방은 테두리 색으로도 알린다(거부 = 붉게 맥동, 불편 = 주황).
         PairBand? band = assignable ? RoomBand(sim, roomId) : null;
         float pulse = 0.55f + 0.45f * Mathf.Sin(_t * 6f);
@@ -416,7 +421,7 @@ public partial class ScheduleMapView : Control
         {
             // UnlockDay 로 잠긴 방 — 비활성 표시만. 이번 근무 기간(MaxDays) 안에 열리지 않는 방은 날짜를 싣지 않는다.
             DrawString(_font, cell.Position + new Vector2(8f, 40f), LockedLabel(def),
-                HorizontalAlignment.Left, cell.Size.X - 16f, Fs(10), Dim);
+                HorizontalAlignment.Left, cell.Size.X - 16f, Fs(11), Dim with { A = 0.75f });
             return;
         }
         if (restricted)

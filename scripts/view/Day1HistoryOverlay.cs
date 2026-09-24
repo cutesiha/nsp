@@ -51,6 +51,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 로그 창 맨 위의 띠 시간표. 아래 텍스트 목록을 대신하지 않고, 어디를 봐야 할지만 가리킨다.
     private StaffTimelineView _logBand;
     private Tween _logFlash;
+    // 방금 고른 줄 아래의 흰 밑줄. 그 줄이 사라지면 같이 없어진다.
+    private ColorRect _logMark;
     private VBoxContainer _dialogueRows;
     private Font _body;
     private Font _serif;
@@ -346,8 +348,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _logScroll.AddChild(_logRows);
     }
 
-    // 띠 높이. 직원 여섯 줄 + 시각 눈금 + 사고 라벨이 겹치지 않는 최소치다.
-    private const float LogBandH = 158f;
+    // 띠 높이. 창의 본문(제목 아래 ~ 바닥)을 띠와 텍스트 목록이 반씩 나눠 쓴다.
+    // 텍스트가 열 줄 넘게 늘어서면 "누가 언제 어디" 가 안 읽힌다는 게 이 띠를 만든 이유다 —
+    // 그런데 정작 띠가 아래쪽 목록보다 작으면 여전히 목록부터 눈이 간다.
+    private const float LogBandH = 280f;
 
     // 오늘 근무에 나온 직원만 띠에 올린다(배치표 · 휴게 명단과 같은 명단).
     private void RefreshLogBand()
@@ -371,13 +375,42 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (index < 0 || index >= _logRows.GetChildCount()) return;
         if (_logRows.GetChild(index) is not Control row) return;
         _logScroll.ScrollVertical = Mathf.Max(0, (int)row.Position.Y - 6);
+        Sfx.Instance?.Play("relay_click", -16f);
+        MarkLogRow(row);
+    }
 
-        // 어느 줄로 왔는지 한 번 밝혔다 돌아온다. 붉은 필터처럼 판독을 가리지 않는 정도로만.
+    // 어느 줄로 왔는지 표시한다. 예전에는 밝기만 한 번 깜빡여서, 스크롤이 멈추기도 전에
+    // 효과가 끝나 있었다. 지금은 **흰 밑줄**을 긋고 천천히 지운다 — 눈이 그 줄을 찾을
+    // 시간이 있어야 띠를 누른 의미가 생긴다.
+    private void MarkLogRow(Control row)
+    {
         _logFlash?.Kill();
+        if (_logMark != null && IsInstanceValid(_logMark)) _logMark.QueueFree();
+
+        _logMark = new ColorRect
+        {
+            Color = new Color(1f, 1f, 1f, 0.9f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
+            OffsetTop = -2f, OffsetBottom = 0f,
+        };
+        row.AddChild(_logMark);
+
         row.Modulate = Colors.White;
         _logFlash = CreateTween();
-        _logFlash.TweenProperty(row, "modulate", new Color(1.5f, 1.5f, 1.5f), 0.08f);
-        _logFlash.TweenProperty(row, "modulate", Colors.White, 0.42f);
+        _logFlash.SetParallel(true);
+        // 글자는 잠깐 밝아졌다가 원래대로.
+        _logFlash.TweenProperty(row, "modulate", new Color(1.6f, 1.6f, 1.6f), 0.1f);
+        _logFlash.Chain().TweenProperty(row, "modulate", Colors.White, 1.1f);
+        // 밑줄은 한참 남아 있다가 천천히 사라진다.
+        _logFlash.TweenProperty(_logMark, "modulate:a", 1f, 0.1f);
+        _logFlash.Chain().TweenInterval(1.6);
+        _logFlash.Chain().TweenProperty(_logMark, "modulate:a", 0f, 1.2f);
+        var mark = _logMark;
+        _logFlash.Chain().TweenCallback(Callable.From(() =>
+        {
+            if (IsInstanceValid(mark)) mark.QueueFree();
+        }));
     }
 
     private void BuildDialoguePanel(Control root)

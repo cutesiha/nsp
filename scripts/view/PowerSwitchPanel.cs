@@ -33,7 +33,7 @@ public partial class PowerSwitchPanel : Node3D
 
     // 앞면 백라이트 — switch.glb 에 새겨진 라벨(LIGHTING/CCTV/SENSOR) 등 밝게 칠한 부분만 은은하게 발광.
     // 모니터 빛이 뒤에서 오기 때문에 앞면 글자가 안 읽혀서 넣었다(DeviceBacklight). 0 이면 끔.
-    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 0.45f;
+    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 1.25f;   // Env 의 glow 문턱(0.78)을 넘겨야 빛이 번진다
     [Export(PropertyHint.Range, "0,1,0.01")] public float BacklightThreshold = 0.42f;   // 이 밝기를 넘는 텍스처만 빛남
     [Export] public Color BacklightTint = new(0.80f, 0.95f, 0.88f);
 

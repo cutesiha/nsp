@@ -121,6 +121,7 @@ public partial class RestInterviewConsole : Control
         };
         _band.PinPressed = id => EvidencePinPressed?.Invoke(id);
         _band.IncidentPressed = OnIncidentLinePressed;
+        _band.SegmentPressed = OnSegmentPressed;
         AddChild(_band);
 
         NoteTabs = new HFlowContainer
@@ -170,7 +171,7 @@ public partial class RestInterviewConsole : Control
     public void Close() => Visible = false;
 
     // 오늘 무엇을 밝혀야 하는가. PhoneCallHud 가 시설 로그 화면에 뜬 사건에서 만들어 넘긴다.
-    public void SetGoal(string text) => _goal.Text = string.IsNullOrEmpty(text) ? "" : "조사 목표  ·  " + text;
+    public void SetGoal(string text) => _goal.Text = string.IsNullOrEmpty(text) ? "" : "조사 목표: " + text;
 
     public void SetDetail(string text)
     {
@@ -198,6 +199,28 @@ public partial class RestInterviewConsole : Control
                        or EvidenceKind.OwnStatement or EvidenceKind.Mood);
         _band.SetData(employeeIds, _rows, pins);
         _band.SetSelected(selectedIds);
+    }
+
+    // 띠의 구간을 눌렀다 = 그 시각 그 직원의 자료 카드를 누른 것으로 친다.
+    //
+    // 구간 하나는 곧 "이 직원이 이 시각에 이 방으로 옮겼다" 는 이동 기록이고,
+    // 조사 노트에는 그 기록이 카드로 들어와 있다. 띠에서 눈으로 찾은 것을 목록에서
+    // 다시 찾게 하지 않는다.
+    private void OnSegmentPressed(string employeeId, float time)
+    {
+        InterviewEvidence best = null;
+        float bestGap = float.MaxValue;
+        foreach (var e in _board)
+        {
+            if (e.SubjectEmployeeId != employeeId || !e.HasTime) continue;
+            float gap = Mathf.Abs(e.AnchorTime - time);
+            // 같은 시각이면 이동 기록을 먼저 고른다 — 구간을 만든 것이 그 줄이다.
+            if (gap > bestGap || (Mathf.IsEqualApprox(gap, bestGap) && e.Kind != EvidenceKind.Movement)) continue;
+            bestGap = gap;
+            best = e;
+        }
+        // 근무 6시간을 120초로 환산하므로 2초는 대략 6분이다 — 그보다 멀면 그 구간의 자료가 아니다.
+        if (best != null && bestGap <= 2f) EvidencePinPressed?.Invoke(best.Id);
     }
 
     // 사고 세로선을 눌렀다 = 그 사고 카드를 누른 것으로 친다.

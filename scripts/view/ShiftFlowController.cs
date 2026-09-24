@@ -369,9 +369,10 @@ public partial class ShiftFlowController : Node
         _ctl?.ScheduleMap?.Rebuild();
         _ctl?.SetLeftScreen(_ctl.ScheduleMapViewport);
         _ctl?.SetRightScreen(_ctl.ScheduleStaffViewport);
-        _ctl?.SetScreenBrightness(0.02f);
+        // 0.02 는 "꺼진 화면" 이 아니라 "아주 어두운 화면" 이다 — 글자가 다 읽힌다.
+        _ctl?.SetScreenBrightness(0f);
         var crt = CreateTween();
-        crt.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 0.02f, 1.0f, 0.5)
+        crt.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 0f, 1.0f, 0.5)
            .SetTrans(Tween.TransitionType.Sine);
 
         // 자막 띠는 항상 화면 아래 같은 자리에 둔다(단계마다 옮기면 눈이 따라가지 못한다).
@@ -451,6 +452,9 @@ public partial class ShiftFlowController : Node
             // 교육일에도 오른쪽은 CCTV 다 — GUIDE-0 는 그 화면 구석의 작은 창으로만 뜬다.
             _ctl.SetRightScreen(_ctl.CctvViewport);
         }
+        // 근무는 언제나 코어실에서 시작한다. 그러지 않으면 배치 단계에서 마지막으로 눌러 본
+        // 방(격리실 같은)이 그대로 남아, 근무 첫 화면이 아무 상관 없는 방이 된다.
+        FacilitySimulation.Instance?.SetSurveillanceTarget(FacilitySimulation.CoreRoomIdPublic);
         _stage = Stage.Shift;
     }
 
@@ -533,7 +537,52 @@ public partial class ShiftFlowController : Node
     // --- 휴게 → 다음 날 배치 / 최종 결과 -----------------------------------
 
     // DAY0 교육이 끝나면 TutorialDirector 가 직접 DAY1 로 넘긴다("그럼 이제, DAY 1 근무를 시작합니다").
-    public void AdvanceFromTutorial() => RequestNextFromRest();
+    // 교육이 끝났다. 다른 날의 전환과 달리 여기서만 "눈을 감았다 뜨면 진짜 근무" 를 보여 준다.
+    public async void AdvanceFromTutorial()
+    {
+        if (_stage != Stage.Rest) return;
+        _stage = Stage.DayTransition;
+        // 추궁 표식은 그날 심문의 메모다 — 하루가 끝나면 지운다.
+        ConfrontMarks.Clear();
+        await PlayWakeIntoFirstShift();
+    }
+
+    // 컴퓨터가 꺼지듯 화면이 완전히 검게 죽고 → 눈을 감고 → **감은 동안** 다음 날 배치
+    // 화면이 켜지고 → 눈을 뜬다.
+    //
+    // 순서가 핵심이다. 눈을 뜬 뒤에 화면이 켜지면 "화면이 바뀌었다" 로 읽히고,
+    // 감은 동안 켜져 있어야 "눈을 떠 보니 다음 날이 시작돼 있었다" 가 된다.
+    private async System.Threading.Tasks.Task PlayWakeIntoFirstShift()
+    {
+        // ① 전원이 꺼진다. 0.02 가 아니라 **0** 이어야 한다 — 0.02 는 글자가 다 읽힌다.
+        Sfx.Instance?.Play("switch", -6f);
+        Sfx.Instance?.FadeOutMusic(0.5f);
+        var off = CreateTween();
+        off.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 1f, 0f, 0.45)
+           .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.In);
+        await Wait(0.55);
+        _ctl?.SetScreenBrightness(0f);
+
+        // ② 눈을 감는다.
+        var lid = EyelidOverlay.Attach(this);
+        if (lid != null) await lid.Close(0.8f);
+        else await Wait(0.8);
+
+        // ③ 감고 있는 동안 다음 날이 준비되고, 배치 화면이 켜진다.
+        GameState.Instance?.GoToNextDay();
+        ClearAllAssignments();
+        if (_ceiling != null) _ceiling.LightEnergy = _ceilBase * 0.26f;
+        if (_fill != null) _fill.LightEnergy = _fillBase * 0.3f;
+        AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
+        EnterSchedule();               // 여기서 두 CRT 가 DAY1 배치로 바뀌고 밝기가 다시 올라간다
+        Sfx.Instance?.Play("ding", -2f);
+        Sfx.Instance?.Play("crt_on", -8f);
+        await Wait(0.85);              // 화면이 다 켜질 때까지 감은 채로 기다린다
+
+        // ④ 눈을 뜬다. 뜨는 동안 배너가 가운데에서 드러난다.
+        _title?.FlashBanner($"DAY {GameState.Instance?.CurrentDay ?? 1} 근무 시작");
+        if (lid != null) { await lid.Open(1.0f); lid.Done(); }
+    }
 
     private void RequestNextFromRest()
     {

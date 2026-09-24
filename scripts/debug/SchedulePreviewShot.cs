@@ -60,6 +60,22 @@ public partial class SchedulePreviewShot : Node
         Click(staffVp, new Vector2(736f, 56f));
         await Frames(3);
 
+        // 여섯 명의 신원 카드를 전부 찍는다 — 얼굴 크기가 같은지는 나란히 놓고 봐야 안다.
+        var blocks = new (string Name, Vector2 At)[]
+        {
+            ("cat", new Vector2(186f, 216f)), ("dog", new Vector2(409f, 216f)),
+            ("fox", new Vector2(632f, 216f)), ("rabbit", new Vector2(186f, 397f)),
+            ("sheep", new Vector2(409f, 397f)), ("wolf", new Vector2(632f, 397f)),
+        };
+        foreach (var (name, at) in blocks)
+        {
+            Click(staffVp, at);
+            await Frames(3);
+            Save(staffVp, dir, $"ident_{name}.png");
+            Click(staffVp, new Vector2(736f, 56f));
+            await Frames(3);
+        }
+
         // 실시간 운영 모니터 1 — 작업실 선택 + 아래 한 줄 알림.
         GameState.Instance.SetPhase(GamePhase.Live);
         var monVp = Vp(out var mon, new FacilityMonitorView());

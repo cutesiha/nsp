@@ -67,7 +67,7 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
 
     // 몸체 백라이트 — 모델에 밝게 칠해진 부분(테두리 · 표식)만 아주 약하게 발광시켜 어둠 속에서 형태가 보이게.
     // 화면은 이미 밝으므로 스위치박스보다 약하게. 0 이면 끔(DeviceBacklight).
-    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 0.3f;
+    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 1.1f;   // Env 의 glow 문턱(0.78)을 넘겨야 빛이 번진다
     [Export(PropertyHint.Range, "0,1,0.01")] public float BacklightThreshold = 0.35f;
     [Export] public Color BacklightTint = new(0.75f, 0.9f, 0.95f);
 

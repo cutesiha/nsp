@@ -150,24 +150,23 @@ public partial class StaffTimelineView : Control
         QueueRedraw();
     }
 
-    // 직원 수 · 사고 수에 맞는 최소 높이. 화면이 이보다 작으면 띠를 눌러서 그린다.
+    // 직원 수에 맞는 최소 높이.
     public static float PreferredHeight(int employeeCount, int incidentCount) =>
-        AxisH + HeadH + Mathf.Max(1, employeeCount) * 16f
-        + (incidentCount >= 2 ? incidentCount * LegendLineH + 4f : 0f);
+        AxisH + HeadH + Mathf.Max(1, employeeCount) * 16f;
 
     // ── 치수 ───────────────────────────────────────────────────────────
     private const float AxisH = 13f;        // 맨 위 시각 눈금
-    private const float HeadH = 14f;        // 사고 라벨(또는 번호) 줄
-    private const float LegendLineH = 12f;  // 사고가 여럿일 때 아래 범례 한 줄
+    // 사고 라벨 두 줄. 사고가 여럿이면 번갈아 위·아래로 놓아 글자가 겹치지 않게 한다.
+    // (예전에는 번호만 쓰고 띠 아래에 작은 범례를 달았는데, 그 글자가 너무 작아 읽히지 않았다.)
+    private const float HeadH = 30f;
     private const float NameW = 46f;        // 왼쪽 코드네임 칸
     private const float PadR = 6f;
     private const float RowGap = 2f;
 
     private float TrackX => NameW;
     private float TrackW => Mathf.Max(10f, Size.X - NameW - PadR);
-    private float LegendH => _incidents.Count >= 2 ? _incidents.Count * LegendLineH + 4f : 0f;
     private float BandTop => AxisH + HeadH;
-    private float RowH => Mathf.Max(8f, (Size.Y - BandTop - LegendH) / Mathf.Max(1, _employees.Count));
+    private float RowH => Mathf.Max(8f, (Size.Y - BandTop) / Mathf.Max(1, _employees.Count));
 
     private float XOf(float seconds) => TrackX + Mathf.Clamp(seconds / _dayLength, 0f, 1f) * TrackW;
     private float TimeOf(float x) => Mathf.Clamp((x - TrackX) / Mathf.Max(1f, TrackW), 0f, 1f) * _dayLength;
@@ -183,7 +182,6 @@ public partial class StaffTimelineView : Control
         DrawBands();
         DrawIncidentLines();
         DrawPins();
-        DrawLegend();
     }
 
     // 22:00 · 01:00 · 04:00 — 한 시간마다 옅은 세로선, 세 곳에만 숫자.
@@ -267,28 +265,16 @@ public partial class StaffTimelineView : Control
                 new Vector2(x - 4f, top - 8f), new Vector2(x + 4f, top - 8f), new Vector2(x, top - 2f),
             }, col);
 
-            // 하나뿐이면 라벨을 그대로 위에 쓰고, 여럿이면 번호만 쓰고 아래 범례로 보낸다.
-            string label = many ? Glyph(n) : Glyph(n) + " " + IncidentLabel(row);
-            var size = _font.GetStringSize(label, HorizontalAlignment.Left, -1f, 10);
+            // 라벨은 언제나 전문으로 쓴다. 여럿이면 위·아래 두 줄로 번갈아 놓아 겹치지 않게 한다.
+            string label = Glyph(n) + " " + IncidentLabel(row);
+            var size = _font.GetStringSize(label, HorizontalAlignment.Left, -1f, 12);
             float lx = Mathf.Clamp(x - size.X * 0.5f, 10f, Mathf.Max(10f, Size.X - size.X - 1f));
-            DrawString(_font, new Vector2(lx, AxisH + 9f), label, HorizontalAlignment.Left, -1f, 10, col);
+            float ly = AxisH + (many && n % 2 == 1 ? 26f : 12f);
+            DrawString(_font, new Vector2(lx, ly), label, HorizontalAlignment.Left, -1f, 12, col);
             // 방 색 네모 — 어느 방에서 난 사고인지 띠 색과 바로 맞춰 보라는 표시다.
-            if (many) continue;
-            DrawRect(new Rect2(lx - 9f, AxisH + 2f, 7f, 7f), RoomColor(IncidentRoom(row)));
-        }
-    }
-
-    private void DrawLegend()
-    {
-        if (_incidents.Count < 2) return;
-        float y = BandTop + _employees.Count * RowH + 4f;
-        for (int n = 0; n < _incidents.Count; n++)
-        {
-            var row = _rows[_incidents[n]];
-            DrawRect(new Rect2(2f, y + 2f, 7f, 7f), RoomColor(IncidentRoom(row)));
-            DrawString(_font, new Vector2(12f, y + 9f), Glyph(n) + " " + IncidentLabel(row),
-                HorizontalAlignment.Left, Size.X - 14f, 10, IncidentColor(row));
-            y += LegendLineH;
+            DrawRect(new Rect2(lx - 10f, ly - 8f, 8f, 8f), RoomColor(IncidentRoom(row)));
+            // 라벨과 선을 잇는 짧은 목.
+            DrawLine(new Vector2(x, ly + 2f), new Vector2(x, top - 8f), col with { A = 0.45f }, 1f);
         }
     }
 

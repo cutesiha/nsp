@@ -15,20 +15,31 @@ public static class GameSettings
     // 무전/인터컴 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     // 기존 직원 보이스를 그대로 통과시키되 대역만 좁혀 "무전기에서 나오는 소리"로 만든다.
     public const string BusRadio = "Radio";
+    public const string BusScream = "Scream";
 
     private const string ConfigPath = "user://nsp_settings.cfg";
 
-    // 그래픽 품질은 Godot 렌더러까지 함께 바꾼다. 렌더러는 실행 중에 교체할 수 없으므로
-    // 선택한 뒤 게임을 재시작해 적용한다. 해상도 배율은 같은 렌더러 안의 보조 절감 옵션이다.
+    // 그래픽 품질. **실행 중에 그 자리에서 바뀐다** — 게임을 껐다 켜지 않는다.
+    //
+    // 예전에는 품질마다 Godot 렌더러(forward_plus / mobile / gl_compatibility)까지 바꿨다.
+    // 렌더러는 초기화 전에만 고를 수 있어서, 고를 때마다 게임이 재시작돼야 했고
+    // 에디터 실행에서는 아예 적용되지 않았다. 지금은 **실행 중에 바꿀 수 있는 것만** 쓴다.
+    //   · 3D 렌더 해상도 배율   (가장 큰 절감)
+    //   · 빛 번짐(Glow)         (두 번째로 큰 절감)
+    //   · 그림자 해상도 · 부드러움
     public enum Quality { High, Medium, Low }
 
-    public static readonly (Quality Q, string Label, string RenderingMethod, string RenderingDriver, float Scale)[] QualityLevels =
+    // Scale = 3D 렌더 해상도 배율 · Glow = 빛 번짐 · ShadowAtlas = 그림자 해상도
+    // (0.65는 팔/손가락처럼 작은 메시가 심하게 뭉개져 전화 모션이 달라 보였다.
+    //  0.72여도 렌더 픽셀 수는 최고 품질의 약 52%다.)
+    public static readonly (Quality Q, string Label, float Scale, bool Glow, int ShadowAtlas)[] QualityLevels =
     {
-        (Quality.High,   "높음", "forward_plus",     "d3d12",   1.00f),
-        (Quality.Medium, "보통", "mobile",           "d3d12",   0.82f),
-        // 0.65는 팔/손가락처럼 작은 스킨 메시가 심하게 뭉개져 전화 모션이 달라 보였다.
-        // 0.72여도 렌더 픽셀 수는 최고 품질의 약 52%라 저사양 모드는 충분히 가볍다.
-        (Quality.Low,    "낮음", "gl_compatibility", "opengl3", 0.72f),
+        (Quality.High,   "높음", 1.00f, true,  4096),
+        (Quality.Medium, "보통", 0.82f, true,  2048),
+        // 낮음만 번짐을 끈다. 책상 기기의 라벨은 그대로 빛나되 번져 나가지는 않는다 —
+        // 대신 모니터 뒤쪽 빛(M0x_BackGlow)은 실제 광원이라 품질과 무관하게 켜져 있어,
+        // 번짐이 없어도 모니터 기기의 실루엣은 그대로 보인다.
+        (Quality.Low,    "낮음", 0.72f, false, 1024),
     };
 
     // 숫자키로 확대할 대상들.
@@ -56,7 +67,6 @@ public static class GameSettings
     public static bool Fullscreen { get => _fullscreen; set { _fullscreen = value; ApplyFullscreen(); } }
     public static Quality GraphicsQuality { get => _quality; set { _quality = value; ApplyQuality(); } }
     public static string QualityLabel => QualityLevels[(int)_quality].Label;
-    public static string RenderingMethod => QualityLevels[(int)_quality].RenderingMethod;
 
     public static Key GetKey(ZoomTarget t) => Keys[(int)t];
 
@@ -91,6 +101,40 @@ public static class GameSettings
             AudioServer.SetBusSend(idx, BusMaster);
         }
         EnsureRadioBus();
+        EnsureScreamBus();
+    }
+
+    // 괴물의 비명 전용 버스. 좁은 지하 시설에서 울리는 느낌을 여기서만 만든다 —
+    // 같은 잔향을 Sfx 전체에 걸면 클릭음까지 동굴에서 나는 소리가 된다.
+    private static void EnsureScreamBus()
+    {
+        if (AudioServer.GetBusIndex(BusScream) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusScream);
+        AudioServer.SetBusSend(idx, BusSfx);
+
+        // 긴 잔향 — 복도 끝까지 울렸다가 돌아오는 소리.
+        AudioServer.AddBusEffect(idx, new AudioEffectReverb
+        {
+            RoomSize = 0.92f,
+            Damping = 0.28f,
+            Spread = 1f,
+            Wet = 0.62f,
+            Dry = 0.85f,
+            PredelayMsec = 40f,
+            PredelayFeedback = 0.45f,
+        });
+        // 저역을 살려 몸으로 오는 소리로 만든다(EQ6 대역: 32 · 100 · 320 · 1k · 3.2k · 10kHz).
+        var eq = new AudioEffectEQ6();
+        eq.SetBandGainDb(0, 7f);
+        eq.SetBandGainDb(1, 5f);
+        eq.SetBandGainDb(2, 2f);
+        AudioServer.AddBusEffect(idx, eq);
+        // 최종 리미터 — 아주 크게 밀어 넣어도 찢어지지 않고 천장에 눌러 담는다.
+        // PreGain 으로 신호를 천장까지 밀어 올린다(= 평균 음량이 올라가 더 크게 들린다).
+        AudioServer.AddBusEffect(idx, new AudioEffectHardLimiter { CeilingDb = -0.3f, PreGainDb = 12f });
+        AudioServer.SetBusVolumeDb(idx, 10f);
     }
 
     // 무전 질감은 이 버스의 필터로만 만든다 — 원본 보이스 파일은 전혀 건드리지 않는다.
@@ -161,36 +205,50 @@ public static class GameSettings
     private static void ApplyQuality()
     {
         if (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null) return;
-        tree.Root.Scaling3DScale = QualityLevels[(int)_quality].Scale;
+        var level = QualityLevels[(int)_quality];
+
+        tree.Root.Scaling3DScale = level.Scale;
+        // 그림자 — 해상도와 부드러움을 같이 내린다. 이 방의 그림자는 모니터 스포트라이트
+        // 둘이 전부라, 낮음에서도 완전히 끄지는 않는다(끄면 기기 앞뒤 구분이 사라진다).
+        tree.Root.PositionalShadowAtlasSize = level.ShadowAtlas;
+        var soft = _quality switch
+        {
+            Quality.High => RenderingServer.ShadowQuality.SoftMedium,
+            Quality.Medium => RenderingServer.ShadowQuality.SoftLow,
+            _ => RenderingServer.ShadowQuality.SoftVeryLow,
+        };
+        RenderingServer.PositionalSoftShadowFilterSetQuality(soft);
+        RenderingServer.DirectionalSoftShadowFilterSetQuality(soft);
+
         ApplyEnvironmentQuality(tree.Root.World3D?.Environment);
     }
 
     // 씬이 바뀌어 Environment 가 새로 올라온 뒤에도 한 번 불러 준다.
+    //
+    // **빛 번짐(Glow)은 품질과 상관없이 켠다.** 이 게임에서 번짐은 장식이 아니라 조명 그
+    // 자체다 — 제어실에 있는 광원은 모니터 스포트라이트 둘뿐이고, 기기 라벨과 화면이
+    // 번져 나가는 것으로 나머지 밝기를 만든다. 그래서 껐을 때와 켰을 때가 "조금 예쁘다"
+    // 정도가 아니라 아예 다른 방이 된다(예전에는 높음에서만 켜져, 낮음으로 놓고 플레이하면
+    // 에디터에서 보던 그림이 안 나왔다).
+    //
+    // 대신 **번짐의 폭**을 품질로 나눈다. 비용은 번지는 세기가 아니라 blur 단계 수에서
+    // 나오므로, 낮은 품질에서는 좁은 단계만 써서 훨씬 싸게 같은 인상을 낸다.
     public static void ApplyEnvironmentQuality(Godot.Environment env)
     {
         if (env == null) return;
         _sceneWantsGlow ??= env.GlowEnabled;
-        env.GlowEnabled = _sceneWantsGlow.Value && _quality == Quality.High;
-    }
+        env.GlowEnabled = _sceneWantsGlow.Value && QualityLevels[(int)_quality].Glow;
+        if (!env.GlowEnabled) return;
 
-    // 렌더러는 초기화 전에만 고를 수 있다. 내보낸 게임에서는 선택 직후 재시작한다.
-    // F5 실행은 Godot 자체가 재시작을 지원하지 않으므로 창을 닫거나 project.godot를
-    // 수정하지 않는다. 이 경우에는 같은 렌더러 안에서 해상도 배율만 즉시 반영된다.
-    public static bool RestartForGraphicsQuality()
-    {
-        var level = QualityLevels[(int)_quality];
-        Save();
-
-        // 에디터에서 F5로 실행 중이면 project.godot를 쓰거나 게임을 종료하지 않는다.
-        if (OS.HasFeature("editor")) return false;
-        if (Engine.GetMainLoop() is not SceneTree tree) return false;
-        OS.SetRestartOnExit(true, new[]
-        {
-            "--rendering-method", level.RenderingMethod,
-            "--rendering-driver", level.RenderingDriver,
-        });
-        tree.Quit();
-        return true;
+        // 1~7 단계. 숫자가 클수록 넓고 흐리게 퍼지며 그만큼 비싸다.
+        bool wide = _quality == Quality.High;
+        env.SetGlowLevel(1, 1f);
+        env.SetGlowLevel(2, 1f);
+        env.SetGlowLevel(3, 1f);
+        env.SetGlowLevel(4, 0.85f);
+        env.SetGlowLevel(5, wide ? 0.55f : 0f);
+        env.SetGlowLevel(6, 0f);
+        env.SetGlowLevel(7, 0f);
     }
 
     // --- 저장 / 불러오기 ---------------------------------------------------

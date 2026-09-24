@@ -35,10 +35,10 @@ public partial class CCTVMonitorView : Control
     private TextureRect _noise;
 
     // ── 괴물 ───────────────────────────────────────────────────────────
-    // 비명 자막과 "얼마나 더 봐야 사라지는가" 게이지. 둘 다 **지금 보고 있는 방**에만 뜬다 —
+    // "얼마나 더 봐야 사라지는가" 게이지. **지금 보고 있는 방**에만 뜬다 —
     // 다른 방에 있는 괴물은 이 화면 어디에도 나타나지 않는다.
-    private Label _screamLabel;
-    private float _screamLeft;
+    // (비명에는 자막을 달지 않는다. 소리와 화면 흔들림만으로 충분하고,
+    //  큰 글자가 뜨면 정작 방 안에서 무슨 일이 벌어지는지 가린다.)
     private ColorRect _dispelBack, _dispelFill;
     private Label _dispelLabel;
     private bool _ghostWired;
@@ -113,8 +113,8 @@ public partial class CCTVMonitorView : Control
         _recLabel.Position = new Vector2(44, 24);
         AddChild(_recLabel);
 
-        _camLabel = Lbl("", 15, new Color(0.75f, 0.85f, 0.8f));
-        _camLabel.Position = new Vector2(44, 512);
+        _camLabel = Lbl("", 22, new Color(0.78f, 0.90f, 0.84f));
+        _camLabel.Position = new Vector2(44, 504);
         AddChild(_camLabel);
 
         // 같은 방 두 사람의 대화 자막(관계 시스템 Phase 2) — 상태 줄 바로 위.
@@ -134,18 +134,9 @@ public partial class CCTVMonitorView : Control
         BuildGhostOverlay();
     }
 
-    // 괴물이 지르는 비명과 소멸 게이지.
+    // 소멸 게이지.
     private void BuildGhostOverlay()
     {
-        _screamLabel = Lbl("크와아아악!!!!!!!!!", 54, new Color(1f, 0.20f, 0.18f));
-        _screamLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + 120f);
-        _screamLabel.Size = new Vector2(Frame.Size.X, 80f);
-        _screamLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        _screamLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
-        _screamLabel.AddThemeConstantOverride("outline_size", 10);
-        _screamLabel.Visible = false;
-        AddChild(_screamLabel);
-
         // 게이지는 화면 아래쪽 — 방 안을 가리지 않는 자리에 둔다.
         float gy = Frame.Position.Y + Frame.Size.Y - 44f;
         _dispelBack = new ColorRect
@@ -184,21 +175,10 @@ public partial class CCTVMonitorView : Control
             _ghostWired = true;
         }
 
-        if (_screamLeft > 0f)
-        {
-            _screamLeft -= d;
-            // 글자가 떨린다 — 읽을 수 없을 정도는 아니다.
-            _screamLabel.Position = new Vector2(
-                Frame.Position.X + _rng.RandfRange(-5f, 5f),
-                Frame.Position.Y + 120f + _rng.RandfRange(-4f, 4f));
-            if (_screamLeft <= 0f) _screamLabel.Visible = false;
-        }
-
         bool show = feed && ghost is { Active: true } && ghost.ActiveRoomId == roomId;
         if (_dispelBack.Visible != show)
         {
             _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = show;
-            if (!show && _screamLabel != null) { _screamLabel.Visible = false; _screamLeft = 0f; }
         }
         if (!show) return;
 
@@ -213,11 +193,13 @@ public partial class CCTVMonitorView : Control
     {
         var sim = FacilitySimulation.Instance;
         if (sim == null || sim.SurveillanceTargetRoomId != roomId) return;
-        _screamLabel.Visible = true;
-        _screamLeft = 1.15f;
-        Shake(6f, 0.5f);
-        FlashGlitch(0.9f);
-        Sfx.Instance?.Play("alert_beep3", 2f);
+        Shake(9f, 0.6f);
+        FlashGlitch(1f);
+        // 두 녹음 중 하나가 아주 크게, 울리며 나간다.
+        Sfx.Instance?.PlayGhostScream();
+        // 소리가 닿아 모니터 기기 자체가 흔들린다 — 화면 안이 아니라 책상 위가 흔들려야
+        // "저 안에서 난 소리" 가 이쪽으로 건너온 것처럼 읽힌다.
+        NSP.View.ControlRoom3DController.Instance?.ShakeMonitor("02", 1.8f, 0.7f);
     }
 
     public override void _ExitTree()
@@ -392,7 +374,9 @@ public partial class CCTVMonitorView : Control
         var existing = _employeeLayer.GetNodeOrNull<Label>("Status");
         var status = existing ?? Lbl("", 15, new Color(0.85f, 0.9f, 0.85f));
         status.Name = "Status";
-        status.Text = string.IsNullOrEmpty(block) ? "정상 근무 중" : block.Replace("\n", "   ");
+        // 이상이 있을 때만 쓴다. "정상 근무 중" 은 아무것도 알려주지 않으면서 화면 아래를
+        // 늘 차지해, 정작 문제가 떴을 때 그 줄이 눈에 덜 띄게 만들고 있었다.
+        status.Text = block?.Replace("\n", "   ") ?? "";
         status.Position = new Vector2(0, Frame.Size.Y - 60);
         status.Size = new Vector2(Frame.Size.X, 40);
         status.HorizontalAlignment = HorizontalAlignment.Center;

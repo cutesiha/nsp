@@ -276,6 +276,9 @@ public partial class ControlRoom3DController : Node3D
 
         _scheduleStaffVp = MakeViewport();
         AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);
+        // DAY0 교육은 배치 화면에서 시작한다 — 그때 오른쪽 CRT 에 떠 있는 것은 이 화면이다.
+        // 여기에 얼굴창이 없어서 작업실 설명이 시작될 때까지 GUIDE-0 의 얼굴이 보이지 않았다.
+        _scheduleStaffVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
         _endingLeftVp = MakeViewport();
         AddScaledView(_endingLeftVp, new EndingMonitorView(true), MonitorCanvasSize);
@@ -287,6 +290,30 @@ public partial class ControlRoom3DController : Node3D
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
     // (왼쪽=시설/배치기록/보고서, 오른쪽=CCTV/인터뷰) — 씬 전환 없이 화면만 바뀐다.
+    // 모니터 기기 하나를 잠깐 진동시킨다(연출 전용 — 게임 상태를 건드리지 않는다).
+    // token = "01" / "02". 화면 Quad 가 아니라 그 부모(모니터 전체)를 흔든다.
+    public void ShakeMonitor(string token, float degrees = 1.4f, float seconds = 0.55f)
+    {
+        var screen = _screens.FirstOrDefault(s => s.Name.ToString().Contains(token));
+        if (screen?.GetParent() is not Node3D body) return;
+        if (_monitorShakes.TryGetValue(body, out var running) && running is { } t && t.IsValid()) t.Kill();
+
+        Vector3 rest = body.RotationDegrees;
+        var tw = CreateTween();
+        int beats = Mathf.Max(4, Mathf.RoundToInt(seconds / 0.045f));
+        for (int i = 0; i < beats; i++)
+        {
+            // 뒤로 갈수록 약해진다 — 한 번 맞고 잦아드는 느낌.
+            float k = (1f - (float)i / beats) * degrees * (i % 2 == 0 ? 1f : -1f);
+            tw.TweenProperty(body, "rotation_degrees",
+                rest + new Vector3(k * 0.5f, k, k * 0.35f), seconds / beats);
+        }
+        tw.TweenProperty(body, "rotation_degrees", rest, 0.08);
+        _monitorShakes[body] = tw;
+    }
+
+    private readonly System.Collections.Generic.Dictionary<Node3D, Tween> _monitorShakes = new();
+
     public void SetLeftScreen(SubViewport vp) => ConfigureNamed("01", vp);
     public void SetRightScreen(SubViewport vp) => ConfigureNamed("02", vp);
 
