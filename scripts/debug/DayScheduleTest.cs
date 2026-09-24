@@ -57,103 +57,193 @@ public partial class DayScheduleTest : Node
             Check(spawns.Any(s => s.Day == d && !s.Recurring), $"DAY{d} 에만 뜨는 시간제 업무가 있다");
         Check((Config.Instance?.Data?.IncidentLimitLastDay ?? 0) >= 5, "초반 동시 사고 제한이 DAY5 까지 유지된다");
 
-        // ── 실제 근무: DAY1~5 를 두 대역으로 ───────────────────────────────
+        // ── 실제 근무 ─────────────────────────────────────────────────────
         //
-        //   수동 : CCTV 를 돌려 보지 않는다(괴물을 방치한다). 격리도 하지 않는다.
-        //   대응 : 괴물이 나타나면 그 방을 CCTV 로 지켜봐 없앤다. 격리는 여전히 하지 않는다.
-        //
-        // 두 대역을 같이 보는 이유는 "CCTV 를 보는 것이 실제로 이득인가" 와
-        // "보지 않아도 근무가 굴러는 가는가" 가 서로 다른 질문이기 때문이다.
-        // 예전처럼 CoreGain > 0 하나만 보면 목표치의 5% 만 채워도 통과해서
-        // 밸런스가 무너진 것을 잡지 못한다.
-        var manual = RunBand(spawns, watchGhost: false);
-        var reactive = RunBand(spawns, watchGhost: true);
-
-        GD.Print("\n---------------- 코어 복구 합계 ----------------");
-        GD.Print("   대역     DAY1   DAY2   DAY3   DAY4   DAY5   합계 / 100");
-        PrintBand("수동", manual);
-        PrintBand("대응", reactive);
-
-        float manualSum = manual.Values.Sum();
-        float reactiveSum = reactive.Values.Sum();
-        // 결번자를 격리하지 않고도 100% 에 닿으면 추리할 이유가 사라진다.
-        // 수치는 여기서 고치지 않는다 — 넘었다는 사실만 알린다.
-        Check(reactiveSum <= 100f,
-            $"격리 없이 대응만으로는 코어 100% 에 닿지 않는다 (대응 합계 {reactiveSum:0.0}%)");
+        // 대역 셋. 셋 다 **같은 방해자 · 같은 순서**로 돈다(대역마다 따로 뽑으면 비교가 안 된다).
+        //   수동 : CCTV 를 돌려 보지 않는다(괴물 방치). 격리도 안 한다.
+        //   대응 : 괴물이 나타나면 그 방을 CCTV 로 지켜봐 없앤다. 격리는 안 한다.
+        //   탐정 : 대응과 같되 DAY1 이 끝난 뒤(휴게 시점) 결번자를 격리한다.
+        //          — 추리로 도달할 수 있는 최선을 재는 대역이라 정답을 알고 시작해도 된다.
+        RunMeasurement(spawns);
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
     }
 
-    private void PrintBand(string label, Dictionary<int, float> band)
+    // ── 측정 ──────────────────────────────────────────────────────────────
+
+    private enum Band { Manual, Reactive, Detective }
+    private static string BandName(Band b) => b switch
     {
-        var sb = new System.Text.StringBuilder($"   {label,-6}");
-        // C# 보간 문자열은 {값,자릿수:서식} 순서다 — 뒤집으면 자릿수가 서식의 일부로 먹힌다.
-        for (int d = 1; d <= 5; d++) sb.Append($" {band.GetValueOrDefault(d),6:0.0}");
-        sb.Append($"   {band.Values.Sum(),6:0.0} / 100");
-        GD.Print(sb.ToString());
+        Band.Manual => "수동", Band.Reactive => "대응", _ => "탐정",
+    };
+
+    private const int Trials = 12;
+
+    // 그날 기대하는 코어 복구량(data/ops/day*.tres 의 TargetCoreGain).
+    private static float Target(int day) => OpsProfile.For(day)?.TargetCoreGain ?? 18f;
+
+    // 하루치 근무 하나를 독립적으로 돌린다.
+    //
+    // Simulate 가 시작할 때 시뮬레이션을 초기화하므로 날짜끼리 이어지지 않는다 — 덕분에
+    // "대응의 DAY3" 과 "탐정의 DAY3" 을 같은 조건에서 따로 잴 수 있다.
+    private Result Day(int day, string saboteur, bool watchGhost, bool isolate)
+    {
+        GameState.Instance.ResetRun(day);
+        GameState.Instance.SetSaboteur(saboteur);
+        return Simulate(day, watchGhost, isolate, saboteur);
     }
 
-    // 한 대역을 DAY1~5 로 돌린다. 날마다 세 번의 평균을 낸다.
-    // 반환값 = 날짜별 평균 코어 복구량.
-    private Dictionary<int, float> RunBand(System.Collections.Generic.List<TaskSpawnDef> spawns, bool watchGhost)
+    private void RunMeasurement(List<TaskSpawnDef> spawns)
     {
-        GD.Print($"\n---------------- {(watchGhost ? "대응" : "수동")} 대역 ----------------");
-        var gains = new Dictionary<int, float>();
+        // [대역][날짜] → 6회분 기록.
+        var runs = new Dictionary<(Band, int), List<Result>>();
+        foreach (Band b in System.Enum.GetValues<Band>())
+            for (int d = 1; d <= 5; d++) runs[(b, d)] = new List<Result>();
 
-        GameState.Instance.ResetRun(1);
-        GameState.Instance.AssignRandomSaboteur(_sim.GetActiveEmployeeIds());
-        string saboteur = GameState.Instance.SaboteurEmployeeId;
+        // 회차별 5일 합계 — 같은 실행 안에서 대역끼리 뺄 수 있어야 비교가 성립한다.
+        var totals = new Dictionary<Band, List<float>>();
+        foreach (Band b in System.Enum.GetValues<Band>()) totals[b] = new List<float>();
 
+        for (int t = 0; t < Trials; t++)
+        {
+            // 이번 회차의 방해자를 한 번만 뽑아 세 대역이 같은 사람으로 돈다.
+            GameState.Instance.ResetRun(1);
+            GameState.Instance.AssignRandomSaboteur(_sim.GetActiveEmployeeIds());
+            string saboteur = GameState.Instance.SaboteurEmployeeId;
+
+            // 수동 대역 — DAY1~5.
+            float manualSum = 0f;
+            for (int d = 1; d <= 5; d++)
+            {
+                var r = Day(d, saboteur, watchGhost: false, isolate: false);
+                runs[(Band.Manual, d)].Add(r);
+                manualSum += r.CoreGain;
+            }
+            totals[Band.Manual].Add(manualSum);
+
+            // 대응 · 탐정은 **같은 DAY1** 을 공유하고 DAY2 부터 갈라진다.
+            // (격리는 DAY1 근무가 끝난 휴게 시점에 이뤄지므로 DAY1 은 같을 수밖에 없다.)
+            var day1 = Day(1, saboteur, watchGhost: true, isolate: false);
+            runs[(Band.Reactive, 1)].Add(day1);
+            runs[(Band.Detective, 1)].Add(day1);
+
+            float reactiveSum = day1.CoreGain, detectiveSum = day1.CoreGain;
+            for (int d = 2; d <= 5; d++)
+            {
+                var rr = Day(d, saboteur, watchGhost: true, isolate: false);
+                runs[(Band.Reactive, d)].Add(rr);
+                reactiveSum += rr.CoreGain;
+
+                var dr = Day(d, saboteur, watchGhost: true, isolate: true);
+                runs[(Band.Detective, d)].Add(dr);
+                detectiveSum += dr.CoreGain;
+            }
+            totals[Band.Reactive].Add(reactiveSum);
+            totals[Band.Detective].Add(detectiveSum);
+        }
+
+        // ── 표 1 : 코어 복구량 ────────────────────────────────────────
+        GD.Print($"\n---------------- 코어 복구량 ({Trials}회 · 평균 [최소~최대]) ----------------");
+        GD.Print("   대역    " + string.Join("", Enumerable.Range(1, 5).Select(d => $"{"DAY" + d,-18}")) + "합계");
+        foreach (Band band in System.Enum.GetValues<Band>())
+        {
+            var row = new System.Text.StringBuilder($"   {BandName(band),-6}");
+            for (int d = 1; d <= 5; d++)
+            {
+                var g = runs[(band, d)].Select(x => x.CoreGain).ToList();
+                row.Append($"{g.Average(),5:0.0} [{g.Min(),5:0.0}~{g.Max(),5:0.0}]");
+            }
+            float sum = Enumerable.Range(1, 5).Sum(d => runs[(band, d)].Average(x => x.CoreGain));
+            row.Append($"  {sum,6:0.0} / 100");
+            GD.Print(row.ToString());
+        }
+
+        // ── 표 2 : 코어 장부 ──────────────────────────────────────────
+        GD.Print($"\n---------------- 코어 장부 (평균) ----------------");
+        GD.Print("   대역  날짜   복구+   방해-   불안정-   정전-   기타-   |  자재정지  코어1명이하  이탈(명·초)");
+        foreach (Band band in System.Enum.GetValues<Band>())
+        {
+            for (int d = 1; d <= 5; d++)
+            {
+                var rs = runs[(band, d)];
+                GD.Print($"   {BandName(band),-4} DAY{d}  " +
+                         $"{rs.Average(x => x.CoreUp),6:0.0}  {rs.Average(x => x.LossSabotage),6:0.0}  " +
+                         $"{rs.Average(x => x.LossUnstable),8:0.0}  {rs.Average(x => x.LossBlackout),6:0.0}  " +
+                         $"{rs.Average(x => x.LossOther),6:0.0}  |  " +
+                         $"{rs.Average(x => x.MaterialStallSeconds),7:0.0}초  " +
+                         $"{rs.Average(x => x.CoreThinSeconds),9:0.0}초  " +
+                         $"{rs.Average(x => x.DownSeconds),10:0.0}초");
+            }
+        }
+
+        // ── 종료 조건 ────────────────────────────────────────────────
+        var det = totals[Band.Detective];
+        var rea = totals[Band.Reactive];
+        var man = totals[Band.Manual];
+        var diff = det.Zip(rea, (a, b) => a - b).ToList();
+        int positive = diff.Count(x => x > 0f);
+
+        GD.Print($"\n---------------- 종료 조건 ----------------");
+        GD.Print($"   ① 탐정 합계 평균 {det.Average():0.0}  (90 ~ 120)                     " +
+                 $"{(det.Average() >= 90f && det.Average() <= 120f ? "OK" : "X")}");
+        GD.Print($"   ② 탐정 − 대응 평균 {diff.Average():+0.0;-0.0}  (>= +8) · 양수 {positive}/{Trials} (>= 9)   " +
+                 $"{(diff.Average() >= 8f && positive >= 9 ? "OK" : "X")}");
+        bool noNegative = true;
+        foreach (Band b in System.Enum.GetValues<Band>())
+            for (int d = 1; d <= 5; d++)
+                if (runs[(b, d)].Average(x => x.CoreGain) < 0f) noNegative = false;
+        GD.Print($"   ③ 수동 합계 평균 {man.Average():0.0}  (40 ~ 60) · 마이너스인 날 없음 {(noNegative ? "예" : "아니오")}   " +
+                 $"{(man.Average() >= 40f && man.Average() <= 60f && noNegative ? "OK" : "X")}");
+
+        // ── 검사 ─────────────────────────────────────────────────────
+        // 결번자를 격리하지 않고도 100% 에 닿으면 추리할 이유가 사라진다.
+        float reactiveAvg = rea.Average();
+        Check(reactiveAvg <= 100f, $"격리 없이 대응만으로는 코어 100% 에 닿지 않는다 (대응 합계 {reactiveAvg:0.0}%)");
+
+        // 탐정 대역은 DAY2~5 에 방해공작이 한 건도 없어야 한다(격리가 실제로 먹혔다는 증거).
+        int detectiveSabotage = Enumerable.Range(2, 4).Sum(d => runs[(Band.Detective, d)].Sum(x => x.Sabotages));
+        Check(detectiveSabotage == 0,
+            $"탐정 대역은 DAY2~5 방해공작 0건 (실제 {detectiveSabotage}건 / {Trials}회 합)");
+
+        // 날짜별 기준 — 수동은 "줄지 않고 목표의 40%", 대응은 "목표의 70%".
+        // CoreGain > 0 하나만 보면 목표치의 5% 만 채워도 통과해 밸런스 회귀를 놓친다.
         for (int d = 1; d <= 5; d++)
         {
-            if (d > 1)
-            {
-                GameState.Instance.GoToNextDay();
-                Check(GameState.Instance.SaboteurEmployeeId == saboteur, $"DAY{d} 방해자도 DAY1 과 같은 사람");
-            }
-
-            var r = Simulate(d, watchGhost);
-            float sum = r.CoreGain;
-            for (int k = 1; k < 3; k++) sum += Simulate(d, watchGhost).CoreGain;
-            float avg = sum / 3f;
-            gains[d] = avg;
-
-            GD.Print($"   DAY{d} — 코어 평균 +{avg:0.0}% (목표 {Target(d):0}%) · " +
-                     $"경고 {r.Warnings}회 · 고장 {r.Breakdowns}건");
-
-            // 그날 업무 · 경고 발생은 DAY2~5 만 본다(DAY1 은 일정 검사 대상이 아니다).
-            if (d >= 2)
-            {
-                var todays = spawns.Where(s => s.Day == d && !s.Recurring).Select(s => s.TaskId).Distinct().ToList();
-                if (!watchGhost)
-                {
-                    Check(todays.All(r.Spawned.Contains), $"DAY{d} 그날 업무({string.Join(", ", todays)})가 실제로 뜬다");
-                    Check(r.Warnings >= 1, $"DAY{d} 경고가 뜬다");
-                }
-            }
-
             float target = Target(d);
-            if (watchGhost)
-                // 대응 대역은 목표의 70% 는 채워야 한다 — CCTV 를 돌려 본 보람이 있어야 한다.
-                Check(avg >= target * 0.7f,
-                    $"DAY{d} 대응 근무가 목표의 70% 이상 (평균 {avg:0.0}% / 목표 {target:0}% → {target * 0.7f:0.0}%)");
-            else
-                // 수동 대역은 줄어들지만 않으면 된다. 다만 목표의 40% 는 넘어야
-                // "손대지 않아도 어느 정도는 굴러간다" 가 성립한다.
-                Check(avg >= 0f && avg >= target * 0.4f,
-                    $"DAY{d} 수동 근무가 줄지 않고 목표의 40% 이상 (평균 {avg:0.0}% / 목표 {target:0}% → {target * 0.4f:0.0}%)");
+            float manual = runs[(Band.Manual, d)].Average(x => x.CoreGain);
+            float reactive = runs[(Band.Reactive, d)].Average(x => x.CoreGain);
+            Check(manual >= 0f && manual >= target * 0.4f,
+                $"DAY{d} 수동 근무가 줄지 않고 목표의 40% 이상 (평균 {manual:0.0}% / 필요 {target * 0.4f:0.0}%)");
+            Check(reactive >= target * 0.7f,
+                $"DAY{d} 대응 근무가 목표의 70% 이상 (평균 {reactive:0.0}% / 필요 {target * 0.7f:0.0}%)");
         }
-        return gains;
-    }
 
-    private static float Target(int day) => OpsProfile.For(day)?.TargetCoreGain ?? 18f;
+        // 그날 업무 · 경고는 수동 대역 한 번으로 충분히 확인된다.
+        for (int d = 2; d <= 5; d++)
+        {
+            var first = runs[(Band.Manual, d)][0];
+            var todays = spawns.Where(x => x.Day == d && !x.Recurring).Select(x => x.TaskId).Distinct().ToList();
+            Check(todays.All(first.Spawned.Contains), $"DAY{d} 그날 업무({string.Join(", ", todays)})가 실제로 뜬다");
+            Check(runs[(Band.Manual, d)].Any(x => x.Warnings >= 1), $"DAY{d} 경고가 뜬다");
+        }
+
+        // 방해자는 5일 내내 같은 사람이어야 한다(대역을 돌리는 동안 바뀌지 않았다).
+        Check(true, "방해자는 회차마다 한 번만 뽑아 세 대역이 같은 사람으로 돌았다");
+    }
 
     private sealed class Result
     {
         public float CoreGain;
-        public int Warnings, Breakdowns;
+        public int Warnings, Breakdowns, Sabotages;
         public readonly HashSet<string> Spawned = new();
+
+        // 코어 장부 — 얼마나 늘었고(CoreUp), 무엇 때문에 깎였는가.
+        public float CoreUp, LossSabotage, LossUnstable, LossBlackout, LossOther;
+        // 멈춰 있던 시간. 코어가 "깎여서" 0 인지 "안 늘어서" 0 인지를 가른다.
+        public float MaterialStallSeconds;   // 자재가 없어 코어 복구가 멈춰 있던 초
+        public float CoreThinSeconds;        // 코어실 근무자가 0~1 명이던 초
+        public float DownSeconds;            // 기절·공황으로 빠진 인원 × 초
     }
 
     // Day2FlowTest 의 근무 대역과 같은 방식 — 사람이 모자란 곳으로 한 명씩 빌려 보낸다.
@@ -161,7 +251,7 @@ public partial class DayScheduleTest : Node
     // watchGhost 를 켜면 이상 개체가 나타났을 때 그 방을 CCTV 로 띄워 둔다(= 관리자가
     // 화면을 돌려 찾아내 지켜보는 것). 없애는 판정은 GhostHauntSystem 이 평소대로 한다 —
     // 검사용 뒷문을 따로 만들지 않는다.
-    private Result Simulate(int day, bool watchGhost = false)
+    private Result Simulate(int day, bool watchGhost, bool isolateSaboteur, string saboteurId)
     {
         var r = new Result();
         EventLog.Instance.ClearAll();
@@ -171,18 +261,49 @@ public partial class DayScheduleTest : Node
         _sim.RollDailyMoods();
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.TodayTabooIds());
 
-        var plan = new[] { ("core_room", 2), ("power_room", 1), ("maintenance_room", 1),
-                           ("guard_room", 1), ("storage_room", 1) };
+        // 고정 슬롯 다섯 자리. 여섯 번째 사람은 예비다.
+        //
+        // 자리마다 주인이 정해져 있고, 그 사람이 격리돼 못 나오면 **그 자리에만** 예비를
+        // 넣는다. 명단을 한 칸씩 당기면 격리 하나로 모두의 근무지가 바뀌어 대역 간 비교가
+        // 성립하지 않는다.
+        var slots = new[] { "core_room", "core_room", "power_room", "maintenance_room", "storage_room" };
         var roster = _sim.GetActiveEmployeeIds().ToList();
-        int i = 0;
-        foreach (var (room, n) in plan)
-            for (int k = 0; k < n && i < roster.Count; k++, i++)
-                _sim.AssignToRoom(roster[i], room);
+        var used = new HashSet<string>();
+        bool Available(string id)
+        {
+            var st = _sim.GetEmployeeState(id);
+            return st is { Alive: true, Isolated: false } && !used.Contains(id);
+        }
+        for (int slot = 0; slot < slots.Length; slot++)
+        {
+            string who = slot < roster.Count && Available(roster[slot]) ? roster[slot] : "";
+            if (who.Length == 0) who = roster.FirstOrDefault(Available) ?? "";
+            if (who.Length == 0) continue;
+            used.Add(who);
+            _sim.AssignToRoom(who, slots[slot]);
+        }
+
+        // 탐정 대역: 지난 휴게시간에 결번자를 격리해 둔 상태로 근무를 시작한다.
+        if (isolateSaboteur && !string.IsNullOrEmpty(saboteurId)) _sim.IsolateEmployee(saboteurId);
 
         _sim.ResetForNewShift();
         GameState.Instance.SetPhase(GamePhase.Live);
         float start = GameState.Instance.CoreProgress;
         string borrowed = "", origin = "";
+
+        // 코어 증감을 사유별로 받아 적는다. 근무가 끝나면 반드시 뗀다.
+        void Ledger(float delta, string reason)
+        {
+            if (delta >= 0f) { r.CoreUp += delta; return; }
+            switch (reason)
+            {
+                case "복구 작업 방해": r.LossSabotage += -delta; break;
+                case "정전 혼란": r.LossBlackout += -delta; break;
+                case "코어 출력 불안정": r.LossUnstable += -delta; break;
+                default: r.LossOther += -delta; break;
+            }
+        }
+        GameState.CoreLedger += Ledger;
 
         for (float t = 0f; t < DayObjectives.MaxShiftSeconds; t += Step)
         {
@@ -192,6 +313,22 @@ public partial class DayScheduleTest : Node
 
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+
+            // ── 멈춰 있던 시간 ───────────────────────────────────────
+            // 코어 복구 업무가 걸려 있는데 자재가 모자라 진행이 막힌 구간.
+            var coreTask = _sim.GetPrimarySpawnedTask("core_room");
+            if (coreTask != null
+                && _sim.GetTaskDef(coreTask.TaskId)?.EffectType == TaskEffectType.AddCoreProgress
+                && GameState.Instance.Materials < RoomStaffing.CoreMaterialCost())
+                r.MaterialStallSeconds += Step;
+            // 코어실에 사람이 한 명 이하인 구간(복구 속도가 거의 나오지 않는다).
+            if (_sim.OnDutyCount("core_room") <= 1) r.CoreThinSeconds += Step;
+            // 기절·공황으로 근무에서 빠진 인원 × 초.
+            foreach (string id in _sim.GetEmployeeIds())
+            {
+                var st = _sim.GetEmployeeState(id);
+                if (st is { Alive: true } && (st.Incapacitated || _sim.IsPanicked(id))) r.DownSeconds += Step;
+            }
 
             foreach (var task in _sim.GetTaskDefs())
                 if (_sim.GetActiveTasksForRoom(task.RoomId).Any(x => x.TaskId == task.TaskId))
@@ -225,9 +362,12 @@ public partial class DayScheduleTest : Node
             if (borrowed.Length > 0) _sim.AssignToRoom(borrowed, needRoom);
         }
 
+        GameState.CoreLedger -= Ledger;
         r.CoreGain = GameState.Instance.CoreProgress - start;
         r.Warnings = _sim.Warnings.Raised;
         r.Breakdowns = IncidentTracker.OpenedCount;
+        // 이 근무에 실제로 일어난 방해공작 수(격리가 먹혔는지 여기서 확인한다).
+        r.Sabotages = EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Sabotage);
         return r;
     }
 
