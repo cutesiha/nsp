@@ -438,10 +438,7 @@ public partial class FacilityMonitorView : Control
         sb.Append($"자재  {gs?.Materials ?? 0} / {gs?.MaterialsCap ?? 0}");
         // 소모량은 "코어 1% 당" 으로 환산해 쓴다 — 관리자가 실제로 세는 단위가 %다.
         // (코어 복구 업무 한 번이 몇 % 를 올리는지는 데이터가 정한다.)
-        float perRun = FacilitySimulation.Instance?.GetTaskDef("core_direct_repair")?.EffectAmount ?? 1f;
-        int cost = NSP.Facility.RoomStaffing.CoreMaterialCost();
-        int perPercent = Mathf.Max(1, Mathf.RoundToInt(cost / Mathf.Max(0.01f, perRun)));
-        sb.Append($"    코어 복구 1%당 {perPercent} 소모");
+        sb.Append($"    코어 복구 1%당 {NSP.Facility.RoomStaffing.CoreMaterialCostPerPercent()} 소모");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
         if (taboos is { Count: > 0 })
             sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));

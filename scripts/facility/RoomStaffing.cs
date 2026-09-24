@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using NSP.Core;
 
 namespace NSP.Facility;
@@ -90,6 +90,22 @@ public static class RoomStaffing
             mult *= OpsProfile.Curve(ops.MaterialCost, Count(ops.RoomId));
         int baseCost = Config.Instance?.Data?.MaterialsPerCoreGauge ?? 2;
         return Mathf.Max(1, Mathf.RoundToInt(baseCost * mult));
+    }
+
+    // 코어 복구 1% 당 실제 자재 소모량. 관리자가 실제로 세는 단위가 % 라서
+    // 화면(화면 위 자재 줄 · 저장고 방 카드)은 전부 이 값을 쓴다.
+    public static int CoreMaterialCostPerPercent()
+    {
+        float perRun = Sim?.GetTaskDef("core_direct_repair")?.EffectAmount ?? 1f;
+        return Mathf.Max(1, Mathf.RoundToInt(CoreMaterialCost() / Mathf.Max(0.01f, perRun)));
+    }
+
+    // 저장고를 비웠을 때 자재 소모가 몇 % 늘어나는가(0 이면 변화 없음).
+    public static float EmptyStorageWastePercent()
+    {
+        var ops = OpsProfile.Room("storage_room");
+        if (ops == null) return 0f;
+        return (OpsProfile.Curve(ops.MaterialCost, 0) - 1f) * 100f;
     }
 
     // 무인 방치 사고까지의 시간. 0 이하면 "비워 둬도 사고가 나지 않는다".

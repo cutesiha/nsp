@@ -53,7 +53,7 @@ public static class RoomEffectText
             }
 
             case "storage_room":
-                return $"코어 1%당 자재 {RoomStaffing.CoreMaterialCost()}개";
+                return $"코어 1%당 자재 {RoomStaffing.CoreMaterialCostPerPercent()}개";
 
             case "vent_room":
             {
@@ -110,7 +110,12 @@ public static class RoomEffectText
             }
 
             case "storage_room":
-                return here == 0 ? "저장고 비어 있음 — 자재 소모 +25%" : "";
+            {
+                if (here > 0) return "";
+                // +25% 도 데이터(MaterialCost 곡선의 0명 칸)에서 그대로 읽는다.
+                float waste = RoomStaffing.EmptyStorageWastePercent();
+                return waste <= 0.5f ? "" : $"저장고 비어 있음 — 자재 소모 +{waste:0}%";
+            }
 
             case "vent_room":
             {

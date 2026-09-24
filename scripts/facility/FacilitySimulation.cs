@@ -853,6 +853,7 @@ public partial class FacilitySimulation : Node
         RoomEffectStats.ResetDay();
         RoomEffectLog.ResetDay();
         _fxPowerOutputOk = true;
+        _fxMaterialCost = -1;
         _activeTasks.Clear();
         _scheduleCursor = 0;
         _scheduleJitter.Clear();
@@ -975,6 +976,7 @@ public partial class FacilitySimulation : Node
     // 이미 일어나고 있는 효과가 "바뀌는 순간"을 잡아 화면에 알린다.
     // 여기서는 어떤 상태도 바꾸지 않는다 — 읽고, 알리고, 지난 값을 기억할 뿐이다.
     private bool _fxPowerOutputOk = true;
+    private int _fxMaterialCost = -1;
 
     private void TickRoomEffectSignals(float delta)
     {
@@ -991,6 +993,17 @@ public partial class FacilitySimulation : Node
                 $"{RoomName(PowerRoomId)} — 출력 {output * 100f:0}% 로 저하, 조명·CCTV 불안정");
         }
         _fxPowerOutputOk = ok;
+
+        // 저장고 — 인원이 바뀌어 코어 1%당 자재 소모가 달라지는 순간.
+        int cost = RoomStaffing.CoreMaterialCostPerPercent();
+        if (_fxMaterialCost > 0 && cost != _fxMaterialCost)
+        {
+            RoomEffectStats.Pulse(StorageRoomId);
+            RoomEffectLog.Once(StorageRoomId,
+                $"{RoomName(StorageRoomId)} — 자재 효율 {(cost < _fxMaterialCost ? "↑" : "↓")} " +
+                $"(1%당 {_fxMaterialCost}→{cost})");
+        }
+        _fxMaterialCost = cost;
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
