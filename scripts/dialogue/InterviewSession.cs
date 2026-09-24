@@ -54,6 +54,8 @@ public sealed class InterviewSession
         public string QuestionId = "";
         public string Text = "";
         public List<FollowUpQuestion> FollowUps = new();
+        // 검증용 — 이 진술이 어떤 슬롯과 근무 기억으로 만들어졌는지(DialogueComposer.LastTrace).
+        public string Trace = "";
     }
 
     private static readonly string[] OpeningQuestions =
@@ -85,6 +87,7 @@ public sealed class InterviewSession
         foreach (string qid in OpeningQuestions)
         {
             var turn = LocalDialogueGenerator.Interview(EmployeeId, qid);
+            string trace = DialogueComposer.LastTrace;
             string text = (turn?.Answer ?? "").Trim();
             if (string.IsNullOrEmpty(text) || text == "…" || !seen.Add(text)) continue;
             _openings.Add(new OpeningStatement
@@ -93,6 +96,7 @@ public sealed class InterviewSession
                 QuestionId = qid,
                 Text = text,
                 FollowUps = turn.FollowUps ?? new List<FollowUpQuestion>(),
+                Trace = trace,
             });
         }
     }
