@@ -852,6 +852,7 @@ public partial class FacilitySimulation : Node
         // 표시용 집계는 근무 단위다 — 새 근무가 시작되면 0 부터 다시 센다.
         RoomEffectStats.ResetDay();
         RoomEffectLog.ResetDay();
+        _fxPowerOutputOk = true;
         _activeTasks.Clear();
         _scheduleCursor = 0;
         _scheduleJitter.Clear();
@@ -966,8 +967,30 @@ public partial class FacilitySimulation : Node
         TickGuardPatrol(d);
         TickOffPostRecords(d);
         TickCctvObservation(d);
-        // 표시 전용 — 모아 둔 작업실 효과 줄을 시간이 되면 내보낸다.
+        // 표시 전용 — 작업실 효과를 화면에 드러내는 신호(판정은 하지 않는다).
+        TickRoomEffectSignals(d);
         RoomEffectLog.Tick(d);
+    }
+
+    // 이미 일어나고 있는 효과가 "바뀌는 순간"을 잡아 화면에 알린다.
+    // 여기서는 어떤 상태도 바꾸지 않는다 — 읽고, 알리고, 지난 값을 기억할 뿐이다.
+    private bool _fxPowerOutputOk = true;
+
+    private void TickRoomEffectSignals(float delta)
+    {
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+
+        // 발전실 — 출력이 90% 아래로 내려앉는 순간. 조명이 한 번 흔들린다.
+        float output = PowerRoomOutput();
+        bool ok = output >= 0.9f;
+        if (_fxPowerOutputOk && !ok)
+        {
+            RoomEffectStats.Pulse(PowerRoomId);
+            RoomEffectStats.LightFlickerRequested?.Invoke();
+            RoomEffectLog.Once(PowerRoomId,
+                $"{RoomName(PowerRoomId)} — 출력 {output * 100f:0}% 로 저하, 조명·CCTV 불안정");
+        }
+        _fxPowerOutputOk = ok;
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
@@ -1789,13 +1812,30 @@ public partial class FacilitySimulation : Node
         float eff = OpsProfile.Curve(ops.Efficiency, n, 0f);
         if (roomId == PowerRoomId)
         {
-            float output = HasRepairPending(roomId)
-                ? ops.OutputWhileBroken
-                : OpsProfile.Curve(ops.FacilityOutput, n);
+            float output = PowerRoomOutput();
             return $"출력 {output * 100f:0}%  {(output >= 0.99f ? "안정" : n == 0 ? "정지" : "불안정")}";
         }
         if (n == 0) return "정지";
         return $"효율 {eff * 100f:0}%";
+    }
+
+    // 발전실 한 방의 출력(0~1). 인원 곡선과 설비 고장이 그대로 반영된 값이다.
+    // 방 카드 · 미니맵 · 출력 저하 감지가 모두 이 하나를 본다.
+    public float PowerRoomOutput()
+    {
+        var ops = OpsProfile.Room(PowerRoomId);
+        if (ops == null) return 1f;
+        return HasRepairPending(PowerRoomId)
+            ? ops.OutputWhileBroken
+            : OpsProfile.Curve(ops.FacilityOutput, OnDutyCount(PowerRoomId));
+    }
+
+    // 인원이 하나도 없을 때의 발전실 출력(0~1). 방 카드가 "비우면 얼마가 되는지"를
+    // 데이터에서 그대로 읽어 쓰기 위한 값이다.
+    public float PowerRoomOutputWhenEmpty()
+    {
+        var ops = OpsProfile.Room(PowerRoomId);
+        return ops == null ? 1f : OpsProfile.Curve(ops.FacilityOutput, 0);
     }
 
     // 지금 모두가 달려들어 수습하고 있는 중인가.

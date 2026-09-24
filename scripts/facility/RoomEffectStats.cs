@@ -1,4 +1,4 @@
-namespace NSP.Facility;
+﻿namespace NSP.Facility;
 
 // 오늘 근무에서 작업실들이 실제로 만들어 낸 결과의 합계.
 //
@@ -22,6 +22,9 @@ public static class RoomEffectStats
     // 그 방이 방금 제 일을 해냈다 — 미니맵이 상자를 한 번 밝히는 데만 쓴다.
     // 시뮬레이션이 화면을 직접 알지 않도록 여기를 거쳐 간다.
     public static System.Action<string> RoomWorked;
+
+    // 실내 조명을 한 번 깜빡여 달라는 요청(발전실 출력 저하). 3D 중앙제어실이 받는다.
+    public static System.Action LightFlickerRequested;
 
     public static void Pulse(string roomId)
     {

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -36,11 +36,8 @@ public static class RoomEffectText
                 return $"복구 +{RoomEffectStats.CoreUpToday:0}% 오늘 · 자재 {gs.Materials}개 남음";
 
             case "power_room":
-            {
-                float output = RoomStaffing.FacilityOutput() * 100f;
-                string state = gs.IsPowerAccidentActive() ? "정지" : output >= 90f ? "안정" : "불안정";
-                return $"출력 {output:0}% {state}";
-            }
+                // 지금까지 쓰던 문구 그대로 — 미니맵 상자 아래 줄과 같은 값을 쓴다.
+                return sim.StaffingEffectLine(roomId);
 
             case "maintenance_room":
             {
@@ -98,7 +95,9 @@ public static class RoomEffectText
                 return "";
 
             case "power_room":
-                return here == 0 ? "발전실 비어 있음 — 출력 35% · 조명·CCTV 불안정" : "";
+                if (here > 0) return "";
+                // 35% 라는 값은 그 날의 운영 데이터에서 그대로 읽는다.
+                return $"발전실 비어 있음 — 출력 {sim.PowerRoomOutputWhenEmpty() * 100f:0}% · 조명·CCTV 불안정";
 
             case "maintenance_room":
             {

@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using NSP.Core;
 using NSP.Data;
 using NSP.Facility;
@@ -64,6 +64,14 @@ public partial class ControlRoom3DHorror : Node
             EventLog.Instance.EntryLogged += OnEventLogged;
             _eventLogWired = true;
         }
+        RoomEffectStats.LightFlickerRequested += FlickerOnce;
+    }
+
+    // 짧은 깜빡임 한 번. 발전실 출력이 내려앉은 순간처럼 "전기가 흔들렸다"를
+    // 몸으로 알리는 데 쓴다. L2 연출과 같은 경로(_impactBlackUntil)를 지난다.
+    public void FlickerOnce()
+    {
+        _impactBlackUntil = System.Math.Max(_impactBlackUntil, Time.GetTicksMsec() / 1000.0 + 0.12);
     }
 
     private static readonly Color LightBlue = new(0.5f, 0.65f, 1f);
@@ -160,6 +168,7 @@ public partial class ControlRoom3DHorror : Node
 
     public override void _ExitTree()
     {
+        RoomEffectStats.LightFlickerRequested -= FlickerOnce;
         if (_eventLogWired && EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnEventLogged;
         if (!_wired || HorrorDirector.Instance == null) return;
