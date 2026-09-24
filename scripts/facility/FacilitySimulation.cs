@@ -1682,6 +1682,8 @@ public partial class FacilitySimulation : Node
             occupants, HasSuspiciousAction(roomId));
         EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", GuardRoomId,
             $"✓ 경비 순찰 기록 — {RoomName(roomId)} : {string.Join(", ", occupants.Select(Codename))}");
+        RoomEffectStats.GuardRecordsToday++;
+        RoomEffectStats.Pulse(GuardRoomId);
     }
 
     // 사람이 있는 작업실 하나를 골라 그 시각의 인원을 기록으로 남긴다.
@@ -1705,6 +1707,8 @@ public partial class FacilitySimulation : Node
         string who = string.Join(", ", occupants.Select(Codename));
         EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", guardRoomId,
             $"✓ 경비 순찰 기록 — {RoomName(pick)} : {who}");
+        RoomEffectStats.GuardRecordsToday++;
+        RoomEffectStats.Pulse(guardRoomId);
     }
 
     // DAY0 교육에서 GUIDE-0 가 정해진 시점에 일으키는 사고. 일반 사고와 완전히 같은 경로를

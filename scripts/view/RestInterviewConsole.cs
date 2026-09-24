@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -51,6 +51,7 @@ public partial class RestInterviewConsole : Control
     private Font _font;
     private Label _name;
     private Label _goal;
+    private Label _guardRecords;
     private Label _detail;
     private Panel _listFrame;
     private StaffTimelineView _band;
@@ -95,6 +96,14 @@ public partial class RestInterviewConsole : Control
         _goal.Position = new Vector2(20, 46);
         _goal.Size = new Vector2(764, 22);
         AddChild(_goal);
+
+        // 같은 줄 오른쪽 끝 — 오늘 경비실이 남긴 재석 기록 수.
+        // 이 숫자가 곧 "대조할 수 있는 자료가 얼마나 있는가" 다.
+        _guardRecords = Lbl("", 13, Dim);
+        _guardRecords.Position = new Vector2(20, 47);
+        _guardRecords.Size = new Vector2(764, 22);
+        _guardRecords.HorizontalAlignment = HorizontalAlignment.Right;
+        AddChild(_guardRecords);
 
         BuildNotes();
     }
@@ -171,7 +180,16 @@ public partial class RestInterviewConsole : Control
     public void Close() => Visible = false;
 
     // 오늘 무엇을 밝혀야 하는가. PhoneCallHud 가 시설 로그 화면에 뜬 사건에서 만들어 넘긴다.
-    public void SetGoal(string text) => _goal.Text = string.IsNullOrEmpty(text) ? "" : "조사 목표: " + text;
+    public void SetGoal(string text)
+    {
+        _goal.Text = string.IsNullOrEmpty(text) ? "" : "조사 목표: " + text;
+
+        // 경비실이 오늘 무엇을 남겼는가. 없으면 왜 없는지까지 적는다 —
+        // 자료가 비는 이유가 "경비실을 비웠기 때문"이라는 것을 여기서 알게 한다.
+        int n = NSP.Facility.RoomEffectStats.GuardRecordsToday;
+        _guardRecords.Text = n > 0 ? $"경비 기록 {n}건" : "경비 기록 없음 — 오늘 경비실이 비어 있었습니다";
+        _guardRecords.AddThemeColorOverride("font_color", n > 0 ? Dim : new Color(1f, 0.46f, 0.40f));
+    }
 
     public void SetDetail(string text)
     {
