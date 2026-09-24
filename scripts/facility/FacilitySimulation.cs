@@ -309,6 +309,7 @@ public partial class FacilitySimulation : Node
 
         if (amount > 0f) amount *= CourageStressMultiplier(employeeId);
         st.Stress = Mathf.Clamp(st.Stress + amount, cfg.StressMin, cfg.StressMax);
+        RoomEffectStats.NoteStress(st.Stress);   // 표시 전용 — 휴게 진입 요약이 쓴다
 
         if (!string.IsNullOrEmpty(reason))
             EventLog.Instance?.LogEvent(LogEventType.Neglect, employeeId, st.CurrentRoomId,
@@ -854,6 +855,7 @@ public partial class FacilitySimulation : Node
         RoomEffectLog.ResetDay();
         _fxPowerOutputOk = true;
         _fxMaterialCost = -1;
+        _fxVentStressing = false;
         _activeTasks.Clear();
         _scheduleCursor = 0;
         _scheduleJitter.Clear();
@@ -977,6 +979,7 @@ public partial class FacilitySimulation : Node
     // 여기서는 어떤 상태도 바꾸지 않는다 — 읽고, 알리고, 지난 값을 기억할 뿐이다.
     private bool _fxPowerOutputOk = true;
     private int _fxMaterialCost = -1;
+    private bool _fxVentStressing;
 
     private void TickRoomEffectSignals(float delta)
     {
@@ -1004,6 +1007,18 @@ public partial class FacilitySimulation : Node
                 $"(1%당 {_fxMaterialCost}→{cost})");
         }
         _fxMaterialCost = cost;
+
+        // 환기실 — 스트레스가 계속 오르던 상태가 끝나는 순간.
+        // (사람이 들어왔거나 고장이 복구됐거나. 어느 쪽이든 "이제 안 오른다"가 요점이다.)
+        bool ventStressing = DayFeatures.StressEnabled && IsRoomActive(VentRoomId)
+            && (GameState.Instance.VentilationDown || OnDutyCount(VentRoomId) == 0);
+        if (_fxVentStressing && !ventStressing)
+        {
+            RoomEffectStats.Pulse(VentRoomId);
+            RoomEffectStats.VentilationRestored?.Invoke();
+            RoomEffectLog.Once(VentRoomId, $"{RoomName(VentRoomId)} — 공기 순환 재개, 스트레스 상승 멈춤");
+        }
+        _fxVentStressing = ventStressing;
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.

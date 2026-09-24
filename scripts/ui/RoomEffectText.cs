@@ -122,8 +122,11 @@ public static class RoomEffectText
                 if (!DayFeatures.StressEnabled) return "";
                 bool down = gs.VentilationDown;
                 if (here > 0 && !down) return "";
+                // 고장과 무인은 증가량·주기가 따로다 — 지금 실제로 쓰이는 쪽을 쓴다.
+                float amount = down ? cfg.VentFaultStressAmount : cfg.VentUnstaffedStressAmount;
+                float interval = down ? cfg.VentFaultStressIntervalSeconds : cfg.VentUnstaffedStressIntervalSeconds;
                 string line = $"환기실 {(down ? "고장" : "비어 있음")} — 전원 스트레스 " +
-                              $"+{cfg.VentUnstaffedStressAmount:0.#} / {cfg.VentUnstaffedStressIntervalSeconds:0}초";
+                              $"+{amount:0.#} / {interval:0}초";
                 // 기절선에 가까워진 사람이 있으면 이름을 붙인다 — 숫자보다 이름이 먼저 읽힌다.
                 var worst = sim.GetActiveEmployeeIds()
                     .Select(sim.GetEmployeeState)

@@ -26,6 +26,9 @@ public static class RoomEffectStats
     // 자재가 방금 늘었다 — 화면 위 자재 숫자가 한 번 커졌다 돌아온다.
     public static System.Action MaterialsGained;
 
+    // 환기가 다시 돌기 시작했다 — 미니맵이 방들을 잠깐 푸르게 물들인다.
+    public static System.Action VentilationRestored;
+
     // 실내 조명을 한 번 깜빡여 달라는 요청(발전실 출력 저하). 3D 중앙제어실이 받는다.
     public static System.Action LightFlickerRequested;
 

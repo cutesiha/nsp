@@ -83,16 +83,21 @@ public partial class FacilityMinimap : Control
         SetProcessInput(true);
         if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged += OnLogEntry;
         RoomEffectStats.RoomWorked += OnRoomWorked;
+        RoomEffectStats.VentilationRestored += OnVentilationRestored;
     }
 
     // 그 작업실이 방금 제 일을 해냈다. 로그가 아니라 이 신호로 받는 이유는,
     // 로그 줄은 10초씩 모았다 나가지만 점멸은 그 순간에 보여야 하기 때문이다.
     private void OnRoomWorked(string roomId) => FlashRoom(roomId);
 
+    // 환기는 한 방이 아니라 시설 전체에 걸린다 — 방들이 한꺼번에 잠깐 푸르러진다.
+    private void OnVentilationRestored() => FlashAllRooms(new Color(0.42f, 0.82f, 0.92f));
+
     public override void _ExitTree()
     {
         if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged -= OnLogEntry;
         RoomEffectStats.RoomWorked -= OnRoomWorked;
+        RoomEffectStats.VentilationRestored -= OnVentilationRestored;
     }
 
     private void OnLogEntry()
