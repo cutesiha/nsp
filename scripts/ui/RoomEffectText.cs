@@ -69,12 +69,17 @@ public static class RoomEffectText
 
             case "medical_room":
             {
+                // 회복까지 남은 시간이 가장 짧은 사람부터 — 먼저 돌아올 사람이 먼저 읽혀야 한다.
                 var patient = sim.GetActiveEmployeeIds()
                     .Select(sim.GetEmployeeState)
-                    .FirstOrDefault(x => x is { Alive: true, Incapacitated: true });
+                    .Where(x => x is { Alive: true, Incapacitated: true })
+                    .OrderBy(x => x.FaintRecoverTimer)
+                    .FirstOrDefault();
                 if (patient == null) return "비어 있음";
                 string who = sim.GetEmployeeDef(patient.EmployeeId)?.Codename ?? patient.EmployeeId;
-                return $"치료 중: {who} (회복까지 {Mathf.Max(0f, patient.FaintRecoverTimer):0}초)";
+                // 아직 걸어오는 중이면 "치료 중" 이 아니다.
+                string verb = patient.CurrentRoomId == roomId ? "치료 중" : "이송 중";
+                return $"{verb}: {who} (회복까지 {Mathf.Max(0f, patient.FaintRecoverTimer):0}초)";
             }
         }
         return "";
@@ -145,7 +150,14 @@ public static class RoomEffectText
             {
                 bool anyPatient = sim.GetActiveEmployeeIds()
                     .Select(sim.GetEmployeeState).Any(x => x is { Alive: true, Incapacitated: true });
-                return anyPatient && here == 0 ? "의무실 비어 있음 — 회복 지연" : "";
+                if (!anyPatient || here > 0) return "";
+                // 의무실 인원은 기절 회복 시간(FaintRecoverTimer)을 줄이지 않는다.
+                // 실제로 멈추는 것은 상시 업무 '직원 치료'(방 안 인원의 스트레스 감소)다.
+                // 화면에는 시뮬레이션이 정말 하는 일만 적는다.
+                var treat = sim.GetTaskDef("staff_treatment");
+                return treat == null
+                    ? "의무실 비어 있음 — 치료 정지"
+                    : $"의무실 비어 있음 — 치료 정지 (스트레스 -{treat.EffectAmount:0.#} / {treat.GaugeRequired:0}초 멈춤)";
             }
         }
         return "";

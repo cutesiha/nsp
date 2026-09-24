@@ -333,7 +333,13 @@ public partial class FacilitySimulation : Node
 
         // 격리 중이 아니면 의무실로 옮긴다. 배치는 유지해 두어 관리자가 상황을 볼 수 있게 한다.
         if (!st.Isolated && _roomDefs.ContainsKey(MedicalRoomId))
+        {
             BeginPathTo(st, MedicalRoomId);
+            // 표시: 의무실이 지금 누구를 받았는지 한 줄로 남긴다.
+            RoomEffectStats.Pulse(MedicalRoomId);
+            RoomEffectLog.Once(MedicalRoomId,
+                $"{RoomName(MedicalRoomId)} — {Codename(st.EmployeeId)} 이송, 회복까지 {cfg.StressFaintRecoverySeconds:0}초");
+        }
     }
 
     // 기절 회복 — 의무실에서 회복 시간이 지나면 스트레스를 낮추고 원래 배치로 돌려보낸다.
