@@ -251,6 +251,29 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
 mesh = SubResource("RM04")
 surface_material_override/0 = SubResource("MAT_leg")
 
+[node name="GuardChair2" type="Node3D" parent="." unique_id=734581344]
+transform = Transform3D(-0.014016809, 0, 0.9999018, 0, 1, 0, -0.9999018, 0, -0.014016809, -2.0472531, 0, 0.2753893)
+
+[node name="GuardChairSeat" type="MeshInstance3D" parent="GuardChair2" unique_id=879625973]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("RM01")
+surface_material_override/0 = SubResource("MAT_seat")
+
+[node name="GuardChairBack" type="MeshInstance3D" parent="GuardChair2" unique_id=261896212]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.67, 0.17)
+mesh = SubResource("RM02")
+surface_material_override/0 = SubResource("MAT_seat")
+
+[node name="GuardChairPost" type="MeshInstance3D" parent="GuardChair2" unique_id=488140943]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, 0)
+mesh = SubResource("RM03")
+surface_material_override/0 = SubResource("MAT_leg")
+
+[node name="GuardChairFoot" type="MeshInstance3D" parent="GuardChair2" unique_id=1922486715]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("RM04")
+surface_material_override/0 = SubResource("MAT_leg")
+
 [node name="GuardKeyboard" type="MeshInstance3D" parent="." unique_id=888553402]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0.94, -1.95)
 mesh = SubResource("RM05")
@@ -277,52 +300,52 @@ mesh = SubResource("RM09")
 surface_material_override/0 = SubResource("MAT_amber")
 
 [node name="SecDeskTop" type="MeshInstance3D" parent="." unique_id=1053543748]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.8, 0.25)
+transform = Transform3D(-0.00408514, 0, 0.99999166, 0, 1, 0, -0.99999166, 0, -0.00408514, -2.4785254, 0.8, 0.27320385)
 mesh = SubResource("RM10")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="SecDeskLegA" type="MeshInstance3D" parent="." unique_id=534598039]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.39, 0.72)
+transform = Transform3D(-0.00408514, 0, 0.99999166, 0, 1, 0, -0.99999166, 0, -0.00408514, -2.4804454, 0.39, -0.19679227)
 mesh = SubResource("RM11")
 surface_material_override/0 = SubResource("MAT_leg")
 
 [node name="SecDeskLegB" type="MeshInstance3D" parent="." unique_id=787395958]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 2.05, 0.39, -0.22)
+transform = Transform3D(-0.00408514, 0, 0.99999166, 0, 1, 0, -0.99999166, 0, -0.00408514, -2.4766054, 0.39, 0.74319994)
 mesh = SubResource("RM12")
 surface_material_override/0 = SubResource("MAT_leg")
 
 [node name="SecScreen" type="MeshInstance3D" parent="." unique_id=1982250809]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 1.12, 0.25)
+transform = Transform3D(-0.99999166, 0, -0.00408514, 0, 1, 0, 0.00408514, 0, -0.99999166, -2.7285233, 1.12, 0.27422515)
 mesh = SubResource("RM13")
 surface_material_override/0 = SubResource("MAT_screen")
 
 [node name="SecKeypad" type="MeshInstance3D" parent="." unique_id=488055974]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.02, 0.84, 0.05)
+transform = Transform3D(-0.99999166, 0, -0.00408514, 0, 1, 0, 0.00408514, 0, -0.99999166, -2.4477088, 0.84, 0.47307962)
 mesh = SubResource("RM14")
 surface_material_override/0 = SubResource("MAT_dark")
 
 [node name="SecDocTray" type="MeshInstance3D" parent="." unique_id=1255636744]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.02, 0.86, 0.52)
+transform = Transform3D(-0.99999166, 0, -0.00408514, 0, 1, 0, 0.00408514, 0, -0.99999166, -2.449629, 0.86, 0.003083557)
 mesh = SubResource("RM15")
 surface_material_override/0 = SubResource("MAT_paper")
 
 [node name="SecGearRack" type="MeshInstance3D" parent="." unique_id=22348659]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.62, 0.65, -1.5)
+transform = Transform3D(-0.009893538, 0, 0.99995106, 0, 1, 0, -0.99995106, 0, -0.009893538, 1.5237844, 0.65, -2.5701044)
 mesh = SubResource("RM16")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="SecGearItem0" type="MeshInstance3D" parent="." unique_id=663233256]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.44, 0.35, -1.5)
+transform = Transform3D(-0.009893538, 0, 0.99995106, 0, 1, 0, -0.99995106, 0, -0.009893538, 1.5255651, 0.35, -2.390113)
 mesh = SubResource("RM17")
 surface_material_override/0 = SubResource("MAT_dark")
 
 [node name="SecGearItem1" type="MeshInstance3D" parent="." unique_id=1449648559]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.44, 0.75, -1.5)
+transform = Transform3D(-0.009893538, 0, 0.99995106, 0, 1, 0, -0.99995106, 0, -0.009893538, 1.5255651, 0.75, -2.390113)
 mesh = SubResource("RM18")
 surface_material_override/0 = SubResource("MAT_dark")
 
 [node name="SecGearItem2" type="MeshInstance3D" parent="." unique_id=281399587]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.44, 1.15, -1.5)
+transform = Transform3D(-0.009893538, 0, 0.99995106, 0, 1, 0, -0.99995106, 0, -0.009893538, 1.5255651, 1.15, -2.390113)
 mesh = SubResource("RM19")
 surface_material_override/0 = SubResource("MAT_dark")
 
@@ -347,6 +370,6 @@ mesh = SubResource("RM23")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="GuardFloorLine" type="MeshInstance3D" parent="." unique_id=1075710086]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 1.1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 1.3960464)
 mesh = SubResource("RM24")
 surface_material_override/0 = SubResource("MAT_amber")

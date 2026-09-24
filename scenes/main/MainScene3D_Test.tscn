@@ -984,6 +984,7 @@ surface_material_override/0 = SubResource("Mat_MonitorStand")
 
 [node name="M01_BezelLabel" type="Label3D" parent="ControlRoom/Monitor01" unique_id=438671256]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
+visible = false
 pixel_size = 0.0007
 modulate = Color(0.7, 0.7, 0.72, 1)
 text = "MONITOR 01  —  FACILITY"
@@ -1029,6 +1030,7 @@ surface_material_override/0 = SubResource("Mat_MonitorStand")
 
 [node name="M02_BezelLabel" type="Label3D" parent="ControlRoom/Monitor02" unique_id=2105423420]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
+visible = false
 pixel_size = 0.0007
 modulate = Color(0.7, 0.7, 0.72, 1)
 text = "MONITOR 02  —  CCTV"
@@ -1050,7 +1052,7 @@ spot_angle = 50.0
 spot_angle_attenuation = 0.4
 
 [node name="Keyboard" type="MeshInstance3D" parent="ControlRoom" unique_id=1690353115]
-transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0, 0.762, -0.42)
+transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0.011912666, 0.762, -0.42)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 

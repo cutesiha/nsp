@@ -117,7 +117,7 @@ size = Vector3(0.42, 0.4, 0.06)
 [sub_resource type="CylinderMesh" id="RM15"]
 top_radius = 0.035
 bottom_radius = 0.035
-height = 0.38
+height = 0.62359375
 radial_segments = 8
 rings = 0
 
@@ -333,6 +333,29 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
 mesh = SubResource("RM16")
 surface_material_override/0 = SubResource("MAT_steel")
 
+[node name="AsmChair2" type="Node3D" parent="." unique_id=1931316306]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2731825, 0, -1.6345538)
+
+[node name="AsmChairSeat" type="MeshInstance3D" parent="AsmChair2" unique_id=486633565]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6551412, 0)
+mesh = SubResource("RM13")
+surface_material_override/0 = SubResource("MAT_seat")
+
+[node name="AsmChairBack" type="MeshInstance3D" parent="AsmChair2" unique_id=368836600]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8851412, 0.16999996)
+mesh = SubResource("RM14")
+surface_material_override/0 = SubResource("MAT_seat")
+
+[node name="AsmChairPost" type="MeshInstance3D" parent="AsmChair2" unique_id=943794858]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.31179687, 0)
+mesh = SubResource("RM15")
+surface_material_override/0 = SubResource("MAT_steel")
+
+[node name="AsmChairFoot" type="MeshInstance3D" parent="AsmChair2" unique_id=2092498343]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("RM16")
+surface_material_override/0 = SubResource("MAT_steel")
+
 [node name="AsmPart" type="MeshInstance3D" parent="." unique_id=2008417831]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0.83, -1.66)
 mesh = SubResource("RM17")
@@ -359,22 +382,22 @@ mesh = SubResource("RM21")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="MaintShelf" type="MeshInstance3D" parent="." unique_id=929897417]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0.6, 0.85)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7134562, 0.6, 0.85)
 mesh = SubResource("RM22")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="MaintShelfBox0" type="MeshInstance3D" parent="." unique_id=1846461383]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0.35, 0.55)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.131917, 0.1130003, 0.55)
 mesh = SubResource("RM23")
 surface_material_override/0 = SubResource("MAT_crateW")
 
 [node name="MaintShelfBox1" type="MeshInstance3D" parent="." unique_id=292014739]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 0.75, 1.1)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.8109405, 1.2860143, 1.1)
 mesh = SubResource("RM24")
 surface_material_override/0 = SubResource("MAT_crateW")
 
 [node name="MaintShelfBox2" type="MeshInstance3D" parent="." unique_id=181880480]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.6, 1.15, 0.55)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.7134562, 1.15, 0.55)
 mesh = SubResource("RM25")
 surface_material_override/0 = SubResource("MAT_crateW")
 

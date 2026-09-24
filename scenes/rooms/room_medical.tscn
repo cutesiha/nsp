@@ -180,12 +180,14 @@ size = Vector3(1.1, 0.03, 0.04)
 [sub_resource type="BoxMesh" id="RM26"]
 size = Vector3(0.14, 0.5, 0.03)
 
-[sub_resource type="StandardMaterial3D" id="MAT_red"]
-albedo_color = Color(0.78, 0.18, 0.16, 1)
-roughness = 0.7
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2xho0"]
+albedo_color = Color(0.6039216, 0.9647059, 0.6, 1)
 
 [sub_resource type="BoxMesh" id="RM27"]
 size = Vector3(0.5, 0.14, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_jmcsq"]
+albedo_color = Color(0.6039216, 0.9647059, 0.6, 1)
 
 [sub_resource type="BoxMesh" id="RM28"]
 size = Vector3(0.34, 0.26, 0.2)
@@ -245,7 +247,6 @@ omni_range = 6.0
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, -0.2)
 script = ExtResource("1_spot")
 SpotId = "MedicalBedSpot1"
-SupportedTaskIds = PackedStringArray()
 AnimationName = "lying_idle"
 Priority = 20
 IsSeated = true
@@ -255,7 +256,6 @@ SeatHeight = 0.66
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.95, 0, -0.2)
 script = ExtResource("1_spot")
 SpotId = "MedicalBedSpot2"
-SupportedTaskIds = PackedStringArray()
 AnimationName = "lying_idle"
 Priority = 18
 IsSeated = true
@@ -403,12 +403,12 @@ surface_material_override/0 = SubResource("MAT_steel")
 [node name="MedCrossV" type="MeshInstance3D" parent="." unique_id=1507671035]
 transform = Transform3D(0.034590065, 0, 0.7640271, 0, 1.7740897, 0, -1.8907161, 0, 0.013977651, -2.916525, 2.1390896, -0.03340888)
 mesh = SubResource("RM26")
-surface_material_override/0 = SubResource("MAT_red")
+surface_material_override/0 = SubResource("StandardMaterial3D_2xho0")
 
 [node name="MedCrossH" type="MeshInstance3D" parent="." unique_id=260703028]
 transform = Transform3D(0.034590065, 0, 0.7640271, 0, 1.7740897, 0, -1.8907161, 0, 0.013977651, -2.916525, 2.1390896, -0.03340888)
 mesh = SubResource("RM27")
-surface_material_override/0 = SubResource("MAT_red")
+surface_material_override/0 = SubResource("StandardMaterial3D_jmcsq")
 
 [node name="MedMonitorBody" type="MeshInstance3D" parent="." unique_id=848693033]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 1.25, -2.4)
