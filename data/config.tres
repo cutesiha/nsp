@@ -29,7 +29,13 @@ IsolationCapacity = 1
 SaboteurDecisionIntervalSeconds = 4.0
 SaboteurSabotageChance = 0.35
 KillAttemptChance = 0.3
-SabotageTaskGaugeLoss = 5.0
+; 방해공작 1회 피해 — 전부 이전의 두 배다.
+; 결번자를 찾아 격리해도 이득이 없던 것이 이유다(격리하면 인원이 6→5 로 줄어
+; 코어 복구가 더 느려지는데, 막아 낸 방해공작은 하루 0.5~2% 뿐이었다).
+SabotageTaskGaugeLoss = 10.0
+SabotageCoreLoss = 6.0
+SabotageCoreLossBlackout = 8.0
+SabotageMaterialLoss = 8
 SurveillanceSaboteurChanceMultiplier = 0.6
 MaterialsPerCoreGauge = 2
 ResolvedTaskDisplaySeconds = 2.5
