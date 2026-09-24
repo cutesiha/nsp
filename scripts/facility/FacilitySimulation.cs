@@ -2211,7 +2211,9 @@ public partial class FacilitySimulation : Node
                     float facility = st.IsRepair ? 1f : RoomStaffing.FacilityOutput();
                     float rate = baseRate * RoomStaffing.Efficiency(st.RoomId) * crew * facility * tabooPenalty;
                     st.Gauge += rate * delta;
+                    st.LastRate = rate;   // 표시 전용
                 }
+                else st.LastRate = 0f;
             }
 
             if (st.Gauge >= st.GaugeRequired)
@@ -2300,6 +2302,11 @@ public partial class FacilitySimulation : Node
                 }
                 GameState.Instance.AddMaterials((int)task.EffectAmount);
                 badge += $" · 📦 자재 +{task.EffectAmount:0}";
+                // 표시: HUD 자재 숫자가 한 번 튀고 · 미니맵 정비실이 밝아지고 · 로그에 한 줄.
+                RoomEffectStats.MaterialsToday += (int)task.EffectAmount;
+                RoomEffectStats.Pulse(roomId);
+                RoomEffectStats.MaterialsGained?.Invoke();
+                RoomEffectLog.NoteMaterials(roomId, (int)task.EffectAmount);
                 break;
             case TaskEffectType.AddCoreProgress:
                 // 코어 출력 불안정(사고) 중에는 복구가 아예 진행되지 않는다.

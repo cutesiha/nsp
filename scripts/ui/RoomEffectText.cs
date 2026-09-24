@@ -43,9 +43,12 @@ public static class RoomEffectText
             {
                 var task = sim.GetPrimarySpawnedTask(roomId);
                 var def = task == null ? null : sim.GetTaskDef(task.TaskId);
-                string next = def != null && def.EffectType == TaskEffectType.AddMaterials
-                    ? $" · 다음 생산까지 {Mathf.Max(0f, def.GaugeRequired - task.Gauge):0}초"
-                    : "";
+                string next = "";
+                if (def is { EffectType: TaskEffectType.AddMaterials } && task.Status == SpawnedTaskStatus.Active)
+                    // 남은 게이지 ÷ 지금 속도. 아무도 없으면 속도가 0 이라 "정지" 로 읽힌다.
+                    next = task.LastRate > 0.01f
+                        ? $" · 다음 생산까지 {Mathf.Max(0f, task.GaugeRequired - task.Gauge) / task.LastRate:0}초"
+                        : " · 정지";
                 return $"자재 생산 +{RoomEffectStats.MaterialsToday}개 오늘{next}";
             }
 

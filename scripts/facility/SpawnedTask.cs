@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace NSP.Facility;
 
@@ -42,6 +42,10 @@ public class SpawnedTask
     // 이번 틱에 실제로 게이지가 찼는가(최소 인원을 채웠고 자재도 막히지 않음).
     // 화면 표시 전용 — 시뮬레이션 판정에는 쓰지 않는다.
     public bool Progressing;
+
+    // 마지막으로 계산된 초당 게이지 증가량. 표시 전용이다 — 방 카드가
+    // "다음 생산까지 몇 초" 를 지금 속도 기준으로 환산하는 데만 쓴다.
+    public float LastRate;
 
     public float Remaining => System.Math.Max(0f, TimeLimitSeconds - Elapsed);
     public float Ratio => GaugeRequired > 0f ? Gauge / GaugeRequired : 0f;

@@ -80,6 +80,7 @@ public partial class FacilityMonitorView : Control
             EventLog.Instance.EntryLogged -= OnLog;
         }
         FacilityAlertHud.Noticed -= OnNotice;
+        NSP.Facility.RoomEffectStats.MaterialsGained -= PopMaterials;
         if (Instance == this) Instance = null;
     }
 
@@ -135,7 +136,10 @@ public partial class FacilityMonitorView : Control
         _protocol.Position = new Vector2(400, 44);
         _protocol.Size = new Vector2(394, 24);
         _protocol.HorizontalAlignment = HorizontalAlignment.Right;
+        // 오른쪽 끝을 축으로 커졌다 돌아온다 — 숫자가 제자리에서 튀어 보인다.
+        _protocol.PivotOffset = new Vector2(394f, 12f);
         AddChild(_protocol);
+        RoomEffectStats.MaterialsGained += PopMaterials;
     }
 
     private void BuildBody()
@@ -383,6 +387,20 @@ public partial class FacilityMonitorView : Control
 
     // 방 이름이나 직원 이름에 대괄호가 들어가도 BBCode 태그로 읽히지 않게 한다.
     private static string Escape(string text) => (text ?? "").Replace("[", "[lb]");
+
+    // 자재가 늘어난 순간 자재 숫자가 0.2초 동안 커졌다 돌아온다.
+    // 정비실이 지금 무엇을 만들어 내고 있는지 눈이 먼저 안다.
+    private Tween _materialsPop;
+
+    private void PopMaterials()
+    {
+        if (_protocol == null || !IsInsideTree()) return;
+        _materialsPop?.Kill();
+        _protocol.Scale = new Vector2(1.16f, 1.16f);
+        _materialsPop = CreateTween();
+        _materialsPop.TweenProperty(_protocol, "scale", Vector2.One, 0.2)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+    }
 
     // 성능: RichTextLabel 에 Text 를 대입하면 내용이 같아도 BBCode 를 다시 파싱하고
     // 레이아웃을 다시 잡는다. 매 프레임 그 비용을 내지 않도록 바뀔 때만 대입한다.

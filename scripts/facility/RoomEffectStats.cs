@@ -23,6 +23,9 @@ public static class RoomEffectStats
     // 시뮬레이션이 화면을 직접 알지 않도록 여기를 거쳐 간다.
     public static System.Action<string> RoomWorked;
 
+    // 자재가 방금 늘었다 — 화면 위 자재 숫자가 한 번 커졌다 돌아온다.
+    public static System.Action MaterialsGained;
+
     // 실내 조명을 한 번 깜빡여 달라는 요청(발전실 출력 저하). 3D 중앙제어실이 받는다.
     public static System.Action LightFlickerRequested;
 
