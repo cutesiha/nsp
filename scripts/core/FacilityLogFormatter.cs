@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using NSP.Data;
@@ -120,6 +120,8 @@ public static class FacilityLogFormatter
         LogEventType.AnomalyDispelled => Row(e, Pipe(e.Description), DisplayLogSeverity.Recovery),
         LogEventType.AnomalyIncident => Row(e, Pipe(e.Description), DisplayLogSeverity.Critical),
         LogEventType.Argument => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),
+        // 작업실이 제 일을 해낸 순간. 원문이 이미 "작업실 — 내용" 형태라 그대로 다듬는다.
+        LogEventType.RoomEffect => RoomEffect(e),
         LogEventType.Death => Death(e, s),
         LogEventType.Isolation => Isolation(e, s),
         LogEventType.FalseOrderFollowed => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),
@@ -229,11 +231,26 @@ public static class FacilityLogFormatter
         if (d.Contains("기능 복구") || d.Contains("⚡"))
             return Row(e, Pipe(d), DisplayLogSeverity.Recovery);
         // 경비 순찰 — "그 시각 그 방에 누가 있었나"는 심문에서 그대로 근거가 된다.
+        // 경비실이 만들어 낸 기록이므로 방 효과 색(경비실 색)으로 쓴다.
         if (d.Contains("순찰 기록"))
-            return Row(e, Pipe(d), DisplayLogSeverity.Normal);
+        {
+            // 원문 "경비 순찰 기록 — 정비실 : 여우, 늑대" → "경비 순찰 · 정비실 | 여우, 늑대"
+            string body = Strip(d).Replace("경비 순찰 기록 — ", "경비 순찰 · ").Replace(" : ", " | ");
+            var patrol = Row(e, body, DisplayLogSeverity.RoomEffect);
+            if (patrol != null) patrol.RoomId = e.RoomId;
+            return patrol;
+        }
         if (d.Contains("⚠"))
             return Row(e, Pipe(d), DisplayLogSeverity.Warning);
         return null;
+    }
+
+    // 작업실 효과 한 줄. 어느 방이 낸 결과인지를 함께 실어 화면이 그 방 색으로 쓰게 한다.
+    private static DisplayLogEntry RoomEffect(LogEntry e)
+    {
+        var row = Row(e, Pipe(e.Description), DisplayLogSeverity.RoomEffect);
+        if (row != null) row.RoomId = e.RoomId;
+        return row;
     }
 
     // 실제로 설비가 망가진 순간. 경고보다 한 단계 더 눈에 띈다.

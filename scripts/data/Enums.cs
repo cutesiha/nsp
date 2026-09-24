@@ -1,4 +1,4 @@
-namespace NSP.Data;
+﻿namespace NSP.Data;
 
 public enum GamePhase
 {
@@ -165,4 +165,8 @@ public enum LogEventType
     // 설비 고장(TaskFailed)과 **따로 둔다** — 원인이 다르고, 막는 방법도 다르기 때문이다.
     // 사람이 저지른 일이 아니므로 심문의 주제(DialogueContextBuilder.IsIncident)도 되지 않는다.
     AnomalyIncident,
+    // 작업실이 실제로 일을 해낸 순간(자재 +1, 코어 +1%, 경비 기록, 환기 재개 등).
+    // 표시 전용이다 — 시뮬레이션은 이 기록을 읽지 않고, 심문 자료도 되지 않는다.
+    // 화면에서는 그 방의 RoomDef.MapColor 로 써서 경고/사고 색과 겹치지 않게 한다.
+    RoomEffect,
 }

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using Godot;
 using NSP.Core;
@@ -369,6 +369,21 @@ public partial class FacilityMonitorView : Control
             _alertLine.Modulate = new Color(1, 1, 1, 0.4f + 0.6f * Mathf.Abs(Mathf.Sin(Time.GetTicksMsec() / 120f)));
     }
 
+    // DAY0 교육에서 "이 줄을 보라"고 한 번 짚어 주기 위한 강조. 그 방을 처음 배치한
+    // 직후 몇 초 동안만 (a) 줄이 노랗게 뜬다. 게임 규칙과는 무관한 표시 장치다.
+    private static string _highlightRoom = "";
+    private static float _highlightUntil;
+    private static bool HighlightAlive => Time.GetTicksMsec() / 1000f < _highlightUntil;
+
+    public static void HighlightRoomNumber(string roomId, float seconds = 6f)
+    {
+        _highlightRoom = roomId ?? "";
+        _highlightUntil = Time.GetTicksMsec() / 1000f + seconds;
+    }
+
+    // 방 이름이나 직원 이름에 대괄호가 들어가도 BBCode 태그로 읽히지 않게 한다.
+    private static string Escape(string text) => (text ?? "").Replace("[", "[lb]");
+
     // 성능: RichTextLabel 에 Text 를 대입하면 내용이 같아도 BBCode 를 다시 파싱하고
     // 레이아웃을 다시 잡는다. 매 프레임 그 비용을 내지 않도록 바뀔 때만 대입한다.
     private string _inspectorCache;
@@ -514,11 +529,24 @@ public partial class FacilityMonitorView : Control
             // (그래서 구분선이 여러 개처럼 보였다).
             string rule = $"[font_size={ViewFont.S(10)}][color=#3f5f55]" + new string('─', 30) + "[/color][/font_size]";
             string desc = NSP.Ui.RoomDetailCard.Descriptions.TryGetValue(_selRoom, out var d0) ? d0 : "";
+
+            // 이 방이 지금 무엇을 만들어 내고 있는가(한 줄), 그리고 비어서 무엇을 잃고
+            // 있는가(붉은 한 줄). 둘 다 시뮬레이션 값을 읽어 문장으로 옮긴 것뿐이다.
+            string headline = NSP.Ui.RoomEffectText.Headline(_selRoom);
+            string idle = NSP.Ui.RoomEffectText.Idle(_selRoom);
+            string headCol = _highlightRoom == _selRoom && HighlightAlive ? "#ffe27a" : "#cfe8dd";
+            string headLine = string.IsNullOrEmpty(headline) ? ""
+                : $"[font_size={ViewFont.S(17)}][color={headCol}]{Escape(headline)}[/color][/font_size]\n";
+            string idleLine = string.IsNullOrEmpty(idle) ? ""
+                : $"[font_size={ViewFont.S(15)}][color=#ff7566]{Escape(idle)}[/color][/font_size]\n";
+
             SetInspector(
                 $"[font_size={ViewFont.S(27)}][b]{def.DisplayName}[/b][/font_size]\n" +
                 rule + "\n" +
                 (string.IsNullOrEmpty(desc) ? "" :
-                    $"[font_size={ViewFont.S(15)}][color=#8fa8a0]{desc}[/color][/font_size]\n" + rule + "\n") +
+                    $"[font_size={ViewFont.S(15)}][color=#8fa8a0]{desc}[/color][/font_size]\n") +
+                headLine + idleLine +
+                rule + "\n" +
                 $"상태 : [color={statusCol}]{statusLabel}[/color]\n" +
                 $"진행 : [color=#9ee6c4]{bar}[/color]\n" +
                 "직원 :");

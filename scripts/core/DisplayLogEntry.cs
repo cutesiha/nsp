@@ -1,4 +1,4 @@
-using NSP.Data;
+﻿using NSP.Data;
 
 namespace NSP.Core;
 
@@ -12,6 +12,9 @@ public enum DisplayLogSeverity
     Critical, // 위험 — 실제 고장, 금기 위반, 전력 손실, 사망
     Sabotage, // 방해공작 — 다른 무엇보다 먼저 눈에 들어와야 한다
     Recovery, // 복구 / 안정화 완료
+    // 작업실이 제 일을 해낸 순간 — 그 방의 RoomDef.MapColor 로 쓴다.
+    // 경고(주황)·사고(빨강)와 색이 겹치지 않아야 눈으로 갈라진다.
+    RoomEffect,
 }
 
 public sealed class DisplayLogEntry
@@ -29,4 +32,7 @@ public sealed class DisplayLogEntry
     public string ToRoomId = "";
     // 관리자가 지시한 이동인가(false = 직원이 스스로 움직인 것으로 보인다).
     public bool PlayerOrdered;
+
+    // 이 줄이 특정 작업실의 효과면 그 방 id. 화면이 RoomDef.MapColor 를 찾는 데만 쓴다.
+    public string RoomId = "";
 }

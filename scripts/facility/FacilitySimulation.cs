@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -849,6 +849,9 @@ public partial class FacilitySimulation : Node
     // (직원 위치/생존/코어 진행도 등 GameState 전체 리셋은 기존 미구현 이슈로 별도.)
     public void ResetForNewShift()
     {
+        // 표시용 집계는 근무 단위다 — 새 근무가 시작되면 0 부터 다시 센다.
+        RoomEffectStats.ResetDay();
+        RoomEffectLog.ResetDay();
         _activeTasks.Clear();
         _scheduleCursor = 0;
         _scheduleJitter.Clear();
@@ -963,6 +966,8 @@ public partial class FacilitySimulation : Node
         TickGuardPatrol(d);
         TickOffPostRecords(d);
         TickCctvObservation(d);
+        // 표시 전용 — 모아 둔 작업실 효과 줄을 시간이 되면 내보낸다.
+        RoomEffectLog.Tick(d);
     }
 
     // 고정 스케줄에 따라 시간이 되면 업무를 발생시킨다.
@@ -2268,6 +2273,11 @@ public partial class FacilitySimulation : Node
                 GameState.Instance.AddMaterials(-consumed);
                 GameState.Instance.AddCoreProgress(task.EffectAmount, task.DisplayName);
                 badge += $" · 코어 +{task.EffectAmount:0}% · 📦 자재 -{consumed}";
+                // 표시: 코어 게이지 옆 "+1%" · 미니맵 코어실 점멸 · 오늘 복구량 집계.
+                RoomEffectStats.CoreUpToday += task.EffectAmount;
+                RoomEffectStats.Pulse(roomId);
+                RoomEffectLog.NoteCore(roomId, task.EffectAmount);
+                NSP.Ui.FacilityAlertHud.Instance?.ShowCoreGain(task.EffectAmount);
                 break;
             case TaskEffectType.RaiseMaterialsCap:
                 // 저장고: 자재 보유 한도를 올린다(Config.MaterialsCapMax 상한).

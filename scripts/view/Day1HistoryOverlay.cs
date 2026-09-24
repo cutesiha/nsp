@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Core;
@@ -874,6 +874,14 @@ public partial class Day1HistoryOverlay : CanvasLayer
             case DisplayLogSeverity.Critical: return LogCritical;
             case DisplayLogSeverity.Sabotage: return LogSabotage;
             case DisplayLogSeverity.Recovery: return LogRecovery;
+            // 작업실 효과는 그 방의 지도 색으로 쓴다 — 어느 방이 일하고 있는지가
+            // 문장을 읽기 전에 색으로 먼저 들어온다.
+            case DisplayLogSeverity.RoomEffect:
+            {
+                var rdef = FacilitySimulation.Instance?.GetRoomDef(row.RoomId);
+                if (rdef != null) return Readable(rdef.MapColor);
+                return LogNormal;
+            }
         }
         // 배치·이동은 누구의 줄인지가 먼저 읽혀야 하므로 그 직원의 고유색으로 쓴다.
         if (!string.IsNullOrEmpty(row.RelatedEmployeeId))
@@ -901,6 +909,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         DisplayLogSeverity.Critical => "⚠",
         DisplayLogSeverity.Sabotage => "■",
         DisplayLogSeverity.Recovery => "✓",
+        DisplayLogSeverity.RoomEffect => "◆",
         _ => "·",
     };
 

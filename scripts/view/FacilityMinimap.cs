@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -47,6 +47,33 @@ public partial class FacilityMinimap : Control
     private const float PopupRise = 18f;
     private readonly List<(string RoomId, string Text, float Age)> _popups = new();
 
+    // 방 효과 점멸 — 그 방이 실제로 일을 해낸 순간 상자가 방 색으로 한 번 밝아진다.
+    // 한 방에 초당 한 번까지만 튄다(순찰이 12초 주기라 이 제한에 걸릴 일은 거의 없지만,
+    // 자재 생산과 코어 복구가 같은 초에 겹치면 화면이 번쩍이는 것을 막는다).
+    private const float FlashSeconds = 0.55f;
+    private const float FlashMinGap = 1.0f;
+    private readonly Dictionary<string, float> _flashAge = new();
+    private readonly Dictionary<string, Color> _flashInk = new();
+    private readonly Dictionary<string, float> _flashLastAt = new();
+
+    // 그 방 상자를 한 번 밝힌다. ink 를 비워 두면 그 방의 지도 색을 쓴다.
+    public void FlashRoom(string roomId, Color? ink = null)
+    {
+        if (string.IsNullOrEmpty(roomId) || !Layout.ContainsKey(roomId)) return;
+        float now = Time.GetTicksMsec() / 1000f;
+        if (now - _flashLastAt.GetValueOrDefault(roomId, -99f) < FlashMinGap) return;
+        _flashLastAt[roomId] = now;
+        _flashAge[roomId] = 0f;
+        _flashInk[roomId] = ink ?? FacilitySimulation.Instance?.GetRoomDef(roomId)?.MapColor
+            ?? new Color(0.6f, 0.8f, 0.75f);
+    }
+
+    // 환기 재개처럼 시설 전체에 걸리는 효과 — 근무 중인 방들을 한꺼번에 물들인다.
+    public void FlashAllRooms(Color ink)
+    {
+        foreach (var roomId in Layout.Keys) FlashRoom(roomId, ink);
+    }
+
     public override void _Ready()
     {
         _font = ViewFont.Default;
@@ -55,11 +82,17 @@ public partial class FacilityMinimap : Control
         // 끌어다 놓기는 _GuiInput 밖(루트 _Input)에서 이동/뗌을 받아야 한다.
         SetProcessInput(true);
         if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged += OnLogEntry;
+        RoomEffectStats.RoomWorked += OnRoomWorked;
     }
+
+    // 그 작업실이 방금 제 일을 해냈다. 로그가 아니라 이 신호로 받는 이유는,
+    // 로그 줄은 10초씩 모았다 나가지만 점멸은 그 순간에 보여야 하기 때문이다.
+    private void OnRoomWorked(string roomId) => FlashRoom(roomId);
 
     public override void _ExitTree()
     {
         if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged -= OnLogEntry;
+        RoomEffectStats.RoomWorked -= OnRoomWorked;
     }
 
     private void OnLogEntry()
@@ -95,6 +128,13 @@ public partial class FacilityMinimap : Control
             p.Age += (float)delta;
             if (p.Age >= PopupSeconds) _popups.RemoveAt(i); else _popups[i] = p;
         }
+        if (_flashAge.Count > 0)
+            foreach (var roomId in _flashAge.Keys.ToList())
+            {
+                float age = _flashAge[roomId] + (float)delta;
+                if (age >= FlashSeconds) { _flashAge.Remove(roomId); _flashInk.Remove(roomId); }
+                else _flashAge[roomId] = age;
+            }
         var sim = FacilitySimulation.Instance;
         if (sim != null)
         {
@@ -217,6 +257,16 @@ public partial class FacilityMinimap : Control
             },
         };
         DrawRect(box, fill);
+
+        // 방 효과 점멸 — 방 색이 상자 위에 잠깐 덮였다가 빠진다. 사고 색(빨강/주황)을
+        // 지우지 않도록 알파로만 얹는다.
+        if (_flashAge.TryGetValue(roomId, out float flashAge))
+        {
+            float k = 1f - flashAge / FlashSeconds;
+            var ink = _flashInk.GetValueOrDefault(roomId, def.MapColor);
+            DrawRect(box, new Color(ink.R, ink.G, ink.B, 0.55f * k));
+            DrawRect(box.Grow(1.5f), new Color(ink.R, ink.G, ink.B, k), false, 2f);
+        }
 
         bool selected = roomId == SelectedRoomId;
         Color border = selected ? new Color(0.5f, 1f, 0.85f) : new Color(0.3f, 0.4f, 0.38f);

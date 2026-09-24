@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using NSP.Core;
 using NSP.Data;
 using NSP.View;
@@ -52,6 +52,7 @@ public partial class FacilityAlertHud : CanvasLayer
     private Panel _banner;
     private Label _bannerText;
     private Label _coreLoss;
+    private Label _coreGain;
 
     public override void _Ready()
     {
@@ -156,6 +157,25 @@ public partial class FacilityAlertHud : CanvasLayer
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         t.TweenProperty(_coreLoss, "modulate:a", 0f, 1.5).SetDelay(0.6);
         t.Chain().TweenCallback(Callable.From(() => _coreLoss.Visible = false));
+    }
+
+    // 코어 복구가 실제로 올라간 순간 그 증가분을 잠깐 띄운다.
+    // 감소 표시(_coreLoss)와 같은 자리, 반대 방향으로 떠오른다 — 둘이 동시에 떠도
+    // 서로의 트윈을 건드리지 않도록 라벨은 따로 둔다.
+    public void ShowCoreGain(float amount)
+    {
+        if (_coreGain == null || amount <= 0.01f) return;
+        _coreGain.Text = $"+{amount:0.#}%";
+        _coreGain.Visible = true;
+        _coreGain.Modulate = new Color(1f, 1f, 1f, 1f);
+        _coreGain.Position = new Vector2(_coreGain.Position.X, CoreLossTop);
+
+        var t = CreateTween();
+        t.SetParallel(true);
+        t.TweenProperty(_coreGain, "position:y", CoreLossTop - 20f, 1.2)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        t.TweenProperty(_coreGain, "modulate:a", 0f, 1.2).SetDelay(0.4);
+        t.Chain().TweenCallback(Callable.From(() => _coreGain.Visible = false));
     }
 
     // --- 연출 ---------------------------------------------------------------
@@ -263,6 +283,23 @@ public partial class FacilityAlertHud : CanvasLayer
         _coreLoss.AddThemeColorOverride("font_outline_color", new Color(0.12f, 0f, 0f));
         _coreLoss.AddThemeConstantOverride("outline_size", 6);
         AddChild(_coreLoss);
+
+        // 증가 표시 — 같은 자리, 코어실 지도 색과 같은 계열의 파랑.
+        _coreGain = new Label
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            AnchorLeft = 0.5f, AnchorRight = 0.5f,
+            OffsetLeft = 296f, OffsetRight = 456f,
+            Position = new Vector2(296f, CoreLossTop),
+            Visible = false,
+        };
+        _coreGain.AddThemeFontOverride("font", ViewFont.Default);
+        _coreGain.AddThemeFontSizeOverride("font_size", ViewFont.FS(26));
+        _coreGain.AddThemeColorOverride("font_color", new Color(0.42f, 0.86f, 1f));
+        _coreGain.AddThemeColorOverride("font_outline_color", new Color(0f, 0.06f, 0.12f));
+        _coreGain.AddThemeConstantOverride("outline_size", 6);
+        AddChild(_coreGain);
 
         // 왼쪽 아래 — 기록창 버튼(오른쪽 아래)과 겹치지 않는 자리.
         _notices = new VBoxContainer
