@@ -261,6 +261,12 @@ public partial class DayScheduleTest : Node
         _sim.RollDailyMoods();
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.TodayTabooIds());
 
+        // 탐정 대역: 지난 휴게시간에 결번자를 격리해 둔 상태로 근무를 시작한다.
+        //
+        // **배치보다 먼저** 해야 한다. 순서가 뒤바뀌면 결번자가 자리를 하나 차지한 뒤
+        // 격리돼, 그 자리가 빈 채로 근무가 돌아간다(예비가 들어갈 기회를 잃는다).
+        if (isolateSaboteur && !string.IsNullOrEmpty(saboteurId)) _sim.IsolateEmployee(saboteurId);
+
         // 고정 슬롯 다섯 자리. 여섯 번째 사람은 예비다.
         //
         // 자리마다 주인이 정해져 있고, 그 사람이 격리돼 못 나오면 **그 자리에만** 예비를
@@ -282,9 +288,6 @@ public partial class DayScheduleTest : Node
             used.Add(who);
             _sim.AssignToRoom(who, slots[slot]);
         }
-
-        // 탐정 대역: 지난 휴게시간에 결번자를 격리해 둔 상태로 근무를 시작한다.
-        if (isolateSaboteur && !string.IsNullOrEmpty(saboteurId)) _sim.IsolateEmployee(saboteurId);
 
         _sim.ResetForNewShift();
         GameState.Instance.SetPhase(GamePhase.Live);
