@@ -180,6 +180,8 @@ public partial class DialogueSampleDump : Node
         var idleSt = _sim.GetEmployeeState(idle);
         idleSt.AssignedRoomId = "";
         idleSt.CurrentRoomId = _sim.GetEmployeeDef(idle)?.StartRoomId ?? Storage;
+        // BeginShift 와 같다 — 로그를 비운 뒤 근무 시작 배치를 따로 적어 둔다.
+        _sim.RecordShiftStart();
 
         // 22:10 코어실 설비 고장 — 여우 혼자 봤다.
         Log(LogEventType.TaskFailed, "", Core, At(10), witnesses: new[] { moved });
@@ -562,7 +564,8 @@ public partial class DialogueSampleDump : Node
     {
         Log(LogEventType.Relocation, id, to, at, $"{Nm(id)} → {RoomName(to)} 배치");
         Move(id, from, to, at + 2f * DialogueClock.SecondsPerMinute);
-        var mates = Ids.Where(o => o != id && DialogueContextBuilder.RoomAt(o, 1, at) == to).ToArray();
+        // 같이 일을 시작하는 사람 = 그 방에서 근무 중인 사람(게임의 TaskStart 도 근무자만 적는다).
+        var mates = DialogueContextBuilder.OccupantsAt(to, 1, at, id).ToArray();
         Log(LogEventType.TaskStart, id, to, at + 3f * DialogueClock.SecondsPerMinute,
             $"{Nm(id)} {RoomName(to)} 도착 / {task} 시작", mates);
         var st = _sim.GetEmployeeState(id);

@@ -145,7 +145,8 @@ public static class ShiftMemory
                         list.Add(new MemoryItem
                         {
                             Time = e.GameTimeSeconds, RoomId = e.RoomId,
-                            Kind = e.GameTimeSeconds <= 0.5f ? MemoryKind.Assigned : MemoryKind.Relocated,
+                            Kind = e.GameTimeSeconds <= DialogueContextBuilder.ShiftStartSeconds
+                                ? MemoryKind.Assigned : MemoryKind.Relocated,
                         });
                         break;
 

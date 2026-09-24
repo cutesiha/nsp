@@ -354,6 +354,8 @@ public partial class DialogueScenarioTest : Node
             st.Alive = true;
             st.Isolated = false;
         }
+        // 실제 근무 시작(BeginShift)처럼 배치를 근무 시작 위치로 적어 둔다 — 동선 시간표의 0초 위치.
+        sim.RecordShiftStart();
     }
 
     private static void Move(string employeeId, string from, string to, float at)

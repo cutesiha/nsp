@@ -182,6 +182,8 @@ public partial class ControlRoom3DController : Node3D
         }
 
         AutoStaff();
+        // 위에서 EventLog 를 비웠으므로 배치표 로그가 없다 — 근무 시작 배치는 여기서 따로 적어 둔다.
+        FacilitySimulation.Instance?.RecordShiftStart();
         SetScreenBrightness(1f);
         SetScreenNoise(0.020f);
     }

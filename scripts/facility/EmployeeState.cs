@@ -20,6 +20,11 @@ public class EmployeeState
     public float FaintRecoverTimer;
     public string CurrentRoomId;
     public string AssignedRoomId = "";
+    // 근무가 시작된 순간의 배치(FacilitySimulation.RecordShiftStart). 대화 쪽 동선 시간표의 0초 위치다 —
+    // 배치표 로그는 근무 시작 때 지워지고, AssignedRoomId 는 근무 중 재배치로 바뀌기 때문이다.
+    // 그날 근무에 나오지 않았으면 빈 값.
+    public string ShiftStartRoomId = "";
+    public int ShiftStartDay = -1;
     public string TargetRoomId;
     public List<string> PathQueue = new();
     public Vector2 Position;
