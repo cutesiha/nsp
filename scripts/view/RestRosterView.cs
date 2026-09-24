@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using NSP.Data;
@@ -77,6 +77,8 @@ public partial class RestRosterView : Control
     private BreakRoomTopView _map;
     private Label _selected;
     private Label _instruction;
+    private Label _summary;
+    private Tween _summaryFade;
     private Button _isolateBtn;
     private Button _nextBtn;
 
@@ -97,6 +99,15 @@ public partial class RestRosterView : Control
         var sub = MakeLabel("휴게실 상단 감시 · 인터뷰 대상 선택", 13, Dim);
         sub.Position = new Vector2(20, 36);
         AddChild(sub);
+
+        // 제목 줄 오른쪽 — 방금 끝난 근무에서 작업실들이 실제로 만들어 낸 것.
+        // 휴게에 들어온 직후 5초만 떠 있다가 조용히 사라진다.
+        _summary = MakeLabel("", 15, new Color(0.62f, 0.9f, 0.82f));
+        _summary.Position = new Vector2(300, 14);
+        _summary.Size = new Vector2(484, 24);
+        _summary.HorizontalAlignment = HorizontalAlignment.Right;
+        _summary.Visible = false;
+        AddChild(_summary);
 
         var mapPanel = new Panel { Position = new Vector2(16, 58), Size = new Vector2(768, 400) };
         mapPanel.AddThemeStyleboxOverride("panel", Panelbox());
@@ -171,6 +182,32 @@ public partial class RestRosterView : Control
         _isolateBtn.Text = "격리";
         _map?.Populate(FacilitySimulation.Instance);
         _map?.SetSelected("");
+        ShowShiftSummary();
+    }
+
+    // 오늘 방별 성과 한 줄. 근무 중에는 방 카드로만 보이던 숫자들을 한 번에 모아 보여
+    // 준다 — "어느 방을 비워 뒀는지"가 여기서 결과로 드러난다.
+    private void ShowShiftSummary()
+    {
+        if (_summary == null) return;
+        var parts = new System.Collections.Generic.List<string>
+        {
+            $"코어 +{RoomEffectStats.CoreUpToday:0.#}%",
+            $"자재 +{RoomEffectStats.MaterialsToday}",
+            $"경비 기록 {RoomEffectStats.GuardRecordsToday}건",
+        };
+        // 스트레스가 잠긴 날에는 아예 움직이지 않는 수치라 적지 않는다.
+        if (NSP.Core.DayFeatures.StressEnabled)
+            parts.Add($"스트레스 최고 {RoomEffectStats.StressPeakToday:0}");
+
+        _summaryFade?.Kill();
+        _summary.Text = "오늘 방별 성과 — " + string.Join(" · ", parts);
+        _summary.Visible = true;
+        _summary.Modulate = new Color(1f, 1f, 1f, 1f);
+        _summaryFade = CreateTween();
+        _summaryFade.TweenInterval(4.2);
+        _summaryFade.TweenProperty(_summary, "modulate:a", 0f, 0.8);
+        _summaryFade.TweenCallback(Callable.From(() => _summary.Visible = false));
     }
 
     private void Select(string employeeId)

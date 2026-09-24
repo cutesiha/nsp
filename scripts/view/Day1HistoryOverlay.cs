@@ -193,7 +193,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
         RefreshObjectives();
     }
 
-    private void OpenLog()
+    // 캡처 도구(RoomEffectShot)가 L키를 흉내 내지 않고 바로 열 수 있게 공개한다.
+    public void OpenLog()
     {
         _mode = WindowMode.Log;
         _scrim.Color = new Color(0f, 0f, 0f, 0.38f);
@@ -865,7 +866,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     }
 
     // 직원 개인의 행동이면 그 직원의 고유색(IconColor), 시설 사건이면 중요도 색.
-    private static Color BodyColor(DisplayLogEntry row)
+    // 검사(RoomEffectTest)가 "로그 줄이 색으로 갈라지는가" 를 실제 함수로 확인하도록 공개한다.
+    public static Color BodyColor(DisplayLogEntry row)
     {
         // 중요한 사건은 직원 고유색에 묻히면 안 된다 — 중요도 색이 항상 이긴다.
         switch (row.Severity)

@@ -85,11 +85,26 @@ public static class RoomStaffing
     // 코어 복구 1회당 실제 자재 소모량(저장고 인력이 많으면 줄어든다).
     public static int CoreMaterialCost()
     {
+        int baseCost = Config.Instance?.Data?.MaterialsPerCoreGauge ?? 2;
+        return Mathf.Max(1, Mathf.RoundToInt(baseCost * MaterialCostMultiplier()));
+    }
+
+    // 자재 소모에 걸리는 배율 자체(반올림 전). 화면이 "지금 배치가 소모를 얼마나
+    // 바꾸고 있는가" 를 말하려면 정수가 아니라 이 값을 봐야 한다 —
+    // 기본 소모가 1 이면 ×1.25 가 반올림되어 정수는 그대로 1 이다.
+    public static float MaterialCostMultiplier()
+    {
         float mult = 1f;
         foreach (var ops in OpsProfile.AllRooms())
             mult *= OpsProfile.Curve(ops.MaterialCost, Count(ops.RoomId));
-        int baseCost = Config.Instance?.Data?.MaterialsPerCoreGauge ?? 2;
-        return Mathf.Max(1, Mathf.RoundToInt(baseCost * mult));
+        return mult;
+    }
+
+    // 저장고를 비웠을 때의 배율(0명 칸).
+    public static float EmptyStorageCostMultiplier()
+    {
+        var ops = OpsProfile.Room("storage_room");
+        return ops == null ? 1f : OpsProfile.Curve(ops.MaterialCost, 0);
     }
 
     // 코어 복구 1% 당 실제 자재 소모량. 관리자가 실제로 세는 단위가 % 라서
@@ -101,12 +116,7 @@ public static class RoomStaffing
     }
 
     // 저장고를 비웠을 때 자재 소모가 몇 % 늘어나는가(0 이면 변화 없음).
-    public static float EmptyStorageWastePercent()
-    {
-        var ops = OpsProfile.Room("storage_room");
-        if (ops == null) return 0f;
-        return (OpsProfile.Curve(ops.MaterialCost, 0) - 1f) * 100f;
-    }
+    public static float EmptyStorageWastePercent() => (EmptyStorageCostMultiplier() - 1f) * 100f;
 
     // 무인 방치 사고까지의 시간. 0 이하면 "비워 둬도 사고가 나지 않는다".
     public static float UnstaffedAccidentSeconds(string roomId, NSP.Data.RoomDef def)

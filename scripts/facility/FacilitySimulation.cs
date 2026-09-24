@@ -860,7 +860,7 @@ public partial class FacilitySimulation : Node
         RoomEffectStats.ResetDay();
         RoomEffectLog.ResetDay();
         _fxPowerOutputOk = true;
-        _fxMaterialCost = -1;
+        _fxMaterialCostX100 = -1;
         _fxVentStressing = false;
         _activeTasks.Clear();
         _scheduleCursor = 0;
@@ -984,7 +984,7 @@ public partial class FacilitySimulation : Node
     // 이미 일어나고 있는 효과가 "바뀌는 순간"을 잡아 화면에 알린다.
     // 여기서는 어떤 상태도 바꾸지 않는다 — 읽고, 알리고, 지난 값을 기억할 뿐이다.
     private bool _fxPowerOutputOk = true;
-    private int _fxMaterialCost = -1;
+    private int _fxMaterialCostX100 = -1;
     private bool _fxVentStressing;
 
     private void TickRoomEffectSignals(float delta)
@@ -1003,16 +1003,20 @@ public partial class FacilitySimulation : Node
         }
         _fxPowerOutputOk = ok;
 
-        // 저장고 — 인원이 바뀌어 코어 1%당 자재 소모가 달라지는 순간.
-        int cost = RoomStaffing.CoreMaterialCostPerPercent();
-        if (_fxMaterialCost > 0 && cost != _fxMaterialCost)
+        // 저장고 — 인원이 바뀌어 자재 소모 배율이 달라지는 순간.
+        //
+        // 정수 소모량이 아니라 배율을 본다. 기본 소모가 1 이면 ×1.25 도 ×0.75 도
+        // 반올림되어 똑같이 1 이라, 정수만 보면 저장고는 근무 내내 한마디도 못 한다.
+        int x100 = Mathf.RoundToInt(RoomStaffing.MaterialCostMultiplier() * 100f);
+        if (_fxMaterialCostX100 > 0 && x100 != _fxMaterialCostX100)
         {
             RoomEffectStats.Pulse(StorageRoomId);
             RoomEffectLog.Once(StorageRoomId,
-                $"{RoomName(StorageRoomId)} — 자재 효율 {(cost < _fxMaterialCost ? "↑" : "↓")} " +
-                $"(1%당 {_fxMaterialCost}→{cost})");
+                $"{RoomName(StorageRoomId)} — 자재 효율 {(x100 < _fxMaterialCostX100 ? "↑" : "↓")} " +
+                $"(소모 ×{_fxMaterialCostX100 / 100f:0.00} → ×{x100 / 100f:0.00} · " +
+                $"코어 1%당 {RoomStaffing.CoreMaterialCostPerPercent()}개)");
         }
-        _fxMaterialCost = cost;
+        _fxMaterialCostX100 = x100;
 
         // 환기실 — 스트레스가 계속 오르던 상태가 끝나는 순간.
         // (사람이 들어왔거나 고장이 복구됐거나. 어느 쪽이든 "이제 안 오른다"가 요점이다.)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using Godot;
 using NSP.Core;
@@ -103,6 +103,8 @@ public partial class TutorialDirector : Node
         await Say("tut_assign", RoomVars(AssignRoomId));
         await WaitForTutorialAssign(sim);
         Sfx.Instance?.Play("assign", -6f);
+        // 배치가 맞았다. 그 방 카드의 "지금 무엇을 만들고 있는가" 줄을 한 번 짚어 준다.
+        NSP.View.FacilityMonitorView.HighlightRoomNumber(AssignRoomId);
         await Say("tut_assign_rest");
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Live);
 

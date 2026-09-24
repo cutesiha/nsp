@@ -586,7 +586,8 @@ line: 눈이 잘못되셨나요? {ROOM}에는 토끼를 배치해 보십시오.
 
 @guide tut_assign_rest
 portrait: smile
-line: 좋습니다. 남은 직원도 배치한 뒤 /5‘근무 시작’/0을 누르십시오.
+line: 좋습니다. 오른쪽 방 카드의 /5첫 줄/0이 그 방이 지금 무엇을 만들어 내는지 알려 줍니다.
+line: 남은 직원도 배치한 뒤 /5‘근무 시작’/0을 누르십시오.
 
 @guide tut_shift_start
 portrait: normal

@@ -379,10 +379,12 @@ public partial class FacilityMonitorView : Control
     private static float _highlightUntil;
     private static bool HighlightAlive => Time.GetTicksMsec() / 1000f < _highlightUntil;
 
-    public static void HighlightRoomNumber(string roomId, float seconds = 6f)
+    public static void HighlightRoomNumber(string roomId, float seconds = 12f)
     {
         _highlightRoom = roomId ?? "";
         _highlightUntil = Time.GetTicksMsec() / 1000f + seconds;
+        // 카드가 떠 있지 않으면 강조할 줄 자체가 없다 — 그 방을 골라 준다.
+        if (!string.IsNullOrEmpty(roomId)) Instance?.SelectRoom(roomId);
     }
 
     // 방 이름이나 직원 이름에 대괄호가 들어가도 BBCode 태그로 읽히지 않게 한다.

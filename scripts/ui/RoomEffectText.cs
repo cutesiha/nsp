@@ -119,7 +119,11 @@ public static class RoomEffectText
                 if (here > 0) return "";
                 // +25% 도 데이터(MaterialCost 곡선의 0명 칸)에서 그대로 읽는다.
                 float waste = RoomStaffing.EmptyStorageWastePercent();
-                return waste <= 0.5f ? "" : $"저장고 비어 있음 — 자재 소모 +{waste:0}%";
+                if (waste <= 0.5f) return "";
+                // 실제로 나가는 개수까지 함께 적는다 — 기본 소모가 작으면 +25% 가
+                // 반올림되어 개수는 그대로일 수 있고, 그때는 그대로인 것이 사실이다.
+                return $"저장고 비어 있음 — 자재 소모 +{waste:0}% " +
+                       $"(코어 1%당 {RoomStaffing.CoreMaterialCostPerPercent()}개)";
             }
 
             case "vent_room":
