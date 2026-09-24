@@ -454,6 +454,15 @@ public partial class DialogueSampleDump : Node
             GD.Print($"   동료 반복: {g.Key} ×{g.Sum(p => p.n)} — " + string.Join(" / ", g.Select(p => p.x.Answer)));
         Check(over.Count == 0, $"(b) 같은 세션에서 동료 언급이 한 번을 넘지 않는다 ({over.Count}개 세션)");
 
+        // 최초 진술(카드가 되는 문장)에는 동료 이야기를 붙이지 않는다. 샘플 장면에는 수상한 행동을
+        // 목격한 사람이 없으므로, 여기서 동료 이름이 나오면 근무 기억이 붙은 것이다.
+        var names = Ids.Select(Nm).ToList();
+        var openings = _said.Where(x => x.Trace == "최초 진술").ToList();
+        var chatty = openings.Where(x => names.Any(n => x.Answer.Contains(n + " 씨") || x.Answer.Contains(n + " 직원"))).ToList();
+        foreach (var x in chatty.Take(5)) GD.Print($"   최초 진술 동료: [{Nm(x.Speaker)}] {x.Answer}");
+        Check(openings.Count > 0 && chatty.Count == 0,
+            $"최초 진술에 동료 이야기가 붙지 않는다 ({chatty.Count}/{openings.Count})");
+
         // (c) 한 답 안에서 같은 작업실 이름을 두 번 말하지 않는다.
         var roomNames = _sim.GetRoomIds().Select(RoomName).Where(n => n.Length > 0).Distinct().ToList();
         var twice = _answers.Where(a => roomNames.Any(n => Count(a, n) >= 2)).ToList();

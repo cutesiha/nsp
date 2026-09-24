@@ -23,6 +23,8 @@ public static class DialogueComposer
 
     // 검증용 — 마지막 답변이 어떤 슬롯과 어떤 근무 기억으로 만들어졌는지(DialogueSampleDump 가 읽는다).
     public static string LastTrace { get; private set; } = "";
+    // 마지막으로 조립한 답에 실제로 들어간 근무 기억.
+    private static List<ReplyAddendum> _lastKept = new();
 
     // 문장 수 상한을 넘으면 이 순서대로(앞쪽부터) 뺀다.
     private static readonly Part[] DropOrder = { Part.Back, Part.Extra, Part.Opener, Part.Memory, Part.Impression };
@@ -38,6 +40,8 @@ public static class DialogueComposer
             if (!DialogueClaimState.WasRecent(f.EmployeeId, text)) break;
         }
         if (string.IsNullOrEmpty(text)) text = "…";
+        // 실제로 답에 들어간 동료 기억만 "이미 한 이야기"로 적는다(잘려 나간 줄은 아직 안 한 말이다).
+        foreach (var a in _lastKept) ShiftMemory.MarkSaid(a);
         DialogueClaimState.Remember(f.EmployeeId, text);
         DialoguePatternMemory.RememberSurface(f.EmployeeId, text);
         return text;
@@ -45,6 +49,7 @@ public static class DialogueComposer
 
     private static string Build(ReplyFrame f)
     {
+        _lastKept = new List<ReplyAddendum>();
         var voice = DialogueVoices.Get(f.EmployeeId);
         bool formal = voice.Formal;
         string id = f.EmployeeId;
@@ -89,6 +94,8 @@ public static class DialogueComposer
         for (int i = 0; i < f.Addenda.Count; i++)
         {
             var a = f.Addenda[i];
+            // 같은 질문을 다시 받으면 프레임(기억 포함)이 그대로 다시 온다 — 이미 한 동료 이야기는 건너뛴다.
+            if (ShiftMemory.WasSaid(a)) continue;
             var vars = Merge(f.Vars, a.Vars);
             string line = Pick(id, a.Slot, vars, formal);
             int before = parts.Count;
@@ -131,6 +138,7 @@ public static class DialogueComposer
         // 기억 한 줄마다 실제로 답에 남았는지 표시한다(겹쳐서 안 붙었거나 상한에 잘렸으면 "(잘림)").
         LastTrace = f.Slot + (f.Addenda.Count == 0 ? "" : " + 기억[" + string.Join(", ",
             f.Addenda.Select((a, i) => a.Slot + (Kept(parts, memLines[i]) ? "" : "(잘림)"))) + "]");
+        _lastKept = f.Addenda.Where((a, i) => Kept(parts, memLines[i])).ToList();
         string joined = Finalize(string.Join(" ", parts.Select(p => p.Text)));
         int ex = f.MaxExclamations >= 0 ? f.MaxExclamations : voice.MaxExclamations;
         // 말끝을 흐리는 게 버릇인 사람(양)은 말줄임을 더 허용한다.

@@ -277,6 +277,13 @@ public static class ShiftMemory
                 line = new ReplyAddendum { Slot = incidentHere ? "mem.with.incident" : "mem.with" }.Set("who", Name(others[0]));
             else
                 line = new ReplyAddendum { Slot = "mem.alone" };
+            // 이 세션(같은 시간대)에서 같은 방 · 같은 동료 이야기를 이미 했으면 다시 꺼내지 않는다.
+            if (line != null)
+            {
+                line.SpokenKey = SpokenKey(r.EmployeeId, r.Day, Bucket(r.AnchorTime), MemoryKind.Companion,
+                    r.AnchorRoom, others.Take(2));
+                if (WasSaid(line)) line = null;
+            }
             if (line != null)
             {
                 line.Set("room", RoomName(r.AnchorRoom));
@@ -363,6 +370,12 @@ public static class ShiftMemory
         if (r.Topic is RecallTopic.ShiftReview or RecallTopic.Suspicious)
             AddDayLevel(r, items, voice, Add);
 
+        // 떠올릴 게 동료 이야기 하나뿐이면 그대로 뽑혀 버린다(가중치는 후보끼리의 비율일 뿐이다).
+        // 남 이야기를 꺼내는 성향(MentionOthersChance)을 한 번 더 거친다.
+        if (cands.Count == 1 && cands[0].Group is MemoryKind.Companion or MemoryKind.DayCompanion
+            && GD.Randf() >= voice.MentionOthersChance)
+            cands.Clear();
+
         // ── 4) 몇 개를 꺼낼까 — 말투가 정한다 ────────────────────────────
         int budget = r.IsRepeat ? 0 : Budget(voice);
         var picked = PickWeighted(cands, budget);
@@ -445,8 +458,14 @@ public static class ShiftMemory
             .SelectMany(m => m.With)
             .GroupBy(x => x).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
         if (!string.IsNullOrEmpty(partner))
-            add(MemoryKind.DayCompanion, OthersWeight(voice) * 0.9f,
-                new ReplyAddendum { Slot = "mem.with.day" }.Set("who", Name(partner)));
+        {
+            var line = new ReplyAddendum
+            {
+                Slot = "mem.with.day",
+                SpokenKey = SpokenKey(r.EmployeeId, r.Day, DayBucket, MemoryKind.DayCompanion, "", new[] { partner }),
+            };
+            if (!WasSaid(line)) add(MemoryKind.DayCompanion, OthersWeight(voice) * 0.9f, line.Set("who", Name(partner)));
+        }
 
         if (r.Topic != RecallTopic.ShiftReview) return;
 
@@ -467,6 +486,60 @@ public static class ShiftMemory
         else if (reported >= 2)
             add(MemoryKind.CallReported, 1f * CallWeight(voice),
                 new ReplyAddendum { Slot = "mem.sum.calls" }.Set("n", KoreanParticle.Count(reported)));
+    }
+
+    // ── 이미 한 이야기 ────────────────────────────────────────────────
+    //
+    // 동료 기억은 한 세션(직원 · 날 · 주제 시각)에 한 번만 한다. "주제 시각"은 SpokenBucketMinutes
+    // 단위로 묶고, 바로 옆 구간까지 같은 시간대로 본다(22:39 와 22:41 이 다른 시간대가 되지 않게).
+    // 실제로 답에 들어간 줄만 DialogueComposer 가 MarkSaid 로 적는다.
+    public const float SpokenBucketMinutes = 10f;
+    private const int DayBucket = int.MinValue;   // 하루 전체를 돌아보는 이야기(시각 없음)
+
+    private static int Bucket(float time) =>
+        time < 0f ? DayBucket : Mathf.FloorToInt(time / (SpokenBucketMinutes * DialogueClock.SecondsPerMinute));
+
+    private static string SpokenKey(string employeeId, int day, int bucket, MemoryKind kind, string room,
+        IEnumerable<string> who) =>
+        $"{employeeId}|{day}|{bucket}|{kind}|{room}|{string.Join("+", who.OrderBy(x => x))}";
+
+    // 같은 이야기를 이 시간대(앞뒤 구간 포함)에 이미 했는가.
+    public static bool WasSaid(ReplyAddendum a)
+    {
+        if (a == null || string.IsNullOrEmpty(a.SpokenKey)) return false;
+        var p = a.SpokenKey.Split('|');
+        if (p.Length < 3 || !int.TryParse(p[2], out int bucket)) return DialogueClaimState.WasSpoken(a.SpokenKey);
+        if (bucket == DayBucket) return DialogueClaimState.WasSpoken(a.SpokenKey);
+        // 그 시간대의 "같이 있던 사람"을 플레이어가 직접 물었으면 그것도 이미 한 이야기다.
+        if (p.Length > 3 && p[3] == nameof(MemoryKind.Companion)
+            && int.TryParse(p[1], out int day) && CompanionAsked(p[0], day, bucket))
+            return true;
+        for (int d = -1; d <= 1; d++)
+        {
+            p[2] = (bucket + d).ToString();
+            if (DialogueClaimState.WasSpoken(string.Join("|", p))) return true;
+        }
+        return false;
+    }
+
+    public static void MarkSaid(ReplyAddendum a)
+    {
+        if (a != null) DialogueClaimState.MarkSpoken(a.SpokenKey);
+    }
+
+    // 플레이어가 "그때 같이 있던 사람"을 직접 물었다 — 그 시간대의 다른 답에는 동료 이야기를 덧붙이지 않는다.
+    public static void MarkCompanionAsked(string employeeId, int day, float time) =>
+        DialogueClaimState.MarkSpoken($"{employeeId}|{day}|{Bucket(time)}|asked");
+
+    public static bool CompanionAsked(string employeeId, int day, float time) =>
+        CompanionAsked(employeeId, day, Bucket(time));
+
+    private static bool CompanionAsked(string employeeId, int day, int bucket)
+    {
+        if (bucket == DayBucket) return false;
+        for (int d = -1; d <= 1; d++)
+            if (DialogueClaimState.WasSpoken($"{employeeId}|{day}|{bucket + d}|asked")) return true;
+        return false;
     }
 
     // ── 말투에 따른 가중치 ──────────────────────────────────────────────

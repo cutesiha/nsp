@@ -78,6 +78,8 @@ public sealed class ReplyAddendum
     public string Slot = "";
     public MemoryKind Kind;
     public readonly Dictionary<string, string> Vars = new();
+    // 한 세션에 한 번만 할 이야기의 키(동료 기억). 비어 있으면 몇 번이든 말할 수 있다.
+    public string SpokenKey = "";
 
     public ReplyAddendum Set(string key, string value)
     {
