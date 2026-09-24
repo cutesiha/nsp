@@ -1171,7 +1171,9 @@ public partial class FacilitySimulation : Node
         if (here == CoreRoomId || blackoutChaos)
         {
             float loss = blackoutChaos ? cfg.SabotageCoreLossBlackout : cfg.SabotageCoreLoss;
-            GameState.Instance.AddCoreProgress(-loss, "복구 작업 방해");
+            // 사유를 둘로 나눈다 — 평소의 방해와 "관리자가 조명·CCTV 를 꺼 둔 틈" 은
+            // 원인도 대책도 다르다. 화면에 뜨는 문구는 그대로다(로그는 LogSabotage 가 쓴다).
+            GameState.Instance.AddCoreProgress(-loss, blackoutChaos ? "정전 혼란" : "복구 작업 방해");
             LogSabotage(saboteur, here, others, $"봉쇄 코어 복구율 -{loss:0}% (원인 불명)",
                 "⚠ 봉쇄 코어 복구율이 비정상적으로 감소했습니다!");
             // 깎인 양을 게이지 아래에 잠깐 띄운다 — "내가 쌓은 게 줄었다"가 보여야 한다.

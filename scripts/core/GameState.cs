@@ -145,8 +145,13 @@ public partial class GameState : Node
         CurrentPhase = phase;
     }
 
+    // 코어 증감 장부. 측정 도구(DayScheduleTest)만 구독한다 — 게임 진행에는 아무 영향이 없다.
+    // 사유(reason)가 그대로 넘어가므로 "얼마나 늘었고 무엇 때문에 깎였는가" 를 나눌 수 있다.
+    public static System.Action<float, string> CoreLedger;
+
     public void AddCoreProgress(float delta, string reason)
     {
+        CoreLedger?.Invoke(delta, reason);
         CoreProgress = Mathf.Clamp(CoreProgress + delta, 0f, 100f);
     }
 
