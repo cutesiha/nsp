@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace NSP.Core;
 
@@ -37,6 +37,10 @@ public sealed class IncidentDisplayData
     public float ResolvedAt = -1f;
     // 수리에 필요한 인원(발전실·코어실은 2명).
     public int RepairWorkers = 1;
+
+    // 경고 안정화 작업 — 얼마나 했고 얼마나 남았는가(초). 경고가 아닐 때는 -1.
+    public float StabilizeDoneSeconds = -1f;
+    public float StabilizeNeedSeconds = -1f;
 
     // 사고가 아니라 "운영 상태"(무인 페널티)임을 구분한다.
     public bool IsOperational;

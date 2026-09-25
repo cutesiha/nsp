@@ -398,6 +398,11 @@ public partial class TutorialDirector : Node
 
         await Say("tut_facility_end");
         // 배치 화면으로 복귀 — 이후 기존 토끼 배치 교육이 그대로 이어진다.
+        //
+        // 지도의 선택도 같이 푼다. ScheduleStaffView 는 왼쪽 지도에서 방이 골라져 있으면
+        // 직원 블록 대신 그 방의 설명을 그린다 — 투어에서 마지막으로 누른 방이 그대로
+        // 남아 있어, 정작 "토끼를 배치하십시오" 단계에서 작업실 설명이 떠 있었다.
+        NSP.Ui.ScheduleMapView.Instance?.ClearFocus();
         ctl.SetRightScreen(ctl.ScheduleStaffViewport);
     }
 

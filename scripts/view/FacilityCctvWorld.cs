@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -91,13 +91,13 @@ public partial class FacilityCctvWorld : Node3D
     private bool _ghostWired;
     private bool _ghostShowing;
     // 지금 무엇을 하고 있는가. 넷 다 "설비가 없는 빈 바닥" 위에서만 일어난다.
-    private enum GhostPose { Crouch, Stare, Roam }
-    private GhostPose _ghostPose;
-    private float _ghostPoseLeft;
-    private Vector3 _ghostFrom, _ghostTo;   // Roam 의 출발 · 도착 지점
-    private float _ghostWalk;               // 0~1 진행
-    private float _ghostBob;
-    private float _ghostFaceY;              // 지금 향하고 있는 방향(도)
+    // 괴물이 무엇을 하고 있는지는 GhostBehaviour 가 전부 쥐고 있다.
+    // 여기서는 "보여 줄지 말지"와 충돌에 대한 화면 반응(흔들림 · 소리)만 맡는다.
+    private readonly GhostBehaviour _ghost = new();
+    private bool _ghostBehaviourWired;
+    // HauntLunge 같은 트윈 연출이 도는 동안은 행동을 멈춴 둔다.
+    // 둘 다 같은 Position/Rotation 을 매 프레임 건드리면 트윈이 무시된다.
+    private double _ghostLungeUntil;
     private bool _ghostVanishing;        // 소멸 연출 중 — 이 동안에는 위치를 건드리지 않는다
     private CpuParticles3D _ghostDust;
     // 팔·다리 관절. 원본 glb 에는 뼈가 없어서 메시를 잘라 직접 만든다(EntityRig).
@@ -193,6 +193,12 @@ public partial class FacilityCctvWorld : Node3D
         // 팔·다리를 따로 움직일 수 있게 메시를 관절 밑으로 쪼갠다.
         // 실패해도(원화 교체 등) 게임은 그대로 돈다 — 그때는 통짜로만 움직인다.
         _rig = EntityRig.Build(_entity);
+        _ghost.Attach(_entity, _rig, EntityScale, EntityFloorOriginY);
+        if (!_ghostBehaviourWired)
+        {
+            _ghost.Impact += OnGhostImpact;
+            _ghostBehaviourWired = true;
+        }
     }
 
     public override void _Process(double delta)
@@ -511,73 +517,54 @@ public partial class FacilityCctvWorld : Node3D
             _entity.Scale = Vector3.One * EntityScale;
             _entity.RotationDegrees = Vector3.Zero;
             _rig?.Reset();
-            _entity.Position = GhostSpot((int)(GD.Randi() % (uint)GhostSpots.Length));
-            _ghostPoseLeft = 0f;
-            _ghostFaceY = _entity.RotationDegrees.Y;
+            _ghost.Reset(GhostSpot((int)(GD.Randi() % (uint)GhostSpots.Length)));
             // 그 방만 어두워진다 — 화면을 돌리다 "여기만 이상하다"가 먼저 눈에 들어와야 한다.
             DimRoomLights(target, 0.45f);
         }
         if (_entity == null) return;
 
-        _ghostPoseLeft -= delta;
-        if (_ghostPoseLeft <= 0f) PickGhostPose(sim, target);
-
-        _ghostBob += delta * (_ghostPose == GhostPose.Roam ? 5.2f : 1.6f);
-        Vector3 pos = _entity.Position;
-        float lean = 0f;
-        Vector3? faceAt = null;
-
-        switch (_ghostPose)
-        {
-            case GhostPose.Roam:
-                // 자연스럽게 걷는다 — 두 지점 사이를 부드럽게 오가고, 발이 바닥을 짚을 때마다
-                // 몸이 아주 조금 오르내린다. 방향은 가는 쪽.
-                _ghostWalk = Mathf.Min(1f, _ghostWalk + delta * 0.34f);
-                float e = Mathf.SmoothStep(0f, 1f, _ghostWalk);
-                pos = _ghostFrom.Lerp(_ghostTo, e);
-                pos.Y = EntityFloorOriginY + Mathf.Abs(Mathf.Sin(_ghostBob)) * 0.02f;
-                faceAt = _ghostTo;
-                lean = Mathf.Sin(_ghostBob) * 1.6f;
-                // 다리가 실제로 앞뒤로 나간다 — 미끄러지지 않는다.
-                _rig?.SetWalk(_ghostBob, 1f);
-                if (_ghostWalk >= 1f) _ghostPoseLeft = Mathf.Min(_ghostPoseLeft, 0.4f);
-                break;
-
-            case GhostPose.Stare:
-                // 직원을 빤히 쳐다본다. 그 직원은 CctvActionResolver 가 이미 겁먹은 자세로 만든다.
-                faceAt = AnyEmployeePos(sim, target) ?? _camera.Position;
-                pos.Y = EntityFloorOriginY + Mathf.Sin(_ghostBob) * 0.02f;
-                lean = Mathf.Sin(_ghostBob * 0.6f) * 1.4f;
-                _rig?.SetIdle(_ghostBob);
-                break;
-
-            case GhostPose.Crouch:
-                // 웅크린다 — 리그가 없으므로 몸을 눌러 앉은 것처럼 보이게 한다.
-                faceAt = _camera.Position;
-                // 몸을 눌러 찌그러뜨리지 않는다 — 무릎을 접어 실제로 앉는다.
-                pos.Y = EntityFloorOriginY - EntityRig.CrouchDrop * EntityScale
-                        + Mathf.Sin(_ghostBob) * 0.012f;
-                lean = Mathf.Sin(_ghostBob * 0.8f) * 1.0f;
-                _rig?.SetCrouch(1f);
-                break;
-        }
-
-        if (faceAt.HasValue)
-        {
-            Vector3 d = faceAt.Value - pos;
-            d.Y = 0f;
-            if (d.LengthSquared() > 0.0004f)
-            {
-                float want = Mathf.RadToDeg(Mathf.Atan2(d.X, d.Z));
-                // 홱 돌지 않게 천천히 돌린다.
-                _ghostFaceY = Mathf.RadToDeg(Mathf.LerpAngle(
-                    Mathf.DegToRad(_ghostFaceY), Mathf.DegToRad(want), Mathf.Clamp(delta * 3.2f, 0f, 1f)));
-            }
-        }
-
-        _entity.Position = pos;
+        // 트윈 연출 중에는 손을 둔다(끝나면 다음 프레임부터 다시 행동이 이어린다).
+        if (Time.GetTicksMsec() / 1000.0 < _ghostLungeUntil) return;
+        _ghost.Tick(delta, _camera.Position, AnyEmployeePos(sim, target), _rooms.GetValueOrDefault(target));
         _entity.Scale = _entity.Scale.Lerp(Vector3.One * EntityScale, Mathf.Clamp(delta * 4f, 0f, 1f));
-        _entity.RotationDegrees = new Vector3(0f, _ghostFaceY, lean);
+    }
+
+    // 머리가 벽 · 설비 · 바닥에 닿는 순간.
+    //
+    // 흔들림은 **아주 작다**. 비명(HauntLunge 7.5도)과 같은 급으로 흔들면 근무 내내 화면이
+    // 요동쳐 플레이가 불가능해진다. 여기서는 "쿵 하는 충격이 화면에 조금 건너오는" 정도만.
+    // 표면에 따라 아주 미묘하게 다르다 — 벽이 제일 작고, 바닥이 제일 크게 울린다.
+    private void OnGhostImpact(GhostImpactKind kind, Vector3 at)
+    {
+        // 보고 있는 화면에서만 흔든다. 다른 방에서 벌어지는 일이 화면을 흔들면 안 된다.
+        if (!_ghostShowing || _ghostVanishing) return;
+
+        float degrees = kind switch
+        {
+            GhostImpactKind.Wall => 0.4f,
+            GhostImpactKind.Machine => 0.6f,
+            _ => 0.7f,
+        };
+        ShakeCamera(degrees, kind == GhostImpactKind.Floor ? 0.12f : 0.08f);
+
+        // 효과음은 여기 한 곳에서만 난다. 전용 녹음(ghost_head_hit_wall / _metal / _floor)이
+        // 생기면 이 표의 이름만 바꾸면 된다. 지금은 있는 소리를 작게 빌려 쓴다 —
+        // 머리를 박는 소리지 폭발음이 아니므로 낮게, 피치를 내려 묵직하게.
+        (string Key, float Db, double PitchLo, double PitchHi) sfx = kind switch
+        {
+            GhostImpactKind.Wall => ("impact_blunt", -14f, 0.74, 0.88),
+            GhostImpactKind.Machine => ("pipe_knock", -15f, 0.80, 0.95),
+            _ => ("impact_blunt", -12f, 0.60, 0.72),
+        };
+        Sfx.Instance?.Play(sfx.Key, sfx.Db, (float)GD.RandRange(sfx.PitchLo, sfx.PitchHi));
+    }
+
+    // 디버그 — 정해진 동작을 그 자리에서 강제로 재생한다.
+    public bool ForceGhostPose(GhostPose pose)
+    {
+        if (!_ghostShowing || _entity == null) return false;
+        return _ghost.Force(pose, _camera.Position,
+            AnyEmployeePos(FacilitySimulation.Instance, _shownRoom), _rooms.GetValueOrDefault(_shownRoom));
     }
 
     // 괴물이 설 수 있는 자리.
@@ -598,13 +585,6 @@ public partial class FacilityCctvWorld : Node3D
     private Vector3 GhostSpot(int i) =>
         GhostSpots[Mathf.PosMod(i, GhostSpots.Length)] + new Vector3(0f, EntityFloorOriginY, 0f);
 
-    // 카메라 쪽에 가까운 자리(배회할 때 고른다 — 관리자 눈앞에서 어슬렁거려야 무섭다).
-    private Vector3 NearCameraSpot()
-    {
-        int i = (int)(GD.Randi() % 2);
-        return GhostSpot(i);
-    }
-
     // 그 방에서 보이는 직원 하나의 위치. 없으면 null.
     private Vector3? AnyEmployeePos(FacilitySimulation sim, string roomId)
     {
@@ -617,34 +597,26 @@ public partial class FacilityCctvWorld : Node3D
         return null;
     }
 
-    // 다음 행동을 고른다. 직원이 있으면 쳐다보는 쪽에 무게를 둔다.
-    private void PickGhostPose(FacilitySimulation sim, string roomId)
-    {
-        bool anyone = AnyEmployeePos(sim, roomId) != null;
-        float r = GD.Randf();
-        _ghostPose = anyone
-            ? (r < 0.45f ? GhostPose.Stare : r < 0.75f ? GhostPose.Roam : GhostPose.Crouch)
-            : (r < 0.55f ? GhostPose.Roam : r < 0.85f ? GhostPose.Crouch : GhostPose.Stare);
-        _ghostPoseLeft = _ghostPose == GhostPose.Roam ? GD.Randf() * 2f + 4f : GD.Randf() * 2f + 3f;
-
-        if (_ghostPose != GhostPose.Roam) return;
-        _ghostFrom = _entity.Position;
-        _ghostTo = NearCameraSpot();
-        // 지금 서 있는 자리와 너무 가까우면 다른 자리로.
-        if (_ghostFrom.DistanceTo(_ghostTo) < 0.5f) _ghostTo = GhostSpot((int)(GD.Randi() % 4) + 2);
-        _ghostWalk = 0f;
-    }
-
     // 비명 — 보고 있는 화면이면 카메라 쪽으로 한 번 확 튀어오른다.
     private void OnGhostScreamed(string roomId)
     {
         if (!_ghostShowing || _entity == null || roomId != _shownRoom) return;
-        HauntLunge();
-        ShakeCamera(7.5f, 0.6f);
-        // 소리를 지르며 상체를 앞으로 꺾는다.
-        var t = CreateTween();
-        t.TweenProperty(_entity, "rotation_degrees:x", -16f, 0.08);
-        t.TweenProperty(_entity, "rotation_degrees:x", 0f, 0.3);
+
+        // 비명 때마다 카메라로 달려들면 세 번째부터는 놀랍지 않다. 반응을 넷으로 나눈다.
+        //   40% 카메라로 덮침 · 30% 아주 빠르게 머리 박음 · 20% 바닥에 박음 · 10% 선 채로 지름
+        float r = GD.Randf();
+        if (r < 0.40f)
+        {
+            // 카메라 쪽으로 덮친다 — 그 0.2초 동안은 행동이 위치를 건드리지 않는다.
+            _ghostLungeUntil = Time.GetTicksMsec() / 1000.0 + 0.22;
+            HauntLunge();
+            ShakeCamera(7.5f, 0.6f);
+            return;
+        }
+        if (r < 0.70f && ForceGhostPose(GhostPose.RapidHeadbang)) return;
+        if (r < 0.90f && ForceGhostPose(GhostPose.FloorHeadbang)) return;
+        // 그대로 선 채로 지른다 — 화면만 한 번 작게 흔들린다.
+        ShakeCamera(1.6f, 0.35f);
     }
 
     // 관리자가 끝까지 지켜봤다 — 머리를 감싸 쥐듯 몸이 접히고 가루처럼 흩어진다.

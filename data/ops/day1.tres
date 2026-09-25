@@ -150,7 +150,8 @@ script = ExtResource("3_warn")
 AtSeconds = 22.0
 JitterSeconds = 4.0
 RoomId = "maintenance_room"
-RequiredStaff = 2
+; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
+RequiredStaff = 0
 ResponseSeconds = 15.0
 
 [sub_resource type="Resource" id="sched_power"]
@@ -158,7 +159,8 @@ script = ExtResource("3_warn")
 AtSeconds = 50.0
 JitterSeconds = 5.0
 RoomId = "power_room"
-RequiredStaff = 2
+; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
+RequiredStaff = 0
 ResponseSeconds = 15.0
 
 ; 근무 막바지 — 방해공작 수습과 겹치는 마지막 판단거리.
@@ -167,7 +169,8 @@ script = ExtResource("3_warn")
 AtSeconds = 96.0
 JitterSeconds = 5.0
 RoomId = "storage_room"
-RequiredStaff = 2
+; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
+RequiredStaff = 0
 ResponseSeconds = 14.0
 
 [resource]
@@ -183,7 +186,11 @@ WarningGraceSeconds = 12.0
 WarningCutoffSeconds = 14.0
 ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_maintenance"), SubResource("sched_power"), SubResource("sched_storage")])
 SaboteurStartSeconds = 58.0
+; DAY1 은 배우는 날이다 — 방해공작은 거의 일어나지 않는다.
+; 준비와 전조는 평소대로 흐르되, 실제로 저지를지는 아래 확률이 정한다.
 MaxSabotageActionsPerDay = 1
+SabotageChancePerDay = 0.12
+SabotageDeadlineRush = false
 AllowMurder = false
 GhostMaxPerDay = 1
 SabotageTargetRooms = Array[String](["core_room", "power_room", "maintenance_room", "storage_room", "guard_room"])

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Core;
@@ -50,6 +50,13 @@ public sealed class SaboteurPlan
     // 목표 구간 안에서 매번 같은 초에 터지면 대본처럼 보인다 — 근무마다 조금씩 흔든다.
     private float _windowOffset;
 
+    // 오늘 손댈 생각이 있는가(근무 시작 때 한 번만 정한다).
+    // 아직 정하지 않았으면 null — 첫 판정 때 그 날의 SabotageChancePerDay 로 굴린다.
+    private bool? _willActToday;
+
+    // 검사·디버그용. 오늘 결번자가 애초에 저지를 생각이었는지.
+    public bool WillActToday => _willActToday ?? true;
+
     public bool HasActed => ActedAtSeconds >= 0f;
     public float PrepareRatio => PrepareNeeded <= 0f ? 0f : Mathf.Clamp(PrepareSeconds / PrepareNeeded, 0f, 1f);
 
@@ -61,6 +68,7 @@ public sealed class SaboteurPlan
         PreparingStartedAt = ActedAtSeconds = -1f;
         CancelCount = 0;
         ActionCount = 0;
+        _willActToday = null;
         _windowOffset = GD.Randf() * 6f;
         Conditions.Clear();
         Clues.Clear();
@@ -194,12 +202,25 @@ public sealed class SaboteurPlan
     public bool ReadyToAct(FacilitySimulation sim, EmployeeState saboteur, OpsProfileDef ops)
     {
         if (ops == null || ops.SabotageTargetRooms.Count == 0) return true;   // 예전 방식
+
+        // 오늘 아예 손대지 않기로 한 날이면 여기서 끝이다.
+        // (준비도 전조도 그대로 흐른다 — 관리자 쪽에서는 구분되지 않는다.)
+        _willActToday ??= GD.Randf() < Mathf.Clamp(ops.SabotageChancePerDay, 0f, 1f);
+        if (_willActToday == false) return false;
+
         if (Phase != SaboteurPhase.Preparing) return false;
         if (saboteur.CurrentRoomId != WatchedRoomId) return false;
+
+        // 혼자 있는 방에서는 손대지 않는다. 그 방에 자기밖에 없는데 설비가 망가지면
+        // 시설 로그 한 줄만으로 범인이 확정된다 — 심문도 CCTV 도 볼 이유가 사라진다.
+        // 준비는 그대로 쌓아 두고, 누가 들어올 때까지 기다린다.
+        if (ops.SabotageNeedsCompany && sim.OnDutyCount(saboteur.CurrentRoomId) <= 1) return false;
+
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
-        // 목표 구간이 끝나 가면 준비가 조금 덜 됐어도 실행한다 — 대회용 DAY1 의 핵심 사건이
+        // 목표 구간이 끝나 가면 준비가 조금 덜 됐어도 실행한다 — 그날의 핵심 사건이
         // 근무 막판까지 밀리면 추리할 시간이 없다. 전조는 이미 절반 이상 나온 뒤다.
-        bool deadline = now >= ops.SabotageWindowEndSeconds;
+        // (DAY1 처럼 방해공작이 거의 없어야 하는 날에는 이 강행을 꺼 둔다.)
+        bool deadline = ops.SabotageDeadlineRush && now >= ops.SabotageWindowEndSeconds;
         float need = deadline ? PrepareNeeded * 0.55f : PrepareNeeded;
         if (PrepareSeconds < need) return false;
         return now >= ops.SabotageWindowStartSeconds + _windowOffset;

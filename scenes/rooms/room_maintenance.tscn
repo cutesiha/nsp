@@ -296,22 +296,22 @@ mesh = SubResource("RM09")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="AsmDeskTop" type="MeshInstance3D" parent="." unique_id=330440553]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0.76, -1.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0.76, -2.6334615)
 mesh = SubResource("RM10")
 surface_material_override/0 = SubResource("MAT_wood")
 
 [node name="AsmDeskLegL" type="MeshInstance3D" parent="." unique_id=1670344163]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.48, 0.36, -1.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.48, 0.36, -2.6334615)
 mesh = SubResource("RM11")
 surface_material_override/0 = SubResource("MAT_dark")
 
 [node name="AsmDeskLegR" type="MeshInstance3D" parent="." unique_id=586367680]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.62, 0.36, -1.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.62, 0.36, -2.6334615)
 mesh = SubResource("RM12")
 surface_material_override/0 = SubResource("MAT_dark")
 
 [node name="AsmChair" type="Node3D" parent="." unique_id=986488862]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, -0.95)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, -1.9834616)
 
 [node name="AsmChairSeat" type="MeshInstance3D" parent="AsmChair" unique_id=956925167]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
@@ -357,27 +357,27 @@ mesh = SubResource("RM16")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="AsmPart" type="MeshInstance3D" parent="." unique_id=2008417831]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0.83, -1.66)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0.83, -2.6934614)
 mesh = SubResource("RM17")
 surface_material_override/0 = SubResource("MAT_steel")
 
 [node name="AsmVise" type="MeshInstance3D" parent="." unique_id=530715850]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.42, 0.86, -1.7)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.42, 0.86, -2.7334616)
 mesh = SubResource("RM18")
 surface_material_override/0 = SubResource("MAT_orange")
 
 [node name="AsmLampPost" type="MeshInstance3D" parent="." unique_id=908311282]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.62, 0.99, -1.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.62, 0.99, -2.8334615)
 mesh = SubResource("RM19")
 surface_material_override/0 = SubResource("MAT_dark")
 
 [node name="AsmLampHead" type="MeshInstance3D" parent="." unique_id=2052934446]
-transform = Transform3D(1, 0, 0, 0, 0.7, 0, 0, 0, 1, 0.62, 1.22, -1.72)
+transform = Transform3D(1, 0, 0, 0, 0.7, 0, 0, 0, 1, 0.62, 1.22, -2.7534616)
 mesh = SubResource("RM20")
 surface_material_override/0 = SubResource("MAT_lamp")
 
 [node name="AsmToolTray" type="MeshInstance3D" parent="." unique_id=1735976314]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.82, -1.48)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.68, 0.82, -2.5134616)
 mesh = SubResource("RM21")
 surface_material_override/0 = SubResource("MAT_steel")
 

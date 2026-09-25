@@ -144,7 +144,8 @@ script = ExtResource("3_warn")
 AtSeconds = 20.0
 JitterSeconds = 4.0
 RoomId = "core_room"
-RequiredStaff = 2
+; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
+RequiredStaff = 0
 ResponseSeconds = 15.0
 
 [sub_resource type="Resource" id="sched_d5_1"]
@@ -152,7 +153,8 @@ script = ExtResource("3_warn")
 AtSeconds = 44.0
 JitterSeconds = 4.0
 RoomId = "maintenance_room"
-RequiredStaff = 2
+; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
+RequiredStaff = 0
 ResponseSeconds = 14.0
 
 [sub_resource type="Resource" id="sched_d5_2"]
@@ -160,7 +162,8 @@ script = ExtResource("3_warn")
 AtSeconds = 70.0
 JitterSeconds = 5.0
 RoomId = "power_room"
-RequiredStaff = 2
+; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
+RequiredStaff = 0
 ResponseSeconds = 14.0
 
 [resource]

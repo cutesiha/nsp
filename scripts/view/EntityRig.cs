@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 namespace NSP.View;
@@ -13,11 +13,16 @@ namespace NSP.View;
 // 같은 방식이다 — 살에 스킨 웨이트가 없고, 부위마다 부모 관절(Node3D)의 회전을 따라간다.
 //
 //   Root
-//    ├ Body            (몸통 + 머리 — 움직이지 않는다)
+//    ├ Pelvis          (골반 — 움직이지 않는다)
 //    ├ HipL → KneeL    (왼 허벅지 → 왼 정강이)
 //    ├ HipR → KneeR
-//    ├ ShoulderL → ElbowL  (왼 위팔 → 왼 아래팔·손)
-//    └ ShoulderR → ElbowR
+//    └ Torso           (상체 — 앞뒤로 꺾인다)
+//       ├ ShoulderL → ElbowL  (왼 위팔 → 왼 아래팔·손)
+//       ├ ShoulderR → ElbowR
+//       └ Head        (목 + 머리 — 상체 위에서 따로 더 꺾인다)
+//
+// 팔이 상체 밑에 있는 것이 중요하다. 머리를 벽에 박을 때 목만 까딱이면 장난감처럼
+// 보이고, 상체가 꺾이면서 팔·머리가 **같이** 끌려가야 사람이 몸을 내던지는 것처럼 보인다.
 //
 // 이 모델은 팔을 좌우로 **펼치고** 있다(EntityGhost 의 손끝 판정과 같은 전제).
 // 그래서 팔을 드는 것은 어깨의 z 회전이고, 팔꿈치를 접는 것도 z 회전이다.
@@ -33,6 +38,27 @@ public sealed class EntityRig
     private const float ArmBottomY = 0.50f;   // 이 위가 팔
     private const float ArmInner = 0.36f;     // 중심축에서 이만큼 벌어지면 팔
     private const float ElbowLateral = 0.66f; // 이보다 더 바깥이면 아래팔·손
+    // 상체가 시작되는 높이 = 고관절 높이. 다리가 끝나는 곳에서 바로 상체가 시작한다.
+    //
+    // 허리(0.58) 에서 꺾어 봤더니, 이 원화는 허리가 아주 가늘어서 상체를 80도쯤 숙이는
+    // 순간 골반과의 자른 면이 크게 벌어져 몸이 조각나 보였다. 고관절에서 꺾으면 골반 위가
+    // 통째로 같이 움직여 벌어질 면이 없다 — 사람이 허리를 숙이는 모양과도 같다.
+    private const float TorsoY = LegTopY;     // 이 위가 상체(팔·머리를 데리고 다닌다)
+    private const float NeckY = 0.85f;        // 이 위가 목 + 머리
+
+    // 모델 단위(Scale 1 기준) 치수. 머리가 벽에 닿을 거리를 계산하는 쪽에서 쓴다.
+    //   NeckPivotY  — 루트 원점에서 목 관절까지의 높이
+    //   HeadFrontZ  — 머리 앞면이 중심축에서 앞(+Z)으로 나온 거리
+    //   HeadRadius  — 머리의 대략적인 반지름(관통 여유를 잡는 데 쓴다)
+    public const float NeckPivotY = 0.346f;
+    public const float HeadFrontZ = 0.199f;
+    public const float HeadRadius = 0.10f;
+    // 관절 경계에서 이만큼(정규화 높이)은 위아래 부위에 겹쳐 넣는다.
+    // 스킨 웨이트가 없으니 크게 꺾으면 자른 면 사이가 벌어진다 — 겹친 살이 그 틈을 덮는다.
+    private const float SeamOverlap = 0.08f;
+
+    public const float TorsoPivotY = -0.002f;     // 상체 관절 높이(= 고관절)
+    public const float HeadFrontLocalY = 0.074f;  // 목 관절에서 머리 앞면까지의 높이
 
     // 웅크릴 때 몸이 내려앉는 높이(모델 단위 — 쓰는 쪽에서 Scale 을 곱한다).
     // 허벅지·정강이 길이에서 계산한 값이다: 서 있을 때 0.50, 접었을 때 약 0.33.
@@ -40,9 +66,13 @@ public sealed class EntityRig
 
     private Node3D _hipL, _hipR, _kneeL, _kneeR;
     private Node3D _shoulderL, _shoulderR, _elbowL, _elbowR;
+    private Node3D _torso, _head;
     private readonly List<Node3D> _joints = new();
 
     public bool Valid => _hipL != null && _shoulderL != null;
+    // 머리 관절. 벽·기계·바닥에 실제로 닿았는지 재는 쪽에서 위치를 읽는다.
+    public Node3D Head => _head;
+    public Node3D Torso => _torso;
 
     // 모델을 쪼갠다. 실패하면 원본을 그대로 두고 Valid = false 로 남는다.
     public static EntityRig Build(Node3D root)
@@ -63,7 +93,12 @@ public sealed class EntityRig
 
     // --- 자르기 -----------------------------------------------------------
 
-    private enum Part { Body, UpperLegL, LowerLegL, UpperLegR, LowerLegR, UpperArmL, ForeArmL, UpperArmR, ForeArmR }
+    private enum Part
+    {
+        Pelvis, Torso, Head,
+        UpperLegL, LowerLegL, UpperLegR, LowerLegR,
+        UpperArmL, ForeArmL, UpperArmR, ForeArmR,
+    }
 
     private void Split(Node3D root, MeshInstance3D source, Aabb aabb)
     {
@@ -81,7 +116,9 @@ public sealed class EntityRig
 
         var origin = new Dictionary<Part, Vector3>
         {
-            [Part.Body] = Vector3.Zero,
+            [Part.Pelvis] = Vector3.Zero,
+            [Part.Torso] = new(midX, mn.Y + sz.Y * TorsoY, cz),
+            [Part.Head] = new(midX, mn.Y + sz.Y * NeckY, cz),
             [Part.UpperLegL] = HipAt(-1f), [Part.LowerLegL] = KneeAt(-1f),
             [Part.UpperLegR] = HipAt(+1f), [Part.LowerLegR] = KneeAt(+1f),
             [Part.UpperArmL] = ShoulderAt(-1f), [Part.ForeArmL] = ElbowAt(-1f),
@@ -111,15 +148,25 @@ public sealed class EntityRig
             int i2 = index.Length > 0 ? index[t * 3 + 2] : t * 3 + 2;
             // 삼각형 하나는 통째로 한 부위에 들어간다 — 정점마다 나누면 면이 찢어진다.
             var center = (verts[i0] + verts[i1] + verts[i2]) / 3f;
-            var part = Classify((center - mn) * inv);
-            var st = builders[part];
-            Vector3 o = origin[part];
-            foreach (int i in stackalloc[] { i0, i1, i2 })
+            Vector3 n = (center - mn) * inv;
+            var part = Classify(n);
+
+            void Emit(Part target)
             {
-                if (normals.Length > i) st.SetNormal(normals[i]);
-                if (colors.Length > i) st.SetColor(colors[i]);
-                st.AddVertex(verts[i] - o);   // 관절 기준 좌표로 옮긴다
+                var st = builders[target];
+                Vector3 o = origin[target];
+                foreach (int i in stackalloc[] { i0, i1, i2 })
+                {
+                    if (normals.Length > i) st.SetNormal(normals[i]);
+                    if (colors.Length > i) st.SetColor(colors[i]);
+                    st.AddVertex(verts[i] - o);   // 관절 기준 좌표로 옮긴다
+                }
             }
+
+            Emit(part);
+            // 경계 근처의 살은 이웃 부위에도 한 번 더 넣는다. 상체를 크게 숙여도 다리 쪽에
+            // 남은 그 살이 벌어진 틈을 덮어 준다(안쪽이라 겹쳐 보이지 않는다).
+            foreach (var seam in SeamPartners(n, part)) Emit(seam);
         }
 
         var material = source.MaterialOverride ?? source.Mesh.SurfaceGetMaterial(0);
@@ -139,20 +186,29 @@ public sealed class EntityRig
             return joint;
         }
 
-        // 몸통은 관절이 아니다 — 원점에 그대로 둔다.
-        Make(Part.Body, root, Vector3.Zero);
+        // 골반은 관절이 아니다 — 원점에 그대로 둔다.
+        Make(Part.Pelvis, root, Vector3.Zero);
 
         _hipL = Make(Part.UpperLegL, root, origin[Part.UpperLegL]);
         _kneeL = Make(Part.LowerLegL, _hipL, origin[Part.LowerLegL]);
         _hipR = Make(Part.UpperLegR, root, origin[Part.UpperLegR]);
         _kneeR = Make(Part.LowerLegR, _hipR, origin[Part.LowerLegR]);
-        _shoulderL = Make(Part.UpperArmL, root, origin[Part.UpperArmL]);
+
+        // 상체 — 팔과 머리를 데리고 함께 꺾인다.
+        _torso = Make(Part.Torso, root, origin[Part.Torso]);
+        _shoulderL = Make(Part.UpperArmL, _torso, origin[Part.UpperArmL]);
         _elbowL = Make(Part.ForeArmL, _shoulderL, origin[Part.ForeArmL]);
-        _shoulderR = Make(Part.UpperArmR, root, origin[Part.UpperArmR]);
+        _shoulderR = Make(Part.UpperArmR, _torso, origin[Part.UpperArmR]);
         _elbowR = Make(Part.ForeArmR, _shoulderR, origin[Part.ForeArmR]);
+        _head = Make(Part.Head, _torso, origin[Part.Head]);
 
         _joints.Clear();
-        _joints.AddRange(new[] { _hipL, _kneeL, _hipR, _kneeR, _shoulderL, _elbowL, _shoulderR, _elbowR });
+        _joints.AddRange(new[]
+        {
+            _hipL, _kneeL, _hipR, _kneeR,
+            _shoulderL, _elbowL, _shoulderR, _elbowR,
+            _torso, _head,
+        });
     }
 
     // 부모 관절의 모델 좌표(자식 관절의 상대 위치를 구하려고).
@@ -161,6 +217,26 @@ public sealed class EntityRig
         foreach (var (part, pos) in origin)
             if (parent.Name == part.ToString()) return pos;
         return Vector3.Zero;   // root
+    }
+
+    // 경계 근처라 여러 부위에 겹쳐 넣어야 하는 삼각형인가.
+    private static IEnumerable<Part> SeamPartners(Vector3 n, Part part)
+    {
+        // 상체 아랫단(= 허리) → 두 허벅지에 모두. 상체가 앞으로 숙으면 그 자리에 구멍이
+        // 생기는데, 다리는 거의 제자리에 있으므로 다리에 붙여 둔 이 살이 구멍을 막는다.
+        if (part == Part.Torso && n.Y < TorsoY + SeamOverlap)
+        {
+            yield return Part.UpperLegL;
+            yield return Part.UpperLegR;
+        }
+        // 머리 아랫단 → 상체에도
+        if (part == Part.Head && n.Y < NeckY + SeamOverlap) yield return Part.Torso;
+        // 허벅지 윗단 → 상체에도 (다리를 접을 때 벌어지는 반대쪽 면)
+        if (part is Part.UpperLegL or Part.UpperLegR && n.Y > LegTopY - SeamOverlap)
+            yield return Part.Torso;
+        // 정강이 윗단 → 허벅지에도
+        if (part == Part.LowerLegL && n.Y > KneeY - SeamOverlap) yield return Part.UpperLegL;
+        if (part == Part.LowerLegR && n.Y > KneeY - SeamOverlap) yield return Part.UpperLegR;
     }
 
     private static Part Classify(Vector3 n)
@@ -180,7 +256,9 @@ public sealed class EntityRig
             if (n.Y < KneeY) return left ? Part.LowerLegL : Part.LowerLegR;
             return left ? Part.UpperLegL : Part.UpperLegR;
         }
-        return Part.Body;
+        if (n.Y >= NeckY) return Part.Head;
+        if (n.Y >= TorsoY) return Part.Torso;
+        return Part.Pelvis;
     }
 
     // --- 자세 -------------------------------------------------------------
@@ -195,6 +273,7 @@ public sealed class EntityRig
     public void SetWalk(float phase, float amount)
     {
         if (!Valid) return;
+        ClearSpine();
         amount = Mathf.Clamp(amount, 0f, 1f);
         float swing = Mathf.Sin(phase) * 0.55f * amount;
         float swingBack = -swing;
@@ -217,6 +296,7 @@ public sealed class EntityRig
     public void SetIdle(float phase)
     {
         if (!Valid) return;
+        ClearSpine();
         float s = Mathf.Sin(phase) * 0.05f;
         _hipL.Rotation = new Vector3(s, 0f, 0f);
         _hipR.Rotation = new Vector3(-s, 0f, 0f);
@@ -230,6 +310,7 @@ public sealed class EntityRig
     public void SetCrouch(float amount)
     {
         if (!Valid) return;
+        ClearSpine();
         amount = Mathf.Clamp(amount, 0f, 1f);
         _hipL.Rotation = new Vector3(0.9f * amount, 0f, 0f);
         _hipR.Rotation = new Vector3(0.9f * amount, 0f, 0f);
@@ -247,6 +328,7 @@ public sealed class EntityRig
     public void SetHeadGrab(float amount)
     {
         if (!Valid) return;
+        ClearSpine();
         amount = Mathf.Clamp(amount, 0f, 1f);
         // 펼친 팔이므로 어깨의 z 회전이 곧 "든다" 다. 왼팔은 -z, 오른팔은 +z 가 위쪽.
         _shoulderL.Rotation = new Vector3(0.25f * amount, 0f, -1.15f * amount);
@@ -273,5 +355,97 @@ public sealed class EntityRig
         _elbowR.Rotation += new Vector3(a, 0f, b);
         _kneeL.Rotation += new Vector3(a * 0.5f, 0f, 0f);
         _kneeR.Rotation += new Vector3(b * 0.5f, 0f, 0f);
+    }
+
+    // --- 척추 · 팔다리 개별 제어 -------------------------------------------
+    //
+    // 머리 박기처럼 "정해진 동작"이 아니라 매 프레임 각도를 직접 먹이는 쪽에서 쓴다.
+    // 전부 라디안. x = 앞뒤로 숙임(+ 가 앞), y = 좌우로 비틂, z = 옆으로 기울임.
+
+    public void ClearSpine()
+    {
+        if (_torso != null) _torso.Rotation = Vector3.Zero;
+        if (_head != null) _head.Rotation = Vector3.Zero;
+    }
+
+    // 상체. 팔과 머리가 여기에 매달려 있어 통째로 끌려간다.
+    public void SetTorso(float pitch, float yaw = 0f, float roll = 0f)
+    {
+        if (_torso == null) return;
+        _torso.Rotation = new Vector3(pitch, yaw, roll);
+    }
+
+    // 목 + 머리. 상체 위에 더해진다.
+    public void SetNeck(float pitch, float yaw = 0f, float roll = 0f)
+    {
+        if (_head == null) return;
+        _head.Rotation = new Vector3(pitch, yaw, roll);
+    }
+
+    // 다리를 접어 골반을 낮춘다. 바닥에 머리를 박을 때 쓴다.
+    // 실제로 내려앉는 높이는 부르는 쪽이 CrouchDrop 으로 계산한다.
+    public void SetLegs(float hipPitch, float kneePitch)
+    {
+        if (!Valid) return;
+        _hipL.Rotation = new Vector3(hipPitch, 0f, 0f);
+        _hipR.Rotation = new Vector3(hipPitch, 0f, 0f);
+        _kneeL.Rotation = new Vector3(kneePitch, 0f, 0f);
+        _kneeR.Rotation = new Vector3(kneePitch, 0f, 0f);
+    }
+
+    // 팔이 축 늘어진다. sway 를 주면 아주 느리게 흔들린다(죽은 사람 팔처럼).
+    public void SetArmsLimp(float amount, float sway = 0f)
+    {
+        if (!Valid) return;
+        amount = Mathf.Clamp(amount, 0f, 1f);
+        float s = Mathf.Sin(sway) * 0.08f * amount;
+        // 펼친 팔을 몸 쪽으로 떨어뜨린다(왼팔 +z, 오른팔 -z 가 아래).
+        _shoulderL.Rotation = new Vector3(s, 0f, 1.05f * amount);
+        _shoulderR.Rotation = new Vector3(-s, 0f, -1.05f * amount);
+        _elbowL.Rotation = new Vector3(0f, 0f, 0.28f * amount + s);
+        _elbowR.Rotation = new Vector3(0f, 0f, -0.28f * amount - s);
+    }
+
+    // 두 팔을 앞으로 내밀어 표면을 짚는다. 벽에 머리를 붙이고 멈춰 있을 때.
+    public void SetArmsBrace(float amount)
+    {
+        if (!Valid) return;
+        amount = Mathf.Clamp(amount, 0f, 1f);
+        _shoulderL.Rotation = new Vector3(-0.95f * amount, 0f, 0.55f * amount);
+        _shoulderR.Rotation = new Vector3(-0.95f * amount, 0f, -0.55f * amount);
+        _elbowL.Rotation = new Vector3(0f, 0f, 0.45f * amount);
+        _elbowR.Rotation = new Vector3(0f, 0f, -0.45f * amount);
+    }
+
+    // 지금 자세에서 머리 관절이 루트 기준 어디에 있는지(모델 단위).
+    // 벽까지 남은 거리를 재서 관통을 막는 쪽에서 쓴다.
+    public Vector3 HeadLocalPosition()
+    {
+        if (_head == null || _torso == null) return new Vector3(0f, NeckPivotY, 0f);
+        return _torso.Transform * _head.Position;
+    }
+
+    // 상체를 torsoPitch, 목을 neckPitch 만큼 숨였을 때 **머리 앞면**이 루트 기준 어디에 오는가.
+    //
+    // 벅·기계에서 얼마나 떨어져 서야 "최대로 꺾었을 때 머리가 겨우 닿는가"를 이 함수로 계산한다.
+    // 그 거리를 지키면 머리가 표면 속으로 들어갈 수 없다. (모델 단위 — 쓰는 쪽에서 Scale 을 곱한다.)
+    public static Vector3 HeadFrontLocal(float torsoPitch, float neckPitch)
+    {
+        Vector3 p = new(0f, HeadFrontLocalY, HeadFrontZ);
+        p = RotX(p, neckPitch);
+        p += new Vector3(0f, NeckPivotY - TorsoPivotY, 0f);
+        p = RotX(p, torsoPitch);
+        p += new Vector3(0f, TorsoPivotY, 0f);
+        return p;
+    }
+
+    // 지금 관절 각도 그대로의 머리 앞면 위치(루트 기준, 모델 단위).
+    public Vector3 HeadFrontLocalNow() =>
+        HeadFrontLocal(_torso?.Rotation.X ?? 0f, _head?.Rotation.X ?? 0f);
+
+    private static Vector3 RotX(Vector3 v, float a)
+    {
+        float c = Mathf.Cos(a), s = Mathf.Sin(a);
+        return new Vector3(v.X, v.Y * c - v.Z * s, v.Y * s + v.Z * c);
     }
 }

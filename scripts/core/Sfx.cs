@@ -221,6 +221,17 @@ public partial class Sfx : Node
         _screamPlayer.Play();
     }
 
+    // 벽 너머로 새어 나오는 정도의 기척.
+    //
+    // 전용 비명 버스(Scream)를 쓰지 않는다. 그쪽은 "존나 크게" 나가도록 버스 +10dB 에
+    // 리미터 프리게인 +12dB 가 걸려 있어서, 재생기 볼륨을 아무리 낮춰도 도로 끌어올려진다.
+    // 여기서는 평범한 효과음 버스로, 낮은 피치(먹먹하게)로 작게 흘린다.
+    public void PlayGhostScreamDistant(float volumeDb = -20f)
+    {
+        string key = GhostScreams[(int)(GD.Randi() % (uint)GhostScreams.Length)];
+        Play(key, volumeDb, (float)GD.RandRange(0.80, 0.90));
+    }
+
     public void Play(string key, float volumeDb = 0f, float pitch = 1f)
     {
         var stream = Load(key);

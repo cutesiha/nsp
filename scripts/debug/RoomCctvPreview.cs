@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Reflection;
 using Godot;
 using NSP.View;
@@ -48,6 +48,13 @@ public partial class RoomCctvPreview : Node3D
     private bool _freeCamera;
 
     private Node3D _roomNode;
+    // 괴물 미리보기 — 실제 FacilityCctvWorld 와 같은 부품(EntityRig + GhostBehaviour)을 쓴다.
+    private Node3D _entity;
+    private EntityRig _entityRig;
+    private GhostBehaviour _ghost;
+    private bool _ghostOn;
+    private float _shake, _shakeUntil;
+    private string _lastImpact = "";
     private readonly List<Node3D> _actors = new();
     private readonly List<Node3D> _markers = new();
     private Camera3D _cam;
@@ -87,7 +94,50 @@ public partial class RoomCctvPreview : Node3D
         sun.LookAt(new Vector3(-1, 0, -1), Vector3.Up);
 
         BuildUi();
+        BuildGhost();
         Rebuild();
+    }
+
+    // 괴물 한 마리. 방을 바꿔도 다시 만들지 않는다(GhostBehaviour 가 방 노드를 인자로 받는다).
+    private const float GhostScale = 3.2f;
+    private const float GhostStandY = 0.499f * GhostScale;
+
+    private void BuildGhost()
+    {
+        var ps = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
+        if (ps == null) return;
+        _entity = ps.Instantiate<Node3D>();
+        _entity.Scale = Vector3.One * GhostScale;
+        _entity.Visible = false;
+        AddChild(_entity);
+
+        _entityRig = EntityRig.Build(_entity);
+        _ghost = new GhostBehaviour();
+        _ghost.Attach(_entity, _entityRig, GhostScale, GhostStandY);
+        _ghost.Impact += (kind, at) =>
+        {
+            // 실제 게임과 같은 세기 — 벽 0.4도 / 설비 0.6도 / 바닥 0.7도.
+            _shake = kind switch
+            {
+                GhostImpactKind.Wall => 0.4f,
+                GhostImpactKind.Machine => 0.6f,
+                _ => 0.7f,
+            };
+            _shakeUntil = _clock + (kind == GhostImpactKind.Floor ? 0.12f : 0.08f);
+            _lastImpact = $"{kind} @ {at.X:0.0},{at.Y:0.0},{at.Z:0.0}";
+        };
+        _ghost.Reset(new Vector3(0.6f, GhostStandY, 0.4f));
+    }
+
+    private float _clock;
+
+    public override void _Process(double delta)
+    {
+        _clock += (float)delta;
+        if (!_ghostOn || _ghost == null) return;
+        _ghost.Tick((float)delta, _cam.Position, _actors.Count > 0 ? _actors[0].Position : null, _roomNode);
+        AimCamera();
+        RefreshInfo(-1);
     }
 
     public override void _Input(InputEvent e)
@@ -229,6 +279,7 @@ public partial class RoomCctvPreview : Node3D
         {
             _cam.Position = _camPos;
             _cam.LookAt(_camLook, Vector3.Up);
+            ApplyShake();
             return;
         }
         var target = new Vector3(0, 0.9f, 0);
@@ -237,6 +288,16 @@ public partial class RoomCctvPreview : Node3D
             Mathf.Sin(_orbitPitch),
             Mathf.Cos(_orbitYaw) * Mathf.Cos(_orbitPitch)) * _orbitDist;
         _cam.LookAt(target, Vector3.Up);
+        ApplyShake();
+    }
+
+    // 충돌 때의 미세한 흔들림. 실제 FacilityCctvWorld.ShakeCamera 와 같은 폭이다.
+    private void ApplyShake()
+    {
+        if (_clock >= _shakeUntil || _shake <= 0f) return;
+        float a = Mathf.DegToRad(_shake) * (float)GD.RandRange(-1.0, 1.0);
+        float b = Mathf.DegToRad(_shake) * (float)GD.RandRange(-1.0, 1.0);
+        _cam.Rotation += new Vector3(a, b, 0f);
     }
 
     // --- UI -----------------------------------------------------------------
@@ -307,6 +368,30 @@ public partial class RoomCctvPreview : Node3D
             (i < 9 ? clipRow1 : clipRow2).AddChild(b);
         }
 
+        // ── 괴물 동작 강제 재생 ────────────────────────────────────────
+        var ghostRow = Row(col);
+        ghostRow.AddChild(new Label { Text = "괴물 " });
+        var onBtn = new Button { Text = "표시 on/off" };
+        onBtn.Pressed += () =>
+        {
+            _ghostOn = !_ghostOn;
+            if (_entity != null) _entity.Visible = _ghostOn;
+            if (_ghostOn) _ghost?.Reset(new Vector3(0.6f, GhostStandY, 0.4f));
+        };
+        ghostRow.AddChild(onBtn);
+        foreach (GhostPose pose in System.Enum.GetValues<GhostPose>())
+        {
+            var p = pose;
+            var b = new Button { Text = p.ToString() };
+            b.Pressed += () =>
+            {
+                _ghostOn = true;
+                if (_entity != null) _entity.Visible = true;
+                _ghost?.Force(p, _cam.Position, _actors.Count > 0 ? _actors[0].Position : null, _roomNode);
+            };
+            ghostRow.AddChild(b);
+        }
+
         _info = new Label();
         _info.AddThemeColorOverride("font_color", new Color(0.62f, 0.92f, 1f));
         col.AddChild(_info);
@@ -318,7 +403,9 @@ public partial class RoomCctvPreview : Node3D
         string clip = _clipIndex < 0 ? "자동(자리 기본)" : Clips[_clipIndex];
         _info.Text = $"{_roomIds[_room]} · {_employeeIds[_employee]} × {_count}명 · {clip} · "
                    + $"카메라 {(_freeCamera ? "자유(좌드래그/휠)" : "실제 CCTV")}"
-                   + (spotCount >= 0 ? $" · WorkSpot {spotCount}개" : "");
+                   + (spotCount >= 0 ? $" · WorkSpot {spotCount}개" : "")
+                   + (_ghostOn ? $"\n괴물 {_ghost?.Pose} {(_ghost?.Busy == true ? "(진행 중)" : "(대기)")}"
+                                 + (_lastImpact.Length > 0 ? $" · 마지막 충돌 {_lastImpact}" : "") : "");
     }
 
     private static HBoxContainer Row(Node parent)
