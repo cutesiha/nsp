@@ -373,3 +373,19 @@ surface_material_override/0 = SubResource("MAT_steel")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 1.3960464)
 mesh = SubResource("RM24")
 surface_material_override/0 = SubResource("MAT_amber")
+
+; 괴물 반응 표현 전용 — 고양이·강아지가 같은 방 안에서 숨는 구석(CCTV 에 보이는 빈 바닥).
+; 게임 판정·방 이동과 무관하다. RoomWorkVisualController 가 괴물에서 가장 먼 곳을 고른다.
+[node name="GhostHideSpots" type="Node3D" parent="."]
+
+[node name="GhostHideSpotA" type="Marker3D" parent="GhostHideSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.9, 0, -1.6)
+
+[node name="GhostHideSpotB" type="Marker3D" parent="GhostHideSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0, 0, -0.95)
+
+[node name="GhostHideSpotC" type="Marker3D" parent="GhostHideSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0, 2.15)
+
+[node name="GhostHideSpotD" type="Marker3D" parent="GhostHideSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.35, 0, 0.05)

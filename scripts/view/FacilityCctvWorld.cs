@@ -72,6 +72,9 @@ public partial class FacilityCctvWorld : Node3D
     private readonly Dictionary<string, EmployeeCctvAnimator> _animators = new();
     // 방 안 작업 자리 배치(표현 전용).
     private readonly RoomWorkVisualController _workVisual = new();
+    // 괴물 반응이 몇 초째인가 — 보고 있지 않은 방의 직원까지 계속 센다(표현 전용).
+    private readonly GhostReactionTracker _ghostReactions = new();
+    public GhostReactionTracker GhostReactions => _ghostReactions;
     private Node3D _entity;
     private Camera3D _camera;
 
@@ -223,9 +226,11 @@ public partial class FacilityCctvWorld : Node3D
         if (interview) HideAllActors();
         else
         {
-            UpdateEmployees(sim, target);
+            // 괴물을 먼저 세운다 — 직원들이 그 위치를 보고 숨을 곳·맞설 쪽을 고른다.
             WireGhost(sim);
             if (!_hauntActive) UpdateGhost(sim, target, (float)delta);
+            if (sim != null) _ghostReactions.Tick(sim, (float)delta);
+            UpdateEmployees(sim, target);
             if (!_hauntActive && !_ghostShowing && !_ghostVanishing) UpdateEntity(target);
         }
 
@@ -427,7 +432,7 @@ public partial class FacilityCctvWorld : Node3D
 
         // 작업 자리 배치는 위치/회전을 덮어쓰므로 마지막에 한 번만 돌린다.
         _rooms.TryGetValue(target, out var roomNode);
-        _workVisual.Update(sim, roomNode, target, _workQueue, (float)_lastDelta);
+        _workVisual.Update(sim, roomNode, target, _workQueue, (float)_lastDelta, _ghostReactions, GhostVisualPosition());
         _workQueue.Clear();
     }
 
@@ -476,6 +481,13 @@ public partial class FacilityCctvWorld : Node3D
     }
 
     // ── 괴물 ───────────────────────────────────────────────────────────
+
+    // 지금 화면에 보이는 괴물의 바닥 위치. 표현 계층 안에서만 쓴다(시뮬레이션에 기록하지 않는다).
+    private Vector3? GhostVisualPosition()
+    {
+        if (_entity == null || !_entity.Visible || !(_ghostShowing || _ghostVanishing)) return null;
+        return new Vector3(_entity.Position.X, 0f, _entity.Position.Z);
+    }
 
     private void WireGhost(FacilitySimulation sim)
     {

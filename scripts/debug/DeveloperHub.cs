@@ -26,6 +26,7 @@ public partial class DeveloperHub : Node
         ("DAY1 운영(Day1OpsTest)", "res://scenes/debug/Day1OpsTest.tscn"),
         ("DAY2 흐름(Day2FlowTest)", "res://scenes/debug/Day2FlowTest.tscn"),
         ("엔딩 캡처(EndingShot · 커맨드라인)", "res://scenes/debug/EndingShot.tscn"),
+        ("괴물 반응 6인(GhostReactionShot)", "res://scenes/debug/GhostReactionShot.tscn"),
     };
 
     private CanvasLayer _menuLayer;

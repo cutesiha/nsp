@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using NSP.View;
 
 namespace NSP.Debug;
 
@@ -12,6 +13,7 @@ namespace NSP.Debug;
 //   SPACE    일시정지/재개      ·  R  현재 애니메이션 처음부터
 //   Z/X/C    전신 / CCTV 거리 / 가까이 시점
 //   L        이름표 켜기/끄기
+//   G        괴물 반응 — 6명이 각자 자기 반응(첫 반응 → 반복)을 동시에 한다 · H 회복
 public partial class EmployeeCctvPreview : Node3D
 {
     // 공용 라이브러리(employee_common.tres)에 실제로 들어 있는 애니메이션 전부.
@@ -60,8 +62,66 @@ public partial class EmployeeCctvPreview : Node3D
 
     // --- 재생 ---------------------------------------------------------------
 
+    // ── 괴물 반응(각자) ──────────────────────────────────────────────
+    // 게임과 같은 GhostReactionProfiles 표를 읽어 첫 반응 → 반복 → 회복 클립을 잇는다.
+    // 위치 이동(숨기·반 걸음)은 게임의 RoomWorkVisualController 몫이라 여기서는 제자리다.
+    private float _ghostT = -1f;
+    private bool _ghostRecover;
+
+    private static string IdOf(AnimationPlayer a)
+    {
+        string path = (a.GetParent()?.SceneFilePath ?? "").ToLowerInvariant();
+        foreach (var id in new[] { "fox", "dog", "cat", "sheep", "rabbit", "wolf" })
+            if (path.Contains(id)) return id;
+        return "";
+    }
+
+    private void PlayGhost(bool recover)
+    {
+        _ghostT = 0f;
+        _ghostRecover = recover;
+        _paused = false;
+        foreach (var a in _anims)
+        {
+            var prof = GhostReactionProfiles.Get(GhostReactionProfiles.ActionFor(IdOf(a)));
+            if (prof == null) continue;
+            a.SpeedScale = _speed;
+            if (prof.KeepsWorking) { a.Play("work"); continue; }
+            if (recover) a.Play(prof.RecoverClip, 0.2);
+            else a.Play(prof.IntroClip, prof.IntroBlend);
+            a.Seek(0, true);
+        }
+        _hint.Text = recover ? "[괴물 반응 — 회복]" : "[괴물 반응 — 각자]  G 다시  H 회복\n"
+            + "양 주저앉음 · 토끼 비명 · 고양이 숨기 · 강아지 숨기 · 늑대 대치 · 여우 계속 일함(고개만)";
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_ghostT < 0f || _paused) return;
+        _ghostT += (float)delta * _speed;
+        foreach (var a in _anims)
+        {
+            var prof = GhostReactionProfiles.Get(GhostReactionProfiles.ActionFor(IdOf(a)));
+            if (prof == null) continue;
+            if (prof.KeepsWorking)
+            {
+                // 여우 — 손을 0.3초 멈추고 고개만 돌렸다가, 2초마다 한 번씩 다시 본다.
+                var neck = a.GetParent().GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips/Torso/Chest/Neck");
+                float t = _ghostT;
+                bool look = !_ghostRecover && (t < 0.6f || t % 2.0f is > 1.2f and < 1.6f);
+                a.SpeedScale = !_ghostRecover && t is > 0.03f and < 0.33f ? 0f : _speed;
+                if (neck != null)
+                    neck.Rotation = neck.Rotation with { Y = Mathf.Lerp(neck.Rotation.Y, look ? 0.9f : 0f, 0.25f) };
+                continue;
+            }
+            if (!_ghostRecover && _ghostT >= prof.IntroSeconds && a.CurrentAnimation != prof.LoopClip)
+                a.Play(prof.LoopClip, 0.14);
+        }
+    }
+
     private void Play(int index)
     {
+        _ghostT = -1f;
         _clip = Mathf.Clamp(index, 0, Clips.Length - 1);
         _paused = false;
         foreach (var a in _anims)
@@ -114,6 +174,8 @@ public partial class EmployeeCctvPreview : Node3D
             case Key.X: if (_cctv != null) _cctv.Current = true; break;
             case Key.C: if (_close != null) _close.Current = true; break;
             case Key.L: foreach (var l in _labels) l.Visible = !l.Visible; break;
+            case Key.G: PlayGhost(false); break;
+            case Key.H: PlayGhost(true); break;
             case Key.F10: GetTree().ChangeSceneToFile("res://scenes/debug/DeveloperHub.tscn"); break;
         }
     }
@@ -160,6 +222,13 @@ public partial class EmployeeCctvPreview : Node3D
         }
 
         // Developer Hub 로 복귀.
+        var ghostBtn = new Button { Text = "괴물 반응(각자) G", Position = new Vector2(200, 180) };
+        ghostBtn.Pressed += () => PlayGhost(false);
+        layer.AddChild(ghostBtn);
+        var recoverBtn = new Button { Text = "회복 H", Position = new Vector2(360, 180) };
+        recoverBtn.Pressed += () => PlayGhost(true);
+        layer.AddChild(recoverBtn);
+
         var back = new Button { Text = "◀ DEV HUB (F10)", Position = new Vector2(20, 180) };
         back.Pressed += () => GetTree().ChangeSceneToFile("res://scenes/debug/DeveloperHub.tscn");
         layer.AddChild(back);

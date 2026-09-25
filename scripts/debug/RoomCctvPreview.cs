@@ -29,13 +29,15 @@ public partial class RoomCctvPreview : Node3D
             .GetField("Slots", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null)
         ?? new[] { Vector3.Zero };
 
-    // 공용 라이브러리에 실제로 들어 있는 클립 18개.
+    // 공용 라이브러리에 실제로 들어 있는 클립(괴물 반응 반복 구간 포함).
     private static readonly string[] Clips =
     {
         "idle", "walk", "talk", "work", "repair", "inspect", "suspicious", "handoff",
         "sit_typing", "sit_assemble", "hammer_work", "lying_idle",
         "carry_box_normal", "carry_box_heavy", "pickup_box", "place_box",
         "isolated_struggle", "isolated_exhausted",
+        "ghost_sheep_cower_loop", "ghost_rabbit_scream_loop", "ghost_cat_hide_loop",
+        "ghost_dog_hide_loop", "ghost_wolf_guard_loop",
     };
 
     private readonly List<string> _roomIds = new();
@@ -299,12 +301,13 @@ public partial class RoomCctvPreview : Node3D
         autoBtn.Pressed += () => { _clipIndex = -1; Rebuild(); };
         clipRow1.AddChild(autoBtn);
         var clipRow2 = Row(col);
+        var clipRow3 = Row(col);
         for (int i = 0; i < Clips.Length; i++)
         {
             int idx = i;
             var b = new Button { Text = Clips[i] };
             b.Pressed += () => { _clipIndex = idx; Rebuild(); };
-            (i < 9 ? clipRow1 : clipRow2).AddChild(b);
+            (i < 9 ? clipRow1 : i < 18 ? clipRow2 : clipRow3).AddChild(b);
         }
 
         _info = new Label();

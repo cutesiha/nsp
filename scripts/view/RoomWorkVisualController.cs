@@ -9,7 +9,7 @@ namespace NSP.View;
 // **표현 전용이다.** 업무 게이지·효과·배치 판정은 전부 FacilitySimulation 이 이미 끝냈고,
 // 여기서는 그 결과(현재 방 · 현재 업무 · 표현 동작)를 읽어 위치와 애니메이션만 고른다.
 // 저장고 수레 역시 화면 연출일 뿐, 자재 수치는 기존 inventory_sorting 효과가 담당한다.
-public sealed class RoomWorkVisualController
+public sealed partial class RoomWorkVisualController
 {
     // 방 안에서 자리로 걸어가는 속도(표현 전용). 시뮬레이션 이동과 무관하다.
     private const float WalkSpeed = 1.15f;
@@ -33,6 +33,8 @@ public sealed class RoomWorkVisualController
         public float CartTimer;
         public string CartId = "";
         public float IsolatedFor = -1f;   // 격리 시작부터의 표현 전용 경과 시간
+        public GhostVisual Ghost;         // 괴물 반응 중의 같은 방 안 표현 위치(아래 GhostVisual)
+        public bool SnapToSpot;           // 다시 보일 때 걸어가지 않고 바로 자리에 붙인다(여우 — 계속 일하던 중)
     }
 
     private sealed class Cart
@@ -57,6 +59,8 @@ public sealed class RoomWorkVisualController
     {
         _actors.Clear();
         _spotCache.Clear();
+        _clearance.Clear();
+        _hideSpots.Clear();
         _carts.Clear();
         _cartRoom = "";
     }
@@ -66,18 +70,22 @@ public sealed class RoomWorkVisualController
     public void Update(FacilitySimulation sim, Node3D room, string roomId,
                        List<(string Id, Node3D Node, EmployeeCctvAnimator Anim,
                              CctvEmployeeAction Action, Vector3 FallbackPos)> visible,
-                       float delta)
+                       float delta, GhostReactionTracker reactions = null, Vector3? ghostPos = null)
     {
         if (room == null) return;
         var spots = GetSpots(room, roomId);
         string taskId = sim?.GetPrimarySpawnedTask(roomId)?.TaskId ?? "";
 
         TickCarts(room, roomId, delta);
+        BeginGhostFrame(room, roomId, visible);
 
         var used = new Dictionary<RoomWorkSpot, int>();
         foreach (var v in visible)
         {
             var actor = _actors.TryGetValue(v.Id, out var a) ? a : _actors[v.Id] = new Actor();
+            // 시선·재생 속도는 괴물 반응이 있을 때만 바꾼다 — 매 프레임 기본값부터.
+            v.Anim?.SetLook(0f, 0f, 8f);
+            v.Anim?.SetSpeedFactor(1f);
 
             // 격리 — 다른 무엇보다 먼저. 전용 침대에 눕히고 격리 전용 클립만 재생한다.
             if (v.Action == CctvEmployeeAction.Isolated)
@@ -112,6 +120,19 @@ public sealed class RoomWorkVisualController
                 }
                 // 침대가 없는 방에서 기절했으면 그 자리에 그대로 둔다(기존 동작).
             }
+
+            // 같은 방의 괴물 — 이동·방해공작·일반 업무보다 먼저 처리한다.
+            // (격리·기절·실제 이동·장기 공황은 CctvActionResolver/GhostReactionTracker 가 이미 앞에 두었다.)
+            var gs = reactions?.Get(v.Id);
+            var prof = gs is { Stage: not GhostReactionTracker.Stage.None } ? GhostReactionProfiles.Get(gs.Action) : null;
+            if (prof != null && !prof.KeepsWorking)
+            {
+                TickGhostReaction(v.Id, v.Node, v.Anim, v.FallbackPos, actor, gs, prof, ghostPos,
+                                  spots, taskId, used, delta);
+                continue;
+            }
+            if (prof != null) FoxOverlay(v.Id, v.Node, v.Anim, actor, gs, ghostPos);
+            else actor.Ghost = null;
 
             // 대화·이동·방해공작 중에는 자리를 잡지 않는다(기존 연출을 그대로 둔다).
             bool freeAction = v.Action is CctvEmployeeAction.Walking or CctvEmployeeAction.Talking
@@ -148,6 +169,7 @@ public sealed class RoomWorkVisualController
 
             used[spot] = used.GetValueOrDefault(spot) + 1;
             if (actor.Spot != spot) { actor.Spot = spot; actor.Arrived = false; }
+            if (actor.SnapToSpot) { actor.SnapToSpot = false; actor.Arrived = true; }
             MoveToSpot(v.Node, v.Anim, actor, spot, IsFemale(v.Node), delta);
         }
 
@@ -156,8 +178,16 @@ public sealed class RoomWorkVisualController
         {
             bool still = false;
             foreach (var v in visible) if (v.Id == id) { still = true; break; }
-            if (!still) Release(actor);
+            if (!still)
+            {
+                Release(actor);
+                // 다시 보일 때는 반응을 처음부터 하지 않고, 그동안 가 있었을 자리에 바로 둔다.
+                if (actor.Ghost != null) actor.Ghost.NeedsPlace = true;
+            }
         }
+
+        // 클립·위치를 다 정한 뒤 — 쓰지 않는 관절 되돌리기 · 시선.
+        foreach (var v in visible) v.Anim?.Update(delta);
     }
 
     // ── 자리 선택 ────────────────────────────────────────────────────────
