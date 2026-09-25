@@ -209,6 +209,8 @@ public sealed class SaboteurPlan
         if (_willActToday == false) return false;
 
         if (Phase != SaboteurPhase.Preparing) return false;
+        // 격리 명령을 받은 순간부터는 손대지 않는다 — 아직 작업실에서 반응하는 중이어도 마찬가지다.
+        if (saboteur.Isolated) return false;
         if (saboteur.CurrentRoomId != WatchedRoomId) return false;
 
         // 혼자 있는 방에서는 손대지 않는다. 그 방에 자기밖에 없는데 설비가 망가지면

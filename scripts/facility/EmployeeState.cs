@@ -60,8 +60,15 @@ public class EmployeeState
     // 정전(CCTV 미가동) 중 사망은 즉시 발견되지 않는다 — 전력이 복구되는 순간에야 발견된다.
     // 평소(정전 아닐 때) 사망은 바로 발견되므로 기본값은 true.
     public bool DiscoveredDead = true;
+    // 격리 — 명령을 받은 순간 true 가 된다(업무·방해공작에서 즉시 빠진다).
+    // "실제로 침대에 묶였는가" 는 아래 Isolation 단계가 따로 들고 있다.
     public bool Isolated = false;
     public string PreIsolationRoomId = "";
+
+    // 격리 절차의 앞단 — 명령을 받은 것과 격리실에 실제로 들어간 것은 다른 상태다.
+    // 침대·압박밴드 단계는 CCTV 쪽(RoomWorkVisualController.Isolation.cs)이 따로 가진다.
+    public IsolationPhase Isolation = IsolationPhase.None;
+    public float IsolationPhaseTimer;
     // 근무 시작 후 배치된 자리에 처음 도착했는지. 도착 전까지는 원래 속도로 걷고,
     // 도착한 뒤의 모든 이동(재배치·사고 확인 등)은 근무 중 저속으로 걷는다.
     public bool InitialDeployDone = false;

@@ -16,6 +16,7 @@ public partial class FacilitySimulation : Node
     [Signal] public delegate void EmployeeKilledEventHandler(string employeeId);
 
     private const string IsolationRoomId = "isolation_room";
+    public static string IsolationRoomIdPublic => IsolationRoomId;
     private const string GuardRoomId = "guard_room";
     public static string GuardRoomIdPublic => GuardRoomId;
     public static string CoreRoomIdPublic => CoreRoomId;
@@ -857,6 +858,7 @@ public partial class FacilitySimulation : Node
 
     public bool IsolateEmployee(string employeeId)
     {
+        // 걸어가는 중인 사람도 이미 한 자리를 차지한 것으로 본다(침대가 두 개뿐이다).
         int currentlyIsolated = _employeeStates.Values.Count(e => e.Isolated);
         if (currentlyIsolated >= Config.Instance.Data.IsolationCapacity)
             return false;
@@ -864,12 +866,59 @@ public partial class FacilitySimulation : Node
             return false;
 
         emp.PreIsolationRoomId = !string.IsNullOrEmpty(emp.AssignedRoomId) ? emp.AssignedRoomId : emp.CurrentRoomId;
+        // 명령을 받은 순간부터 업무·방해공작에서 빠진다(§4 앞단).
         emp.Isolated = true;
         emp.AssignedRoomId = "";
         RemoveOccupant(emp.CurrentRoomId, employeeId);
-        BeginPathTo(emp, IsolationRoomId);
-        EventLog.Instance?.LogEvent(LogEventType.Isolation, employeeId, IsolationRoomId, $"{Codename(employeeId)} - 격리 조치");
+
+        // **여기서 격리실로 걷게 하지 않는다.**
+        // 예전에는 바로 BeginPathTo 를 불러, 명령을 받자마자 아무 감정 없이 걸어갔다.
+        // 지금은 그 자리에서 캐릭터별로 먼저 반응하고(IsolationSystem.React),
+        // 그 뒤에 스스로 걸어간다. 기절 이송과 달리 아무도 끌고 가지 않는다.
+        _isolation.OnOrdered(emp);
+        EventLog.Instance?.LogEvent(LogEventType.Isolation, employeeId, IsolationRoomId,
+            $"{Codename(employeeId)} - 격리 명령");
         return true;
+    }
+
+    // 격리 절차 — 명령 → 반응 → 이동 → 침대 → 구속 → 해제.
+    private readonly IsolationSystem _isolation = new();
+    public IsolationSystem Isolation => _isolation;
+
+    // 격리실로 **본인이** 걸어간다(기절자와 달리 의식이 있다).
+    // 길이 없으면 false — 걸어가는 단계에서 영원히 멈춰 있지 않게 한다.
+    public bool SendToIsolationRoom(string employeeId)
+    {
+        var emp = _employeeStates.GetValueOrDefault(employeeId);
+        if (emp == null || !_roomDefs.ContainsKey(IsolationRoomId)) return false;
+        return BeginPathTo(emp, IsolationRoomId);
+    }
+
+    // 격리가 풀렸다 — 원래 작업실로 돌려보낸다. 순간이동시키지 않고 실제로 걸어 나간다.
+    public void SendIsolatedHome(EmployeeState emp)
+    {
+        emp.Isolated = false;
+        string returnRoom = emp.PreIsolationRoomId;
+        emp.PreIsolationRoomId = "";
+
+        bool reassigned = !string.IsNullOrEmpty(returnRoom) && CanAssignToRoom(returnRoom)
+                          && AssignToRoom(emp.EmployeeId, returnRoom);
+        if (reassigned) return;
+        // 중앙 제어실은 관리자 전용 구역이다. 원래 작업실로 돌아갈 수 없을 때도
+        // 중앙 제어실로 보내지 말고, 인접한 배치 가능 작업실을 새 담당 구역으로 잡는다.
+        string fallback = FindNearestAvailableRoom(
+            string.IsNullOrEmpty(returnRoom) ? emp.CurrentRoomId : returnRoom);
+        if (!string.IsNullOrEmpty(fallback)) AssignToRoom(emp.EmployeeId, fallback);
+    }
+
+    // 기절 등으로 격리 절차가 깨졌다 — 격리 자체를 없던 일로 한다(§35).
+    public void AbortIsolation(EmployeeState emp)
+    {
+        if (!emp.Isolated) return;
+        emp.Isolated = false;
+        string back = emp.PreIsolationRoomId;
+        emp.PreIsolationRoomId = "";
+        if (!string.IsNullOrEmpty(back) && CanAssignToRoom(back)) emp.AssignedRoomId = back;
     }
 
     public bool CancelIsolation(string employeeId)
@@ -877,21 +926,13 @@ public partial class FacilitySimulation : Node
         if (!_employeeStates.TryGetValue(employeeId, out var emp) || !emp.Isolated)
             return false;
 
-        emp.Isolated = false;
-        string returnRoom = emp.PreIsolationRoomId;
-        emp.PreIsolationRoomId = "";
-
-        bool reassigned = !string.IsNullOrEmpty(returnRoom) && CanAssignToRoom(returnRoom) && AssignToRoom(employeeId, returnRoom);
-        if (!reassigned)
-        {
-            // 중앙 제어실은 관리자 전용 구역이다. 원래 작업실로 돌아갈 수 없을 때도
-            // 중앙 제어실로 보내지 말고, 인접한 배치 가능 작업실을 새 담당 구역으로 잡는다.
-            string fallback = FindNearestAvailableRoom(string.IsNullOrEmpty(returnRoom) ? emp.CurrentRoomId : returnRoom);
-            if (!string.IsNullOrEmpty(fallback))
-                AssignToRoom(employeeId, fallback);
-        }
-
-        EventLog.Instance?.LogEvent(LogEventType.Isolation, employeeId, returnRoom, $"{Codename(employeeId)} - 격리 해제");
+        // 단계를 지우고 원래 작업실로 돌려보낸다.
+        // 침대에서 일어나는 역순 연출(밴드 해제 → 상체 일으킴 → 일어섬)은 CCTV 가
+        // Isolated 가 풀린 것을 보고 이어서 그린다 — 여기서 순간이동시키지 않는다.
+        _isolation.OnReleased(emp);
+        EventLog.Instance?.LogEvent(LogEventType.Isolation, employeeId, emp.PreIsolationRoomId,
+            $"{Codename(employeeId)} - 격리 해제");
+        SendIsolatedHome(emp);
         return true;
     }
 
@@ -901,6 +942,8 @@ public partial class FacilitySimulation : Node
     {
         _rescue.Attach(this);
         _rescue.Reset();
+        _isolation.Attach(this);
+        _isolation.Reset();
         // 표시용 집계는 근무 단위다 — 새 근무가 시작되면 0 부터 다시 센다.
         RoomEffectStats.ResetDay();
         RoomEffectLog.ResetDay();
@@ -1017,6 +1060,7 @@ public partial class FacilitySimulation : Node
         TickUnstaffedAccidents(d);
         _ghost.Tick(d, this);
         _rescue.Tick(d);
+        _isolation.Tick(d);
         _warnings.Tick(d, this);
         _behavior.Tick(d, this);
         TickGuardPatrol(d);
@@ -2111,6 +2155,8 @@ public partial class FacilitySimulation : Node
         // 최초 배치 자리로 가는 길은 기존 속도, 자리를 잡은 뒤의 이동은 훨씬 느리게.
         var cfg = Config.Instance.Data;
         float speed = emp.InitialDeployDone ? cfg.EmployeeMoveSpeedInShift : cfg.EmployeeMoveSpeed;
+        // 격리실로 걸어가는 길만 캐릭터마다 걸음이 다르다(§13) — 양은 발이 잘 떨어지지 않는다.
+        if (emp.Isolation == IsolationPhase.Walking) speed *= IsolationSystem.WalkSpeedScale(emp.EmployeeId);
         Vector2 toTarget = stepTarget - emp.Position;
         float dist = toTarget.Length();
 

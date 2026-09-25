@@ -23,7 +23,12 @@ public static class CctvActionResolver
         if (sim == null || st == null) return CctvEmployeeAction.Idle;
 
         // 격리 — 다른 모든 행동보다 우선한다. 격리 중에는 talk/work/repair 로 바뀌지 않는다.
-        if (st.Isolated) return CctvEmployeeAction.Isolated;
+        //
+        // 단, 명령을 받고 **격리실까지 제 발로 걸어가는 동안**은 아니다. 그 구간은
+        //   그 자리에서 반응(IsolationPhase.React) → 걸어 나감(Walking)
+        // 이고 화면에서도 그렇게 보여야 한다. 여기서 Isolated 를 돌려주면 아직 작업실에
+        // 서 있는 사람이 침대에 묶인 모습으로 그려진다.
+        if (st.Isolated && !IsolationSystem.EnRoute(st)) return CctvEmployeeAction.Isolated;
 
         // 기절 — 업무 불가 상태이므로 서 있는 것으로만 보인다.
         if (st.Incapacitated) return CctvEmployeeAction.Idle;

@@ -217,11 +217,24 @@ public sealed partial class RoomWorkVisualController
                 }
             }
 
-            // ① 격리 — 침대까지 걸어가 눕고, 스트랩이 채워진 뒤 발버둥. 풀리면 역순으로 일어난다.
+            // ① 격리 명령을 들은 직후 — 아직 한 발도 떼지 않았다(§6~§12).
+            //
+            // 예전에는 격리를 누른 순간 곧바로 격리실 침대로 넘어갔다. 지금은 있던 자리에서
+            // 하던 일을 먼저 정리하고(의자에서 일어나 도구를 내려놓는다), 캐릭터마다 다르게
+            // 한 번 반응한 뒤에야 제 발로 걸어 나간다. 걷는 표현은 평소 이동과 같다.
+            if (st != null && IsolationSystem.Reacting(st))
+            {
+                if (!StandUpFirst(node, anim, actor, female, delta)) continue;
+                Release(actor);
+                TickIsolationReact(node, anim, st);
+                continue;
+            }
+
+            // ② 격리 — 침대까지 걸어가 눕고, 스트랩이 채워진 뒤 발버둥. 풀리면 역순으로 일어난다.
             if (v.Action == CctvEmployeeAction.Isolated || actor.Iso is { Active: true })
             {
                 if (TickIsolation(node, anim, actor, spots, used, female,
-                                  releasing: v.Action != CctvEmployeeAction.Isolated, delta))
+                                  releasing: v.Action != CctvEmployeeAction.Isolated, v.Id, delta))
                     continue;
             }
 
@@ -274,6 +287,13 @@ public sealed partial class RoomWorkVisualController
                 if (!StandUpFirst(node, anim, actor, female, delta)) continue;
                 LeaveSpot(actor);
                 ShowProps(actor, "");
+                // 격리실로 향하는 걸음은 평소와 다르다(§14) — 걸음 속도와 떨림만 얹는다.
+                // (매 프레임 기본값으로 되돌아가는 값이라 다른 동작에 남지 않는다.)
+                if (st != null && IsolationSystem.EnRoute(st))
+                {
+                    anim?.SetSpeedFactor(IsolationSystem.WalkSpeedScale(v.Id));
+                    anim?.SetAftershock(IsolationSystem.WalkTremble(v.Id));
+                }
                 if (FollowRoute(node, anim, actor, DoorPoint, delta)) actor.Exited = true;
                 continue;
             }

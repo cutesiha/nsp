@@ -420,7 +420,12 @@ public partial class FacilityCctvWorld : Node3D
         foreach (var (id, actor) in _employees)
         {
             var st = sim.GetEmployeeState(id);
-            string room = st == null ? "" : st.Isolated ? "isolation_room" : st.CurrentRoomId;
+            // 격리 명령을 받았다고 곧바로 격리실로 옮겨 그리지 않는다. 반응하고 걸어가는
+            // 동안은 원래 있던 방에 그대로 보인다(도착하면 CurrentRoomId 가 격리실이 되므로
+            // 두 경우의 값이 같아진다 — 화면이 튀지 않는다).
+            string room = st == null ? ""
+                : st.Isolated && !IsolationSystem.EnRoute(st) ? "isolation_room"
+                : st.CurrentRoomId;
             // 오늘 배치되지 않은 직원은 근무 인원이 아니다 — 미니맵과 마찬가지로 CCTV 에도 안 잡힌다.
             bool onShift = st != null && (st.Isolated || sim.IsOnDuty(id));
             bool here = st is { Alive: true } && onShift && room == target && _rooms.ContainsKey(target);

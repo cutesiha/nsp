@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using NSP.Facility;
 
 namespace NSP.View;
 
@@ -128,7 +129,7 @@ public sealed partial class RoomWorkVisualController
 
     // ── 격리 한 프레임. 처리했으면 true(다른 동작으로 넘어가지 않는다) ──
     private bool TickIsolation(Node3D node, EmployeeCctvAnimator anim, Actor actor, List<RoomWorkSpot> spots,
-                               Dictionary<RoomWorkSpot, int> used, bool female, bool releasing, float delta)
+                               Dictionary<RoomWorkSpot, int> used, bool female, bool releasing, string who, float delta)
     {
         // 격리실이 아닌 방이면(떠나는 중) 여기서 할 일이 없다.
         if (_strapRoom == null) { actor.Iso = null; return false; }
@@ -239,7 +240,18 @@ public sealed partial class RoomWorkVisualController
                 {
                     straps.Closed = 1f;
                     iso.Struggled += delta;
-                    anim?.PlayClip(iso.Struggled < IsolationStruggleSeconds ? "isolated_struggle" : "isolated_exhausted", 0.3);
+                    // 발버둥은 캐릭터마다 다르다(§25) — 클립은 같지만 얼마나 오래·얼마나 세게인가가 다르다.
+                    float power = IsolationSystem.StruggleOf(who);
+                    float window = IsolationStruggleSeconds * (0.3f + 1.4f * power);
+                    bool fighting = iso.Struggled < window;
+                    if (fighting && IsolationSystem.SettlesDown(who))
+                        // 처음 크게 몰아치고 점점 잦아든다(토끼·늑대·강아지).
+                        power *= Mathf.Lerp(1f, 0.45f, Mathf.Clamp(iso.Struggled / window, 0f, 1f));
+                    else if (!fighting && power >= 0.9f)
+                        // 양은 지쳐 늘어진 뒤에도 이따금 다시 몸을 뒤척인다.
+                        fighting = Mathf.Sin(iso.Struggled * 0.7f) > 0.6f;
+                    anim?.PlayClip(fighting ? "isolated_struggle" : "isolated_exhausted", 0.3);
+                    anim?.SetSpeedFactor(Mathf.Lerp(0.55f, 1.15f, power));
                 }
                 return true;
             }
@@ -312,5 +324,51 @@ public sealed partial class RoomWorkVisualController
             Phase = IsoPhase.Struggle,
             Struggled = Mathf.Max(0f, ago - 7f),
         };
+    }
+
+    // ── 격리 명령을 들은 직후, 그 자리에서의 반응(§6~§12) ──────────────
+    //
+    // 새 클립을 만들지 않고 이미 있는 클립을 쓴다. 캐릭터마다 다른 것은
+    // "무엇이 먼저 나오는가" 다 — 어깨가 내려앉는 정도 · 두리번거림 · 떨림 · 속도.
+    //   양   겁먹고 굳는다(가장 오래 머뭇거리고 몸이 떨린다)
+    //   토끼 크게 당황해 뒤를 확인한다(두리번거림이 가장 크다)
+    //   강아지 풀이 죽어 고개를 숙인다
+    //   고양이 짜증 — 옷을 한 번 털고 만다
+    //   늑대 침착하게 한 번 확인하고 받아들인다
+    //   여우 태연 — 어깨 한 번 으쓱
+    //
+    // 방해자도 여기서 특별하게 보이지 않는다 — 반응만 보고 범인을 알 수는 없다(§40).
+    private readonly record struct IsoReact(string Clip, float Wilt, float LookAround, float Tremble, float Tempo);
+
+    private static IsoReact ReactOf(string employeeId) => employeeId switch
+    {
+        "sheep" => new IsoReact("suspicious", 1.00f, 0.45f, 0.75f, 0.75f),
+        "rabbit" => new IsoReact("suspicious", 0.35f, 1.00f, 0.35f, 1.15f),
+        "dog" => new IsoReact("ghost_dog_breathe_recover", 0.85f, 0.30f, 0.15f, 0.85f),
+        "cat" => new IsoReact("ghost_cat_wipe_recover", 0.10f, 0.35f, 0f, 1.10f),
+        "wolf" => new IsoReact("ghost_wolf_check_recover", 0.05f, 0.25f, 0f, 0.95f),
+        _ => new IsoReact("ghost_fox_shrug_recover", 0f, 0.20f, 0f, 1.00f),
+    };
+
+    private static void TickIsolationReact(Node3D node, EmployeeCctvAnimator anim, EmployeeState st)
+    {
+        if (node == null || st == null) return;
+        var r = ReactOf(st.EmployeeId);
+        float total = Mathf.Max(0.01f, IsolationSystem.ReactSeconds(st.EmployeeId));
+        float k = Mathf.Clamp(st.IsolationPhaseTimer / total, 0f, 1f);
+
+        // 경과 시간에 맞춰 seek 한다 — CCTV 를 돌려 다시 봐도 반응이 처음으로 되감기지 않는다.
+        anim?.PlayClip(r.Clip, 0.15, st.IsolationPhaseTimer);
+        anim?.SetSpeedFactor(r.Tempo);
+
+        // ① 명령을 듣고 짧게 굳는다 ② 캐릭터별 반응 ③ 자세를 펴고 출발 준비
+        //    ③ 에서 0 으로 돌아오므로 걸어 나갈 때 반응 자세가 남지 않는다.
+        float hold = Mathf.SmoothStep(0.10f, 0.55f, k) * (1f - Mathf.SmoothStep(0.78f, 1f, k));
+        anim?.SetAftershock(r.Tremble * hold);
+        // 둘러보는 것은 고개만 — 몸은 아직 돌리지 않는다.
+        anim?.SetLook(Mathf.DegToRad(38f) * r.LookAround * Mathf.Sin(k * 7.5f) * hold,
+                      r.LookAround * hold, 9f);
+        var vr = node.GetNodeOrNull<Node3D>("VisualRoot");
+        if (vr != null) vr.Position = vr.Position with { Y = -0.055f * r.Wilt * hold };
     }
 }

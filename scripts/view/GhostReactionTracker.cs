@@ -66,7 +66,8 @@ public sealed class GhostReactionTracker
             // 화면과 똑같은 판단을 그대로 쓴다 — 우선순위를 여기서 따로 만들지 않는다.
             bool onShift = st is { Alive: true } && (st.Isolated || sim.IsOnDuty(id));
             var action = onShift
-                ? CctvActionResolver.Resolve(sim, st, id, st.Isolated ? "isolation_room" : st.CurrentRoomId, "", "")
+                ? CctvActionResolver.Resolve(sim, st, id,
+                    st.Isolated && !IsolationSystem.EnRoute(st) ? "isolation_room" : st.CurrentRoomId, "", "")
                 : CctvEmployeeAction.Idle;
 
             if (GhostReactionProfiles.IsGhostReaction(action))
