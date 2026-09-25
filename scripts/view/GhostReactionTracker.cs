@@ -34,11 +34,22 @@ public sealed class GhostReactionTracker
     // 지금(또는 마지막) 괴물 등장의 번호. 등장할 때마다 1씩 오른다.
     public int Instance => _instance;
 
+    // 오늘 괴물을 마주친 뒤 후유증이 남은 직원(양) — 그날 근무 내내 약하게 떨며 일한다. 표현 전용.
+    // 새 근무가 시작되면(FacilitySimulation.ShiftStartVersion) 비운다.
+    private readonly HashSet<string> _aftershock = new();
+    private int _shiftVersion = -1;
+    public bool HasAftershock(string employeeId) => _aftershock.Contains(employeeId);
+
     public State Get(string employeeId) => _states.GetValueOrDefault(employeeId);
 
     public void Tick(FacilitySimulation sim, float delta)
     {
         if (sim == null) return;
+        if (_shiftVersion != FacilitySimulation.ShiftStartVersion)
+        {
+            _shiftVersion = FacilitySimulation.ShiftStartVersion;
+            _aftershock.Clear();
+        }
 
         var ghost = sim.Ghost;
         bool active = ghost is { Active: true };
@@ -67,6 +78,7 @@ public sealed class GhostReactionTracker
                     s.Action = action;
                     s.Elapsed = 0f;
                     s.Serial = ++_serial;
+                    if (action == CctvEmployeeAction.GhostSheepCower) _aftershock.Add(id);
                 }
                 else s.Elapsed += delta;
                 continue;

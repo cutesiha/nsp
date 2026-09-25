@@ -9,32 +9,78 @@ namespace NSP.View;
 // **표현 전용이다.** 업무 게이지·효과·배치 판정은 전부 FacilitySimulation 이 이미 끝냈고,
 // 여기서는 그 결과(현재 방 · 현재 업무 · 표현 동작)를 읽어 위치와 애니메이션만 고른다.
 // 저장고 수레 역시 화면 연출일 뿐, 자재 수치는 기존 inventory_sorting 효과가 담당한다.
+//
+// 직원 3D 노드의 위치·회전·클립은 **이 클래스 한 곳만** 정한다(FacilityCctvWorld 는 보일지 말지만).
+// 한 프레임의 우선순위:
+//   격리(침대 · 스트랩 · 해제) → 기절 → 괴물 반응 → 괴물 뒤 회복 → 방을 떠남/실제 이동
+//   → 제자리 동작(방해공작) → 저장고 운반 → 작업 자리(의자 앉기/일어나기 포함)
+// 방 안에서 걷는 것은 모두 표현용 이동이다 — RoomId · IsMoving 은 읽기만 한다.
 public sealed partial class RoomWorkVisualController
 {
     // 방 안에서 자리로 걸어가는 속도(표현 전용). 시뮬레이션 이동과 무관하다.
     private const float WalkSpeed = 1.15f;
     private const float ArriveDistance = 0.10f;
+    private const float TurnRate = 7f;             // 자리에 도착해 몸을 돌리는 빠르기(rad/s)
 
     // 격리 표현 — 발버둥 → 탈진 전환 시간(초). 게임 격리 판정/시간과는 무관하다.
     public const float IsolationStruggleSeconds = 10f;
 
-    // 저장고 수레 연출 값.
-    private const int CartCapacity = 5;
-    private const float CartOutSeconds = 1.6f;
-    private const float PickSeconds = 1.0f;
-    private const float PlaceSeconds = 0.9f;
+    // 방의 출입구. 카메라가 +X/+Z 코너에 있으므로 그 아래(화면 밖)로 나가고 들어온다.
+    public static readonly Vector3 DoorPoint = new(2.62f, 0f, 2.62f);
+    // 방에 "막" 들어온 것으로 보는 시간 — 이보다 오래됐으면 CCTV 를 돌려 다시 본 것이므로 자리에 바로 둔다.
+    private const float JustArrivedSeconds = 2.5f;
+
+    private enum SeatPhase { None, Sitting, Seated, Standing }
+
+    // 앉는 자리(의자 좌판 · 격리 침대 가장자리). 골반이 놓일 곳과 바라보는 방향.
+    private sealed class Seat
+    {
+        public Vector3 Pos;      // 좌판 중심(바닥 높이)
+        public float Yaw;
+        public float Height;     // 좌판 높이
+        public RoomWorkSpot Spot;
+        public Vector3 Forward => new(-Mathf.Sin(Yaw), 0f, -Mathf.Cos(Yaw));
+        public Vector3 StandPoint => Pos + Forward * RoomWorkSpot.SitApproach;
+    }
 
     private sealed class Actor
     {
         public RoomWorkSpot Spot;
         public bool Arrived;
-        public Node3D BoxProp;          // 상자를 안고 있을 때만 보이는 소품
+        // 방 안 경로(설비를 피해 꺾는 점들)
+        public readonly List<Vector3> Route = new();
+        public Vector3 RouteGoal;
+        public bool HasRoute;
+        // 의자
+        public SeatPhase SeatState;
+        public float SeatT;
+        public Seat Seat;
+        public float StandSpeed = 1f;
+        public bool CreakPlayed;
+        // 소품
+        public Node3D BoxProp;
+        public MeshInstance3D Clipboard, Wrench;
+        // 저장고
         public int CartPhase;           // 0 집으러 · 1 집는 중 · 2 나르는 중 · 3 내려놓는 중
         public float CartTimer;
         public string CartId = "";
-        public float IsolatedFor = -1f;   // 격리 시작부터의 표현 전용 경과 시간
-        public GhostVisual Ghost;         // 괴물 반응 중의 같은 방 안 표현 위치(아래 GhostVisual)
-        public bool SnapToSpot;           // 다시 보일 때 걸어가지 않고 바로 자리에 붙인다(여우 — 계속 일하던 중)
+        public int Carrier = -1;        // 몇 번째 운반조인가(-1 = 운반 안 함)
+        public bool BoxInHands;
+        public float ReleaseT = -1f;
+        public Transform3D ReleaseFrom;
+        // 격리
+        public IsoState Iso;
+        // 괴물
+        public GhostVisual Ghost;
+        public Vector3? LastGhostSeen;  // 그날 마지막으로 괴물이 있던 곳(양 후유증 시선)
+        public float GlanceT;
+        // 화면
+        public bool SnapToSpot;
+        public bool Hidden = true;
+        public bool Exited;
+        public Node3D OwnerNode;        // 이 직원의 3D 노드(소품을 손에 붙일 때)
+        public float GhostShift;        // 앉아 있다 일어나느라 늦어진 괴물 반응 시간
+        public int GhostShiftSerial = -1;
     }
 
     private sealed class Cart
@@ -62,15 +108,21 @@ public sealed partial class RoomWorkVisualController
         _clearance.Clear();
         _hideSpots.Clear();
         _carts.Clear();
+        _straps.Clear();
         _cartRoom = "";
     }
 
+    // 이 직원이 출입구까지 걸어 나갔는가 — FacilityCctvWorld 가 이때 화면에서 지운다.
+    public bool HasExited(string id) => _actors.TryGetValue(id, out var a) && a.Exited;
+
     // 지금 보이는 직원들을 방의 작업 자리에 배치한다.
-    //   visible : (직원 ID, 캐릭터 노드, 애니메이터, 표현 동작, 기본 슬롯 위치)
+    //   visible    : (직원 ID, 캐릭터 노드, 애니메이터, 표현 동작, 기본 슬롯 위치)
+    //   arrivedAgo : 그 직원이 이 방(화면상 방)에 들어온 지 몇 초인가
     public void Update(FacilitySimulation sim, Node3D room, string roomId,
                        List<(string Id, Node3D Node, EmployeeCctvAnimator Anim,
                              CctvEmployeeAction Action, Vector3 FallbackPos)> visible,
-                       float delta, GhostReactionTracker reactions = null, Vector3? ghostPos = null)
+                       float delta, GhostReactionTracker reactions = null, Vector3? ghostPos = null,
+                       System.Func<string, float> arrivedAgo = null)
     {
         if (room == null) return;
         var spots = GetSpots(room, roomId);
@@ -78,99 +130,160 @@ public sealed partial class RoomWorkVisualController
 
         TickCarts(room, roomId, delta);
         BeginGhostFrame(room, roomId, visible);
+        BeginStrapFrame(room, roomId);
+        AssignCarriers(roomId, taskId, visible, reactions);
 
         var used = new Dictionary<RoomWorkSpot, int>();
         foreach (var v in visible)
         {
             var actor = _actors.TryGetValue(v.Id, out var a) ? a : _actors[v.Id] = new Actor();
-            // 시선·재생 속도는 괴물 반응이 있을 때만 바꾼다 — 매 프레임 기본값부터.
-            v.Anim?.SetLook(0f, 0f, 8f);
-            v.Anim?.SetSpeedFactor(1f);
+            var node = v.Node;
+            var anim = v.Anim;
+            bool female = IsFemale(node);
+            var st = sim?.GetEmployeeState(v.Id);
+            actor.OwnerNode = node;
+            // 시선·재생 속도·루트 제어는 필요한 곳에서만 켠다 — 매 프레임 기본값부터.
+            anim?.SetLook(0f, 0f, 8f);
+            anim?.SetSpeedFactor(1f);
+            anim?.SetProceduralRoot(false);
+            anim?.SetAftershock(0f);
+            if (v.Action != CctvEmployeeAction.Leaving) actor.Exited = false;
 
-            // 격리 — 다른 무엇보다 먼저. 전용 침대에 눕히고 격리 전용 클립만 재생한다.
-            if (v.Action == CctvEmployeeAction.Isolated)
+            // 화면에 막 나타났다 — 방에 들어온 참이면 출입구에서 걸어 들어오고, CCTV 를 돌려 다시 본 것이면 제자리에.
+            if (actor.Hidden)
             {
-                var bed = PickSpot(spots, "__isolation__", actor.Spot, used);
-                if (bed != null)
+                actor.Hidden = false;
+                float ago = arrivedAgo?.Invoke(v.Id) ?? 999f;
+                if (ago < JustArrivedSeconds && v.Action != CctvEmployeeAction.Leaving)
                 {
-                    used[bed] = used.GetValueOrDefault(bed) + 1;
-                    if (actor.Spot != bed) { actor.Spot = bed; actor.Arrived = false; }
-                    if (actor.IsolatedFor < 0f) actor.IsolatedFor = 0f;
-                    actor.IsolatedFor += delta;
-                    string clip = actor.IsolatedFor < IsolationStruggleSeconds
-                        ? "isolated_struggle" : "isolated_exhausted";
-                    MoveToSpot(v.Node, v.Anim, actor, bed, IsFemale(v.Node), delta, clip);
+                    node.Position = DoorPoint;
+                    node.Rotation = new Vector3(0f, Mathf.Atan2(DoorPoint.X, DoorPoint.Z), 0f);
+                    actor.Arrived = false;
+                    actor.HasRoute = false;
+                    actor.SeatState = SeatPhase.None;
                 }
-                continue;
+                else
+                {
+                    actor.SnapToSpot = true;
+                    if (v.Action == CctvEmployeeAction.Isolated) SnapIsolation(actor, ago);
+                }
             }
-            // 격리가 풀리면 표현 타이머도 초기화한다(다시 격리되면 0초부터).
-            actor.IsolatedFor = -1f;
 
-            // 기절한 직원은 '환자'다 — 의무실 침대에 눕힌다.
+            // ① 격리 — 침대까지 걸어가 눕고, 스트랩이 채워진 뒤 발버둥. 풀리면 역순으로 일어난다.
+            if (v.Action == CctvEmployeeAction.Isolated || actor.Iso is { Active: true })
+            {
+                if (TickIsolation(node, anim, actor, spots, used, female,
+                                  releasing: v.Action != CctvEmployeeAction.Isolated, delta))
+                    continue;
+            }
+
+            // ② 기절한 직원은 '환자'다 — 의무실 침대에 눕힌다.
             // 반대로 멀쩡히 일하는 직원은 눕는 자리를 절대 쓰지 않는다(아래 PickSpot).
-            if (sim?.GetEmployeeState(v.Id)?.Incapacitated == true)
+            if (st?.Incapacitated == true)
             {
                 var bed = PickSpot(spots, "__patient__", actor.Spot, used);
                 if (bed != null)
                 {
                     used[bed] = used.GetValueOrDefault(bed) + 1;
                     if (actor.Spot != bed) { actor.Spot = bed; actor.Arrived = false; }
-                    MoveToSpot(v.Node, v.Anim, actor, bed, IsFemale(v.Node), delta, "lying_idle");
+                    actor.SeatState = SeatPhase.None;
+                    MoveToLyingSpot(node, anim, actor, bed, delta, "lying_idle");
                     continue;
                 }
                 // 침대가 없는 방에서 기절했으면 그 자리에 그대로 둔다(기존 동작).
             }
 
-            // 같은 방의 괴물 — 이동·방해공작·일반 업무보다 먼저 처리한다.
+            // ③ 같은 방의 괴물 — 이동·방해공작·일반 업무보다 먼저 처리한다.
             // (격리·기절·실제 이동·장기 공황은 CctvActionResolver/GhostReactionTracker 가 이미 앞에 두었다.)
             var gs = reactions?.Get(v.Id);
             var prof = gs is { Stage: not GhostReactionTracker.Stage.None } ? GhostReactionProfiles.Get(gs.Action) : null;
             if (prof != null && !prof.KeepsWorking)
             {
-                TickGhostReaction(v.Id, v.Node, v.Anim, v.FallbackPos, actor, gs, prof, ghostPos,
+                // 앉아 있었으면 먼저 일어난다(빠르게) — 의자 위에서 곧바로 서 있는 모습으로 바뀌지 않게.
+                // 그 사이의 시간만큼 반응을 늦춰 첫 반응(놀람)을 건너뛰지 않는다.
+                if (actor.GhostShiftSerial != gs.Serial) { actor.GhostShiftSerial = gs.Serial; actor.GhostShift = 0f; }
+                if (!StandUpFirst(node, anim, actor, female, delta, speed: 2.2f)) { actor.GhostShift += delta; continue; }
+                TickGhostReaction(v.Id, node, anim, v.FallbackPos, actor, gs, prof, ghostPos,
                                   spots, taskId, used, delta);
+                if (actor.Ghost is { HasGhost: true }) actor.LastGhostSeen = actor.Ghost.LastGhost;
                 continue;
             }
-            if (prof != null) FoxOverlay(v.Id, v.Node, v.Anim, actor, gs, ghostPos);
+            // ④ 여우 — 괴물이 사라진 뒤 "뭐였냐 저건." 한 번(자리·앉은 자세 그대로).
+            if (prof != null && gs.Stage == GhostReactionTracker.Stage.Recovering && TickFoxShrug(node, anim, actor, gs, prof, female))
+                continue;
+            if (prof != null) FoxOverlay(v.Id, node, anim, actor, gs, ghostPos);
             else actor.Ghost = null;
 
-            // 대화·이동·방해공작 중에는 자리를 잡지 않는다(기존 연출을 그대로 둔다).
-            bool freeAction = v.Action is CctvEmployeeAction.Walking or CctvEmployeeAction.Talking
-                                        or CctvEmployeeAction.Suspicious or CctvEmployeeAction.Handoff;
-            if (freeAction)
+            // 그날 괴물을 본 양 — 정상 작업하되 약하게 떨고, 가끔 괴물이 있던 쪽을 본다.
+            if (reactions?.HasAftershock(v.Id) == true) TickAftershock(node, anim, actor, delta);
+
+            // ⑤ 방을 떠난다(재배치 · 격리 · 다른 방으로 이동) — 앉아 있었으면 일어나서 출입구로 걸어 나간다.
+            bool leaving = v.Action == CctvEmployeeAction.Leaving
+                           || v.Action == CctvEmployeeAction.Walking && st != null
+                              && !string.IsNullOrEmpty(st.TargetRoomId) && st.TargetRoomId != roomId;
+            if (leaving)
             {
-                Release(actor);
-                v.Node.Position = v.FallbackPos;
-                ClearVisualOffset(v.Node);
-                v.Anim?.SetAction(v.Action);
-                v.Anim?.Tick();
-                if (_facing != null) v.Node.RotationDegrees = new Vector3(0, _facing(v.Action, v.Id, v.FallbackPos), 0);
+                if (!StandUpFirst(node, anim, actor, female, delta)) continue;
+                LeaveSpot(actor);
+                ShowProps(actor, "");
+                if (FollowRoute(node, anim, actor, DoorPoint, delta)) actor.Exited = true;
                 continue;
             }
 
-            // 저장고 재고 정리는 자리에 서 있는 게 아니라 상자를 나르는 왕복이다.
-            if (roomId == "storage_room" && taskId == "inventory_sorting" && _carts.Count > 0)
+            // ⑥ 제자리 동작(방해공작 · 건네주기) — 서 있는 그 자리에서.
+            if (v.Action is CctvEmployeeAction.Suspicious or CctvEmployeeAction.Handoff or CctvEmployeeAction.Talking)
             {
-                TickCarrier(v.Id, v.Node, v.Anim, actor, spots, delta);
+                if (!StandUpFirst(node, anim, actor, female, delta)) continue;
+                ShowProps(actor, "");
+                ClearVisualOffset(node);
+                anim?.SetAction(v.Action);
+                anim?.Tick();
                 continue;
             }
 
+            // ⑦ 저장고 재고 정리 — 운반조는 상자 더미 ↔ 수레를 왕복한다(나머지는 선반 자리로).
+            if (actor.Carrier >= 0 && _carts.Count > 0)
+            {
+                if (!StandUpFirst(node, anim, actor, female, delta)) continue;
+                LeaveSpot(actor);
+                ShowProps(actor, "");
+                TickCarrier(v.Id, node, anim, actor, spots, female, delta);
+                continue;
+            }
+            HideBox(actor);
+
+            // ⑧ 작업 자리.
             var spot = PickSpot(spots, taskId, actor.Spot, used);
             if (spot == null)
             {
-                Release(actor);
-                v.Node.Position = v.FallbackPos;
-                ClearVisualOffset(v.Node);
-                v.Anim?.SetAction(v.Action);
-                v.Anim?.Tick();
-                if (_facing != null) v.Node.RotationDegrees = new Vector3(0, _facing(v.Action, v.Id, v.FallbackPos), 0);
+                // 자리가 모자란 경우(여섯 명 넘게) — 기본 슬롯에 서 있는다. 순간이동하지 않고 걸어간다.
+                if (!StandUpFirst(node, anim, actor, female, delta)) continue;
+                LeaveSpot(actor);
+                ShowProps(actor, "");
+                if (FollowRoute(node, anim, actor, Flat(v.FallbackPos), delta))
+                {
+                    ClearVisualOffset(node);
+                    anim?.SetAction(CctvEmployeeAction.Idle);
+                }
+                continue;
+            }
+
+            // 다른 자리로 옮겨야 하는데 아직 앉아 있다 — 먼저 일어난다.
+            if (actor.SeatState != SeatPhase.None && actor.Seat?.Spot != spot)
+            {
+                used[spot] = used.GetValueOrDefault(spot) + 1;
+                StandUpFirst(node, anim, actor, female, delta);
                 continue;
             }
 
             used[spot] = used.GetValueOrDefault(spot) + 1;
-            if (actor.Spot != spot) { actor.Spot = spot; actor.Arrived = false; }
-            if (actor.SnapToSpot) { actor.SnapToSpot = false; actor.Arrived = true; }
-            MoveToSpot(v.Node, v.Anim, actor, spot, IsFemale(v.Node), delta);
+            if (actor.Spot != spot)
+            {
+                actor.Spot = spot; actor.Arrived = false; actor.HasRoute = false;
+                if (actor.SeatState == SeatPhase.None) actor.Seat = null;   // 새 자리의 의자는 새로 잡는다
+            }
+            if (actor.SnapToSpot) { actor.SnapToSpot = false; SnapToSpot(node, anim, actor, spot, female); }
+            MoveToSpot(node, anim, actor, spot, female, delta);
         }
 
         // 화면에서 사라진 직원은 자리를 놓아 준다.
@@ -180,14 +293,21 @@ public sealed partial class RoomWorkVisualController
             foreach (var v in visible) if (v.Id == id) { still = true; break; }
             if (!still)
             {
-                Release(actor);
+                if (!actor.Hidden) Release(actor);
+                actor.Hidden = true;
                 // 다시 보일 때는 반응을 처음부터 하지 않고, 그동안 가 있었을 자리에 바로 둔다.
                 if (actor.Ghost != null) actor.Ghost.NeedsPlace = true;
             }
         }
 
-        // 클립·위치를 다 정한 뒤 — 쓰지 않는 관절 되돌리기 · 시선.
-        foreach (var v in visible) v.Anim?.Update(delta);
+        EndStrapFrame();
+
+        // 클립·위치를 다 정한 뒤 — 쓰지 않는 관절 되돌리기 · 시선 · 들고 있는 상자.
+        foreach (var v in visible)
+        {
+            v.Anim?.Update(delta);
+            if (_actors.TryGetValue(v.Id, out var a)) UpdateHeldBox(v.Node, a, delta);
+        }
     }
 
     // ── 자리 선택 ────────────────────────────────────────────────────────
@@ -208,6 +328,10 @@ public sealed partial class RoomWorkVisualController
         foreach (var c in n.GetChildren()) Collect(c, o);
     }
 
+    // 저장고 운반 동선(상자 더미 · 수레 앞) — 서서 일하는 자리가 아니다.
+    private static bool IsCarrierSpot(RoomWorkSpot s) =>
+        s.AnimationName.StartsWith("pickup_box") || s.AnimationName.StartsWith("place_box");
+
     private static RoomWorkSpot PickSpot(List<RoomWorkSpot> spots, string taskId,
                                          RoomWorkSpot current, Dictionary<RoomWorkSpot, int> used)
     {
@@ -223,69 +347,161 @@ public sealed partial class RoomWorkVisualController
         }
 
         // 격리 직원은 격리 침대(AnimationName 이 isolated_ 로 시작하는 자리)만 쓴다.
-        bool wantIsolation = taskId == "__isolation__";
-        if (wantIsolation)
+        if (taskId == "__isolation__")
         {
-            if (current != null && current.AnimationName.StartsWith("isolated_")
-                && used.GetValueOrDefault(current) < current.Capacity) return current;
+            if (current != null && IsIsolationSpot(current) && used.GetValueOrDefault(current) < current.Capacity) return current;
             foreach (var s in spots)
-                if (s.AnimationName.StartsWith("isolated_") && used.GetValueOrDefault(s) < s.Capacity)
-                    return s;
+                if (IsIsolationSpot(s) && used.GetValueOrDefault(s) < s.Capacity) return s;
             return null;
         }
-        // 일반 업무는 격리 침대를 쓰지 않는다.
 
-        // 이미 쓰던 자리가 아직 유효하면 그대로 유지한다(자리 사이를 왔다갔다 하지 않게).
-        if (current != null && !IsLyingSpot(current)
-            && current.Supports(taskId)
-            && used.GetValueOrDefault(current) < current.Capacity)
-            return current;
+        bool Free(RoomWorkSpot s) => !IsLyingSpot(s) && !IsCarrierSpot(s)
+                                     && (s.SharedSpot || used.GetValueOrDefault(s) < s.Capacity);
 
+        // 이미 쓰던 자리가 아직 비어 있으면 그대로(자리 사이를 왔다갔다 하지 않게).
+        if (current != null && Free(current)) return current;
+
+        // ① 지금 업무를 맡는 자리(SupportedTaskIds 에 있음)를 먼저, 우선순위 순으로.
         foreach (var s in spots)
-        {
-            if (IsLyingSpot(s)) continue;          // 눕는 자리는 환자·격리 전용이다
-            if (!s.Supports(taskId)) continue;
-            if (!s.SharedSpot && used.GetValueOrDefault(s) >= s.Capacity) continue;
-            return s;
-        }
+            if (Free(s) && s.SupportedTaskIds.Length > 0 && s.Supports(taskId)) return s;
+        // ② 나머지 자리 — 방마다 실제 설비에 붙은 작업 자리가 여섯 개 있다. 사람이 늘어도 누구도 빈손으로 서 있지 않다.
+        foreach (var s in spots)
+            if (Free(s)) return s;
         return null;
     }
 
     private static void Release(Actor a)
     {
-        a.Spot = null;
-        a.Arrived = false;
-        if (a.BoxProp != null) a.BoxProp.Visible = false;
+        LeaveSpot(a);
+        a.SeatState = SeatPhase.None;
+        a.Seat = null;
         a.CartPhase = 0;
         a.CartTimer = 0f;
-        a.IsolatedFor = -1f;
+        a.BoxInHands = false;
+        a.ReleaseT = -1f;
+        HideBox(a);
+        ShowProps(a, "");
+        if (a.Iso != null && a.Iso.Phase < IsoPhase.Sit) a.Iso = null;
     }
 
-    // ── 자리로 이동 → 도착하면 작업 애니메이션 ─────────────────────────────
-
-    private static void MoveToSpot(Node3D node, EmployeeCctvAnimator anim, Actor actor,
-                                   RoomWorkSpot spot, bool female, float delta, string clipOverride = null)
+    private static void LeaveSpot(Actor a)
     {
-        var goal = spot.Position;
-        var here = node.Position;
-        // 앉거나 눕는 자리는 높이 보정을 따로 하므로 XZ 거리만 본다.
-        float dist = new Vector2(goal.X - here.X, goal.Z - here.Z).Length();
+        a.Spot = null;
+        a.Arrived = false;
+        a.HasRoute = false;
+    }
 
-        if (!actor.Arrived && dist > ArriveDistance)
+    // ── 자리로 이동 → (필요하면 앉기) → 작업 애니메이션 ──────────────────────
+
+    // 서서 일하는 자리에서 실제로 설 곳 — 손이 InteractionTarget 에 닿도록 팔 길이만큼 뒤에.
+    private static Vector3 StandPos(RoomWorkSpot spot, string clip, bool female)
+    {
+        var target = spot.TargetInParent();
+        if (target == null || !WorkClipReach.TryGet(clip, female, out float reach, out _)) return Flat(spot.Position);
+        var fwd = Flat(-spot.Transform.Basis.Z).Normalized();
+        return Flat(target.Value) - fwd * reach;
+    }
+
+    private static Seat SeatOf(RoomWorkSpot spot) => new()
+    {
+        Pos = Flat(spot.Position), Yaw = spot.Rotation.Y, Height = spot.SeatHeight, Spot = spot,
+    };
+
+    private void MoveToSpot(Node3D node, EmployeeCctvAnimator anim, Actor actor, RoomWorkSpot spot, bool female, float delta)
+    {
+        if (IsLyingSpot(spot)) { MoveToLyingSpot(node, anim, actor, spot, delta, null); return; }
+        string clip = anim?.BodyClip(spot.ClipFor(female), female) ?? spot.ClipFor(female);
+
+        if (spot.IsSeated)
         {
-            var dir = new Vector3(goal.X - here.X, 0, goal.Z - here.Z).Normalized();
-            node.Position = here + dir * Mathf.Min(WalkSpeed * delta, dist);
-            node.Rotation = new Vector3(0, Mathf.Atan2(-dir.X, -dir.Z), 0);
+            actor.Seat ??= SeatOf(spot);
+            switch (actor.SeatState)
+            {
+                case SeatPhase.Seated:
+                    node.Position = actor.Seat.Pos;
+                    node.Rotation = new Vector3(0f, actor.Seat.Yaw, 0f);
+                    ApplySeatOffset(node, spot);
+                    anim?.PlayClip(clip);
+                    ShowProps(actor, spot.HandProp);
+                    return;
+                case SeatPhase.Sitting:
+                    TickSitting(node, anim, actor, clip);
+                    return;
+            }
+            // 의자 앞까지 걸어가 → 몸을 돌리고 → 앉는다.
+            if (!actor.Arrived)
+            {
+                if (!FollowRoute(node, anim, actor, actor.Seat.StandPoint, delta)) return;
+                actor.Arrived = true;
+            }
+            node.Position = actor.Seat.StandPoint;
             ClearVisualOffset(node);
-            anim?.SetAction(CctvEmployeeAction.Walking);
+            if (!TurnTo(node, anim, actor.Seat.Yaw, delta)) return;
+            actor.SeatState = SeatPhase.Sitting;
+            actor.SeatT = 0f;
+            actor.CreakPlayed = false;
+            TickSitting(node, anim, actor, clip);
             return;
         }
 
+        var goal = StandPos(spot, clip, female);
+        if (!actor.Arrived)
+        {
+            if (!FollowRoute(node, anim, actor, goal, delta)) return;
+            actor.Arrived = true;
+        }
+        node.Position = goal;
+        ClearVisualOffset(node);
+        // 설비 쪽으로 몸을 돌린 뒤 손을 댄다.
+        if (!TurnTo(node, anim, spot.Rotation.Y, delta)) return;
+        anim?.PlayClip(clip);
+        ShowProps(actor, spot.HandProp);
+    }
+
+    // CCTV 를 돌려 다시 본 경우 — 그동안 이미 자리에서 일하고 있었다. 걸어오거나 다시 앉는 동작 없이 바로.
+    private static void SnapToSpot(Node3D node, EmployeeCctvAnimator anim, Actor actor, RoomWorkSpot spot, bool female)
+    {
         actor.Arrived = true;
-        node.Position = new Vector3(goal.X, 0, goal.Z);
+        actor.HasRoute = false;
+        if (IsLyingSpot(spot)) return;
+        if (spot.IsSeated)
+        {
+            actor.Seat = SeatOf(spot);
+            actor.SeatState = SeatPhase.Seated;
+            node.Position = actor.Seat.Pos;
+            node.Rotation = new Vector3(0f, actor.Seat.Yaw, 0f);
+            return;
+        }
+        string clip = anim?.BodyClip(spot.ClipFor(female), female) ?? spot.ClipFor(female);
+        node.Position = StandPos(spot, clip, female);
+        node.Rotation = new Vector3(0f, spot.Rotation.Y, 0f);
+    }
+
+    // 의무실 병상(기절한 환자) — 예전 방식 그대로: 침대 발치까지 걸어가 누운 자세로.
+    private void MoveToLyingSpot(Node3D node, EmployeeCctvAnimator anim, Actor actor, RoomWorkSpot spot,
+                                 float delta, string clipOverride)
+    {
+        var goal = Flat(spot.Position);
+        if (!actor.Arrived)
+        {
+            if (!FollowRoute(node, anim, actor, goal, delta)) return;
+            actor.Arrived = true;
+        }
+        node.Position = goal;
         node.Rotation = spot.Rotation;
         ApplySeatOffset(node, spot, clipOverride);
-        anim?.PlayClip(clipOverride ?? spot.ClipFor(female));
+        anim?.PlayClip(clipOverride ?? spot.AnimationName);
+    }
+
+    // 몸을 yaw 쪽으로 돌린다. 다 돌았으면 true.
+    private static bool TurnTo(Node3D node, EmployeeCctvAnimator anim, float yaw, float delta)
+    {
+        float now = node.Rotation.Y;
+        float diff = Mathf.AngleDifference(now, yaw);
+        if (Mathf.Abs(diff) < 0.12f) { node.Rotation = new Vector3(0f, yaw, 0f); return true; }
+        node.Rotation = new Vector3(0f, now + Mathf.Sign(diff) * Mathf.Min(Mathf.Abs(diff), TurnRate * delta), 0f);
+        anim?.SetAction(CctvEmployeeAction.Idle);
+        return false;
     }
 
     // 앉기/눕기 — 체형마다 골반 높이가 달라서 여기서 런타임에 보정한다.
@@ -305,10 +521,10 @@ public sealed partial class RoomWorkVisualController
             vr.Position = vr.Position with { Y = spot.SeatHeight + LyingBackLift };
             return;
         }
-        var hips = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips");
-        float hipY = hips?.Position.Y ?? 0.9f;
-        vr.Position = vr.Position with { Y = spot.SeatHeight - hipY };
+        vr.Position = vr.Position with { Y = spot.SeatHeight - HipY(node) };
     }
+
+    private static float HipY(Node3D node) => node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips")?.Position.Y ?? 0.9f;
 
     // 누운 몸을 매트리스 위로 올리는 높이(몸 두께의 절반).
     private const float LyingBackLift = 0.12f;
@@ -332,146 +548,77 @@ public sealed partial class RoomWorkVisualController
     private static bool IsFemale(Node3D node) =>
         node.GetNodeOrNull("VisualRoot/RigRoot/Hips/Torso/Chest/BustMeshL") != null;
 
-    // ── 저장고 : 상자 ↔ 수레 왕복 ────────────────────────────────────────
+    // ── 양의 그날 후유증 ─────────────────────────────────────────────────
 
-    private void TickCarts(Node3D room, string roomId, float delta)
+    private static void TickAftershock(Node3D node, EmployeeCctvAnimator anim, Actor actor, float delta)
     {
-        if (roomId != "storage_room") { if (_cartRoom == "storage_room") { _carts.Clear(); _cartRoom = ""; } return; }
-        if (_cartRoom != roomId)
+        if (anim == null) return;
+        anim.SetAftershock(1f);
+        // 몇 초에 한 번 괴물이 있던 쪽으로 고개가 돌아간다.
+        actor.GlanceT += delta;
+        float cycle = actor.GlanceT % 6.5f;
+        if (actor.LastGhostSeen is { } g && cycle > 5.6f)
         {
-            _carts.Clear();
-            _cartRoom = roomId;
-            foreach (string name in new[] { "Cart1", "Cart2" })
-            {
-                var n = room.GetNodeOrNull<Node3D>(name);
-                if (n == null) continue;
-                var load = n.GetNodeOrNull<Node3D>($"{name}Load");
-                _carts[name] = new Cart { Node = n, Load = load, Home = n.Position };
-                SetCartBoxes(_carts[name], 0);
-            }
-        }
-
-        foreach (var (_, cart) in _carts)
-        {
-            if (cart.OutTimer < 0f) continue;
-            cart.OutTimer -= delta;
-            // 가득 차면 출입구 쪽으로 나갔다가 빈 수레로 돌아온다(연출뿐, 수치와 무관).
-            float t = 1f - Mathf.Clamp(cart.OutTimer / CartOutSeconds, 0f, 1f);
-            float away = Mathf.Sin(t * Mathf.Pi) * 4.2f;
-            cart.Node.Position = cart.Home + new Vector3(away, 0, away * 0.35f);
-            if (t > 0.5f && cart.Boxes > 0) SetCartBoxes(cart, 0);
-            if (cart.OutTimer <= 0f) { cart.OutTimer = -1f; cart.Node.Position = cart.Home; }
+            var d = g - Flat(node.Position);
+            if (d.LengthSquared() > 0.01f)
+                anim.SetLook(Mathf.AngleDifference(node.Rotation.Y, Mathf.Atan2(-d.X, -d.Z)), 0.9f, 10f);
         }
     }
 
-    private static void SetCartBoxes(Cart cart, int count)
+    // ── 손에 드는 소품 ───────────────────────────────────────────────────
+
+    private static void ShowProps(Actor a, string prop)
     {
-        cart.Boxes = count;
-        if (cart.Load == null) return;
-        for (int i = 0; i < cart.Load.GetChildCount(); i++)
-            if (cart.Load.GetChild(i) is Node3D b) b.Visible = i < count;
+        if (a.Clipboard != null && GodotObject.IsInstanceValid(a.Clipboard)) a.Clipboard.Visible = prop == "clipboard";
+        if (a.Wrench != null && GodotObject.IsInstanceValid(a.Wrench)) a.Wrench.Visible = prop == "wrench";
+        if (string.IsNullOrEmpty(prop)) return;
+        // 처음 필요할 때 만든다.
+        if (prop == "clipboard" && (a.Clipboard == null || !GodotObject.IsInstanceValid(a.Clipboard))) a.Clipboard = MakeClipboard(a);
+        if (prop == "wrench" && (a.Wrench == null || !GodotObject.IsInstanceValid(a.Wrench))) a.Wrench = MakeWrench(a);
     }
 
-    private Cart FreeCart()
+    // 클립보드는 왼손(가슴 앞)에 — clipboard_check 클립이 왼손을 이 자리에 둔다.
+    private static MeshInstance3D MakeClipboard(Actor a)
     {
-        foreach (var (_, c) in _carts)
-            if (c.OutTimer < 0f && c.Boxes < CartCapacity) return c;
-        return null;
-    }
-
-    private void TickCarrier(string id, Node3D node, EmployeeCctvAnimator anim, Actor actor,
-                             List<RoomWorkSpot> spots, float delta)
-    {
-        var pick = spots.Find(s => s.Id == "SupplyPickSpot");
-        var drop = spots.Find(s => s.Id == "CartDropSpotA");
-        if (pick == null || drop == null) return;
-
-        EnsureBoxProp(node, actor);
-        bool female = IsFemale(node);
-
-        switch (actor.CartPhase)
+        var hand = FindHand(a, "L");
+        if (hand == null) return null;
+        var board = new MeshInstance3D
         {
-            case 0:   // 상자 더미로 이동
-                if (Step(node, anim, pick.Position, delta)) { actor.CartPhase = 1; actor.CartTimer = PickSeconds; }
-                break;
-
-            case 1:   // 집는 중
-                node.Rotation = pick.Rotation;
-                anim?.PlayClip("pickup_box");
-                actor.CartTimer -= delta;
-                if (actor.CartTimer <= 0f)
-                {
-                    if (actor.BoxProp != null) actor.BoxProp.Visible = true;
-                    var cart = FreeCart();
-                    actor.CartId = cart != null ? cart.Node.Name.ToString() : "";
-                    actor.CartPhase = 2;
-                }
-                break;
-
-            case 2:   // 수레까지 나르기 — 남/여 carry 연출이 다르다(수치 영향 없음)
-            {
-                var goal = ResolveDropPosition(drop, actor);
-                if (Step(node, anim, goal, delta, female ? "carry_box_heavy" : "carry_box_normal"))
-                { actor.CartPhase = 3; actor.CartTimer = PlaceSeconds; }
-                break;
-            }
-
-            case 3:   // 내려놓기
-                anim?.PlayClip("place_box");
-                actor.CartTimer -= delta;
-                if (actor.CartTimer <= 0f)
-                {
-                    if (actor.BoxProp != null) actor.BoxProp.Visible = false;
-                    if (_carts.TryGetValue(actor.CartId, out var c) && c.OutTimer < 0f)
-                    {
-                        SetCartBoxes(c, Mathf.Min(c.Boxes + 1, CartCapacity));
-                        if (c.Boxes >= CartCapacity) c.OutTimer = CartOutSeconds;
-                    }
-                    actor.CartPhase = 0;
-                }
-                break;
-        }
-    }
-
-    private Vector3 ResolveDropPosition(RoomWorkSpot drop, Actor actor)
-    {
-        if (_carts.TryGetValue(actor.CartId, out var c) && c.OutTimer < 0f)
-            return c.Home + new Vector3(0, 0, 0.62f);
-        return drop.Position;
-    }
-
-    // 목표 지점까지 한 걸음. 도착하면 true.
-    private static bool Step(Node3D node, EmployeeCctvAnimator anim, Vector3 goal, float delta,
-                             string walkClip = null)
-    {
-        var here = node.Position;
-        var flat = new Vector3(goal.X - here.X, 0, goal.Z - here.Z);
-        float d = flat.Length();
-        if (d <= ArriveDistance) return true;
-
-        var dir = flat / d;
-        node.Position = here + dir * Mathf.Min(WalkSpeed * delta, d);
-        node.Rotation = new Vector3(0, Mathf.Atan2(-dir.X, -dir.Z), 0);
-        if (walkClip == null) anim?.SetAction(CctvEmployeeAction.Walking);
-        else anim?.PlayClip(walkClip);
-        return false;
-    }
-
-    // 상자를 안고 있을 때만 보이는 소품. 캐릭터 가슴 앞에 붙인다.
-    private static void EnsureBoxProp(Node3D node, Actor actor)
-    {
-        if (actor.BoxProp != null && GodotObject.IsInstanceValid(actor.BoxProp)) return;
-        var anchor = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips/Torso/Chest");
-        if (anchor == null) return;
-        var mi = new MeshInstance3D
-        {
-            Name = "CarriedBox",
-            Mesh = new BoxMesh { Size = new Vector3(0.34f, 0.26f, 0.28f) },
-            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.52f, 0.42f, 0.28f), Roughness = 0.9f },
-            Visible = false,
+            Name = "Clipboard",
+            Mesh = new BoxMesh { Size = new Vector3(0.22f, 0.012f, 0.30f) },
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.55f, 0.42f, 0.26f), Roughness = 0.85f },
         };
-        anchor.AddChild(mi);
-        mi.Position = new Vector3(0, 0.02f, -0.30f);
-        actor.BoxProp = mi;
+        var paper = new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(0.19f, 0.004f, 0.25f) },
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.9f, 0.9f, 0.86f), Roughness = 0.9f },
+            Position = new Vector3(0f, 0.008f, 0.01f),
+        };
+        board.AddChild(paper);
+        hand.AddChild(board);
+        // 손바닥에 판의 한쪽 끝을 쥔다(손 노드 기준: 손가락 방향 -Y).
+        board.Position = new Vector3(0.09f, -0.08f, -0.02f);
+        board.RotationDegrees = new Vector3(90f, 0f, 0f);
+        return board;
     }
+
+    private static MeshInstance3D MakeWrench(Actor a)
+    {
+        var hand = FindHand(a, "R");
+        if (hand == null) return null;
+        var w = new MeshInstance3D
+        {
+            Name = "Wrench",
+            Mesh = new BoxMesh { Size = new Vector3(0.035f, 0.24f, 0.02f) },
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.62f, 0.64f, 0.68f), Metallic = 0.7f, Roughness = 0.35f },
+        };
+        hand.AddChild(w);
+        w.Position = new Vector3(0f, -0.14f, -0.03f);
+        return w;
+    }
+
+    private static Node3D FindHand(Actor a, string side) =>
+        a.OwnerNode?.GetNodeOrNull<Node3D>(side == "L"
+            ? "VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL/HandL"
+            : "VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR/HandR");
 }

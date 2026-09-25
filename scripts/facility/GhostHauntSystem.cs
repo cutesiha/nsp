@@ -186,6 +186,7 @@ public sealed class GhostHauntSystem
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"{sim.RoomDisplayName(room)}의 이상 개체가 소멸했습니다.", NSP.Ui.NoticeLevel.Info);
         Sfx.Instance?.Play("task_done", -4f);
+        BlockWorkAfterGhost(sim, room, now);
         Dispelled?.Invoke(room);
         Clear(cfg, now);
     }
@@ -203,9 +204,21 @@ public sealed class GhostHauntSystem
         // 양은 이 한 번으로 기절선을 넘도록 배율이 잡혀 있다(FearScale).
         foreach (string id in here)
             sim.AddStress(id, cfg.GhostIncidentStress * FearScale(id), "괴물 사고");
+        BlockWorkAfterGhost(sim, room, now);
 
         Struck?.Invoke(room);
         Clear(cfg, now);
+    }
+
+    // 괴물이 사라져도 그 방 사람들은 바로 일로 돌아가지 못한다 — 추스르고 자리로 돌아가는 동안은
+    // 업무 게이지에 기여하지 않는다. 사람마다 걸리는 시간은 PostGhostRecovery 표(CCTV 회복 연출과 같다).
+    private static void BlockWorkAfterGhost(FacilitySimulation sim, string room, float now)
+    {
+        foreach (string id in sim.OnDutyEmployeeIds(room))
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st != null) st.WorkBlockedUntil = Mathf.Max(st.WorkBlockedUntil, now + PostGhostRecovery.WorkBlockSeconds(id));
+        }
     }
 
     private void Clear(ConfigData cfg, float now)

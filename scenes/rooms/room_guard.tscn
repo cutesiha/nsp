@@ -204,29 +204,68 @@ omni_range = 4.5
 
 [node name="WorkSpots" type="Node3D" parent="." unique_id=163403685]
 
-[node name="MainSurveillanceSeat" type="Node3D" parent="WorkSpots" unique_id=5447871]
+[node name="MainSurveillanceSeat" type="Node3D" parent="WorkSpots"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0, -1.32)
 script = ExtResource("1_spot")
 SpotId = "MainSurveillanceSeat"
 SupportedTaskIds = PackedStringArray("surveillance_monitoring")
 AnimationName = "sit_typing"
-Priority = 20
+Priority = 21
 IsSeated = true
-SeatHeight = 0.44
+SeatHeight = 0.47
 
-[node name="SecurityControlSpot" type="Node3D" parent="WorkSpots" unique_id=1384957906]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.62, 0, 0.25)
+[node name="CctvPanelSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.2, 0, -1.47)
 script = ExtResource("1_spot")
-SpotId = "SecurityControlSpot"
+SpotId = "CctvPanelSpot"
+SupportedTaskIds = PackedStringArray("surveillance_monitoring", "repair_guard")
+AnimationName = "console_operate"
+Priority = 20
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CctvPanelSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.45)
+
+[node name="GearRackSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.52, 0, -1.96)
+script = ExtResource("1_spot")
+SpotId = "GearRackSpot"
 SupportedTaskIds = PackedStringArray("lockdown_gear_check", "repair_guard")
-Priority = 10
+AnimationName = "shelf_low"
+Priority = 19
 
-[node name="GuardFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1969555919]
-transform = Transform3D(0.98434, 0, -0.1763, 0, 1, 0, 0.1763, 0, 0.98434, 0.6, 0, 1.35)
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/GearRackSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -0.45)
+
+[node name="DeskLeftSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.9, 0, -1.47)
 script = ExtResource("1_spot")
-SpotId = "GuardFallbackSpot"
-AnimationName = "inspect"
-Priority = -10
+SpotId = "DeskLeftSpot"
+AnimationName = "console_operate"
+Priority = 18
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/DeskLeftSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.93, -0.45)
+
+[node name="SecDeskSeat" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.05, 0, 0.28)
+script = ExtResource("1_spot")
+SpotId = "SecDeskSeat"
+SupportedTaskIds = PackedStringArray("lockdown_gear_check")
+AnimationName = "sit_typing"
+Priority = 17
+IsSeated = true
+SeatHeight = 0.47
+
+[node name="CabinetFileSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.87, 0, 1.4)
+script = ExtResource("1_spot")
+SpotId = "CabinetFileSpot"
+AnimationName = "clipboard_check"
+Priority = 16
+HandProp = "clipboard"
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CabinetFileSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, -0.45)
 
 [node name="GuardChair" type="Node3D" parent="." unique_id=177685770]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.8, 0, -1.32)

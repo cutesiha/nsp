@@ -389,6 +389,20 @@ public partial class FacilityCctvWorld : Node3D
     // 화면에 보이는 자리(슬롯)를 기억해 둔다 — 대화 상대를 바라보게 할 때만 쓴다.
     private readonly Dictionary<string, Vector3> _shownSlots = new();
 
+    // 직원마다 "화면상 방"이 마지막으로 바뀐 시각 — 막 들어왔으면 출입구에서 걸어 들어오고,
+    // 오래전부터 있었으면(CCTV 를 돌려 다시 본 것) 자리에 바로 둔다. 표현 전용.
+    private readonly Dictionary<string, string> _lastShownRoom = new();
+    private readonly Dictionary<string, double> _roomSince = new();
+    // 보고 있는 방을 막 떠난 직원 — 출입구까지 걸어 나갈 동안만 그 방에 계속 보인다(순간이동하지 않게).
+    private readonly Dictionary<string, (string Room, double Until)> _linger = new();
+    private const double LingerSeconds = 10.0;
+
+    private float ArrivedAgo(string id)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        return (float)(now - _roomSince.GetValueOrDefault(id, now - 999.0));
+    }
+
     private void UpdateEmployees(FacilitySimulation sim, string target)
     {
         if (sim == null) return;
@@ -402,13 +416,33 @@ public partial class FacilityCctvWorld : Node3D
 
         _shownSlots.Clear();
         int slot = 0;
+        double now = Time.GetTicksMsec() / 1000.0;
         foreach (var (id, actor) in _employees)
         {
             var st = sim.GetEmployeeState(id);
             string room = st == null ? "" : st.Isolated ? "isolation_room" : st.CurrentRoomId;
             // 오늘 배치되지 않은 직원은 근무 인원이 아니다 — 미니맵과 마찬가지로 CCTV 에도 안 잡힌다.
             bool onShift = st != null && (st.Isolated || sim.IsOnDuty(id));
-            bool show = st is { Alive: true } && onShift && room == target && _rooms.ContainsKey(target);
+            bool here = st is { Alive: true } && onShift && room == target && _rooms.ContainsKey(target);
+
+            // 화면상 방이 바뀌었다 — 보고 있던 방에서 떠났으면 출입구까지 걸어 나가는 동안 남겨 둔다.
+            string shownRoom = st is { Alive: true } && onShift ? room : "";
+            if (_lastShownRoom.TryGetValue(id, out var prevRoom))
+            {
+                if (prevRoom != shownRoom)
+                {
+                    _roomSince[id] = now;
+                    if (prevRoom == target && actor.Visible && st is { Alive: true })
+                        _linger[id] = (prevRoom, now + LingerSeconds);
+                }
+            }
+            else _roomSince[id] = now - 999.0;
+            _lastShownRoom[id] = shownRoom;
+
+            bool lingering = !here && _linger.TryGetValue(id, out var lg) && lg.Room == target && now < lg.Until
+                             && st is { Alive: true } && !_workVisual.HasExited(id);
+            if (!lingering) _linger.Remove(id);
+            bool show = here || lingering;
 
             var pos = Slots[slot % Slots.Length];
             if (actor.Visible != show)
@@ -432,13 +466,15 @@ public partial class FacilityCctvWorld : Node3D
 
             // 표현 동작만 정하고, 실제 위치·회전·애니메이션 재생은 아래 컨트롤러 한 곳이 소유한다.
             // (두 곳에서 같이 만지면 매 프레임 서로 덮어써서 동작이 멈춘 것처럼 보인다.)
-            var action = CctvActionResolver.Resolve(sim, st, id, target, talkA, talkB);
+            var action = lingering ? CctvEmployeeAction.Leaving
+                : CctvActionResolver.Resolve(sim, st, id, target, talkA, talkB);
             _workQueue.Add((id, actor, animator, action, pos));
         }
 
         // 작업 자리 배치는 위치/회전을 덮어쓰므로 마지막에 한 번만 돌린다.
         _rooms.TryGetValue(target, out var roomNode);
-        _workVisual.Update(sim, roomNode, target, _workQueue, (float)_lastDelta, _ghostReactions, GhostVisualPosition());
+        _workVisual.Update(sim, roomNode, target, _workQueue, (float)_lastDelta, _ghostReactions, GhostVisualPosition(),
+                           ArrivedAgo);
         _workQueue.Clear();
     }
 

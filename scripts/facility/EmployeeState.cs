@@ -42,6 +42,10 @@ public class EmployeeState
     // 도착한 뒤의 모든 이동(재배치·사고 확인 등)은 근무 중 저속으로 걷는다.
     public bool InitialDeployDone = false;
 
+    // 괴물이 사라진 직후 아직 업무에 손을 못 대는 시각(근무 시각, 초). 이 시각 전에는 업무 게이지에 기여하지 않는다.
+    // GhostHauntSystem 이 소멸/사고 순간에 PostGhostRecovery 표로 건다. 새 근무가 시작되면 0.
+    public float WorkBlockedUntil;
+
     // 오늘의 한마디(표시용). 기분과 함께 하루에 한 번 정해진다.
     public string DailyRemark = "";
     public string PreviousRemark = "";

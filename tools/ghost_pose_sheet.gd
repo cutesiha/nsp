@@ -29,7 +29,7 @@ func _initialize():
 	out_path = args[0]
 	for a in args.slice(1):
 		var parts = a.split(":")
-		var ts = parts[1].split(",")
+		var ts = parts[-1].split(",")
 		cols = max(cols, ts.size())
 		for t in ts: jobs.append([parts[0], float(t)])
 	var rows := 0
@@ -67,8 +67,13 @@ func _initialize():
 	cam_b = Camera3D.new(); vp.add_child(cam_b); cam_b.fov = 40
 	cam_b.look_at_from_position(Vector3(3.3, 0.9, 0.0), Vector3(0, 0.75, 0))
 
+var box: MeshInstance3D
+
 func _actor(clip: String) -> Node3D:
-	var who := clip.split("_")[1] if clip.begins_with("ghost_") else "fox"
+	# "who/clip" 로 직원을 고를 수 있다(없으면 ghost_<who>_… 에서 읽고, 그 외는 여우).
+	var who := "fox"
+	if clip.contains("/"): who = clip.split("/")[0]
+	elif clip.begins_with("ghost_"): who = clip.split("_")[1]
 	if not actors.has(who):
 		var a: Node3D = load(SCENES[who]).instantiate()
 		vp.add_child(a)
@@ -86,9 +91,27 @@ func _process(_d):
 		return false
 	var job = jobs[i]
 	var a := _actor(job[0])
+	var clip_name: String = job[0].split("/")[-1]
 	var ap: AnimationPlayer = a.get_node("AnimationPlayer")
+	if box == null:
+		box = MeshInstance3D.new(); var bm := BoxMesh.new(); bm.size = Vector3(0.34, 0.26, 0.28); box.mesh = bm
+		var mat := StandardMaterial3D.new(); mat.albedo_color = Color(0.62, 0.45, 0.25); box.material_override = mat
+		vp.add_child(box)
+	if wait == 1 and clip_name.contains("box"):
+		# 두 손바닥 사이(조금 위)에 실제 크기 박스 — 손이 옆면에 닿는지 본다.
+		var hl: Node3D = a.get_node("VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL/HandL")
+		var hr: Node3D = a.get_node("VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR/HandR")
+		var pl := hl.global_transform * Vector3(0, -0.06, 0)
+		var pr := hr.global_transform * Vector3(0, -0.06, 0)
+		var chest: Node3D = a.get_node("VisualRoot/RigRoot/Hips/Torso/Chest")
+		var up := chest.global_transform.basis.y.normalized()
+		box.global_position = (pl + pr) * 0.5 + up * 0.26 * 0.28
+		box.global_basis = chest.global_transform.basis.orthonormalized()
+		box.visible = true
+	elif wait == 1:
+		box.visible = false
 	if wait == 0:
-		ap.play(job[0], 0.0)
+		ap.play(clip_name, 0.0)
 		ap.seek(job[1], true)
 		ap.pause()
 		(cam_a if phase == 0 else cam_b).current = true
@@ -105,7 +128,7 @@ func _process(_d):
 	var args := OS.get_cmdline_user_args().slice(1)
 	var idx := i
 	for r in args.size():
-		var cnt = args[r].split(":")[1].split(",").size()
+		var cnt = args[r].split(":")[-1].split(",").size()
 		if idx < cnt: row = r; col = idx; break
 		idx -= cnt
 	sheet.blit_rect(img, Rect2i(Vector2i.ZERO, CELL), Vector2i(col * CELL.x, (row * 2 + phase) * CELL.y))

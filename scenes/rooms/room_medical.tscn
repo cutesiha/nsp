@@ -243,6 +243,73 @@ omni_range = 6.0
 
 [node name="WorkSpots" type="Node3D" parent="." unique_id=2012947568]
 
+[node name="MedicineStationSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, -1.29)
+script = ExtResource("1_spot")
+SpotId = "MedicineStationSpot"
+SupportedTaskIds = PackedStringArray("medicine_sorting", "repair_medical")
+AnimationName = "console_operate"
+Priority = 20
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/MedicineStationSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, -0.45)
+
+[node name="MedDrawerSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.95, 0, -1.19)
+script = ExtResource("1_spot")
+SpotId = "MedDrawerSpot"
+SupportedTaskIds = PackedStringArray("medicine_sorting")
+AnimationName = "shelf_low"
+Priority = 19
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/MedDrawerSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, -0.45)
+
+[node name="MedMonitorSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.05, 0, -1.83)
+script = ExtResource("1_spot")
+SpotId = "MedMonitorSpot"
+SupportedTaskIds = PackedStringArray("staff_treatment", "repair_medical")
+AnimationName = "panel_press"
+Priority = 18
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/MedMonitorSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.22, -0.45)
+
+[node name="ExamChartSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 0.5, 0, 0.85)
+script = ExtResource("1_spot")
+SpotId = "ExamChartSpot"
+SupportedTaskIds = PackedStringArray("staff_treatment")
+AnimationName = "clipboard_check"
+Priority = 17
+HandProp = "clipboard"
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/ExamChartSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.45)
+
+[node name="IvPoleSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.87, 0, -1.9)
+script = ExtResource("1_spot")
+SpotId = "IvPoleSpot"
+SupportedTaskIds = PackedStringArray("staff_treatment")
+AnimationName = "knob_turn"
+Priority = 16
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/IvPoleSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, -0.45)
+
+[node name="PatientChartSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -0.07, 0, -1.1)
+script = ExtResource("1_spot")
+SpotId = "PatientChartSpot"
+AnimationName = "clipboard_check"
+Priority = 15
+HandProp = "clipboard"
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/PatientChartSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.45)
+
 [node name="MedicalBedSpot1" type="Node3D" parent="WorkSpots" unique_id=1623367687]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2.1, 0, -0.2)
 script = ExtResource("1_spot")
@@ -260,20 +327,6 @@ AnimationName = "lying_idle"
 Priority = 18
 IsSeated = true
 SeatHeight = 0.66
-
-[node name="MedicineStationSpot" type="Node3D" parent="WorkSpots" unique_id=433125569]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.55, 0, -1.35)
-script = ExtResource("1_spot")
-SpotId = "MedicineStationSpot"
-SupportedTaskIds = PackedStringArray("medicine_sorting", "repair_medical", "staff_treatment")
-Priority = 15
-
-[node name="MedicalFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1368064125]
-transform = Transform3D(0.8, 0, -0.6, 0, 1, 0, 0.6, 0, 0.8, 0.6, 0, 1.2)
-script = ExtResource("1_spot")
-SpotId = "MedicalFallbackSpot"
-AnimationName = "inspect"
-Priority = -10
 
 [node name="Bed1Frame" type="MeshInstance3D" parent="." unique_id=800627182]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0.46, -1.1)

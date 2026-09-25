@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using NSP.Facility;
 
 namespace NSP.View;
 
@@ -26,7 +27,10 @@ public sealed class GhostReactionProfile
     public string LoopClip = "";
     public string MoveClip = "";         // 숨으러 가는 동안의 클립(Hide 만)
     public string RecoverClip = "";
-    public float RecoverSeconds;
+    public string SeatedRecoverClip = "";   // 앉은 채로 하는 회복(여우)
+    public string FloorClip = "";           // 회복 전에 바닥에 주저앉은 채 떠는 구간(양)
+    public float FloorSeconds;
+    public float RecoverSeconds;            // FloorSeconds 포함 전체 회복 길이
 
     public GhostMove Move = GhostMove.InPlace;
     public float MoveAt;                 // 반응 시작 후 이 시점부터 움직인다
@@ -51,14 +55,16 @@ public static class GhostReactionProfiles
         {
             IntroClip = "ghost_sheep_drop", IntroSeconds = 0.9f, IntroBlend = 0.05,
             LoopClip = "ghost_sheep_cower_loop",
-            RecoverClip = "ghost_sheep_recover", RecoverSeconds = 1.1f,
+            // 사라진 뒤에도 바닥에서 떨다가(FloorClip) 힘겹게 일어난다(RecoverClip).
+            FloorClip = "ghost_sheep_floor_loop", FloorSeconds = PostGhostRecovery.SheepFloorSeconds,
+            RecoverClip = "ghost_sheep_recover", RecoverSeconds = PostGhostRecovery.AnimSeconds("sheep"),
             Move = GhostMove.InPlace, MoveAt = 0.1f, StepSeconds = 0.4f, BackOffBelow = 1.1f, FaceRate = 3f,
         },
         [CctvEmployeeAction.GhostRabbitScream] = new()
         {
             IntroClip = "ghost_rabbit_shock", IntroSeconds = 0.95f, IntroBlend = 0.03,
             LoopClip = "ghost_rabbit_scream_loop",
-            RecoverClip = "ghost_rabbit_recover", RecoverSeconds = 0.6f,
+            RecoverClip = "ghost_rabbit_relief", RecoverSeconds = PostGhostRecovery.AnimSeconds("rabbit"),
             Move = GhostMove.StepBack, MoveAt = 0.3f, StepMeters = 0.35f, StepSeconds = 0.45f,
             FaceRate = 7f, LookWeight = 0.7f,
         },
@@ -66,7 +72,7 @@ public static class GhostReactionProfiles
         {
             IntroClip = "ghost_cat_startle", IntroSeconds = 0.28f, IntroBlend = 0.06,
             MoveClip = "ghost_cat_retreat", LoopClip = "ghost_cat_hide_loop",
-            RecoverClip = "ghost_cat_recover", RecoverSeconds = 0.7f,
+            RecoverClip = "ghost_cat_wipe_recover", RecoverSeconds = PostGhostRecovery.AnimSeconds("cat"),
             Move = GhostMove.Hide, MoveAt = 0.28f, MoveSpeed = 2.7f,
             FaceRate = 9f, LookWeight = 0.8f,
         },
@@ -74,7 +80,7 @@ public static class GhostReactionProfiles
         {
             IntroClip = "ghost_dog_startle", IntroSeconds = 0.46f, IntroBlend = 0.04,
             MoveClip = "ghost_dog_flee", LoopClip = "ghost_dog_hide_loop",
-            RecoverClip = "ghost_dog_recover", RecoverSeconds = 1.0f,
+            RecoverClip = "ghost_dog_breathe_recover", RecoverSeconds = PostGhostRecovery.AnimSeconds("dog"),
             Move = GhostMove.Hide, MoveAt = 0.46f, MoveSpeed = 2.9f,
             FaceRate = 6f, LookWeight = 0.6f,
         },
@@ -82,15 +88,17 @@ public static class GhostReactionProfiles
         {
             IntroClip = "ghost_wolf_startle", IntroSeconds = 0.46f, IntroBlend = 0.08,
             LoopClip = "ghost_wolf_guard_loop",
-            RecoverClip = "ghost_wolf_recover", RecoverSeconds = 0.8f,
+            RecoverClip = "ghost_wolf_check_recover", RecoverSeconds = PostGhostRecovery.AnimSeconds("wolf"),
             Move = GhostMove.StepToward, MoveAt = 0.18f, StepMeters = 0.45f, StepSeconds = 0.3f,
             KeepFromGhost = 1.3f,
             FaceRate = 10f, LookWeight = 1f,
         },
         [CctvEmployeeAction.GhostFoxWorking] = new()
         {
-            // 클립을 바꾸지 않는다 — 하던 업무 클립 위에서 손을 잠깐 멈추고 고개만 돌린다.
-            RecoverSeconds = 0.6f, KeepsWorking = true,
+            // 괴물이 있는 동안은 클립을 바꾸지 않는다 — 하던 업무 클립 위에서 손을 잠깐 멈추고 고개만 돌린다.
+            // 사라진 뒤에는 "엥...? 뭐였냐 저건." (앉아 있었으면 앉은 채로).
+            RecoverClip = "ghost_fox_shrug_recover", SeatedRecoverClip = "ghost_fox_shrug_recover_seated",
+            RecoverSeconds = PostGhostRecovery.AnimSeconds("fox"), KeepsWorking = true,
         },
         [CctvEmployeeAction.GhostStartled] = new()
         {

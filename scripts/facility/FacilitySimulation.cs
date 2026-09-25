@@ -25,7 +25,8 @@ public partial class FacilitySimulation : Node
     private const string StorageRoomId = "storage_room";
     private const string CoreRoomId = "core_room";
     private const string PowerRoomId = "power_room";
-    private const int RoomSlotCapacity = 2;
+    // 한 작업실 최대 인원(근무 전 배치표 기준). 근무 중 재배치는 이 값에 묶이지 않는다.
+    public const int RoomSlotCapacity = 6;
 
     public string RelocatingEmployeeId { get; private set; } = "";
 
@@ -908,6 +909,7 @@ public partial class FacilitySimulation : Node
         foreach (var emp in _employeeStates.Values)
         {
             emp.InitialDeployDone = false;
+            emp.WorkBlockedUntil = 0f;
             emp.Incapacitated = false;
             emp.FaintRecoverTimer = 0f;
             emp.Stress = Mathf.Clamp(emp.Stress, Config.Instance.Data.StressMin, Config.Instance.Data.StressMax);
@@ -2220,10 +2222,12 @@ public partial class FacilitySimulation : Node
             var room = _roomStates.GetValueOrDefault(st.RoomId);
             // 기절(스트레스 46+)한 직원은 방에 있어도 업무 인원으로 세지 않는다.
             // 동료의 죽음을 보고 무너진 직원(_panicked)도 마찬가지다 — 자리에는 있지만 일은 못 한다.
+            // 괴물이 막 사라져 아직 추스르는 중인 직원(WorkBlockedUntil)도 그동안은 일하지 않는다.
+            float nowSec = GameState.Instance.DayTimeSeconds;
             var workers = room == null ? new List<EmployeeState>() : room.OccupantEmployeeIds
                 .Select(id => _employeeStates.GetValueOrDefault(id))
                 .Where(e => e != null && e.Alive && !e.Isolated && !e.Incapacitated
-                            && !_panicked.Contains(e.EmployeeId))
+                            && !_panicked.Contains(e.EmployeeId) && e.WorkBlockedUntil <= nowSec)
                 .ToList();
 
             bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress

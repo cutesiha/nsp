@@ -33,6 +33,8 @@ public enum CctvEmployeeAction
     GhostFoxWorking,     // 여우 — 잠깐 손이 멈추지만 하던 일을 계속하며 가끔 쳐다본다
     // 정의되지 않은 직원용 예비 반응(기존 ghost_startle).
     GhostStartled,
+    // 방을 막 떠났다 — 화면 밖(출입구)으로 걸어 나가는 동안만 보인다(FacilityCctvWorld 가 붙인다).
+    Leaving,
 }
 
 // 직원 3D 캐릭터 한 명의 애니메이션만 담당하는 작은 도우미. AI 는 없다.
@@ -67,6 +69,7 @@ public sealed class EmployeeCctvAnimator
         CctvEmployeeAction.GhostWolfConfront => "ghost_wolf_guard_loop",
         CctvEmployeeAction.GhostFoxWorking => "work",
         CctvEmployeeAction.GhostStartled => "ghost_startle",
+        CctvEmployeeAction.Leaving => "walk",
         _ => "idle",
     };
 
@@ -99,6 +102,13 @@ public sealed class EmployeeCctvAnimator
     private readonly List<Joint> _joints = new();
     private readonly HashSet<string> _clipTracks = new();
 
+    // 컨트롤러가 직접 움직이는 루트(VisualRoot 위치 · RigRoot 기울기) — 의자·침대 전환 중에는 되돌리지 않는다.
+    private bool _proceduralRoot;
+
+    // 괴물을 본 뒤의 약한 후유증(양) — 작업 클립 위에 어깨 움츠림·잔떨림·가끔 움찔을 더한다.
+    private float _aftershock, _aftershockTime, _nextFlinch = 4f, _flinchT = -1f;
+    private readonly Dictionary<Joint, Vector3> _additive = new();
+    private Joint _shL, _shR, _chest, _head;
     public CctvEmployeeAction Action => _action;
     public string CurrentClip => _clip;
 
@@ -121,7 +131,38 @@ public sealed class EmployeeCctvAnimator
         if (badge != null && chest != null && badge.IsInsideTree()) badge.Reparent(chest, true);
 
         CollectJoints(root);
+        _shL = FindJoint("ShoulderL:rotation");
+        _shR = FindJoint("ShoulderR:rotation");
+        _chest = FindJoint("Torso/Chest:rotation");
+        _head = FindJoint("Head:rotation");
+        // 믹서가 자세를 쓴 직후에 더한다 — 앞에서 더하면 클립 값에 덮인다.
+        _anim.MixerApplied += ApplyAdditive;
     }
+
+    private Joint FindJoint(string suffix)
+    {
+        foreach (var j in _joints) if (j.Path.EndsWith(suffix)) return j;
+        return null;
+    }
+
+    public bool HasClip(string clip) => _anim != null && !string.IsNullOrEmpty(clip) && _anim.HasAnimation(clip);
+
+    // 체형 전용 클립(name_m / name_f)이 있으면 그것을, 없으면 그 이름 그대로.
+    public string BodyClip(string clip, bool female)
+    {
+        if (string.IsNullOrEmpty(clip)) return clip;
+        string own = clip + (female ? "_f" : "_m");
+        return HasClip(own) ? own : clip;
+    }
+
+    // 이번 프레임에 컨트롤러가 VisualRoot 위치 · RigRoot 기울기를 직접 정한다(매 프레임 false 로 돌려놓는다).
+    public void SetProceduralRoot(bool on) => _proceduralRoot = on;
+
+    // 0 = 없음 · 1 = 양의 그날 후유증.
+    public void SetAftershock(float intensity) => _aftershock = Mathf.Clamp(intensity, 0f, 1f);
+
+    public float CurrentClipLength => _anim != null && HasClip(_clip) ? (float)_anim.GetAnimation(_clip).Length : 0f;
+    public float CurrentClipTime => _anim != null && HasClip(_clip) ? (float)_anim.CurrentAnimationPosition : 0f;
 
     private void CollectJoints(Node3D root)
     {
@@ -222,6 +263,10 @@ public sealed class EmployeeCctvAnimator
     public void Update(float delta)
     {
         if (_anim == null) return;
+        // 지난 프레임에 더한 후유증을 먼저 걷어낸다(클립이 쓰지 않는 관절에 쌓이지 않게).
+        foreach (var (j, v) in _additive) j.Node.Rotation -= v;
+        _additive.Clear();
+        _aftershockTime += delta;
         RelaxOrphans(delta);
         if (_neck != null)
         {
@@ -241,6 +286,7 @@ public sealed class EmployeeCctvAnimator
         foreach (var j in _joints)
         {
             if (_clipTracks.Contains(j.Path)) continue;
+            if (_proceduralRoot && (j.Path == "VisualRoot:position" || j.Path == "VisualRoot/RigRoot:rotation")) continue;
             if (j.Position)
             {
                 var p = j.Node.Position;
@@ -254,4 +300,39 @@ public sealed class EmployeeCctvAnimator
             }
         }
     }
+
+    // 후유증 — 어깨가 조금 움츠러든 채 작게 떨리고, 몇 초에 한 번 움찔한다. 작업 동작은 그대로 읽힌다.
+    private void ApplyAdditive()
+    {
+        // 화면 밖(Update 가 안 불리는 동안)에도 믹서는 돈다 — 지난 값을 먼저 걷어내야 쌓이지 않는다.
+        // (클립이 쓰는 관절은 믹서가 방금 새 값으로 덮었으니 건드리지 않는다.)
+        foreach (var (j, v) in _additive)
+            if (!_clipTracks.Contains(j.Path)) j.Node.Rotation -= v;
+        _additive.Clear();
+        if (_aftershock <= 0f) return;
+        float t = _aftershockTime;
+        if (_flinchT < 0f && t >= _nextFlinch) { _flinchT = 0f; }
+        float flinch = 0f;
+        if (_flinchT >= 0f)
+        {
+            _flinchT += (float)GetProcessDelta();
+            flinch = Mathf.Sin(Mathf.Clamp(_flinchT / 0.28f, 0f, 1f) * Mathf.Pi);
+            if (_flinchT >= 0.28f) { _flinchT = -1f; _nextFlinch = t + 5f + (Mathf.Sin(t * 1.7f) + 1f) * 2f; }
+        }
+        float tremble = Mathf.Sin(t * 37f) * 0.6f + Mathf.Sin(t * 23f) * 0.4f;
+        float a = _aftershock;
+        Add(_shL, new Vector3(0, 0, -(0.09f + 0.012f * tremble + 0.16f * flinch) * a));
+        Add(_shR, new Vector3(0, 0, (0.09f + 0.012f * tremble + 0.16f * flinch) * a));
+        Add(_chest, new Vector3((-0.05f + 0.07f * flinch) * a, 0, 0.012f * tremble * a));
+        Add(_head, new Vector3((-0.06f + 0.05f * flinch) * a, 0, 0.01f * tremble * a));
+    }
+
+    private void Add(Joint j, Vector3 v)
+    {
+        if (j == null) return;
+        j.Node.Rotation += v;
+        _additive[j] = _additive.GetValueOrDefault(j) + v;
+    }
+
+    private double GetProcessDelta() => _anim?.GetProcessDeltaTime() ?? 0.016;
 }

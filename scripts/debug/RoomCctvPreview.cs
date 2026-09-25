@@ -38,6 +38,10 @@ public partial class RoomCctvPreview : Node3D
         "isolated_struggle", "isolated_exhausted",
         "ghost_sheep_cower_loop", "ghost_rabbit_scream_loop", "ghost_cat_hide_loop",
         "ghost_dog_hide_loop", "ghost_wolf_guard_loop",
+        // 손으로 설비를 만지는 작업(체형별 _m/_f 가 있으면 자동으로 고른다)
+        "panel_press", "console_operate", "knob_turn", "lever_operate",
+        "crouch_repair", "shelf_reach", "shelf_low", "clipboard_check",
+        "chair_sit", "chair_stand", "carry_box_male", "carry_box_female", "carry_box_sheep",
     };
 
     private readonly List<string> _roomIds = new();
@@ -232,7 +236,11 @@ public partial class RoomCctvPreview : Node3D
     private static void PlayClip(Node3D actor, string clip)
     {
         var ap = actor.GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
-        if (ap == null || !ap.HasAnimation(clip)) return;
+        if (ap == null) return;
+        bool female = actor.GetNodeOrNull("VisualRoot/RigRoot/Hips/Torso/Chest/BustMeshL") != null;
+        string own = clip + (female ? "_f" : "_m");
+        if (ap.HasAnimation(own)) clip = own;
+        if (!ap.HasAnimation(clip)) return;
         ap.Play(clip);
     }
 
@@ -363,12 +371,13 @@ public partial class RoomCctvPreview : Node3D
         clipRow1.AddChild(autoBtn);
         var clipRow2 = Row(col);
         var clipRow3 = Row(col);
+        var clipRow4 = Row(col);
         for (int i = 0; i < Clips.Length; i++)
         {
             int idx = i;
             var b = new Button { Text = Clips[i] };
             b.Pressed += () => { _clipIndex = idx; Rebuild(); };
-            (i < 9 ? clipRow1 : i < 18 ? clipRow2 : clipRow3).AddChild(b);
+            (i < 9 ? clipRow1 : i < 18 ? clipRow2 : i < 27 ? clipRow3 : clipRow4).AddChild(b);
         }
 
         // ── 괴물 동작 강제 재생 ────────────────────────────────────────

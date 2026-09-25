@@ -2,7 +2,7 @@
 """
 괴물(Ghost) 반응 클립 생성기 — employee_common.tres 에 직원별 반응 클립을 넣는다.
 
-    python tools/gen_ghost_reaction_clips.py
+    python tools/gen_cctv_clips.py      (이 파일은 그 스크립트가 모듈로 불러 쓴다)
 
 여러 번 돌려도 된다(같은 이름의 클립은 지우고 다시 넣는다). 다른 클립은 건드리지 않는다.
 
@@ -427,7 +427,13 @@ def build():
     c.key(0.8, merge(stand_m, arms(6, 3, 16), dict(TORSO=(-2, 0, 0))))
     clips.append(c)
 
+    # V2 생성기(gen_cctv_clips.py)가 회복 클립의 첫 자세로 쓴다.
+    GHOST_POSES.update(sheep_cower=sheep_cower, rabbit_tense=rabbit_tense, cat_hide=cat_hide,
+                       dog_hide=dog_hide, wolf_guard=wolf_guard)
     return clips
+
+
+GHOST_POSES = {}
 
 
 # ── .tres 쓰기 ────────────────────────────────────────────────────────────
@@ -499,4 +505,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # 라이브러리 전체는 V2 생성기가 쓴다(이 파일은 괴물 반응 자세를 모듈로 제공한다).
+    import gen_cctv_clips
+    gen_cctv_clips.main()

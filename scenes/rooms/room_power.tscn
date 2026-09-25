@@ -208,34 +208,71 @@ light_color = Color(1, 0.72, 0.4, 1)
 
 [node name="WorkSpots" type="Node3D" parent="." unique_id=1542383445]
 
-[node name="GeneratorSpotA" type="Node3D" parent="WorkSpots" unique_id=449380463]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 0, -0.85)
+[node name="GenPanelSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.08, 0, -0.94)
 script = ExtResource("1_spot")
-SpotId = "GeneratorSpotA"
+SpotId = "GenPanelSpot"
 SupportedTaskIds = PackedStringArray("power_generator_check", "repair_generator")
-AnimationName = "inspect"
+AnimationName = "panel_press"
 Priority = 20
 
-[node name="GeneratorSpotB" type="Node3D" parent="WorkSpots" unique_id=944715929]
-transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.62, 0, -1.9)
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/GenPanelSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.15, -0.45)
+
+[node name="GenDialSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.36, 0, -0.9)
 script = ExtResource("1_spot")
-SpotId = "GeneratorSpotB"
+SpotId = "GenDialSpot"
 SupportedTaskIds = PackedStringArray("power_generator_check", "repair_generator")
+AnimationName = "knob_turn"
+Priority = 19
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/GenDialSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.14, -0.45)
+
+[node name="DistSwitchSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.55, 0, -2.14)
+script = ExtResource("1_spot")
+SpotId = "DistSwitchSpot"
+SupportedTaskIds = PackedStringArray("power_panel_cleaning")
+AnimationName = "panel_press"
+Priority = 18
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/DistSwitchSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -0.45)
+
+[node name="DistGaugeSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.25, 0, -2.13)
+script = ExtResource("1_spot")
+SpotId = "DistGaugeSpot"
+SupportedTaskIds = PackedStringArray("power_panel_cleaning")
+AnimationName = "shelf_low"
+Priority = 17
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/DistGaugeSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.62, -0.45)
+
+[node name="Gen2HatchSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.08, 0, -0.25)
+script = ExtResource("1_spot")
+SpotId = "Gen2HatchSpot"
+SupportedTaskIds = PackedStringArray("repair_generator")
+AnimationName = "crouch_repair"
+Priority = 16
+HandProp = "wrench"
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/Gen2HatchSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.45)
+
+[node name="BreakerLeverSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.15, 0, -0.1)
+script = ExtResource("1_spot")
+SpotId = "BreakerLeverSpot"
+AnimationName = "lever_operate"
 Priority = 15
 
-[node name="DistributionPanelSpot" type="Node3D" parent="WorkSpots" unique_id=947502826]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.95, 0, -2.15)
-script = ExtResource("1_spot")
-SpotId = "DistributionPanelSpot"
-SupportedTaskIds = PackedStringArray("power_panel_cleaning")
-Priority = 10
-
-[node name="PowerFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=968490971]
-transform = Transform3D(0.78405, 0, -0.6207, 0, 1, 0, 0.6207, 0, 0.78405, 0.9, 0, 1.2)
-script = ExtResource("1_spot")
-SpotId = "PowerFallbackSpot"
-AnimationName = "inspect"
-Priority = -10
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/BreakerLeverSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, -0.45)
 
 [node name="GenUnitPanel" type="MeshInstance3D" parent="." unique_id=1311203142]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.7, 1.05, -1.37)

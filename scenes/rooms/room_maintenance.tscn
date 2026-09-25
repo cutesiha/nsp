@@ -217,38 +217,68 @@ surface_material_override/0 = SubResource("Mat_Wood")
 
 [node name="WorkSpots" type="Node3D" parent="." unique_id=749003135]
 
-[node name="FabricationBenchSpot" type="Node3D" parent="WorkSpots" unique_id=190940913]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0, -1.7)
+[node name="AssemblyDeskSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, -1.98)
+script = ExtResource("1_spot")
+SpotId = "AssemblyDeskSpot"
+SupportedTaskIds = PackedStringArray("equipment_repair", "repair_maintenance")
+AnimationName = "sit_assemble"
+Priority = 21
+IsSeated = true
+SeatHeight = 0.47
+
+[node name="FabricationBenchSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.6, 0, -1.65)
 script = ExtResource("1_spot")
 SpotId = "FabricationBenchSpot"
 SupportedTaskIds = PackedStringArray("materials_production")
 AnimationName = "hammer_work"
 Priority = 20
 
-[node name="AssemblyDeskSpot" type="Node3D" parent="WorkSpots" unique_id=1038492411]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, -0.95)
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/FabricationBenchSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.98, -0.45)
+
+[node name="BenchStoolSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.27, 0, -1.63)
 script = ExtResource("1_spot")
-SpotId = "AssemblyDeskSpot"
-SupportedTaskIds = PackedStringArray("equipment_repair", "repair_maintenance")
+SpotId = "BenchStoolSpot"
+SupportedTaskIds = PackedStringArray("materials_production")
 AnimationName = "sit_assemble"
-Priority = 20
+Priority = 19
 IsSeated = true
-SeatHeight = 0.44
+SeatHeight = 0.69
 
-[node name="MaintRepairStandSpot" type="Node3D" parent="WorkSpots" unique_id=1446059502]
-transform = Transform3D(0.79009, 0, -0.613, 0, 1, 0, 0.613, 0, 0.79009, -0.25, 0, -1.7)
+[node name="BenchPartsSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0, -1.5)
 script = ExtResource("1_spot")
-SpotId = "MaintRepairStandSpot"
-SupportedTaskIds = PackedStringArray("repair_maintenance")
-AnimationName = "repair"
-Priority = 10
+SpotId = "BenchPartsSpot"
+SupportedTaskIds = PackedStringArray("materials_production")
+AnimationName = "console_operate"
+Priority = 18
 
-[node name="MaintFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1507355145]
-transform = Transform3D(0.88822, 0, -0.45942, 0, 1, 0, 0.45942, 0, 0.88822, 0.3, 0, 1.3)
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/BenchPartsSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.97, -0.45)
+
+[node name="CratePartsSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 1.7, 0, -1.55)
 script = ExtResource("1_spot")
-SpotId = "MaintFallbackSpot"
-AnimationName = "inspect"
-Priority = -10
+SpotId = "CratePartsSpot"
+SupportedTaskIds = PackedStringArray("equipment_repair")
+AnimationName = "shelf_low"
+Priority = 17
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CratePartsSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, -0.45)
+
+[node name="PartsShelfSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -2.05, 0, 0.75)
+script = ExtResource("1_spot")
+SpotId = "PartsShelfSpot"
+AnimationName = "shelf_reach"
+Priority = 16
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/PartsShelfSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, -0.45)
 
 [node name="FabVise" type="MeshInstance3D" parent="." unique_id=2030739881]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 1.06, -2.28)

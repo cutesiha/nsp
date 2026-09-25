@@ -34,6 +34,8 @@ public sealed partial class RoomWorkVisualController
         public bool HasGhost;
         public float Yaw;
         public bool YawSet;
+        public bool WasRecovering;           // 이 반응이 회복 단계까지 갔다
+        public bool SkipIntro;               // 이미 주저앉아 있던 채로 다시 나타났다 — 첫 반응 없이 반복부터
     }
 
     private struct Move
@@ -113,16 +115,27 @@ public sealed partial class RoomWorkVisualController
                                    Dictionary<RoomWorkSpot, int> used, float delta)
     {
         var g = actor.Ghost;
-        if (g == null || g.Serial != gs.Serial) actor.Ghost = g = new GhostVisual { Serial = gs.Serial };
+        if (g == null || g.Serial != gs.Serial)
+        {
+            // 회복하던 중에 괴물이 다시 나타났다 — 그 자리에서 곧바로 새 반응(양은 바닥에 있던 채로).
+            bool again = g is { WasRecovering: true } && gs.Stage == GhostReactionTracker.Stage.Reacting;
+            float floorLeft = again && !string.IsNullOrEmpty(prof.FloorClip) ? 1f : 0f;
+            actor.Ghost = g = new GhostVisual { Serial = gs.Serial, SkipIntro = floorLeft > 0f };
+        }
+        if (!reactingStage(gs)) g.WasRecovering = true;
         if (ghostPos.HasValue) { g.LastGhost = Flat(ghostPos.Value); g.HasGhost = true; }
         Vector3 ghost = g.HasGhost ? g.LastGhost : Vector3.Zero;
         bool reacting = gs.Stage == GhostReactionTracker.Stage.Reacting;
+        // 앉아 있다 일어나느라 늦게 시작했으면 그만큼 뒤로 민 시간.
+        float el = Mathf.Max(0f, gs.Elapsed - (actor.GhostShiftSerial == gs.Serial ? actor.GhostShift : 0f));
 
         // 상자를 안고 있었다면 내려놓은 것으로 둔다(저장고 수레 연출과 겹치지 않게).
-        if (actor.BoxProp != null) actor.BoxProp.Visible = false;
+        HideBox(actor);
+        ShowProps(actor, "");
         actor.CartPhase = 0;
+        actor.BoxInHands = false;
 
-        if (!g.Initialized) InitGhostReaction(id, node, fallbackPos, actor, g, gs, prof, ghost, spots, taskId, used);
+        if (!g.Initialized) InitGhostReaction(id, node, fallbackPos, actor, g, gs, prof, ghost, spots, taskId, used, el);
 
         // 돌아갈 업무 자리는 계속 잡아 둔다 — 반응이 끝나면 그 자리로 걸어간다.
         if (g.Spot != null) used[g.Spot] = used.GetValueOrDefault(g.Spot) + 1;
@@ -147,7 +160,7 @@ public sealed partial class RoomWorkVisualController
         if (reacting && g.MoveIndex < g.Moves.Count)
         {
             var m = g.Moves[g.MoveIndex];
-            if (gs.Elapsed >= m.NotBefore)
+            if (el >= m.NotBefore)
             {
                 var here = Flat(node.Position);
                 var d = m.To - here;
@@ -159,7 +172,7 @@ public sealed partial class RoomWorkVisualController
                     node.Position = here + travel * Mathf.Min(m.Speed * delta, dist);
                     moving = true;
                     faceTravel = m.FaceTravel;
-                    moveTime = gs.Elapsed - m.NotBefore;
+                    moveTime = el - m.NotBefore;
                 }
             }
         }
@@ -205,9 +218,16 @@ public sealed partial class RoomWorkVisualController
 
         // ── 클립 ──
         if (!reacting)
-            anim?.PlayClip(prof.RecoverClip, 0.2, gs.RecoverElapsed);
-        else if (!g.LateJoin && gs.Elapsed < prof.IntroSeconds && !string.IsNullOrEmpty(prof.IntroClip))
-            anim?.PlayClip(prof.IntroClip, prof.IntroBlend, gs.Elapsed);
+        {
+            // 괴물이 사라졌다 — 바로 일로 돌아가지 않는다. 양은 한참 더 바닥에서 떤 뒤에야 일어난다.
+            float r = gs.RecoverElapsed;
+            if (!string.IsNullOrEmpty(prof.FloorClip) && r < prof.FloorSeconds)
+                anim?.PlayClip(prof.FloorClip, 0.4);
+            else
+                anim?.PlayClip(prof.RecoverClip, 0.25, Mathf.Max(0f, r - prof.FloorSeconds));
+        }
+        else if (!g.LateJoin && !g.SkipIntro && el < prof.IntroSeconds && !string.IsNullOrEmpty(prof.IntroClip))
+            anim?.PlayClip(prof.IntroClip, prof.IntroBlend, el);
         else if (fleeing && !string.IsNullOrEmpty(prof.MoveClip))
             anim?.PlayClip(prof.MoveClip, 0.1);
         else
@@ -233,7 +253,7 @@ public sealed partial class RoomWorkVisualController
                     // 강아지는 도망치다 두 번 뒤돌아본다. 고양이는 뛰면서도 눈을 떼지 않는다.
                     ? (moveTime is > 0.16f and < 0.42f or > 0.66f and < 0.9f ? 1f : 0f)
                     : 1f;
-            else if (g.LateJoin || gs.Elapsed >= prof.IntroSeconds)
+            else if (g.LateJoin || g.SkipIntro || el >= prof.IntroSeconds)
                 look = prof.LookWeight;
         }
         anim?.SetLook(Mathf.AngleDifference(g.Yaw, toGhost), look, fleeing ? 16f : 9f);
@@ -241,11 +261,12 @@ public sealed partial class RoomWorkVisualController
 
     private void InitGhostReaction(string id, Node3D node, Vector3 fallbackPos, Actor actor, GhostVisual g,
                                    GhostReactionTracker.State gs, GhostReactionProfile prof, Vector3 ghost,
-                                   List<RoomWorkSpot> spots, string taskId, Dictionary<RoomWorkSpot, int> used)
+                                   List<RoomWorkSpot> spots, string taskId, Dictionary<RoomWorkSpot, int> used,
+                                   float el)
     {
         g.Initialized = true;
         // 반응이 막 시작됐을 때 보고 있었는가 — 아니면 첫 반응은 건너뛰고 지금 상태부터 보여준다.
-        bool fresh = gs.Stage == GhostReactionTracker.Stage.Reacting && gs.Elapsed < 0.3f;
+        bool fresh = gs.Stage == GhostReactionTracker.Stage.Reacting && el < 0.3f;
         g.LateJoin = !fresh;
 
         g.Spot = actor.Spot ?? PickSpot(spots, taskId, null, used);
@@ -254,7 +275,8 @@ public sealed partial class RoomWorkVisualController
         if (fresh)
         {
             start = Flat(node.Position);
-            seated = actor.Spot is { IsSeated: true } && actor.Arrived;
+            // 방금 그 의자에서 일어났다(StandUpFirst) — 의자·책상 사이가 아니라 옆 빈 바닥에서 반응한다.
+            seated = actor.Spot is { IsSeated: true } && actor.Seat?.Spot == actor.Spot;
         }
         else
         {
@@ -380,6 +402,35 @@ public sealed partial class RoomWorkVisualController
         }
         return false;
     }
+
+    // 여우 — 괴물이 사라진 뒤 한 번, 하던 일을 멈추고 "엥...? 뭐였냐 저건." 앉아 있었으면 앉은 채로.
+    // 자리·몸 방향은 그대로 두고 클립만 잠깐 바꾼다. 끝나면(false) 평소 업무 처리가 이어받는다.
+    private bool TickFoxShrug(Node3D node, EmployeeCctvAnimator anim, Actor actor,
+                              GhostReactionTracker.State gs, GhostReactionProfile prof, bool female)
+    {
+        if (!prof.KeepsWorking || string.IsNullOrEmpty(prof.RecoverClip)) return false;
+        if (gs.RecoverElapsed >= prof.RecoverSeconds || anim == null) return false;
+        if (actor.SeatState is SeatPhase.Sitting or SeatPhase.Standing) return false;   // 전환 중이면 건너뛴다
+        bool seated = actor.SeatState == SeatPhase.Seated && actor.Seat != null;
+        if (seated)
+        {
+            node.Position = actor.Seat.Pos;
+            node.Rotation = new Vector3(0f, actor.Seat.Yaw, 0f);
+            if (actor.Seat.Spot != null) ApplySeatOffset(node, actor.Seat.Spot);
+        }
+        anim.PlayClip(seated ? prof.SeatedRecoverClip : prof.RecoverClip, 0.25, gs.RecoverElapsed);
+        ShowProps(actor, "");
+        // 처음 0.5초는 괴물이 있던 자리를 본다(고개 흔들기는 클립이 한다).
+        if (actor.Ghost is { HasGhost: true } g && gs.RecoverElapsed < 0.6f)
+        {
+            var d = g.LastGhost - Flat(node.Position);
+            if (d.LengthSquared() > 0.01f)
+                anim.SetLook(Mathf.AngleDifference(node.Rotation.Y, Mathf.Atan2(-d.X, -d.Z)), 0.8f, 12f);
+        }
+        return true;
+    }
+
+    private static bool reactingStage(GhostReactionTracker.State gs) => gs.Stage == GhostReactionTracker.Stage.Reacting;
 
     // ── 자리 고르기 ───────────────────────────────────────────────────────
 

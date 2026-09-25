@@ -91,7 +91,7 @@ public partial class RoomDetailCard : PanelContainer
                 .Select(StatLabel);
             statsLine = $"요구 능력: {string.Join(", ", requiredStats)}\n";
         }
-        _descLabel.Text = $"{desc}\n{statsLine}인원: {sim.GetAssignedCount(_roomId)}/2";
+        _descLabel.Text = $"{desc}\n{statsLine}인원: {sim.GetAssignedCount(_roomId)}/{NSP.Facility.FacilitySimulation.RoomSlotCapacity}";
 
         _lockButton.Text = state.Locked ? "봉쇄 해제" : "구역 봉쇄";
     }

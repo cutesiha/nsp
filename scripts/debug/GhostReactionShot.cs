@@ -34,6 +34,8 @@ public partial class GhostReactionShot : Node
     private bool _moveTest;
     private bool _fromHub;   // DeveloperHub 에서 열었으면 끝나도 창을 닫지 않는다(계속 지켜볼 수 있게)
     private bool _seatTest;
+    private string _mode = "";
+    private bool _again;   // 회복 도중 괴물이 다시 나타나는 경우   // "" 괴물 · "work" 6인 작업/착석/퇴장 · "iso" 격리/해제
 
     public override void _Ready()
     {
@@ -60,6 +62,8 @@ public partial class GhostReactionShot : Node
         _tag = args.Length > 3 ? args[3] : "ghost";
         _moveTest = args.Length > 4 && args[4].Contains("move");
         _seatTest = args.Length > 4 && args[4].Contains("seat");
+        _again = args.Length > 4 && args[4].Contains("again");
+        _mode = args.Length > 4 && args[4].Contains("work") ? "work" : args.Length > 4 && args[4].Contains("iso") ? "iso" : "";
         System.IO.File.WriteAllText($"{_dir}/{_tag}_progress.txt", "");
 
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
@@ -94,6 +98,9 @@ public partial class GhostReactionShot : Node
         for (int i = 0; i < 900 && GameState.Instance?.CurrentPhase != GamePhase.Live; i++) await Frame();
         Log($"phase={GameState.Instance?.CurrentPhase}");
 
+        // 작업 검사는 들어오는 모습부터 본다.
+        if (_mode == "work") { sim.SetSurveillanceTarget(_room); await RunWork(sim, ctl); Finish(); return; }
+
         // 모두 그 방에 도착할 때까지.
         for (int i = 0; i < 60 * 60; i++)
         {
@@ -112,6 +119,8 @@ public partial class GhostReactionShot : Node
         // 판독용으로만 크게 찍는다(게임 화면 비율 4:3 그대로).
         cctv.Size = new Vector2I(960, 720);
         _keepDrawing = cctv;
+
+        if (_mode == "iso") { await RunIsolation(sim, world, cctv); Finish(); return; }
 
         // 앉아서 일하는 중에 괴물이 나오는 경우 — DAY2 정비실 설비 수리(조립 책상, 36초경 발생)를
         // 실제로 기다린다. 누군가 sit_* 클립을 틀면 시작한다.
@@ -203,12 +212,44 @@ public partial class GhostReactionShot : Node
         if (sim.Ghost.Active) Fail("소멸하지 않았다");
         double t1 = Now();
         Log($"소멸 직후 클립: {Clips(world)}");
-        foreach (double at in new[] { 0.25, 0.6, 1.0, 1.6, 3.0, 6.0 })
+        if (_again)
         {
-            await Until(t1 + at);
-            Shot(cctv, $"소멸 +{at:0.0}s");
+            // 회복하는 도중 괴물이 다시 나타난다 — 회복은 끊기고 새 반응이 먼저여야 한다.
+            await Seconds(1.0);
+            Log($"재등장 직전 클립: {Clips(world)}");
+            if (!sim.Ghost.ForceAppear(_room, sim, 90f)) Fail("재등장 실패");
+            await Seconds(0.6);
+            Log($"재등장 +0.6s 클립: {Clips(world)}");
+            foreach (string id in _ids)
+            {
+                var st2 = world.GhostReactions.Get(id);
+                if (st2 == null || st2.Stage != GhostReactionTracker.Stage.Reacting) Fail($"{id}: 재등장했는데 반응하지 않는다");
+                string c = ClipOf(world, id);
+                if (c.Contains("recover") || c.Contains("relief") || c.Contains("floor")) Fail($"{id}: 회복 클립이 새 반응을 덮었다({c})");
+            }
+            Shot(cctv, "회복 중 재등장 +0.6s");
+            for (int i = 0; i < 60 * 12 && sim.Ghost.Active; i++) await Frame();
+            t1 = Now();
+            Log($"두 번째 소멸 직후 클립: {Clips(world)}");
         }
-        Log($"소멸 +6s 클립: {Clips(world)}");
+        // 실제 업무 차단 — 괴물이 사라진 뒤 각자 몇 초 동안 업무 게이지에 기여하지 않는가.
+        float day = GameState.Instance?.DayTimeSeconds ?? 0f;
+        Log("업무 차단(남은 초): " + string.Join(" · ", _ids.Select(id => $"{id}={sim.GetEmployeeState(id).WorkBlockedUntil - day:0.0}")));
+        var rseq = new Dictionary<string, List<string>>();
+        var rjump = new Dictionary<string, float>();
+        var rlast = new Dictionary<string, Vector3>();
+        double[] rshots = { 0.25, 0.8, 1.6, 3.0, 4.5, 6.0, 8.0, 11.0 };
+        int ri = 0;
+        while (Now() - t1 < 12.0)
+        {
+            Track(world, rseq, rjump, rlast);
+            if (ri < rshots.Length && Now() - t1 >= rshots[ri]) { Shot(cctv, $"소멸 +{rshots[ri]:0.0}s"); ri++; }
+            await Frame();
+        }
+        foreach (string id in _ids)
+            Log($"  회복 {id}: {string.Join(">", rseq.GetValueOrDefault(id) ?? new List<string>())}");
+        Log($"양 후유증: {world.GhostReactions.HasAftershock("sheep")}");
+        Log($"소멸 +12s 클립: {Clips(world)}");
         var back = Positions(world);
         foreach (string id in _ids)
             // 그사이 방 업무가 바뀌었으면 자리도 바뀐다 — 같은 업무일 때만 같은 자리인지 본다.
@@ -226,6 +267,172 @@ public partial class GhostReactionShot : Node
 
         Finish();
     }
+
+    // ── 작업실 6인 · 착석 · 퇴장 ──────────────────────────────────────
+
+    private async System.Threading.Tasks.Task RunWork(FacilitySimulation sim, ControlRoom3DController ctl)
+    {
+        var world = FacilityCctvWorld.Instance;
+        var cctv = ctl.FacilityCctvViewport;
+        cctv.Size = new Vector2I(960, 720);
+        _keepDrawing = cctv;
+        for (int i = 0; i < 60 * 60 && !Actors(world).Any(kv => _ids.Contains(kv.Key) && kv.Value.Visible); i++) await Frame();
+        double t0 = Now();
+        Log("입장 시작");
+        var seq = new Dictionary<string, List<string>>();
+        var jump = new Dictionary<string, float>();
+        var last = new Dictionary<string, Vector3>();
+        double[] shots = { 0.5, 2.0, 4.0, 7.0, 11.0, 16.0 };
+        int si = 0;
+        while (Now() - t0 < 18.0)
+        {
+            Track(world, seq, jump, last);
+            if (si < shots.Length && Now() - t0 >= shots[si]) { Shot(cctv, $"입장 +{shots[si]:0.0}s"); si++; }
+            await Frame();
+        }
+        foreach (string id in _ids)
+            Log($"  {id}: {string.Join(">", seq.GetValueOrDefault(id) ?? new List<string>())}  (최대 한 프레임 이동 {jump.GetValueOrDefault(id):0.00}m)");
+        Log("자리: " + SpotsText(world));
+        Log("클립: " + Clips(world));
+        Log("위치: " + PosText(world));
+        CheckSpacing(world, sim);
+        var spotsUsed = SpotIds(world);
+        foreach (string id in _ids)
+        {
+            string c = ClipOf(world, id);
+            // 운반조는 상자를 내려놓고 더미로 돌아가는 동안 걷는다 — 그건 일이다.
+            if (spotsUsed.GetValueOrDefault(id, "").StartsWith("운반")) continue;
+            if (c is "idle" or "inspect" or "walk") Fail($"{id}: 작업 자리에서 일하지 않는다({c})");
+        }
+        if (spotsUsed.Values.Distinct().Count() != spotsUsed.Count) Fail("같은 자리에 두 명");
+
+        // 앉아 있는 사람을 다른 방으로 보낸다 — 일어난 뒤 걸어 나가야 한다(순간이동 금지).
+        string seated = _ids.FirstOrDefault(id => ClipOf(world, id).StartsWith("sit_"));
+        if (seated != null)
+        {
+            string other = sim.GetRoomIds().First(r => r != _room && FacilityCctvWorldHasRoom(r));
+            sim.AssignToRoom(seated, other);
+            seq.Clear(); jump.Clear(); last.Clear();
+            double t1 = Now();
+            double[] at = { 0.3, 0.8, 2.0 };
+            int k = 0;
+            while (Now() - t1 < 7.0)
+            {
+                Track(world, seq, jump, last, seated);
+                if (k < at.Length && Now() - t1 >= at[k]) { Shot(cctv, $"{seated} 재배치 +{at[k]:0.0}s"); k++; }
+                await Frame();
+            }
+            string s = string.Join(">", seq.GetValueOrDefault(seated) ?? new List<string>());
+            Log($"재배치 {seated}: {s}  (최대 한 프레임 이동 {jump.GetValueOrDefault(seated):0.00}m)");
+            if (!s.Contains("chair_stand")) Fail($"{seated}: 일어나는 동작 없이 떠났다");
+            if (jump.GetValueOrDefault(seated) > 0.2f) Fail($"{seated}: 순간이동({jump[seated]:0.00}m)");
+        }
+        else Log("(앉은 사람 없음 — 착석 퇴장 검사 생략)");
+    }
+
+    // ── 격리 → 해제 ────────────────────────────────────────────────────
+
+    private async System.Threading.Tasks.Task RunIsolation(FacilitySimulation sim, FacilityCctvWorld world, SubViewport cctv)
+    {
+        string who = _ids[0];
+        sim.SetSurveillanceTarget("isolation_room");
+        await Frames(5);
+        if (!sim.IsolateEmployee(who)) { Fail("격리 실패"); return; }
+        var seq = new Dictionary<string, List<string>>();
+        var jump = new Dictionary<string, float>();
+        var last = new Dictionary<string, Vector3>();
+        double t0 = Now();
+        double strapsFullAt = -1, struggleAt = -1, lyingAt = -1;
+        double[] shots = { 1.0, 3.0, 5.0, 6.5, 7.5, 8.3, 9.5, 12.0 };
+        int si = 0;
+        while (Now() - t0 < 14.0)
+        {
+            Track(world, seq, jump, last, who);
+            string c = ClipOf(world, who);
+            int straps = VisibleStraps(world);
+            if (lyingAt < 0 && c == "lying_idle") lyingAt = Now() - t0;
+            if (strapsFullAt < 0 && straps >= 7) strapsFullAt = Now() - t0;
+            if (struggleAt < 0 && c == "isolated_struggle") struggleAt = Now() - t0;
+            if (si < shots.Length && Now() - t0 >= shots[si]) { Shot(cctv, $"격리 +{shots[si]:0.0}s (밴드 {straps})"); si++; }
+            await Frame();
+        }
+        Log($"격리 {who}: {string.Join(">", seq.GetValueOrDefault(who) ?? new List<string>())}  (최대 한 프레임 이동 {jump.GetValueOrDefault(who):0.00}m)");
+        Log($"  누움 {lyingAt:0.0}s · 밴드 다 채움 {strapsFullAt:0.0}s · 발버둥 시작 {struggleAt:0.0}s");
+        if (lyingAt < 0 || strapsFullAt < 0 || struggleAt < 0) Fail("격리 순서가 끝까지 진행되지 않았다");
+        else if (!(lyingAt < strapsFullAt && strapsFullAt <= struggleAt + 0.05)) Fail("누움 → 밴드 → 발버둥 순서가 아니다");
+
+        sim.CancelIsolation(who);
+        seq.Clear(); jump.Clear(); last.Clear();
+        double t1 = Now();
+        si = 0;
+        double[] shots2 = { 0.4, 1.2, 2.2, 3.2, 4.5 };
+        double freeAt = -1, getUpAt = -1;
+        while (Now() - t1 < 9.0)
+        {
+            Track(world, seq, jump, last, who);
+            if (freeAt < 0 && VisibleStraps(world) == 0) freeAt = Now() - t1;
+            if (getUpAt < 0 && ClipOf(world, who) == "bed_get_up") getUpAt = Now() - t1;
+            if (si < shots2.Length && Now() - t1 >= shots2[si]) { Shot(cctv, $"해제 +{shots2[si]:0.0}s (밴드 {VisibleStraps(world)})"); si++; }
+            await Frame();
+        }
+        Log($"해제 {who}: {string.Join(">", seq.GetValueOrDefault(who) ?? new List<string>())}  (최대 한 프레임 이동 {jump.GetValueOrDefault(who):0.00}m)");
+        Log($"  밴드 풀림 {freeAt:0.0}s · 일어나기 시작 {getUpAt:0.0}s");
+        if (getUpAt < 0 || freeAt < 0 || freeAt > getUpAt + 0.05) Fail("밴드가 풀리기 전에 일어났다(또는 일어나지 않았다)");
+        if (jump.GetValueOrDefault(who) > 0.2f) Fail($"{who}: 순간이동({jump[who]:0.00}m)");
+    }
+
+    private int VisibleStraps(FacilityCctvWorld world)
+    {
+        var rooms = (Dictionary<string, Node3D>)typeof(FacilityCctvWorld)
+            .GetField("_rooms", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(world);
+        var iso = rooms?.GetValueOrDefault("isolation_room");
+        if (iso == null) return 0;
+        int n = 0;
+        foreach (var c in iso.GetChildren())
+        {
+            if (c is not MeshInstance3D m) continue;
+            string name = m.Name.ToString();
+            if (name.StartsWith("RestraintBed") && (name.Contains("Strap") || name.Contains("Buckle")) && m.Visible) n++;
+        }
+        return n;
+    }
+
+    // 클립이 바뀔 때마다 기록 · 한 프레임에 가장 크게 움직인 거리(순간이동 감지).
+    private void Track(FacilityCctvWorld world, Dictionary<string, List<string>> seq, Dictionary<string, float> jump,
+                       Dictionary<string, Vector3> last, string only = null)
+    {
+        foreach (var (id, node) in Actors(world))
+        {
+            if (!_ids.Contains(id) || only != null && id != only || !node.Visible) { last.Remove(id); continue; }
+            string c = ClipOf(world, id);
+            var list = seq.TryGetValue(id, out var l) ? l : seq[id] = new List<string>();
+            if (list.Count == 0 || list[^1] != c) list.Add(c);
+            // 골반 위치로 잰다(노드는 의자·침대 전환 때 골반 보정으로 움직이므로).
+            var hips = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips");
+            var p = hips?.GlobalPosition ?? node.GlobalPosition;
+            if (last.TryGetValue(id, out var q)) jump[id] = Mathf.Max(jump.GetValueOrDefault(id), p.DistanceTo(q));
+            last[id] = p;
+        }
+    }
+
+    private Dictionary<string, string> SpotIds(FacilityCctvWorld world)
+    {
+        var ctrl = typeof(FacilityCctvWorld).GetField("_workVisual", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(world);
+        var actors = ctrl?.GetType().GetField("_actors", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(ctrl) as System.Collections.IDictionary;
+        var outd = new Dictionary<string, string>();
+        if (actors == null) return outd;
+        foreach (System.Collections.DictionaryEntry e in actors)
+        {
+            string id = (string)e.Key;
+            if (!_ids.Contains(id)) continue;
+            var spot = e.Value.GetType().GetField("Spot")?.GetValue(e.Value) as RoomWorkSpot;
+            int carrier = (int)(e.Value.GetType().GetField("Carrier")?.GetValue(e.Value) ?? -1);
+            outd[id] = carrier >= 0 ? $"운반{carrier}" : spot?.Id ?? "-";
+        }
+        return outd;
+    }
+
+    private string SpotsText(FacilityCctvWorld world) => string.Join(" · ", SpotIds(world).Select(kv => $"{kv.Key}={kv.Value}"));
 
     private static bool FacilityCctvWorldHasRoom(string roomId) =>
         roomId is "power_room" or "vent_room" or "maintenance_room" or "medical_room"

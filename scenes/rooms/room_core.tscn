@@ -191,27 +191,71 @@ omni_range = 7.5
 
 [node name="WorkSpots" type="Node3D" parent="." unique_id=1126893636]
 
-[node name="CoreManagementSpot" type="Node3D" parent="WorkSpots" unique_id=151229466]
-transform = Transform3D(-0.81388, 0, -0.58104, 0, 1, 0, 0.58104, 0, -0.81388, 0.35, 0, -1.05)
-script = ExtResource("1_spot")
-SpotId = "CoreManagementSpot"
-SupportedTaskIds = PackedStringArray("core_log_review")
-Priority = 10
-
-[node name="CoreRepairSpot" type="Node3D" parent="WorkSpots" unique_id=1188492071]
-transform = Transform3D(0.60691, 0, -0.79477, 0, 1, 0, 0.79477, 0, 0.60691, -1.9, 0, 0.62)
+[node name="CoreRepairSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -2.52, 0, 0.25)
 script = ExtResource("1_spot")
 SpotId = "CoreRepairSpot"
 SupportedTaskIds = PackedStringArray("core_direct_repair", "repair_core")
-AnimationName = "repair"
-Priority = 10
+AnimationName = "crouch_repair"
+Priority = 21
+HandProp = "wrench"
 
-[node name="CoreFallbackSpot" type="Node3D" parent="WorkSpots" unique_id=1570559472]
-transform = Transform3D(0.65362, 0, -0.75682, 0, 1, 0, 0.75682, 0, 0.65362, 0.9, 0, 0.6)
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CoreRepairSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, -0.45)
+
+[node name="CoreManagementSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0.8141, 0, 0.5807, 0, 1, 0, -0.5807, 0, 0.8141, 0.395, 0, -0.8326)
 script = ExtResource("1_spot")
-SpotId = "CoreFallbackSpot"
-AnimationName = "inspect"
-Priority = -10
+SpotId = "CoreManagementSpot"
+SupportedTaskIds = PackedStringArray("core_log_review")
+AnimationName = "console_operate"
+Priority = 20
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CoreManagementSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, -0.45)
+
+[node name="CoreRepairPanelSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.45, 0, 0.97)
+script = ExtResource("1_spot")
+SpotId = "CoreRepairPanelSpot"
+SupportedTaskIds = PackedStringArray("core_direct_repair", "repair_core")
+AnimationName = "panel_press"
+Priority = 20
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CoreRepairPanelSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -0.45)
+
+[node name="CoreKnobSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0.8141, 0, 0.5807, 0, 1, 0, -0.5807, 0, 0.8141, 0.9787, 0, -1.3231)
+script = ExtResource("1_spot")
+SpotId = "CoreKnobSpot"
+SupportedTaskIds = PackedStringArray("core_log_review")
+AnimationName = "knob_turn"
+Priority = 19
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CoreKnobSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.14, -0.45)
+
+[node name="CoreGaugeSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.15, 0, -2.39)
+script = ExtResource("1_spot")
+SpotId = "CoreGaugeSpot"
+AnimationName = "shelf_reach"
+Priority = 17
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CoreGaugeSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, -0.45)
+
+[node name="CoreReadingSpot" type="Node3D" parent="WorkSpots"]
+transform = Transform3D(0.7071, 0, 0.7071, 0, 1, 0, -0.7071, 0, 0.7071, 0.3631, 0, 0.3631)
+script = ExtResource("1_spot")
+SpotId = "CoreReadingSpot"
+AnimationName = "clipboard_check"
+Priority = 16
+HandProp = "clipboard"
+
+[node name="InteractionTarget" type="Marker3D" parent="WorkSpots/CoreReadingSpot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -0.45)
 
 [node name="CoreConsoleBody" type="MeshInstance3D" parent="." unique_id=897090646]
 transform = Transform3D(0.81388, 0, 0.58104, 0, 1, 0, -0.58104, 0, 0.81388, 0.35, 0.475, -1.55)

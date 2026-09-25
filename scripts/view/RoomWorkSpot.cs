@@ -37,6 +37,21 @@ public partial class RoomWorkSpot : Node3D
     // 저장고 수레처럼 "여러 명이 번갈아 쓰는" 자리는 점유 검사를 하지 않는다.
     [Export] public bool SharedSpot = false;
 
+    // 이 자리에서 손에 드는 소품(표현 전용): "" · "clipboard" · "wrench".
+    [Export] public string HandProp = "";
+
+    // 앉는 자리 — 의자 앞 이만큼(m)에 서서 몸을 돌린 뒤 앉는다(chair_sit). 일어날 때도 여기로 선다.
+    public const float SitApproach = 0.2f;
+
+    // 손이 실제로 닿아야 하는 점(자식 Marker3D "InteractionTarget"). 있으면 컨트롤러가
+    // 작업 클립의 팔 길이(WorkClipReach)만큼 떨어진 곳에 직원을 세운다 — 체형이 달라도 손이 그 점에 간다.
+    // 없으면 이 노드 위치에 그대로 선다.
+    public Vector3? TargetInParent()
+    {
+        var t = GetNodeOrNull<Node3D>("InteractionTarget");
+        return t == null ? null : Transform * t.Position;
+    }
+
     public string Id => string.IsNullOrEmpty(SpotId) ? Name.ToString() : SpotId;
 
     public bool Supports(string taskId)
