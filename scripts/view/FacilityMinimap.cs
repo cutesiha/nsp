@@ -386,9 +386,21 @@ public partial class FacilityMinimap : Control
         int here = sim.OnDutyCount(roomId);
         int need = Mathf.Max(1, risk.RepairWorkers);
         float a = 0.7f + 0.3f * Mathf.Sin(Time.GetTicksMsec() / 150f);
+
+        // 인원이 채워졌으면 막대가 "남은 시간"이 아니라 "안정화 진행도"로 바뀐다.
+        // 사람을 보낸 뒤에도 뭔가 돌아가고 있다는 것이 보여야 자리를 지킨다.
+        if (here >= need && risk.StabilizeNeedSeconds > 0f)
+        {
+            float wr = Mathf.Clamp(risk.StabilizeDoneSeconds / risk.StabilizeNeedSeconds, 0f, 1f);
+            DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * wr, BarH)),
+                new Color(0.42f, 0.82f, 0.55f));
+        }
+
         // 글자가 막대의 채워진 쪽과 빈 쪽에 걸쳐 놓이므로, 어두운 그림자를 먼저 깔고
         // 밝은 글자를 얹어 양쪽 배경에서 모두 읽히게 한다.
-        string text = $"⚠ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
+        string text = here >= need && risk.StabilizeNeedSeconds > 0f
+            ? $"안정화 {risk.StabilizeDoneSeconds:0.#}/{risk.StabilizeNeedSeconds:0}s"
+            : $"⚠ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
         var at = new Vector2(bar.Position.X, bar.Position.Y + 12f);
         DrawString(_font, at + new Vector2(1f, 1f), text, HorizontalAlignment.Center,
             bar.Size.X, ViewFont.S(10), new Color(0.08f, 0.05f, 0f, 0.9f));

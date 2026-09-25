@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Core;
@@ -30,15 +30,27 @@ public partial class IncomingCallDirector : Node
     [Export] public float StaleCallSeconds = 75f;
     [Export] public int MaxQueueLength = 5;
     // 한 상황당 걸려오는 전화 수 상한.
-    [Export] public int MaxCallsPerIncident = 2;
+    // 2 였을 때는 한 사고에 두 명이 연달아 걸어, DAY2 부터 사고가 겹치면 벨이 끊이지 않았다.
+    [Export] public int MaxCallsPerIncident = 1;
+
+    // 사고가 났을 때 실제로 신고 전화가 오는 비율.
+    //
+    // 예전에는 사고마다 100% 전화가 왔다. 그러면 전화는 "정보"가 아니라 "확인 버튼"이 된다 —
+    // 어차피 다 알려 주니 경고 단말기도 시설 로그도 볼 이유가 없다.
+    // 이제 절반쯤만 걸려오고, 나머지는 관리자가 화면에서 직접 찾아야 한다.
+    [Export] public float AccidentCallChance = 0.45f;
+
+    // 한 근무에 걸려오는 사고 신고 전화의 총량 상한(잡담 전화는 따로 센다).
+    [Export] public int MaxAccidentCallsPerShift = 4;
 
     // 근무 시작 직후에는 전화가 오지 않는다 — 배치를 확인할 시간을 준다.
     [Export] public float FirstCallDelaySeconds = 5f;
     // 이 시간 안에 이만큼 걸렸으면, 창이 지날 때까지 다음 전화를 미룬다.
-    [Export] public float CallWindowSeconds = 20f;
-    [Export] public int MaxCallsPerWindow = 2;
-    // 벨과 벨 사이의 최소 간격. 창 제한과 함께 걸어 "20초에 2통"을 확실히 지킨다.
-    [Export] public float MinRingGapSeconds = 7f;
+    [Export] public float CallWindowSeconds = 30f;
+    [Export] public int MaxCallsPerWindow = 1;
+    // 벨과 벨 사이의 최소 간격. 창 제한과 함께 걸어 "30초에 1통"을 확실히 지킨다.
+    // (근무가 120초이므로 한 근무에 많아야 서너 통이다.)
+    [Export] public float MinRingGapSeconds = 20f;
     // 켜면 전화가 걸릴 때마다 이유와 최근 통화 수를 출력한다(개발용).
     [Export] public bool DebugCalls = false;
 
@@ -224,10 +236,26 @@ public partial class IncomingCallDirector : Node
     // 묶는다. 그래야 발전실 하나 때문에 6명이 번갈아 전화하는 일이 없다(상황당 2통 상한).
     private static string RoomKey(string roomId) => "room:" + roomId;
 
+    // 오늘 실제로 걸려온 사고 신고 전화 수(잡담 전화는 따로 센다).
+    private int _accidentCallsThisShift;
+    private int _accidentCallDay = -1;
+
     private void EnqueueAccident(string roomId, string excludeEmployeeId)
     {
         // 대사가 발전실 기준으로 쓰여 있어, 다른 작업실 사고로는 전화를 걸지 않는다.
         if (AccidentCallsPowerRoomOnly && roomId != PowerRoomId()) return;
+
+        int day = GameState.Instance?.CurrentDay ?? 0;
+        if (_accidentCallDay != day) { _accidentCallDay = day; _accidentCallsThisShift = 0; }
+
+        // 사고가 났다고 매번 누가 전화하지는 않는다.
+        //
+        // 사고는 경고 단말기·시설 로그·미니맵에 이미 전부 떠 있다. 전화까지 매번 오면
+        // 화면을 볼 이유가 없어지고, 사고가 겹치는 DAY2 부터는 벨만 울리다 근무가 끝난다.
+        // 걸려오는 전화는 "놓치고 있었을지도 모를 것"을 알려 줄 때만 값이 있다.
+        if (_accidentCallsThisShift >= MaxAccidentCallsPerShift) return;
+        if (_rng.Randf() >= AccidentCallChance) return;
+        _accidentCallsThisShift++;
 
         string key = RoomKey(roomId);
         string caller = NearestAvailable(roomId, key, excludeEmployeeId);

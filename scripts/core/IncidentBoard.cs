@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Data;
@@ -99,9 +99,13 @@ public static class IncidentBoard
                 CauseText = w.Cause,
                 WarningRemainingSeconds = Mathf.Max(0f, w.Remaining),
                 WarningTotalSeconds = w.Total,
-                ActionHint = $"{w.RequiredStaff}명 필요 · 현재 {here}명",
+                ActionHint = here >= w.RequiredStaff
+                    ? $"안정화 작업 중 {w.Work:0.#} / {w.WorkNeeded:0}초"
+                    : $"{w.RequiredStaff}명 필요 · 현재 {here}명 (투입 후 {w.WorkNeeded:0}초 작업)",
                 Severity = AlertSeverity.Critical,
                 RepairWorkers = w.RequiredStaff,
+                StabilizeDoneSeconds = w.Work,
+                StabilizeNeedSeconds = w.WorkNeeded,
                 ConsequenceLines = { w.Consequence },
             });
         }

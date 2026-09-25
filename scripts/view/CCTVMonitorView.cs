@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -189,10 +189,38 @@ public partial class CCTVMonitorView : Control
             : $"관측 유지 — 시선을 떼지 마십시오  ({ghost.DispelRatio * 100f:0}%)";
     }
 
+    // 벽 너머의 기척. 괴물의 비명과, 그 방에 있는 직원의 비명이 겹쳐 아주 작게 난다.
+    // 직원 비명은 그 직원의 목소리로 만들어지므로(Sfx.PlayScream), 귀가 밝은 플레이어는
+    // "누구 목소리인지"까지 짐작할 수 있다.
+    private const float DistantGhostDb = -17f;
+    private const float DistantScreamDb = -21f;
+
+    private void PlayDistantHaunt(FacilitySimulation sim, string roomId)
+    {
+        Sfx.Instance?.PlayGhostScreamDistant(DistantGhostDb);
+
+        // 그 방에 사람이 있으면 그 사람의 비명이 함께 샌다. 비어 있으면 괴물 소리만.
+        var here = sim.OnDutyEmployeeIds(roomId).ToList();
+        if (here.Count == 0) return;
+        Sfx.Instance?.PlayScream(here[(int)(GD.Randi() % (uint)here.Count)], DistantScreamDb);
+    }
+
     private void OnGhostScream(string roomId)
     {
         var sim = FacilitySimulation.Instance;
-        if (sim == null || sim.SurveillanceTargetRoomId != roomId) return;
+        if (sim == null) return;
+
+        // 다른 방을 보고 있다 — 그래도 소리는 들린다.
+        //
+        // 괴물은 로그에도 알림에도 뜨지 않는다. 화면을 돌려 찾아내는 것이 이 계통의
+        // 전부인데, 아무 기척이 없으면 찾을 이유 자체가 생기지 않는다.
+        // 벽 너머로 새어 나오는 정도의 소리만 흘려 "어디선가 났다"까지만 알린다 —
+        // 어느 방인지는 알려 주지 않으므로, 결국 CCTV 를 돌려 봐야 한다.
+        if (sim.SurveillanceTargetRoomId != roomId)
+        {
+            PlayDistantHaunt(sim, roomId);
+            return;
+        }
         Shake(9f, 0.6f);
         FlashGlitch(1f);
         // 두 녹음 중 하나가 아주 크게, 울리며 나간다.

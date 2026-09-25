@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using Godot.Collections;
 
 namespace NSP.Data;
@@ -64,6 +64,25 @@ public partial class OpsProfileDef : Resource
     // 실제 방해공작이 일어나길 바라는 구간(초). 시작 전에는 준비만 한다.
     [Export] public float SabotageWindowStartSeconds = 78f;
     [Export] public float SabotageWindowEndSeconds = 96f;
+
+    // 방 안에 자기 말고 아무도 없으면 손대지 않는다.
+    //
+    // 혼자 있는 방에서 코어 복구율이 깎이면 로그만 보고도 범인이 확정된다. 그건 추리가
+    // 아니라 통보다. 결번자는 다른 사람이 같은 방에 있을 때만 움직인다 — 그래서
+    // "혼자 두는 배치" 가 관리자의 실제 방어 수단이 된다(대신 방마다 효율이 떨어진다).
+    [Export] public bool SabotageNeedsCompany = true;
+
+    // 목표 구간이 끝나 가면 준비가 덜 됐어도 강행하는가.
+    // 켜면 그날 방해공작이 사실상 보장된다. DAY1 처럼 "거의 일어나지 않는" 날에는 끈다.
+    [Export] public bool SabotageDeadlineRush = true;
+
+    // 그날 결번자가 **아예 손댈 생각이 있는가** — 근무 시작 때 한 번만 굴린다.
+    //
+    // 준비 시간이나 목표 구간을 늘려 빈도를 낮추면, 그 날의 전조가 나오는 시점까지
+    // 같이 밀려 추리 재료가 망가진다. 그래서 "할지 말지" 는 여기 숫자 하나로만 정하고,
+    // 하기로 한 날의 진행은 지금까지와 똑같이 둔다.
+    // 실패한 날에도 준비와 전조는 그대로 흐른다 — 관리자는 무엇이 일어날 뻔했는지 모른다.
+    [Export] public float SabotageChancePerDay = 1f;
 
     // ── 오늘의 금기 ────────────────────────────────────────────────────
     // 이 날 적용할 금기 id 목록(data/taboos/*.tres). 비어 있으면 그 날은 금기가 없다.

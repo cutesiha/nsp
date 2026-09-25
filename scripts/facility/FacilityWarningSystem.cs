@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -19,7 +19,12 @@ public sealed class FacilityWarning
     public float Total;
     public bool Scheduled;     // 정해진 시각에 띄운 경고인가(학습용)
 
+    // 인원이 채워진 동안 쌓이는 안정화 작업 시간. 다 채워야 경고가 풀린다.
+    public float Work;
+    public float WorkNeeded;
+
     public float Ratio => Total <= 0f ? 0f : Mathf.Clamp(Remaining / Total, 0f, 1f);
+    public float WorkRatio => WorkNeeded <= 0f ? 1f : Mathf.Clamp(Work / WorkNeeded, 0f, 1f);
 }
 
 // 경고 → 대응 → (성공) 안정화 / (실패) 고장 의 흐름을 담당한다.
@@ -88,10 +93,20 @@ public sealed class FacilityWarningSystem
                 continue;
             }
 
-            // 대응 성공 — 필요한 인원이 실제로 그 방에 도착했다.
+            // 인원이 채워져 있는 동안에만 안정화 작업이 쌓인다.
             // 이동 중인 직원은 아직 인원이 아니다(OnDutyCount 규약) — 그래서 거리가 곧 비용이다.
-            if (sim.OnDutyCount(w.RoomId) >= w.RequiredStaff)
+            bool staffed = sim.OnDutyCount(w.RoomId) >= w.RequiredStaff;
+            if (staffed)
             {
+                w.Work += delta;
+
+                // 아직 다 못 채웠다 — 제한시간은 멈춘다.
+                //
+                // 인원이 붙어 있는데도 시계가 계속 흐르면, 늦게 도착한 순간 무엇을 해도
+                // 고장이 확정된다. 그건 판단이 아니라 통보다. 붙잡아 두는 것 자체가
+                // 비용(그 인원이 다른 방에 못 간다)이므로 여기서 더 조일 필요가 없다.
+                if (w.Work < w.WorkNeeded) continue;
+
                 Prevented++;
                 Close(w, now, sim);
                 EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", w.RoomId,
@@ -103,6 +118,8 @@ public sealed class FacilityWarningSystem
                 continue;
             }
 
+            // 인원이 빠졌다 — 시계가 다시 흐른다. 쌓아 둔 작업은 남겨 둔다
+            // (한 번 손댄 설비를 다시 처음부터 만지게 하면 되돌리기만 하다 끝난다).
             w.Remaining -= delta;
             if (w.Remaining > 0f) continue;
 
@@ -191,6 +208,18 @@ public sealed class FacilityWarningSystem
         }
     }
 
+    // 경고를 푸는 데 걸리는 작업 시간. 데이터에 적혀 있지 않으면 그 방의 실제 고장 수리
+    // 시간에서 비율로 뽑는다 — "경고 때 잡는 쪽이 늘 싸다"가 숫자로도 성립해야 한다.
+    private const float WarningStabilizeRatio = 0.4f;
+
+    public static float StabilizeSeconds(RoomOpsDef ops)
+    {
+        if (ops == null) return 4f;
+        if (ops.WarningStabilizeSeconds > 0f) return ops.WarningStabilizeSeconds;
+        float repair = ops.RepairSeconds > 0f ? ops.RepairSeconds : 10f;
+        return Mathf.Max(2f, repair * WarningStabilizeRatio);
+    }
+
     private void Raise(RoomOpsDef ops, FacilitySimulation sim, int requiredStaff, float seconds, bool scheduled)
     {
         var w = new FacilityWarning
@@ -202,13 +231,15 @@ public sealed class FacilityWarningSystem
             RequiredStaff = Mathf.Max(1, requiredStaff),
             Remaining = Mathf.Max(1f, seconds),
             Total = Mathf.Max(1f, seconds),
+            WorkNeeded = StabilizeSeconds(ops),
             Scheduled = scheduled,
         };
         _active.Add(w);
         Raised++;
 
         EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", w.RoomId,
-            $"⚠ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 {w.RequiredStaff}명 필요");
+            $"⚠ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 " +
+            $"{w.RequiredStaff}명 투입 후 {w.WorkNeeded:0}초 작업 필요");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"⚠ {sim.RoomDisplayName(w.RoomId)}에서 " +
             NSP.Dialogue.KoreanParticle.Subject(w.Title) + " 감지되었습니다.", NSP.Ui.NoticeLevel.Warning);

@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 
 namespace NSP.Data;
 
@@ -60,6 +60,12 @@ public partial class RoomOpsDef : Resource
     [Export] public int WarningRequiredStaff = 2;
     // 한 번 처리한 뒤 이 방에 다시 경고가 뜨기까지의 최소 간격(초).
     [Export] public float WarningCooldownSeconds = 20f;
+
+    // 경고를 풀기 위해 **실제로 붙어서 작업해야 하는 시간**(초).
+    // 사람이 도착하는 순간 경고가 사라지면 "보내기만 하면 끝"이라 배치가 선택이 되지 않는다.
+    // 실제 고장 수리(RepairSeconds)보다는 반드시 짧다 — 경고 단계에서 잡는 쪽이 늘 싸야 한다.
+    // 0 이면 RepairSeconds 의 WarningStabilizeRatio 배로 자동 계산한다.
+    [Export] public float WarningStabilizeSeconds = 0f;
 
     // ── 무인 방치 / 수리 ───────────────────────────────────────────────
     // 0 이하 = 비워 둬도 사고가 나지 않는다(대신 경고가 압박을 준다).
