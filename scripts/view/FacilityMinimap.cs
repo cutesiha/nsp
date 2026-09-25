@@ -74,6 +74,12 @@ public partial class FacilityMinimap : Control
         foreach (var roomId in Layout.Keys) FlashRoom(roomId, ink);
     }
 
+    // 기절 경고 — 쓰러진 순간 그 자리에서 빨갛게 여러 번 깜빡이고, 그 뒤에는 계속 빨갛다.
+    private const float FaintBlinkSeconds = 1.6f;
+    private const int FaintBlinkCount = 4;
+    private readonly Dictionary<string, float> _faintBlink = new();
+    private bool _rescueWired;
+
     public override void _Ready()
     {
         _font = ViewFont.Default;
@@ -83,12 +89,52 @@ public partial class FacilityMinimap : Control
         SetProcessInput(true);
         if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged += OnLogEntry;
         RoomEffectStats.RoomWorked += OnRoomWorked;
+        WireRescue();
         RoomEffectStats.VentilationRestored += OnVentilationRestored;
     }
 
     // 그 작업실이 방금 제 일을 해냈다. 로그가 아니라 이 신호로 받는 이유는,
     // 로그 줄은 10초씩 모았다 나가지만 점멸은 그 순간에 보여야 하기 때문이다.
     private void OnRoomWorked(string roomId) => FlashRoom(roomId);
+
+    // 시뮬레이션이 오토로드라 이 화면보다 늦게 살아날 수 있다 — 붙을 때까지 매 프레임 본다.
+    private void WireRescue()
+    {
+        if (_rescueWired || FacilitySimulation.Instance?.Rescue == null) return;
+        FacilitySimulation.Instance.Rescue.Fainted += OnEmployeeFainted;
+        _rescueWired = true;
+    }
+
+    // 쓰러졌다 — 그 직원 아이콘이 제자리에서 빨갛게 깜빡이고 짧은 경고음이 난다(§4).
+    // **아이콘은 움직이지 않는다.** 기절자는 쓰러진 그 작업실에 그대로 있다(§5).
+    private void OnEmployeeFainted(string employeeId)
+    {
+        _faintBlink[employeeId] = 0f;
+        _ = BeepThrice();
+    }
+
+    private async System.Threading.Tasks.Task BeepThrice()
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            NSP.Core.Sfx.Instance?.Play("alert_beep3", -4f, 1.25f);
+            await ToSignal(GetTree().CreateTimer(0.16), SceneTreeTimer.SignalName.Timeout);
+            if (!IsInstanceValid(this)) return;
+        }
+    }
+
+    // 지금 이 직원 아이콘을 무슨 색으로 그릴 것인가. 기절 상태면 빨강(깜빡이는 동안은 번갈아).
+    private Color? FaintTint(string employeeId, FacilitySimulation sim)
+    {
+        var st = sim?.GetEmployeeState(employeeId);
+        if (st == null || !st.Incapacitated) { _faintBlink.Remove(employeeId); return null; }
+
+        var red = new Color(1f, 0.16f, 0.14f);
+        if (!_faintBlink.TryGetValue(employeeId, out float age)) return red;
+        if (age >= FaintBlinkSeconds) return red;
+        // 깜빡임 — 원래 색과 빨강을 빠르게 오간다.
+        return (int)(age / FaintBlinkSeconds * FaintBlinkCount * 2f) % 2 == 0 ? red : (Color?)null;
+    }
 
     // 환기는 한 방이 아니라 시설 전체에 걸린다 — 방들이 한꺼번에 잠깐 푸르러진다.
     private void OnVentilationRestored() => FlashAllRooms(new Color(0.42f, 0.82f, 0.92f));
@@ -97,6 +143,8 @@ public partial class FacilityMinimap : Control
     {
         if (NSP.Core.EventLog.Instance != null) NSP.Core.EventLog.Instance.EntryLogged -= OnLogEntry;
         RoomEffectStats.RoomWorked -= OnRoomWorked;
+        if (_rescueWired && FacilitySimulation.Instance?.Rescue != null)
+            FacilitySimulation.Instance.Rescue.Fainted -= OnEmployeeFainted;
         RoomEffectStats.VentilationRestored -= OnVentilationRestored;
     }
 
@@ -133,6 +181,14 @@ public partial class FacilityMinimap : Control
             p.Age += (float)delta;
             if (p.Age >= PopupSeconds) _popups.RemoveAt(i); else _popups[i] = p;
         }
+        WireRescue();
+        if (_faintBlink.Count > 0)
+            foreach (string id in _faintBlink.Keys.ToList())
+            {
+                float age = _faintBlink[id] + (float)delta;
+                if (age >= FaintBlinkSeconds + 0.5f) _faintBlink[id] = FaintBlinkSeconds;
+                else _faintBlink[id] = age;
+            }
         if (_flashAge.Count > 0)
             foreach (var roomId in _flashAge.Keys.ToList())
             {
@@ -496,6 +552,10 @@ public partial class FacilityMinimap : Control
 
         Vector2 p = IconPos(sim, id);
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
+        // 쓰러졌다 — 빨간색. 처음 한두 초는 원래 색과 번갈아 깜빡이고,
+        // 그 뒤에는 의무실에서 깨어날 때까지 계속 빨간 상태로 남는다(§4).
+        var faint = FaintTint(id, sim);
+        if (faint.HasValue) c = faint.Value;
 
         // 직원 아이콘은 고유색으로 구분한다 — 작게 그리면 색이 안 읽히므로 넉넉한 크기로.
         if (id == SelectedEmployeeId)

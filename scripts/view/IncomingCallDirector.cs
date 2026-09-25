@@ -89,7 +89,7 @@ public partial class IncomingCallDirector : Node
     // 최근에 실제로 벨이 울린 시각들 — 짧은 시간에 전화가 몰리지 않게 한다.
     private readonly List<double> _recentCalls = new();
     private double _lastRingAt = -1000.0;
-    private bool _eventWired, _phoneWired, _hudWired;
+    private bool _eventWired, _phoneWired, _hudWired, _rescueWired;
     // 잡담 전화 — 마지막으로 무슨 일이 있었던 시각과 오늘 건 횟수.
     private float _lastTroubleAt;
     private float _nextIdleCheckAt;
@@ -134,6 +134,11 @@ public partial class IncomingCallDirector : Node
             EventLog.Instance.EntryLogged += OnEntryLogged;
             _eventWired = true;
         }
+        if (!_rescueWired && FacilitySimulation.Instance?.Rescue != null)
+        {
+            FacilitySimulation.Instance.Rescue.TransportRequested += OnTransportRequested;
+            _rescueWired = true;
+        }
         if (!_phoneWired && Phone3D.Instance != null)
         {
             Phone3D.Instance.PickedUp += OnAnswered;
@@ -152,6 +157,8 @@ public partial class IncomingCallDirector : Node
     {
         if (_eventWired && EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnEntryLogged;
+        if (_rescueWired && FacilitySimulation.Instance?.Rescue != null)
+            FacilitySimulation.Instance.Rescue.TransportRequested -= OnTransportRequested;
         if (_phoneWired && Phone3D.Instance != null)
         {
             Phone3D.Instance.PickedUp -= OnAnswered;
@@ -204,6 +211,21 @@ public partial class IncomingCallDirector : Node
                 break;
         }
     }
+
+    // 같은 방 동료가 쓰러진 것을 발견했다 → 이송 허가 전화.
+    //
+    // 사고 신고와 달리 확률로 걸러 내지 않는다. 사람이 쓰러진 일이고, 이 전화를 놓치면
+    // 직원이 알아서 옮기므로(§20) 어차피 관리자가 개입할 기회는 이 한 통뿐이다.
+    private void OnTransportRequested(string responderId, string victimId)
+    {
+        var sim = FacilitySimulation.Instance;
+        string room = sim?.GetEmployeeState(victimId)?.CurrentRoomId ?? "";
+        Enqueue(responderId, DialogueRepository.EventFaintTransportRequest, "faint:" + victimId, room);
+    }
+
+    // 지금 울리고 있는(또는 통화 중인) 전화가 누구의 이송 건인가.
+    private static string FaintVictimOf(string dedupeKey) =>
+        dedupeKey != null && dedupeKey.StartsWith("faint:") ? dedupeKey["faint:".Length..] : "";
 
     // 정전(전력 용량 0) 진입 순간 → 근무 가능한 직원 아무나 "정전 발생"(③).
     // 정전은 발전실 사고의 '결과'다. 플레이어에게는 "발전실 사고" 하나로 보이므로
@@ -445,6 +467,20 @@ public partial class IncomingCallDirector : Node
     private void OnEventChoiceMade(string employeeId, string dialogueEvent, int choiceIndex)
     {
         if (_active == null || _active.EmployeeId != employeeId) return;
+
+        // 이송 허가 — HUD 는 선택만 전달하고, 실제 상태 변경은 시뮬레이션이 한다(§46).
+        if (dialogueEvent == DialogueRepository.EventFaintTransportRequest)
+        {
+            string victim = FaintVictimOf(_active.DedupeKey);
+            var rescue = FacilitySimulation.Instance?.Rescue;
+            if (rescue == null || victim.Length == 0) return;
+            var incF = GetIncident(_active.DedupeKey);
+            if (incF != null) incF.Closed = true;
+            if (choiceIndex == 0) rescue.Approve(victim);
+            else rescue.Deny(victim);
+            return;
+        }
+
         var inc = GetIncident(_active.DedupeKey);
         if (inc == null || inc.Closed || !IsDispatchEvent(dialogueEvent)) return;
 
@@ -484,6 +520,24 @@ public partial class IncomingCallDirector : Node
 
     private void OnCallMissed(string employeeId, string dialogueEvent)
     {
+        // 쓰러진 동료 건은 "안 받음" 과 "받고 거절" 이 뜻이 다르다(§21).
+        //   받지 않음(시간 초과) → 직원이 알아서 옮긴다
+        //   수신 거부 버튼      → 관리자가 분명히 "하지 말라" 고 한 것으로 본다
+        if (dialogueEvent == DialogueRepository.EventFaintTransportRequest)
+        {
+            string victim = FaintVictimOf(_active?.DedupeKey);
+            var rescue = FacilitySimulation.Instance?.Rescue;
+            if (rescue != null && victim.Length > 0)
+            {
+                if (Phone3D.Instance?.LastCallRejectedByPlayer == true) rescue.Deny(victim);
+                else rescue.NoAnswer(victim);
+            }
+            var incF = GetIncident(_active?.DedupeKey ?? "");
+            if (incF != null) incF.Closed = true;
+            FinishActive();
+            return;
+        }
+
         // 근무 기억용 — "전화드렸는데 안 받으셨어요".
         CallMemoryLog.Record(employeeId, CallRecordKind.Missed, _active?.RoomId ?? "", dialogueEvent);
         // 전화를 안 받은 것도 "확인 지시를 안 한" 것으로 본다 → 다른 직원이 2차로 건다.

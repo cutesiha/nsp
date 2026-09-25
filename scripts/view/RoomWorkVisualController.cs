@@ -134,6 +134,16 @@ public sealed partial class RoomWorkVisualController
         AssignCarriers(roomId, taskId, visible, reactions);
 
         var used = new Dictionary<RoomWorkSpot, int>();
+
+        // 이 방에 쓰러진 사람이 있으면 그 자리를 먼저 잡아 둔다 —
+        // 구조자가 "환자 옆" 으로 가야 하고, 운반자는 환자를 몸에 붙여야 하기 때문이다.
+        var victimPos = new Dictionary<string, Vector3>();
+        foreach (var v in visible)
+        {
+            var vs = sim?.GetEmployeeState(v.Id);
+            if (vs != null && FaintRescueSystem.IsDown(vs)) victimPos[v.Id] = v.Node.Position;
+        }
+
         foreach (var v in visible)
         {
             var actor = _actors.TryGetValue(v.Id, out var a) ? a : _actors[v.Id] = new Actor();
@@ -169,6 +179,44 @@ public sealed partial class RoomWorkVisualController
                 }
             }
 
+            // ⓪ 기절 흐름 — 쓰러진 사람도, 그를 확인하는 사람도, 업고 가는 사람도
+            // 평소의 작업 자리 배치를 따르지 않는다(구조가 일반 업무보다 우선). 그리는 것은 FaintVisuals.
+            if (st != null)
+            {
+                // 환자를 업고 가는 중 — 환자 노드를 운반자 몸에 붙인다.
+                if (!string.IsNullOrEmpty(st.CarryingVictimId))
+                {
+                    var carried = visible.Find(x => x.Id == st.CarryingVictimId);
+                    var cs = sim.GetEmployeeState(st.CarryingVictimId);
+                    if (carried.Node != null && cs != null)
+                    {
+                        Release(actor);
+                        node.Position = v.FallbackPos;
+                        FaintVisuals.PoseCarry(node, anim, carried.Node, carried.Anim, cs, v.Id, delta);
+                        continue;
+                    }
+                }
+
+                // 쓰러졌다 / 바닥에 있다 / 실려 가는 중이다.
+                if (st.Faint != FaintPhase.None && st.Faint != FaintPhase.InMedicalBed
+                    && st.Faint != FaintPhase.Recovering)
+                {
+                    Release(actor);
+                    // 실려 가는 중이면 운반자 쪽에서 이미 자리를 잡았다.
+                    if (st.Faint != FaintPhase.Transporting) node.Position = v.FallbackPos;
+                    if (FaintVisuals.PoseVictim(node, anim, st, delta)) continue;
+                }
+
+                // 내가 누군가를 확인하러 간 구조자인가.
+                string patient = FindPatientOf(sim, v.Id);
+                if (patient.Length > 0 && victimPos.TryGetValue(patient, out var vp))
+                {
+                    Release(actor);
+                    var ps = sim.GetEmployeeState(patient);
+                    if (FaintVisuals.PoseResponder(node, anim, st, ps, vp, delta)) continue;
+                }
+            }
+
             // ① 격리 — 침대까지 걸어가 눕고, 스트랩이 채워진 뒤 발버둥. 풀리면 역순으로 일어난다.
             if (v.Action == CctvEmployeeAction.Isolated || actor.Iso is { Active: true })
             {
@@ -177,9 +225,9 @@ public sealed partial class RoomWorkVisualController
                     continue;
             }
 
-            // ② 기절한 직원은 '환자'다 — 의무실 침대에 눕힌다.
-            // 반대로 멀쩡히 일하는 직원은 눕는 자리를 절대 쓰지 않는다(아래 PickSpot).
-            if (st?.Incapacitated == true)
+            // ② 환자를 침대에 눕히는 것은 **실제로 의무실까지 실려 온 뒤**뿐이다(FaintRescueSystem).
+            // 그 전 단계(바닥·이송)는 위의 기절 흐름이 그린다. 멀쩡히 일하는 직원은 눕는 자리를 쓰지 않는다.
+            if (st is { Faint: FaintPhase.InMedicalBed or FaintPhase.Recovering })
             {
                 var bed = PickSpot(spots, "__patient__", actor.Spot, used);
                 if (bed != null)
@@ -320,6 +368,19 @@ public sealed partial class RoomWorkVisualController
         list.Sort((a, b) => b.Priority.CompareTo(a.Priority));
         _spotCache[roomId] = list;
         return list;
+    }
+
+    // 이 사람이 지금 상태를 살피고 있는 환자. 없으면 빈 문자열.
+    private static string FindPatientOf(FacilitySimulation sim, string responderId)
+    {
+        if (sim == null) return "";
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null || st.ResponderId != responderId) continue;
+            if (st.Faint is FaintPhase.BeingChecked or FaintPhase.AwaitingDecision) return id;
+        }
+        return "";
     }
 
     private static void Collect(Node n, List<RoomWorkSpot> o)

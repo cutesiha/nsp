@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Godot;
@@ -201,6 +201,45 @@ public static class LocalDialogueGenerator
 
     // index 0 = 움직이라는 지시, index 1 = 그대로 두라는 지시.
     // IncomingCallDirector 의 출동 판정이 이 순서에 의존하므로 절대 뒤집지 않는다.
+    // 쓰러진 동료를 의무실로 옮겨도 되는지 묻는 전화(§15 · §16).
+    // 말투만 캐릭터별로 다르고, 묻는 내용은 하나다 — "옮길까요?"
+    private static CallLine BuildFaintTransportCall(string responderId, string roomId)
+    {
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        var victim = sim?.Rescue?.FindUnmovedVictimIn(roomId);
+        if (victim == null) return null;
+        string who = sim.GetEmployeeDef(victim.EmployeeId)?.Codename ?? victim.EmployeeId;
+
+        string opening = responderId switch
+        {
+            "rabbit" => $"관리자님! {who} 씨가 쓰러졌어요! 숨은 쉬는데 안 일어나요… 의무실로 데려갈까요?",
+            "dog" => $"관리자님, {who} 씨가 갑자기 쓰러졌습니다. 상태 확인했는데 의식이 없어요. 의무실로 옮길까요?",
+            "sheep" => $"저, 저기… {who} 씨가… 쓰러져 있어요… 어, 어떡하죠. 의무실로 데려가는 게 맞죠…?",
+            "wolf" => $"{who} 쓰러졌다. 호흡은 있다. 의무실로 옮기지.",
+            "cat" => $"{who} 씨가 쓰러졌는데요. 깨워도 반응 없어요. 의무실로 옮길까요?",
+            _ => $"{who} 씨가 쓰러졌습니다. 확인해 보니 의식이 없네요. 의무실로 이송할까요?",
+        };
+        string yes = responderId switch
+        {
+            "wolf" => "알겠다. 내가 업고 가지.",
+            "sheep" => "네, 네… 제가 최대한 조심해서 옮길게요…",
+            "rabbit" => "네! 제가 지금 바로 데려갈게요!",
+            _ => "알겠습니다. 바로 옮기겠습니다.",
+        };
+        string no = responderId switch
+        {
+            "wolf" => "…알겠다. 그대로 두지.",
+            "sheep" => "아, 네… 그, 그럼 그냥 둘게요…",
+            "rabbit" => "네…? 아, 네… 알겠습니다…",
+            _ => "알겠습니다. 그대로 두겠습니다.",
+        };
+
+        var line = new CallLine { Opening = opening };
+        line.Choices.Add(new CallChoice { Text = "의무실로 이송하십시오.", Reply = yes });
+        line.Choices.Add(new CallChoice { Text = "그대로 두십시오.", Reply = no });
+        return line;
+    }
+
     public static CallLine BuildIncomingCall(string employeeId, string dialogueEvent, string roomId)
     {
         // 교육용 고정 통화는 생성하지 않는다 — 대사 파일의 문장을 그대로 쓴다.
@@ -209,6 +248,10 @@ public static class LocalDialogueGenerator
         // 잡담 전화는 사건 기록을 필요로 하지 않는다 — 사건이 아니기 때문이다.
         if (dialogueEvent is DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry)
             return BuildIdleCall(employeeId, dialogueEvent, roomId);
+
+        // 동료가 쓰러졌다 — 이송 허가를 묻는다.
+        if (dialogueEvent == DialogueRepository.EventFaintTransportRequest)
+            return BuildFaintTransportCall(employeeId, roomId);
 
         var subject = FindEventSubject(employeeId, dialogueEvent, roomId);
         var line = new CallLine();

@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -237,6 +237,7 @@ public partial class Phone3D : Node3D
         _patienceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(1f, patience);
 
         _ring?.Play();
+        LastCallRejectedByPlayer = false;
         _hud?.ShowIncoming(CallerColor());
         EmitSignal(SignalName.RingStarted);
     }
@@ -246,8 +247,14 @@ public partial class Phone3D : Node3D
     public void RejectIncoming()
     {
         if (_state != PhoneState.Ringing || !_isIncoming) return;
+        // 관리자가 **분명히** 거절했다 — 그냥 못 받은 것과 뜻이 다른 상황이 있다.
+        // (기절한 동료 이송: 안 받으면 직원이 알아서 옥기지만, 거절하면 옥기지 않는다.)
+        LastCallRejectedByPlayer = true;
         GiveUp();
     }
+
+    // 방금 끝난 수신 전화를 관리자가 직접 거절했는가(시간 초과가 아니라).
+    public bool LastCallRejectedByPlayer { get; private set; }
 
     // 관리자가 시간 안에 받지 않음 → 직원이 끊는다. 벨을 바로 끊고 "뚝" 소리, LED 회색 복귀.
     private void GiveUp()

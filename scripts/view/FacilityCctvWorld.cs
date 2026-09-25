@@ -432,7 +432,9 @@ public partial class FacilityCctvWorld : Node3D
                 if (prevRoom != shownRoom)
                 {
                     _roomSince[id] = now;
-                    if (prevRoom == target && actor.Visible && st is { Alive: true })
+                    // 기절 흐름(쓰러짐 · 업고 가는 중)은 FaintVisuals 가 운반자와 환자를 함께 그린다 — 남겨 두지 않는다.
+                    bool inRescue = st != null && (st.Faint != FaintPhase.None || !string.IsNullOrEmpty(st.CarryingVictimId));
+                    if (prevRoom == target && actor.Visible && st is { Alive: true } && !inRescue)
                         _linger[id] = (prevRoom, now + LingerSeconds);
                 }
             }

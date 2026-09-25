@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 namespace NSP.Facility;
@@ -14,10 +14,34 @@ public class EmployeeState
     public string EmployeeId;
     // 스트레스 1~50. 46 이상이면 기절 상태가 되어 의무실로 강제 송환되고 당일 업무 불가.
     public float Stress = 1f;
-    // 기절 — 스트레스 46 이상에서 발동. 의무실로 옮겨져 업무를 못 하다가
-    // Config.StressFaintRecoverySeconds 가 지나면 회복해 원래 배치로 돌아간다.
+    // 기절 — 스트레스 46 이상에서 발동. **스스로는 한 발짝도 움직이지 못한다.**
+    // 다른 직원이 실제로 와서 업거나 부축하거나 안아서 의무실 침대에 눕혀야만
+    // 회복이 시작된다(FaintRescueSystem).
     public bool Incapacitated = false;
+    // 회복까지 남은 시간. 침대에 눕혀지기 전까지는 흐르지 않는다.
     public float FaintRecoverTimer;
+
+    // 기절 흐름의 어느 단계인가. Incapacitated 하나로 "바닥인지 · 이송 중인지 ·
+    // 침대인지" 를 추측하지 않기 위해 따로 둔다.
+    public FaintPhase Faint = FaintPhase.None;
+    public float FaintPhaseTimer;
+    // 앞으로 쓰러졌는가(뒤로 쓰러지면 false). CCTV 가 쓰러지는 동작을 고를 때 쓴다.
+    public bool FellForward = true;
+    // 나를 발견해 상태를 살피는 사람 / 나를 옮기고 있는 사람. 각각 한 명뿐이다.
+    public string ResponderId = "";
+    public string TransporterId = "";
+    // 관리자가 이 구조를 직접 지시했는가(직접 보냈다면 전화로 다시 묻지 않는다).
+    public bool RescueWasDispatched;
+    // 눕혀진 침대 자리(MedicalBedSpot1/2). 두 환자가 같은 침대를 쓰지 않게 한다.
+    public string MedicalBedSpotId = "";
+
+    // 내가 지금 업고 있는 환자. 비어 있지 않으면 업무도 전화도 하지 않는다.
+    public string CarryingVictimId = "";
+    // 환자를 눕힌 뒤 돌아갈 작업실.
+    public string TransportReturnRoomId = "";
+    // 관리자가 "쓰러진 사람이 있는 방" 으로 직접 보낸 경우 그 방 id.
+    // 이 지시로 도착하면 전화로 다시 묻지 않고 바로 구조한다(직접 보낸 뜻이 분명하므로).
+    public string RescueDispatchRoomId = "";
     public string CurrentRoomId;
     public string AssignedRoomId = "";
     // 근무가 시작된 순간의 배치(FacilitySimulation.RecordShiftStart). 대화 쪽 동선 시간표의 0초 위치다 —
