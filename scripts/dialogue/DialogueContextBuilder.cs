@@ -20,64 +20,124 @@ public static class DialogueContextBuilder
 
     // --- 위치 타임라인 --------------------------------------------------
     // 로그를 한 번만 훑어 직원별 (시각, 작업실) 구간을 만든다. 방이 비어 있으면 이동 중.
+    //
+    // 시간표에는 그날 실제로 근무한 직원만 들어간다. 배치되지 않은 직원은 시작실에 서 있어도
+    // 근무자가 아니다 — 그 사람을 "같이 있던 사람"으로 대면 없는 사실을 만드는 셈이다.
     private sealed class Timeline
     {
         public int Day;
         public int EntryCount;
+        public int ShiftVersion;
         public readonly Dictionary<string, List<(float Time, string Room)>> Moves = new();
+        // 근무 중인 구간. 격리 · 사망 · 기절 · 배치 해제로 끊기고, 재배치 · 회복으로 다시 이어진다.
+        public readonly Dictionary<string, List<(float Time, bool OnDuty)>> Duty = new();
     }
 
     private static Timeline _timeline;
+
+    // 이 시각 이전의 배치(Relocation)는 근무 시작 전 배치표다(ShiftMemory 의 Assigned 와 같은 기준).
+    public const float ShiftStartSeconds = 0.5f;
 
     private static Timeline GetTimeline(int day)
     {
         var log = EventLog.Instance;
         var sim = FacilitySimulation.Instance;
         int count = log?.GetAllEntries().Count ?? 0;
-        if (_timeline != null && _timeline.Day == day && _timeline.EntryCount == count) return _timeline;
+        int version = FacilitySimulation.ShiftStartVersion;
+        if (_timeline != null && _timeline.Day == day && _timeline.EntryCount == count
+            && _timeline.ShiftVersion == version) return _timeline;
 
-        var t = new Timeline { Day = day, EntryCount = count };
+        var t = new Timeline { Day = day, EntryCount = count, ShiftVersion = version };
+        var today = log?.GetAllEntries().Where(e => e.Day == day).ToList() ?? new List<LogEntry>();
         if (sim != null)
         {
             foreach (string id in sim.GetEmployeeIds())
             {
-                // 근무 시작 위치. 배치가 잡혀 있으면 그 자리, 아니면 캐릭터의 기본 시작실.
-                var st = sim.GetEmployeeState(id);
-                string seed = st != null && !string.IsNullOrEmpty(st.AssignedRoomId)
-                    ? st.AssignedRoomId
-                    : sim.GetEmployeeDef(id)?.StartRoomId ?? "";
+                // 0초 위치 = 근무 시작 때의 배치. 지금의 배치(재배치 뒤일 수 있다)도,
+                // 캐릭터의 기본 시작실도 쓰지 않는다. 모르면 빈 값.
+                string seed = ShiftStartRoom(id, day, sim, today);
+                // 시작 배치가 없어도 근무 중에 배치됐으면(재배치 · 업무 시작) 그때부터 근무자다.
+                bool worked = seed.Length > 0 || today.Any(e => e.ActorEmployeeId == id && StartsDuty(e));
+                if (!worked) continue;
                 t.Moves[id] = new List<(float, string)> { (0f, seed) };
+                t.Duty[id] = new List<(float, bool)> { (0f, seed.Length > 0) };
             }
         }
 
-        if (log != null)
+        foreach (var e in today)
         {
-            foreach (var e in log.GetAllEntries())
-            {
-                if (e.Day != day || string.IsNullOrEmpty(e.ActorEmployeeId)) continue;
-                if (!t.Moves.TryGetValue(e.ActorEmployeeId, out var list)) continue;
+            if (string.IsNullOrEmpty(e.ActorEmployeeId)) continue;
+            if (!t.Moves.TryGetValue(e.ActorEmployeeId, out var list)) continue;
+            var duty = t.Duty[e.ActorEmployeeId];
 
-                switch (e.EventType)
-                {
-                    // Relocation 은 이동 "명령" 이라 실제 도착이 아니다 — 위치 증거로 쓰지 않는다.
-                    case LogEventType.RoomEnter:
-                    case LogEventType.TaskStart:
-                        if (!string.IsNullOrEmpty(e.RoomId) && e.RoomId != PlayerOnlyRoomId)
-                            list.Add((e.GameTimeSeconds, e.RoomId));
-                        break;
-                    case LogEventType.RoomExit:
-                        list.Add((e.GameTimeSeconds, ""));
-                        break;
-                    case LogEventType.Isolation:
-                    case LogEventType.Death:
-                        list.Add((e.GameTimeSeconds, e.RoomId ?? ""));
-                        break;
-                }
+            switch (e.EventType)
+            {
+                // Relocation 은 이동 "명령" 이라 실제 도착이 아니다 — 위치 증거로 쓰지 않는다.
+                // 다만 "배치됐다"는 사실이므로 근무는 그때부터다.
+                case LogEventType.Relocation:
+                    if (!string.IsNullOrEmpty(e.RoomId)) duty.Add((e.GameTimeSeconds, true));
+                    break;
+                case LogEventType.RoomEnter:
+                case LogEventType.TaskStart:
+                    if (!string.IsNullOrEmpty(e.RoomId) && e.RoomId != PlayerOnlyRoomId)
+                        list.Add((e.GameTimeSeconds, e.RoomId));
+                    if (e.EventType == LogEventType.TaskStart) duty.Add((e.GameTimeSeconds, true));
+                    break;
+                case LogEventType.RoomExit:
+                    list.Add((e.GameTimeSeconds, ""));
+                    break;
+                case LogEventType.Isolation:
+                case LogEventType.Death:
+                    list.Add((e.GameTimeSeconds, e.RoomId ?? ""));
+                    duty.Add((e.GameTimeSeconds, false));
+                    break;            }
+
+            // 기절 · 회복 · 배치 해제는 사건 종류(Neglect / TaskEnd)만으로는 갈리지 않는다 —
+            // FacilitySimulation 이 기록할 때 채우는 세부 종류로 가린다(표시 문구는 보지 않는다).
+            switch (e.Detail)
+            {
+                case LogDetail.Fainted:
+                case LogDetail.Unassigned:
+                    duty.Add((e.GameTimeSeconds, false));
+                    break;
+                case LogDetail.Recovered:
+                    duty.Add((e.GameTimeSeconds, true));
+                    break;
             }
         }
 
         _timeline = t;
         return t;
+    }
+
+    // 근무 시작 때의 배치. 배치표 로그(근무 시작 전 Relocation)가 남아 있으면 그것,
+    // 없으면 근무 시작 순간 FacilitySimulation 이 적어 둔 값. 둘 다 없으면 빈 값 — 배치되지 않았다.
+    private static string ShiftStartRoom(string id, int day, FacilitySimulation sim, List<LogEntry> today)
+    {
+        var placed = today.FirstOrDefault(e => e.EventType == LogEventType.Relocation && e.ActorEmployeeId == id
+                                               && !string.IsNullOrEmpty(e.RoomId)
+                                               && e.GameTimeSeconds <= ShiftStartSeconds);
+        if (placed != null) return placed.RoomId;
+        var st = sim.GetEmployeeState(id);
+        return st != null && st.ShiftStartDay == day ? st.ShiftStartRoomId ?? "" : "";
+    }
+
+    private static bool StartsDuty(LogEntry e) =>
+        (e.EventType == LogEventType.Relocation && !string.IsNullOrEmpty(e.RoomId))
+        || e.EventType == LogEventType.TaskStart;
+
+    // 그 시각에 근무 중이었는가(오늘 근무자이고, 격리 · 사망 · 기절 · 배치 해제 상태가 아니다).
+    public static bool OnDutyAt(string employeeId, int day, float timeSeconds)
+    {
+        var t = GetTimeline(day);
+        if (!t.Duty.TryGetValue(employeeId, out var list) || list.Count == 0) return false;
+        bool on = list[0].OnDuty;
+        foreach (var (time, d) in list)
+        {
+            if (time > timeSeconds) break;
+            on = d;
+        }
+        return on;
     }
 
     // 해당 시각에 그 직원이 실제로 있던 작업실. 빈 문자열이면 통로 이동 중이거나 알 수 없음.
@@ -119,14 +179,16 @@ public static class DialogueContextBuilder
         return "";
     }
 
-    // 그 시각에 해당 작업실에 함께 있던 다른 직원들.
+    // 그 시각에 해당 작업실에 함께 있던 다른 직원들 — 그때 근무 중이던 사람만
+    // (격리 · 기절 · 미배치인 사람은 그 방에 서 있어도 "같이 일한 사람"이 아니다).
     public static List<string> OccupantsAt(string roomId, int day, float timeSeconds, string exceptId)
     {
         var sim = FacilitySimulation.Instance;
         var result = new List<string>();
         if (sim == null || string.IsNullOrEmpty(roomId)) return result;
         foreach (string id in sim.GetEmployeeIds())
-            if (id != exceptId && RoomAt(id, day, timeSeconds) == roomId) result.Add(id);
+            if (id != exceptId && RoomAt(id, day, timeSeconds) == roomId && OnDutyAt(id, day, timeSeconds))
+                result.Add(id);
         return result;
     }
 
@@ -256,15 +318,12 @@ public static class DialogueContextBuilder
         var t = GetTimeline(day);
         if (!t.Moves.TryGetValue(employeeId, out var mine)) return result;
 
-        foreach (string other in sim.GetEmployeeIds())
+        // 내 위치가 바뀌는 시점마다 그 방에서 근무 중이던 사람을 모은다.
+        foreach (var (time, room) in mine)
         {
-            if (other == employeeId) continue;
-            // 내 위치가 바뀌는 시점마다 상대가 같은 방에 있었는지 확인한다.
-            foreach (var (time, room) in mine)
-            {
-                if (string.IsNullOrEmpty(room)) continue;
-                if (RoomAt(other, day, time) == room) { result.Add(other); break; }
-            }
+            if (string.IsNullOrEmpty(room) || !OnDutyAt(employeeId, day, time)) continue;
+            foreach (string other in OccupantsAt(room, day, time, employeeId))
+                if (!result.Contains(other)) result.Add(other);
         }
         return result;
     }
@@ -388,9 +447,7 @@ public static class DialogueContextBuilder
             && !string.IsNullOrEmpty(ctx.AssignedRoomId)
             && ctx.RoomAtSubject != ctx.AssignedRoomId)
         {
-            var sim = FacilitySimulation.Instance;
-            if (sim != null && sim.GetEmployeeIds().Any(id => id != employeeId
-                    && RoomAt(id, day, ctx.Subject.TimeSeconds) == ctx.RoomAtSubject))
+            if (OccupantsAt(ctx.RoomAtSubject, day, ctx.Subject.TimeSeconds, employeeId).Count > 0)
                 n++;
         }
         return n;

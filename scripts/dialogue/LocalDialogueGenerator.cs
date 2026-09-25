@@ -402,6 +402,13 @@ public static class LocalDialogueGenerator
         };
         if (topic == RecallTopic.Status)
             req.AnchorRoom = string.IsNullOrEmpty(ctx.CurrentRoomId) ? ctx.AssignedRoomId : ctx.CurrentRoomId;
+        // 최초 진술(근무 소감 · 이상한 점 · 수상한 사람의 첫 답)은 조사 카드가 되는 문장이다 —
+        // 짧고 명확해야 하므로 동료 이야기를 붙이지 않는다.
+        if (IsOpeningStatement(ctx))
+        {
+            req.Covered.Add(MemoryKind.Companion);
+            req.Covered.Add(MemoryKind.DayCompanion);
+        }
         // 휴게시간 "오늘 근무" 답의 핵심이 이미 오늘 겪은 사고를 말한다.
         if (topic == RecallTopic.ShiftReview && plan.StatusNote == "busy")
         {
@@ -410,6 +417,11 @@ public static class LocalDialogueGenerator
         }
         return ShiftMemory.Recall(req);
     }
+
+    // InterviewSession 이 심문을 열 때 먼저 받는 세 질문의 첫 답.
+    private static bool IsOpeningStatement(DialogueContext ctx) =>
+        ctx.Conversation == DialogueConversationKind.Interview && !ctx.IsRepeat
+        && ctx.QuestionId is DialogueQuestions.ShiftReview or DialogueQuestions.Anomaly or DialogueQuestions.Suspicious;
 
     // 같은 질문을 다시 받았는지 기록한다. 핵심 주장은 그대로 두고 표현만 바뀐다.
     private static void MarkAsked(DialogueContext ctx, string questionId)

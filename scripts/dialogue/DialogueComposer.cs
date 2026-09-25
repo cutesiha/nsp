@@ -23,6 +23,8 @@ public static class DialogueComposer
 
     // 검증용 — 마지막 답변이 어떤 슬롯과 어떤 근무 기억으로 만들어졌는지(DialogueSampleDump 가 읽는다).
     public static string LastTrace { get; private set; } = "";
+    // 마지막으로 조립한 답에 실제로 들어간 근무 기억.
+    private static List<ReplyAddendum> _lastKept = new();
 
     // 문장 수 상한을 넘으면 이 순서대로(앞쪽부터) 뺀다.
     private static readonly Part[] DropOrder = { Part.Back, Part.Extra, Part.Opener, Part.Memory, Part.Impression };
@@ -38,6 +40,8 @@ public static class DialogueComposer
             if (!DialogueClaimState.WasRecent(f.EmployeeId, text)) break;
         }
         if (string.IsNullOrEmpty(text)) text = "…";
+        // 실제로 답에 들어간 동료 기억만 "이미 한 이야기"로 적는다(잘려 나간 줄은 아직 안 한 말이다).
+        foreach (var a in _lastKept) ShiftMemory.MarkSaid(a);
         DialogueClaimState.Remember(f.EmployeeId, text);
         DialoguePatternMemory.RememberSurface(f.EmployeeId, text);
         return text;
@@ -45,6 +49,7 @@ public static class DialogueComposer
 
     private static string Build(ReplyFrame f)
     {
+        _lastKept = new List<ReplyAddendum>();
         var voice = DialogueVoices.Get(f.EmployeeId);
         bool formal = voice.Formal;
         string id = f.EmployeeId;
@@ -67,6 +72,9 @@ public static class DialogueComposer
         else if (!string.IsNullOrEmpty(f.OpenerSlot)) opener = Pick(id, f.OpenerSlot, f.Vars, formal);
         // 여는 말이 핵심과 같은 말로 시작하면 뺀다("네." + "네, 자리를 …").
         if (opener.Length > 0 && core.Length >= 2 && opener.StartsWith(core[..2])) opener = "";
+        // 핵심 문장 틀이 이미 그 말을 품고 있어도 뺀다 — "오, 수상한 사람이요?" + "수상한 사람이요? 못 봤어요!",
+        // "진짜 깜짝 놀랐어요!" + "… 진짜 깜짝 놀랐어요." 는 한 답 안에서 같은 말을 두 번 하는 것이다.
+        if (opener.Length > 0 && RepeatsAnySentence(core, opener)) opener = "";
         if (opener.Length > 0) parts.Add((Part.Opener, opener));
 
         parts.Add((Part.Core, core));
@@ -85,12 +93,18 @@ public static class DialogueComposer
 
         // ── 근무 기억 ─────────────────────────────────────────────────
         string memWho = "";
-        foreach (var a in f.Addenda)
+        var memLines = new string[f.Addenda.Count];
+        for (int i = 0; i < f.Addenda.Count; i++)
         {
+            var a = f.Addenda[i];
+            // 같은 질문을 다시 받으면 프레임(기억 포함)이 그대로 다시 온다 — 이미 한 동료 이야기는 건너뛴다.
+            if (ShiftMemory.WasSaid(a)) continue;
             var vars = Merge(f.Vars, a.Vars);
-            string line = Pick(id, a.Slot, vars, formal);
+            // 앞에서 이미 말한 방 · 사람을 다시 부르는 틀은 피한다("저장고에 있었어요. 저장고엔 저 혼자였어요.").
+            string line = Pick(id, a.Slot, vars, formal, SaidSoFar(parts));
             int before = parts.Count;
             TryAdd(parts, Part.Memory, line);
+            if (parts.Count > before) memLines[i] = line;
             if (parts.Count > before && memWho.Length == 0) memWho = WhoMentioned(line, vars);
         }
         // 기억 속 동료 이야기에는 가끔만, 문장 수에 여유가 있을 때만 인상을 붙인다(묻지 않은 사람 이야기라서).
@@ -101,7 +115,7 @@ public static class DialogueComposer
 
         // ── 덧붙임 · 되묻기 ────────────────────────────────────────────
         if (!string.IsNullOrEmpty(f.ExtraSlot) && !AlreadyCovered(f.ExtraSlot, core))
-            TryAdd(parts, Part.Extra, Pick(id, f.ExtraSlot, f.Vars, formal));
+            TryAdd(parts, Part.Extra, Pick(id, f.ExtraSlot, f.Vars, formal, SaidSoFar(parts)));
         if (!string.IsNullOrEmpty(f.BackSlot))
             TryAdd(parts, Part.Back, Pick(id, f.BackSlot, f.Vars, formal));
 
@@ -125,14 +139,19 @@ public static class DialogueComposer
             && !parts.Any(p => p.Kind == Part.Memory && p.Text.Contains(CodenameOf(memWho))))
             parts.RemoveAll(p => p.Kind == Part.Impression);
 
+        // 기억 한 줄마다 실제로 답에 남았는지 표시한다(겹쳐서 안 붙었거나 상한에 잘렸으면 "(잘림)").
         LastTrace = f.Slot + (f.Addenda.Count == 0 ? "" : " + 기억[" + string.Join(", ",
-            f.Addenda.Select(a => a.Slot + (parts.Any(p => p.Kind == Part.Memory) ? "" : "(잘림)"))) + "]");
+            f.Addenda.Select((a, i) => a.Slot + (Kept(parts, memLines[i]) ? "" : "(잘림)"))) + "]");
+        _lastKept = f.Addenda.Where((a, i) => Kept(parts, memLines[i])).ToList();
         string joined = Finalize(string.Join(" ", parts.Select(p => p.Text)));
         int ex = f.MaxExclamations >= 0 ? f.MaxExclamations : voice.MaxExclamations;
         // 말끝을 흐리는 게 버릇인 사람(양)은 말줄임을 더 허용한다.
         int ellipses = voice.TrailOffChance >= 0.5f ? 4 : 2;
         return DialogueVoiceTics.Apply(DialogueNaturalnessFilter.Clean(joined, ex, ellipses), voice);
     }
+
+    private static bool Kept(List<(Part Kind, string Text)> parts, string line) =>
+        line != null && parts.Any(p => p.Kind == Part.Memory && p.Text == line);
 
     // --- 동료 인상 ---------------------------------------------------------
 
@@ -184,12 +203,32 @@ public static class DialogueComposer
     {
         if (string.IsNullOrWhiteSpace(text)) return;
         foreach (var p in parts)
-            if (DialogueNaturalnessFilter.Repeats(p.Text, text)) return;
+            if (RepeatsAnySentence(p.Text, text)) return;
         // 같은 종결 어미가 연달아 나오면 말버릇만 반복하는 것처럼 들린다("…밀렸는데요. …일했는데요.").
         // 보정은 사실 정확성 때문에 빠질 수 없으므로 예외.
         if (kind != Part.Caveat && parts.Count > 0 && SameTic(parts[^1].Text, text)) return;
         parts.Add((kind, text));
     }
+
+    // 두 덩어리가 같은 말을 하는가 — 통째로, 그리고 문장끼리.
+    // 틀 하나가 두 문장일 수 있어서 통째 비교만으로는 "다들 열심히 하시던데요." 와
+    // "다들 열심히 하시는 것 같았어요." 가 겹치는 걸 못 본다. 문장 앞의 짧은 감탄("오, " "어, ")은 떼고 본다.
+    private static bool RepeatsAnySentence(string a, string b)
+    {
+        if (DialogueNaturalnessFilter.Repeats(a, b)) return true;
+        foreach (string x in Sentences(a))
+            foreach (string y in Sentences(b))
+                if (DialogueNaturalnessFilter.Repeats(x, y)) return true;
+        return false;
+    }
+
+    private static readonly Regex SentenceSplit = new(@"(?<=[.!?~…])\s+", RegexOptions.Compiled);
+    private static readonly Regex LeadingInterjection = new(@"^[가-힣]{1,2},\s+(?=\S{3,})", RegexOptions.Compiled);
+
+    private static IEnumerable<string> Sentences(string text) =>
+        SentenceSplit.Split(text ?? "")
+            .Select(s => LeadingInterjection.Replace(s.Trim(), ""))
+            .Where(s => s.Length > 0);
 
     private static readonly Regex SentenceBreak = new(@"[.!?~…](?=\s)", RegexOptions.Compiled);
 
@@ -242,6 +281,17 @@ public static class DialogueComposer
         _ => false,
     };
 
+    // 한 답 안에서 두 번 부르면 되풀이로 들리는 값(방 · 사람 · 업무 이름).
+    private static readonly string[] NamedVars = { "room", "iroom", "who", "who2", "task" };
+
+    private static string SaidSoFar(List<(Part Kind, string Text)> parts) =>
+        string.Join(" ", parts.Select(p => p.Text));
+
+    // 이 틀이 앞에서 이미 말한 방 · 사람 · 업무를 다시 부르는가.
+    private static bool NamesAgain(string template, Dictionary<string, string> vars, string said) =>
+        Tokens(template).Any(k => NamedVars.Contains(k)
+                                  && vars.TryGetValue(k, out var v) && !string.IsNullOrEmpty(v) && said.Contains(v));
+
     private static readonly string[] WorkWords = { "일 하", "일하", "근무", "업무", "작업" };
 
     // 이 덧붙임이 담는 정보를 핵심 문장이 이미 담고 있는가(문장 비교로 안 잡히는 의미 중복).
@@ -268,7 +318,11 @@ public static class DialogueComposer
     // 값이 비어 있는 변수를 요구하는 문장은 후보에서 뺀다 — "{who} 씨를 봤어요" 가
     // "씨를 봤어요" 로 새어 나가지 않게. 문자열이 달라도 같은 말버릇이면 사람 귀에는
     // 반복이므로 최근에 쓴 틀·시작 반응어는 한동안 피한다.
-    public static string Pick(string employeeId, string slot, Dictionary<string, string> vars, bool formal)
+    //
+    // said 를 주면 그 안에 이미 나온 방 · 사람 · 업무를 다시 부르는 틀도 뺀다(덧붙이는 문장용).
+    // 남는 틀이 없으면 빈 값 — 그 덧붙임은 이번 답에서 빠진다.
+    public static string Pick(string employeeId, string slot, Dictionary<string, string> vars, bool formal,
+        string said = null)
     {
         if (string.IsNullOrEmpty(slot)) return "";
         var pool = DialogueLineBank.Get(employeeId, slot, formal);
@@ -277,6 +331,7 @@ public static class DialogueComposer
         var usable = pool
             .Select((t, i) => (Text: t, Id: $"{slot}|{i}"))
             .Where(x => Tokens(x.Text).All(k => vars.TryGetValue(k, out var v) && !string.IsNullOrEmpty(v)))
+            .Where(x => said == null || !NamesAgain(x.Text, vars, said))
             .ToList();
         if (usable.Count == 0) return "";
 

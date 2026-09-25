@@ -145,6 +145,8 @@ public static class InterviewReplyPlanner
                 memTopic = RecallTopic.Presence;
                 memRoom = room;
                 covered.Add(MemoryKind.Companion);
+                // 이 시간대의 다른 답에는 "누구랑 있었다"를 다시 덧붙이지 않는다 — 이미 물었고, 이미 답했다.
+                if (q.HasAnchorTime) ShiftMemory.MarkCompanionAsked(id, day, q.AnchorTime);
                 break;
             }
 
@@ -328,6 +330,9 @@ public static class InterviewReplyPlanner
                 SubjectIncidentKey = q.IncidentKey ?? "",
             };
             foreach (var k in covered) req.Covered.Add(k);
+            // 꼬리질문 "같이 있던 사람"을 이 시간대에 이미 물었으면 동료 이야기는 덧붙이지 않는다.
+            if (q.HasAnchorTime && ShiftMemory.CompanionAsked(id, day, q.AnchorTime))
+                req.Covered.Add(MemoryKind.Companion);
             var mem = ShiftMemory.Recall(req);
             f.Addenda.AddRange(mem.Addenda);
         }
