@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 using NSP.Facility;
 
@@ -80,12 +80,62 @@ public sealed partial class RoomWorkVisualController
         BeginGhostFrame(room, roomId, visible);
 
         var used = new Dictionary<RoomWorkSpot, int>();
+
+        // 이 방에 쓰러진 사람이 있으면 그 자리를 먼저 잡아 둔다 —
+        // 구조자가 "환자 옆" 으로 가야 하고, 운반자는 환자를 몸에 붙여야 하기 때문이다.
+        var victimPos = new Dictionary<string, Vector3>();
+        foreach (var v in visible)
+        {
+            var vs = sim?.GetEmployeeState(v.Id);
+            if (vs != null && FaintRescueSystem.IsDown(vs)) victimPos[v.Id] = v.Node.Position;
+        }
+
         foreach (var v in visible)
         {
             var actor = _actors.TryGetValue(v.Id, out var a) ? a : _actors[v.Id] = new Actor();
             // 시선·재생 속도는 괴물 반응이 있을 때만 바꾼다 — 매 프레임 기본값부터.
             v.Anim?.SetLook(0f, 0f, 8f);
             v.Anim?.SetSpeedFactor(1f);
+
+            // ── 기절 흐름 ────────────────────────────────────────────────
+            // 격리 다음으로 앞에 둔다. 쓰러진 사람도, 그를 확인하는 사람도, 업고 가는 사람도
+            // 평소의 작업 자리 배치를 따르지 않는다(§24 — 구조가 일반 업무보다 우선).
+            var fs = sim?.GetEmployeeState(v.Id);
+            if (fs != null)
+            {
+                // ① 환자를 업고 가는 중 — 환자 노드를 운반자 몸에 붙인다.
+                if (!string.IsNullOrEmpty(fs.CarryingVictimId))
+                {
+                    var carried = visible.Find(x => x.Id == fs.CarryingVictimId);
+                    var cs = sim.GetEmployeeState(fs.CarryingVictimId);
+                    if (carried.Node != null && cs != null)
+                    {
+                        Release(actor);
+                        v.Node.Position = v.FallbackPos;
+                        FaintVisuals.PoseCarry(v.Node, v.Anim, carried.Node, carried.Anim, cs, v.Id, delta);
+                        continue;
+                    }
+                }
+
+                // ② 쓰러졌다 / 바닥에 있다 / 실려 가는 중이다.
+                if (fs.Faint != FaintPhase.None && fs.Faint != FaintPhase.InMedicalBed
+                    && fs.Faint != FaintPhase.Recovering)
+                {
+                    Release(actor);
+                    // 실려 가는 중이면 운반자 쪽에서 이미 자리를 잡았다.
+                    if (fs.Faint != FaintPhase.Transporting) v.Node.Position = v.FallbackPos;
+                    if (FaintVisuals.PoseVictim(v.Node, v.Anim, fs, delta)) continue;
+                }
+
+                // ③ 내가 누군가를 확인하러 간 구조자인가.
+                string patient = FindPatientOf(sim, v.Id);
+                if (patient.Length > 0 && victimPos.TryGetValue(patient, out var vp))
+                {
+                    Release(actor);
+                    var ps = sim.GetEmployeeState(patient);
+                    if (FaintVisuals.PoseResponder(v.Node, v.Anim, fs, ps, vp, delta)) continue;
+                }
+            }
 
             // 격리 — 다른 무엇보다 먼저. 전용 침대에 눕히고 격리 전용 클립만 재생한다.
             if (v.Action == CctvEmployeeAction.Isolated)
@@ -106,9 +156,13 @@ public sealed partial class RoomWorkVisualController
             // 격리가 풀리면 표현 타이머도 초기화한다(다시 격리되면 0초부터).
             actor.IsolatedFor = -1f;
 
-            // 기절한 직원은 '환자'다 — 의무실 침대에 눕힌다.
-            // 반대로 멀쩡히 일하는 직원은 눕는 자리를 절대 쓰지 않는다(아래 PickSpot).
-            if (sim?.GetEmployeeState(v.Id)?.Incapacitated == true)
+            // 환자를 침대에 눕히는 것은 **실제로 의무실까지 실려 온 뒤**뿐이다.
+            //
+            // 예전에는 Incapacitated 만 보고 바로 침대로 보냈다. 그러면 쓰러진 사람이 그 자리에서
+            // 사라져 침대에 나타난다. 지금은 쓰러진 방 바닥에 그대로 남고, 동료가 업고 와서
+            // 눕혀야 침대 자세가 된다. 그 전 단계(바닥·이송)는 FaintVisuals 가 그린다.
+            var faintState = sim?.GetEmployeeState(v.Id);
+            if (faintState is { Faint: FaintPhase.InMedicalBed or FaintPhase.Recovering })
             {
                 var bed = PickSpot(spots, "__patient__", actor.Spot, used);
                 if (bed != null)
@@ -200,6 +254,19 @@ public sealed partial class RoomWorkVisualController
         list.Sort((a, b) => b.Priority.CompareTo(a.Priority));
         _spotCache[roomId] = list;
         return list;
+    }
+
+    // 이 사람이 지금 상태를 살피고 있는 환자. 없으면 빈 문자열.
+    private static string FindPatientOf(FacilitySimulation sim, string responderId)
+    {
+        if (sim == null) return "";
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null || st.ResponderId != responderId) continue;
+            if (st.Faint is FaintPhase.BeingChecked or FaintPhase.AwaitingDecision) return id;
+        }
+        return "";
     }
 
     private static void Collect(Node n, List<RoomWorkSpot> o)

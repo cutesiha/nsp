@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using NSP.Core;
 using NSP.Dialogue;
 using NSP.Facility;
@@ -977,6 +977,14 @@ public partial class PhoneCallHud : CanvasLayer
     private void BuildGeneralQuestions()
     {
         ClearChoices();
+
+        // 그 직원이 있는 방에 아직 옮겨지지 않은 기절자가 있으면 맨 위에 지시 선택지를 띄운다.
+        // 이송을 한 번 거절했더라도 여기서 다시 시킬 수 있다(§19).
+        var sim = FacilitySimulation.Instance;
+        string room = sim?.GetEmployeeState(_employeeId)?.CurrentRoomId ?? "";
+        if (sim?.Rescue?.FindUnmovedVictimIn(room) != null)
+            _choices.AddChild(ChoiceButton("기절한 직원을 의무실로 이송하십시오.", OrderFaintTransport));
+
         var qs = DialogueRepository.GeneralQuestions(_employeeId);
         for (int i = 0; i < qs.Count; i++)
         {
@@ -984,6 +992,26 @@ public partial class PhoneCallHud : CanvasLayer
             _choices.AddChild(ChoiceButton(qs[i].Question, () => OnGeneralQuestion(idx)));
         }
         AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
+    }
+
+    // HUD 는 지시만 전달한다 — 실제 상태 변경은 시뮬레이션이 한다(§46).
+    private void OrderFaintTransport()
+    {
+        ClearChoices();
+        var sim = FacilitySimulation.Instance;
+        bool ok = sim?.Rescue?.OrderTransport(_employeeId) == true;
+        string reply = ok
+            ? _employeeId switch
+            {
+                "wolf" => "알겠다. 지금 옮기지.",
+                "sheep" => "네, 네… 지금 바로 데려갈게요…",
+                "rabbit" => "네! 바로 갈게요!",
+                _ => "알겠습니다. 지금 의무실로 옮기겠습니다.",
+            }
+            : "…여기엔 쓰러진 사람이 없는데요.";
+        RecordPlayer("기절한 직원을 의무실로 이송하십시오.", DialogueConversationType.OutgoingCall);
+        RecordNpc(reply, DialogueEntryType.NpcResponse, DialogueConversationType.OutgoingCall);
+        StartTyping("\"" + reply + "\"", AfterMode.GeneralQuestions);
     }
 
     private void OnGeneralQuestion(int idx)

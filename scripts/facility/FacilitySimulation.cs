@@ -325,43 +325,62 @@ public partial class FacilitySimulation : Node
         if (st.Incapacitated || st.Stress < cfg.StressFaintFrom || !st.Alive) return;
 
         st.Incapacitated = true;
-        st.FaintRecoverTimer = cfg.StressFaintRecoverySeconds;
         EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
-            cfg.StressFaintRecoverySeconds > 0f
-                ? $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (약 {cfg.StressFaintRecoverySeconds:0}초 회복)"
-                : $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — 기절, 의무실로 이송 (당일 업무 불가)",
+            $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — {RoomName(st.CurrentRoomId)}에서 기절",
             detail: LogDetail.Fainted);
 
-        // 격리 중이 아니면 의무실로 옮긴다. 배치는 유지해 두어 관리자가 상황을 볼 수 있게 한다.
-        if (!st.Isolated && _roomDefs.ContainsKey(MedicalRoomId))
-        {
-            BeginPathTo(st, MedicalRoomId);
-            // 표시: 의무실이 지금 누구를 받았는지 한 줄로 남긴다.
-            RoomEffectStats.Pulse(MedicalRoomId);
-            RoomEffectLog.Once(MedicalRoomId,
-                $"{RoomName(MedicalRoomId)} — {Codename(st.EmployeeId)} 이송, 회복까지 {cfg.StressFaintRecoverySeconds:0}초");
-        }
+        // **여기서 의무실로 보내지 않는다.**
+        //
+        // 예전에는 BeginPathTo(의무실) 를 불렀다. 그러면 의식을 잃은 사람이 제 발로 복도를
+        // 걸어 의무실까지 갔고, 복도를 걷는 동안 회복 시간까지 줄었다.
+        // 지금은 쓰러진 그 자리에 그대로 누워 있고, 다른 직원이 실제로 와서 옮겨야만
+        // 의무실에 도착한다. 그 전 과정은 FaintRescueSystem 이 맡는다.
+        _rescue.OnFainted(st);
     }
 
-    // 기절 회복 — 의무실에서 회복 시간이 지나면 스트레스를 낮추고 원래 배치로 돌려보낸다.
-    private void TickFaintRecovery(float delta)
-    {
-        var cfg = Config.Instance.Data;
-        if (cfg.StressFaintRecoverySeconds <= 0f) return;
-        foreach (var st in _employeeStates.Values)
-        {
-            if (!st.Incapacitated || !st.Alive) continue;
-            st.FaintRecoverTimer -= delta;
-            if (st.FaintRecoverTimer > 0f) continue;
+    // 기절 → 발견 → 이송 → 침대 → 회복. 전 과정은 FaintRescueSystem 이 가지고 있다.
+    private readonly FaintRescueSystem _rescue = new();
+    public FaintRescueSystem Rescue => _rescue;
+    public const string MedicalRoomIdPublic = MedicalRoomId;
 
-            st.Incapacitated = false;
-            st.Stress = Mathf.Clamp(cfg.StressAfterRecovery, cfg.StressMin, cfg.StressFaintFrom - 1f);
-            EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
-                $"{Codename(st.EmployeeId)} 회복 — 스트레스 {st.Stress:0}, 근무 복귀",
-                detail: LogDetail.Recovered);
-            if (!st.Isolated && !string.IsNullOrEmpty(st.AssignedRoomId) && st.AssignedRoomId != st.CurrentRoomId)
-                BeginPathTo(st, st.AssignedRoomId);
-        }
+    // 회복한 직원을 원래 배치로 돌려보낸다(이때는 의식이 있으므로 스스로 걷는다).
+    public void SendRecoveredHome(EmployeeState st)
+    {
+        if (st.Isolated || string.IsNullOrEmpty(st.AssignedRoomId)) return;
+        if (st.AssignedRoomId != st.CurrentRoomId) BeginPathTo(st, st.AssignedRoomId);
+    }
+
+    // 운반자를 의무실로 보낸다. **환자가 아니라 운반자에게** 길을 준다.
+    public void SendTransporterToMedical(string transporterId)
+    {
+        var t = _employeeStates.GetValueOrDefault(transporterId);
+        if (t != null && _roomDefs.ContainsKey(MedicalRoomId)) BeginPathTo(t, MedicalRoomId);
+    }
+
+    // 환자를 눕힌 운반자를 자기 작업실로 돌려보낸다.
+    public void SendTransporterHome(string transporterId, string roomId)
+    {
+        var t = _employeeStates.GetValueOrDefault(transporterId);
+        if (t != null && _roomDefs.ContainsKey(roomId)) BeginPathTo(t, roomId);
+    }
+
+    // 업혀 가는 환자의 방을 운반자와 맞춘다. 경로 계산 없이 방 소속만 옮긴다 —
+    // 환자는 자기 의지로 이동하는 것이 아니기 때문이다.
+    public void SyncCarriedRoom(EmployeeState victim, string roomId)
+    {
+        if (victim.CurrentRoomId == roomId) return;
+        RemoveOccupant(victim.CurrentRoomId, victim.EmployeeId);
+        victim.CurrentRoomId = roomId;
+        victim.TargetRoomId = roomId;
+        AddOccupant(roomId, victim.EmployeeId);
+    }
+
+    // 관리자가 이 사람을 그 방으로 직접 보냈는가(= 구조하라고 보낸 것이 분명한가).
+    // 마지막 배치 지시가 그 방이고, 그 방에 기절자가 있는 상태에서 내려진 지시면 그렇게 본다.
+    public bool WasDispatchedForRescue(string employeeId, string roomId)
+    {
+        var st = _employeeStates.GetValueOrDefault(employeeId);
+        return st != null && st.AssignedRoomId == roomId && st.RescueDispatchRoomId == roomId;
     }
 
     // 스트레스 구간별 업무 속도 배율. 1~10 정상 / 11~30 주의 / 31~45 위험 / 46+ 기절(0).
@@ -637,6 +656,11 @@ public partial class FacilitySimulation : Node
     {
         if (!_employeeStates.TryGetValue(employeeId, out var emp) || emp.Isolated || !emp.Alive)
             return false;
+        // 의식을 잃은 사람은 배치 지시로도 움직이지 않는다. 옮기려면 사람이 와서 옮겨야 한다.
+        if (emp.Incapacitated) return false;
+        // 쓰러진 사람이 있는 방으로 보냈다 = 구조하라고 보낸 것이다(§23).
+        // 도착하면 전화로 다시 묻지 않고 바로 옮긴다.
+        emp.RescueDispatchRoomId = _rescue.FindUnmovedVictimIn(roomId) != null ? roomId : "";
         if (!_roomStates.TryGetValue(roomId, out var room) || room.Locked)
             return false;
         if (!_roomDefs.TryGetValue(roomId, out var roomDef) || roomDef.IsRestricted)
@@ -874,6 +898,8 @@ public partial class FacilitySimulation : Node
     // (직원 위치/생존/코어 진행도 등 GameState 전체 리셋은 기존 미구현 이슈로 별도.)
     public void ResetForNewShift()
     {
+        _rescue.Attach(this);
+        _rescue.Reset();
         // 표시용 집계는 근무 단위다 — 새 근무가 시작되면 0 부터 다시 센다.
         RoomEffectStats.ResetDay();
         RoomEffectLog.ResetDay();
@@ -988,7 +1014,7 @@ public partial class FacilitySimulation : Node
         TickCoreInstability(d);
         TickUnstaffedAccidents(d);
         _ghost.Tick(d, this);
-        TickFaintRecovery(d);
+        _rescue.Tick(d);
         _warnings.Tick(d, this);
         _behavior.Tick(d, this);
         TickGuardPatrol(d);
@@ -1601,7 +1627,9 @@ public partial class FacilitySimulation : Node
         foreach (var id in room.OccupantEmployeeIds)
         {
             var e = _employeeStates.GetValueOrDefault(id);
-            if (e is { Alive: true, Isolated: false, Incapacitated: false }) n++;
+            // 환자를 업고 있는 사람은 손이 묶여 있다 — 그 방의 일손으로 세지 않는다.
+            if (e is { Alive: true, Isolated: false, Incapacitated: false }
+                && string.IsNullOrEmpty(e.CarryingVictimId)) n++;
         }
         return n;
     }
@@ -2223,7 +2251,9 @@ public partial class FacilitySimulation : Node
             var workers = room == null ? new List<EmployeeState>() : room.OccupantEmployeeIds
                 .Select(id => _employeeStates.GetValueOrDefault(id))
                 .Where(e => e != null && e.Alive && !e.Isolated && !e.Incapacitated
-                            && !_panicked.Contains(e.EmployeeId))
+                            && !_panicked.Contains(e.EmployeeId)
+                            // 환자를 옮기는 중인 사람은 업무에 손을 못 댄다.
+                            && string.IsNullOrEmpty(e.CarryingVictimId))
                 .ToList();
 
             bool blockedByMaterials = taskDef.EffectType == TaskEffectType.AddCoreProgress

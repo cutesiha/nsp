@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -28,6 +28,9 @@ public static class DialogueRepository
     // 허락하면 그 직원이 실제로 그 작업실로 옮겨 간다(배치가 바뀐다).
     public const string EventIdleVisit = "idle_visit";     // 심심하다 — 옆 방에 가도 되나
     public const string EventIdleWorry = "idle_worry";     // 옆 방에서 이상한 소리를 들었다
+    // 같은 방 동료가 쓰러졌다 — 의무실로 옮겨도 되는지 묻는 전화.
+    // 받지 않으면(timeout) 직원이 알아서 옮긴다. 명시적으로 거절하면 옮기지 않는다.
+    public const string EventFaintTransportRequest = "faint_transport_request";
     // 가상 시뮬레이션(교육) 전용 고정 통화 — 수리를 끝낸 직원이 복귀를 묻는다.
     // 생성기를 태우지 않고 대사 파일의 문장을 그대로 쓴다.
     public const string EventTutorialRepairDone = "tutorial_repair_done";
