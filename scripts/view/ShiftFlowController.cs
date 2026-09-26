@@ -47,17 +47,6 @@ public partial class ShiftFlowController : Node
     // (개발 중 DAY1 만 반복 테스트할 때 인스펙터에서 끄면 된다).
     [Export] public bool PlayPrologue = true;
 
-    // 테스트용 '프롤로그/튜토리얼 건너뛰기' 버튼(화면 오른쪽 위). 누르면 곧장 DAY1 근무 배치로 간다.
-    // 출시 빌드에서 숨기려면 인스펙터에서 끈다.
-    [Export] public bool ShowSkipButton = true;
-
-    // 건너뛰기를 누르면 씬을 다시 불러오면서 이 값을 켠다 — 다시 뜬 컨트롤러가 타이틀 대신
-    // 곧장 DAY1 배치로 들어간다. 진행 중인 프롤로그/교육의 비동기 흐름을 하나하나 끊는 대신
-    // 씬째 새로 시작하는 편이 남는 상태(가이드 창 · 교육용 대사 후크 등)가 없어 안전하다.
-    private static bool _skipToDay1Pending;
-    private CanvasLayer _skipLayer;
-    private Button _skipButton;
-
     private enum Stage { Boot, Title, Prologue, Schedule, Booting, Shift, Ending, Report, Rest, DayTransition, Final }
     private Stage _stage = Stage.Boot;
 
@@ -107,16 +96,14 @@ public partial class ShiftFlowController : Node
             _title.ShowTitle();
         }
         // 제어실 자체를 타이틀로 쓴다 — 두 CRT + 책상 장비가 메뉴 역할을 한다.
-        bool skipBoot = _skipToDay1Pending;
-        _skipToDay1Pending = false;
         // 엔딩 → 최종 기록 → [타이틀로] 로 돌아온 경우: 암전에서 시작해 "다시 눈을 뜬다".
-        var wake = skipBoot ? EndingState.Kind.None : EndingState.PendingWake;
+        var wake = EndingState.PendingWake;
         EndingState.PendingWake = EndingState.Kind.None;
         if (wake != EndingState.Kind.None) _title?.FadeToBlack(0.01f);
         if (_titleRoom != null)
         {
             _titleRoom.StartRequested += OnStartPressed;
-            if (!skipBoot) _titleRoom.Begin();
+            _titleRoom.Begin();
         }
         if (wake != EndingState.Kind.None) _ = WakeAtTitle(wake == EndingState.Kind.Bad);
         // 예전 책상 위 종이 배치표. Phase 0 에서 배치는 CRT 콘솔(ScheduleMapView)로 옮겼다 —
@@ -127,9 +114,6 @@ public partial class ShiftFlowController : Node
         // 시작 화면·근무 배치·휴게시간은 같은 곡으로 통일한다.
         // 실시간 근무에 들어갈 때만 페이드아웃되고 ControlRoomAtmosphere의 환경음이 대신한다.
         Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
-
-        BuildSkipButton();
-        if (skipBoot) BootStraightToDay1();
     }
 
     private async System.Threading.Tasks.Task WakeAtTitle(bool harsh)
@@ -143,67 +127,6 @@ public partial class ShiftFlowController : Node
         else _title?.FadeFromBlack(1.2f);
     }
 
-    // --- 테스트용: 프롤로그 / 튜토리얼 건너뛰기 ------------------------------
-
-    private void BuildSkipButton()
-    {
-        if (!ShowSkipButton) return;
-        _skipLayer = new CanvasLayer { Layer = 125 };   // 자막 띠(112) · 통화창(114) 위
-        AddChild(_skipLayer);
-        _skipButton = MonitorUi.Button("프롤로그 · 튜토리얼 건너뛰기  ▶▶", new Color(1f, 0.80f, 0.36f),
-            ViewFont.Default, OnSkipPressed, ViewFont.FS(14));
-        _skipButton.AnchorLeft = 1f; _skipButton.AnchorRight = 1f;
-        _skipButton.OffsetLeft = -400f; _skipButton.OffsetRight = -20f;
-        // 글자가 길어도 화면 밖(오른쪽)으로 자라지 않고 왼쪽으로 늘어난다.
-        _skipButton.GrowHorizontal = Control.GrowDirection.Begin;
-        _skipButton.OffsetTop = 16f; _skipButton.OffsetBottom = 58f;
-        _skipButton.MouseFilter = Control.MouseFilterEnum.Stop;
-        _skipButton.TooltipText = "테스트용 — 곧장 DAY1 근무 배치로 이동";
-        _skipLayer.AddChild(_skipButton);
-        RefreshSkipButton();
-    }
-
-    // 타이틀 · 프롤로그 · DAY0 교육 동안만 보인다. DAY1 배치에 들어서면 사라진다.
-    private void RefreshSkipButton()
-    {
-        if (_skipButton == null) return;
-        bool show = _stage is Stage.Title or Stage.Prologue
-                    || (DayFeatures.IsTutorialDay && _stage != Stage.Boot);
-        if (_skipButton.Visible != show) _skipButton.Visible = show;
-    }
-
-    private void OnSkipPressed()
-    {
-        // 씬 밖에 남는 정적 상태를 먼저 걷는다(가이드 얼굴창 · 입 · 교육용 대사 후크 · 통화 입).
-        GuideCornerFace.ShowAll(false);
-        GuideCornerFace.SetLifted(false);
-        GuideMouthAnimator.Reset();
-        EmployeeMouthAnimator.Reset();
-        NSP.Dialogue.LocalDialogueGenerator.ScriptedAnswerOverride = null;
-        Sfx.Instance?.StopVoiceBlip();
-        GameState.Instance?.SetPhase(GamePhase.Prep);
-
-        _skipToDay1Pending = true;
-        GetTree().ReloadCurrentScene();
-    }
-
-    // 다시 뜬 씬에서 타이틀을 건너뛰고 DAY1 배치로 곧장 들어간다.
-    private async void BootStraightToDay1()
-    {
-        // 컨트롤러의 AfterReady(CallDeferred)가 CRT 를 초기 상태로 돌려놓을 때까지 기다린다.
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-        if (!IsInstanceValid(this) || _stage != Stage.Title) return;
-
-        // 다음 날 배치로 넘어갈 때와 같은 화면 상태 — 근무가 시작되면 EnterShift 가 다시 켠다.
-        _ctl?.SetLeftScreen(_ctl.FacilityViewport);
-        _ctl?.SetRightScreen(_ctl.CctvViewport);
-        _ctl?.SetScreenBrightness(0.02f);
-        AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
-
-        EnterSchedule();   // Stage.Title 에서 들어오면 StartNewRun(1) 로 DAY1 새 게임을 연다
-    }
-
     public override void _Process(double delta)
     {
         if (!_wiredViews) WireLateSignals();
@@ -213,7 +136,6 @@ public partial class ShiftFlowController : Node
             ScheduleMapView.Instance.StartPressed += EnterShift;
             _wiredSchedule = true;
         }
-        RefreshSkipButton();
         TickStressCautionHint();
 
         // 최대 근무시간이 다 되면 필수 업무를 못 끝냈어도 근무가 끝난다(막히지 않게).
