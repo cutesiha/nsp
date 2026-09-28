@@ -11,7 +11,7 @@ namespace NSP.View;
 // 대신 이미 있는 제어실 장비를 그대로 쓴다.
 //   왼쪽 CRT(모니터 1)  = TitleTerminalView (표제 + 명령 선택지) — 여기서 게임이 시작된다
 //   오른쪽 CRT(모니터 2) = TitleStaffIdView  (직원 여섯 명 신원 확인 + 무작위 오류 연출)
-//   책상 장비  = 전화기 / 센서 단말 / 전력 패널 → 같은 명령의 지름길
+//   책상 장비  = 전화기 / 관리자 패드 / 전력 패널 → 같은 명령의 지름길
 //
 // 게임을 켜면 오른쪽 CRT 를 확대한 화면에서 시작한다. 아무 키나 누르면 그 화면에서
 // 프로그램이 실행되듯 표제가 한 글자씩 찍히고 메뉴가 한 줄씩 뜬 뒤, 그제서야 화면이
@@ -25,7 +25,8 @@ public partial class TitleRoomDirector : Node
 
     [Export] public NodePath ControllerPath = "..";
     [Export] public NodePath PhonePath = "../ControlRoom/Telephone";
-    [Export] public NodePath SensorPath = "../ControlRoom/AlertTerminal";
+    // 설정 메뉴가 붙은 책상 장비 — 예전 경고 단말기 자리의 관리자 패드(거치대).
+    [Export] public NodePath SensorPath = "../ControlRoom/AdminPad";
     [Export] public NodePath PowerPanelPath = "../ControlRoom/PowerSwitchPanel";
     // 천장광 비활성 상태 — Lights 그룹이 숨겨져 있어 이 밝기 조절은 화면에 효과가 없다.
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
@@ -33,7 +34,7 @@ public partial class TitleRoomDirector : Node
 
     // 책상 장비를 가리켰는지 판정하는 반경(m). 모델이 바뀌면 여기만 조정한다.
     [Export] public float PhoneRadius = 0.13f;
-    [Export] public float SensorRadius = 0.12f;
+    [Export] public float SensorRadius = 0.15f;
     [Export] public float PowerRadius = 0.13f;
 
     public event Action StartRequested;
@@ -65,7 +66,7 @@ public partial class TitleRoomDirector : Node
     private static readonly (string Id, string Hint)[] PropHints =
     {
         ("archive", "전화기  —  ARCHIVE  ·  통신 기록"),
-        ("config", "센서 단말  —  SYSTEM CONFIG  ·  환경 설정"),
+        ("config", "관리자 패드  —  SYSTEM CONFIG  ·  환경 설정"),
         ("quit", "전력 패널  —  SHUT DOWN  ·  시스템 종료"),
     };
 
@@ -201,7 +202,7 @@ public partial class TitleRoomDirector : Node
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase * 0.45f, 0.7);
 
         await Wait(0.40);
-        Sfx.Instance?.Play("relay_click", -12f);        // 센서 단말 ON
+        Sfx.Instance?.Play("relay_click", -12f);        // 관리자 패드 ON
 
         await Wait(0.35);
         _hint.SetSub(MenuHint);

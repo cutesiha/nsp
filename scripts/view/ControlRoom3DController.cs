@@ -19,7 +19,8 @@ public partial class ControlRoom3DController : Node3D
     // CRT 화면 UI를 짜는 논리 캔버스 크기(레이아웃 좌표계). 실제 렌더 해상도는 여기에 UiScale 을 곱한다.
     [Export] public Vector2I MonitorCanvasSize = new(800, 600);
     [Export] public float FocusDistance = 0.50f;
-    // 책상 위 기기(센서 단말기 / 전력 스위치) 확대용 — 화면보다 더 가까이, 살짝 위에서.
+    // 책상 위 기기(관리자 패드 거치대 / 전력 스위치) 확대용 — 화면보다 더 가까이, 살짝 위에서.
+    // 예전 경고 단말기(AlertTerminalProp). 책상에서 치워 확대 · 입력 대상이 아니다 — 경로만 남겨 둔다.
     [Export] public NodePath SensorPath = "ControlRoom/AlertTerminal";
     [Export] public NodePath PowerPanelPath = "ControlRoom/PowerSwitchPanel";
     [Export] public float DeskPropFocusDistance = 0.46f;
@@ -117,7 +118,7 @@ public partial class ControlRoom3DController : Node3D
 
     private MonitorScreen3D _dragScreen;
     private MonitorScreen3D _focusedScreen;   // 확대 중인 대상이 모니터일 때만 채워진다
-    private Node3D _focusedNode;              // 확대 중인 대상(모니터/센서/전력 기기)
+    private Node3D _focusedNode;              // 확대 중인 대상(모니터/패드/전력 기기)
     private Vector2 _lastCanvasPos;
 
     // Title/Schedule 단계에서 ShiftFlowController 가 제어실 CRT 입력을 잠그거나(_inputLocked),
@@ -519,7 +520,9 @@ public partial class ControlRoom3DController : Node3D
             var target = GameSettings.TargetForKey(NormalizeNumpad(key.Keycode));
             if (target.HasValue)
             {
-                ToggleFocusTarget(target.Value);
+                // 예전 경고 단말기 자리에는 관리자 패드가 있다 — 그 키는 패드를 꺼낸다(Tab 과 같다).
+                if (target.Value == GameSettings.ZoomTarget.Sensor) AdminPad3D.Instance?.Toggle();
+                else ToggleFocusTarget(target.Value);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -677,7 +680,8 @@ public partial class ControlRoom3DController : Node3D
     {
         GameSettings.ZoomTarget.Monitor1 => _screens.FirstOrDefault(s => s.Name.ToString().Contains("01")),
         GameSettings.ZoomTarget.Monitor2 => _screens.FirstOrDefault(s => s.Name.ToString().Contains("02")),
-        GameSettings.ZoomTarget.Sensor => GetNodeOrNull<Node3D>(SensorPath),
+        // 경고 단말기는 책상에서 치웠다(관리자 패드 거치대로 교체) — 확대 대상이 아니다.
+        GameSettings.ZoomTarget.Sensor => null,
         GameSettings.ZoomTarget.PowerPanel => GetNodeOrNull<Node3D>(PowerPanelPath),
         _ => null,
     };

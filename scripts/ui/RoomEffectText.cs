@@ -65,7 +65,7 @@ public static class RoomEffectText
             }
 
             case "guard_room":
-                return $"오늘 기록 {RoomEffectStats.GuardRecordsToday}건 (순찰 · 이탈 · 센서)";
+                return $"오늘 기록 {RoomEffectStats.GuardRecordsToday}건 (순찰 · 이탈 · 이상 감지)";
 
             case "medical_room":
             {

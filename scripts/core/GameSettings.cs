@@ -49,7 +49,7 @@ public static class GameSettings
     {
         (ZoomTarget.Monitor1, "모니터 1 확대"),
         (ZoomTarget.Monitor2, "모니터 2 확대"),
-        (ZoomTarget.Sensor, "경고 단말기 확대"),
+        (ZoomTarget.Sensor, "관리자 패드 꺼내기"),   // 예전 경고 단말기 자리 — 값 이름은 저장 호환으로 유지
         (ZoomTarget.PowerPanel, "전력 기기 확대"),
     };
 

@@ -6,10 +6,10 @@ using NSP.Ui;
 
 namespace NSP.View;
 
-// 전력 배분용 물리 토글 스위치 박스 — LIGHTING / CCTV / SENSOR 3개의 레버 스위치.
+// 전력 배분용 물리 토글 스위치 박스 — LIGHTING / CCTV / PAD(관리자 패드) 3개의 레버 스위치.
 // 레버를 클릭하면 손이 나와 검지로 튕기고, 그 순간 "딱!" 소리 + 레버가 위/아래로 넘어가며
 // 해당 기기 전원이 on/off 된다. 전력 포인트가 깎이면 스위치 기기에서 지지직 스파크가 튀고,
-// 전력이 0이 되면 SHUT DOWN — 방 조명/센서/CCTV 전부 꺼지고 계속 파지직거린다.
+// 전력이 0이 되면 SHUT DOWN — 방 조명/패드/CCTV 전부 꺼지고 계속 파지직거린다.
 // GameState 를 읽고 TryTogglePower 만 호출한다(전력 상태를 여기서 들고 있지 않는다).
 [Tool]
 public partial class PowerSwitchPanel : Node3D
@@ -19,8 +19,16 @@ public partial class PowerSwitchPanel : Node3D
     {
         (PowerConsumer.Lighting, "LIGHTING", -0.288f),
         (PowerConsumer.CctvWatch, "CCTV", 0.000f),
-        (PowerConsumer.Sensor, "SENSOR", 0.288f),
+        // 세 번째 채널 = 관리자 패드 전원. enum 이름(Sensor)은 저장 · 검사 호환으로 그대로 둔다.
+        (PowerConsumer.Sensor, "PAD", 0.288f),
     };
+
+    // switch.glb 면판에는 "SENSOR" 가 새겨져 있다 — 그 위에 명판을 덧대 "PAD" 로 바꾼다.
+    // 좌표는 SwitchModel 로컬(모델 단위). 에디터에서 명판이 각인을 정확히 덮도록 맞춘다.
+    [ExportGroup("패드 채널 명판")]
+    [Export] public Vector3 PadPlateCenter = new(0.288f, 0.33f, 0.300f);
+    [Export] public Vector2 PadPlateSize = new(0.22f, 0.07f);
+    [Export] public float PadPlateTiltDeg = -14f;
 
     // switch.glb 는 본체와 레버가 하나의 메시로 붙어 있다. 아래 상자 안에 드는 삼각형을
     // 레버로 떼어내 각자 회전축(Pivot)에 매단다. 값은 메시 실측 기준:
@@ -161,6 +169,8 @@ public partial class PowerSwitchPanel : Node3D
         });
 
         // 채널 라벨(LIGHTING/CCTV/SENSOR)은 switch.glb 면판에 이미 새겨져 있어 따로 그리지 않는다.
+        // 세 번째 채널만 예외 — 관리자 패드 전원이 되었으므로 "SENSOR" 각인 위에 "PAD" 명판을 덧댄다.
+        if (channel == PowerConsumer.Sensor && !Engine.IsEditorHint()) BuildPadPlate(label);
 
         BuildBreakdownFx(channel, x, faceY, faceZ);
 
@@ -169,6 +179,37 @@ public partial class PowerSwitchPanel : Node3D
         area.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.048f, 0.10f, 0.060f) } });
         area.InputEvent += (camera, ev, pos, normal, idx) => OnAreaInput(channel, ev);
         AddChild(area);
+    }
+
+    // "SENSOR" 각인을 덮는 명판. 면판과 같은 각도로 기울고, 글자는 각인처럼 밝은 회색.
+    private void BuildPadPlate(string label)
+    {
+        var model = GetNodeOrNull<Node3D>("SwitchModel");
+        Transform3D m = model?.Transform ?? Transform3D.Identity;
+        float s = model?.Scale.X ?? 1f;
+        var plate = new Node3D
+        {
+            Name = "PadPlate",
+            Position = m * PadPlateCenter,
+            RotationDegrees = new Vector3(PadPlateTiltDeg, 0f, 0f),
+        };
+        AddChild(plate);
+        plate.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(PadPlateSize.X * s, PadPlateSize.Y * s, 0.0015f) },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.06f, 0.065f, 0.07f), Metallic = 0.4f, Roughness = 0.55f,
+            },
+        });
+        plate.AddChild(new Label3D
+        {
+            Text = label,
+            Position = new Vector3(0f, 0f, 0.0012f),
+            PixelSize = 0.00022f, FontSize = 48, OutlineSize = 0,
+            Modulate = new Color(0.86f, 0.88f, 0.84f),
+            Shaded = false, DoubleSided = false,
+        });
     }
 
     // switch.glb 는 본체와 레버가 한 덩어리 메시다. 삼각형 하나하나를 위치로 분류해서

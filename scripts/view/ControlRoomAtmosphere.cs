@@ -26,7 +26,8 @@ public partial class ControlRoomAtmosphere : Node3D
     [Export] public NodePath WallPath = "../ControlRoom/Wall_Back";
     // 신규 환경음 소스 위치.
     [Export] public NodePath ControlPanelPath = "../ControlRoom/ControlPanel";
-    [Export] public NodePath AlertTerminalPath = "../ControlRoom/AlertTerminal";
+    // 경고음 · 기기 험이 나는 자리 — 예전 경고 단말기 자리의 관리자 패드.
+    [Export] public NodePath AlertTerminalPath = "../ControlRoom/AdminPad";
 
     // 플레이어 숨소리 기본 볼륨(dB). 긴장 상태에서 이보다 커진다.
     [Export] public float BreathBaseDb = -25f;
@@ -68,7 +69,7 @@ public partial class ControlRoomAtmosphere : Node3D
 
     // Layer 시스템 밖에서 직접 관리하는 신규 상시음.
     //   _electric  : 배전/케이블 계통의 전기 치치직 (electric_crackle_loop)
-    //   _sensorWhir: 책상 위 센서 단말이 계속 도는 소리 (crt_hum 을 올려 얇은 회전음처럼)
+    //   _sensorWhir: 책상 위 패드 거치대의 상시 구동음 (crt_hum 을 올려 얇은 회전음처럼)
     //   _breath    : 플레이어 본인의 숨소리 (에셋 없음 — 런타임에 필터드 노이즈로 생성)
     private AudioStreamPlayer3D _electric;
     private AudioStreamPlayer3D _sensorWhir;
@@ -247,7 +248,7 @@ public partial class ControlRoomAtmosphere : Node3D
         TickOneShots(d);
     }
 
-    // 배전 치치직 / 센서 회전음 / 숨소리. Layer 시스템(_all) 밖에서 상태별로 직접 몬다.
+    // 배전 치치직 / 패드 구동음 / 숨소리. Layer 시스템(_all) 밖에서 상태별로 직접 몬다.
     private void TickNewAmbience(float d, bool blackout)
     {
         bool live = _amb != Amb.Off;
@@ -269,7 +270,7 @@ public partial class ControlRoomAtmosphere : Node3D
             }
         }
 
-        // 센서 상시 회전음 — 정전이면 센서도 꺼진다. 금기 전조에는 피치가 살짝 불안정.
+        // 패드 상시 구동음 — 정전이면 패드도 꺼진다. 금기 전조에는 피치가 살짝 불안정.
         if (_sensorWhir != null)
         {
             float tgt = !live || blackout ? Silent

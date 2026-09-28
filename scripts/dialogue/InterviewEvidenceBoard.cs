@@ -56,6 +56,21 @@ public static class InterviewEvidenceBoard
         return ev;
     }
 
+    // 로그 화면의 index 번째 줄 → 자료. 같은 순간 · 같은 방 · 같은 종류의 사고 줄이 여럿이면
+    // (고장 발생 + 그 결과 같은 줄) 앞 줄부터 차례로 #2, #3 을 붙여 서로 다른 자료로 갈라 준다 —
+    // 조사 노트(AddLogRows)와 같은 규칙이다.
+    public static InterviewEvidence FromLogRow(IReadOnlyList<DisplayLogEntry> rows, int index)
+    {
+        if (rows == null || index < 0 || index >= rows.Count) return null;
+        var ev = FromLogRow(rows[index]);
+        if (ev == null) return null;
+        int dup = 0;
+        for (int i = 0; i < index; i++)
+            if (LogRowEvidence(rows[i], rows[i].RelatedEmployeeId)?.Id == ev.Id) dup++;
+        if (dup > 0) ev.Id += $"#{dup + 1}";
+        return ev;
+    }
+
     // 엿들은 대화 한 건 → 조사 자료. subjectId 는 둘 중 누구의 자료로 볼 것인가
     // (비우면 먼저 말한 사람). Id 는 누구의 자료로 보든 같다.
     public static InterviewEvidence FromOverheard(PlayerKnownEvidence.OverheardRecord h, string subjectId = "")
@@ -156,10 +171,16 @@ public static class InterviewEvidenceBoard
     private static void AddLogRows(List<InterviewEvidence> list, List<DisplayLogEntry> rows, string target)
     {
         if (rows == null) return;
+        var seen = new Dictionary<string, int>();
         foreach (var r in rows)
         {
             var ev = LogRowEvidence(r, target);
-            if (ev != null) list.Add(ev);
+            if (ev == null) continue;
+            // 같은 Id 가 또 나오면(같은 순간의 사고 줄 둘) #2, #3 으로 가른다(FromLogRow 와 같은 규칙).
+            int n = seen.GetValueOrDefault(ev.Id) + 1;
+            seen[ev.Id] = n;
+            if (n > 1) ev.Id += $"#{n}";
+            list.Add(ev);
         }
     }
 

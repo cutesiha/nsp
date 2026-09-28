@@ -74,6 +74,7 @@ public partial class PlayerCharacter : Node3D
     private Quaternion[] _restLocalRot;
 
     public Node3D HandSocket { get; private set; }        // Rig/A_Hand_R/HandSocket (수화기 부착점)
+    public Node3D HandSocketL { get; private set; }       // Rig/A_Hand_L/HandSocketL (관리자 패드 부착점)
 
     public override void _Ready()
     {
@@ -90,6 +91,14 @@ public partial class PlayerCharacter : Node3D
         {
             HandSocket = new Marker3D { Name = "HandSocket", Position = new Vector3(0f, -0.05f, 0.01f) };
             aHand.AddChild(HandSocket);
+        }
+        // 왼손 소켓(관리자 패드) — 오른손 소켓을 좌우로 뒤집은 자리. 씬에 있으면 그것을 쓴다.
+        HandSocketL = _skel.GetNodeOrNull<Node3D>("A_Hand_L/HandSocketL");
+        if (HandSocketL == null && _skel.GetNodeOrNull<Node3D>("A_Hand_L") is { } aHandL)
+        {
+            var src = HandSocket?.Transform ?? new Transform3D(Basis.Identity, PalmGripOffset);
+            HandSocketL = new Marker3D { Name = "HandSocketL", Position = MirrorX(src.Origin) };
+            aHandL.AddChild(HandSocketL);
         }
         // 씬에 마디 노드(BoneAttachment3D)가 하나도 없는 구버전에서만 코드로 스킨을 만든다.
         if (!HasAuthoredLimbs() && SkinCount() == 0) BuildSkinMesh();
@@ -448,6 +457,9 @@ public partial class PlayerCharacter : Node3D
         public float AimMaxDeg = 170f;          // 이 스텝에서 팔꿈치가 굽을 수 있는 최대각
         public float UpperGiveDeg = 80f;        // 이 스텝에서 상완이 FK 에서 틀 수 있는 최대각(작게=어깨 더 고정)
         public System.Action OnArrive;          // In 끝나는 순간 1회 (내부 콜백)
+        // 손(= 손 소켓)의 월드 방향 목표. 있으면 팔 IK 뒤에 손목을 돌려 이 방향에 정확히 맞춘다.
+        // 물건을 "그 방향으로" 쥐어야 할 때(관리자 패드의 가장자리) 쓴다. null 이면 FK 손목 그대로.
+        public System.Func<Basis> AimBasis;
     }
 
     // 팔 하나의 재생 상태. 오른팔(전화 · 스위치 · 패드 누르기)과 왼팔(패드 들기)은 따로 돈다 —
@@ -571,9 +583,26 @@ public partial class PlayerCharacter : Node3D
         ch.ShiftCur = ch.ShiftFrom.Lerp(step.Pose.ShoulderShift, Smooth(baseF));
 
         // 접촉 보정 — 어깨(고정축)에서 상완은 조금, 팔꿈치가 주로 굽어 손이 목표에 닿는다.
+        // 손목 방향까지 정해진 스텝이면, 접촉점(AimTip)이 목표에 오도록 **손목 자리**를 먼저 역산해
+        // 팔은 손목을 거기로 보내고 손목이 방향을 맞춘다. (손목을 돌리면 손바닥 접촉점이 손목에서
+        // 10cm 가까이 떨어진 채 같이 돌아가므로, 접촉점을 그대로 겨누면 한참 빗나간다.)
+        Basis? aimBasis = step.AimBasis?.Invoke();
         if (step.Aim != null)
-            SolveArm(ch, step.Aim(), step.AimTip, Smooth(baseF),
+        {
+            Vector3 target = step.Aim();
+            Vector3 tip = step.AimTip;
+            if (aimBasis is { } ab)
+            {
+                float sc = _skel.GlobalTransform.Basis.Scale.X;
+                target -= ab.Orthonormalized() * (step.AimTip * sc);
+                tip = Vector3.Zero;
+            }
+            SolveArm(ch, target, tip, Smooth(baseF),
                      Mathf.Min(UpperArmGiveDeg, step.UpperGiveDeg), Mathf.Min(MaxAimDeg, step.AimMaxDeg));
+        }
+        // 손목 방향 — 팔이 자리를 잡은 뒤, 손이 목표 방향을 향하도록 손목만 돌린다.
+        if (aimBasis is { } basis)
+            SolveWrist(ch, basis, Smooth(baseF));
 
         if (!ch.StepArrived && baseF >= 1f)
         {
@@ -655,6 +684,23 @@ public partial class PlayerCharacter : Node3D
         Quaternion wF = new Quaternion(Vector3.Down, solvedFore);
         ch.PoseCur[up] = qU.Slerp(wU, weight).Normalized();
         ch.PoseCur[fore] = qF.Slerp((ch.PoseCur[up].Inverse() * wF).Normalized(), weight).Normalized();
+    }
+
+    // 손목 방향 IK — 손 뼈의 월드 회전이 target 이 되도록 손목(Hand) 로컬 회전만 정한다.
+    // rest 회전이 전부 항등이라 월드 회전 = 리그 회전 × 가슴 × 어깨 × 상완 × 전완 × 손.
+    private void SolveWrist(ArmChannel ch, Basis target, float weight)
+    {
+        if (weight <= 0.001f || _skel == null) return;
+        string hand = ch.B("Hand_R");
+        if (!_bone.ContainsKey(hand)) return;
+
+        Quaternion parent = _skel.GlobalTransform.Basis.Orthonormalized().GetRotationQuaternion();
+        if (_bone.TryGetValue("Chest", out int chest)) parent *= _skel.GetBonePoseRotation(chest);
+        foreach (string b in new[] { "Shoulder_R", "UpperArm_R", "Forearm_R" })
+            parent *= ch.PoseCur.GetValueOrDefault(ch.B(b), Quaternion.Identity);
+
+        Quaternion want = (parent.Inverse() * target.Orthonormalized().GetRotationQuaternion()).Normalized();
+        ch.PoseCur[hand] = ch.PoseCur.GetValueOrDefault(hand, Quaternion.Identity).Slerp(want, weight).Normalized();
     }
 
     private static Vector3 LimitDir(Vector3 from, Vector3 to, float maxDeg)
@@ -836,33 +882,37 @@ public partial class PlayerCharacter : Node3D
     // ─────────────────────────────────────────────────────────────
     //  관리자 패드 — 왼손이 들고, 누르기는 화면 왼쪽 = 왼손 엄지 / 오른쪽 = 오른손 검지
     // ─────────────────────────────────────────────────────────────
-    // 포즈는 전부 오른팔 기준으로 쓰고 왼팔 채널이 뒤집는다(Mirror). 접촉 위치는 IK(Aim)가
-    // 맞추므로 여기 값은 "어떤 모양의 손인가"만 정한다 — 정확한 IK 가 아니라 근사치다.
+    // 손은 패드의 그립 마커(위치 + 방향)를 따라간다. 위치는 팔 IK(Aim), 방향은 손목 IK(AimBasis)가
+    // 맞추고, 패드는 왼손 소켓(HandSocketL)에 붙어 따라온다(Phone3D 수화기와 같은 방식).
+    // 포즈는 오른팔 기준으로 쓰고 왼팔 채널이 뒤집는다(Mirror) — 여기 값은 "손 모양"만 정한다.
     [ExportGroup("관리자 패드 손")]
-    [Export] public Vector3 PadShoulderShift = new(0f, -0.01f, -0.03f);
-    [Export] public Vector3 PadWrist = new(-30f, 20f, 0f);
+    [Export] public Vector3 PadShoulderShift = new(-0.04f, -0.01f, -0.05f);
     [Export] public float PadUpperArmDeg = 18f;
     [Export] public float PadElbowDeg = 96f;
+    // 뒷면을 받치는 네 손가락의 굽힘(도). 크면 손가락이 패드를 뚫는다.
+    [Export] public float PadFingerCurl = 32f;
+    // 엄지 — 옆 가장자리를 넘어 앞 베젤 위로 오도록 손바닥 쪽으로 모으고(Opp) 살짝 굽힌다(Curl).
+    [Export] public float PadThumbOpp = 48f;
+    [Export] public float PadThumbCurl = 18f;
 
-    // 패드 가장자리를 쥔 손 — 엄지는 화면 쪽 테두리, 나머지 손가락은 뒷면을 받친다.
     private ArmPose PosePadHold()
     {
         var p = new ArmPose()
             .Sh(PadShoulderShift)
             .S("UpperArm_R", PadUpperArmDeg, -4, 6)
             .S("Forearm_R", PadElbowDeg, 0, -8)
-            .S("Hand_R", PadWrist.X, PadWrist.Y, PadWrist.Z);
-        void C(string f, float a) => p.S($"{f}_R_1", a, 0, 0).S($"{f}_R_2", a * 1.1f, 0, 0).S($"{f}_R_3", a * 0.7f, 0, 0);
-        C("Index", 50); C("Middle", 56); C("Ring", 58); C("Pinky", 52);
-        p.S("Thumb_R_1", -8, 0, -18).S("Thumb_R_2", -12, 0, 0);
+            .S("Hand_R", 0, 0, 0);   // 손목 방향은 SolveWrist 가 그립 마커에 맞춘다
+        void C(string f, float a) => p.S($"{f}_R_1", a, 0, 0).S($"{f}_R_2", a * 0.8f, 0, 0).S($"{f}_R_3", a * 0.5f, 0, 0);
+        C("Index", PadFingerCurl); C("Middle", PadFingerCurl + 2f); C("Ring", PadFingerCurl + 4f); C("Pinky", PadFingerCurl + 6f);
+        p.S("Thumb_R_1", -6, 0, -PadThumbOpp).S("Thumb_R_2", -PadThumbCurl, 0, 0);
         return p;
     }
 
-    // 엄지로 화면을 누른다 — 쥔 손은 그대로, 엄지만 화면 안쪽으로 굽힌다.
+    // 엄지로 화면을 누른다 — 쥔 손은 그대로, 엄지만 화면 쪽으로 더 굽힌다.
     private ArmPose PosePadThumbPress()
     {
         var p = PosePadHold();
-        p.S("Thumb_R_1", -22, 0, -42).S("Thumb_R_2", -38, 0, 0);
+        p.S("Thumb_R_1", -14, 0, -PadThumbOpp - 10f).S("Thumb_R_2", -PadThumbCurl - 26f, 0, 0);
         return p;
     }
 
@@ -876,30 +926,45 @@ public partial class PlayerCharacter : Node3D
         return hand * (left ? MirrorX(PalmGripOffset) : PalmGripOffset);
     }
 
-    // 책상 위 패드를 왼손으로 집는다: 뻗기 → 쥐기(쥔 순간 onGripped) → 든 채로 패드를 계속 따라간다.
-    // grip 은 매 프레임 다시 읽는다 — 패드가 들려 올라오는 동안 손이 그 가장자리에 붙어 있다.
-    public void PlayPadPickup(System.Func<Vector3> grip, System.Action onGripped)
+    // 스텝 하나가 그립 마커(월드 트랜스폼)를 위치 · 방향 모두 따라가게 한다.
+    private static Step PadStep(ArmPose pose, float inSec, float hold, System.Func<Transform3D> grip,
+        System.Action onArrive = null, bool stagger = false) => new()
+    {
+        Pose = pose, In = inSec, Hold = hold, Stagger = stagger, UpperGiveDeg = 170f, AimMaxDeg = 175f,
+        Aim = () => grip().Origin, AimBasis = () => grip().Basis, AimTip = new Vector3(0f, -0.05f, 0.01f),
+        OnArrive = onArrive,
+    };
+
+    // 거치대의 패드를 왼손으로 집어 든다:
+    //   뻗기 → 쥐기(쥔 순간 onGripped — 이때부터 패드가 손을 따라온다) → 들어 올리기(onLifted) → 든 채로 유지.
+    // cradle / hold 는 그립 마커의 월드 트랜스폼(거치대 위 · 들었을 때). 매 프레임 다시 읽는다.
+    public void PlayPadPickup(System.Func<Transform3D> cradle, System.Func<Transform3D> hold, float liftSeconds,
+        System.Action onGripped, System.Action onLifted)
     {
         StartSequence(_armL, new List<Step>
         {
-            new() { Pose = PoseReach(), In = 0.30f, Hold = 0.02f, UpperGiveDeg = 95f, Aim = grip, AimTip = PalmGripOffset },
-            new() { Pose = PoseGrip(), In = 0.18f, Hold = 0.02f, Stagger = true, UpperGiveDeg = 95f,
-                    Aim = grip, AimTip = PalmGripOffset, OnArrive = onGripped },
-            new() { Pose = PosePadHold(), In = 0.45f, Hold = HoldForever, UpperGiveDeg = 120f, AimMaxDeg = 175f,
-                    Aim = grip, AimTip = PalmGripOffset },
+            PadStep(PoseReach(), 0.30f, 0.02f, cradle),
+            PadStep(PosePadHold(), 0.16f, 0.02f, cradle, onGripped, stagger: true),
+            PadStep(PosePadHold(), Mathf.Max(0.05f, liftSeconds), 0f, hold, onLifted),
+            PadStep(PosePadHold(), 0.01f, HoldForever, hold),
         });
     }
 
+    // 들고 있는 손 모양을 지금 값(Pad* Export)으로 다시 잡는다 — 인스펙터에서 튜닝할 때 쓴다.
+    public void PlayPadHold(System.Func<Transform3D> hold)
+    {
+        if (!_armL.Visible) return;
+        StartSequence(_armL, new List<Step> { PadStep(PosePadHold(), 0.15f, HoldForever, hold) });
+    }
+
     // 화면 왼쪽을 눌렀다 — 들고 있는 왼손의 엄지가 짧게 누르고 다시 쥔다.
-    public void PlayPadThumbTap(System.Func<Vector3> grip)
+    public void PlayPadThumbTap(System.Func<Transform3D> hold)
     {
         if (!_armL.Visible) return;
         StartSequence(_armL, new List<Step>
         {
-            new() { Pose = PosePadThumbPress(), In = 0.08f, Hold = 0.06f, UpperGiveDeg = 120f, AimMaxDeg = 175f,
-                    Aim = grip, AimTip = PalmGripOffset },
-            new() { Pose = PosePadHold(), In = 0.12f, Hold = HoldForever, UpperGiveDeg = 120f, AimMaxDeg = 175f,
-                    Aim = grip, AimTip = PalmGripOffset },
+            PadStep(PosePadThumbPress(), 0.08f, 0.06f, hold),
+            PadStep(PosePadHold(), 0.12f, HoldForever, hold),
         });
     }
 
@@ -924,15 +989,14 @@ public partial class PlayerCharacter : Node3D
         });
     }
 
-    // 패드를 내려놓는다: 든 채로 패드를 따라 내려간다(seconds) → 손을 펴고(onReleased) → 팔을 거둔다.
-    public void PlayPadPutDown(System.Func<Vector3> grip, float seconds, System.Action onReleased)
+    // 패드를 거치대로 돌려놓는다: 든 채로 거치대 그립 자리까지 내려간다(seconds — 도착 onPlaced,
+    // 이때 패드가 손에서 떨어져 거치대에 놓인다) → 손을 펴고 → 팔을 거둔다.
+    public void PlayPadPutDown(System.Func<Transform3D> cradle, float seconds, System.Action onPlaced)
     {
         StartSequence(_armL, new List<Step>
         {
-            new() { Pose = PoseGrip(), In = Mathf.Max(0.05f, seconds), Hold = 0f, UpperGiveDeg = 110f, AimMaxDeg = 175f,
-                    Aim = grip, AimTip = PalmGripOffset },
-            new() { Pose = PoseReach(), In = 0.14f, Hold = 0f, Stagger = true, UpperGiveDeg = 95f,
-                    Aim = grip, AimTip = PalmGripOffset, OnArrive = onReleased },
+            PadStep(PosePadHold(), Mathf.Max(0.05f, seconds), 0f, cradle, onPlaced),
+            PadStep(PoseReach(), 0.14f, 0f, cradle, stagger: true),
             new() { Pose = PoseIdle(), In = 0.35f, Hold = 0f, Stagger = true,
                     OnArrive = () => SetArmVisible(_armL, false) },
         });

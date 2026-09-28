@@ -124,13 +124,15 @@ public static class ClueBoard
 
     // 사건 순간의 CCTV 한 컷. 그 사고가 이미 찍혀 있으면 바로 붙이고, 아니면 기다렸다가
     // 찍히는 순간 붙인다. 관리자가 보고 있던 방의 것만 들어온다(CctvSnapshotRecorder).
+    // 같은 순간 · 같은 방에서 겹친 사고 줄("…#2")도 같은 한 컷을 쓴다.
     public static void OfferSnapshot(int day, string evidenceId, Texture2D snapshot)
     {
         if (string.IsNullOrEmpty(evidenceId) || snapshot == null) return;
-        var entry = Find(day, evidenceId);
-        if (entry != null) { entry.Snapshot = snapshot; return; }
-        _pendingSnapshots.RemoveAll(p => p.Day == day && p.Id == evidenceId);
-        _pendingSnapshots.Add((day, evidenceId, snapshot));
+        string key = BaseId(evidenceId);
+        foreach (var e in _entries)
+            if (e.Day == day && BaseId(e.EvidenceId) == key) e.Snapshot = snapshot;
+        _pendingSnapshots.RemoveAll(p => p.Day == day && p.Id == key);
+        _pendingSnapshots.Add((day, key, snapshot));
         while (_pendingSnapshots.Count > MaxPendingSnapshots) _pendingSnapshots.RemoveAt(0);
     }
 
@@ -140,9 +142,18 @@ public static class ClueBoard
 
     private static Texture2D PendingSnapshot(int day, string evidenceId)
     {
+        if (string.IsNullOrEmpty(evidenceId)) return null;
+        string key = BaseId(evidenceId);
         foreach (var p in _pendingSnapshots)
-            if (p.Day == day && p.Id == evidenceId) return p.Tex;
+            if (p.Day == day && p.Id == key) return p.Tex;
         return null;
+    }
+
+    // "incident:…#2" → "incident:…" (InterviewEvidenceBoard 가 겹친 줄에 붙이는 순번을 뗀다).
+    private static string BaseId(string id)
+    {
+        int k = id.LastIndexOf('#');
+        return k > 0 && int.TryParse(id.AsSpan(k + 1), out _) ? id[..k] : id;
     }
 
     // 관리자 패드를 열어 새 단서를 확인했다.

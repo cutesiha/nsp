@@ -1,8 +1,190 @@
-[gd_resource type="Resource" script_class="PadManualDef" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="PadManualDef" load_steps=34 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/PadManualDef.cs" id="1_manual"]
+[ext_resource type="Script" path="res://scripts/data/PadManualChapterDef.cs" id="2_chapter"]
+[ext_resource type="Script" path="res://scripts/data/PadManualPageDef.cs" id="3_page"]
+
+[sub_resource type="Resource" id="page_1"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/cutscene/prologue/archive_01_facility.png"
+Title = "국가특수에너지연구원"
+Lines = PackedStringArray("이 시설은 미지의 개체 ‘존재’가 내는 에너지를", "연구하며, 외부와 단절된 채 운영되어 왔습니다.", "시설의 중심에는 생명 유지와 외부 차폐를", "담당하는 봉쇄 코어가 있습니다.")
+
+[sub_resource type="Resource" id="page_2"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/cutscene/prologue/disaster_08_core_drop.png"
+Title = "대재난"
+Lines = PackedStringArray("지상에서 대규모 재난이 발생했고,", "시설 내부의 격리 시스템도 함께 무너졌습니다.", "그 과정에서 봉쇄 코어가 심각하게 손상되었고,", "전임 총괄 관리자는 사고 당시 사망했습니다.")
+
+[sub_resource type="Resource" id="page_3"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/desk.png"
+Title = "관리 권한 승계"
+Lines = PackedStringArray("사고 전까지 관제 업무를 맡던 당신에게", "비상 승계 규정에 따라 모든 권한이 넘어왔습니다.", "직원 배치와 시설 운영의 최종 판단은", "이제 관리자님의 몫입니다.")
+
+[sub_resource type="Resource" id="page_4"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/cutscene/prologue/archive_04_core.png"
+Title = "최종 목표"
+Lines = PackedStringArray("비상 차폐는 앞으로 120시간(5일)만 유지됩니다.", "그 안에 봉쇄 코어를 100%까지 복구하십시오.", "직원 여섯 명 사이에 정체불명의 개체가 숨어 있습니다.", "시설 로그와 진술을 맞대어 찾아내십시오.")
+
+[sub_resource type="Resource" id="page_5"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/schedule.png"
+Title = "① 근무 배치"
+Lines = PackedStringArray("근무 전, 두 모니터가 배치 콘솔이 됩니다.", "직원을 작업실로 끌어다 놓고 「근무 시작」을 누르십시오.", "코어실에는 최소 한 명이 있어야 합니다.")
+
+[sub_resource type="Resource" id="page_6"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/desk.png"
+Title = "② 실시간 근무"
+Lines = PackedStringArray("왼쪽 모니터는 시설 지도, 오른쪽은 CCTV입니다.", "사고가 나면 직원을 다른 방으로 옮겨 수습하십시오.", "그날의 필수 업무(T)를 끝내야 근무를 마칠 수 있습니다.")
+
+[sub_resource type="Resource" id="page_7"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/report.png"
+Title = "③ 정산"
+Lines = PackedStringArray("근무를 마치면 그날의 코어 복구율, 자재,", "사고 기록이 정리된 보고서가 나옵니다.")
+
+[sub_resource type="Resource" id="page_8"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/rest.png"
+Title = "④ 휴게시간"
+Lines = PackedStringArray("직원을 골라 수화기를 들면 심문이 시작됩니다.", "의심스러운 직원은 이때 격리할 수 있습니다.", "휴게시간이 끝나면 다음 날 배치로 넘어갑니다.")
+
+[sub_resource type="Resource" id="page_9"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/facility_map.png"
+Title = "왼쪽 모니터 · 시설 지도"
+Lines = PackedStringArray("작업실과 직원의 위치, 방마다의 진행이 보입니다.", "방이나 직원을 누르면 CCTV가 그곳을 비춥니다.", "숫자 키 1로 확대합니다.")
+
+[sub_resource type="Resource" id="page_10"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/cctv.png"
+Title = "오른쪽 모니터 · CCTV"
+Lines = PackedStringArray("고른 방의 영상과 소리가 들어옵니다.", "같은 방의 두 사람이 나누는 대화가 들리기도 합니다.", "들은 대화는 F 키나 자막 클릭으로 보관합니다.", "숫자 키 2로 확대합니다.")
+
+[sub_resource type="Resource" id="page_11"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/phone.png"
+Title = "전화기"
+Lines = PackedStringArray("수화기를 들어 직원에게 직접 걸 수 있고,", "직원이 먼저 걸어오기도 합니다.", "직원의 진술이 모두 진실이라는 보장은 없습니다.")
+
+[sub_resource type="Resource" id="page_12"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/power_panel.png"
+Title = "전력 패널과 이 패드"
+Lines = PackedStringArray("세 채널은 조명 · CCTV · 패드입니다.", "켤 수 있는 채널 수는 전력 용량만큼이며, 정전이 나면 줄어듭니다.", "패드 채널이 꺼지면 이 단말기와 사고 예고도 꺼집니다.", "패드는 Tab 또는 숫자 키 3으로 꺼냅니다.")
+
+[sub_resource type="Resource" id="page_13"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/cctv_power.png"
+Title = "작업실 사고"
+Lines = PackedStringArray("작업실 업무를 방치하면 설비가 고장 납니다.", "고장이 가까워지면 이 패드에 예고가 뜹니다.", "예고된 방으로 직원을 보내 막으십시오.")
+
+[sub_resource type="Resource" id="page_14"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/cctv_power.png"
+Title = "방해공작"
+Lines = PackedStringArray("누군가 일부러 설비를 망가뜨리기도 합니다.", "시스템은 범인의 신원을 알려주지 않습니다.", "그 순간 CCTV로 보고 있었다면 화면이 단서가 됩니다.")
+
+[sub_resource type="Resource" id="page_15"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/anomaly.png"
+Title = "이상 개체"
+Lines = PackedStringArray("정체불명의 개체는 경고 없이 작업실에 나타납니다.", "패드 알림에도 잡히지 않습니다.", "CCTV를 직접 돌려 찾으십시오.")
+
+[sub_resource type="Resource" id="page_16"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/cctv.png"
+Title = "관측 규칙"
+Lines = PackedStringArray("개체는 관측되는 것을 견디지 못합니다.", "찾았다면 화면을 돌리지 말고 그대로 계속 보십시오.", "놓친 개체는 그 방에 사고를 일으킵니다.")
+
+[sub_resource type="Resource" id="page_17"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/pin_log.png"
+Title = "단서 보관"
+Lines = PackedStringArray("시설 로그(L)의 이동 · 사고 줄에서 ☆를 누르면", "이 패드의 단서 앱에 보관됩니다.", "CCTV로 엿들은 대화도 단서로 보관할 수 있습니다.")
+
+[sub_resource type="Resource" id="page_18"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/interview.png"
+Title = "휴게시간 심문"
+Lines = PackedStringArray("휴게시간에 직원에게 전화를 걸어 심문합니다.", "조사 자료를 골라 그 자료로 질문하십시오.", "대답은 대화 기록(D)과 단서의 「관련 진술」에 남습니다.")
+
+[sub_resource type="Resource" id="page_19"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/interview.png"
+Title = "모순 추궁"
+Lines = PackedStringArray("두 자료를 함께 들이밀어 보십시오.", "진술과 기록이 어긋나면 추궁이 성립합니다.", "성립하지 않아도 직원은 대답합니다.")
+
+[sub_resource type="Resource" id="page_20"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/isolation.png"
+Title = "격리 판단"
+Lines = PackedStringArray("충분히 의심되는 직원은 격리실로 보낼 수 있습니다.", "격리된 직원은 근무에서 빠집니다.", "일할 직원이 없으면 시설은 무너집니다.")
+
+[sub_resource type="Resource" id="page_21"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/staff_app.png"
+Title = "스트레스"
+Lines = PackedStringArray("사고, 개체, 불편한 동료는 스트레스를 올립니다.", "구간은 정상 → 주의 → 위험 → 기절 순입니다.", "주의 구간에 든 직원부터 눈여겨보십시오.")
+
+[sub_resource type="Resource" id="page_22"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/medical.png"
+Title = "기절과 의무실"
+Lines = PackedStringArray("스트레스가 한계를 넘으면 직원이 쓰러집니다.", "동료가 의무실 침대로 옮겨야 회복됩니다.", "의무실은 스트레스가 높은 직원도 회복시킵니다.")
+
+[sub_resource type="Resource" id="page_23"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/vent.png"
+Title = "환기실"
+Lines = PackedStringArray("환기실은 공조를 유지해 스트레스 상승을 억제합니다.", "환기실을 비우면 직원들의 스트레스가 더 빨리 오릅니다.")
+
+[sub_resource type="Resource" id="page_24"]
+script = ExtResource("3_page")
+ImagePath = "res://assets/pad/manual/staff_app.png"
+Title = "관계"
+Lines = PackedStringArray("사이가 아주 나쁜 두 사람은 같은 방을 거부합니다.", "불편한 사이를 같이 두면 일이 느려지고,", "긴장과 말다툼으로 스트레스가 쌓입니다.", "직원 앱에서 누구와 사이가 좋은지 확인하십시오.")
+
+[sub_resource type="Resource" id="chapter_1"]
+script = ExtResource("2_chapter")
+Title = "배치 안내"
+IconPath = "res://assets/cutscene/prologue/archive_04_core.png"
+Pages = Array[Resource]([SubResource("page_1"), SubResource("page_2"), SubResource("page_3"), SubResource("page_4")])
+
+[sub_resource type="Resource" id="chapter_2"]
+script = ExtResource("2_chapter")
+Title = "근무 절차"
+IconPath = "res://assets/pad/manual/schedule.png"
+Pages = Array[Resource]([SubResource("page_5"), SubResource("page_6"), SubResource("page_7"), SubResource("page_8")])
+
+[sub_resource type="Resource" id="chapter_3"]
+script = ExtResource("2_chapter")
+Title = "제어실 장비"
+IconPath = "res://assets/pad/manual/desk.png"
+Pages = Array[Resource]([SubResource("page_9"), SubResource("page_10"), SubResource("page_11"), SubResource("page_12")])
+
+[sub_resource type="Resource" id="chapter_4"]
+script = ExtResource("2_chapter")
+Title = "근무 중 위협"
+IconPath = "res://assets/pad/manual/anomaly.png"
+Pages = Array[Resource]([SubResource("page_13"), SubResource("page_14"), SubResource("page_15"), SubResource("page_16")])
+
+[sub_resource type="Resource" id="chapter_5"]
+script = ExtResource("2_chapter")
+Title = "결번자 색출"
+IconPath = "res://assets/pad/manual/pin_log.png"
+Pages = Array[Resource]([SubResource("page_17"), SubResource("page_18"), SubResource("page_19"), SubResource("page_20")])
+
+[sub_resource type="Resource" id="chapter_6"]
+script = ExtResource("2_chapter")
+Title = "직원 관리"
+IconPath = "res://assets/pad/manual/medical.png"
+Pages = Array[Resource]([SubResource("page_21"), SubResource("page_22"), SubResource("page_23"), SubResource("page_24")])
 
 [resource]
 script = ExtResource("1_manual")
 Title = "관리자 지침"
-Lines = PackedStringArray("# 목표", "비상 차폐가 유지되는 120시간(5일) 안에 봉쇄 코어를 100%까지 복구하십시오.", "직원 중 누군가는 개체가 둔갑한 결번자입니다. 시스템은 범인의 신원을 알려주지 않습니다. 관리자님께서 직접 알아내셔야 합니다.", "# 하루의 흐름", "① 근무 배치 — 책상 위 배치표에서 직원을 작업실에 배치하고 「근무 시작」을 누릅니다.", "② 근무 — 왼쪽 모니터(시설 지도)와 오른쪽 모니터(CCTV)로 시설을 운영합니다. 사고가 나면 직원을 끌어다 다른 방으로 옮길 수 있습니다.", "③ 정산 — 왼쪽 모니터의 「근무 종료」로 하루를 마치면 그날의 결과가 나옵니다.", "④ 휴게시간 — 직원을 골라 수화기를 들면 심문할 수 있습니다. 조사 자료로 질문하고, 두 자료를 맞대어 추궁하십시오.", "# 조작", "숫자 키 1 · 2 — 왼쪽 · 오른쪽 모니터 확대. 같은 키 또는 ESC 로 복귀.", "L — 시설 기록. 이동 · 사고 줄의 ☆ 를 누르면 이 패드에 단서로 보관됩니다.", "D — 대화 기록.  T — 오늘의 업무.", "F — CCTV 로 방금 엿들은 대화를 단서로 보관(자막을 눌러도 됩니다).", "Tab · 오른쪽 위 패드 버튼(톱니바퀴 아래) · 책상 위 패드 클릭 — 관리자 패드. 패드를 보는 동안 근무 시간은 멈춥니다. 우클릭 또는 Tab 으로 내려놓습니다.", "전화기 — 직원에게 직접 걸 수 있고, 직원이 먼저 걸기도 합니다. 직원의 진술이 모두 진실이라는 보장은 없습니다.", "# 전력", "발전실이 시설 전력을 공급합니다. 전력이 없으면 CCTV, 조명 등을 켤 수 없습니다.", "전력 패널의 세 채널은 조명 · CCTV · 센서입니다. 켤 수 있는 채널 수는 전력 용량만큼이며, 정전이 나면 용량이 줄어듭니다.", "조명 — 누가 어디에 있는지. CCTV — 무엇이 벌어지는지. 센서 — 언제, 다음에 무엇이 올지.", "# 작업실", "코어실 — 봉쇄 코어를 관리하고 복구하는 핵심 작업실입니다.", "정비실 — 코어 복구에 필요한 자재를 생산합니다. 저장고 — 자재의 상한을 관리합니다.", "경비실 — 시설을 감시합니다. 인원을 배치하면 방해공작 억제에 도움이 되고, 재석 기록이 남습니다.", "환기실 — 공조를 유지해 스트레스 상승을 억제합니다. 의무실 — 스트레스가 높은 직원을 회복시키며, 기절한 직원도 이곳으로 이송됩니다.", "# 코어와 자재", "코어 복구에는 자재가 필요합니다. 자재가 떨어지면 코어 작업이 멈춥니다 — 정비실과 저장고를 비우지 마십시오.", "그날의 필수 업무를 끝내야 근무를 종료할 수 있습니다(T — 오늘의 업무).", "# 격리", "격리실은 의심되는 직원을 다른 직원들과 분리하는 공간입니다.", "격리된 직원은 근무에서 빠집니다. 일할 수 있는 직원이 없으면 시설은 무너집니다 — 판단은 신중하게 하십시오.", "# 이상 개체", "정체불명의 개체는 센서에도 잡히지 않고 경고도 울리지 않습니다. CCTV 를 직접 돌려 찾으십시오.", "개체는 관측되는 것을 견디지 못합니다. 찾았다면 화면을 돌리지 말고 그대로 계속 보십시오.")
+Chapters = Array[Resource]([SubResource("chapter_1"), SubResource("chapter_2"), SubResource("chapter_3"), SubResource("chapter_4"), SubResource("chapter_5"), SubResource("chapter_6")])

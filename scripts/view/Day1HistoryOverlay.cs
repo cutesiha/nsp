@@ -716,7 +716,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         // 교육일(DAY0)에도 그날의 기록이 그대로 뜬다 — 1 로 못 박으면 튜토리얼이 통째로 빈다.
         _displayLog = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
             GameState.Instance?.CurrentDay ?? 1);
-        foreach (var row in _displayLog) AppendLogRow(row);
+        for (int i = 0; i < _displayLog.Count; i++) AppendLogRow(_displayLog, i);
         RefreshLogBand();
         if (_logRendered == 0) AddEmpty(_logRows, "아직 기록된 시설 로그가 없습니다.", Cyan with { A = 0.65f });
         QueueLogScroll(true, 0);
@@ -822,7 +822,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         bool stick = IsAtBottom(_logScroll);
         double old = _logScroll.GetVScrollBar().Value;
         if (_logRendered == 0) ClearRows(_logRows);
-        for (int i = _logRendered; i < rebuilt.Count; i++) AppendLogRow(rebuilt[i]);
+        for (int i = _logRendered; i < rebuilt.Count; i++) AppendLogRow(rebuilt, i);
         _displayLog = rebuilt;
         RefreshLogBand();
         QueueLogScroll(stick, old);
@@ -853,8 +853,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     // 시각은 기본색, 본문은 "직원 고유색" 또는 "중요도 색". 두 색을 한 줄에 쓰기 위해
     // RichTextLabel 을 사용한다.
-    private void AppendLogRow(DisplayLogEntry row)
+    private void AppendLogRow(List<DisplayLogEntry> rows, int index)
     {
+        var row = rows[index];
         var line = new RichTextLabel
         {
             BbcodeEnabled = true,
@@ -873,7 +874,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         // 별은 줄(RichTextLabel)의 자식으로 얹는다. 줄 하나 = 노드 하나 구조를 그대로 둬야
         // 띠 시간표의 "그 줄로 내려가기 · 밑줄 긋기"가 그대로 동작한다.
         line.AddThemeStyleboxOverride("normal", new StyleBoxEmpty { ContentMarginLeft = LogStarWidth });
-        var ev = InterviewEvidenceBoard.FromLogRow(row);
+        var ev = InterviewEvidenceBoard.FromLogRow(rows, index);
         if (ev != null) AddLogStar(line, ev);
         _logRows.AddChild(line);
         _logRendered++;

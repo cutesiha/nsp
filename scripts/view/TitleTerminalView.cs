@@ -12,7 +12,7 @@ namespace NSP.View;
 //
 // 이 뷰는 스스로 입력을 받지 않는다 — TitleRoomDirector 가 카메라 레이캐스트로 좌표를
 // 넘겨 주고(HoverAt/ItemAt), 키보드도 그쪽에서 MoveCursor/Selected 로 몰아 준다.
-// 제어실 장비(전화기/센서/전력패널)에 마우스를 올려도 같은 항목이 켜지게 하기 위해서다.
+// 제어실 장비(전화기/관리자 패드/전력패널)에 마우스를 올려도 같은 항목이 켜지게 하기 위해서다.
 //
 // ★ 문구는 전부 이 파일 위쪽 상수 블록에 모여 있다.
 public partial class TitleTerminalView : Control

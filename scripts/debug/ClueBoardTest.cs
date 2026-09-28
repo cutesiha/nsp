@@ -393,10 +393,13 @@ public partial class ClueBoardTest : Node
 
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
         Check(pad.IsOpen && AdminPad3D.PausesGame, "Tab — 꺼내는 순간부터 근무 시간이 멈춘다");
-        Check(ClueBoard.UnseenCount == 0, "패드를 열면 새 단서 뱃지가 비워진다");
+        Check(ClueBoard.UnseenCount == 1, "홈 화면에서는 새 단서 뱃지(+1)가 남아 있다");
         await Until(() => pad.IsHeld, 3000);
         Check(pad.IsHeld, "들어 올려 손에 쥐었다");
-        Check(pad.View.Current == PadView.Tab.Clues && pad.View.VisibleClues().Count == 1, "단서 탭이 열리고 단서 1장이 보인다");
+        Check(pad.View.Current == PadView.Tab.Home, "열면 언제나 홈 화면부터");
+        pad.View.OpenApp(PadView.Tab.Clues, fade: false);
+        Check(pad.View.Current == PadView.Tab.Clues && pad.View.VisibleClues().Count == 1, "단서 앱을 열면 단서 1장이 보인다");
+        Check(ClueBoard.UnseenCount == 0, "단서 앱을 열면 새 단서 뱃지가 비워진다");
         Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always, "든 동안에만 화면을 그린다");
 
         pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
@@ -438,6 +441,7 @@ public partial class ClueBoardTest : Node
         AddChild(view);
         await Frames(1);
         view.OnOpened();
+        view.OpenApp(PadView.Tab.Clues, fade: false);
         Check(total >= 7 && view.VisibleClues().Count == total, $"단서 {total}장이 모두 보인다");
         Check(view.PageCount == (total + 5) / 6, $"한 페이지 6장 — {view.PageCount}쪽");
         view.SetPage(1);
@@ -496,7 +500,20 @@ public partial class ClueBoardTest : Node
 
         view.SwitchTab(PadView.Tab.Manual);
         var manual = GD.Load<PadManualDef>(PadManualDef.DefaultPath);
-        Check(manual != null && manual.Sections().Count >= 5, $"지침 문서 섹션 {manual?.Sections().Count ?? 0}개(data/pad/manual.tres)");
+        var chapters = manual?.ChapterList() ?? new System.Collections.Generic.List<PadManualChapterDef>();
+        Check(chapters.Count == 6, $"지침 챕터 6장(data/pad/manual.tres) — {chapters.Count}장");
+        Check(chapters.All(c => c.PageList().Count is >= 2 and <= 4), "챕터마다 2~4쪽");
+        var pages = chapters.SelectMany(c => c.PageList()).ToList();
+        Check(pages.All(p => p.Lines.Length <= PadManualDef.MaxLinesPerPage && p.Lines.All(l => l.Length <= PadManualDef.MaxCharsPerLine)),
+            $"모든 쪽이 4줄 · 줄당 40자 이내 — 가장 긴 줄 {pages.SelectMany(p => p.Lines).Max(l => l.Length)}자");
+        Check(pages.All(p => !string.IsNullOrEmpty(p.ImagePath) && !string.IsNullOrEmpty(p.Title)), "모든 쪽에 그림 경로와 제목이 있다");
+        view.OpenChapter(2);
+        view.SetManualPage(1);
+        Check(view.ManualChapter == 2 && view.ManualPage == 1, "챕터를 열고 쪽을 넘긴다");
+        view.SetManualPage(99);
+        Check(view.ManualPage == chapters[2].PageList().Count - 1, "마지막 쪽을 넘지 않는다");
+        view.OpenChapter(-1);
+        Check(view.ManualChapter == -1, "◀ 목록으로 챕터 카드로 돌아간다");
         view.QueueFree();
         await Frames(1);
     }
@@ -520,6 +537,16 @@ public partial class ClueBoardTest : Node
         Check(ClueBoard.SnapshotOf(1, ev.Id) == tex && ClueBoard.Count == 0, "찍기 전에도 한 컷은 보관된다(단서는 아직 아니다)");
         ClueBoard.Pin(ev);
         Check(ClueBoard.Find(1, ev.Id).Snapshot == tex, "사고를 찍으면 그 한 컷이 따라 붙는다");
+
+        // 같은 순간 · 같은 방에서 겹친 사고 줄(#2)도 같은 한 컷을 쓴다.
+        var twin = ev.Clone();
+        twin.Id = ev.Id + "#2";
+        Check(ClueBoard.SnapshotOf(1, twin.Id) == tex, "겹친 사고 줄(#2)도 같은 한 컷을 찾는다");
+        ClueBoard.Pin(twin);
+        var tex2 = ImageTexture.CreateFromImage(img);
+        ClueBoard.OfferSnapshot(1, idAtEvent, tex2);
+        Check(ClueBoard.Find(1, twin.Id).Snapshot == tex2 && ClueBoard.Find(1, ev.Id).Snapshot == tex2,
+            "나중에 들어온 한 컷은 이미 찍힌 겹친 줄 모두에 붙는다");
 
         GameState.Instance.SetPhase(GamePhase.Live);
         Check(!CctvSnapshotRecorder.CanSee(Power) || _sim.SurveillanceTargetRoomId == Power,

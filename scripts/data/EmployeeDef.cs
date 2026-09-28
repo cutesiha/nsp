@@ -63,6 +63,10 @@ public partial class EmployeeDef : Resource
     [Export] public string SelfIntroLine = "";
     [Export] public string FavoriteFood = "";
     [Export] public string DislikedFood = "";
+    // 초상(FacePortrait)에서 머리 한가운데의 자리(UV, 0~1). 패드 직원 카드가 이 점을 칸 가운데에 둔다.
+    [Export] public Vector2 PortraitFocus = new(0.5f, 0.43f);
+    // 귀 끝~턱이 초상 높이에서 차지하는 비율. 카드 칸 높이에 이만큼이 꼭 맞게 들어간다.
+    [Export(PropertyHint.Range, "0.3,1,0.01")] public float PortraitHeadSpan = 0.74f;
 
     public int GetStat(StatType stat) => stat switch
     {

@@ -620,7 +620,7 @@ line: 관리자님께서 직접 누가 방해공작을 했는지 알아내셔야
 portrait: normal
 line: 또한, 최근 작업실에 /1정체불명의 개체/0가 목격되고 있습니다.
 portrait: sneer
-line: 해당 개체는 센서에도 잡히지 않고, 경고도 울리지 않습니다. 지금, /1한 마리/0가 들어와 있군요.
+line: 해당 개체는 관리자 패드에도 뜨지 않고, 경고도 울리지 않습니다. 지금, /1한 마리/0가 들어와 있군요.
 
 @guide tut_anomaly_find
 portrait: normal

@@ -107,6 +107,13 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
     public override void _Ready()
     {
         if (_built) return;
+        // 책상에서 치운 상태(씬에서 visible = false) — 관리자 패드 거치대로 교체되었다.
+        // 화면 뷰포트 · 경광등을 만들지 않고 잠든다. 사고 예고 데이터(AlertSystem)는 패드가 쓴다.
+        if (!Engine.IsEditorHint() && !Visible)
+        {
+            ProcessMode = ProcessModeEnum.Disabled;
+            return;
+        }
         _built = true;
         // 센서 본체만 축소된 GLB 인스턴스이므로, 화면/LED/경광등도 반드시 같은
         // 로컬 좌표계의 자식으로 넣어야 모델 위에 정확히 붙는다.
