@@ -57,6 +57,9 @@ public partial class TutorialDirector : Node
 
     public override void _ExitTree()
     {
+        // 교육 도중 씬이 내려가도(개발 허브 복귀 등) 정적 후크가 다음 씬에 남지 않게 한다.
+        IsRunning = false;
+        InterviewSession.Asked -= OnInterviewAsked;
         LocalDialogueGenerator.ScriptedAnswerOverride = null;
         if (Instance == this) Instance = null;
     }
@@ -66,7 +69,29 @@ public partial class TutorialDirector : Node
     {
         if (IsRunning) return;
         IsRunning = true;
-        _ = RunAsync();
+        _ = RunGuarded();
+    }
+
+    // 교육을 도중에 끝낸다(개발 허브에서 DAY0 근무로 곧장 들어갈 때). 남은 안내 · 사건 ·
+    // DAY1 전환은 하나도 실행하지 않고, 교육이 켜 둔 화면(자막 띠 · 얼굴창 · 강제 CCTV)만 걷는다.
+    public void Abort()
+    {
+        if (!IsRunning) return;
+        _guide?.FinishGuideNow();
+        FacilitySimulation.Instance?.ReleaseForcedSurveillance();
+        Finish();
+    }
+
+    private async Task RunGuarded()
+    {
+        try { await RunAsync(); }
+        catch (OperationCanceledException) { /* Abort — 여기서 조용히 끝난다 */ }
+    }
+
+    // 중단되었으면 대기 중이던 단계에서 곧바로 빠져나온다(다음 단계로 넘어가지 않는다).
+    private void ThrowIfAborted()
+    {
+        if (!IsRunning || !IsInstanceValid(this)) throw new OperationCanceledException();
     }
 
     private async Task RunAsync()
@@ -211,6 +236,7 @@ public partial class TutorialDirector : Node
             said = want;
             await Say(want, RoomVars(AssignRoomId));
         }
+        ThrowIfAborted();   // 중단으로 빠져나왔으면 배치 성공 연출로 넘어가지 않는다
     }
 
     // 대사에 끼울 작업실 이름. 코드의 AssignRoomId / AccidentRoomId 를 바꿔도
@@ -259,7 +285,7 @@ public partial class TutorialDirector : Node
             RingTutorialCall(caller);
             // 벨이 울리는 동안(또는 다시 걸기 전) 잠깐 기다린다.
             await Wait(1.0);
-            if (!IsRunning) return;
+            ThrowIfAborted();
         }
     }
 
@@ -408,6 +434,7 @@ public partial class TutorialDirector : Node
 
     private Task Say(string guideId, System.Collections.Generic.Dictionary<string, string> replacements = null)
     {
+        ThrowIfAborted();
         // 교육 중에는 어떤 화면도 빼앗지 않는다. 지시는 화면 아래 자막 띠가 전하고,
         // GUIDE-0 의 얼굴은 CCTV 화면 오른쪽 아래 구석의 작은 창으로만 뜬다.
         GuideCornerFace.ShowAll(true);
@@ -427,16 +454,25 @@ public partial class TutorialDirector : Node
         await Until(done);
     }
 
-    private async Task NextFrame() =>
+    private async Task NextFrame()
+    {
+        ThrowIfAborted();
         await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        ThrowIfAborted();
+    }
 
-    private async Task Wait(double seconds) =>
+    private async Task Wait(double seconds)
+    {
+        ThrowIfAborted();
         await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
+        ThrowIfAborted();
+    }
 
-    // 조건이 참이 될 때까지 매 프레임 확인한다. 씬이 사라지면 조용히 빠져나온다.
+    // 조건이 참이 될 때까지 매 프레임 확인한다. 씬이 사라지거나 교육이 중단되면 빠져나온다.
     private async Task Until(Func<bool> condition)
     {
         while (IsRunning && IsInstanceValid(this) && !condition())
             await NextFrame();
+        ThrowIfAborted();
     }
 }

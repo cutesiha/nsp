@@ -285,6 +285,8 @@ public partial class PauseMenu : CanvasLayer
         GameState.Instance?.ResetRun();
         NSP.Facility.FacilitySimulation.Instance?.ResetRun();
         EventLog.Instance?.ClearAll();
+        // 대화 기록은 한 판 동안 쌓인다 — 타이틀로 나가면 여기서 비운다.
+        DialogueHistory.Instance?.ClearAll();
         NSP.Taboo.TabooRuleSystem.Instance?.ActivateDailyTaboos(System.Array.Empty<string>());
 
         GetTree().ChangeSceneToFile(TitleScenePath);

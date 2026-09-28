@@ -203,7 +203,7 @@ public partial class RestInterviewConsole : Control
     // rows 는 시설 로그 **화면**의 줄(FacilityLogFormatter 결과)이다. EventLog 원본을
     // 넘기면 플레이어가 보지 못한 이동이 띠에 서고, 그 순간 이 화면은 추리를 대신 해 준다.
     //
-    // 핀이 되는 자료는 네 가지 — CCTV 로 직접 본 장면 · 동료의 증언 · 본인의 진술 ·
+    // 핀이 되는 자료는 다섯 가지 — CCTV 로 직접 본 장면 · 엿들은 대화 · 동료의 증언 · 본인의 진술 ·
     // 근무 전 기분이다. 시각이 없는 기분은 띠 왼쪽 끝에 선다. 시설 로그에서 온 카드
     // (이동 · 사고)는 핀이 되지 않는다 — 그건 이미 띠와 세로선 그 자체다.
     public void SetTimeline(IEnumerable<string> employeeIds, List<DisplayLogEntry> rows,
@@ -214,7 +214,7 @@ public partial class RestInterviewConsole : Control
         _board = board ?? new List<InterviewEvidence>();
         var pins = _board.Where(e => e.SubjectEmployeeId == subjectId
             && e.Kind is EvidenceKind.Cctv or EvidenceKind.Testimony
-                       or EvidenceKind.OwnStatement or EvidenceKind.Mood);
+                       or EvidenceKind.OwnStatement or EvidenceKind.Mood or EvidenceKind.Overheard);
         _band.SetData(employeeIds, _rows, pins);
         _band.SetSelected(selectedIds);
     }

@@ -285,6 +285,8 @@ public static class EvidenceContradiction
                 $"{when}경 {room}에서 사고가 있었습니다.",
             EvidenceKind.Mood =>
                 $"오늘 근무 전에는 '{ev.MoodText}' 이라고 적어 내셨습니다.",
+            EvidenceKind.Overheard =>
+                $"{when}경 {room}에서 나누신 대화가 CCTV 오디오에 잡혔습니다.",
             _ => $"{when}경 {room} 기록이 있습니다.",
         };
     }

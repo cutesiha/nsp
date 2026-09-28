@@ -32,6 +32,8 @@
 [ext_resource type="Script" uid="uid://b08v5v32yrh8a" path="res://scripts/prologue/GuideSubtitleHud.cs" id="30_guidesub"]
 [ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
 [ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
+[ext_resource type="Script" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
+[ext_resource type="Script" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -1136,6 +1138,10 @@ ScreenOffset = Vector3(0.01, 0.5, 0.19)
 [node name="SensorModel" parent="ControlRoom/AlertTerminal" unique_id=1791706101 instance=ExtResource("22_sensor_model")]
 transform = Transform3D(0.29, 0, -7.450581e-09, 0, 0.236, 0, 7.450581e-09, 0, 0.236, -0.012483373, 0, 0.02654463)
 
+[node name="AdminPad" type="Node3D" parent="ControlRoom" unique_id=771100892]
+transform = Transform3D(0.17364818, 0, 0.9848077, 0, 1, 0, -0.9848077, 0, 0.17364818, -0.19, 0.757, -0.34)
+script = ExtResource("34_adminpad")
+
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
 transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)
 script = ExtResource("15_powerpanel")
@@ -1241,7 +1247,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
-transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.16, 0.018909156)
+transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1445563, 0.018909156)
 current = true
 fov = 64.0
 near = 0.02
@@ -1279,6 +1285,9 @@ script = ExtResource("20_pwrtaboo")
 
 [node name="ShiftHud" type="CanvasLayer" parent="." unique_id=771100884]
 script = ExtResource("25_shifthud")
+
+[node name="ClueHud" type="CanvasLayer" parent="." unique_id=771100891]
+script = ExtResource("33_cluehud")
 
 [node name="Day1HistoryOverlay" type="CanvasLayer" parent="." unique_id=370666383]
 script = ExtResource("26_history")

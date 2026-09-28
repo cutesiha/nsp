@@ -67,6 +67,13 @@ public static class InterviewQuestionFactory
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskWhoWasPresent);
                 break;
 
+            // 엿들은 대화 — 그때 그 방에서 무엇을 하고 있었는지부터 묻는다.
+            // (대화 내용 자체로 추궁하는 질문은 아직 없다 — 지금은 재석 근거로만 쓴다.)
+            case EvidenceKind.Overheard:
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskPresenceReason);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskActionAtDestination);
+                break;
+
             case EvidenceKind.Mood:
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskMoodReason);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskMoodBefore);

@@ -85,10 +85,35 @@ public static class DebugEntryPoint
         if (f != null) f.SetValue(flow, System.Enum.Parse(f.FieldType, stage));
     }
 
-    // 타이틀 연출(중앙제어실 부팅)을 건너뛰게 한다 — 기존 '건너뛰기' 버튼이 쓰는 그 값이다.
-    public static void SkipTitleOnNextBoot() =>
-        typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
-            ?.SetValue(null, true);
+    // 타이틀 연출(중앙제어실 부팅)과 프롤로그를 건너뛰게 한다. 게임 화면에는 이 값을 켜는
+    // 버튼이 없다 — 개발 허브와 검사 씬만 쓴다(ShiftFlowController._skipToDay1Pending).
+    // 필드를 찾지 못하면 허브가 타이틀 위에서 진행을 억지로 밀어붙이게 되므로 크게 알린다.
+    public static void SkipTitleOnNextBoot()
+    {
+        var f = typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static);
+        if (f == null) GD.PushError("DebugEntryPoint: ShiftFlowController._skipToDay1Pending 이 없다 — 타이틀을 건너뛸 수 없다.");
+        f?.SetValue(null, true);
+    }
+
+    // 허브가 넣은 스트레스(표시 확인용) 때문에 GUIDE-0 의 "스트레스 주의" 첫 안내가 뜨지 않게 한다.
+    // 그 안내는 한 판에 한 번 뜨는 실제 게임 연출이다 — 이미 본 것으로 표시만 한다.
+    public static void SuppressStressHint(Node flow) =>
+        flow?.GetType().GetField("_stressHintShown", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?.SetValue(flow, true);
+
+    // 씬을 내려도 남는 정적 연출 상태를 걷는다 — GUIDE-0 얼굴창 · 입 모양 · 교육용 대사 후크 ·
+    // 목소리. 허브에서 DAY0 교육을 보다가 F10 으로 나와 다른 단계로 들어가면 이것들이
+    // 그대로 남아 엉뚱한 화면에 GUIDE-0 이 떠 있었다.
+    public static void ResetPresentation()
+    {
+        NSP.Prologue.GuideCornerFace.ShowAll(false);
+        NSP.Prologue.GuideCornerFace.SetLifted(false);
+        NSP.Prologue.GuideMouthAnimator.Reset();
+        EmployeeMouthAnimator.Reset();
+        NSP.Dialogue.LocalDialogueGenerator.ScriptedAnswerOverride = null;
+        Sfx.Instance?.StopVoiceBlip();
+        GameState.Instance?.SetPhase(NSP.Data.GamePhase.Prep);
+    }
 
     // --- 개발용 초기 상태 ---------------------------------------------------
     // 화면을 확인하기 좋은 값을 넣을 뿐이다. 실제 저장이나 밸런스 데이터에는 쓰지 않는다.

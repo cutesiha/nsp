@@ -172,6 +172,8 @@ public partial class Phone3D : Node3D
                 _autoPickupAt = -1;
                 PickUp();
             }
+            // 관리자 패드를 보는 동안에는 근무 시간이 멈춘다 — 직원이 기다리는 시간도 늘어난다.
+            if (AdminPad3D.PausesGame && _patienceUntil > 0) _patienceUntil += delta;
             // 캐릭터별 대기시간이 지나면 직원이 전화를 포기한다.
             if (_isIncoming && _patienceUntil > 0 && Time.GetTicksMsec() / 1000.0 >= _patienceUntil)
                 GiveUp();
@@ -208,6 +210,8 @@ public partial class Phone3D : Node3D
 
         // 근무 중(Live) 또는 휴게시간(Rest)에만 조작 가능 — 시작 화면 / 근무 배치 단계에서는 무시한다.
         if (_state == PhoneState.Idle && GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+        // 관리자 패드를 든 동안에는 수화기를 집지 않는다 — 패드를 내려놓고 받는다.
+        if (AdminPad3D.Instance?.IsOpen == true) return;
 
         if (_state == PhoneState.Idle) StartOutgoing();
         else if (_state == PhoneState.Ringing) PickUp();

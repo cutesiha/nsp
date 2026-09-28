@@ -44,11 +44,22 @@ public partial class SeatedCameraRig : Node3D
     private float _phoneTiltWeight;
     private Tween _phoneTiltTween;
 
+    // 관리자 패드를 볼 때 — 모니터를 보다가 손에 든 패드로 시선이 내려가는 자세.
+    // 고개를 숙이고(회전) 몸을 살짝 앞으로 당긴다(위치).
+    // 고개 숙임은 리그가 아니라 카메라(눈) 자체를 돌린다 — 리그의 회전 중심은 바닥에 있어서
+    // 리그를 17° 숙이면 머리가 30cm 넘게 앞으로 밀려나 손에 든 패드를 지나쳐 버린다.
+    [Export] public Vector3 PadTiltDegrees = new(-17f, 0f, 0f);
+    [Export] public Vector3 PadLeanMeters = new(0f, -0.02f, -0.03f);
+    private float _padWeight;
+    private Tween _padTween;
+    private Transform3D _cameraBase = Transform3D.Identity;
+
     public bool IsZoomed => _zoomed;
 
     public override void _Ready()
     {
         _camera = GetNodeOrNull<Camera3D>("Camera3D");
+        if (_camera != null) _cameraBase = _camera.Transform;
         _seatPos = _basePos = Position;
         _seatRotDeg = _baseRotDeg = RotationDegrees;
     }
@@ -69,8 +80,37 @@ public partial class SeatedCameraRig : Node3D
         }
 
         rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight + _collapseRotDeg;
-        Position = pos + _collapsePos;
+        Position = pos + _collapsePos + PadLeanMeters * _padWeight;
         RotationDegrees = rot;
+
+        // 패드 자세 — 눈 위치는 그대로 두고 고개만 숙인다(카메라 로컬 회전).
+        if (_camera != null)
+        {
+            var tilt = PadTiltDegrees * _padWeight * (1f / Rad2Deg);
+            _camera.Transform = new Transform3D(_cameraBase.Basis * Basis.FromEuler(tilt), _cameraBase.Origin);
+        }
+    }
+
+    // 패드 자세 — 고개를 숙여 손에 든 패드를 본다(true) / 모니터로 되돌린다(false).
+    // 확대 중이었다면 먼저 자리로 돌아온다(패드와 CRT 확대는 함께 쓰지 않는다).
+    public void PadPosture(bool on, float dur = 0.3f)
+    {
+        if (on && _zoomed) ReturnToSeat(dur);
+        if (on) ClearFocus(dur);
+        _padTween?.Kill();
+        _padTween = CreateTween();
+        _padTween.TweenMethod(Callable.From<float>(v => _padWeight = v), _padWeight, on ? 1f : 0f, dur)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
+    }
+
+    // 자리에 똑바로 앉아 모니터를 보는 카메라의 월드 자세(숨쉬기 · 기울임 · 확대 없이).
+    // 패드를 들어 올릴 자리는 여기서 잰다 — 고개를 숙이는 중인 카메라로 재면 자리가 흔들린다.
+    public Transform3D SeatedCameraGlobal()
+    {
+        var seat = new Transform3D(Basis.FromEuler(_seatRotDeg * (1f / Rad2Deg)), _seatPos);
+        var parent = GetParentOrNull<Node3D>();
+        var world = (parent?.GlobalTransform ?? Transform3D.Identity) * seat;
+        return _camera != null ? world * _cameraBase : world;
     }
 
     // 머리를 맞고 책상에 엎어진다 — 시점이 빠르게 아래로 떨어지며 앞으로 고꾸라진다.
@@ -118,7 +158,7 @@ public partial class SeatedCameraRig : Node3D
         if (_camera == null) return;
         Vector3 camPos = screenCenterWorld + screenNormalWorld.Normalized() * distance;
         var camWorld = new Transform3D(Basis.Identity, camPos).LookingAt(screenCenterWorld, Vector3.Up);
-        Transform3D rigWorld = camWorld * _camera.Transform.AffineInverse();
+        Transform3D rigWorld = camWorld * _cameraBase.AffineInverse();
         _zoomed = true;
         _focusWeight = 0f;
         TweenBaseTo(rigWorld.Origin, rigWorld.Basis.GetEuler() * Rad2Deg, dur);

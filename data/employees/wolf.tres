@@ -34,3 +34,9 @@ StartRoomId = "guard_room"
 IconColor = Color(0.56, 0.57, 0.60, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
+
+Gender = "남성(추정)"
+ShortProfileLine = "과묵하고 침착하다. 위험한 일은 먼저 맡으려는 책임감이 있다."
+SelfIntroLine = "늑대입니다. 맡은 일은 끝까지 합니다."
+FavoriteFood = "소금만 친 스테이크"
+DislikedFood = "지나치게 단 디저트"

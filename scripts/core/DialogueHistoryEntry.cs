@@ -29,4 +29,10 @@ public sealed class DialogueHistoryEntry
     public DialogueEntryType EntryType;
     public string Text = "";
     public DialogueConversationType ConversationType;
+    // 이 말이 어떤 조사 자료를 들고 한 질문(과 그 대답)인가 — 휴게시간 심문에서만 채워진다.
+    // 추궁처럼 두 장을 함께 들이밀면 두 Id 가 다 들어간다. 관리자 패드의 「관련 진술」이 쓴다.
+    public System.Collections.Generic.List<string> EvidenceIds = new();
+
+    public bool Mentions(string evidenceId) =>
+        !string.IsNullOrEmpty(evidenceId) && EvidenceIds.Contains(evidenceId);
 }

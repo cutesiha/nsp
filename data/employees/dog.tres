@@ -34,3 +34,9 @@ StartRoomId = "core_room"
 IconColor = Color(0.86, 0.76, 0.58, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
+
+Gender = "남성(추정)"
+ShortProfileLine = "온순하고 협조적이다. 동료를 먼저 챙기며 갈등을 싫어한다."
+SelfIntroLine = "강아지예요! 필요한 일 있으면 언제든 불러 주세요. 같이 하면 금방 끝나요."
+FavoriteFood = "엄마가 싸 준 도시락"
+DislikedFood = "혼자 먹는 컵라면"

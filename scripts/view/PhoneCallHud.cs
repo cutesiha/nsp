@@ -388,7 +388,7 @@ public partial class PhoneCallHud : CanvasLayer
         // [전원] 을 켰을 때만 오늘 확보한 자료 전부를 사건별로 묶어 보여 준다.
         foreach (var (label, tab) in new (string, NoteTab)[]
                  {
-                     ("현재 직원", NoteTab.CurrentEmployee), ("★ 중요", NoteTab.Starred),
+                     ("현재 직원", NoteTab.CurrentEmployee), ("★ 단서", NoteTab.Starred),
                      ("전원", NoteTab.ByIncident),
                  })
         {
@@ -511,7 +511,7 @@ public partial class PhoneCallHud : CanvasLayer
 
         if (shown == 0)
             _evidenceList.AddChild(Lbl(_session.Tab == NoteTab.Starred
-                ? "★ 로 표시한 자료가 없습니다."
+                ? "★ 로 기록한 오늘의 단서가 없습니다."
                 : "확보한 자료가 없습니다.", 13, new Color(0.55f, 0.62f, 0.66f)));
 
         RefreshTimeline();
@@ -619,12 +619,12 @@ public partial class PhoneCallHud : CanvasLayer
         _evidenceList.AddChild(row);
         if (indent > 0) row.AddChild(new Control { CustomMinimumSize = new Vector2(22 * indent, 0) });
 
-        // ★ — 플레이어가 직접 찍는 메모. 게임이 중요도를 정하지 않는다.
+        // ★ — 플레이어가 직접 찍는 메모(= 관리자 패드의 단서). 게임이 중요도를 정하지 않는다.
         var mark = new Button
         {
             Text = star ? "★" : "☆",
             CustomMinimumSize = new Vector2(30, CardHeight),
-            TooltipText = "중요 표시",
+            TooltipText = "단서로 기록 — 관리자 패드에 보관",
         };
         mark.AddThemeFontOverride("font", _font);
         mark.AddThemeFontSizeOverride("font_size", ViewFont.S(14));
@@ -670,13 +670,15 @@ public partial class PhoneCallHud : CanvasLayer
     private const float CardHeight = 44f;
 
     // 자료 종류 = 색 + 두 글자. 색은 시설 로그 화면의 팔레트와 같은 계열로 맞춘다.
-    private static Color TagColor(InterviewEvidence ev) => ev.Kind switch
+    // 관리자 패드 단서 카드도 같은 색을 쓴다(자료 종류의 색은 한 곳에서만 정한다).
+    internal static Color TagColor(InterviewEvidence ev) => ev.Kind switch
     {
         EvidenceKind.Movement => new Color(0.36f, 0.86f, 0.82f),   // 기록  청록
         EvidenceKind.Cctv => new Color(0.92f, 0.94f, 0.96f),       // CCTV  흰색
         EvidenceKind.Testimony => new Color(1f, 0.82f, 0.36f),     // 증언  노랑
         EvidenceKind.Incident => new Color(1f, 0.42f, 0.34f),      // 사고  빨강
         EvidenceKind.Mood => new Color(0.60f, 0.66f, 0.70f),       // 기분  회색
+        EvidenceKind.Overheard => new Color(0.55f, 0.90f, 0.62f),  // 대화  초록(CCTV 오디오 자막색 계열)
         // 진술은 그 직원의 고유색 — 누구의 말인지가 색으로 먼저 읽힌다.
         _ => Readable(FacilitySimulation.Instance?.GetEmployeeDef(ev.SubjectEmployeeId)?.IconColor ?? Cyan),
     };
@@ -1255,8 +1257,9 @@ public partial class PhoneCallHud : CanvasLayer
         var turn = _session.Ask(q);
         _followUps = turn.FollowUps;
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
-        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
-        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        var ids = new[] { q.EvidenceId, q.SecondEvidenceId };
+        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview, ids);
+        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview, ids);
         // 방금 내가 고른 질문을 다시 보여 주지 않는다 — 답변만 뜬다.
         ShowPlayerLine("");
         RefreshEvidence();
@@ -1304,11 +1307,15 @@ public partial class PhoneCallHud : CanvasLayer
     private void DoConfront(EvidenceContradiction.Result result)
     {
         ClearChoices();
+        // 들이민 두 장 — 추궁이 성립하지 않았어도 관리자가 고른 두 자료다.
+        var ids = result?.Earlier != null && result.Later != null
+            ? new System.Collections.Generic.List<string> { result.Earlier.Id, result.Later.Id }
+            : new System.Collections.Generic.List<string>(_session.Selected);
         var turn = _session.Confront(result);
         _followUps.Clear();
         LocalInterviewDialogue.RecordTurn(_employeeId, turn.QuestionText, turn.Answer);
-        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview);
-        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview);
+        RecordPlayer(turn.QuestionText, DialogueConversationType.Interview, ids);
+        RecordNpc(turn.Answer, DialogueEntryType.NpcResponse, DialogueConversationType.Interview, ids);
         ShowPlayerLine(turn.QuestionText);
         // 고른 자료는 그대로 둔다 — 관리자가 직접 뺄 때까지 그 자료로 계속 물을 수 있다.
         RefreshEvidence();
@@ -1361,15 +1368,19 @@ public partial class PhoneCallHud : CanvasLayer
 
     // 관리자의 말도 "누구와의 통화였는가"를 함께 남긴다 — 대화 기록에서 직원별로
     // 골라 볼 때 질문과 대답이 갈라지지 않게 하기 위해서다.
-    private void RecordPlayer(string text, DialogueConversationType conversationType) =>
+    // evidenceIds = 그 질문이 들고 있던 조사 자료. 관리자 패드가 "이 단서에 대해 누가 뭐라고 했나"를
+    // 대화 기록에서 되찾는 연결 고리다(문장을 다시 해석하지 않는다).
+    private void RecordPlayer(string text, DialogueConversationType conversationType,
+        System.Collections.Generic.IEnumerable<string> evidenceIds = null) =>
         DialogueHistory.Instance?.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice,
-            text, conversationType, _employeeId);
+            text, conversationType, _employeeId, evidenceIds);
 
-    private void RecordNpc(string text, DialogueEntryType entryType, DialogueConversationType conversationType)
+    private void RecordNpc(string text, DialogueEntryType entryType, DialogueConversationType conversationType,
+        System.Collections.Generic.IEnumerable<string> evidenceIds = null)
     {
         var def = FacilitySimulation.Instance?.GetEmployeeDef(_employeeId);
         DialogueHistory.Instance?.AddEntry(_employeeId, def?.Codename ?? _employeeId, entryType,
-            text, conversationType, _employeeId);
+            text, conversationType, _employeeId, evidenceIds);
     }
 
     private void BuildEndOnly()

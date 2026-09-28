@@ -37,3 +37,9 @@ FacePortrait = ExtResource("3_face")
 InterviewPortraitLift = 40.0
 StandingGlowAmt = 0.65
 StandingGlowCenter = Vector2(0.5, 0.58)
+
+Gender = "여성(추정)"
+ShortProfileLine = "겁이 많고 조심스럽다. 대신 주변의 작은 변화를 누구보다 빨리 알아챈다."
+SelfIntroLine = "야, 양입니다... 크게 도움이 될지는 모르겠지만, 여, 열심히 하겠습니다..."
+FavoriteFood = "따뜻한 우유"
+DislikedFood = "매운 음식 전부"

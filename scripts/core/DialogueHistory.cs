@@ -1,11 +1,15 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Godot;
 
 namespace NSP.Core;
 
-// 현재 프로토타입의 DAY1 전용 대화 기록 저장소. 같은 화자 + 같은 종류 + 같은 문장은
-// 공백과 개행을 정규화한 뒤 한 번만 저장한다.
+// 대화 기록 저장소. 같은 화자 + 같은 종류 + 같은 문장은 공백과 개행을 정규화한 뒤
+// 한 번만 저장한다.
+//
+// 한 판(새 게임) 동안 모든 날의 기록이 쌓인다 — 근무가 바뀌어도 지우지 않는다.
+// 화면은 각자 Day 로 거른다(대화 기록 창 = 오늘 것만, 관리자 패드 = 그 단서의 날).
 public partial class DialogueHistory : Node
 {
     [Signal] public delegate void EntryAddedEventHandler();
@@ -24,10 +28,10 @@ public partial class DialogueHistory : Node
     }
 
     public bool AddEntry(string speakerId, string speakerDisplayName, DialogueEntryType entryType,
-        string text, DialogueConversationType conversationType, string counterpartId = "")
+        string text, DialogueConversationType conversationType, string counterpartId = "",
+        IEnumerable<string> evidenceIds = null)
     {
-        // 그 날의 대화는 그 날 기록한다. 화면(Day1HistoryOverlay)이 오늘 것만 보여주고
-        // 근무가 바뀌면 지워지므로, 여기서 날짜로 막을 이유가 없다 — DAY2 이후에도 똑같이 쌓인다.
+        // 그 날의 대화는 그 날 기록한다. 화면(Day1HistoryOverlay)이 오늘 것만 골라 보여 준다.
         int day = GameState.Instance?.CurrentDay ?? 1;
 
         string normalizedText = Normalize(text);
@@ -38,7 +42,7 @@ public partial class DialogueHistory : Node
         // 남아 순서가 뒤엉켜 보였다). 이제는 '바로 직전 줄'과만 비교해 같은 호출이 두 번
         // 들어온 사고만 막는다.
         var last = _entries.Count > 0 ? _entries[^1] : null;
-        if (last != null && last.SpeakerId == (speakerId ?? "").Trim()
+        if (last != null && last.Day == day && last.SpeakerId == (speakerId ?? "").Trim()
             && last.EntryType == entryType && Normalize(last.Text) == normalizedText)
             return false;
 
@@ -53,6 +57,7 @@ public partial class DialogueHistory : Node
             EntryType = entryType,
             Text = text?.Trim() ?? "",
             ConversationType = conversationType,
+            EvidenceIds = evidenceIds?.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList() ?? new List<string>(),
         });
         EmitSignal(SignalName.EntryAdded);
         return true;

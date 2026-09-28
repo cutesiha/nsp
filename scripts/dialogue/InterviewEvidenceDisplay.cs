@@ -231,6 +231,8 @@ public static class InterviewEvidenceDisplay
                                      + (ev.PlayerOrdered ? "  (지시)" : ""),
             EvidenceKind.Testimony => $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who} · {room}에서 봤다",
             EvidenceKind.OwnStatement => $"{who} · \"{room}에 있었다\"",
+            // 누가 누구와 · 무슨 말을 — 방 이름은 시각 옆 태그로 충분하다.
+            EvidenceKind.Overheard => ev.Body,
             _ => $"{who} · {ev.Body}",
         };
     }
@@ -250,6 +252,7 @@ public static class InterviewEvidenceDisplay
         EvidenceKind.Cctv => "CCTV",
         EvidenceKind.Testimony => "증언",
         EvidenceKind.OwnStatement => "진술",
+        EvidenceKind.Overheard => "대화",
         _ => "기분",
     };
 }

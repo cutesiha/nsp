@@ -265,6 +265,8 @@ public partial class GameState : Node
         LastShiftMissedRequired = 0;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON
         ResetFacilityFaults();
+        // 관리자 패드의 단서는 한 판 동안만 남는다.
+        ClueBoard.ResetAll();
     }
 
     // CCTV를 실제로 볼 수 있는가 = 전력이 있고 + 설비 고장(FAIL-04)이 아니어야 한다.
@@ -313,7 +315,12 @@ public partial class GameState : Node
         CurrentDay += 1;
         // 가상 시뮬레이션(DAY0)에서 올린 복구율은 실적이 아니라 연습이다.
         // 실제 근무 첫날은 반드시 0% 에서 시작한다.
-        if (CurrentDay == 1) CoreProgress = 0f;
+        // 교육 때 찍어 둔 단서도 마찬가지다 — 실제 근무의 패드는 비어서 시작한다.
+        if (CurrentDay == 1)
+        {
+            CoreProgress = 0f;
+            ClueBoard.ResetAll();
+        }
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;
         RepairPowerAccident();

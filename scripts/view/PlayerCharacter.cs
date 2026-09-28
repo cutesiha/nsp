@@ -94,15 +94,29 @@ public partial class PlayerCharacter : Node3D
         // 씬에 마디 노드(BoneAttachment3D)가 하나도 없는 구버전에서만 코드로 스킨을 만든다.
         if (!HasAuthoredLimbs() && SkinCount() == 0) BuildSkinMesh();
 
-        // 왼팔 마디는 애니메이션이 없고 카메라에 걸릴 수 있어 런타임에 항상 숨긴다(오른손만 연출).
-        if (!Engine.IsEditorHint())
-            foreach (var n in _skel.GetChildren())
-                if (n is Node3D n3 && (n.Name.ToString().EndsWith("_L") || n.Name.ToString().Contains("_L_")))
-                    n3.Visible = false;
+        // 마디 노드를 왼팔/오른팔로 나눠 둔다 — 두 팔이 따로 나타나고 사라진다.
+        CollectSideNodes();
 
-        InitPose();
-        // 손은 평소 절대 안 보인다 — 전화/스위치 상호작용 때만 나온다.
-        SetArmVisible(false);
+        InitPose(_armR);
+        InitPose(_armL);
+        // 손은 평소 절대 안 보인다 — 전화/스위치/관리자 패드 상호작용 때만 나온다.
+        SetArmVisible(_armR, false);
+        SetArmVisible(_armL, false);
+    }
+
+    private readonly Dictionary<string, List<Node3D>> _sideNodes = new() { ["R"] = new(), ["L"] = new() };
+
+    private void CollectSideNodes()
+    {
+        _sideNodes["R"].Clear();
+        _sideNodes["L"].Clear();
+        foreach (var n in _skel.GetChildren())
+        {
+            if (n is not Node3D n3) continue;
+            string name = n.Name.ToString();
+            if (name.EndsWith("_L") || name.Contains("_L_")) _sideNodes["L"].Add(n3);
+            else if (name.EndsWith("_R") || name.Contains("_R_")) _sideNodes["R"].Add(n3);
+        }
     }
 
     private void RegenSkin()
@@ -436,65 +450,113 @@ public partial class PlayerCharacter : Node3D
         public System.Action OnArrive;          // In 끝나는 순간 1회 (내부 콜백)
     }
 
-    private List<Step> _seq;
-    private int _stepIdx;
-    private float _stepT;
-    private bool _stepArrived;
-    private readonly Dictionary<string, Quaternion> _poseCur = new();
-    private readonly Dictionary<string, Quaternion> _poseFrom = new();
-    private Vector3 _shiftCur, _shiftFrom;
-    private bool _armVisible;
+    // 팔 하나의 재생 상태. 오른팔(전화 · 스위치 · 패드 누르기)과 왼팔(패드 들기)은 따로 돈다 —
+    // 왼손이 패드를 든 채 오른손 검지로 화면을 누를 수 있어야 한다.
+    private sealed class ArmChannel
+    {
+        public readonly string Side;           // "R" / "L"
+        public readonly string[] Bones;
+        public List<Step> Seq;
+        public int StepIdx;
+        public float StepT;
+        public bool StepArrived;
+        public readonly Dictionary<string, Quaternion> PoseCur = new();
+        public readonly Dictionary<string, Quaternion> PoseFrom = new();
+        public Vector3 ShiftCur, ShiftFrom;
+        public bool Visible;
+
+        public ArmChannel(string side)
+        {
+            Side = side;
+            Bones = side == "R" ? ArmBones : System.Array.ConvertAll(ArmBones, ToLeft);
+        }
+
+        // 오른팔 기준 뼈 이름 → 이 팔의 뼈 이름.
+        public string B(string rightBone) => Side == "R" ? rightBone : ToLeft(rightBone);
+    }
+
+    private static string ToLeft(string rightBone) => rightBone.Replace("_R", "_L");
+
+    private readonly ArmChannel _armR = new("R");
+    private readonly ArmChannel _armL = new("L");
+
+    // 도달한 뒤 계속 그 자세로 목표를 따라가는 스텝(패드를 들고 있는 동안).
+    private const float HoldForever = 1e9f;
 
     private static readonly (string prefix, float lead)[] FingerLead =
     {
         ("Thumb", 0.02f), ("Index", 0f), ("Middle", 0.06f), ("Ring", 0.12f), ("Pinky", 0.18f),
     };
 
-    private void InitPose()
+    // 오른팔 포즈 → 왼팔 포즈. 왼팔 뼈대는 오른팔을 X 로 뒤집은 것(rest 도 좌우 대칭)이라
+    // 각 관절 회전은 Y · Z 성분만, 어깨 이동은 X 성분만 부호가 바뀐다.
+    private static ArmPose Mirror(ArmPose p)
     {
-        var idle = PoseIdle();
-        _poseCur.Clear();
-        foreach (var b in ArmBones)
-            _poseCur[b] = idle.Rot.TryGetValue(b, out var d) ? QDeg(d) : Quaternion.Identity;
-        _shiftCur = Vector3.Zero;
+        var m = new ArmPose { ShoulderShift = MirrorX(p.ShoulderShift) };
+        foreach (var (bone, d) in p.Rot) m.Rot[ToLeft(bone)] = new Vector3(d.X, -d.Y, -d.Z);
+        return m;
     }
 
-    private void StartSequence(List<Step> steps)
+    private static Vector3 MirrorX(Vector3 v) => new(-v.X, v.Y, v.Z);
+
+    private void InitPose(ArmChannel ch)
+    {
+        var idle = ch.Side == "R" ? PoseIdle() : Mirror(PoseIdle());
+        ch.PoseCur.Clear();
+        foreach (var b in ch.Bones)
+            ch.PoseCur[b] = idle.Rot.TryGetValue(b, out var d) ? QDeg(d) : Quaternion.Identity;
+        ch.ShiftCur = Vector3.Zero;
+    }
+
+    private void StartSequence(List<Step> steps) => StartSequence(_armR, steps);
+
+    // steps 는 언제나 오른팔 기준으로 쓴다. 왼팔이면 여기서 뒤집는다.
+    private void StartSequence(ArmChannel ch, List<Step> steps)
     {
         if (_skel == null) return;
-        if (!_armVisible) InitPose();          // 숨은 상태에서 시작하면 idle 부터
-        SetArmVisible(true);
-        _seq = steps;
-        _stepIdx = 0;
-        _stepT = 0f;
-        _stepArrived = false;
-        SnapshotFrom();
+        if (ch.Side == "L")
+            foreach (var s in steps)
+            {
+                s.Pose = Mirror(s.Pose);
+                s.AimTip = MirrorX(s.AimTip);
+            }
+        if (!ch.Visible) InitPose(ch);          // 숨은 상태에서 시작하면 idle 부터
+        SetArmVisible(ch, true);
+        ch.Seq = steps;
+        ch.StepIdx = 0;
+        ch.StepT = 0f;
+        ch.StepArrived = false;
+        SnapshotFrom(ch);
     }
 
-    private void SnapshotFrom()
+    private static void SnapshotFrom(ArmChannel ch)
     {
-        _poseFrom.Clear();
-        foreach (var kv in _poseCur) _poseFrom[kv.Key] = kv.Value;
-        _shiftFrom = _shiftCur;
+        ch.PoseFrom.Clear();
+        foreach (var kv in ch.PoseCur) ch.PoseFrom[kv.Key] = kv.Value;
+        ch.ShiftFrom = ch.ShiftCur;
     }
 
-    private void SetArmVisible(bool v)
+    private void SetArmVisible(ArmChannel ch, bool v)
     {
-        _armVisible = v;
-        if (_skel != null) _skel.Visible = v || Engine.IsEditorHint();
+        ch.Visible = v;
+        if (_skel == null) return;
+        bool editor = Engine.IsEditorHint();
+        foreach (var n in _sideNodes[ch.Side])
+            if (IsInstanceValid(n)) n.Visible = v || editor;
+        _skel.Visible = _armR.Visible || _armL.Visible || editor;
     }
 
     private static float Smooth(float t) => t <= 0f ? 0f : t >= 1f ? 1f : t * t * (3f - 2f * t);
 
-    private void TickSequence(float d)
+    private void TickSequence(ArmChannel ch, float d)
     {
-        if (_seq == null) return;
-        var step = _seq[_stepIdx];
-        _stepT += d;
+        if (ch.Seq == null) return;
+        var step = ch.Seq[ch.StepIdx];
+        ch.StepT += d;
 
-        float baseF = step.In <= 0f ? 1f : Mathf.Clamp(_stepT / step.In, 0f, 1f);
+        float baseF = step.In <= 0f ? 1f : Mathf.Clamp(ch.StepT / step.In, 0f, 1f);
 
-        foreach (var b in ArmBones)
+        foreach (var b in ch.Bones)
         {
             Quaternion tq = step.Pose.Rot.TryGetValue(b, out var deg) ? QDeg(deg) : Quaternion.Identity;
             float f = baseF;
@@ -502,33 +564,36 @@ public partial class PlayerCharacter : Node3D
             {
                 float lead = FingerLeadOf(b);
                 float span = Mathf.Max(0.06f, step.In - 0.20f);
-                f = Mathf.Clamp((_stepT - lead) / span, 0f, 1f);
+                f = Mathf.Clamp((ch.StepT - lead) / span, 0f, 1f);
             }
-            _poseCur[b] = _poseFrom.GetValueOrDefault(b, Quaternion.Identity).Slerp(tq, Smooth(f)).Normalized();
+            ch.PoseCur[b] = ch.PoseFrom.GetValueOrDefault(b, Quaternion.Identity).Slerp(tq, Smooth(f)).Normalized();
         }
-        _shiftCur = _shiftFrom.Lerp(step.Pose.ShoulderShift, Smooth(baseF));
+        ch.ShiftCur = ch.ShiftFrom.Lerp(step.Pose.ShoulderShift, Smooth(baseF));
 
         // 접촉 보정 — 어깨(고정축)에서 상완은 조금, 팔꿈치가 주로 굽어 손이 목표에 닿는다.
         if (step.Aim != null)
-            SolveArm(step.Aim(), step.AimTip, Smooth(baseF),
+            SolveArm(ch, step.Aim(), step.AimTip, Smooth(baseF),
                      Mathf.Min(UpperArmGiveDeg, step.UpperGiveDeg), Mathf.Min(MaxAimDeg, step.AimMaxDeg));
 
-        if (!_stepArrived && baseF >= 1f)
+        if (!ch.StepArrived && baseF >= 1f)
         {
-            _stepArrived = true;
+            ch.StepArrived = true;
             step.OnArrive?.Invoke();
         }
 
-        if (_stepArrived && _stepT >= step.In + step.Hold)
+        // OnArrive 안에서 같은 팔의 새 시퀀스가 시작됐으면 여기서 끝낸다.
+        if (ch.Seq == null || ch.StepIdx >= ch.Seq.Count || ch.Seq[ch.StepIdx] != step) return;
+
+        if (ch.StepArrived && ch.StepT >= step.In + step.Hold)
         {
-            if (_stepIdx + 1 < _seq.Count)
+            if (ch.StepIdx + 1 < ch.Seq.Count)
             {
-                _stepIdx++;
-                _stepT = 0f;
-                _stepArrived = false;
-                SnapshotFrom();
+                ch.StepIdx++;
+                ch.StepT = 0f;
+                ch.StepArrived = false;
+                SnapshotFrom(ch);
             }
-            else _seq = null;   // 마지막 포즈에서 정지
+            else ch.Seq = null;   // 마지막 포즈에서 정지
         }
     }
 
@@ -544,21 +609,22 @@ public partial class PlayerCharacter : Node3D
     // 제약 2본 IK. 어깨 위치는 고정축. FK 포즈가 팔의 "스타일"(reach=앞, call=뒤)을 정하고,
     // 여기서 상완은 UpperArmGiveDeg 안에서만 살짝 틀고 팔꿈치(Forearm)가 주로 굽어 손이 목표에 닿는다.
     // rest 회전 전부 항등 + skel basis 항등(ControlRoom/PlayerCharacter 회전 없음) 가정.
-    private void SolveArm(Vector3 target, Vector3 tipLocal, float weight, float maxUpperDev, float maxForeDev)
+    private void SolveArm(ArmChannel ch, Vector3 target, Vector3 tipLocal, float weight, float maxUpperDev, float maxForeDev)
     {
         if (weight <= 0.001f || _skel == null) return;
-        if (!_bone.ContainsKey("Forearm_R") || !_bone.ContainsKey("Chest") || !_bone.ContainsKey("Hand_R")) return;
+        string sh = ch.B("Shoulder_R"), up = ch.B("UpperArm_R"), fore = ch.B("Forearm_R"), hand = ch.B("Hand_R");
+        if (!_bone.ContainsKey(fore) || !_bone.ContainsKey("Chest") || !_bone.ContainsKey(hand)) return;
 
         Vector3 chest = _skel.GetBoneRest(_bone["Chest"]).Origin;
-        Vector3 shOff = _skel.GetBoneRest(_bone["Shoulder_R"]).Origin + _shiftCur;
+        Vector3 shOff = _skel.GetBoneRest(_bone[sh]).Origin + ch.ShiftCur;
         Vector3 shoulderW = _skel.GlobalTransform * (chest + shOff);
         float sc = _skel.GlobalTransform.Basis.Scale.X;   // 리그 스케일(균일 가정) — 팔 길이에 반영
 
-        Quaternion qU = _poseCur.GetValueOrDefault("UpperArm_R", Quaternion.Identity);
-        Quaternion qF = _poseCur.GetValueOrDefault("Forearm_R", Quaternion.Identity);
+        Quaternion qU = ch.PoseCur.GetValueOrDefault(up, Quaternion.Identity);
+        Quaternion qF = ch.PoseCur.GetValueOrDefault(fore, Quaternion.Identity);
 
-        Vector3 elbowOff = _skel.GetBoneRest(_bone["Forearm_R"]).Origin;               // 상완 벡터(뼈공간)
-        Vector3 handOff = _skel.GetBoneRest(_bone["Hand_R"]).Origin + tipLocal;        // 전완+팁 벡터
+        Vector3 elbowOff = _skel.GetBoneRest(_bone[fore]).Origin;               // 상완 벡터(뼈공간)
+        Vector3 handOff = _skel.GetBoneRest(_bone[hand]).Origin + tipLocal;     // 전완+팁 벡터
         float l1 = elbowOff.Length() * sc;
         float l2 = handOff.Length() * sc;
 
@@ -587,8 +653,8 @@ public partial class PlayerCharacter : Node3D
 
         Quaternion wU = new Quaternion(Vector3.Down, solvedUpper);
         Quaternion wF = new Quaternion(Vector3.Down, solvedFore);
-        _poseCur["UpperArm_R"] = qU.Slerp(wU, weight).Normalized();
-        _poseCur["Forearm_R"] = qF.Slerp((_poseCur["UpperArm_R"].Inverse() * wF).Normalized(), weight).Normalized();
+        ch.PoseCur[up] = qU.Slerp(wU, weight).Normalized();
+        ch.PoseCur[fore] = qF.Slerp((ch.PoseCur[up].Inverse() * wF).Normalized(), weight).Normalized();
     }
 
     private static Vector3 LimitDir(Vector3 from, Vector3 to, float maxDeg)
@@ -607,20 +673,22 @@ public partial class PlayerCharacter : Node3D
     {
         if (_skel == null || Engine.IsEditorHint()) return;
 
-        TickSequence((float)delta);
-        PushArm();
+        TickSequence(_armR, (float)delta);
+        TickSequence(_armL, (float)delta);
+        PushArm(_armR);
+        PushArm(_armL);
         TickDebug();
     }
 
-    private void PushArm()
+    private void PushArm(ArmChannel ch)
     {
-        foreach (var b in ArmBones)
+        foreach (var b in ch.Bones)
         {
             if (!_bone.TryGetValue(b, out int idx)) continue;
-            _skel.SetBonePoseRotation(idx, _poseCur.GetValueOrDefault(b, Quaternion.Identity).Normalized());
+            _skel.SetBonePoseRotation(idx, ch.PoseCur.GetValueOrDefault(b, Quaternion.Identity).Normalized());
         }
-        if (_bone.TryGetValue("Shoulder_R", out int sh))
-            _skel.SetBonePosePosition(sh, _skel.GetBoneRest(sh).Origin + _shiftCur);
+        if (_bone.TryGetValue(ch.B("Shoulder_R"), out int sh))
+            _skel.SetBonePosePosition(sh, _skel.GetBoneRest(sh).Origin + ch.ShiftCur);
     }
 
     private MeshInstance3D _palmDot;
@@ -645,7 +713,7 @@ public partial class PlayerCharacter : Node3D
             };
             AddChild(_palmDot);
         }
-        _palmDot.Visible = _armVisible;
+        _palmDot.Visible = _armR.Visible;
         _palmDot.GlobalPosition = PalmGripGlobal().Origin;
     }
 
@@ -741,7 +809,7 @@ public partial class PlayerCharacter : Node3D
                     Aim = () => _phoneAim, AimTip = PalmGripOffset,
                     OnArrive = () => { IsHoldingPhone = false; EmitSignal(SignalName.PhoneReleased); } },
             new() { Pose = PoseIdle(), In = 0.45f, Hold = 0f, Stagger = true,
-                    OnArrive = () => SetArmVisible(false) },
+                    OnArrive = () => SetArmVisible(_armR, false) },
         });
     }
     public void PlayPhoneRelease(Vector3 w) => PlayPhoneHangup(w);   // 예전 이름 호환
@@ -761,7 +829,112 @@ public partial class PlayerCharacter : Node3D
             new() { Pose = PoseSwitchReady(turningOn), In = 0.16f, Hold = 0.02f, UpperGiveDeg = 105f,
                     Aim = () => _switchAim, AimTip = IndexTipLocal },
             new() { Pose = PoseIdle(), In = 0.40f, Hold = 0f, Stagger = true,
-                    OnArrive = () => SetArmVisible(false) },
+                    OnArrive = () => SetArmVisible(_armR, false) },
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  관리자 패드 — 왼손이 들고, 누르기는 화면 왼쪽 = 왼손 엄지 / 오른쪽 = 오른손 검지
+    // ─────────────────────────────────────────────────────────────
+    // 포즈는 전부 오른팔 기준으로 쓰고 왼팔 채널이 뒤집는다(Mirror). 접촉 위치는 IK(Aim)가
+    // 맞추므로 여기 값은 "어떤 모양의 손인가"만 정한다 — 정확한 IK 가 아니라 근사치다.
+    [ExportGroup("관리자 패드 손")]
+    [Export] public Vector3 PadShoulderShift = new(0f, -0.01f, -0.03f);
+    [Export] public Vector3 PadWrist = new(-30f, 20f, 0f);
+    [Export] public float PadUpperArmDeg = 18f;
+    [Export] public float PadElbowDeg = 96f;
+
+    // 패드 가장자리를 쥔 손 — 엄지는 화면 쪽 테두리, 나머지 손가락은 뒷면을 받친다.
+    private ArmPose PosePadHold()
+    {
+        var p = new ArmPose()
+            .Sh(PadShoulderShift)
+            .S("UpperArm_R", PadUpperArmDeg, -4, 6)
+            .S("Forearm_R", PadElbowDeg, 0, -8)
+            .S("Hand_R", PadWrist.X, PadWrist.Y, PadWrist.Z);
+        void C(string f, float a) => p.S($"{f}_R_1", a, 0, 0).S($"{f}_R_2", a * 1.1f, 0, 0).S($"{f}_R_3", a * 0.7f, 0, 0);
+        C("Index", 50); C("Middle", 56); C("Ring", 58); C("Pinky", 52);
+        p.S("Thumb_R_1", -8, 0, -18).S("Thumb_R_2", -12, 0, 0);
+        return p;
+    }
+
+    // 엄지로 화면을 누른다 — 쥔 손은 그대로, 엄지만 화면 안쪽으로 굽힌다.
+    private ArmPose PosePadThumbPress()
+    {
+        var p = PosePadHold();
+        p.S("Thumb_R_1", -22, 0, -42).S("Thumb_R_2", -38, 0, 0);
+        return p;
+    }
+
+    public bool IsLeftArmActive => _armL.Visible;
+
+    // 손바닥 그립점의 월드 위치(왼손/오른손) — 패드 자세 튜닝 · 캡처 검사용.
+    public Vector3 PalmWorld(bool left)
+    {
+        if (_skel == null || !_bone.TryGetValue(left ? "Hand_L" : "Hand_R", out int h)) return GlobalPosition;
+        var hand = _skel.GlobalTransform * _skel.GetBoneGlobalPose(h);
+        return hand * (left ? MirrorX(PalmGripOffset) : PalmGripOffset);
+    }
+
+    // 책상 위 패드를 왼손으로 집는다: 뻗기 → 쥐기(쥔 순간 onGripped) → 든 채로 패드를 계속 따라간다.
+    // grip 은 매 프레임 다시 읽는다 — 패드가 들려 올라오는 동안 손이 그 가장자리에 붙어 있다.
+    public void PlayPadPickup(System.Func<Vector3> grip, System.Action onGripped)
+    {
+        StartSequence(_armL, new List<Step>
+        {
+            new() { Pose = PoseReach(), In = 0.30f, Hold = 0.02f, UpperGiveDeg = 95f, Aim = grip, AimTip = PalmGripOffset },
+            new() { Pose = PoseGrip(), In = 0.18f, Hold = 0.02f, Stagger = true, UpperGiveDeg = 95f,
+                    Aim = grip, AimTip = PalmGripOffset, OnArrive = onGripped },
+            new() { Pose = PosePadHold(), In = 0.45f, Hold = HoldForever, UpperGiveDeg = 120f, AimMaxDeg = 175f,
+                    Aim = grip, AimTip = PalmGripOffset },
+        });
+    }
+
+    // 화면 왼쪽을 눌렀다 — 들고 있는 왼손의 엄지가 짧게 누르고 다시 쥔다.
+    public void PlayPadThumbTap(System.Func<Vector3> grip)
+    {
+        if (!_armL.Visible) return;
+        StartSequence(_armL, new List<Step>
+        {
+            new() { Pose = PosePadThumbPress(), In = 0.08f, Hold = 0.06f, UpperGiveDeg = 120f, AimMaxDeg = 175f,
+                    Aim = grip, AimTip = PalmGripOffset },
+            new() { Pose = PosePadHold(), In = 0.12f, Hold = HoldForever, UpperGiveDeg = 120f, AimMaxDeg = 175f,
+                    Aim = grip, AimTip = PalmGripOffset },
+        });
+    }
+
+    private Vector3 _padTap, _padHover;
+
+    // 화면 오른쪽을 눌렀다 — 오른손이 화면 밖에서 들어와 검지로 누르고 빠진다.
+    // hover = 누르기 직전 손끝이 멈추는 자리(화면 바로 앞).
+    public void PlayPadFingerTap(Vector3 tapWorld, Vector3 hoverWorld)
+    {
+        _padTap = tapWorld;
+        _padHover = hoverWorld;
+        StartSequence(_armR, new List<Step>
+        {
+            new() { Pose = PoseSwitchReady(false), In = 0.18f, Hold = 0.01f, Stagger = true, UpperGiveDeg = 110f,
+                    Aim = () => _padHover, AimTip = IndexTipLocal, AimMaxDeg = 160f },
+            new() { Pose = PoseSwitchReady(false), In = 0.07f, Hold = 0.06f, UpperGiveDeg = 110f,
+                    Aim = () => _padTap, AimTip = IndexTipLocal, AimMaxDeg = 160f },
+            new() { Pose = PoseSwitchReady(false), In = 0.12f, Hold = 0f, UpperGiveDeg = 110f,
+                    Aim = () => _padHover, AimTip = IndexTipLocal, AimMaxDeg = 160f },
+            new() { Pose = PoseIdle(), In = 0.30f, Hold = 0f, Stagger = true,
+                    OnArrive = () => SetArmVisible(_armR, false) },
+        });
+    }
+
+    // 패드를 내려놓는다: 든 채로 패드를 따라 내려간다(seconds) → 손을 펴고(onReleased) → 팔을 거둔다.
+    public void PlayPadPutDown(System.Func<Vector3> grip, float seconds, System.Action onReleased)
+    {
+        StartSequence(_armL, new List<Step>
+        {
+            new() { Pose = PoseGrip(), In = Mathf.Max(0.05f, seconds), Hold = 0f, UpperGiveDeg = 110f, AimMaxDeg = 175f,
+                    Aim = grip, AimTip = PalmGripOffset },
+            new() { Pose = PoseReach(), In = 0.14f, Hold = 0f, Stagger = true, UpperGiveDeg = 95f,
+                    Aim = grip, AimTip = PalmGripOffset, OnArrive = onReleased },
+            new() { Pose = PoseIdle(), In = 0.35f, Hold = 0f, Stagger = true,
+                    OnArrive = () => SetArmVisible(_armL, false) },
         });
     }
 

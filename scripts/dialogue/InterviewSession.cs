@@ -12,7 +12,7 @@ public enum EvidenceFilter
     Cctv,
     Statement,  // 증언 + 이 직원의 이전 진술
     Mood,
-    Starred,    // 플레이어가 ★ 로 찍어 둔 것
+    Starred,    // 플레이어가 ★ 로 찍어 둔 것(= 관리자 패드의 단서)
 }
 
 // 오른쪽 「조사 노트」의 보기. 보기 방식일 뿐 판정에는 쓰지 않는다.
@@ -144,10 +144,11 @@ public sealed class InterviewSession
     {
         EvidenceFilter.Log => e.Kind == EvidenceKind.Movement,
         EvidenceFilter.Incident => e.Kind == EvidenceKind.Incident,
-        EvidenceFilter.Cctv => e.Kind == EvidenceKind.Cctv,
+        // 엿들은 대화도 CCTV 로 확보한 것이다(화면 대신 소리).
+        EvidenceFilter.Cctv => e.Kind is EvidenceKind.Cctv or EvidenceKind.Overheard,
         EvidenceFilter.Statement => e.Kind is EvidenceKind.Testimony or EvidenceKind.OwnStatement,
         EvidenceFilter.Mood => e.Kind == EvidenceKind.Mood,
-        EvidenceFilter.Starred => PlayerKnownEvidence.IsStarred(e.Id),
+        EvidenceFilter.Starred => IsStarred(e.Id),
         _ => true,
     };
 
@@ -157,9 +158,18 @@ public sealed class InterviewSession
         e != null && (string.IsNullOrEmpty(e.SubjectEmployeeId) || e.SubjectEmployeeId == EmployeeId);
 
     // --- 중요 표시(플레이어의 메모) ----------------------------------------
+    //
+    // ★ 는 곧 관리자 패드의 단서다(ClueBoard). 근무 중 로그 창에서 찍은 것도 여기서 ★ 로 보인다.
+    // 조사 노트의 자료는 전부 오늘 것이므로 오늘 날짜로 찾는다.
 
-    public bool IsStarred(string evidenceId) => PlayerKnownEvidence.IsStarred(evidenceId);
-    public void ToggleStar(string evidenceId) => PlayerKnownEvidence.ToggleStar(evidenceId);
+    public bool IsStarred(string evidenceId) =>
+        NSP.Core.ClueBoard.IsPinned(DialogueContextBuilder.Day(), evidenceId);
+
+    public void ToggleStar(string evidenceId)
+    {
+        var ev = InterviewEvidenceBoard.Find(Board, evidenceId);
+        if (ev != null) NSP.Core.ClueBoard.Toggle(ev);
+    }
 
     // 마지막으로 고른 자료와 같은 시간대의 자료들. 화면에서 살짝 밝게 보여 주기만 한다 —
     // 무엇이 단서인지는 알려 주지 않는다.

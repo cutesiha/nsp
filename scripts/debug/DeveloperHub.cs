@@ -55,6 +55,7 @@ public partial class DeveloperHub : Node
     {
         int gen = ++_generation;
         if (_running != null) CloseRunning();
+        DebugEntryPoint.ResetPresentation();
         DebugEntryPoint.Pending = req;
         DebugEntryPoint.BackupEndingState();
         _menuLayer.Visible = false;
@@ -97,6 +98,12 @@ public partial class DeveloperHub : Node
 
         DebugEntryPoint.SetStage(flow, "DayTransition");
         DebugEntryPoint.Call(flow, "EnterSchedule");
+        DebugEntryPoint.SuppressStressHint(flow);
+        // DAY0 을 배치가 아닌 단계(근무 · 보고서 · 휴게)로 곧장 들어가면 교육 대본이 맞지 않는다 —
+        // 교육은 "토끼를 배치하십시오" 에서 멈춘 채 GUIDE-0 대사만 떠 있게 된다. 교육을 끄고 들어간다.
+        // (DAY0 '배치' 로 들어가면 교육이 처음부터 실제로 진행된다.)
+        if (req.Day <= 0 && req.Phase != DebugEntryPoint.Phase.Schedule)
+            NSP.Prologue.TutorialDirector.Instance?.Abort();
         await Frames(6);
         if (gen != _generation) return;
         if (req.Phase == DebugEntryPoint.Phase.Schedule) { Log(Where(req)); return; }
@@ -160,6 +167,7 @@ public partial class DeveloperHub : Node
     {
         if (_running == null && _menuLayer.Visible) return;
         CloseRunning();
+        DebugEntryPoint.ResetPresentation();
         // 테스트로 덮어썼던 user:// 진행 기록을 원래대로 돌려놓는다.
         DebugEntryPoint.RestoreEndingState();
         DebugEntryPoint.Pending = null;
@@ -245,7 +253,8 @@ public partial class DeveloperHub : Node
         Btn(phaseRow, "근무", () => Enter(Make(DebugEntryPoint.Phase.Shift, "근무")), 120);
         Btn(phaseRow, "Shift Report", () => Enter(Make(DebugEntryPoint.Phase.Report, "근무 보고서")), 130);
         Btn(phaseRow, "휴게 / 심문", () => Enter(Make(DebugEntryPoint.Phase.Rest, "휴게/심문")), 130);
-        col.AddChild(Hint("DAY0 은 배치를 누르면 GUIDE-0 교육이 실제로 시작된다(이후 단계는 교육이 이끈다). "
+        col.AddChild(Hint("DAY0 은 배치를 누르면 GUIDE-0 교육이 처음부터 실제로 진행된다. 근무 · 보고서 · 휴게로 곧장 들어가면 "
+                        + "교육 없이 DAY0 조건(방해자 없음 · 직원 일부)만 켠다. "
                         + "DAY5 는 휴게시간이 없어 보고서에서 곧장 엔딩으로 간다."));
 
         // ── 최종 ───────────────────────────────────────────────────

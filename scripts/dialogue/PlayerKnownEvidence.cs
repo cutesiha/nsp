@@ -14,9 +14,14 @@ namespace NSP.Dialogue;
 //   EmployeeKnownFacts   = DialogueContextBuilder   (직원이 아는 것)
 //   PlayerKnownEvidence  = 이 클래스                (관리자가 아는 것)
 //
-// 채워지는 경로는 두 가지뿐이다.
+// 채워지는 경로는 네 가지뿐이다.
 //   1) 직원이 관리자에게 직접 말한 진술 — LocalDialogueGenerator 가 답변을 만들 때 기록
 //   2) 시설 로그 화면에 실제로 표시된 줄 — FacilityLogFormatter 결과에서 읽음
+//   3) 관리자가 CCTV 로 지켜본 장면 — FacilitySimulation 이 기록
+//   4) CCTV 오디오로 엿들은 대화 — 자막이 실제로 화면에 뜬 것만(CctvOverheardCaption)
+//
+// 플레이어가 손으로 찍어 둔 단서(★)는 여기 없다 — 며칠에 걸쳐 남는 소지품이라
+// ClueBoard 가 따로 들고 있는다.
 public static class PlayerKnownEvidence
 {
     // 어떤 직원이 "사건 당시 나는 여기 있었다"고 말한 내용.
@@ -84,28 +89,59 @@ public static class PlayerKnownEvidence
         public bool SuspiciousAction;
     }
 
+    // CCTV 오디오로 들은 두 사람의 대화 한 번(A 가 말하고 B 가 받는다).
+    // B 의 줄은 화면에 뜬 뒤에야 채워진다 — A 만 듣고 채널을 돌렸으면 A 의 줄만 남는다.
+    public sealed class OverheardRecord
+    {
+        public int Day = 1;
+        public string RoomId = "";
+        public string A = "", B = "";
+        public string LineA = "", LineB = "";
+        // 대화가 시작된 근무 시각(초).
+        public float Time;
+    }
+
     private static readonly List<LocationStatement> _locations = new();
     private static readonly List<SightingStatement> _sightings = new();
     private static readonly List<BehaviorClaim> _behaviors = new();
     private static readonly List<CctvObservation> _cctv = new();
-    // 플레이어가 손으로 찍어 둔 「중요」 표시. 게임이 판정하지 않는다 — 순전히 메모다.
-    private static readonly HashSet<string> _starred = new();
+    private static readonly List<OverheardRecord> _overheard = new();
 
     // 지금 보고 있는 근무. 지난 DAY 의 자료는 조사 자료에 섞이지 않는다.
     private static int Today => GameState.Instance?.CurrentDay ?? 1;
 
-    // --- 중요 표시 ------------------------------------------------------
+    // --- 엿들은 대화 ------------------------------------------------------
 
-    public static bool IsStarred(string evidenceId) =>
-        !string.IsNullOrEmpty(evidenceId) && _starred.Contains(evidenceId);
-
-    public static void ToggleStar(string evidenceId)
+    // 자막에 한 줄이 뜰 때마다 부른다. 같은 대화(같은 방 · 같은 두 사람 · 같은 시작 시각)면
+    // 새로 만들지 않고 들은 줄만 채운다 — A 의 줄에서 한 번, B 의 줄에서 한 번.
+    public static OverheardRecord RecordOverheard(string roomId, string a, string b, string lineA, string lineB,
+        float time)
     {
-        if (string.IsNullOrEmpty(evidenceId)) return;
-        if (!_starred.Remove(evidenceId)) _starred.Add(evidenceId);
+        if (string.IsNullOrEmpty(roomId) || string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return null;
+        var found = _overheard.FirstOrDefault(x => x.Day == Today && x.RoomId == roomId
+            && x.A == a && x.B == b && Mathf.IsEqualApprox(x.Time, time));
+        if (found != null)
+        {
+            if (!string.IsNullOrEmpty(lineA)) found.LineA = lineA;
+            if (!string.IsNullOrEmpty(lineB)) found.LineB = lineB;
+            return found;
+        }
+        var rec = new OverheardRecord
+        {
+            Day = Today, RoomId = roomId, A = a, B = b,
+            LineA = lineA ?? "", LineB = lineB ?? "", Time = Mathf.Max(0f, time),
+        };
+        _overheard.Add(rec);
+        // 같은 방을 오래 보고 있으면 대화가 계속 쌓인다 — 하루치 상한만 둔다.
+        while (_overheard.Count > 200) _overheard.RemoveAt(0);
+        return rec;
     }
 
-    public static int StarredCount => _starred.Count;
+    // 이 직원이 끼어 있던 오늘의 대화.
+    public static IReadOnlyList<OverheardRecord> OverheardWith(string employeeId) =>
+        _overheard.Where(x => x.Day == Today && (x.A == employeeId || x.B == employeeId)).ToList();
+
+    public static int OverheardCount => _overheard.Count(x => x.Day == Today);
 
     // --- 진술 기록 ------------------------------------------------------
 
@@ -291,6 +327,6 @@ public static class PlayerKnownEvidence
         _sightings.Clear();
         _behaviors.Clear();
         _cctv.Clear();
-        _starred.Clear();
+        _overheard.Clear();
     }
 }

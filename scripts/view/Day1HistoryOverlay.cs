@@ -3,6 +3,7 @@ using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
+using NSP.Dialogue;
 using NSP.Facility;
 
 namespace NSP.View;
@@ -72,6 +73,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private string _objSignature = "";
     private bool _objAutoShown;
     private float _objTick;
+    // 로그 줄의 ☆ — 그 줄이 조사 자료가 되는 경우(이동 · 사고)에만 달린다.
+    private readonly List<(Button Star, InterviewEvidence Ev, Control Row)> _logStars = new();
+    private const float LogStarWidth = 30f;
     private bool _logStick;
     private bool _dialogueStick;
     private double _logOldScroll;
@@ -97,6 +101,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             DialogueHistory.Instance.EntryAdded += OnDialogueAdded;
             DialogueHistory.Instance.Cleared += OnDialogueCleared;
         }
+        ClueBoard.Changed += OnClueChanged;
     }
 
     public override void _ExitTree()
@@ -113,6 +118,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             DialogueHistory.Instance.EntryAdded -= OnDialogueAdded;
             DialogueHistory.Instance.Cleared -= OnDialogueCleared;
         }
+        ClueBoard.Changed -= OnClueChanged;
         if (Instance == this) Instance = null;
     }
 
@@ -125,6 +131,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         // 돌아가면 남아 있던 오버레이만 닫고 데이터 초기화는 새 게임 시작 지점이 맡는다.
         if (IsWindowOpen && !CanOpen()) CloseWindow();
         TickObjectives((float)delta);
+        if (_mode == WindowMode.Log) PaintLogStars();
     }
 
     public override void _Input(InputEvent e)
@@ -704,6 +711,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private void RebuildLog()
     {
         ClearRows(_logRows);
+        _logStars.Clear();
         _logRendered = 0;
         // 교육일(DAY0)에도 그날의 기록이 그대로 뜬다 — 1 로 못 박으면 튜토리얼이 통째로 빈다.
         _displayLog = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
@@ -861,8 +869,68 @@ public partial class Day1HistoryOverlay : CanvasLayer
         line.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(18));
         line.Text = $"[color=#{LogTime.ToHtml(false)}]{ShiftClock(row.Timestamp)}[/color]  " +
                     $"[color=#{BodyColor(row).ToHtml(false)}]{Marker(row.Severity)} {Escape(row.Text)}[/color]";
+        // 줄 왼쪽에 ☆ 자리를 비워 둔다 — 별이 없는 줄도 글자가 같은 세로선에서 시작한다.
+        // 별은 줄(RichTextLabel)의 자식으로 얹는다. 줄 하나 = 노드 하나 구조를 그대로 둬야
+        // 띠 시간표의 "그 줄로 내려가기 · 밑줄 긋기"가 그대로 동작한다.
+        line.AddThemeStyleboxOverride("normal", new StyleBoxEmpty { ContentMarginLeft = LogStarWidth });
+        var ev = InterviewEvidenceBoard.FromLogRow(row);
+        if (ev != null) AddLogStar(line, ev);
         _logRows.AddChild(line);
         _logRendered++;
+    }
+
+    // ☆ — 심문 조사 노트의 ★ 와 같은 모양 · 같은 조작이다. 누르면 관리자 패드의 단서로 찍힌다.
+    // 평소에는 숨어 있고 줄 위에 마우스를 올렸을 때만 보인다(찍힌 줄은 늘 ★).
+    private void AddLogStar(Control line, InterviewEvidence ev)
+    {
+        var star = new Button
+        {
+            Text = "☆",
+            Position = Vector2.Zero,
+            Size = new Vector2(LogStarWidth, 29),
+            TooltipText = "단서로 기록 — 관리자 패드에 보관",
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            MouseDefaultCursorShape = Control.CursorShape.PointingHand,
+            FocusMode = Control.FocusModeEnum.None,
+        };
+        star.AddThemeFontOverride("font", _body);
+        star.AddThemeFontSizeOverride("font_size", ViewFont.FS(18));
+        star.AddThemeColorOverride("font_hover_color", LogStarOn);
+        foreach (string st in new[] { "normal", "hover", "pressed", "focus" })
+            star.AddThemeStyleboxOverride(st, new StyleBoxEmpty());
+        var captured = ev;
+        star.Pressed += () => ClueBoard.Toggle(captured);
+        line.AddChild(star);
+        _logStars.Add((star, ev, line));
+        PaintLogStar(star, ev, false);
+    }
+
+    private static readonly Color LogStarOn = new(1f, 0.80f, 0.36f);   // 조사 노트 ★ 와 같은 호박색
+    private static readonly Color LogStarOff = new(0.55f, 0.95f, 1f, 0.55f);
+
+    private static void PaintLogStar(Button star, InterviewEvidence ev, bool hover)
+    {
+        bool pinned = ClueBoard.IsPinned(ev);
+        star.Text = pinned ? "★" : "☆";
+        star.AddThemeColorOverride("font_color", pinned ? LogStarOn : LogStarOff);
+        star.Modulate = pinned || hover ? Colors.White : Colors.Transparent;
+    }
+
+    // 마우스가 올라간 줄의 ☆ 만 보인다. 줄 수가 많아도 창이 열려 있을 때만 돈다.
+    private void PaintLogStars()
+    {
+        if (_logStars.Count == 0 || _root == null) return;
+        Vector2 mouse = _root.GetGlobalMousePosition();
+        foreach (var (star, ev, row) in _logStars)
+        {
+            if (!IsInstanceValid(star)) continue;
+            PaintLogStar(star, ev, row.GetGlobalRect().HasPoint(mouse));
+        }
+    }
+
+    private void OnClueChanged(ClueBoard.Entry entry, bool pinned)
+    {
+        if (_mode == WindowMode.Log) PaintLogStars();
     }
 
     // 직원 개인의 행동이면 그 직원의 고유색(IconColor), 시설 사건이면 중요도 색.

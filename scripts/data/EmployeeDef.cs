@@ -52,6 +52,18 @@ public partial class EmployeeDef : Resource
     // 휴게 CCTV 스탠딩을 위로 올리는 양(px). 키 작은 직원의 얼굴이 화면 가운데 쪽에 오게.
     [Export] public float InterviewPortraitLift = 0f;
 
+    // ── 관리자 패드 · 직원 탭(인사 기록) ─────────────────────────────────
+    // 코드네임 뒤 신원은 비밀이다 — 성별은 "(추정)" 톤으로 적는다.
+    // 추리에 영향을 주는 정보(누가 방해자인지 가리키는 말)는 넣지 않는다.
+    [ExportGroup("관리자 패드 인사 기록")]
+    [Export] public string Gender = "";
+    // 한 줄 성격 요약 — 관리자가 보는 인사 기록의 문체.
+    [Export] public string ShortProfileLine = "";
+    // 본인이 직접 써 낸 자기소개 한 문장(그 사람 말투 그대로).
+    [Export] public string SelfIntroLine = "";
+    [Export] public string FavoriteFood = "";
+    [Export] public string DislikedFood = "";
+
     public int GetStat(StatType stat) => stat switch
     {
         StatType.Tech => Tech,

@@ -47,6 +47,12 @@ public partial class ShiftFlowController : Node
     // (개발 중 DAY1 만 반복 테스트할 때 인스펙터에서 끄면 된다).
     [Export] public bool PlayPrologue = true;
 
+    // 개발 전용 — 다음에 뜨는 컨트롤러가 타이틀 · 프롤로그를 건너뛰고 곧장 DAY1 배치로 들어간다.
+    // 게임 화면에는 이 값을 켜는 버튼이 없다(출시 빌드의 '건너뛰기' 버튼은 없앴다).
+    // 개발 허브(DebugEntryPoint)와 scripts/debug 의 검사 · 캡처 씬만 리플렉션으로 켠다.
+    // 한 번 쓰면 바로 꺼진다.
+    private static bool _skipToDay1Pending;
+
     private enum Stage { Boot, Title, Prologue, Schedule, Booting, Shift, Ending, Report, Rest, DayTransition, Final }
     private Stage _stage = Stage.Boot;
 
@@ -96,14 +102,16 @@ public partial class ShiftFlowController : Node
             _title.ShowTitle();
         }
         // 제어실 자체를 타이틀로 쓴다 — 두 CRT + 책상 장비가 메뉴 역할을 한다.
+        bool skipBoot = _skipToDay1Pending;
+        _skipToDay1Pending = false;
         // 엔딩 → 최종 기록 → [타이틀로] 로 돌아온 경우: 암전에서 시작해 "다시 눈을 뜬다".
-        var wake = EndingState.PendingWake;
+        var wake = skipBoot ? EndingState.Kind.None : EndingState.PendingWake;
         EndingState.PendingWake = EndingState.Kind.None;
         if (wake != EndingState.Kind.None) _title?.FadeToBlack(0.01f);
         if (_titleRoom != null)
         {
             _titleRoom.StartRequested += OnStartPressed;
-            _titleRoom.Begin();
+            if (!skipBoot) _titleRoom.Begin();
         }
         if (wake != EndingState.Kind.None) _ = WakeAtTitle(wake == EndingState.Kind.Bad);
         // 예전 책상 위 종이 배치표. Phase 0 에서 배치는 CRT 콘솔(ScheduleMapView)로 옮겼다 —
@@ -114,6 +122,25 @@ public partial class ShiftFlowController : Node
         // 시작 화면·근무 배치·휴게시간은 같은 곡으로 통일한다.
         // 실시간 근무에 들어갈 때만 페이드아웃되고 ControlRoomAtmosphere의 환경음이 대신한다.
         Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
+
+        if (skipBoot) BootStraightToDay1();
+    }
+
+    // 개발 전용(_skipToDay1Pending) — 타이틀을 건너뛰고 DAY1 배치로 곧장 들어간다.
+    private async void BootStraightToDay1()
+    {
+        // 컨트롤러의 AfterReady(CallDeferred)가 CRT 를 초기 상태로 돌려놓을 때까지 기다린다.
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (!IsInstanceValid(this) || _stage != Stage.Title) return;
+
+        // 다음 날 배치로 넘어갈 때와 같은 화면 상태 — 근무가 시작되면 EnterShift 가 다시 켠다.
+        _ctl?.SetLeftScreen(_ctl.FacilityViewport);
+        _ctl?.SetRightScreen(_ctl.CctvViewport);
+        _ctl?.SetScreenBrightness(0.02f);
+        AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
+
+        EnterSchedule();   // Stage.Title 에서 들어오면 StartNewRun(1) 로 DAY1 새 게임을 연다
     }
 
     private async System.Threading.Tasks.Task WakeAtTitle(bool harsh)

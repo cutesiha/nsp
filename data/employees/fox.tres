@@ -35,3 +35,9 @@ StartRoomId = "power_room"
 IconColor = Color(0.95, 0.52, 0.16, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
+
+Gender = "남성(추정)"
+ShortProfileLine = "여유롭고 사교적이다. 분위기를 읽는 데 능하지만 속내는 잘 드러내지 않는다."
+SelfIntroLine = "여우라고 불러 주세요. 뭐든 편하게 물어보셔도 돼요, 대답은 제 마음이지만요."
+FavoriteFood = "달콤한 유부초밥"
+DislikedFood = "쓴 한약"

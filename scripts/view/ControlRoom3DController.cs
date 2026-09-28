@@ -166,8 +166,9 @@ public partial class ControlRoom3DController : Node3D
         GameState.Instance?.SetPhase(GamePhase.Live);
         FacilitySimulation.Instance?.ResetForNewShift();
         EventLog.Instance?.ClearAll();
-        // 대화 기록도 그 날 것만 남긴다 — 근무가 시작되면 지난 날의 대화는 지운다.
-        DialogueHistory.Instance?.ClearAll();
+        // 대화 기록은 지우지 않는다 — 한 판 동안 모든 날이 쌓이고 화면이 날짜로 거른다.
+        // (관리자 패드의 단서가 며칠 전 심문에서 나온 진술을 다시 보여 줘야 한다.)
+        // 새 게임에서만 비운다(ShiftFlowController.StartNewRun).
         // DAY0(교육)에는 방해자가 존재하지 않는다 — 배정 자체를 하지 않으면 TickSaboteur 가 통째로 쉰다.
         if (DayFeatures.SaboteurActive && string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
         {
@@ -198,6 +199,9 @@ public partial class ControlRoom3DController : Node3D
     }
 
     public void SetInputLocked(bool locked) => _inputLocked = locked;
+    public bool IsInputLocked => _inputLocked;
+    // 지금 입력을 받고 있는 책상 위 표면(배치표 · 관리자 패드). 없으면 null.
+    public IProjectionSurface ModalSurface => _modal;
 
     public SubViewport FacilityViewport => _facilityVp;
     public SubViewport CctvViewport => _cctvVp;
@@ -242,6 +246,8 @@ public partial class ControlRoom3DController : Node3D
 
         _cctvVp = MakeViewport();
         AddScaledView(_cctvVp, new CCTVMonitorView(), MonitorCanvasSize);
+        // 사고 순간 관리자가 보던 CCTV 화면을 한 장 떠 두는 녹화기(관리자 패드 단서 썸네일).
+        AddChild(new CctvSnapshotRecorder { Name = "CctvSnapshotRecorder", Source = _cctvVp });
         // DAY0 교육에서 CCTV 화면 구석에 뜨는 작은 GUIDE-0 얼굴창.
         // CCTV 뷰와 같은 캔버스에 나중에 붙어 그 위에 그려진다.
         _cctvVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
@@ -362,6 +368,9 @@ public partial class ControlRoom3DController : Node3D
     private bool _cctvOnScreen;
     private bool _interviewOnScreen;
 
+    // 오른쪽 CRT 가 지금 CCTV 를 띄우고 있고 화면이 켜져 있는가(CctvSnapshotRecorder).
+    public bool CctvOnScreen => _cctvOnScreen && _brightness > 0.1f;
+
     // 두 번째 3D 렌더 패스(작업실 월드)는 오른쪽 CRT 가 CCTV 를 띄우고 있고, 그 화면이
     // 실제로 켜져 있을 때만 돌린다. 시작 화면/근무 배치처럼 CRT 가 꺼져 있는 동안에는
     // 어차피 보이지 않으므로 통째로 멈춘다.
@@ -469,6 +478,8 @@ public partial class ControlRoom3DController : Node3D
         UpdateCctvWorldViewport();
 
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        // 관리자 패드를 들고 있는 동안 근무 시간은 멈춘다(시계 · 시뮬레이션 모두).
+        if (AdminPad3D.PausesGame) return;
 
         GameState.Instance.AdvanceDayTime((float)delta);
         FacilitySimulation.Instance?.Tick(delta);
@@ -528,6 +539,9 @@ public partial class ControlRoom3DController : Node3D
         bool hit = _modal.TryProjectRay(origin, dir, clamp: !mb.Pressed, out Vector2 cp);
         if (!hit && mb.Pressed) return;
         _lastCanvasPos = cp;
+        // 누른 자리로 손을 뻗는 연출(관리자 패드) — 입력 전달과는 별개다.
+        if (mb.Pressed && mb.ButtonIndex == MouseButton.Left && _modal is ISurfacePressListener listener)
+            listener.OnSurfacePressed(cp);
         _modal.TargetViewport?.PushInput(MakeButton(mb, cp), inLocalCoords: true);
         GetViewport().SetInputAsHandled();
     }

@@ -15,6 +15,7 @@ public enum EvidenceKind
     Testimony,      // 다른 직원이 이 직원에 대해 한 진술
     OwnStatement,   // 이 직원이 관리자에게 스스로 한 진술
     Mood,           // 근무 전 자가보고 — 오늘의 기분
+    Overheard,      // CCTV 오디오로 엿들은 두 사람의 대화
 }
 
 // 자료 한 장이 "그 직원이 언제 어디 있었는가"를 주장하는가.
@@ -40,7 +41,7 @@ public sealed class InterviewEvidence
     public bool PlayerObserved = true;
 
     // 이 자료에 함께 등장하는 직원들(같은 방에 있던 인원, 증언자 등).
-    public readonly System.Collections.Generic.List<string> RelatedEmployeeIds = new();
+    public System.Collections.Generic.List<string> RelatedEmployeeIds { get; private set; } = new();
 
     // --- 카드 표시 ---------------------------------------------------
     public string Header = "";      // "시설 로그" / "CCTV" / "늑대의 증언"
@@ -91,9 +92,19 @@ public sealed class InterviewEvidence
         EvidenceKind.Cctv => "CCTV",
         EvidenceKind.Testimony => "증언",
         EvidenceKind.OwnStatement => "진술",
+        EvidenceKind.Overheard => "대화",
         _ => "기분",
     };
 
     public string OneLine =>
         $"{Tag}  {(string.IsNullOrEmpty(TimeText) ? "" : TimeText + "  ")}{Body}";
+
+    // 그 순간의 자료를 그대로 떠 둔 사본. 원천(시설 로그 · 진술)은 근무가 바뀌면 비워지므로
+    // 관리자 패드(ClueBoard)가 며칠 뒤에도 같은 내용을 보여 주려면 사본이 필요하다.
+    public InterviewEvidence Clone()
+    {
+        var c = (InterviewEvidence)MemberwiseClone();
+        c.RelatedEmployeeIds = new System.Collections.Generic.List<string>(RelatedEmployeeIds);
+        return c;
+    }
 }

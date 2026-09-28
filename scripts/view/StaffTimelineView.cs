@@ -403,6 +403,7 @@ public partial class StaffTimelineView : Control
         EvidenceKind.Testimony => new Color(0.96f, 0.80f, 0.36f),
         EvidenceKind.OwnStatement => new Color(0.92f, 0.92f, 0.94f),
         EvidenceKind.Mood => new Color(0.66f, 0.62f, 0.78f),
+        EvidenceKind.Overheard => new Color(0.55f, 0.90f, 0.62f),
         _ => new Color(0.80f, 0.80f, 0.84f),
     };
 
