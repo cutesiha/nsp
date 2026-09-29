@@ -76,6 +76,8 @@ public partial class PadView : Control
     public bool ScreenOn { get; private set; } = true;
     public bool IsGlitching => _powerNoise is { Visible: true } && _powerLayer is { Visible: true };
     public bool IsStowed { get; private set; } = true;
+    // 거치 중 잠금 화면인가. 근무 · 휴게시간에는 거치대 위에서도 홈(앱 세 개)이 켜져 있다(= false).
+    public bool IsLocked { get; private set; } = true;
 
     private Font _font;
     private PadManualDef _manual;
@@ -130,10 +132,11 @@ public partial class PadView : Control
         GoHome(fade: false);
     }
 
-    public void OnClosed()
+    // 거치대에 내려놓았다 — 어느 앱에 있었든 홈으로 돌아가 놓인다.
+    public void OnClosed(bool locked = true)
     {
-        CloseDetail(instant: true);
-        SetStowed(true);
+        GoHome(fade: false);
+        SetStowed(true, locked);
     }
 
     // 화면을 눌렀다 — 누른 자리에 짧게 물결 하나(논리 좌표). 클릭 피드백은 전부 이 UI 층에서만 준다.
@@ -167,12 +170,27 @@ public partial class PadView : Control
         }
     }
 
-    // 거치대에 놓여 있는 동안은 잠금 화면(시각 · 사고 예고 · 새 단서).
-    public void SetStowed(bool stowed)
+    // 거치대에 놓여 있다. locked = 잠금 화면(시각 · 사고 예고 · 새 단서) — 근무 · 휴게시간 밖.
+    // 근무 · 휴게시간에는 잠그지 않는다 — 책상 위에서도 홈(지침 · 단서 · 직원)이 켜져 있고,
+    // 사고 예고는 홈의 배너가 점멸하며 알린다.
+    public void SetStowed(bool stowed, bool locked = true)
     {
         IsStowed = stowed;
-        if (_lock != null) _lock.Visible = stowed;
+        IsLocked = stowed && locked;
+        if (stowed && !locked && Current != Tab.Home) GoHome(fade: false);
+        if (_lock != null) _lock.Visible = IsLocked;
+        if (_homeHint != null) _homeHint.Text = stowed ? StowedHint : HeldHint;
         RefreshLock();
+        RefreshBanner();
+    }
+
+    // 거치대 위 화면에서 누른 자리의 앱 아이콘(논리 좌표). 없으면 null.
+    public Tab? AppAt(Vector2 at)
+    {
+        if (IsLocked || Current != Tab.Home) return null;
+        foreach (var (tab, btn) in _appButtons)
+            if (btn.GetRect().HasPoint(at)) return tab;
+        return null;
     }
 
     // 지금 알릴 사고 예고(가장 급한 것). 패드 전원이 없으면 알림도 없다.
@@ -309,6 +327,7 @@ public partial class PadView : Control
             btn.AddThemeStyleboxOverride("pressed", Box(new Color(0.08f, 0.17f, 0.2f), Cyan, 0, 0, 28));
             btn.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
             btn.Pressed += () => OpenApp(t);
+            _appButtons[tab] = btn;
             var glyph = new AppGlyph { Shape = kind, Position = new Vector2(38, 38), Size = new Vector2(tile - 76, tile - 76) };
             btn.AddChild(glyph);
             _home.AddChild(btn);
@@ -334,12 +353,17 @@ public partial class PadView : Control
             }
         }
 
-        var hint = Lbl("앱 안에서 우클릭 = 뒤로     ·     홈에서 우클릭 · Tab = 패드 내려놓기", FsCaption, Dim);
-        hint.Position = new Vector2(0, Layout.Y - 46);
-        hint.Size = new Vector2(Layout.X, 28);
-        hint.HorizontalAlignment = HorizontalAlignment.Center;
-        _home.AddChild(hint);
+        _homeHint = Lbl(IsStowed ? StowedHint : HeldHint, FsCaption, Dim);
+        _homeHint.Position = new Vector2(0, Layout.Y - 46);
+        _homeHint.Size = new Vector2(Layout.X, 28);
+        _homeHint.HorizontalAlignment = HorizontalAlignment.Center;
+        _home.AddChild(_homeHint);
     }
+
+    private const string HeldHint = "앱 안에서 우클릭 = 뒤로     ·     홈에서 우클릭 · Tab = 패드 내려놓기";
+    private const string StowedHint = "앱을 누르거나 Tab — 패드 들기";
+    private readonly Dictionary<Tab, Button> _appButtons = new();
+    private Label _homeHint;
 
     private void RefreshHome()
     {
@@ -360,7 +384,10 @@ public partial class PadView : Control
         if (a == null) return;
         string when = string.IsNullOrEmpty(a.Countdown) ? "" : $"   ·   {a.Countdown}";
         _bannerText.Text = $"⚠  {a.SubLabel}  ·  {a.Headline}{when}";
-        _banner.Modulate = Colors.White with { A = a.Severity == AlertSeverity.Critical ? 0.75f + 0.25f * Mathf.Sin(_blink * 8f) : 1f };
+        // 거치대 위에서는 크게 점멸한다(관리자가 패드를 집어 들 이유). 든 동안은 급한 예고만 은은하게.
+        float a01 = IsStowed ? (Mathf.PosMod(_blink, 1f) < 0.62f ? 1f : 0.3f)
+                  : a.Severity == AlertSeverity.Critical ? 0.75f + 0.25f * Mathf.Sin(_blink * 8f) : 1f;
+        _banner.Modulate = Colors.White with { A = a01 };
     }
 
     // 앱 아이콘 그림 — 에셋 없이 선으로 그린다.

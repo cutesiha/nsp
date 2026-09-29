@@ -23,6 +23,15 @@ namespace NSP.View;
 // 든 동안에는 근무 시간이 멈춘다(PausesGame). 통화 중에는 꺼낼 수 없고, 든 동안에는 전화기를
 // 집을 수 없다 — 왼손 · 오른손이 서로의 물건을 동시에 쥐지 않게.
 // 판정은 하지 않는다. 자료는 ClueBoard · InterviewEvidenceBoard 가 쥐고 있다.
+//
+// 거치대 위 화면: 근무 · 휴게시간(InService)에는 홈(지침 · 단서 · 직원)이 켜져 있다 — 아이콘을 누르면
+// 그 앱을 연 채로 집어 든다. 그 밖의 시간(배치 · 타이틀 등)에는 어두운 잠금 화면이다.
+//
+// [Tool] — 형상을 코드로 만들지만 에디터 뷰포트에도 보이게 한다(AlertTerminalProp · PowerSwitchPanel 과 같다).
+// 씬에서 AdminPad 노드를 옮기면 거치대와 패드가 함께 움직이고, 크기 · 기울기 Export 를 바꾸면 곧바로
+// 다시 그린다. 에디터에서는 화면 UI(PadView)를 띄우지 않고 켜진 화면 색만 칠한다.
+// EditorPreviewHeld 를 켜면 들고 있을 자리(HoldOffset · 기울기)를 좌석 카메라 기준으로 보여 준다.
+[Tool]
 public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListener
 {
     [Export] public NodePath PlayerPath = "../PlayerCharacter";
@@ -72,8 +81,18 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     [Export] public float LiftSeconds = 0.26f;
     // 손을 따라가는 부드러움(Phone3D 수화기와 같은 값).
     [Export] public float HandFollowSharpness = 22f;
+    // 근무 · 휴게시간에 거치대 위 화면(홈)의 밝기. 들었을 때가 1 이다.
+    [Export(PropertyHint.Range, "0,1,0.01")] public float StowedBrightness = 0.85f;
+
+    // 에디터 전용 — 켜면 패드를 거치대 대신 들고 있을 자리에 띄운다(HoldOffset 등을 맞출 때).
+    // 좌석 카메라(PlayerSeatRig/Camera3D) 기준이다. 게임 실행에는 영향이 없다.
+    [ExportGroup("에디터 미리보기")]
+    [Export] public bool EditorPreviewHeld = false;
 
     public static AdminPad3D Instance { get; private set; }
+
+    // 패드를 쓰는 시간 — 근무 · 휴게시간. 이 동안은 거치대에 놓여 있어도 홈 화면이 켜져 있다.
+    public static bool InService => GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Rest;
 
     // 패드가 거치대에 놓여 있지 않은 동안(집으러 가는 중 · 들어 올리는 중 · 들고 있음 · 내려놓는 중)
     // 근무 시간은 흐르지 않는다.
@@ -109,6 +128,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     private bool _powered = true;
     private double _awakeUntil;   // 거치 상태에서 부팅 화면 등을 그리는 동안
     private bool _stowedAlert;    // 거치 중 사고 예고가 떠 있는가(잠금 화면 점멸)
+    private bool _inService;      // 지금 근무 · 휴게시간인가(거치대 위 화면이 홈인가)
     private float _ledPhase;
 
     public Vector3 GripWorld => _grip?.GlobalPosition ?? GlobalPosition;
@@ -121,6 +141,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
     public override void _Ready()
     {
+        if (Engine.IsEditorHint()) { BuildEditorPreview(); return; }
         Instance = this;
         _player = GetNodeOrNull<PlayerCharacter>(PlayerPath);
         _rig = GetNodeOrNull<SeatedCameraRig>(RigPath);
@@ -144,10 +165,12 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             ControlRoom3DController.DocumentSupersample, ControlRoom3DController.DocumentMinRenderScale);
 
         BuildCradle();
-        BuildBody();
+        BuildBody(_vp.GetTexture());
         _body.GlobalTransform = RestTransform();
 
         _powered = PadPowered;
+        _inService = InService;
+        _view.SetStowed(true, locked: !_inService);
         SetScreenAwake(false);
         if (!_powered) _view.PowerOff(glitch: false);
     }
@@ -155,6 +178,36 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     public override void _ExitTree()
     {
         if (Instance == this) Instance = null;
+    }
+
+    // ── 에디터 미리보기 ──────────────────────────────────────────────────
+
+    private string _editorShape = "";
+
+    // 거치대 · 본체를 (다시) 만든다. 스크립트를 다시 빌드하면 C# 필드가 비워지므로 이름으로 옛것을 치운다.
+    // 여기서 만든 노드는 Owner 가 없어 씬 파일에 저장되지 않는다.
+    private void BuildEditorPreview()
+    {
+        foreach (string n in new[] { "PadCradle", "PadBody" })
+            if (GetNodeOrNull(n) is { } old) { RemoveChild(old); old.QueueFree(); }
+        BuildCradle();
+        BuildBody(null);
+        _editorShape = EditorShape();
+        PlaceEditorPreview();
+    }
+
+    private string EditorShape() => $"{BodySize}|{ScreenSize}|{CradleLeanDeg}";
+
+    private void PlaceEditorPreview()
+    {
+        _hold = HoldTransform();
+        _body.GlobalTransform = EditorPreviewHeld ? _hold : RestTransform();
+    }
+
+    private void TickEditorPreview()
+    {
+        if (_body == null || !IsInstanceValid(_body) || EditorShape() != _editorShape) BuildEditorPreview();
+        else PlaceEditorPreview();
     }
 
     // ── 모양 ─────────────────────────────────────────────────────────────
@@ -207,7 +260,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     private const float LipZ = 0.045f;      // 앞 턱의 자리(거치대 로컬 +Z = 관리자 쪽)
     private const float LipTop = 0.024f;
 
-    private void BuildBody()
+    // screenTex 가 null 이면(에디터) 화면 UI 대신 켜진 화면 색만 칠한다.
+    private void BuildBody(Texture2D screenTex)
     {
         // 본체는 거치대와 따로 움직인다 — 들어 올리면 손을 따라간다.
         _body = new Node3D { Name = "PadBody", TopLevel = true };
@@ -233,11 +287,24 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             },
         });
 
-        _screenMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/crt_screen.gdshader") };
-        _screenMat.SetShaderParameter("screen_tex", _vp.GetTexture());
-        _screenMat.SetShaderParameter("region_min", Vector2.Zero);
-        _screenMat.SetShaderParameter("region_max", Vector2.One);
-        _screenMat.SetShaderParameter("noise_strength", 0.012f);
+        Material screenMat;
+        if (screenTex != null)
+        {
+            _screenMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/crt_screen.gdshader") };
+            _screenMat.SetShaderParameter("screen_tex", screenTex);
+            _screenMat.SetShaderParameter("region_min", Vector2.Zero);
+            _screenMat.SetShaderParameter("region_max", Vector2.One);
+            _screenMat.SetShaderParameter("noise_strength", 0.012f);
+            screenMat = _screenMat;
+        }
+        else
+        {
+            screenMat = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.03f, 0.1f, 0.12f), EmissionEnabled = true,
+                Emission = new Color(0.1f, 0.42f, 0.5f), EmissionEnergyMultiplier = 0.6f,
+            };
+        }
         _screen = new MeshInstance3D
         {
             Name = "Screen",
@@ -246,7 +313,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             Scale = new Vector3(ScreenSize.X, ScreenSize.Y, 1f),
             Position = new Vector3(0f, BodySize.Y * 0.5f + 0.0008f, screenZ),
             RotationDegrees = new Vector3(-90f, 0f, 0f),
-            MaterialOverride = _screenMat,
+            MaterialOverride = screenMat,
         };
         _body.AddChild(_screen);
 
@@ -267,6 +334,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         _grip = new Marker3D { Name = "GripPoint", Position = GripLocal, RotationDegrees = GripRotDeg };
         _body.AddChild(_grip);
 
+        if (Engine.IsEditorHint()) return;
         // 거치대의 패드를 누르면 꺼낸다.
         var area = new Area3D { Name = "ClickArea", InputRayPickable = true };
         area.AddChild(new CollisionShape3D
@@ -304,9 +372,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     // 들고 있을 자리 — 자리에 똑바로 앉은 카메라 앞 아래. 화면은 눈을 향한다.
     private Transform3D HoldTransform()
     {
-        Transform3D cam = _rig?.SeatedCameraGlobal()
-                          ?? GetViewport()?.GetCamera3D()?.GlobalTransform
-                          ?? GlobalTransform;
+        Transform3D cam = SeatCamera();
         Vector3 origin = cam * HoldOffset;
         Vector3 up = (cam.Origin - origin).Normalized();                 // 본체 +Y(화면) → 눈
         // 화면의 위아래를 카메라의 위아래에 맞춘다 — 기준을 가로축에서 뽑으면 패드를 눈 축에서
@@ -323,6 +389,16 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         return new Transform3D(basis, origin);
     }
 
+    // 자리에 똑바로 앉은 카메라. 에디터에서는 리그 스크립트가 돌지 않으므로 리그의 카메라를 그대로 쓴다
+    // (실행 중 SeatedCameraGlobal 도 리그 자리 × 카메라 처음 자세라 같은 값이다).
+    private Transform3D SeatCamera()
+    {
+        if (_rig != null) return _rig.SeatedCameraGlobal();
+        var cam = GetNodeOrNull<Node3D>(RigPath)?.GetNodeOrNull<Node3D>("Camera3D");
+        if (cam != null) return cam.GlobalTransform;
+        return GetViewport()?.GetCamera3D()?.GlobalTransform ?? GlobalTransform;
+    }
+
     // 그립 마커의 월드 트랜스폼 — 거치대에 놓였을 때 / 들고 있을 때.
     private Transform3D CradleGrip() => RestTransform() * GripLocalTransform();
     private Transform3D HoldGrip() => _hold * GripLocalTransform();
@@ -333,7 +409,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     public bool CanOpen()
     {
         if (_state != PadState.Stowed) return false;
-        if (GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return false;
+        if (!InService) return false;
         if (!_powered) return false;
         var ctl = ControlRoom3DController.Instance;
         if (ctl != null && (ctl.IsInputLocked || ctl.ModalSurface != null)) return false;
@@ -349,7 +425,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         else Close();
     }
 
-    public void Open()
+    // app — 거치대 위 화면에서 누른 앱 아이콘. 그 앱을 연 채로 집어 든다(없으면 홈).
+    public void Open(PadView.Tab? app = null)
     {
         if (!CanOpen())
         {
@@ -368,6 +445,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
         SetScreenAwake(true);
         _view.OnOpened();
+        if (app is { } a && a != PadView.Tab.Home) _view.OpenApp(a);
         ctl?.SetModalSurface(this);
         _rig?.PadPosture(true, LiftSeconds + 0.14f);
         Sfx.Instance?.Play("relay_click", -12f, 0.9f);
@@ -425,8 +503,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         MoveBody(_body.GlobalTransform, RestTransform(), 0.08f, () =>
         {
             _state = PadState.Stowed;
+            _view.OnClosed(locked: !_inService);
             SetScreenAwake(false);
-            _view.OnClosed();
         });
     }
 
@@ -443,13 +521,20 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         _moveTween.TweenCallback(Callable.From(done));
     }
 
-    // 화면이 켜져 있는가(들고 있는 동안). 거치 중에는 뷰포트를 멈추고 어둡게 둔다(대기 화면).
+    // 화면을 그리고 밝힐 것인가. 들고 있는 동안은 늘. 거치 중에는 근무 · 휴게시간이면 홈을 켜 두고,
+    // 그 밖에는 잠금 화면을 한 장만 그려 어둡게 둔다(사고 예고가 뜨면 점멸하도록 계속 그린다).
     private void SetScreenAwake(bool awake)
     {
-        bool draw = awake || Time.GetTicksMsec() / 1000.0 < _awakeUntil;
+        bool draw = awake || StowedLive || Time.GetTicksMsec() / 1000.0 < _awakeUntil;
         _vp.RenderTargetUpdateMode = draw ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Once;
-        SetBrightness(!_powered ? 0f : awake ? 1f : _stowedAlert ? 0.6f : 0.22f, 0.15f);
+        SetBrightness(awake ? (_powered ? 1f : 0f) : StowedLevel(), 0.15f);
     }
+
+    // 거치대 위에서 홈 화면이 켜져 있는가.
+    private bool StowedLive => _inService && _powered;
+
+    // 거치 중 화면 밝기 — 꺼짐 0 · 근무/휴게시간(홈) StowedBrightness · 잠금 화면 0.22(예고가 뜨면 0.6).
+    private float StowedLevel() => !_powered ? 0f : _inService ? StowedBrightness : _stowedAlert ? 0.6f : 0.22f;
 
     private void SetBrightness(float to, float seconds)
     {
@@ -483,7 +568,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         Sfx.Instance?.Play("crt_on", -10f);
         _awakeUntil = Time.GetTicksMsec() / 1000.0 + PadView.BootSeconds + 0.3;
         _vp.RenderTargetUpdateMode = SubViewport.UpdateMode.Always;
-        SetBrightness(IsOpen ? 1f : 0.22f, 0.2f);
+        SetBrightness(IsOpen ? 1f : StowedLevel(), 0.2f);
     }
 
     // ── 입력 ─────────────────────────────────────────────────────────────
@@ -492,12 +577,19 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     {
         if (e is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
         if (_state != PadState.Stowed) return;
-        Open();
+        // 켜진 홈 화면의 앱 아이콘을 눌렀으면 그 앱을 연 채로 들어 올린다.
+        PadView.Tab? app = null;
+        if (StowedLive && camera is Node3D cam
+            && ProjectToScreen(cam.GlobalPosition, (pos - cam.GlobalPosition).Normalized(), out Vector2 uv, out bool inside)
+            && inside)
+            app = _view.AppAt(uv * (Vector2)CanvasSize);
+        Open(app);
         GetViewport()?.SetInputAsHandled();
     }
 
     public override void _Input(InputEvent e)
     {
+        if (Engine.IsEditorHint()) return;
         // 들고 있는 동안 우클릭 = 한 단계 뒤로(상세 → 목록 → 홈). 홈에서 한 번 더 누르면 내려놓기.
         // Tab 은 어느 화면에서든 곧바로 내려놓는다(ClueHud). (ControlRoom3DController 보다 먼저 받는다.)
         if (_state is PadState.Held or PadState.Lifting
@@ -510,9 +602,21 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
     public override void _Process(double delta)
     {
+        if (Engine.IsEditorHint()) { TickEditorPreview(); return; }
+
         // 근무 · 휴게시간이 아니게 되면(엔딩 · 타이틀 등) 내려놓는다.
-        if (_state != PadState.Stowed && GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest))
-            Close();
+        bool inService = InService;
+        if (_state != PadState.Stowed && !inService) Close();
+        // 거치대 위 화면 — 근무 · 휴게시간이 시작되면 홈을 켜고, 끝나면 잠금 화면으로.
+        if (inService != _inService)
+        {
+            _inService = inService;
+            if (_state == PadState.Stowed)
+            {
+                _view.SetStowed(true, locked: !inService);
+                SetScreenAwake(false);
+            }
+        }
 
         // 전원 — 패드 채널 / 정전.
         bool powered = PadPowered;
@@ -522,17 +626,17 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             if (powered) PowerRestore();
             else PowerCut();
         }
-        // 거치 중 사고 예고 — 잠금 화면의 경고가 점멸하도록 화면을 계속 그리고 조금 밝힌다.
-        // 예고가 없으면 한 장만 그려 두고 멈춘다(평소 거치 상태의 비용 0).
+        // 거치 중 — 근무 · 휴게시간에는 홈을 계속 그린다(시각 · 배지 · 예고 배너 점멸).
+        // 그 밖(잠금 화면)에는 사고 예고가 뜬 동안만 계속 그리고, 아니면 한 장만 그려 두고 멈춘다.
         if (!IsOpen)
         {
             bool alert = _powered && _view.HasAlert;
             if (alert != _stowedAlert)
             {
                 _stowedAlert = alert;
-                if (_state == PadState.Stowed) SetBrightness(alert ? 0.6f : 0.22f, 0.2f);
+                if (_state == PadState.Stowed) SetBrightness(StowedLevel(), 0.2f);
             }
-            bool draw = alert || Time.GetTicksMsec() / 1000.0 < _awakeUntil;
+            bool draw = StowedLive || alert || Time.GetTicksMsec() / 1000.0 < _awakeUntil;
             var want = draw ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Once;
             if (_vp.RenderTargetUpdateMode != want && (draw || _vp.RenderTargetUpdateMode == SubViewport.UpdateMode.Always))
                 _vp.RenderTargetUpdateMode = want;
@@ -561,23 +665,29 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     public bool TryProjectRay(Vector3 rayOrigin, Vector3 rayDir, bool clamp, out Vector2 canvasPos)
     {
         canvasPos = Vector2.Zero;
-        if (_screen == null || _state != PadState.Held) return false;
+        if (_state != PadState.Held) return false;
+        if (!ProjectToScreen(rayOrigin, rayDir, out Vector2 uv, out bool inside)) return false;
+        if (!inside && !clamp) return false;
+        canvasPos = new Vector2(Mathf.Clamp(uv.X, 0f, 1f) * _vp.Size.X, Mathf.Clamp(uv.Y, 0f, 1f) * _vp.Size.Y);
+        return true;
+    }
 
+    // 광선이 화면 평면에 닿는 자리(0~1, 왼쪽 위 원점). 평면과 나란하거나 뒤쪽이면 false.
+    private bool ProjectToScreen(Vector3 rayOrigin, Vector3 rayDir, out Vector2 uv, out bool inside)
+    {
+        uv = Vector2.Zero;
+        inside = false;
+        if (_screen == null) return false;
         Transform3D inv = _screen.GlobalTransform.AffineInverse();
         Vector3 lo = inv * rayOrigin;
         Vector3 ld = inv.Basis * rayDir;
         if (Mathf.Abs(ld.Z) < 1e-6f) return false;
         float t = -lo.Z / ld.Z;
         if (t < 0f) return false;
-
         Vector3 hit = lo + ld * t;
-        float u = hit.X + 0.5f;
-        float v = 0.5f - hit.Y;
-        bool inside = u is >= 0f and <= 1f && v is >= 0f and <= 1f;
-        if (!inside && !clamp) return false;
-
-        canvasPos = new Vector2(Mathf.Clamp(u, 0f, 1f) * _vp.Size.X, Mathf.Clamp(v, 0f, 1f) * _vp.Size.Y);
-        return inside || clamp;
+        uv = new Vector2(hit.X + 0.5f, 0.5f - hit.Y);
+        inside = uv.X is >= 0f and <= 1f && uv.Y is >= 0f and <= 1f;
+        return true;
     }
 
     // 화면의 한 점(뷰포트 픽셀) → 월드 좌표.

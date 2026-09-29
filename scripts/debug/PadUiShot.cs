@@ -73,7 +73,7 @@ public partial class PadUiShot : Node
             sim.SetSurveillanceTarget(st.RoomId);
             st.Elapsed = st.TimeLimitSeconds - 13f;
             await Seconds(1.5);
-            Save("lock_alert", pad, screen: true);     // 거치 중 — 잠금 화면 경고 점멸
+            Save("desk_alert", pad, screen: true);     // 거치 중 — 홈 화면 + 예고 배너 점멸
             pad.Open();
             for (int i = 0; i < 300 && !pad.IsHeld; i++) await Frame();
             await Seconds(0.4);
@@ -142,6 +142,28 @@ public partial class PadUiShot : Node
         v.OpenStaffDetail(roster.FirstOrDefault() ?? "");
         await Seconds(0.4);
         Save("staff_detail", pad, screen: true);
+
+        // 거치대 위 — 근무 중에는 홈이 켜져 있다. 「단서」 아이콘을 실제 마우스 클릭으로 누르면
+        // (제어실 컨트롤러 → 물리 피킹 → 패드 클릭 영역) 단서 앱을 연 채로 들어 올린다.
+        pad.Close();
+        for (int i = 0; i < 300 && pad.IsOpen; i++) await Frame();
+        await Seconds(0.6);
+        Save("desk_home", pad, screen: true);
+        var cam = GetViewport().GetCamera3D();
+        float k = pad.TargetViewport.Size.X / (float)pad.CanvasSize.X;
+        Vector2 at = cam.UnprojectPosition(pad.ScreenPointWorld(new Vector2(560, 345) * k));
+        GetViewport().PushInput(new InputEventMouseMotion { Position = at, GlobalPosition = at }, true);
+        await Frame();
+        GetViewport().PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = at, GlobalPosition = at }, true);
+        await Frame();
+        await Frame();
+        GetViewport().PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = at, GlobalPosition = at }, true);
+        for (int i = 0; i < 300 && !pad.IsHeld; i++) await Frame();
+        await Seconds(0.3);
+        GD.Print(pad.IsHeld && v.Current == PadView.Tab.Clues
+            ? "PASS  거치대 위 「단서」 아이콘 클릭 → 단서 앱을 연 채로 들었다"
+            : $"FAIL  거치대 위 아이콘 클릭 (held={pad.IsHeld}, tab={v.Current}, at={at})");
+        Save("desk_click_clues", pad, screen: true);
 
         GD.Print("saved → " + _dir);
         GetTree().Quit();

@@ -400,7 +400,7 @@ public partial class ClueBoardTest : Node
         pad.View.OpenApp(PadView.Tab.Clues, fade: false);
         Check(pad.View.Current == PadView.Tab.Clues && pad.View.VisibleClues().Count == 1, "단서 앱을 열면 단서 1장이 보인다");
         Check(ClueBoard.UnseenCount == 0, "단서 앱을 열면 새 단서 뱃지가 비워진다");
-        Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always, "든 동안에만 화면을 그린다");
+        Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always, "든 동안 화면을 그린다");
 
         // 우클릭 = 한 단계 뒤로. 상세 → 목록 → 홈, 홈에서 한 번 더 누르면 내려놓는다.
         pad.View.OpenApp(PadView.Tab.Staff, fade: false);
@@ -414,6 +414,10 @@ public partial class ClueBoardTest : Node
         Check(pad.IsOpen && AdminPad3D.PausesGame, "우클릭 ③ 홈 → 내려놓기(내려놓는 동안에도 아직 멈춰 있다)");
         await Until(() => !pad.IsOpen, 3000);
         Check(!pad.IsOpen && !AdminPad3D.PausesGame, "책상에 내려놓으면 시간이 다시 흐른다");
+        Check(!pad.View.IsLocked && pad.View.Current == PadView.Tab.Home,
+            "근무 중 거치대 위 화면은 잠금 화면이 아니라 홈(지침 · 단서 · 직원)이다");
+        Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always,
+            "근무 중에는 거치대 위에서도 화면을 계속 그린다(시각 · 배지 · 예고)");
 
         // Tab 은 어느 화면에서든 곧바로 내려놓는다(뒤로 가지 않는다).
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
@@ -422,11 +426,26 @@ public partial class ClueBoardTest : Node
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
         Check(!pad.IsHeld && pad.IsOpen, "Tab — 앱 화면에서도 한 단계 뒤로가 아니라 곧바로 내려놓는다");
         await Until(() => !pad.IsOpen, 3000);
+        Check(pad.View.Current == PadView.Tab.Home && !pad.View.IsLocked, "앱 화면에서 내려놓아도 거치대 위 화면은 홈이다");
+
+        // 거치대 위 홈의 앱 아이콘 — 누른 자리(논리 좌표)의 앱을 연 채로 집어 든다.
+        Check(pad.View.AppAt(new Vector2(560, 345)) == PadView.Tab.Clues
+              && pad.View.AppAt(new Vector2(282, 345)) == PadView.Tab.Manual
+              && pad.View.AppAt(new Vector2(20, 20)) == null, "거치대 위 홈 — 아이콘 자리를 가려낸다");
+        pad.Open(PadView.Tab.Staff);
+        await Until(() => pad.IsHeld, 3000);
+        Check(pad.IsHeld && pad.View.Current == PadView.Tab.Staff, "아이콘을 누르면 그 앱이 열린 채로 들어 올린다");
+        pad.Close();
+        await Until(() => !pad.IsOpen, 3000);
 
         GameState.Instance.SetPhase(GamePhase.Schedule);
+        await Frames(1);
         Check(!pad.CanOpen(), "근무 배치 단계에서는 꺼낼 수 없다");
+        Check(pad.View.IsLocked, "근무 배치 단계에는 잠금 화면으로 바뀐다");
         GameState.Instance.SetPhase(GamePhase.Rest);
+        await Frames(1);
         Check(pad.CanOpen(), "휴게시간에는 꺼낼 수 있다");
+        Check(!pad.View.IsLocked, "휴게시간에는 다시 홈이 켜진다");
 
         pad.QueueFree();
         hud.QueueFree();
