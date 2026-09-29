@@ -9,13 +9,13 @@ namespace NSP.View;
 //
 //   꺼내기    패드 클릭 / Tab → 왼손이 거치대에서 집어 화면 앞으로 들어 올리고, 시선이 내려간다.
 //   조작      화면 클릭은 ControlRoom3DController 가 이 표면(모달)으로 전달한다.
-//             누른 자리가 화면 왼쪽이면 왼손 엄지, 오른쪽이면 오른손 검지가 누르는 연출만 한다
-//             (클릭 판정은 손과 무관하다 — 전화기와 같은 원칙).
-//   내려놓기  우클릭 / Tab → 거치대로 돌아간다.
+//             클릭에 손 · 패드 · 카메라는 절대 움직이지 않는다 — 반응은 화면(UI) 안에서만 준다.
+//   내려놓기  우클릭(홈에서) / Tab → 거치대로 돌아간다. 앱 안에서 우클릭은 한 단계 뒤로.
 //
 // 손과 패드: 왼손은 패드의 그립 마커(GripPoint — 위치 + 방향)를 따라간다. 패드는 손을 쥔 순간부터
 // 왼손 소켓에 붙어 따라온다(Phone3D 수화기와 같은 lerp). 그래서 손가락과 패드의 관계는 마커 하나로
-// 정해지고, 손이 패드를 뚫거나 반대로 쥐지 않는다.
+// 정해지고, 손이 패드를 뚫거나 반대로 쥐지 않는다. 파지는 「뒷면 받침」 — 손 전체가 화면 평면 뒤다
+// (GripLocal 주석 · AdminPadShot 의 「파지 규칙」 검사 참고).
 //
 // 전력: 전력 패널의 세 번째 채널(PowerConsumer.Sensor — 표시는 「패드」)이 이 기기의 전원이다.
 // 꺼지면 화면이 글리치 뒤 꺼지고, 들고 있었다면 내려놓는다. 다시 켜지면 부팅 화면을 거친다.
@@ -35,18 +35,41 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     [Export] public Vector2 ScreenSize = new(0.272f, 0.170f);
     // 들고 있을 때의 자리 — 자리에 앉은 카메라 기준(오른쪽 +X · 위 +Y · 앞 -Z).
     // 화면은 눈을 향한다 — 눈보다 아래에 들고 있으므로 자연히 뒤로 기운다(약 25°).
-    [Export] public Vector3 HoldOffset = new(0.035f, -0.12f, -0.26f);
+    // 눈에서 약 23cm — 태블릿을 읽는 거리다. 1920 화면에서 본체 가로가 65% 를 차지한다.
+    // (패드는 왼손 소켓을 따라가므로 실제 자리는 여기서 파지 깊이만큼 눈 쪽으로 당겨진다 —
+    //  HoldDriftMeters 로 그 양을 잰다. 파지를 바꾸면 이 값도 같이 다시 맞춰야 크기가 유지된다.)
+    [Export] public Vector3 HoldOffset = new(0.04f, -0.105f, -0.232f);
     // 눈을 향한 기울기에서 더 뒤로(+) / 앞으로(-) 기울이는 각(도).
     [Export] public float HoldExtraTiltDeg = 0f;
-    // 왼손 그립 마커 — 본체 로컬 위치 · 방향. 손 소켓이 이 마커에 정확히 겹친다.
-    //   위치: 왼쪽 변 바로 바깥, 두께 가운데보다 살짝 뒤(손바닥이 변에 닿는다).
-    //   방향: 손바닥이 패드 쪽(본체 +X)을 향하고, 손가락은 뒤 · 위로(뒷면을 감싸 가운데 쪽으로 굽는다),
-    //         엄지 쪽은 앞 · 위 — 엄지가 앞 베젤 위에 놓인다. (AdminPadShot grips 로 후보를 비교해 골랐다)
-    [Export] public Vector3 GripLocal = new(-0.168f, -0.012f, 0.03f);
-    [Export] public Vector3 GripRotDeg = new(0f, -90f, -55f);
+    // 화면 안에서 패드를 갸웃 기울이는 각(도). 양수 = 오른쪽이 아래로.
+    // 눈보다 아래 · 옆으로 든 판이라 원근만으로도 오른쪽이 3~4° 내려가 보인다 — 화면에 실제로
+    // 보이는 기울기는 이 값보다 그만큼 크다. 기본값은 실측 +2° 에 맞춘 것이다
+    // (AdminPadShot pose 의 「기울기」 출력으로 잰다).
+    [Export] public float HoldRollDeg = -1.4f;
+    // 왼손 그립 마커 — 본체 로컬 위치 · 방향. 손 소켓(손바닥 한가운데)이 이 마커에 정확히 겹친다.
+    //
+    // 「뒷면 받침 파지」 — 손은 통째로 화면 평면 **뒤**에 있다. 앞면(화면 쪽)에는 손목도 엄지도
+    // 오지 않는다. 플레이어에게 보이는 것은 패드와, 패드 실루엣 왼쪽 아래로 조금 나오는
+    // 손목 · 팔뚝뿐이다.
+    //   위치: 왼쪽(-X) · 화면 아래쪽(+Z, 본체 -Z 가 화면 위쪽이다) · 뒷면 쪽(-Y).
+    //         손목은 패드 아래 모서리 바깥으로 빠지고 팔뚝은 그대로 아래로 내려간다.
+    //   방향: X 회전 73° = (90 - 손바닥 눕힘 17°) — 손바닥이 뒷면(본체 +Y)을 보고, 손가락이
+    //         본체 -Z(화면 위쪽)로 뻗어 뒷면을 받친다. 눕힘을 줄이면 손목이 앞으로 들리고,
+    //         키우면 팔이 못 닿아 패드가 손에 끌려온다 — 17° 가 둘 사이의 자리다.
+    //   (AdminPadShot pose 의 「파지 규칙」 검사 — 왼손 본 15개 + 손 메시가 전부 화면 평면
+    //    5mm 뒤 — 를 통과하는 값이다. 값을 바꾸면 반드시 그 검사를 다시 돌릴 것.)
+    [Export] public Vector3 GripLocal = new(-0.101f, -0.056f, 0.092f);
+    [Export] public Vector3 GripRotDeg = new(73f, 0f, 0f);
+    // 든 동안 왼팔 메시를 숨긴다(비상용 스위치). 평소에는 끈다 — 지금 파지는 손이 보여도
+    // 화면을 1픽셀도 가리지 않는다(AdminPadShot pose 의 「파지 규칙」 검사).
+    // 파지를 손보다가 손이 화면을 덮게 되면 이걸 켜서 급한 불을 끌 수 있다.
+    // 집는 동작 · 내려놓는 동작은 켜도 그대로 보이고, 든 상태에서만 감춘다.
+    [Export] public bool HideLeftArmWhileHolding = false;
     // 거치대에 기댄 각도 — 책상 면에서 잰 각(도).
     [Export] public float CradleLeanDeg = 58f;
-    [Export] public float LiftSeconds = 0.45f;
+    // 집어 들고 · 내려놓는 데 걸리는 시간. 뻗기 · 쥐기 · 손 펴기 시간도 여기에 비례한다
+    // (PlayerCharacter.PlayPadPickup / PlayPadPutDown) — 이 값 하나로 전체 속도를 조절한다.
+    [Export] public float LiftSeconds = 0.26f;
     // 손을 따라가는 부드러움(Phone3D 수화기와 같은 값).
     [Export] public float HandFollowSharpness = 22f;
 
@@ -90,6 +113,12 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
     public Vector3 GripWorld => _grip?.GlobalPosition ?? GlobalPosition;
 
+    // 들고 있는 동안 패드가 설계된 자리(HoldOffset)에서 얼마나 밀렸는가(m).
+    // 패드는 왼손 소켓을 따라가므로, 팔 IK 가 그립 마커까지 못 닿으면 패드가 손에 끌려간다.
+    // 그러면 눈에서의 거리 = 화면에서 보이는 크기가 파지 값에 따라 흔들린다. 0 이어야 한다.
+    public float HoldDriftMeters => _state == PadState.Held && _body != null
+        ? _body.GlobalPosition.DistanceTo(_hold.Origin) : 0f;
+
     public override void _Ready()
     {
         Instance = this;
@@ -111,7 +140,6 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         AddChild(_vp);
         // 화면은 캔버스와 같은 1120×700 좌표로 짠다(PadView.Layout).
         _view = new PadView();
-        _view.CloseRequested += Close;
         ControlRoom3DController.AddScaledView(_vp, _view, CanvasSize,
             ControlRoom3DController.DocumentSupersample, ControlRoom3DController.DocumentMinRenderScale);
 
@@ -281,9 +309,15 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
                           ?? GlobalTransform;
         Vector3 origin = cam * HoldOffset;
         Vector3 up = (cam.Origin - origin).Normalized();                 // 본체 +Y(화면) → 눈
-        Vector3 right = (cam.Basis.X - up * cam.Basis.X.Dot(up)).Normalized();
-        Vector3 back = right.Cross(up).Normalized();                     // 본체 +Z(화면 아래쪽)
+        // 화면의 위아래를 카메라의 위아래에 맞춘다 — 기준을 가로축에서 뽑으면 패드를 눈 축에서
+        // 옆으로 비켜 든 만큼(HoldOffset.X) 화면이 저절로 돌아간다(예전엔 왼쪽이 4° 내려갔다).
+        Vector3 camDown = -cam.Basis.Y;
+        Vector3 back = (camDown - up * camDown.Dot(up)).Normalized();    // 본체 +Z(화면 아래쪽)
+        Vector3 right = up.Cross(back).Normalized();
         var basis = new Basis(right, up, back);
+        // 손으로 든 물건이 수평으로 딱 맞을 리 없다 — 기울기는 여기서 의도한 만큼만 준다.
+        if (!Mathf.IsZeroApprox(HoldRollDeg))
+            basis = new Basis(up, Mathf.DegToRad(-HoldRollDeg)) * basis;
         if (!Mathf.IsZeroApprox(HoldExtraTiltDeg))
             basis = new Basis(right, Mathf.DegToRad(HoldExtraTiltDeg)) * basis;
         return new Transform3D(basis, origin);
@@ -335,7 +369,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         SetScreenAwake(true);
         _view.OnOpened();
         ctl?.SetModalSurface(this);
-        _rig?.PadPosture(true, LiftSeconds + 0.25f);
+        _rig?.PadPosture(true, LiftSeconds + 0.14f);
         Sfx.Instance?.Play("relay_click", -12f, 0.9f);
 
         if (_player?.HandSocketL != null)
@@ -360,6 +394,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     private void SetState(PadState s)
     {
         if (_state is PadState.Lifting or PadState.Reaching) _state = s;
+        // 다 들어 올린 순간부터 왼팔을 감춘다(HideLeftArmWhileHolding).
+        if (_state == PadState.Held && HideLeftArmWhileHolding) _player?.SetLeftArmMeshHidden(true);
     }
 
     public void Close()
@@ -367,9 +403,10 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         if (_state is PadState.Stowed or PadState.Lowering) return;
         bool wasReaching = _state == PadState.Reaching;
         _state = PadState.Lowering;
+        _player?.SetLeftArmMeshHidden(false);   // 내려놓는 동작은 손이 보이는 채로
 
         ControlRoom3DController.Instance?.SetModalSurface(null);
-        _rig?.PadPosture(false, LiftSeconds + 0.1f);
+        _rig?.PadPosture(false, LiftSeconds + 0.06f);
         Sfx.Instance?.Play("relay_click", -14f, 0.75f);
 
         if (_player?.HandSocketL != null)
@@ -461,11 +498,12 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
     public override void _Input(InputEvent e)
     {
-        // 들고 있는 동안 우클릭 = 내려놓기. (ControlRoom3DController 보다 먼저 받는다.)
+        // 들고 있는 동안 우클릭 = 한 단계 뒤로(상세 → 목록 → 홈). 홈에서 한 번 더 누르면 내려놓기.
+        // Tab 은 어느 화면에서든 곧바로 내려놓는다(ClueHud). (ControlRoom3DController 보다 먼저 받는다.)
         if (_state is PadState.Held or PadState.Lifting
             && e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
-            Close();
+            if (_state != PadState.Held || _view?.TryGoBack() != true) Close();
             GetViewport().SetInputAsHandled();
         }
     }
@@ -542,12 +580,6 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         return inside || clamp;
     }
 
-    // 들고 있는 손 모양 · 그립을 지금 Export 값으로 다시 맞춘다(인스펙터 · 캡처 튜닝용).
-    public void RefreshHandPose()
-    {
-        if (_state == PadState.Held) _player?.PlayPadHold(HoldGrip);
-    }
-
     // 화면의 한 점(뷰포트 픽셀) → 월드 좌표.
     public Vector3 ScreenPointWorld(Vector2 canvasPos)
     {
@@ -556,19 +588,16 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         return _screen.GlobalTransform * new Vector3(u - 0.5f, 0.5f - v, 0f);
     }
 
-    // 화면을 눌렀다 — 왼쪽 절반은 들고 있는 왼손 엄지, 오른쪽 절반은 오른손 검지.
+    // 화면을 눌렀다 — 반응은 화면(UI) 안에서만 한다.
+    // 패드 트랜스폼 · 왼팔 파지 포즈 · 카메라는 클릭에 절대 반응하지 않는다.
+    // (예전에는 누른 자리에 따라 왼손 엄지 / 오른팔 전체를 움직였다 — 클릭마다 화면이 휘저어져 어지러웠다.)
     public void OnSurfacePressed(Vector2 canvasPos)
     {
-        if (_state != PadState.Held || _player == null) return;
+        if (_state != PadState.Held) return;
         Sfx.Instance?.Play("key_single", -20f, 1.3f);
-        bool left = canvasPos.X < _vp.Size.X * 0.5f;
-        if (left)
-        {
-            _player.PlayPadThumbTap(HoldGrip);
-            return;
-        }
-        Vector3 at = ScreenPointWorld(canvasPos);
-        Vector3 normal = _screen.GlobalTransform.Basis.Z.Normalized();
-        _player.PlayPadFingerTap(at, at + normal * 0.035f);
+        _view?.FlashTouch(canvasPos / ViewScale);
     }
+
+    // 뷰포트 픽셀 ↔ PadView 논리 좌표(1120×700) 배율.
+    private float ViewScale => _vp == null ? 1f : _vp.Size.X / Mathf.Max(1f, (float)CanvasSize.X);
 }

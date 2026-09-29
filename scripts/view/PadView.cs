@@ -26,16 +26,26 @@ public partial class PadView : Control
     public enum Tab { Home, Manual, Clues, Staff }
 
     public static readonly Vector2 Layout = new(1120, 700);
-    public event Action CloseRequested;
 
     public const float BootSeconds = 0.8f;
     public const int CardsPerPage = 6;
 
-    private const float StatusH = 40f;
-    private const float AppBarH = 58f;
+    // ── 글자 크기 규약(논리 캔버스 1120×700 기준) ──────────────────────────
+    // 손에 들고 코앞에서 읽는 화면이다. 16 미만은 쓰지 않는다.
+    private const int FsStatus = 18;    // 상태바
+    private const int FsAppLabel = 22;  // 홈 앱 아이콘 라벨
+    private const int FsScreen = 26;    // 화면 제목(앱 바)
+    private const int FsSection = 22;   // 섹션 제목 · 카드 제목
+    private const int FsBody = 19;      // 본문
+    private const int FsCaption = 16;   // 보조 · 캡션(최소값)
+
+    private const float StatusH = 44f;
+    private const float AppBarH = 62f;
     private const float Top = StatusH + AppBarH;     // 앱 본문이 시작하는 높이
-    private static readonly Vector2 Card = new(346, 252);
+    private static readonly Vector2 Card = new(346, 268);
     private const float CardGap = 16f;
+    // 단서 상세(오른쪽에서 밀려 나오는 판)의 너비. 본문 19 로도 스크롤 없이 담기는 크기다.
+    private const float DetailWidth = 668f;
 
     private static readonly Color Bg = new(0.025f, 0.045f, 0.055f);
     private static readonly Color PanelBg = new(0.04f, 0.075f, 0.09f, 0.97f);
@@ -126,6 +136,37 @@ public partial class PadView : Control
         SetStowed(true);
     }
 
+    // 화면을 눌렀다 — 누른 자리에 짧게 물결 하나(논리 좌표). 클릭 피드백은 전부 이 UI 층에서만 준다.
+    // 패드 · 손 · 카메라는 클릭에 절대 움직이지 않는다(AdminPad3D.OnSurfacePressed 참고).
+    public void FlashTouch(Vector2 at)
+    {
+        if (!IsInsideTree() || !ScreenOn || IsStowed) return;
+        var dot = new TouchDot { Position = at };
+        AddChild(dot);
+        var t = CreateTween();
+        t.TweenMethod(Callable.From<float>(dot.SetProgress), 0f, 1f, 0.26)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        t.TweenCallback(Callable.From(dot.QueueFree));
+    }
+
+    // 누른 자리에서 번지는 고리 하나.
+    private partial class TouchDot : Control
+    {
+        private float _t;
+
+        public override void _Ready() => MouseFilter = MouseFilterEnum.Ignore;
+
+        public void SetProgress(float t) { _t = t; QueueRedraw(); }
+
+        public override void _Draw()
+        {
+            float r = Mathf.Lerp(9f, 48f, _t);
+            float a = 1f - _t;
+            DrawCircle(Vector2.Zero, r * 0.55f, Cyan with { A = a * 0.22f });
+            DrawArc(Vector2.Zero, r, 0, Mathf.Tau, 28, Cyan with { A = a * 0.9f }, 2.5f);
+        }
+    }
+
     // 거치대에 놓여 있는 동안은 잠금 화면(시각 · 사고 예고 · 새 단서).
     public void SetStowed(bool stowed)
     {
@@ -184,17 +225,17 @@ public partial class PadView : Control
                                  MouseFilter = MouseFilterEnum.Ignore });
         AddChild(new ColorRect { Color = Cyan with { A = 0.25f }, Position = new Vector2(0, StatusH - 1),
                                  Size = new Vector2(Layout.X, 1), MouseFilter = MouseFilterEnum.Ignore });
-        var brand = Lbl("NSP-07", 15, Cyan);
-        brand.Position = new Vector2(18, 7);
+        var brand = Lbl("NSP-07", FsStatus, Cyan);
+        brand.Position = new Vector2(18, 8);
         AddChild(brand);
 
-        _statusTime = Lbl("", 14, Ink);
+        _statusTime = Lbl("", FsStatus, Ink);
         _statusTime.Position = new Vector2(0, 8);
-        _statusTime.Size = new Vector2(Layout.X, 24);
+        _statusTime.Size = new Vector2(Layout.X, 28);
         _statusTime.HorizontalAlignment = HorizontalAlignment.Center;
         AddChild(_statusTime);
 
-        _statusIcons = new StatusIcons { Position = new Vector2(Layout.X - 330, 4), Size = new Vector2(316, 32), Font = _font };
+        _statusIcons = new StatusIcons { Position = new Vector2(Layout.X - 392, 4), Size = new Vector2(378, 36), Font = _font };
         AddChild(_statusIcons);
     }
 
@@ -211,20 +252,20 @@ public partial class PadView : Control
             var chans = new (string Label, PowerConsumer C)[]
                 { ("조명", PowerConsumer.Lighting), ("CCTV", PowerConsumer.CctvWatch), ("패드", PowerConsumer.Sensor) };
             float x = 0f;
-            int fs = ViewFont.S(11);
+            int fs = ViewFont.S(FsCaption);
             foreach (var (label, c) in chans)
             {
                 bool on = gs == null || gs.IsConsumerPowered(c);
-                DrawCircle(new Vector2(x + 7, 16), 5f, on ? Green : new Color(0.3f, 0.35f, 0.36f));
-                DrawString(Font, new Vector2(x + 16, 21), label, HorizontalAlignment.Left, -1, fs, on ? Ink : Dim);
-                x += label == "CCTV" ? 66f : 56f;
+                DrawCircle(new Vector2(x + 8, 18), 6f, on ? Green : new Color(0.3f, 0.35f, 0.36f));
+                DrawString(Font, new Vector2(x + 19, 25), label, HorizontalAlignment.Left, -1, fs, on ? Ink : Dim);
+                x += label == "CCTV" ? 82f : 68f;
             }
             // 배터리
-            var b = new Rect2(x + 20, 9, 34, 15);
+            var b = new Rect2(x + 22, 9, 40, 18);
             DrawRect(b, Ink, false, 1.5f);
-            DrawRect(new Rect2(b.End.X, 13, 3, 7), Ink);
+            DrawRect(new Rect2(b.End.X, 14, 4, 8), Ink);
             DrawRect(new Rect2(b.Position + new Vector2(2, 2), new Vector2((b.Size.X - 4) * 0.87f, b.Size.Y - 4)), Green);
-            DrawString(Font, new Vector2(x + 62, 21), "87%", HorizontalAlignment.Left, -1, fs, Ink);
+            DrawString(Font, new Vector2(x + 72, 25), "87%", HorizontalAlignment.Left, -1, fs, Ink);
         }
     }
 
@@ -240,10 +281,10 @@ public partial class PadView : Control
         AddChild(_home);
 
         // 사고 예고 배너 — 상태바 바로 아래.
-        _banner = new PanelContainer { Position = new Vector2(24, StatusH + 12), Size = new Vector2(Layout.X - 48, 46),
+        _banner = new PanelContainer { Position = new Vector2(24, StatusH + 12), Size = new Vector2(Layout.X - 48, 54),
                                        MouseFilter = MouseFilterEnum.Ignore, Visible = false };
-        _banner.AddThemeStyleboxOverride("panel", Box(new Color(0.22f, 0.07f, 0.04f, 0.95f), Red, 14, 6));
-        _bannerText = Lbl("", 16, new Color(1f, 0.88f, 0.8f));
+        _banner.AddThemeStyleboxOverride("panel", Box(new Color(0.22f, 0.07f, 0.04f, 0.95f), Red, 14, 8));
+        _bannerText = Lbl("", FsBody, new Color(1f, 0.88f, 0.8f));
         _bannerText.VerticalAlignment = VerticalAlignment.Center;
         _banner.AddChild(_bannerText);
         _home.AddChild(_banner);
@@ -272,30 +313,30 @@ public partial class PadView : Control
             btn.AddChild(glyph);
             _home.AddChild(btn);
 
-            var name = Lbl(label, 22, Ink);
+            var name = Lbl(label, FsAppLabel, Ink);
             name.Position = new Vector2(btn.Position.X, y0 + tile + 12);
-            name.Size = new Vector2(tile, 34);
+            name.Size = new Vector2(tile, 38);
             name.HorizontalAlignment = HorizontalAlignment.Center;
             _home.AddChild(name);
 
             if (tab == Tab.Clues)
             {
-                var badge = Lbl("", 15, Colors.Black);
+                var badge = Lbl("", FsCaption, Colors.Black);
                 badge.HorizontalAlignment = HorizontalAlignment.Center;
                 badge.VerticalAlignment = VerticalAlignment.Center;
-                badge.Position = new Vector2(btn.Position.X + tile - 44, y0 - 14);
-                badge.Size = new Vector2(58, 30);
+                badge.Position = new Vector2(btn.Position.X + tile - 46, y0 - 16);
+                badge.Size = new Vector2(64, 34);
                 var bb = new StyleBoxFlat { BgColor = Amber };
-                bb.SetCornerRadiusAll(15);
+                bb.SetCornerRadiusAll(17);
                 badge.AddThemeStyleboxOverride("normal", bb);
                 _home.AddChild(badge);
                 _homeBadges[tab] = badge;
             }
         }
 
-        var hint = Lbl("Tab · 우클릭 — 패드 내려놓기", 13, Dim);
-        hint.Position = new Vector2(0, Layout.Y - 44);
-        hint.Size = new Vector2(Layout.X, 24);
+        var hint = Lbl("앱 안에서 우클릭 = 뒤로     ·     홈에서 우클릭 · Tab = 패드 내려놓기", FsCaption, Dim);
+        hint.Position = new Vector2(0, Layout.Y - 46);
+        hint.Size = new Vector2(Layout.X, 28);
         hint.HorizontalAlignment = HorizontalAlignment.Center;
         _home.AddChild(hint);
     }
@@ -385,14 +426,15 @@ public partial class PadView : Control
 
         _app.AddChild(new ColorRect { Color = new Color(0.03f, 0.07f, 0.085f), Position = new Vector2(0, StatusH),
                                       Size = new Vector2(Layout.X, AppBarH), MouseFilter = MouseFilterEnum.Ignore });
-        _backBtn = Btn("◀ 홈", Cyan, OnBack, 15);
-        _backBtn.Position = new Vector2(16, StatusH + 10);
-        _backBtn.Size = new Vector2(104, 38);
+        // 뒤로 — 모든 앱 화면 좌상단에 늘 같은 자리 · 같은 문구. 한 단계씩 올라간다(상세 → 목록 → 홈).
+        _backBtn = Btn(BackLabel, Cyan, OnBack, FsBody);
+        _backBtn.Position = new Vector2(14, StatusH + 8);
+        _backBtn.Size = BackButtonSize;
         _app.AddChild(_backBtn);
 
-        _appTitle = Lbl("", 20, Ink);
-        _appTitle.Position = new Vector2(136, StatusH + 13);
-        _appTitle.Size = new Vector2(360, 32);
+        _appTitle = Lbl("", FsScreen, Ink);
+        _appTitle.Position = new Vector2(14 + BackButtonSize.X + 22, StatusH + 12);
+        _appTitle.Size = new Vector2(420, 38);
         _app.AddChild(_appTitle);
 
         _appTools = new Control { Position = new Vector2(0, StatusH), Size = new Vector2(Layout.X, AppBarH),
@@ -405,7 +447,7 @@ public partial class PadView : Control
 
         _detail = new Panel
         {
-            Position = new Vector2(Layout.X, Top), Size = new Vector2(Layout.X * 0.5f, Layout.Y - Top),
+            Position = new Vector2(Layout.X, Top), Size = new Vector2(DetailWidth, Layout.Y - Top),
             MouseFilter = MouseFilterEnum.Stop, Visible = false,
         };
         // 완전 불투명 — 화면이 거의 검어서 3% 만 비쳐도 뒤 카드 글자가 드러난다.
@@ -451,12 +493,22 @@ public partial class PadView : Control
     // 예전 탭 방식과 같은 이름 — 검사 · 캡처 코드가 쓴다.
     public void SwitchTab(Tab tab, bool fade = true) => OpenApp(tab, fade);
 
-    private void OnBack()
+    // 뒤로 버튼 — 어느 화면에서나 같은 문구 · 같은 자리 · 같은 크기(터치 타깃 최소 56×44).
+    private const string BackLabel = "◀ 뒤로";
+    private static readonly Vector2 BackButtonSize = new(142, 46);
+
+    // 한 단계 위로. 단서 상세 → 단서 목록 → 홈, 지침 페이지 → 챕터 목록 → 홈, 직원 상세 → 직원 목록 → 홈.
+    private void OnBack() => TryGoBack();
+
+    // 올라갈 곳이 있었으면 true. 홈이면 false(= 패드를 내려놓을 차례다 — AdminPad3D 가 판단한다).
+    public bool TryGoBack()
     {
-        // 지침 챕터 안에서는 챕터 목록으로, 직원 상세에서는 직원 목록으로 한 단계만 돌아간다.
-        if (Current == Tab.Manual && ManualChapter >= 0) { OpenChapter(-1); return; }
-        if (Current == Tab.Staff && !string.IsNullOrEmpty(StaffDetailId)) { OpenStaffDetail(""); return; }
+        if (_detail is { Visible: true }) { CloseDetail(); return true; }
+        if (Current == Tab.Manual && ManualChapter >= 0) { OpenChapter(-1); return true; }
+        if (Current == Tab.Staff && !string.IsNullOrEmpty(StaffDetailId)) { OpenStaffDetail(""); return true; }
+        if (Current == Tab.Home) return false;
         GoHome();
+        return true;
     }
 
     private void RebuildCurrent()
@@ -469,8 +521,6 @@ public partial class PadView : Control
             case Tab.Clues: BuildClues(); break;
             case Tab.Staff: BuildStaff(); break;
         }
-        _backBtn.Text = (Current == Tab.Manual && ManualChapter >= 0) ? "◀ 목록"
-                      : (Current == Tab.Staff && !string.IsNullOrEmpty(StaffDetailId)) ? "◀ 목록" : "◀ 홈";
     }
 
     // 직원 앱 → 단서 앱(그 직원 필터).
@@ -523,42 +573,43 @@ public partial class PadView : Control
         if (pages.Count == 0) { EmptyNote("이 장에는 아직 페이지가 없습니다."); return; }
         var page = pages[Math.Clamp(ManualPage, 0, pages.Count - 1)];
 
+        // 그림 → 제목 → 본문 4줄 → 쪽 넘김. 글자가 커진 만큼 그림을 조금 낮추고 줄 간격을 넓혔다.
         float bodyH = Layout.Y - Top;
-        float imgH = Mathf.Round(bodyH * 0.55f), imgW = Mathf.Round(imgH * 16f / 9f);
+        float imgH = Mathf.Round(bodyH * 0.48f), imgW = Mathf.Round(imgH * 16f / 9f);
         var img = ImageBox(page.ImagePath, new Vector2(imgW, imgH));
-        img.Position = new Vector2((Layout.X - imgW) * 0.5f, 14);
+        img.Position = new Vector2((Layout.X - imgW) * 0.5f, 10);
         _appBody.AddChild(img);
 
-        var title = Lbl(page.Title, 22, Amber);
-        title.Position = new Vector2(80, imgH + 26);
-        title.Size = new Vector2(Layout.X - 160, 34);
+        var title = Lbl(page.Title, FsSection, Amber);
+        title.Position = new Vector2(60, imgH + 22);
+        title.Size = new Vector2(Layout.X - 120, 36);
         title.HorizontalAlignment = HorizontalAlignment.Center;
         _appBody.AddChild(title);
 
         var lines = page.Lines ?? Array.Empty<string>();
         for (int i = 0; i < Math.Min(lines.Length, PadManualDef.MaxLinesPerPage); i++)
         {
-            var l = Lbl(lines[i], 16, Ink);
-            l.Position = new Vector2(80, imgH + 66 + i * 30);
-            l.Size = new Vector2(Layout.X - 160, 28);
+            var l = Lbl(lines[i], FsBody, Ink);
+            l.Position = new Vector2(60, imgH + 66 + i * 34);
+            l.Size = new Vector2(Layout.X - 120, 32);
             l.HorizontalAlignment = HorizontalAlignment.Center;
             _appBody.AddChild(l);
         }
 
         // ◀ ● ○ ○ ▶
-        float navY = bodyH - 50;
-        var prev = Btn("◀", Cyan, () => SetManualPage(ManualPage - 1), 16);
-        prev.Position = new Vector2(Layout.X * 0.5f - 190, navY);
-        prev.Size = new Vector2(56, 40);
+        float navY = bodyH - 52;
+        var prev = Btn("◀", Cyan, () => SetManualPage(ManualPage - 1), FsSection);
+        prev.Position = new Vector2(Layout.X * 0.5f - 196, navY);
+        prev.Size = new Vector2(62, 44);
         prev.Disabled = ManualPage <= 0;
         _appBody.AddChild(prev);
-        var next = Btn("▶", Cyan, () => SetManualPage(ManualPage + 1), 16);
+        var next = Btn("▶", Cyan, () => SetManualPage(ManualPage + 1), FsSection);
         next.Position = new Vector2(Layout.X * 0.5f + 134, navY);
-        next.Size = new Vector2(56, 40);
+        next.Size = new Vector2(62, 44);
         next.Disabled = ManualPage >= pages.Count - 1;
         _appBody.AddChild(next);
         var dots = new PageDots { Count = pages.Count, Index = ManualPage,
-                                  Position = new Vector2(Layout.X * 0.5f - 120, navY), Size = new Vector2(240, 40) };
+                                  Position = new Vector2(Layout.X * 0.5f - 120, navY), Size = new Vector2(240, 44) };
         _appBody.AddChild(dots);
     }
 
@@ -571,13 +622,13 @@ public partial class PadView : Control
         var thumb = ImageBox(ch.ThumbnailPath(), new Vector2(Card.X - 16, 180));
         thumb.Position = new Vector2(8, 8);
         card.AddChild(thumb);
-        var t = Lbl($"{index + 1}장  {ch.Title}", 17, Ink);
+        var t = Lbl($"{index + 1}장  {ch.Title}", FsBody, Ink);
         t.Position = new Vector2(12, 196);
-        t.Size = new Vector2(Card.X - 24, 26);
+        t.Size = new Vector2(Card.X - 24, 30);
         card.AddChild(t);
-        var n = Lbl($"{ch.PageList().Count}쪽", 12, Dim);
-        n.Position = new Vector2(12, 222);
-        n.Size = new Vector2(Card.X - 24, 20);
+        var n = Lbl($"{ch.PageList().Count}쪽", FsCaption, Dim);
+        n.Position = new Vector2(12, 230);
+        n.Size = new Vector2(Card.X - 24, 26);
         card.AddChild(n);
         return card;
     }
@@ -616,7 +667,7 @@ public partial class PadView : Control
         }
         else
         {
-            var l = Lbl($"그림 준비 중\n{System.IO.Path.GetFileName(path ?? "")}", 13, Dim);
+            var l = Lbl($"그림 준비 중\n{System.IO.Path.GetFileName(path ?? "")}", FsCaption, Dim);
             l.Size = size;
             l.HorizontalAlignment = HorizontalAlignment.Center;
             l.VerticalAlignment = VerticalAlignment.Center;
@@ -695,31 +746,31 @@ public partial class PadView : Control
         Page = Math.Clamp(Page, 0, pages - 1);
 
         // 도구줄 — 정렬 · 직원 필터 · 쪽.
-        var sort = Btn(GroupByEmployee ? "정렬: 직원별" : "정렬: 시간순", Cyan, () => SetGroupByEmployee(!GroupByEmployee), 13);
-        sort.Position = new Vector2(Layout.X - 560, 11);
-        sort.Size = new Vector2(140, 36);
+        var sort = Btn(GroupByEmployee ? "정렬: 직원별" : "정렬: 시간순", Cyan, () => SetGroupByEmployee(!GroupByEmployee), FsCaption);
+        sort.Position = new Vector2(Layout.X - 596, 9);
+        sort.Size = new Vector2(164, 44);
         _appTools.AddChild(sort);
         if (!string.IsNullOrEmpty(EmployeeFilter))
         {
             var def = FacilitySimulation.Instance?.GetEmployeeDef(EmployeeFilter);
-            var chip = Btn($"{def?.Codename ?? EmployeeFilter}  ✕", Readable(def?.IconColor ?? Cyan), ClearEmployeeFilter, 13);
-            chip.Position = new Vector2(Layout.X - 408, 11);
-            chip.Size = new Vector2(120, 36);
+            var chip = Btn($"{def?.Codename ?? EmployeeFilter}  ✕", Readable(def?.IconColor ?? Cyan), ClearEmployeeFilter, FsCaption);
+            chip.Position = new Vector2(Layout.X - 420, 9);
+            chip.Size = new Vector2(136, 44);
             _appTools.AddChild(chip);
         }
-        var prev = Btn("◀", Cyan, () => SetPage(Page - 1), 14);
-        prev.Position = new Vector2(Layout.X - 270, 11);
-        prev.Size = new Vector2(50, 36);
+        var prev = Btn("◀", Cyan, () => SetPage(Page - 1), FsBody);
+        prev.Position = new Vector2(Layout.X - 272, 9);
+        prev.Size = new Vector2(56, 44);
         prev.Disabled = Page <= 0;
         _appTools.AddChild(prev);
-        var pl = Lbl($"{Page + 1} / {pages}", 14, Dim);
-        pl.Position = new Vector2(Layout.X - 214, 16);
-        pl.Size = new Vector2(90, 26);
+        var pl = Lbl($"{Page + 1} / {pages}", FsCaption, Dim);
+        pl.Position = new Vector2(Layout.X - 212, 17);
+        pl.Size = new Vector2(96, 28);
         pl.HorizontalAlignment = HorizontalAlignment.Center;
         _appTools.AddChild(pl);
-        var next = Btn("▶", Cyan, () => SetPage(Page + 1), 14);
-        next.Position = new Vector2(Layout.X - 118, 11);
-        next.Size = new Vector2(50, 36);
+        var next = Btn("▶", Cyan, () => SetPage(Page + 1), FsBody);
+        next.Position = new Vector2(Layout.X - 112, 9);
+        next.Size = new Vector2(56, 44);
         next.Disabled = Page >= pages - 1;
         _appTools.AddChild(next);
 
@@ -750,18 +801,18 @@ public partial class PadView : Control
         card.AddChild(thumb);
 
         var tagBg = new PanelContainer { Position = new Vector2(14, 14), MouseFilter = MouseFilterEnum.Ignore };
-        tagBg.AddThemeStyleboxOverride("panel", Box(tag, tag, 8, 1));
-        tagBg.AddChild(Lbl(InterviewEvidenceDisplay.Tag(ev), 12, Colors.Black));
+        tagBg.AddThemeStyleboxOverride("panel", Box(tag, tag, 8, 2));
+        tagBg.AddChild(Lbl(InterviewEvidenceDisplay.Tag(ev), FsCaption, Colors.Black));
         card.AddChild(tagBg);
 
-        var title = Lbl(Short(ClueTitle(ev), 18), 16, Ink);
+        var title = Lbl(Short(ClueTitle(ev), 17), FsBody, Ink);
         title.Position = new Vector2(12, 194);
-        title.Size = new Vector2(Card.X - 24, 26);
+        title.Size = new Vector2(Card.X - 24, 30);
         card.AddChild(title);
 
-        var when = Lbl(WhenText(entry), 12, Dim);
-        when.Position = new Vector2(12, 222);
-        when.Size = new Vector2(Card.X - 110, 20);
+        var when = Lbl(WhenText(entry), FsCaption, Dim);
+        when.Position = new Vector2(12, 228);
+        when.Size = new Vector2(Card.X - 110, 26);
         card.AddChild(when);
 
         float dx = Card.X - 20;
@@ -769,9 +820,9 @@ public partial class PadView : Control
         {
             var def = FacilitySimulation.Instance?.GetEmployeeDef(id);
             if (def == null) continue;
-            card.AddChild(new ColorRect { Color = def.IconColor, Position = new Vector2(dx - 12, 226), Size = new Vector2(12, 12),
+            card.AddChild(new ColorRect { Color = def.IconColor, Position = new Vector2(dx - 14, 234), Size = new Vector2(14, 14),
                                           MouseFilter = MouseFilterEnum.Ignore });
-            dx -= 18;
+            dx -= 20;
         }
         return card;
     }
@@ -829,8 +880,8 @@ public partial class PadView : Control
             });
             var stamp = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
             stamp.AddThemeStyleboxOverride("panel", Box(new Color(0f, 0f, 0f, 0.7f), Red with { A = 0.9f }, 12, 4));
-            stamp.AddChild(Lbl("NO SIGNAL", 18, Red));
-            stamp.Position = size * 0.5f - new Vector2(78, 20);
+            stamp.AddChild(Lbl("NO SIGNAL", FsSection, Red));
+            stamp.Position = size * 0.5f - new Vector2(88, 22);
             stamp.RotationDegrees = -6f;
             box.AddChild(stamp);
             return box;
@@ -882,16 +933,16 @@ public partial class PadView : Control
                 => $"❝ {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}에서 엿들음",
             _ => $"❝ {InterviewEvidenceDisplay.Tag(ev)}",
         };
-        var line = Lbl(osd, 13, Ink with { A = 0.85f });
-        line.Position = new Vector2(10, size.Y - 32f);
-        line.Size = new Vector2(size.X - 20, 24);
+        var line = Lbl(osd, FsCaption, Ink with { A = 0.85f });
+        line.Position = new Vector2(10, size.Y - 34f);
+        line.Size = new Vector2(size.X - 20, 28);
         line.ClipText = true;
         box.AddChild(line);
         if (ev.Kind == EvidenceKind.Cctv)
         {
-            var rec = Lbl("● REC", 12, Red);
-            rec.Position = new Vector2(size.X - 70, 10);
-            rec.Size = new Vector2(60, 20);
+            var rec = Lbl("● REC", FsCaption, Red);
+            rec.Position = new Vector2(size.X - 84, 10);
+            rec.Size = new Vector2(74, 24);
             rec.HorizontalAlignment = HorizontalAlignment.Right;
             box.AddChild(rec);
         }
@@ -910,7 +961,7 @@ public partial class PadView : Control
 
         _detail.Visible = true;
         _slide?.Kill();
-        float to = Layout.X * 0.5f;
+        float to = Layout.X - DetailWidth;
         if (!IsInsideTree()) { _detail.Position = _detail.Position with { X = to }; return; }
         if (!same) _detail.Position = _detail.Position with { X = Layout.X };
         _slide = CreateTween();
@@ -943,36 +994,40 @@ public partial class PadView : Control
 
         var scroll = new ScrollContainer
         {
-            Position = new Vector2(16, 12), Size = _detail.Size - new Vector2(32, 24),
+            Position = new Vector2(14, 10), Size = _detail.Size - new Vector2(28, 20),
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
         };
         _detail.AddChild(scroll);
         var col = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        col.AddThemeConstantOverride("separation", 8);
+        col.AddThemeConstantOverride("separation", 7);
         scroll.AddChild(col);
 
         var head = new HBoxContainer();
-        var title = Lbl($"[{InterviewEvidenceDisplay.Tag(ev)}]  {ClueTitle(ev)}", 17, tag);
+        var title = Lbl($"[{InterviewEvidenceDisplay.Tag(ev)}]  {ClueTitle(ev)}", FsSection, tag);
         title.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         title.ClipText = true;
         head.AddChild(title);
-        var x = Btn("✕", Dim, () => CloseDetail(), 14);
-        x.CustomMinimumSize = new Vector2(38, 32);
+        var x = Btn("✕", Dim, () => CloseDetail(), FsBody);
+        x.CustomMinimumSize = new Vector2(46, 40);
         head.AddChild(x);
         col.AddChild(head);
 
-        // 스냅샷(크게)
-        float w = _detail.Size.X - 48;
-        col.AddChild(Thumbnail(entry, new Vector2(w, Mathf.Round(w * 9f / 16f))));
+        // 스냅샷 + 시각 · 사건을 한 줄에 나란히 — 본문 19 를 지키면서 스크롤 없이 담는다.
+        var top = new HBoxContainer();
+        top.AddThemeConstantOverride("separation", 12);
+        float w = Mathf.Round(_detail.Size.X * 0.46f);
+        top.AddChild(Thumbnail(entry, new Vector2(w, Mathf.Round(w * 9f / 16f))));
+        var side = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        side.AddThemeConstantOverride("separation", 4);
+        top.AddChild(side);
+        col.AddChild(top);
 
-        col.AddChild(Separator());
-        col.AddChild(IconRow("◷", "시각 · 장소", Cyan));
+        side.AddChild(IconRow("◷", "시각 · 장소", Cyan));
         string room = string.IsNullOrEmpty(ev.SubjectRoomId) ? "" : $" · {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}";
-        col.AddChild(Lbl($"{WhenText(entry)}{room}", 15, Ink));
-
-        col.AddChild(Separator());
-        col.AddChild(IconRow("▤", "사건", Cyan));
-        col.AddChild(Wrap(Lbl(FirstSentences(ev.Body, 2), 15, Ink)));
+        side.AddChild(Wrap(Lbl($"{WhenText(entry)}{room}", FsBody, Ink)));
+        side.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
+        side.AddChild(IconRow("▤", "사건", Cyan));
+        side.AddChild(Wrap(Lbl(FirstSentences(ev.Body, 2), FsBody, Ink)));
 
         col.AddChild(Separator());
         col.AddChild(IconRow("●", "관련 직원", Cyan));
@@ -981,14 +1036,14 @@ public partial class PadView : Control
         chips.AddThemeConstantOverride("v_separation", 4);
         var staff = RelatedStaff(entry);
         foreach (string id in staff) chips.AddChild(StaffChip(id));
-        if (staff.Count == 0) chips.AddChild(Lbl("—", 14, Dim));
+        if (staff.Count == 0) chips.AddChild(Lbl("—", FsBody, Dim));
         col.AddChild(chips);
 
         col.AddChild(Separator());
         col.AddChild(IconRow("❝", "관련 진술", Cyan));
         var talks = RelatedStatements(entry);
         if (talks.Count == 0)
-            col.AddChild(Wrap(Lbl("진술 없음 — 휴게시간에 물어볼 수 있습니다.", 14, Dim)));
+            col.AddChild(Wrap(Lbl("진술 없음 — 휴게시간에 물어볼 수 있습니다.", FsBody, Dim)));
         foreach (var (who, lines) in talks)
         {
             string key = who;
@@ -999,21 +1054,21 @@ public partial class PadView : Control
                 {
                     if (!_openStatements.Remove(key)) _openStatements.Add(key);
                     BuildDetail();
-                }, 14);
+                }, FsBody);
             toggle.Alignment = HorizontalAlignment.Left;
-            toggle.CustomMinimumSize = new Vector2(0, 34);
+            toggle.CustomMinimumSize = new Vector2(0, 44);
             col.AddChild(toggle);
             if (!open) continue;
             foreach (var l in lines)
             {
                 bool mine = l.EntryType == DialogueEntryType.PlayerChoice;
-                col.AddChild(Wrap(Lbl((mine ? "   관리자: " : $"   {l.SpeakerDisplayName}: ") + l.Text, 14, mine ? Dim : Ink)));
+                col.AddChild(Wrap(Lbl((mine ? "   관리자: " : $"   {l.SpeakerDisplayName}: ") + l.Text, FsBody, mine ? Dim : Ink)));
             }
         }
 
         col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
-        var unpin = Btn("★ 핀 해제", Amber, () => ClueBoard.Unpin(entry.Day, entry.EvidenceId), 15);
-        unpin.CustomMinimumSize = new Vector2(0, 40);
+        var unpin = Btn("★ 핀 해제", Amber, () => ClueBoard.Unpin(entry.Day, entry.EvidenceId), FsBody);
+        unpin.CustomMinimumSize = new Vector2(0, 46);
         col.AddChild(unpin);
     }
 
@@ -1021,8 +1076,8 @@ public partial class PadView : Control
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 8);
-        row.AddChild(Lbl(icon, 14, c));
-        row.AddChild(Lbl(label, 13, c with { A = 0.8f }));
+        row.AddChild(Lbl(icon, FsSection, c));
+        row.AddChild(Lbl(label, FsSection, c with { A = 0.8f }));
         return row;
     }
 
@@ -1106,22 +1161,22 @@ public partial class PadView : Control
         string captured = id;
         card.Pressed += () => OpenStaffDetail(captured);
 
-        var portrait = new Control { Position = new Vector2(8, 8), Size = new Vector2(Card.X - 16, 200), ClipContents = true,
+        var portrait = new Control { Position = new Vector2(8, 8), Size = new Vector2(Card.X - 16, 208), ClipContents = true,
                                      MouseFilter = MouseFilterEnum.Ignore };
         portrait.AddChild(new ColorRect { Color = color * 0.25f + Bg * 0.75f, Size = portrait.Size, MouseFilter = MouseFilterEnum.Ignore });
         portrait.AddChild(FacePortrait(def, portrait.Size));
         card.AddChild(portrait);
 
-        var name = Lbl(def?.Codename ?? id, 18, Readable(color));
-        name.Position = new Vector2(12, 213);
-        name.Size = new Vector2(Card.X - 24, 30);
+        var name = Lbl(def?.Codename ?? id, FsSection, Readable(color));
+        name.Position = new Vector2(12, 222);
+        name.Size = new Vector2(Card.X - 24, 36);
         name.VerticalAlignment = VerticalAlignment.Center;
         card.AddChild(name);
 
         int clues = ClueBoard.CountFor(id);
-        var count = Lbl(clues > 0 ? $"단서 {clues}건" : "단서 없음", 13, clues > 0 ? Amber : Dim);
-        count.Position = new Vector2(12, 213);
-        count.Size = new Vector2(Card.X - 24, 30);
+        var count = Lbl(clues > 0 ? $"단서 {clues}건" : "단서 없음", FsCaption, clues > 0 ? Amber : Dim);
+        count.Position = new Vector2(12, 222);
+        count.Size = new Vector2(Card.X - 24, 36);
         count.HorizontalAlignment = HorizontalAlignment.Right;
         count.VerticalAlignment = VerticalAlignment.Center;
         card.AddChild(count);
@@ -1129,9 +1184,9 @@ public partial class PadView : Control
         var (badge, badgeColor) = StatusOf(id);
         if (!string.IsNullOrEmpty(badge))
         {
-            var b = new PanelContainer { Position = new Vector2(Card.X - 82, 16), MouseFilter = MouseFilterEnum.Ignore };
-            b.AddThemeStyleboxOverride("panel", Box(badgeColor, badgeColor, 10, 2));
-            b.AddChild(Lbl(badge, 13, Colors.Black));
+            var b = new PanelContainer { Position = new Vector2(Card.X - 94, 16), MouseFilter = MouseFilterEnum.Ignore };
+            b.AddThemeStyleboxOverride("panel", Box(badgeColor, badgeColor, 10, 3));
+            b.AddChild(Lbl(badge, FsCaption, Colors.Black));
             card.AddChild(b);
         }
         return card;
@@ -1179,38 +1234,38 @@ public partial class PadView : Control
         _appTitle.Text = $"직원 · {def?.Codename ?? id}";
         float bodyH = Layout.Y - Top;
 
-        // 전신 스탠딩 — 잘리지 않게 세로 맞춤.
+        // 전신 스탠딩 — 잘리지 않게 세로 맞춤. 글자가 커진 만큼 그림 쪽 여백을 줄여 글 칸을 넓혔다.
         var art = new TextureRect
         {
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            Texture = def?.StandingImage ?? def?.FacePortrait, Position = new Vector2(24, 12), Size = new Vector2(380, bodyH - 24),
+            Texture = def?.StandingImage ?? def?.FacePortrait, Position = new Vector2(10, 8), Size = new Vector2(324, bodyH - 16),
             MouseFilter = MouseFilterEnum.Ignore,
         };
         _appBody.AddChild(art);
 
         var scroll = new ScrollContainer
         {
-            Position = new Vector2(430, 12), Size = new Vector2(Layout.X - 454, bodyH - 24),
+            Position = new Vector2(346, 8), Size = new Vector2(Layout.X - 360, bodyH - 16),
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
         };
         _appBody.AddChild(scroll);
         var col = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
-        col.AddThemeConstantOverride("separation", 8);
+        col.AddThemeConstantOverride("separation", 5);
         scroll.AddChild(col);
 
         var nameRow = new HBoxContainer();
         nameRow.AddThemeConstantOverride("separation", 14);
         nameRow.AddChild(Lbl(def?.Codename ?? id, 28, color));
-        if (!string.IsNullOrEmpty(def?.Gender)) nameRow.AddChild(Lbl(def.Gender, 14, Dim));
+        if (!string.IsNullOrEmpty(def?.Gender)) nameRow.AddChild(BottomAligned(Lbl(def.Gender, FsCaption, Dim)));
         var (badge, badgeColor) = StatusOf(id);
-        if (!string.IsNullOrEmpty(badge)) nameRow.AddChild(Lbl($"[{badge}]", 14, badgeColor));
+        if (!string.IsNullOrEmpty(badge)) nameRow.AddChild(BottomAligned(Lbl($"[{badge}]", FsCaption, badgeColor)));
         col.AddChild(nameRow);
 
-        if (!string.IsNullOrEmpty(def?.ShortProfileLine)) col.AddChild(Wrap(Lbl(def.ShortProfileLine, 15, Ink)));
+        if (!string.IsNullOrEmpty(def?.ShortProfileLine)) col.AddChild(Wrap(Lbl(def.ShortProfileLine, FsBody, Ink)));
 
         col.AddChild(Separator());
         col.AddChild(IconRow("❝", "자기소개", Cyan));
-        col.AddChild(Wrap(Lbl(string.IsNullOrEmpty(def?.SelfIntroLine) ? "—" : $"“{def.SelfIntroLine}”", 15, color)));
+        col.AddChild(Wrap(Lbl(string.IsNullOrEmpty(def?.SelfIntroLine) ? "—" : $"“{def.SelfIntroLine}”", FsBody, color)));
 
         var (good, bad) = Relations(id);
         col.AddChild(Separator());
@@ -1221,14 +1276,22 @@ public partial class PadView : Control
 
         col.AddChild(Separator());
         col.AddChild(IconRow("◆", "TMI", Cyan));
-        col.AddChild(Wrap(Lbl($"좋아하는 음식 · {Or(def?.FavoriteFood)}", 14, Ink)));
-        col.AddChild(Wrap(Lbl($"싫어하는 음식 · {Or(def?.DislikedFood)}", 14, Ink)));
+        col.AddChild(Wrap(Lbl($"좋아하는 음식 · {Or(def?.FavoriteFood)}", FsBody, Ink)));
+        col.AddChild(Wrap(Lbl($"싫어하는 음식 · {Or(def?.DislikedFood)}", FsBody, Ink)));
 
-        col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
+        col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
         int clues = ClueBoard.CountFor(id);
-        var link = Btn($"이 직원의 단서 {clues}건 보기  ▶", Amber, () => ShowCluesFor(id), 15);
-        link.CustomMinimumSize = new Vector2(0, 40);
+        var link = Btn($"이 직원의 단서 {clues}건 보기  ▶", Amber, () => ShowCluesFor(id), FsBody);
+        link.CustomMinimumSize = new Vector2(0, 46);
         col.AddChild(link);
+    }
+
+    // 큰 이름 옆에 붙는 작은 글씨 — 밑줄을 맞춘다.
+    private static Control BottomAligned(Label l)
+    {
+        l.VerticalAlignment = VerticalAlignment.Bottom;
+        l.SizeFlagsVertical = SizeFlags.ExpandFill;
+        return l;
     }
 
     // 관계는 따로 적어 두지 않는다 — RelationshipSystem 의 Band 로 그때그때 판정한다.
@@ -1250,7 +1313,7 @@ public partial class PadView : Control
     {
         var row = new HFlowContainer();
         row.AddThemeConstantOverride("h_separation", 6);
-        if (ids.Count == 0) row.AddChild(Lbl("—", 14, Dim));
+        if (ids.Count == 0) row.AddChild(Lbl("—", FsBody, Dim));
         foreach (string id in ids) row.AddChild(StaffChip(id));
         return row;
     }
@@ -1260,8 +1323,8 @@ public partial class PadView : Control
         var def = FacilitySimulation.Instance?.GetEmployeeDef(id);
         var c = def?.IconColor ?? Cyan;
         var chip = new PanelContainer { MouseFilter = MouseFilterEnum.Ignore };
-        chip.AddThemeStyleboxOverride("panel", Box(c with { A = 0.22f }, c, 10, 2, 12));
-        chip.AddChild(Lbl(def?.Codename ?? id, 14, Readable(c)));
+        chip.AddThemeStyleboxOverride("panel", Box(c with { A = 0.22f }, c, 10, 3, 12));
+        chip.AddChild(Lbl(def?.Codename ?? id, FsCaption + 2, Readable(c)));
         return chip;
     }
 
@@ -1361,7 +1424,7 @@ public partial class PadView : Control
         logo.Position = new Vector2(0, Layout.Y * 0.5f - 62);
         logo.HorizontalAlignment = HorizontalAlignment.Center;
         _powerLogo.AddChild(logo);
-        var sub = Lbl("관리자 단말", 20, Dim);
+        var sub = Lbl("관리자 단말", FsSection, Dim);
         sub.Size = new Vector2(Layout.X, 30);
         sub.Position = new Vector2(0, Layout.Y * 0.5f + 12);
         sub.HorizontalAlignment = HorizontalAlignment.Center;
@@ -1437,9 +1500,9 @@ public partial class PadView : Control
 
     private void EmptyNote(string text)
     {
-        var l = Wrap(Lbl(text, 17, Dim));
+        var l = Wrap(Lbl(text, FsBody, Dim));
         l.Position = new Vector2(80, 200);
-        l.Size = new Vector2(Layout.X - 160, 120);
+        l.Size = new Vector2(Layout.X - 160, 140);
         l.HorizontalAlignment = HorizontalAlignment.Center;
         _appBody.AddChild(l);
     }

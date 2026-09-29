@@ -50,6 +50,9 @@ public partial class SeatedCameraRig : Node3D
     // 리그를 17° 숙이면 머리가 30cm 넘게 앞으로 밀려나 손에 든 패드를 지나쳐 버린다.
     [Export] public Vector3 PadTiltDegrees = new(-17f, 0f, 0f);
     [Export] public Vector3 PadLeanMeters = new(0f, -0.02f, -0.03f);
+    // 패드를 든 동안 숨쉬기 흔들림을 얼마나 죽이는가(1 = 완전 정지).
+    // 코앞 20cm 의 글자를 읽는 화면이 미세하게 계속 흔들리면 읽기 어렵고 멀미가 난다.
+    [Export] public float PadHoldSteadiness = 1f;
     private float _padWeight;
     private Tween _padTween;
     private Transform3D _cameraBase = Transform3D.Identity;
@@ -69,14 +72,16 @@ public partial class SeatedCameraRig : Node3D
         Vector3 pos = _basePos;
         Vector3 rot = _baseRotDeg;
 
-        if (IdleMotionEnabled && !_zoomed)
+        // 패드를 들고 있으면(=_padWeight) 숨쉬기를 그만큼 죽인다 — 손에 든 화면이 흔들리지 않게.
+        float breath = Mathf.Clamp(1f - _padWeight * PadHoldSteadiness, 0f, 1f);
+        if (IdleMotionEnabled && !_zoomed && breath > 0f)
         {
             _elapsed += (float)delta;
             float phase = _elapsed / Mathf.Max(0.1f, BreathPeriodSeconds) * Mathf.Tau;
             pos += new Vector3(Mathf.Sin(phase * 0.5f) * BreathBobMeters * 0.6f,
-                               Mathf.Sin(phase) * BreathBobMeters, 0f);
+                               Mathf.Sin(phase) * BreathBobMeters, 0f) * breath;
             rot += new Vector3(Mathf.Sin(phase + 1.3f) * BreathSwayDegrees,
-                               Mathf.Sin(phase * 0.37f) * BreathSwayDegrees * 0.7f, 0f);
+                               Mathf.Sin(phase * 0.37f) * BreathSwayDegrees * 0.7f, 0f) * breath;
         }
 
         rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight + _collapseRotDeg;

@@ -32,15 +32,15 @@
 [ext_resource type="Script" uid="uid://b08v5v32yrh8a" path="res://scripts/prologue/GuideSubtitleHud.cs" id="30_guidesub"]
 [ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
 [ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
-[ext_resource type="Script" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
-[ext_resource type="Script" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
+[ext_resource type="Script" uid="uid://cjimfhuslq8j8" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
+[ext_resource type="Script" uid="uid://b4kg6dn61njga" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
 background_color = Color(0.015, 0.015, 0.02, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.34, 0.36, 0.44, 1)
-ambient_light_energy = 0.2
+ambient_light_energy = 0.07
 tonemap_mode = 2
 glow_enabled = true
 glow_intensity = 0.75
@@ -205,21 +205,21 @@ radial_segments = 6
 rings = 3
 
 [sub_resource type="StandardMaterial3D" id="Mat_MonitorBezel"]
-albedo_color = Color(0.075, 0.078, 0.085, 1)
+albedo_color = Color(0.05, 0.051, 0.054, 1)
 roughness = 0.45
 emission_enabled = true
-emission = Color(0.58, 0.6, 0.63, 1)
-emission_energy_multiplier = 0.022
+emission = Color(0.52, 0.53, 0.55, 1)
+emission_energy_multiplier = 0.01
 
 [sub_resource type="QuadMesh" id="Quad"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_MonitorStand"]
-albedo_color = Color(0.24, 0.24, 0.27, 1)
+albedo_color = Color(0.14, 0.14, 0.152, 1)
 metallic = 0.6
 roughness = 0.3
 emission_enabled = true
-emission = Color(0.58, 0.6, 0.63, 1)
-emission_energy_multiplier = 0.018
+emission = Color(0.52, 0.53, 0.55, 1)
+emission_energy_multiplier = 0.01
 
 [sub_resource type="TorusMesh" id="DialRing"]
 inner_radius = 0.018
@@ -996,15 +996,15 @@ outline_size = 0
 [node name="M01_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
 transform = Transform3D(-1, 0, 0, 0, 0.95105654, 0.309017, 0, 0.309017, -0.95105654, 0, 1.13, 0.07)
 light_color = Color(0.5, 0.8, 1, 1)
-light_energy = 1.6
-light_specular = 0.6
+light_energy = 3.0
+light_specular = 0.1
 shadow_enabled = true
 shadow_bias = 0.02
 shadow_normal_bias = 0.6
-shadow_blur = 1.6
+shadow_blur = 0.2
 spot_range = 2.4
-spot_attenuation = 0.9
-spot_angle = 50.0
+spot_attenuation = 1.15
+spot_angle = 46.0
 spot_angle_attenuation = 0.4
 
 [node name="Monitor02" type="Node3D" parent="ControlRoom" unique_id=1106093213]
@@ -1042,19 +1042,19 @@ outline_size = 0
 [node name="M02_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
 transform = Transform3D(-1, 0, 0, 0, 0.95105654, 0.309017, 0, 0.309017, -0.95105654, 0, 1.13, 0.07)
 light_color = Color(0.5, 0.8, 1, 1)
-light_energy = 1.6
-light_specular = 0.6
+light_energy = 3.0
+light_specular = 0.1
 shadow_enabled = true
 shadow_bias = 0.02
 shadow_normal_bias = 0.6
-shadow_blur = 1.6
+shadow_blur = 0.2
 spot_range = 2.4
-spot_attenuation = 0.9
-spot_angle = 50.0
+spot_attenuation = 1.15
+spot_angle = 46.0
 spot_angle_attenuation = 0.4
 
 [node name="Keyboard" type="MeshInstance3D" parent="ControlRoom" unique_id=1690353115]
-transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0.011912666, 0.762, -0.42)
+transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0.011912666, 0.762, -0.36119446)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
@@ -1063,7 +1063,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.762, -0.42)
 script = ExtResource("13_deskboard")
 
 [node name="Telephone" type="Node3D" parent="ControlRoom" unique_id=98564310]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.46748805)
 script = ExtResource("8_phone3d")
 HudPath = NodePath("../../PhoneCallHud")
 
@@ -1130,9 +1130,9 @@ spot_range = 2.0
 spot_angle = 38.0
 
 [node name="AlertTerminal" type="Node3D" parent="ControlRoom" unique_id=1048108150]
-visible = false
 process_mode = 4
 transform = Transform3D(0.7398418, 0, 0.35332987, 0, 0.82, 0, -0.35332987, 0, 0.7398418, -0.36562842, 0.762, -0.40949714)
+visible = false
 script = ExtResource("16_alertterm")
 ScreenSize = Vector2(0.64, 0.5)
 ScreenOffset = Vector3(0.01, 0.5, 0.19)
@@ -1145,7 +1145,7 @@ transform = Transform3D(0.9022264, 0, 0.43087822, 0, 1, 0, -0.43087822, 0, 0.902
 script = ExtResource("34_adminpad")
 
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
-transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.43357712)
+transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.3873454)
 script = ExtResource("15_powerpanel")
 
 [node name="SwitchModel" parent="ControlRoom/PowerSwitchPanel" unique_id=647797286 instance=ExtResource("23_switch_model")]
@@ -1228,7 +1228,7 @@ surface_material_override/0 = SubResource("Mat_EmergencyRed")
 [node name="DeskFillLight" type="SpotLight3D" parent="ControlRoom" unique_id=1845022731]
 transform = Transform3D(1, 0, 0, 0, 0.9415, 0.337, 0, -0.337, 0.9415, 0, 1.05, 0.25)
 light_color = Color(0.72, 0.82, 0.92, 1)
-light_energy = 0.2
+light_energy = 0.08
 light_specular = 0.15
 spot_range = 1.5
 spot_attenuation = 1.6
@@ -1249,7 +1249,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
-transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1445563, 0.018909156)
+transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1304073, 0.018909156)
 current = true
 fov = 64.0
 near = 0.02

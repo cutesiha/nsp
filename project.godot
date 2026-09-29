@@ -62,3 +62,4 @@ toggle_dialogue_history={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+environment/defaults/default_clear_color=Color(0.012, 0.014, 0.018, 1)

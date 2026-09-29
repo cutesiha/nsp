@@ -141,7 +141,7 @@ public partial class PadUiShot : Node
         Save("staff_grid", pad, screen: true);
         v.OpenStaffDetail(roster.FirstOrDefault() ?? "");
         await Seconds(0.4);
-        Save("staff_detail", pad, screen: false);
+        Save("staff_detail", pad, screen: true);
 
         GD.Print("saved → " + _dir);
         GetTree().Quit();

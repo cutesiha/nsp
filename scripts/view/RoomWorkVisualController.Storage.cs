@@ -163,9 +163,11 @@ public sealed partial class RoomWorkVisualController
                 var (p, yaw) = DropPoint(cart, actor.Carrier);
                 if (!FollowRoute(node, anim, actor, p, delta, CarrySpeed(id), carryClip)) return;
                 node.Position = p;
-                if (!TurnTo(node, anim, yaw, delta)) { anim?.PlayClip(carryClip); return; }
+                // 도는 동안에도 상자를 든 자세 그대로 — idle 로 돌려 버리면 팔이 휘저어진다.
+                if (!TurnTo(node, anim, yaw, delta, carryClip)) return;
                 // 수레가 비우러 나가 있으면 상자를 든 채 기다린다.
                 if (cart.OutTimer >= 0f) { anim?.PlayClip(carryClip); anim?.SetSpeedFactor(0.15f); return; }
+                anim?.SetSpeedFactor(CarrySpeed(id));   // 기다리며 늦춰 둔 속도를 되돌린다
                 actor.CartPhase = 3; actor.CartTimer = 0f;
                 anim?.PlayClip(placeClip, 0.12, 0f);
                 break;

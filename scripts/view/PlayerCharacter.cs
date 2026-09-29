@@ -548,13 +548,27 @@ public partial class PlayerCharacter : Node3D
         ch.ShiftFrom = ch.ShiftCur;
     }
 
+    // 왼팔 메시만 따로 숨겨 두는 스위치(관리자 패드를 든 동안). 포즈 · 시퀀스는 그대로 돈다 —
+    // 숨긴 사이에도 손은 패드를 계속 "들고" 있고, 다시 보이면 이어서 내려놓는 동작이 나온다.
+    private bool _leftMeshHidden;
+
+    public void SetLeftArmMeshHidden(bool hidden)
+    {
+        _leftMeshHidden = hidden;
+        if (_skel == null) return;
+        bool editor = Engine.IsEditorHint();
+        foreach (var n in _sideNodes["L"])
+            if (IsInstanceValid(n)) n.Visible = (_armL.Visible && !hidden) || editor;
+    }
+
     private void SetArmVisible(ArmChannel ch, bool v)
     {
         ch.Visible = v;
         if (_skel == null) return;
         bool editor = Engine.IsEditorHint();
+        bool show = v && !(ch.Side == "L" && _leftMeshHidden);
         foreach (var n in _sideNodes[ch.Side])
-            if (IsInstanceValid(n)) n.Visible = v || editor;
+            if (IsInstanceValid(n)) n.Visible = show || editor;
         _skel.Visible = _armR.Visible || _armL.Visible || editor;
     }
 
@@ -880,20 +894,31 @@ public partial class PlayerCharacter : Node3D
     }
 
     // ─────────────────────────────────────────────────────────────
-    //  관리자 패드 — 왼손이 들고, 누르기는 화면 왼쪽 = 왼손 엄지 / 오른쪽 = 오른손 검지
+    //  관리자 패드 — 왼손이 받쳐 든다(누르기 연출은 없다)
     // ─────────────────────────────────────────────────────────────
     // 손은 패드의 그립 마커(위치 + 방향)를 따라간다. 위치는 팔 IK(Aim), 방향은 손목 IK(AimBasis)가
     // 맞추고, 패드는 왼손 소켓(HandSocketL)에 붙어 따라온다(Phone3D 수화기와 같은 방식).
     // 포즈는 오른팔 기준으로 쓰고 왼팔 채널이 뒤집는다(Mirror) — 여기 값은 "손 모양"만 정한다.
+    //
+    // 파지 모양: 「뒷면 받침」 — 손바닥과 다섯 손가락 전부가 패드 뒷면 쪽에 있다.
+    // 앞면(화면이 있는 면)에는 손의 어떤 부분도 오지 않는다. 엄지도 뒤에 둔다.
+    // 손가락은 손바닥 쪽(= 패드 쪽)으로 굽으므로 굽힘값이 크면 본체를 뚫는다.
+    // 화면을 눌러도 이 포즈는 절대 바뀌지 않는다 — 클릭 피드백은 PadView(UI) 안에서만 준다.
     [ExportGroup("관리자 패드 손")]
     [Export] public Vector3 PadShoulderShift = new(-0.04f, -0.01f, -0.05f);
     [Export] public float PadUpperArmDeg = 18f;
     [Export] public float PadElbowDeg = 96f;
-    // 뒷면을 받치는 네 손가락의 굽힘(도). 크면 손가락이 패드를 뚫는다.
-    [Export] public float PadFingerCurl = 32f;
-    // 엄지 — 옆 가장자리를 넘어 앞 베젤 위로 오도록 손바닥 쪽으로 모으고(Opp) 살짝 굽힌다(Curl).
-    [Export] public float PadThumbOpp = 48f;
-    [Export] public float PadThumbCurl = 18f;
+    // 뒷면을 받치는 네 손가락의 굽힘(도). 손바닥 쪽 = 패드 쪽이라, 크면 본체를 뚫는다.
+    [Export] public float PadFingerCurl = 6f;
+    // 검지 → 새끼로 갈수록 더해지는 굽힘(손끝이 한 줄로 서지 않게).
+    [Export] public float PadFingerCurlStep = 0f;
+    // 엄지 — 뒷면 받침에서는 엄지도 뒤에 둔다. 세 값은 순서대로 먹는다(Euler YXZ = Z → X → Y).
+    //   Opp  손바닥 쪽으로 모아 엄지를 손가락과 나란히 세운다
+    //   Lift 손바닥이 보는 쪽(= 패드 쪽) 으로 들어 올린다 — 0 이 기본, 키우면 앞면으로 넘어간다
+    //   Curl 끝마디 굽힘
+    [Export] public float PadThumbOpp = 40f;
+    [Export] public float PadThumbLift = 0f;
+    [Export] public float PadThumbCurl = 20f;
 
     private ArmPose PosePadHold()
     {
@@ -903,16 +928,10 @@ public partial class PlayerCharacter : Node3D
             .S("Forearm_R", PadElbowDeg, 0, -8)
             .S("Hand_R", 0, 0, 0);   // 손목 방향은 SolveWrist 가 그립 마커에 맞춘다
         void C(string f, float a) => p.S($"{f}_R_1", a, 0, 0).S($"{f}_R_2", a * 0.8f, 0, 0).S($"{f}_R_3", a * 0.5f, 0, 0);
-        C("Index", PadFingerCurl); C("Middle", PadFingerCurl + 2f); C("Ring", PadFingerCurl + 4f); C("Pinky", PadFingerCurl + 6f);
-        p.S("Thumb_R_1", -6, 0, -PadThumbOpp).S("Thumb_R_2", -PadThumbCurl, 0, 0);
-        return p;
-    }
-
-    // 엄지로 화면을 누른다 — 쥔 손은 그대로, 엄지만 화면 쪽으로 더 굽힌다.
-    private ArmPose PosePadThumbPress()
-    {
-        var p = PosePadHold();
-        p.S("Thumb_R_1", -14, 0, -PadThumbOpp - 10f).S("Thumb_R_2", -PadThumbCurl - 26f, 0, 0);
+        float step = PadFingerCurlStep;
+        C("Index", PadFingerCurl); C("Middle", PadFingerCurl + step);
+        C("Ring", PadFingerCurl + step * 2f); C("Pinky", PadFingerCurl + step * 3f);
+        p.S("Thumb_R_1", PadThumbLift - 6f, 0, -PadThumbOpp).S("Thumb_R_2", -PadThumbCurl, 0, 0);
         return p;
     }
 
@@ -941,51 +960,13 @@ public partial class PlayerCharacter : Node3D
     public void PlayPadPickup(System.Func<Transform3D> cradle, System.Func<Transform3D> hold, float liftSeconds,
         System.Action onGripped, System.Action onLifted)
     {
+        float lift = Mathf.Max(0.05f, liftSeconds);
         StartSequence(_armL, new List<Step>
         {
-            PadStep(PoseReach(), 0.30f, 0.02f, cradle),
-            PadStep(PosePadHold(), 0.16f, 0.02f, cradle, onGripped, stagger: true),
-            PadStep(PosePadHold(), Mathf.Max(0.05f, liftSeconds), 0f, hold, onLifted),
+            PadStep(PoseReach(), lift * 0.66f, 0.02f, cradle),
+            PadStep(PosePadHold(), lift * 0.36f, 0.02f, cradle, onGripped, stagger: true),
+            PadStep(PosePadHold(), lift, 0f, hold, onLifted),
             PadStep(PosePadHold(), 0.01f, HoldForever, hold),
-        });
-    }
-
-    // 들고 있는 손 모양을 지금 값(Pad* Export)으로 다시 잡는다 — 인스펙터에서 튜닝할 때 쓴다.
-    public void PlayPadHold(System.Func<Transform3D> hold)
-    {
-        if (!_armL.Visible) return;
-        StartSequence(_armL, new List<Step> { PadStep(PosePadHold(), 0.15f, HoldForever, hold) });
-    }
-
-    // 화면 왼쪽을 눌렀다 — 들고 있는 왼손의 엄지가 짧게 누르고 다시 쥔다.
-    public void PlayPadThumbTap(System.Func<Transform3D> hold)
-    {
-        if (!_armL.Visible) return;
-        StartSequence(_armL, new List<Step>
-        {
-            PadStep(PosePadThumbPress(), 0.08f, 0.06f, hold),
-            PadStep(PosePadHold(), 0.12f, HoldForever, hold),
-        });
-    }
-
-    private Vector3 _padTap, _padHover;
-
-    // 화면 오른쪽을 눌렀다 — 오른손이 화면 밖에서 들어와 검지로 누르고 빠진다.
-    // hover = 누르기 직전 손끝이 멈추는 자리(화면 바로 앞).
-    public void PlayPadFingerTap(Vector3 tapWorld, Vector3 hoverWorld)
-    {
-        _padTap = tapWorld;
-        _padHover = hoverWorld;
-        StartSequence(_armR, new List<Step>
-        {
-            new() { Pose = PoseSwitchReady(false), In = 0.18f, Hold = 0.01f, Stagger = true, UpperGiveDeg = 110f,
-                    Aim = () => _padHover, AimTip = IndexTipLocal, AimMaxDeg = 160f },
-            new() { Pose = PoseSwitchReady(false), In = 0.07f, Hold = 0.06f, UpperGiveDeg = 110f,
-                    Aim = () => _padTap, AimTip = IndexTipLocal, AimMaxDeg = 160f },
-            new() { Pose = PoseSwitchReady(false), In = 0.12f, Hold = 0f, UpperGiveDeg = 110f,
-                    Aim = () => _padHover, AimTip = IndexTipLocal, AimMaxDeg = 160f },
-            new() { Pose = PoseIdle(), In = 0.30f, Hold = 0f, Stagger = true,
-                    OnArrive = () => SetArmVisible(_armR, false) },
         });
     }
 
@@ -993,11 +974,12 @@ public partial class PlayerCharacter : Node3D
     // 이때 패드가 손에서 떨어져 거치대에 놓인다) → 손을 펴고 → 팔을 거둔다.
     public void PlayPadPutDown(System.Func<Transform3D> cradle, float seconds, System.Action onPlaced)
     {
+        float lower = Mathf.Max(0.05f, seconds);
         StartSequence(_armL, new List<Step>
         {
-            PadStep(PosePadHold(), Mathf.Max(0.05f, seconds), 0f, cradle, onPlaced),
-            PadStep(PoseReach(), 0.14f, 0f, cradle, stagger: true),
-            new() { Pose = PoseIdle(), In = 0.35f, Hold = 0f, Stagger = true,
+            PadStep(PosePadHold(), lower, 0f, cradle, onPlaced),
+            PadStep(PoseReach(), lower * 0.31f, 0f, cradle, stagger: true),
+            new() { Pose = PoseIdle(), In = lower * 0.78f, Hold = 0f, Stagger = true,
                     OnArrive = () => SetArmVisible(_armL, false) },
         });
     }

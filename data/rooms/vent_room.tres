@@ -6,7 +6,7 @@
 script = ExtResource("1_room")
 RoomId = "vent_room"
 DisplayName = "환기실"
-ConnectedRoomIds = Array[String](["power_room", "medical_room"])
+ConnectedRoomIds = Array[String](["guard_room", "medical_room"])
 AdjacentRoomIds = Array[String](["power_room", "medical_room"])
 MapPosition = Vector2(90, 560)
 ; 띠 시간표에서 이 방을 나타내는 색 — 환기실 청록

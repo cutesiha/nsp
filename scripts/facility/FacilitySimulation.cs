@@ -734,21 +734,30 @@ public partial class FacilitySimulation : Node
         CorridorElbow.Compute(GetRoomPosition(fromRoomId), GetRoomPosition(toRoomId),
             GetRoomPosition(DeployOriginRoomId));
 
-    // 통로로 이어진 방(양방향). RoomDef.ConnectedRoomIds 는 한쪽에만 적혀 있을 수 있다.
+    // 실제로 걸어서 지나갈 수 있는 이웃 방(양방향).
+    //
+    // ConnectedRoomIds(= 통로) 만 쓴다. AdjacentRoomIds 는 "벽 하나를 사이에 둔 옆방"(소리·진동이
+    // 전해지는 범위)이지 통로가 아니다 — 그걸 길로 쳐서 지도에 없는 지름길이 생겼고
+    // (코어실↔경비실처럼 대각선으로 두 칸 떨어진 방까지 한 번에 잇는다) 그 지름길 때문에
+    // "바로 옆 방으로 보냈는데 엉뚱한 방을 들렀다 가는" 경로가 나왔다.
+    // 데이터가 한쪽 방에만 적혀 있을 수 있어(예: 의무실 → 정비실) 반대편 목록도 함께 본다.
     private IEnumerable<string> Neighbors(string roomId)
     {
-        var def = _roomDefs.GetValueOrDefault(roomId);
-        var own = def?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
-        // 지도에서 맞붙어 있는 방(AdjacentRoomIds — 점선으로 그려지는 통로)도 실제로 지나갈 수 있다.
-        // 이게 빠져 있어서 "바로 옆 방으로 옮겼는데 엉뚱한 방을 한 번 들렀다 가는" 길이 나왔다.
-        var near = def?.AdjacentRoomIds ?? new Godot.Collections.Array<string>();
-        return own.Concat(near)
-            .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId) || o.AdjacentRoomIds.Contains(roomId))
-                                    .Select(o => o.RoomId))
+        var own = _roomDefs.GetValueOrDefault(roomId)?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
+        return own
+            .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId))
             .Distinct();
     }
 
-    private List<string> FindPath(string fromRoomId, string toRoomId)
+    // 지나가는 길로 쓸 수 있는가. 중앙 제어실 · 격리실은 실시간 운영 중 직원이 들어갈 수 없는
+    // 구역이라(MoveEmployeeTo 도 목적지로 거부한다) 경유지로도 쓰지 않는다. 허브인 중앙 제어실을
+    // 길로 열어 두면 "저장고 → 중앙 제어실 → 정비실 → 의무실" 같은 길이 최단으로 잡힌다.
+    private bool CanPassThrough(string roomId, string destinationRoomId) =>
+        _roomDefs.TryGetValue(roomId, out var def) && (!def.IsRestricted || roomId == destinationRoomId);
+
+    // 두 방 사이를 걸어가는 길(출발 방은 빼고, 거쳐 갈 방들을 순서대로). 길이 없으면 빈 목록.
+    // 너비 우선이라 언제나 경유 방 수가 가장 적은 길이다. 검사(OpsRuleTest)가 이 결과를 그대로 본다.
+    public List<string> FindPath(string fromRoomId, string toRoomId)
     {
         var result = new List<string>();
         if (fromRoomId == toRoomId || !_roomDefs.ContainsKey(fromRoomId) || !_roomDefs.ContainsKey(toRoomId))
@@ -767,11 +776,10 @@ public partial class FacilitySimulation : Node
             var def = _roomDefs.GetValueOrDefault(current);
             if (def == null) continue;
 
-            // 통로는 양방향이다. 데이터에는 한쪽 방에만 적힌 연결이 있어서(예: 의무실 → 중앙 제어실)
-            // 반대편 방의 목록도 함께 본다 — 안 그러면 환기실 · 의무실로 가는 길이 없다고 판정돼 배치가 조용히 실패했다.
+            // 너비 우선이라 처음 닿는 길이 곧 최단(경유 방 수 최소)이다.
             foreach (var neighborId in Neighbors(current))
             {
-                if (!_roomDefs.ContainsKey(neighborId) || !visited.Add(neighborId)) continue;
+                if (!CanPassThrough(neighborId, toRoomId) || !visited.Add(neighborId)) continue;
                 cameFrom[neighborId] = current;
                 queue.Enqueue(neighborId);
             }
@@ -829,11 +837,10 @@ public partial class FacilitySimulation : Node
             var def = _roomDefs.GetValueOrDefault(current);
             if (def == null) continue;
 
-            // 통로는 양방향이다. 데이터에는 한쪽 방에만 적힌 연결이 있어서(예: 의무실 → 중앙 제어실)
-            // 반대편 방의 목록도 함께 본다 — 안 그러면 환기실 · 의무실로 가는 길이 없다고 판정돼 배치가 조용히 실패했다.
+            // 걸어갈 수 있는 길로만 퍼진다(제한 구역은 경유지로 쓰지 않는다).
             foreach (var neighborId in Neighbors(current))
             {
-                if (!_roomDefs.ContainsKey(neighborId) || !visited.Add(neighborId)) continue;
+                if (!CanPassThrough(neighborId, "") || !visited.Add(neighborId)) continue;
                 if (CanAssignToRoom(neighborId))
                     return neighborId;
                 queue.Enqueue(neighborId);

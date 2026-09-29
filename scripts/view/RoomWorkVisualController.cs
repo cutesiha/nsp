@@ -575,13 +575,19 @@ public sealed partial class RoomWorkVisualController
     }
 
     // 몸을 yaw 쪽으로 돌린다. 다 돌았으면 true.
-    private static bool TurnTo(Node3D node, EmployeeCctvAnimator anim, float yaw, float delta)
+    // 제자리에서 yaw 로 몸을 돌린다. 다 돌면 true.
+    // holdClip: 도는 동안 유지할 클립. 비워 두면 idle 로 돈다.
+    //   상자를 든 채 도는 것처럼 "돌면서도 계속 틀어야 하는 클립"이 있을 때 꼭 넘겨야 한다 —
+    //   안 그러면 여기서 idle 을 걸고 호출한 쪽이 곧바로 제 클립을 다시 걸어, 매 프레임 두 클립이
+    //   번갈아 블렌드되면서 팔이 앞뒤로 휘저어진다(저장고 상자 운반에서 실제로 그랬다).
+    private static bool TurnTo(Node3D node, EmployeeCctvAnimator anim, float yaw, float delta, string holdClip = null)
     {
         float now = node.Rotation.Y;
         float diff = Mathf.AngleDifference(now, yaw);
         if (Mathf.Abs(diff) < 0.12f) { node.Rotation = new Vector3(0f, yaw, 0f); return true; }
         node.Rotation = new Vector3(0f, now + Mathf.Sign(diff) * Mathf.Min(Mathf.Abs(diff), TurnRate * delta), 0f);
-        anim?.SetAction(CctvEmployeeAction.Idle);
+        if (string.IsNullOrEmpty(holdClip)) anim?.SetAction(CctvEmployeeAction.Idle);
+        else anim?.PlayClip(holdClip);
         return false;
     }
 

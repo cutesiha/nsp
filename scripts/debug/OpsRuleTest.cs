@@ -38,6 +38,7 @@ public partial class OpsRuleTest : Node
         CheckWarningStabilize();
         CheckSaboteurNeedsCompany();
         CheckDay1SabotageIsRare();
+        CheckRelocationRoutes();
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
@@ -223,6 +224,55 @@ public partial class OpsRuleTest : Node
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
         }
+    }
+
+    // ── ⑤ 재배치 경로 ───────────────────────────────────────────────
+    // 재배치 = 최소 이동. 지도에 없는 지름길로 가지 않고, 직원이 들어갈 수 없는 구역
+    // (중앙 제어실 · 격리실)을 지나가지도 않는다.
+    private void CheckRelocationRoutes()
+    {
+        GD.Print("\n---------------- ⑤ 재배치 경로 ----------------");
+
+        void Route(string from, string to, params string[] expect)
+        {
+            var path = _sim.FindPath(from, to);
+            string got = path.Count == 0 ? "길 없음" : string.Join(" → ", path.Select(RoomName));
+            Check(path.SequenceEqual(expect),
+                  $"{RoomName(from)} → {RoomName(to)} = {got}  (기대: {string.Join(" → ", expect.Select(RoomName))})");
+        }
+
+        Route("guard_room", "vent_room", "vent_room");                       // 바로 아래 방
+        Route("vent_room", "guard_room", "guard_room");                      // 바로 위 방
+        Route("guard_room", "maintenance_room", "maintenance_room");         // 같은 줄 옆방
+        Route("storage_room", "medical_room", "maintenance_room", "medical_room");
+        Route("power_room", "vent_room", "guard_room", "vent_room");         // 사이에 있는 경비실을 지난다
+
+        // 제한 구역은 목적지일 때만 경로에 들어갈 수 있다.
+        var ids = _sim.GetRoomIds().ToList();
+        var bad = new List<string>();
+        foreach (string from in ids)
+        foreach (string to in ids)
+        {
+            if (from == to) continue;
+            var path = _sim.FindPath(from, to);
+            foreach (string step in path)
+                if (step != to && _sim.GetRoomDef(step)?.IsRestricted == true)
+                    bad.Add($"{RoomName(from)}→{RoomName(to)} 가 {RoomName(step)} 경유");
+        }
+        Check(bad.Count == 0, bad.Count == 0
+            ? "어떤 경로도 제한 구역을 지나가지 않는다"
+            : $"제한 구역 경유 {bad.Count}건 — {string.Join(" · ", bad.Take(3))}");
+
+        // 직원이 쓰는 작업실끼리는 중앙 제어실 없이도 전부 오갈 수 있어야 한다.
+        var work = ids.Where(r => _sim.GetRoomDef(r) is { IsRestricted: false }).ToList();
+        var unreachable = new List<string>();
+        foreach (string from in work)
+        foreach (string to in work)
+            if (from != to && _sim.FindPath(from, to).Count == 0)
+                unreachable.Add($"{RoomName(from)}→{RoomName(to)}");
+        Check(unreachable.Count == 0, unreachable.Count == 0
+            ? $"작업실 {work.Count}곳이 서로 전부 이어져 있다"
+            : $"길이 끊긴 쌍 {unreachable.Count}건 — {string.Join(" · ", unreachable.Take(3))}");
     }
 
     private string RoomName(string roomId) => _sim.GetRoomDef(roomId)?.DisplayName ?? roomId;

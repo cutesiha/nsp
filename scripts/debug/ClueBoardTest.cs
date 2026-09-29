@@ -402,10 +402,26 @@ public partial class ClueBoardTest : Node
         Check(ClueBoard.UnseenCount == 0, "단서 앱을 열면 새 단서 뱃지가 비워진다");
         Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always, "든 동안에만 화면을 그린다");
 
+        // 우클릭 = 한 단계 뒤로. 상세 → 목록 → 홈, 홈에서 한 번 더 누르면 내려놓는다.
+        pad.View.OpenApp(PadView.Tab.Staff, fade: false);
+        pad.View.OpenStaffDetail("cat");
+        Check(pad.View.Current == PadView.Tab.Staff && pad.View.StaffDetailId == "cat", "직원 상세 화면을 열었다");
         pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
-        Check(pad.IsOpen && AdminPad3D.PausesGame, "우클릭 — 내려놓는 동안에도 아직 멈춰 있다");
+        Check(pad.View.Current == PadView.Tab.Staff && pad.View.StaffDetailId == "", "우클릭 ① 직원 상세 → 직원 목록");
+        pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
+        Check(pad.View.Current == PadView.Tab.Home && pad.IsHeld, "우클릭 ② 직원 목록 → 홈(아직 들고 있다)");
+        pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
+        Check(pad.IsOpen && AdminPad3D.PausesGame, "우클릭 ③ 홈 → 내려놓기(내려놓는 동안에도 아직 멈춰 있다)");
         await Until(() => !pad.IsOpen, 3000);
         Check(!pad.IsOpen && !AdminPad3D.PausesGame, "책상에 내려놓으면 시간이 다시 흐른다");
+
+        // Tab 은 어느 화면에서든 곧바로 내려놓는다(뒤로 가지 않는다).
+        hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
+        await Until(() => pad.IsHeld, 3000);
+        pad.View.OpenApp(PadView.Tab.Clues, fade: false);
+        hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
+        Check(!pad.IsHeld && pad.IsOpen, "Tab — 앱 화면에서도 한 단계 뒤로가 아니라 곧바로 내려놓는다");
+        await Until(() => !pad.IsOpen, 3000);
 
         GameState.Instance.SetPhase(GamePhase.Schedule);
         Check(!pad.CanOpen(), "근무 배치 단계에서는 꺼낼 수 없다");
