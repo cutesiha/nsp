@@ -62,6 +62,11 @@ public static class FollowUpQuestionGenerator
                 Add(outList, FollowUpIntent.AskCertainty, 38, "간접 인지라 확신도를 물을 수 있다");
                 Add(outList, FollowUpIntent.AskNextAction, 30, "사건 이후 행동을 확인할 수 있다");
                 break;
+            // 나중에 가 보고 안 사건 — 보지도 듣지도 못했으니 장면·소리는 캐물을 수 없다.
+            // 물을 수 있는 것은 "그래서 그 뒤에 어떻게 했는가" 하나뿐이다.
+            case CoreKind.IncidentLater:
+                Add(outList, FollowUpIntent.AskNextAction, 45, "그 뒤에 그 방으로 간 사람이다");
+                break;
             default:
                 Reject("Q1", "아는 사건이 없어 캐물을 내용이 없다");
                 break;

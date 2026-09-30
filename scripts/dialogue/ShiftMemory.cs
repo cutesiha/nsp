@@ -112,23 +112,40 @@ public static class ShiftMemory
     }
 
     private static readonly Dictionary<string, Cached> _cache = new();
+    private static readonly Dictionary<string, Cached> _routeCache = new();
 
-    public static void Invalidate() => _cache.Clear();
+    public static void Invalidate()
+    {
+        _cache.Clear();
+        _routeCache.Clear();
+    }
 
-    public static List<MemoryItem> Of(string employeeId, int day)
+    public static List<MemoryItem> Of(string employeeId, int day) => Get(_cache, employeeId, day, Build);
+
+    // 사고를 뺀 근무 기억 — 어디로 옮겼고, 무엇을 했고, 어떤 통화를 했는가.
+    //
+    // 사고 인지(DialogueContextBuilder.KnowledgeOf)가 "그 뒤에 그 방에 가 봤는가"를 물을 때 쓴다.
+    // Of() 를 쓰면 Of → KnowledgeOf → Of 로 돌아 무한히 겹친다 — 그래서 사고를 보지 않는
+    // 이 목록을 따로 만든다. 여기에는 KnowledgeOf 를 부르는 곳이 하나도 없다.
+    public static List<MemoryItem> RouteOf(string employeeId, int day) =>
+        Get(_routeCache, employeeId, day, BuildRoute);
+
+    private static List<MemoryItem> Get(Dictionary<string, Cached> cache, string employeeId, int day,
+        System.Func<string, int, List<MemoryItem>> build)
     {
         var log = EventLog.Instance;
         int count = log?.GetAllEntries().Count ?? 0;
         string key = employeeId + "|" + day;
-        if (_cache.TryGetValue(key, out var c) && c.LogCount == count && c.CallVersion == CallMemoryLog.Version)
+        if (cache.TryGetValue(key, out var c) && c.LogCount == count && c.CallVersion == CallMemoryLog.Version)
             return c.Items;
 
-        var items = Build(employeeId, day);
-        _cache[key] = new Cached { LogCount = count, CallVersion = CallMemoryLog.Version, Items = items };
+        var items = build(employeeId, day);
+        cache[key] = new Cached { LogCount = count, CallVersion = CallMemoryLog.Version, Items = items };
         return items;
     }
 
-    private static List<MemoryItem> Build(string id, int day)
+    // 동선 · 업무 · 통화. 사고는 넣지 않는다(BuildRoute 의 결과로 사고 인지를 판단하기 때문이다).
+    private static List<MemoryItem> BuildRoute(string id, int day)
     {
         var list = new List<MemoryItem>();
         var log = EventLog.Instance;
@@ -168,18 +185,6 @@ public static class ShiftMemory
                         list.Add(new MemoryItem { Time = e.GameTimeSeconds, RoomId = e.RoomId, Kind = MemoryKind.RepairDone });
                         break;
                 }
-
-                // 사고. 결번자는 자기가 한 방해공작을 "기억"으로 꺼내지 않는다.
-                if (DialogueContextBuilder.IsIncident(e.EventType) && !(mine && e.EventType == LogEventType.Sabotage))
-                {
-                    var level = DialogueContextBuilder.KnowledgeOf(id, e);
-                    if (level == KnowledgeLevel.None) continue;
-                    list.Add(new MemoryItem
-                    {
-                        Time = e.GameTimeSeconds, RoomId = e.RoomId ?? "", IncidentType = e.EventType,
-                        Kind = level == KnowledgeLevel.Direct ? MemoryKind.IncidentHere : MemoryKind.IncidentHeard,
-                    });
-                }
             }
         }
 
@@ -194,6 +199,37 @@ public static class ShiftMemory
                 _ => MemoryKind.ManagerCalled,
             };
             list.Add(new MemoryItem { Time = r.Time, RoomId = r.RoomId, Kind = kind });
+        }
+
+        list.Sort((a, b) => a.Time.CompareTo(b.Time));
+        return list;
+    }
+
+    // 동선 · 업무 · 통화 + 그 사람이 실제로 겪은 사고.
+    private static List<MemoryItem> Build(string id, int day)
+    {
+        var list = new List<MemoryItem>(RouteOf(id, day));
+        var log = EventLog.Instance;
+        if (log != null)
+        {
+            foreach (var e in log.GetAllEntries())
+            {
+                if (e.Day != day) continue;
+                // 결번자는 자기가 한 방해공작을 "기억"으로 꺼내지 않는다.
+                if (!DialogueContextBuilder.IsIncident(e.EventType)) continue;
+                if (e.ActorEmployeeId == id && e.EventType == LogEventType.Sabotage) continue;
+
+                var level = DialogueContextBuilder.KnowledgeOf(id, e);
+                // 나중에 가 보고 알게 된 사고(Later)는 "그 순간의 기억"이 아니다 —
+                // 옆방 소리로 들은 것처럼 꺼내면 없는 목격을 만드는 셈이 된다.
+                // 그 사람이 한 일(재배치 · 수리 · 통화)은 이미 동선 기억으로 들어가 있다.
+                if (level is KnowledgeLevel.None or KnowledgeLevel.Later) continue;
+                list.Add(new MemoryItem
+                {
+                    Time = e.GameTimeSeconds, RoomId = e.RoomId ?? "", IncidentType = e.EventType,
+                    Kind = level == KnowledgeLevel.Direct ? MemoryKind.IncidentHere : MemoryKind.IncidentHeard,
+                });
+            }
         }
 
         list.Sort((a, b) => a.Time.CompareTo(b.Time));

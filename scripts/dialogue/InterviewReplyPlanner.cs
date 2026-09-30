@@ -184,9 +184,17 @@ public static class InterviewReplyPlanner
                 // 방해자가 다른 방에 있었다고 주장 중이면, 그 방에서 알 수 있는 만큼만 안다.
                 if (ctx.IsSaboteur && !truthful)
                     level = KnowledgeFromRoom(plan.RoomId, q.SubjectRoomId);
-                f.Variant = level == KnowledgeLevel.Direct ? "direct"
-                    : level == KnowledgeLevel.Indirect ? "indirect" : "none";
+                f.Variant = level switch
+                {
+                    KnowledgeLevel.Direct => "direct",
+                    KnowledgeLevel.Indirect => "indirect",
+                    // 그 순간에는 몰랐지만 나중에 그 방에 가 봤다 — "알고는 있다, 다만 그때는 딴 데 있었다".
+                    KnowledgeLevel.Later => "later",
+                    _ => "none",
+                };
                 f.Set("room", RoomName(q.SubjectRoomId));
+                // 그때 자기가 있던 곳 — "알고 있다"와 "그 순간엔 거기 없었다"가 한 문장에 같이 들어간다.
+                f.Set("where", RoomName(ctx.RoomAtSubject));
                 // "그 사고는 처음 듣는다" 뒤에는 기억을 붙이지 않는다 — 가리킬 순간이 없다.
                 memTopic = f.Variant == "none" ? RecallTopic.None : RecallTopic.Anomaly;
                 memRoom = truthful ? ctx.RoomAtSubject : plan.RoomId;

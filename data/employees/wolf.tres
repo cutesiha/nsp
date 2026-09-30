@@ -1,8 +1,10 @@
-[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
 [ext_resource type="Texture2D" path="res://assets/characters/standing_v2/wolf/wolf_bad_closedmouth.png" id="2_img"]
 [ext_resource type="Texture2D" path="res://assets/characters/portraits/wolf_portrait.png" id="3_face"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits/wolf2.png" id="4_idphoto"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits2/wolf1.png" id="5_schedule"]
 
 [resource]
 script = ExtResource("1_emp")
@@ -34,6 +36,8 @@ StartRoomId = "guard_room"
 IconColor = Color(0.56, 0.57, 0.60, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
+IdPhoto = ExtResource("4_idphoto")
+SchedulePortrait = ExtResource("5_schedule")
 
 Gender = "남성(추정)"
 ShortProfileLine = "과묵하고 침착하다. 위험한 일은 먼저 맡으려는 책임감이 있다."

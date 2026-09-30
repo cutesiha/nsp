@@ -135,6 +135,8 @@ public static class LocalDialogueGenerator
             // 예전에는 이 분기가 없어 화면에 크게 뜨는 답변이 자료로는 쓰이지 못했다(§1-4).
             case CoreKind.IncidentDirect:
             case CoreKind.IncidentIndirect:
+            // "그때는 {where}에 있었습니다" 도 그대로 위치 진술이다.
+            case CoreKind.IncidentLater:
                 string said = SpokenRoom(ctx, plan, key);
                 if (ctx.HasSubjectTime && !string.IsNullOrEmpty(said))
                     PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, said,
@@ -412,7 +414,8 @@ public static class LocalDialogueGenerator
             DialogueQuestions.ShiftReview => RecallTopic.ShiftReview,
             // 아는 사고가 없다는 답에는 "그쯤" 같은 기억을 붙이지 않는다 — 가리킬 시각이 없다.
             DialogueQuestions.Anomaly or DialogueQuestions.GeneralAnomaly
-                when plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect => RecallTopic.Anomaly,
+                when plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect
+                    or CoreKind.IncidentLater => RecallTopic.Anomaly,
             DialogueQuestions.Where => RecallTopic.Location,
             DialogueQuestions.GeneralStatus => RecallTopic.Status,
             _ => RecallTopic.None,

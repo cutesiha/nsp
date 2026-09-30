@@ -49,7 +49,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     // 눈에서 약 28cm(파지 밀림 8cm 를 빼면 약 20cm) — 1920 화면에서 본체 가로가 약 69% 를 차지한다.
     // (패드는 왼손 소켓을 따라가므로 실제 자리는 여기서 파지 깊이만큼 눈 쪽으로 당겨진다 —
     //  HoldDriftMeters 로 그 양을 잰다. 파지를 바꾸면 이 값도 같이 다시 맞춰야 크기가 유지된다.)
-    [Export] public Vector3 HoldOffset = new(0.04f, -0.105f, -0.285f);
+    [Export] public Vector3 HoldOffset = new(0.04f, -0.035f, -0.285f);
     // 켜면 화면이 카메라 화면과 평행하다(시점과 각도가 어긋나지 않는 "일자" 파지 — 기본).
     // 끄면 화면 법선이 눈을 향한다 — 눈보다 아래에 들고 있으므로 자연히 뒤로 기운다(약 25°).
     [Export] public bool HoldFlatToCamera = true;
@@ -96,7 +96,20 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     public static AdminPad3D Instance { get; private set; }
 
     // 패드를 쓰는 시간 — 근무 · 휴게시간. 이 동안은 거치대에 놓여 있어도 홈 화면이 켜져 있다.
-    public static bool InService => GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Rest;
+    //
+    // DAY1 의 근무 배치도 포함한다. 교육이 끝나고 처음 배치표 앞에 앉는 날이라, 방금 배운 지침을
+    // 패드에서 다시 펴 볼 수 있어야 한다(ShiftFlowController 가 그때 안내를 띄우고 패드를 꺼낸다).
+    // 이튿날부터는 배치 중에 패드를 쓰지 않는다 — 지침을 다시 읽을 이유가 없다.
+    public static bool InService
+    {
+        get
+        {
+            var gs = GameState.Instance;
+            if (gs == null) return false;
+            return gs.CurrentPhase is GamePhase.Live or GamePhase.Rest
+                   || (gs.CurrentPhase == GamePhase.Schedule && gs.CurrentDay == 1);
+        }
+    }
 
     // 패드가 거치대에 놓여 있지 않은 동안(집으러 가는 중 · 들어 올리는 중 · 들고 있음 · 내려놓는 중)
     // 근무 시간을 멈출 것인가. 기본은 끔 — 든 채로 시간이 멈추면 감시 · 통화 압박이 사라져 너무 쉬웠다.
@@ -449,13 +462,19 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         return new Transform3D(basis, origin);
     }
 
-    // 자리에 똑바로 앉은 카메라. 에디터에서는 리그 스크립트가 돌지 않으므로 리그의 카메라를 그대로 쓴다
-    // (실행 중 SeatedCameraGlobal 도 리그 자리 × 카메라 처음 자세라 같은 값이다).
+    // 패드를 들고 보는 눈의 자세 — 자리에 앉아 고개를 숙인 상태. 패드를 놓을 자리와 각도를 여기서 잰다.
+    // 에디터에서는 리그 스크립트가 돌지 않으므로 리그의 카메라에 같은 숙임을 직접 먹인다.
     private Transform3D SeatCamera()
     {
-        if (_rig != null) return _rig.SeatedCameraGlobal();
+        if (_rig != null) return _rig.PadPostureCameraGlobal();
+        var rig = GetNodeOrNull<SeatedCameraRig>(RigPath);
         var cam = GetNodeOrNull<Node3D>(RigPath)?.GetNodeOrNull<Node3D>("Camera3D");
-        if (cam != null) return cam.GlobalTransform;
+        if (cam != null)
+        {
+            var tilt = (rig?.PadTiltDegrees ?? new Vector3(-17f, 0f, 0f)) * (Mathf.Pi / 180f);
+            var x = cam.GlobalTransform;
+            return new Transform3D(x.Basis * Basis.FromEuler(tilt), x.Origin);
+        }
         return GetViewport()?.GetCamera3D()?.GlobalTransform ?? GlobalTransform;
     }
 

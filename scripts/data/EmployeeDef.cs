@@ -44,6 +44,13 @@ public partial class EmployeeDef : Resource
     [Export] public Texture2D StandingImage;
     [Export] public Texture2D FacePortrait;
 
+    // 모니터2 의 신원 확인 화면이 쓰는 증명사진(정사각). 시작 화면의 직원 카드와
+    // 근무 배치의 직원 블록 6개가 이 그림을 쓴다. 비어 있으면 FacePortrait 로 떨어진다.
+    [Export] public Texture2D IdPhoto;
+    // 근무 배치에서 직원 블록을 고르면 왼쪽에 크게 뜨는 상반신(3:4). 잘라 쓰지 않고
+    // 비율 그대로 칸에 넣는다. 비어 있으면 StandingImage 를 예전 방식으로 잘라 쓴다.
+    [Export] public Texture2D SchedulePortrait;
+
     // 휴게시간 심문 스탠딩 일러의 중앙 발광(nsp_crt_glow_standing.gdshader 의 glow_amt / glow_center).
     // 원화마다 밝기가 달라 흰 옷 캐릭터는 같은 세기에서도 빛이 과하게 번진다 — 캐릭터별로 낮춘다.
     // glow_center 는 원화 UV 기준(0=위, 1=아래). y 를 줄이면 빛이 위로, 늘리면 아래로 간다.

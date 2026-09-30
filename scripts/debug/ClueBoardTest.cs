@@ -463,10 +463,18 @@ public partial class ClueBoardTest : Node
         pad.Close();
         await Until(() => !pad.IsOpen, 3000);
 
+        // 근무 배치 — DAY1 만 예외다. 교육이 끝나고 처음 앉는 날이라 방금 배운 지침을 다시 펴 볼 수 있다.
         GameState.Instance.SetPhase(GamePhase.Schedule);
         await Frames(1);
-        Check(!pad.CanOpen(), "근무 배치 단계에서는 꺼낼 수 없다");
-        Check(pad.View.IsLocked, "근무 배치 단계에는 잠금 화면으로 바뀐다");
+        Check(GameState.Instance.CurrentDay == 1, "지금은 DAY1");
+        Check(pad.CanOpen(), "DAY1 근무 배치에서는 꺼낼 수 있다");
+        Check(!pad.View.IsLocked, "DAY1 근무 배치에는 거치대 위 화면이 홈이다");
+
+        GameState.Instance.GoToNextDay();
+        await Frames(1);
+        Check(!pad.CanOpen(), "DAY2 부터는 근무 배치에서 꺼낼 수 없다");
+        Check(pad.View.IsLocked, "DAY2 근무 배치에는 잠금 화면으로 바뀐다");
+
         GameState.Instance.SetPhase(GamePhase.Rest);
         await Frames(1);
         Check(pad.CanOpen(), "휴게시간에는 꺼낼 수 있다");

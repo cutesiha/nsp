@@ -155,15 +155,20 @@ public static class DialogueContextBuilder
     }
 
     // 그 시각 직전에 있던 작업실(현재 방으로 들어오기 전). 없으면 빈 값.
+    //
+    // 통로(빈 값)는 방이 아니다 — 건너뛴다. 퇴실 기록까지 방으로 세면 "경비실 → 통로 → 발전실"
+    // 에서 직전 방이 통로가 되어 지워지고, 재배치로 옮긴 사람이 "쭉 거기 있었다"로 답하게 된다.
     public static string RoomBefore(string employeeId, int day, float timeSeconds)
     {
         var t = GetTimeline(day);
         if (!t.Moves.TryGetValue(employeeId, out var list) || list.Count == 0) return "";
-        string previous = "", current = list[0].Room;
+        string previous = "", current = "";
         foreach (var (time, r) in list)
         {
             if (time > timeSeconds) break;
-            if (r != current) { previous = current; current = r; }
+            if (string.IsNullOrEmpty(r) || r == current) continue;
+            if (!string.IsNullOrEmpty(current)) previous = current;
+            current = r;
         }
         return previous;
     }
@@ -228,11 +233,37 @@ public static class DialogueContextBuilder
         if (!string.IsNullOrEmpty(where) && where == e.RoomId) return KnowledgeLevel.Direct;
         // 벽 너머의 일은 아무나 알아차리지 못한다 — 관찰력이 낮으면 "몰랐다"가 사실이다.
         // (없는 목격을 만들지 않기 위한 문지기. 캐릭터 차이가 증언의 양을 가른다.)
-        if (!IsAdjacent(where, e.RoomId)) return KnowledgeLevel.None;
-        return NSP.Facility.EmployeeTraits.Get(employeeId).ObservationalAwareness
-               >= NSP.Facility.EmployeeTraits.AwarenessForIndirect
-            ? KnowledgeLevel.Indirect
-            : KnowledgeLevel.None;
+        if (IsAdjacent(where, e.RoomId)
+            && NSP.Facility.EmployeeTraits.Get(employeeId).ObservationalAwareness
+               >= NSP.Facility.EmployeeTraits.AwarenessForIndirect)
+            return KnowledgeLevel.Indirect;
+        // 그 순간에는 몰랐어도, 그 뒤에 그 방으로 가 봤다면 사고를 겪은 것이다.
+        return LearnedLater(employeeId, e) ? KnowledgeLevel.Later : KnowledgeLevel.None;
+    }
+
+    // 사고가 난 뒤 그 방에서 실제로 무언가를 했는가 — 재배치·지시로 가거나, 그 고장을 수리했거나,
+    // 그 방 일로 관리자와 통화했다. 근무 기억(ShiftMemory)에 남은 일만 본다: 없는 일은 만들지 않는다.
+    //
+    // 자기가 한 방해공작은 여기까지 오지 않는다 — 행위자는 위에서 이미 Direct 다.
+    private static bool LearnedLater(string employeeId, LogEntry e)
+    {
+        if (string.IsNullOrEmpty(e.RoomId)) return false;
+        foreach (var m in ShiftMemory.RouteOf(employeeId, e.Day))
+        {
+            if (m.Time <= e.GameTimeSeconds || m.RoomId != e.RoomId) continue;
+            switch (m.Kind)
+            {
+                case MemoryKind.Relocated:
+                case MemoryKind.Dispatched:
+                case MemoryKind.RepairDone:
+                case MemoryKind.CallStay:
+                case MemoryKind.CallReported:
+                    return true;
+                case MemoryKind.Worked when m.IsRepair:
+                    return true;
+            }
+        }
+        return false;
     }
 
     // --- 사건 분류 ------------------------------------------------------

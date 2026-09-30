@@ -147,6 +147,7 @@ public static class KoreanDialogueComposer
         CoreKind.SelfLocation => "selfloc",
         CoreKind.IncidentDirect => "incident.direct",
         CoreKind.IncidentIndirect => "incident.indirect",
+        CoreKind.IncidentLater => "incident.later",
         CoreKind.NoAnomaly => "noanomaly",
         CoreKind.SuspiciousSighting => "sight",
         CoreKind.NoSighting => "nosight",
@@ -183,6 +184,8 @@ public static class KoreanDialogueComposer
         {
             ["room"] = RoomName(string.IsNullOrEmpty(plan.RoomId) ? ctx.AssignedRoomId : plan.RoomId),
             ["iroom"] = iroom,
+            // 사건이 난 그 순간 이 사람이 있던 곳(incident.later 가 쓴다).
+            ["where"] = RoomName(string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject),
             ["sroom"] = plan.Core == CoreKind.SuspiciousSighting ? iroom : "",
             ["who"] = Codename(!string.IsNullOrEmpty(plan.SubjectEmployeeId)
                 ? plan.SubjectEmployeeId

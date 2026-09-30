@@ -98,6 +98,13 @@ public static class DialogueResponsePlanner
             plan.Certainty = Certainty.High;
             plan.Emotion = EmotionOf(fact.Type);
         }
+        else if (knowledge == KnowledgeLevel.Later)
+        {
+            // 나중에 가 보고 알았다 — 사고가 있었다는 것까지만 말한다. 장면도 소리도 말할 수 없다.
+            // 놀란 반응(Emotion)도 붙이지 않는다. 그 순간에는 그 자리에 없었다.
+            plan.Core = CoreKind.IncidentLater;
+            plan.Certainty = Certainty.Medium;
+        }
         else
         {
             plan.Core = CoreKind.IncidentIndirect;

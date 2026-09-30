@@ -118,6 +118,16 @@ public partial class SeatedCameraRig : Node3D
         return _camera != null ? world * _cameraBase : world;
     }
 
+    // 패드를 들고 볼 때의 눈 자세 — 자리에 앉은 카메라에서 고개만 PadTiltDegrees 만큼 숙인 것.
+    // 패드를 놓을 자리와 각도는 여기서 잰다. 숙이기 전(SeatedCameraGlobal)으로 재면 화면이
+    // 시선과 어긋나 사다리꼴로 보이고, 팔이 닿지 않는 자리에 목표가 잡힌다.
+    // 숙이는 중에도 값이 흔들리지 않도록 진행도(_padWeight)가 아니라 다 숙인 자세로 잰다.
+    public Transform3D PadPostureCameraGlobal()
+    {
+        var eye = SeatedCameraGlobal();
+        return new Transform3D(eye.Basis * Basis.FromEuler(PadTiltDegrees * (1f / Rad2Deg)), eye.Origin);
+    }
+
     // 머리를 맞고 책상에 엎어진다 — 시점이 빠르게 아래로 떨어지며 앞으로 고꾸라진다.
     // 되돌리려면 ResetCollapse().
     public void CollapseOntoDesk(float seconds = 0.38f)

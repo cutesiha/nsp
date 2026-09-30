@@ -332,6 +332,26 @@ public partial class ShiftFlowController : Node
 
         // DAY0 = GUIDE-0 가 진행하는 관리자 교육. 배치표가 열린 직후부터 시작한다.
         if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
+        // DAY1 = 교육이 끝나고 처음 혼자 앉는 날. 패드를 꺼내 주고 "지침은 여기서 다시 본다"를 알린다.
+        else if (GameState.Instance?.CurrentDay == 1) _ = ShowDay1PadHint();
+    }
+
+    // 배치표가 뜨고 화면이 밝아진 뒤, 패드를 꺼내며 그 위에 한 줄 안내를 띄운다.
+    // 안내는 스스로 사라지고 패드는 손에 남는다 — 내려놓는 것은 관리자가 정한다.
+    private async System.Threading.Tasks.Task ShowDay1PadHint()
+    {
+        var tree = GetTree();
+        if (tree == null) return;
+        // 화면이 밝아지는 연출(0.5초) 뒤에 꺼낸다.
+        await ToSignal(tree.CreateTimer(0.8), SceneTreeTimer.SignalName.Timeout);
+        if (!IsInstanceValid(this) || _stage != Stage.Schedule) return;
+
+        var pad = AdminPad3D.Instance;
+        if (pad != null && pad.CanOpen()) pad.Open();
+        // 패드가 손에 올라오는 동안 말풍선이 따라 올라온다.
+        await ToSignal(tree.CreateTimer(0.35), SceneTreeTimer.SignalName.Timeout);
+        if (!IsInstanceValid(this) || _stage != Stage.Schedule) return;
+        PadHintBubble.Show("근무 지침은 패드에서 다시 확인할 수 있습니다.", 2f);
     }
 
     private static void StartNewRun(int startDay)

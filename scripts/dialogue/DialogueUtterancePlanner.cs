@@ -248,7 +248,7 @@ public static class DialogueUtterancePlanner
             CoreKind.SelfLocation when plan.MentionTask => "support.task",
             CoreKind.NoAnomaly => "volunteer.noanomaly",
             CoreKind.NoSighting => "volunteer.nosight",
-            CoreKind.IncidentDirect or CoreKind.IncidentIndirect => "support.nothing",
+            CoreKind.IncidentDirect or CoreKind.IncidentIndirect or CoreKind.IncidentLater => "support.nothing",
             CoreKind.Opinion => "support.seen",
             CoreKind.StatusReport when plan.MentionTask => "support.taskname",
             CoreKind.SuspiciousSighting => "volunteer.sight",

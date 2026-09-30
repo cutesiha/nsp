@@ -220,14 +220,20 @@ public partial class ScheduleStaffView : Control
 
         Header("STAFF IDENTIFICATION  ·  " + id.ToUpperInvariant(), "시설 직원 신원 확인됨.");
 
-        // 초상(스탠딩 원화가 있으면 크게, 없으면 얼굴).
-        var box = new Rect2(40f, 120f, 270f, 380f);
+        // 초상 — 전용 그림(SchedulePortrait)은 3:4 로 그려 둔 것이라 칸도 3:4 로 잡고 그대로 넣는다.
+        // 없으면 예전처럼 스탠딩 원화의 상반신을 잘라 채운다.
+        bool ready = def.SchedulePortrait != null;
+        var box = ready ? new Rect2(40f, 120f, 270f, 360f) : new Rect2(40f, 120f, 270f, 380f);
         DrawRect(box, new Color(0.03f, 0.07f, 0.08f, 0.9f));
         DrawRect(box, Dim with { A = 0.55f }, false, 1.2f);
-        var tex = def.StandingImage ?? def.FacePortrait;
-        if (tex != null && def.StandingImage != null) FillUpper(tex, box.Grow(-6f));
-        else if (tex != null) Contain(tex, box.Grow(-8f));
-        else DrawCircle(box.GetCenter(), 50f, def.IconColor);
+        if (ready) Contain(def.SchedulePortrait, box.Grow(-6f));
+        else
+        {
+            var tex = def.StandingImage ?? def.FacePortrait;
+            if (tex != null && def.StandingImage != null) FillUpper(tex, box.Grow(-6f));
+            else if (tex != null) Contain(tex, box.Grow(-8f));
+            else DrawCircle(box.GetCenter(), 50f, def.IconColor);
+        }
 
         float x = 334f, y = 156f;
         DrawRect(new Rect2(x, y - 22f, 4f, 30f), def.IconColor);
@@ -416,7 +422,8 @@ public partial class ScheduleStaffView : Control
     private void Portrait(EmployeeDef def, Rect2 box)
     {
         DrawRect(box, new Color(0.02f, 0.05f, 0.06f, 0.9f));
-        if (def.FacePortrait != null) Contain(def.FacePortrait, box);
+        var face = def.IdPhoto ?? def.FacePortrait;
+        if (face != null) Contain(face, box);
         else DrawCircle(box.GetCenter(), box.Size.X * 0.3f, def.IconColor);
         DrawRect(box, Dim with { A = 0.6f }, false, 1f);
     }

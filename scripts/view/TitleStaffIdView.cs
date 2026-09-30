@@ -106,7 +106,7 @@ public partial class TitleStaffIdView : Control
                 Id = id,
                 Codename = string.IsNullOrEmpty(def.Codename)
                     ? Fallback.GetValueOrDefault(id, id) : def.Codename,
-                Face = def.FacePortrait,
+                Face = def.IdPhoto ?? def.FacePortrait,
                 Tint = def.IconColor,
             });
         }

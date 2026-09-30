@@ -1,8 +1,10 @@
-[gd_resource type="Resource" script_class="EmployeeDef" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EmployeeDef" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/EmployeeDef.cs" id="1_emp"]
 [ext_resource type="Texture2D" path="res://assets/characters/standing_v2/fox/fox_smile_closedmouth.png" id="2_img"]
 [ext_resource type="Texture2D" path="res://assets/characters/portraits/fox_portrait.png" id="3_face"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits/fox2.png" id="4_idphoto"]
+[ext_resource type="Texture2D" path="res://assets/characters/portraits2/fox1.png" id="5_schedule"]
 
 [resource]
 script = ExtResource("1_emp")
@@ -35,6 +37,8 @@ StartRoomId = "power_room"
 IconColor = Color(0.95, 0.52, 0.16, 1)
 StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
+IdPhoto = ExtResource("4_idphoto")
+SchedulePortrait = ExtResource("5_schedule")
 
 Gender = "남성(추정)"
 ShortProfileLine = "여유롭고 사교적이다. 분위기를 읽는 데 능하지만 속내는 잘 드러내지 않는다."

@@ -45,7 +45,106 @@ public static class InterviewScenarioTest
         TestIdleCallNeglect();
         TestGhostEncounter();
         TestAlibiQuestions();
+        // 4차 — 사고 인지는 "그 순간 위치"가 아니라 "근무 중 겪은 것"이다(C).
+        TestLearnedLater();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
+    }
+
+    // ── 4차 : 사고가 난 뒤 그 방에 가 본 직원은 "몰랐다"고 하지 않는다 ──────────
+    //
+    // 토끼 경비실 배치 → 12분 발전실 고장(그 순간 토끼는 발전실을 알 길이 없다)
+    // → 30분 관리자가 발전실로 재배치, 토끼가 수리 → 60분 경비실 복귀.
+    //
+    // 예전에는 "그 순간 어느 방에 있었나" 하나로만 인지를 판단해서, 직접 가서 고친 사람이
+    // "그런 일이 있었어요? 처음 들어요!" 라고 답했다. 동선 답변도 하루 전체가 아니라
+    // 그 순간만 보면 "쭉 경비실에 있었다"가 되어 재배치 기록과 어긋났다.
+    private static void TestLearnedLater()
+    {
+        Head("4차", "나중에 가서 고친 사고 — 알고는 있다 · 그때는 다른 방에 있었다");
+        Reset();
+        Deploy(new() { ["rabbit"] = Guard, ["cat"] = Storage, ["dog"] = Core,
+                       ["fox"] = Medical, ["sheep"] = Maintenance, ["wolf"] = Vent });
+        Incident(LogEventType.TaskFailed, Power, At(12));          // 그 순간 토끼는 경비실
+        Log(LogEventType.Relocation, "rabbit", Power, At(29));     // 관리자 지시
+        Move("rabbit", Guard, Power, At(30));
+        Log(LogEventType.TaskStart, "rabbit", Power, At(31));      // 🔧 로 시작해야 수리로 읽힌다
+        Move("rabbit", Power, Guard, At(60));                      // 다시 경비실로
+        MarkRepair(At(31));
+        ShiftMemory.Invalidate();
+
+        string guard = InterviewEvidenceBoard.RoomName(Guard);
+        string power = InterviewEvidenceBoard.RoomName(Power);
+
+        // ① 사고 인지 — 그 순간엔 몰랐지만 그 뒤에 가서 고쳤다.
+        var level = DialogueContextBuilder.KnowledgeOf("rabbit",
+            DialogueContextBuilder.FindByKey(1, IncidentKeyAt(Power, At(12))));
+        Check(level == KnowledgeLevel.Later, $"인지수준 = Later ({level})");
+
+        var board = InterviewEvidenceBoard.Build("rabbit");
+        var incident = board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        if (!Check(incident != null, "사고 기록이 자료로 뜬다")) return;
+
+        var qKnown = InterviewQuestionFactory.Make("rabbit", incident, InterviewIntent.AskIncidentKnown);
+        var fKnown = InterviewReplyPlanner.FrameFor(qKnown);
+        string aKnown = InterviewReplyPlanner.Answer(qKnown);
+        GD.Print($"   Q: {qKnown.Text}\n   A: {aKnown}");
+        Check(fKnown.Variant == "later", $"IncidentKnown = later ({fKnown.Variant})");
+        Check(aKnown.Contains(guard) && aKnown.Contains(power),
+            $"답에 '{guard}'(그때 있던 곳) 과 '{power}'(사고 난 곳) 이 함께 나온다");
+
+        // ①-2 기본 질문("이상한 일 있었나")도 같은 자리를 짚는다 — 사고를 말하되 장면·소리는 말하지 않는다.
+        var planQ1 = DialogueResponsePlanner.Plan(DialogueContextBuilder.Build("rabbit",
+            DialogueConversationKind.Interview, DialogueQuestions.Anomaly, "", null));
+        string aQ1 = LocalDialogueGenerator.InterviewAnswer("rabbit", DialogueQuestions.Anomaly);
+        GD.Print($"   A(이상한 일): {aQ1}");
+        Check(planQ1.Core == CoreKind.IncidentLater, $"Q1 핵심 = IncidentLater ({planQ1.Core})");
+        Check(aQ1.Contains(guard) && aQ1.Contains(power), "Q1 답에도 두 작업실이 함께 나온다");
+
+        // ② 이동 이유 — 관리자가 보낸 것이므로 "지시" 다.
+        var move = board.Where(e => e.Kind == EvidenceKind.Movement && e.ToRoomId == Power)
+            .OrderBy(e => e.AnchorTime).FirstOrDefault();
+        if (!Check(move != null && move.PlayerOrdered, "발전실行 이동이 '지시' 로 기록된다")) return;
+        var qMove = InterviewQuestionFactory.Make("rabbit", move, InterviewIntent.AskMoveReason);
+        var fMove = InterviewReplyPlanner.FrameFor(qMove);
+        GD.Print($"   Q: {qMove.Text}\n   A: {InterviewReplyPlanner.Answer(qMove)}");
+        Check(fMove.Variant == "ordered", $"MoveReason = ordered ({fMove.Variant})");
+
+        // ③ 동선 — 하루 전체의 재배치 기록을 본다. "쭉 경비실" 이 나오면 안 된다.
+        var qRoute = InterviewQuestionFactory.Make("rabbit", move, InterviewIntent.AskRouteAround);
+        var fRoute = InterviewReplyPlanner.FrameFor(qRoute);
+        string aRoute = InterviewReplyPlanner.Answer(qRoute);
+        GD.Print($"   Q: {qRoute.Text}\n   A: {aRoute}");
+        Check(fRoute.Variant == "full", $"RouteAround = full ({fRoute.Variant})");
+
+        var qNext = InterviewQuestionFactory.Make("rabbit", move, InterviewIntent.AskNextLocation);
+        var fNext = InterviewReplyPlanner.FrameFor(qNext);
+        string aNext = InterviewReplyPlanner.Answer(qNext);
+        GD.Print($"   Q: {qNext.Text}\n   A: {aNext}");
+        Check(fNext.Variant == "moved", $"NextLocation = moved ({fNext.Variant})");
+
+        var qAgain = InterviewQuestionFactory.Make("rabbit", incident, InterviewIntent.AskRestate);
+        string aAgain = InterviewReplyPlanner.Answer(qAgain);
+        GD.Print($"   A(다시): {aAgain}");
+
+        // "쭉 · 계속 경비실에 있었다" 는 어느 답에도 없어야 한다.
+        // NextLocation.stayed / RouteAround.short 의 문구들이다 — 재배치 기록이 있는 사람에게
+        // 이 말이 나오면 시설 로그와 정면으로 어긋난다.
+        // ("그대로입니다"(Restate.same)는 '진술이 그대로'라는 뜻이라 여기 해당하지 않는다.)
+        string[] all = { aKnown, aRoute, aNext, aAgain };
+        string[] stay = { "쭉", "계속", "내내", "안 움직", "움직이지 않", "에만 있" };
+        var slip = all.FirstOrDefault(a => stay.Any(a.Contains));
+        Check(slip == null, $"어떤 답에도 '쭉 · 계속 {guard}' 가 없다{(slip == null ? "" : " → " + slip)}");
+    }
+
+    // 그 시각 그 방 사고의 주장 키.
+    private static string IncidentKeyAt(string roomId, float at) => ClaimKeyOf(roomId, at);
+
+    // 방금 남긴 업무 시작 기록을 수리(🔧)로 바꾼다 — FacilityLogFormatter 와 같은 규약이다.
+    private static void MarkRepair(float at)
+    {
+        var e = EventLog.Instance.GetAllEntries()
+            .LastOrDefault(x => x.EventType == LogEventType.TaskStart && Mathf.IsEqualApprox(x.GameTimeSeconds, at));
+        if (e != null) e.Description = "🔧 " + e.Description + " / 설비 고장 수리 시작";
     }
 
     // ── 3차-A : 놀러 가고 싶다는 전화가 잦으면 근무 태만을 따질 수 있다 ──────────
@@ -357,8 +456,13 @@ public static class InterviewScenarioTest
 
         var level = DialogueContextBuilder.KnowledgeOf("wolf",
             DialogueContextBuilder.FindByKey(1, incident.IncidentKey));
-        string expected = level == KnowledgeLevel.Direct ? "direct"
-            : level == KnowledgeLevel.Indirect ? "indirect" : "none";
+        string expected = level switch
+        {
+            KnowledgeLevel.Direct => "direct",
+            KnowledgeLevel.Indirect => "indirect",
+            KnowledgeLevel.Later => "later",
+            _ => "none",
+        };
         Check(frame.Variant == expected, $"답변이 실제 인지수준({expected})과 일치한다");
     }
 
