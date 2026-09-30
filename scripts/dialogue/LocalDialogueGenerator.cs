@@ -133,10 +133,10 @@ public static class LocalDialogueGenerator
 
             // 최초 진술(이상한 점)에서 "저도 그 방에 있었어요" 라고 말한 것도 위치 진술이다.
             // 예전에는 이 분기가 없어 화면에 크게 뜨는 답변이 자료로는 쓰이지 못했다(§1-4).
+            // 나중에 알게 된 사고(IncidentLater)는 여기 없다 — "이상한 점" 답변은 사고만 전하고
+            // 자기 위치는 말하지 않는다. 말하지 않은 것을 진술 자료로 남기면 없는 증거가 된다.
             case CoreKind.IncidentDirect:
             case CoreKind.IncidentIndirect:
-            // "그때는 {where}에 있었습니다" 도 그대로 위치 진술이다.
-            case CoreKind.IncidentLater:
                 string said = SpokenRoom(ctx, plan, key);
                 if (ctx.HasSubjectTime && !string.IsNullOrEmpty(said))
                     PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, said,

@@ -47,6 +47,7 @@ public static class InterviewScenarioTest
         TestAlibiQuestions();
         // 4차 — 사고 인지는 "그 순간 위치"가 아니라 "근무 중 겪은 것"이다(C).
         TestLearnedLater();
+        TestTutorialRestInterview();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }
 
@@ -92,13 +93,16 @@ public static class InterviewScenarioTest
         Check(aKnown.Contains(guard) && aKnown.Contains(power),
             $"답에 '{guard}'(그때 있던 곳) 과 '{power}'(사고 난 곳) 이 함께 나온다");
 
-        // ①-2 기본 질문("이상한 일 있었나")도 같은 자리를 짚는다 — 사고를 말하되 장면·소리는 말하지 않는다.
+        // ①-2 기본 질문("이상한 일 있었나")은 사고만 전한다 — 장면도 소리도, 자기 위치도 말하지 않는다.
+        // 위치를 말하면 "어디 있었나"에 대한 답으로 읽혀, 묻지도 않은 알리바이가 먼저 나온다(F-1).
         var planQ1 = DialogueResponsePlanner.Plan(DialogueContextBuilder.Build("rabbit",
             DialogueConversationKind.Interview, DialogueQuestions.Anomaly, "", null));
         string aQ1 = LocalDialogueGenerator.InterviewAnswer("rabbit", DialogueQuestions.Anomaly);
         GD.Print($"   A(이상한 일): {aQ1}");
         Check(planQ1.Core == CoreKind.IncidentLater, $"Q1 핵심 = IncidentLater ({planQ1.Core})");
-        Check(aQ1.Contains(guard) && aQ1.Contains(power), "Q1 답에도 두 작업실이 함께 나온다");
+        Check(aQ1.Contains(power), $"Q1 답이 사고 난 곳({power})을 짚는다");
+        Check(!aQ1.Contains(guard), $"Q1 답에 자기 위치({guard})를 말하지 않는다");
+        Check(!LooksLikeLocationClaim(aQ1), $"Q1 답이 위치 진술로 읽히지 않는다 → {aQ1}");
 
         // ② 이동 이유 — 관리자가 보낸 것이므로 "지시" 다.
         var move = board.Where(e => e.Kind == EvidenceKind.Movement && e.ToRoomId == Power)
@@ -138,6 +142,68 @@ public static class InterviewScenarioTest
 
     // 그 시각 그 방 사고의 주장 키.
     private static string IncidentKeyAt(string roomId, float at) => ClaimKeyOf(roomId, at);
+
+    // "경비실에 있었어요" 처럼 말한 사람이 자기 위치를 대는 문장인가.
+    // 방 이름 바로 뒤에 "에 있었" · "이었/였" 이 붙을 때만 위치 진술로 본다 —
+    // 어미만 보면 "다들 멀쩡해 보였어요" 같은 문장까지 걸린다.
+    private static bool LooksLikeLocationClaim(string answer)
+    {
+        if (string.IsNullOrEmpty(answer)) return false;
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return false;
+        bool namesRoom = sim.GetRoomIds()
+            .Select(InterviewEvidenceBoard.RoomName)
+            .Any(room => !string.IsNullOrEmpty(room) && answer.Contains(room));
+        if (!namesRoom) return false;
+        // 방 이름을 댔고, "있었다 / 이었다" 로 자기 소재를 말한다.
+        return new[] { "있었", "있습니다", "이었", "였" }.Any(answer.Contains);
+    }
+
+    // ── 4차-B : 교육(DAY0) 휴게시간 심문 — 이상한 점 질문에 위치 진술이 나오지 않는다 ──────
+    //
+    // 교육은 토끼를 반드시 사고 난 방으로 보내 수리시킨다. 그래서 토끼의 사고 인지는 늘 Later 다.
+    // 예전에는 그 답이 "저는 그때 경비실에 있었어요" 로 나와, "이상한 점" 을 물었는데
+    // 묻지도 않은 알리바이가 먼저 튀어나왔다(F-1).
+    private static void TestTutorialRestInterview()
+    {
+        Head("4차-B", "교육 휴게시간 — '이상한 점' 답에 위치 진술이 섞이지 않는다");
+        Reset();
+        GameState.Instance.ResetRun(0);                       // DAY0 = 교육
+        Deploy(new() { ["rabbit"] = Guard, ["cat"] = Maintenance, ["dog"] = Core,
+                       ["fox"] = Medical, ["sheep"] = Storage, ["wolf"] = Vent });
+        Incident(LogEventType.TaskFailed, Power, At(20));     // 교육용 사고
+        Log(LogEventType.Relocation, "rabbit", Power, At(24));
+        Move("rabbit", Guard, Power, At(25));
+        Log(LogEventType.TaskStart, "rabbit", Power, At(26));
+        MarkRepair(At(26));
+        ShiftMemory.Invalidate();
+        GameState.Instance.SetPhase(GamePhase.Rest);
+
+        Check(GameState.Instance.CurrentDay == 0, "DAY0(교육)");
+        var level = DialogueContextBuilder.KnowledgeOf("rabbit",
+            DialogueContextBuilder.FindByKey(0, IncidentKeyAt(Power, At(20))));
+        GD.Print($"   [내부] 오늘 로그 {EventLog.Instance.GetAllEntries().Count(e => e.Day == 0)}줄");
+        Check(level == KnowledgeLevel.Later, $"교육에서도 인지수준 = Later ({level})");
+
+        // 휴게 심문이 첫 화면에 띄우는 진술 세 개(InterviewSession.BuildOpenings 와 같은 질문).
+        foreach (string q in new[] { DialogueQuestions.ShiftReview, DialogueQuestions.Anomaly,
+                                     DialogueQuestions.Suspicious })
+        {
+            string a = LocalDialogueGenerator.InterviewAnswer("rabbit", q);
+            GD.Print($"   {q}: {a}");
+            Check(!LooksLikeLocationClaim(a), $"{q} 답이 위치 진술이 아니다");
+        }
+
+        // 위치는 "어디 있었나" 를 물었을 때에만 나온다.
+        // 문장은 무작위로 뽑히므로(방 이름을 생략한 틀도 있다) 무엇을 말하기로 했는지로 본다.
+        var planWhere = DialogueResponsePlanner.Plan(DialogueContextBuilder.Build("rabbit",
+            DialogueConversationKind.Interview, DialogueQuestions.Where, "", null));
+        string where = LocalDialogueGenerator.InterviewAnswer("rabbit", DialogueQuestions.Where);
+        GD.Print($"   {DialogueQuestions.Where}: {where}");
+        Check(planWhere.Core == CoreKind.SelfLocation && planWhere.RoomId == Guard,
+            $"'어디 있었나' 에는 위치를 말한다 ({planWhere.Core}/{planWhere.RoomId})");
+        GameState.Instance.ResetRun(1);   // 뒤 검사들이 DAY1 을 기준으로 돌게 되돌린다
+    }
 
     // 방금 남긴 업무 시작 기록을 수리(🔧)로 바꾼다 — FacilityLogFormatter 와 같은 규약이다.
     private static void MarkRepair(float at)
@@ -720,7 +786,8 @@ public static class InterviewScenarioTest
     {
         EventLog.Instance.Log(new LogEntry
         {
-            Day = 1,
+            // 교육(DAY0) 시나리오도 있으므로 지금 날짜로 적는다.
+            Day = GameState.Instance?.CurrentDay ?? 1,
             GameTimeSeconds = at,
             EventType = type,
             ActorEmployeeId = actor,

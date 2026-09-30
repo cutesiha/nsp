@@ -58,7 +58,7 @@
 - {room} 건은 알고 있습니다. 다만 그 시간에는 {where}에 있었습니다.
 
 ## incident.later
-- {iroom} 건은 나중에 알았습니다. 그때는 {where}에 있었습니다.
+- {iroom} 건은 나중에 알았습니다.
 
 ## IncidentKnown.none
 - 그 사고는 지금 처음 듣습니다.
@@ -447,7 +447,7 @@
 - {room} 일은 알고는 있어요. 그때는 {where}에 있었고요.
 
 ## incident.later
-- {iroom} 일은 나중에 알았어요. 그때는 {where}에 있었거든요.
+- {iroom} 일은 나중에 알았어요.
 
 ## IncidentKnown.none
 - 그건 처음 듣는데요.

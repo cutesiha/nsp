@@ -513,6 +513,13 @@ public partial class ShiftFlowController : Node
         _stage = Stage.DayTransition;
         // 추궁 표식은 그날 심문의 메모다 — 하루가 끝나면 지운다.
         ConfrontMarks.Clear();
+        // 교육(DAY0)에서 만들어진 대화 상태를 실전으로 끌고 가지 않는다.
+        // 대부분 날짜로 걸러지지만, 남은 것이 DAY1 첫 심문의 말투·자료에 섞이면 원인을 찾기 어렵다.
+        NSP.Dialogue.DialogueClaimState.ResetAll();
+        NSP.Dialogue.PlayerKnownEvidence.ResetAll();
+        NSP.Dialogue.DialoguePatternMemory.ResetAll();
+        NSP.Dialogue.ShiftMemory.Invalidate();
+        NSP.Dialogue.InterviewReplyPlanner.Reset();
         await PlayWakeIntoFirstShift();
     }
 
