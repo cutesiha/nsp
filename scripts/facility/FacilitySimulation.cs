@@ -1052,6 +1052,21 @@ public partial class FacilitySimulation : Node
             emp.Incapacitated = false;
             emp.FaintRecoverTimer = 0f;
             emp.Stress = Mathf.Clamp(emp.Stress, Config.Instance.Data.StressMin, Config.Instance.Data.StressMax);
+
+            // 격리된 직원은 다음 날에도 격리실에 있다.
+            //
+            // 예전에는 위치를 손대지 않아, 어제 배치돼 있던 작업실에 그대로 서 있었다.
+            // 클릭하면 "격리중" 이라고 나오는데 지도에는 발전실에 있는 식으로 어긋났다.
+            if (emp.Isolated && _roomDefs.ContainsKey(IsolationRoomId))
+            {
+                emp.AssignedRoomId = "";
+                emp.CurrentRoomId = IsolationRoomId;
+                emp.TargetRoomId = IsolationRoomId;
+                emp.Position = GetRoomPosition(IsolationRoomId);
+                emp.IsMoving = false;
+                emp.ElbowWaypoint = null;
+                emp.PathQueue.Clear();
+            }
         }
         _ventStressTimer = 0f;
         _coreUnstableTimer = 0f;

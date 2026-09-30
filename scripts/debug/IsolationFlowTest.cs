@@ -44,6 +44,7 @@ public partial class IsolationFlowTest : Node
         CheckFaintInsideKeepsIsolation();
         CheckTwoAtOnce();
         CheckSaboteurLooksTheSame();
+        CheckStaysIsolatedNextDay();
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
@@ -336,6 +337,37 @@ public partial class IsolationFlowTest : Node
     }
 
     // ── 도구 ─────────────────────────────────────────────────────────
+
+    // ── F-4 : 격리된 직원은 다음 날에도 격리실에 있다 ────────────────────
+    //
+    // 예전에는 하루가 바뀌면 위치를 손대지 않아, 어제 배치돼 있던 작업실에 그대로 서 있었다.
+    // 클릭하면 "격리중" 이라는데 지도에는 발전실에 서 있는 식으로 상태와 화면이 어긋났다.
+    private void CheckStaysIsolatedNextDay()
+    {
+        GD.Print("\n---------------- 다음 날에도 격리실 ----------------");
+        Start();
+        Place("sheep", "generator_room");
+        Settle();
+
+        var st = _sim.GetEmployeeState("sheep");
+        _sim.IsolateEmployee("sheep");
+        for (float t = 0f; t < 60f && st.Isolation != IsolationPhase.InRoom; t += Step) Tick();
+        Check(st.Isolation == IsolationPhase.InRoom, $"오늘 격리실에 수용되었다 ({st.Isolation})");
+
+        // 하루를 넘긴다 — 근무 시작 초기화가 위치를 다시 잡는 지점이다.
+        GameState.Instance.GoToNextDay();
+        _sim.ResetForNewShift();
+
+        Check(st.Isolated, "다음 날에도 격리 상태가 유지된다");
+        Check(st.CurrentRoomId == "isolation_room", $"위치도 격리실이다 ({st.CurrentRoomId})");
+        Check(string.IsNullOrEmpty(st.AssignedRoomId), $"어제 배치는 지워진다 ({st.AssignedRoomId})");
+        Check(!st.IsMoving && st.PathQueue.Count == 0, "격리실에서 움직이지 않는다");
+
+        // 근무를 조금 돌려도 제자리에 있어야 한다.
+        GameState.Instance.SetPhase(GamePhase.Live);
+        Settle(10f);
+        Check(st.CurrentRoomId == "isolation_room", $"근무가 흘러도 격리실에 남는다 ({st.CurrentRoomId})");
+    }
 
     private void Start()
     {
