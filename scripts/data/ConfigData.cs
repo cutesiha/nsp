@@ -195,6 +195,14 @@ public partial class ConfigData : Resource
     // 거절 · 무응답 · 미로 실패 시 그 수리에 걸리는 추가 시간 배율.
     [Export] public float RepairDenyPenaltyRate = 0.5f;
 
+    // ── 순환 배치 규정(G-3) ─────────────────────────────────────────
+    // 하루의 이 지점에서 한 번 걸린다(0~1). 제한 시간 안에 최소 인원을 다른 방으로 옮겨야 한다.
+    [Export(PropertyHint.Range, "0.1,0.9,0.05")] public float RotationAtDayRatio = 0.5f;
+    [Export] public float RotationWindowSeconds = 30f;
+    [Export] public int RotationMinMoves = 2;
+    // 못 지킨 날, 남은 근무 동안 야간 피로에 걸리는 배율.
+    [Export] public float RotationMissPenaltyRate = 2f;
+
     // --- 작업실 상시 효과 ---------------------------------------------------
     // 야간 근무 자체의 피로 — 배치된 직원 전원이 이 주기마다 조금씩 오른다.
     // 0 이하면 이 항목이 통째로 꺼진다(예전 동작).

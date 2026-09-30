@@ -1074,6 +1074,7 @@ public partial class FacilitySimulation : Node
         _sabotageActionsToday = 0;
         _saboteurPlan.Reset();
         RepairApprovalSystem.ResetAll();
+        RotationOrderSystem.ResetAll();
         _behavior.Reset();
         _patrolTimers.Clear();
         _patrolSeenAt.Clear();
@@ -1136,6 +1137,7 @@ public partial class FacilitySimulation : Node
         TickActiveTasks(d);
         // 수리 승인 절차(G-2). 게임 시간은 멈추지 않는다 — 미로에 붙잡혀 있는 동안에도 근무는 흐른다.
         RepairApprovalSystem.Tick(d);
+        RotationOrderSystem.Tick(d, this);
         TickLighting();
         TickPowerLossMurder(d);
         TabooRuleSystem.Instance?.Tick(d);
@@ -1614,7 +1616,8 @@ public partial class FacilitySimulation : Node
                     // 근무 중인 사람만. 격리·기절은 따로 회복/처리 경로가 있다.
                     if (!emp.Alive || emp.Isolated || emp.Incapacitated) continue;
                     if (string.IsNullOrEmpty(emp.AssignedRoomId)) continue;
-                    AddStress(emp.EmployeeId, cfg.ShiftStressAmount);
+                    // 순환 배치를 지키지 않은 날에는 피로가 빨라진다(G-3).
+                    AddStress(emp.EmployeeId, cfg.ShiftStressAmount * RotationOrderSystem.ShiftStressMultiplier());
                 }
             }
         }
