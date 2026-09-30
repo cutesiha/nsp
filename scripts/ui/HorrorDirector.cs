@@ -31,7 +31,9 @@ public partial class HorrorDirector : Node
     [Signal] public delegate void Level3StartedEventHandler(bool taboo);
     [Signal] public delegate void ImpactMomentEventHandler();
 
-    private const int MaxLevel3PerShift = 4;
+    // L3 는 실제 금기 위반 · 사망에만 쓴다. 나머지 자리는 PresenceDirector 의 "존재" 연출이 채운다
+    // (설계 문서 16절: 카메라 앞으로 튀어나오는 흔한 점프스케어를 반복하지 않는다).
+    private const int MaxLevel3PerShift = 2;
     private const double Level3CooldownMsec = 15000.0;
     private const double Level2CooldownMsec = 3500.0;
 

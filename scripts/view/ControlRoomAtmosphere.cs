@@ -390,6 +390,7 @@ public partial class ControlRoomAtmosphere : Node3D
 
     private float _ventDownT = -1f;   // 정지 연출 경과(초). 음수 = 진행 중 아님
     private float _hushT = -1f;       // 정적 경과(초). 음수 = 진행 중 아님
+    private float _hushSeconds = HushSeconds;   // 이번 정적의 길이(정전은 더 짧다)
     private bool _hushDone;           // 이번 정지에서 정적을 이미 한 번 썼는가
 
     private void BeginVentStop()
@@ -413,6 +414,13 @@ public partial class ControlRoomAtmosphere : Node3D
         PlayOn(_vent.P3?.GetParentNode3D(), "vent_restart", -3f);
     }
 
+    // 밖에서 정적만 따로 걸고 싶을 때(내 방 정전 등). 환풍기 정지와 같은 연출을 쓴다.
+    public void Hush(float seconds)
+    {
+        _hushT = 0f;
+        _hushSeconds = Mathf.Max(0.2f, seconds);
+    }
+
     // 지금 정적이 걸려 있는가(검사용).
     public bool VentHushActive => _hushT >= 0f;
     public bool VentStopping => _ventFaultDown;
@@ -431,13 +439,13 @@ public partial class ControlRoomAtmosphere : Node3D
             // ② 다 느려지면 소리가 완전히 사라진다.
             _vent.TgtDb = Mathf.Min(_vent.TgtDb, Mathf.Lerp(_vent.NormalDb, Silent, u));
             // ③ 멎는 순간부터 정적이 시작된다(이번 정지에 한 번만).
-            if (u >= 1f && !_hushDone) { _hushDone = true; _hushT = 0f; }
+            if (u >= 1f && !_hushDone) { _hushDone = true; _hushT = 0f; _hushSeconds = HushSeconds; }
         }
 
         // ④ 갑자기 공간이 너무 조용해진다 — 다른 상시음도 함께 눌렀다가 서서히 되돌린다.
         if (_hushT < 0f) return;
-        if (_hushT >= HushSeconds) { _hushT = -1f; return; }
-        ApplyHush(HushDb * (1f - Mathf.Clamp((_hushT - (HushSeconds - 0.8f)) / 0.8f, 0f, 1f)));
+        if (_hushT >= _hushSeconds) { _hushT = -1f; return; }
+        ApplyHush(HushDb * (1f - Mathf.Clamp((_hushT - (_hushSeconds - 0.8f)) / 0.8f, 0f, 1f)));
     }
 
     // 상시음을 cut(dB) 만큼 눌러 둔다. 목표값은 매 프레임 다시 계산되므로 여기서 덮어써야 한다.

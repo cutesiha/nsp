@@ -38,7 +38,8 @@ public partial class ControlRoom3DHorror : Node
     private bool _wired;
     private bool _eventLogWired;
     private bool _tabooAlert;
-    private bool _lightsOff;         // 조명 스위치 OFF / 정전으로 실내등이 꺼진 상태
+    private bool _lightsOff;              // 조명 스위치 OFF / 정전으로 실내등이 꺼진 상태
+    private bool _blackoutStaged;         // 정전 연출(모니터 하나 소등 · 정적)을 이미 걸었는가
     private double _impactBlackUntil; // [쿵] 순간 강제 소등
 
     public override void _Ready()
@@ -108,6 +109,17 @@ public partial class ControlRoom3DHorror : Node
         bool lightingCut = live && !gs.IsConsumerPowered(PowerConsumer.Lighting);
         bool impactBlack = now < _impactBlackUntil;
         _lightsOff = blackout || lightingCut || impactBlack;
+
+        // 내 방 정전 — "시설이 정전됐다" 가 아니라 "내가 앉은 방이 어두워졌다" 로 느껴져야 한다.
+        // 천장등은 이미 꺼지고 비상등만 남는다. 여기에 두 가지를 더 얹는다(B-4).
+        if (blackout != _blackoutStaged)
+        {
+            _blackoutStaged = blackout;
+            // ① 모니터 두 대 중 하나가 죽는다. 남은 한 대로만 시설을 본다.
+            ControlRoom3DController.Instance?.SetScreenBrightnessFor("02", blackout ? 0f : 1f);
+            // ② 환풍기가 멎을 때와 같은 정적을 1.5초.
+            if (blackout) _atmos?.Hush(1.5f);
+        }
 
         float ceilTarget, fillTarget, fixTarget, emgTarget;
         Color colTarget;

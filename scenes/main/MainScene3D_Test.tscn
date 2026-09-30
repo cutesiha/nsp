@@ -33,6 +33,7 @@
 [ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
 [ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
 [ext_resource type="Script" uid="uid://cjimfhuslq8j8" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
+[ext_resource type="Script" uid="uid://ycv3yrqgmada" path="res://scripts/view/PresenceDirector.cs" id="36_presence"]
 [ext_resource type="Script" uid="uid://dsujspmv5drb0" path="res://scripts/view/PadHintBubble.cs" id="35_padhint"]
 [ext_resource type="Script" uid="uid://b4kg6dn61njga" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
 
@@ -1379,6 +1380,9 @@ script = ExtResource("7_atmos")
 
 [node name="ControlRoom3DHorror" type="Node" parent="." unique_id=1495453124]
 script = ExtResource("6_horror")
+
+[node name="PresenceDirector" type="Node" parent="." unique_id=771100894]
+script = ExtResource("36_presence")
 
 [node name="HorrorDirector" type="Node" parent="." unique_id=1186864440]
 script = ExtResource("10_horrordir")
