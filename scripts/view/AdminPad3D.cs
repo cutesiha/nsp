@@ -669,6 +669,17 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     public override void _Input(InputEvent e)
     {
         if (Engine.IsEditorHint()) return;
+
+        // 수리 미로가 떠 있는 동안 방향키는 미로가 독점한다 — 다른 조작으로 새지 않는다(G-2).
+        if (RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Maze
+            && e is InputEventKey { Pressed: true, Echo: false } mk
+            && PadRepairOverlay.DirOf(mk.Keycode) is { } dir)
+        {
+            RepairApprovalSystem.MazeInput(dir);
+            Sfx.Instance?.Play("tick", -20f);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         // 들고 있는 동안 우클릭 = 한 단계 뒤로(상세 → 목록 → 홈). 홈에서 한 번 더 누르면 내려놓기.
         // Tab 은 어느 화면에서든 곧바로 내려놓는다(ClueHud). (ControlRoom3DController 보다 먼저 받는다.)
         // 기록 창(로그 · 대화 기록 · 업무)이 패드 위에 떠 있으면 우클릭은 그 창을 닫는 데 쓴다(Day1HistoryOverlay).
@@ -786,7 +797,10 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     {
         if (_state != PadState.Held) return;
         Sfx.Instance?.Play("key_single", -20f, 1.3f);
-        _view?.FlashTouch(canvasPos / ViewScale);
+        var at = canvasPos / ViewScale;
+        // 수리 승인 요청이 떠 있으면 그 창이 먼저 받는다([예]/[아니오]).
+        if (_view != null && _view.TryRepairPress(at)) return;
+        _view?.FlashTouch(at);
     }
 
     // 뷰포트 픽셀 ↔ PadView 논리 좌표(1120×700) 배율.

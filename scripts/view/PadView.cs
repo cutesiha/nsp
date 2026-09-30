@@ -92,6 +92,13 @@ public partial class PadView : Control
     private Control _lock;
     private Label _lockTime, _lockAlert, _lockAlertSub, _lockClues;
     private Control _powerLayer, _powerLogo;
+    private PadRepairOverlay _repair;
+
+    // 수리 승인 절차가 화면을 잡고 있는가. 잡고 있으면 다른 앱 조작을 받지 않는다.
+    public bool RepairOverlayActive => _repair is { Visible: true };
+
+    // 화면을 눌렀다 — 승인 요청의 [예]/[아니오] 였으면 true.
+    public bool TryRepairPress(Vector2 at) => _repair != null && _repair.TryPress(at);
     private ColorRect _powerBar;
     private TextureRect _powerNoise;
     private Tween _appTween, _slide, _powerTween;
@@ -111,6 +118,9 @@ public partial class PadView : Control
         BuildHome();
         BuildApp();
         BuildLock();
+        // 수리 승인 절차 — 잠금 화면 위, 전원 연출 아래. 거치 중에도 떠야 관리자가 보고 집어 든다.
+        _repair = new PadRepairOverlay(Layout) { Visible = false };
+        AddChild(_repair);
         BuildPowerLayer();
 
         ClueBoard.Changed += OnClueChanged;

@@ -1073,6 +1073,7 @@ public partial class FacilitySimulation : Node
         _warnings.Reset();
         _sabotageActionsToday = 0;
         _saboteurPlan.Reset();
+        RepairApprovalSystem.ResetAll();
         _behavior.Reset();
         _patrolTimers.Clear();
         _patrolSeenAt.Clear();
@@ -1133,6 +1134,8 @@ public partial class FacilitySimulation : Node
             TickMovement(emp, d);
         }
         TickActiveTasks(d);
+        // 수리 승인 절차(G-2). 게임 시간은 멈추지 않는다 — 미로에 붙잡혀 있는 동안에도 근무는 흐른다.
+        RepairApprovalSystem.Tick(d);
         TickLighting();
         TickPowerLossMurder(d);
         TabooRuleSystem.Instance?.Tick(d);
@@ -2228,7 +2231,7 @@ public partial class FacilitySimulation : Node
         // 이미 수리가 걸려 있으면 더 만들지 않는다. 두 개가 겹치면 하나를 끝내도
         // 방이 계속 고장 상태로 남아 "사람을 넣었는데도 안 고쳐지는" 것처럼 보인다.
         if (HasActiveRepair(roomId)) return;
-        _activeTasks.Add(new SpawnedTask
+        var repair = new SpawnedTask
         {
             TaskId = def.RepairTaskId,
             RoomId = roomId,
@@ -2240,7 +2243,9 @@ public partial class FacilitySimulation : Node
             MinWorkersOverride = minWorkersOverride > 0
                 ? minWorkersOverride
                 : RoomStaffing.RepairMinWorkers(roomId, def),
-        });
+        };
+        _activeTasks.Add(repair);
+        RepairApprovalSystem.Enqueue(roomId, RoomName(roomId), repair);
     }
 
     // SAB-01 감시 사각: 파괴공작자가 CCTV로 감시되지 않는 작업실에 있을 때, 그 방의 업무를
@@ -2550,6 +2555,7 @@ public partial class FacilitySimulation : Node
             st.Elapsed = 0f;
             st.TimeLimitSeconds = float.MaxValue;
             st.StartedWorkerIds.Clear();
+            RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
             return;
         }
         else

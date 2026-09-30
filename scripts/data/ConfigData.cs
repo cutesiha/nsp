@@ -184,6 +184,17 @@ public partial class ConfigData : Resource
     // 들어온 순간 풀리면 문만 열고 지나가도 경고가 꺼져, 왕복에 아무 비용이 들지 않는다(G-1).
     [Export] public float UnstaffedClearSeconds = 12f;
 
+    // ── 수리 승인 미로(G-2) ─────────────────────────────────────────
+    // 관리자가 수리를 승인하면 패드에 뜨는 작은 미로. DAY 가 갈수록 커지고 시간이 줄어든다.
+    [Export] public int RepairMazeSize = 7;
+    [Export] public float RepairMazeSizePerDay = 0.5f;
+    [Export] public float RepairMazeTimeScale = 1f;
+    [Export] public float RepairMazeTimeScalePerDay = 0.05f;
+    // 승인 요청에 답할 시간(초). 무응답은 거절과 같다.
+    [Export] public float RepairApproveSeconds = 6f;
+    // 거절 · 무응답 · 미로 실패 시 그 수리에 걸리는 추가 시간 배율.
+    [Export] public float RepairDenyPenaltyRate = 0.5f;
+
     // --- 작업실 상시 효과 ---------------------------------------------------
     // 야간 근무 자체의 피로 — 배치된 직원 전원이 이 주기마다 조금씩 오른다.
     // 0 이하면 이 항목이 통째로 꺼진다(예전 동작).
