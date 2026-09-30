@@ -140,6 +140,16 @@ public partial class FacilityMinimap : Control
         return (int)(age / FaintBlinkSeconds * FaintBlinkCount * 2f) % 2 == 0 ? red : (Color?)null;
     }
 
+    // 위험 · 기절 구간의 직원은 고유색 대신 구간 색으로 그린다(정상 · 주의는 그대로).
+    // 기절은 FaintTint 가 따로 맡으므로 여기서는 손대지 않는다.
+    private static Color? StressTint(NSP.Facility.EmployeeState st, FacilitySimulation sim)
+    {
+        if (st == null || sim == null || !NSP.Core.DayFeatures.StressEnabled) return null;
+        if (!st.Alive || st.Incapacitated) return null;
+        string band = sim.StressBandName(st);
+        return band == "위험" ? FacilitySimulation.StressBandColor(band) : null;
+    }
+
     // 환기는 한 방이 아니라 시설 전체에 걸린다 — 방들이 한꺼번에 잠깐 푸르러진다.
     private void OnVentilationRestored() => FlashAllRooms(new Color(0.42f, 0.82f, 0.92f));
 
@@ -559,6 +569,9 @@ public partial class FacilityMinimap : Control
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
         // 쓰러졌다 — 빨간색. 처음 한두 초는 원래 색과 번갈아 깜빡이고,
         // 그 뒤에는 의무실에서 깨어날 때까지 계속 빨간 상태로 남는다(§4).
+        // 위험 구간 이상이면 아이콘을 구간 색으로 물들인다 — 지도만 봐도 누가 한계인지 보인다(F-2).
+        var stress = StressTint(st, sim);
+        if (stress.HasValue) c = stress.Value;
         var faint = FaintTint(id, sim);
         if (faint.HasValue) c = faint.Value;
 

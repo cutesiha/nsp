@@ -181,7 +181,8 @@ public partial class ScheduleStaffView : Control
         DrawString(_font, new Vector2(Canvas.X - 200f, 70f), $"{roster.Count} / {roster.Count}",
             HorizontalAlignment.Right, 152f, Fs(16), Dim);
 
-        const float left = 82f, top = 132f, w = 208f, h = 168f, gx = 16f, gy = 14f;
+        // 카드 아래에 스트레스 한 줄이 더 들어간다(F-2) — 그만큼 칸을 키운다.
+        const float left = 82f, top = 126f, w = 208f, h = 186f, gx = 16f, gy = 10f;
         for (int i = 0; i < roster.Count && i < 6; i++)
         {
             var def = sim.GetEmployeeDef(roster[i]);
@@ -197,15 +198,19 @@ public partial class ScheduleStaffView : Control
             DrawRect(r, hot ? Cyan : (assigned ? Mint : Dim) with { A = assigned ? 0.6f : 0.4f },
                 false, hot ? 2.4f : 1.2f);
             var face = new Rect2(r.Position.X + (w - 72f) * 0.5f, r.Position.Y + 14f, 72f, 72f);
-            Portrait(def, face);
+            // 근무에서 빠진 사람(기절 · 격리)은 얼굴부터 흐리게 — 배치할 수 없는 카드다.
+            bool benched = st.Incapacitated || st.Isolated;
+            Portrait(def, face, benched);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 112f), def.Codename,
-                HorizontalAlignment.Center, w, Fs(19), Ink);
+                HorizontalAlignment.Center, w, Fs(19), benched ? Dim : Ink);
             // ⑭ 이 화면은 "기분"을 맡는다 — 배치 상태는 왼쪽 지도의 대기 인원 카드가 보여 준다.
             string mood = sim.GetDailyMood(roster[i]);
-            string where = st.Isolated ? "격리실 · 근무 불가"
+            string where = st.Incapacitated ? "기절 · 근무 불가"
+                : st.Isolated ? "[격리] · 근무 불가"
                 : "기분: " + (string.IsNullOrEmpty(mood) ? "—" : mood);
-            DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 140f), where,
-                HorizontalAlignment.Center, w, Fs(13), st.Isolated ? Err : Amber);
+            DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 138f), where,
+                HorizontalAlignment.Center, w, Fs(13), benched ? Err : Amber);
+            DrawStressLine(sim, st, new Vector2(r.Position.X, r.Position.Y + 162f), w);
         }
         Footer("직원 블록을 누르면 상세 정보가 표시됩니다.", Dim);
     }
@@ -419,13 +424,23 @@ public partial class ScheduleStaffView : Control
 
     // ── 공통 ─────────────────────────────────────────────────────────────
 
-    private void Portrait(EmployeeDef def, Rect2 box)
+    private void Portrait(EmployeeDef def, Rect2 box, bool dim = false)
     {
         DrawRect(box, new Color(0.02f, 0.05f, 0.06f, 0.9f));
         var face = def.IdPhoto ?? def.FacePortrait;
-        if (face != null) Contain(face, box);
-        else DrawCircle(box.GetCenter(), box.Size.X * 0.3f, def.IconColor);
+        if (face != null) Contain(face, box, dim ? new Color(0.45f, 0.45f, 0.48f) : Colors.White);
+        else DrawCircle(box.GetCenter(), box.Size.X * 0.3f, dim ? Dim : def.IconColor);
         DrawRect(box, Dim with { A = 0.6f }, false, 1f);
+    }
+
+    // 스트레스 수치 + 구간. 잠긴 날에는 아무것도 그리지 않는다.
+    private void DrawStressLine(FacilitySimulation sim, EmployeeState st, Vector2 at, float width)
+    {
+        if (!NSP.Core.DayFeatures.StressEnabled) return;
+        string band = sim.StressBandName(st);
+        float max = NSP.Core.Config.Instance?.Data?.StressMax ?? 50f;
+        DrawString(_font, at, $"스트레스 {st.Stress:0}/{max:0} · {band}",
+            HorizontalAlignment.Center, width, Fs(13), FacilitySimulation.StressBandColor(band));
     }
 
     // 스탠딩 원화의 투명 여백을 잘라 그림 폭을 칸 폭에 맞추고, 머리부터 칸 높이만큼만 그린다.
@@ -476,13 +491,14 @@ public partial class ScheduleStaffView : Control
         return _identUnit;
     }
 
-    private void Contain(Texture2D tex, Rect2 box)
+    private void Contain(Texture2D tex, Rect2 box, Color? tint = null)
     {
         var src = tex.GetSize();
         if (src.X <= 0f || src.Y <= 0f) return;
         float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
         var dst = src * k;
-        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false);
+        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false,
+            tint ?? Colors.White);
     }
 
     private static string RoomName(FacilitySimulation sim, string roomId) =>

@@ -705,13 +705,23 @@ public partial class ScheduleMapView : Control
                 HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(14), assigned ? Ink with { A = 0.7f } : Ink);
 
             // 기분은 모니터 2 가 맡는다 — 여기는 "지금 어디에 있는가" 만.
-            string sub = st.Isolated
-                ? "격리실 · 근무 불가"
+            // 다만 배치할 수 없는 사람(기절 · 격리)과 스트레스 구간은 여기서도 바로 보여야 한다(F-2).
+            string sub = st.Incapacitated ? "기절 · 근무 불가"
+                : st.Isolated ? "[격리] · 근무 불가"
                 : assigned ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
                 : "미배치";
+            var subCol = st.Incapacitated || st.Isolated ? Alert : assigned ? Mint : Amber;
+            if (NSP.Core.DayFeatures.StressEnabled && !st.Incapacitated && !st.Isolated)
+            {
+                string band = sim.StressBandName(st);
+                if (band != "정상")
+                {
+                    sub += $"  ·  스트레스 {st.Stress:0} {band}";
+                    subCol = FacilitySimulation.StressBandColor(band);
+                }
+            }
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f + 14f), sub,
-                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(10),
-                st.Isolated ? Alert : assigned ? Mint : Amber);
+                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(10), subCol);
         }
     }
 

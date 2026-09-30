@@ -310,14 +310,50 @@ public partial class FacilitySimulation : Node
         var cfg = Config.Instance.Data;
 
         if (amount > 0f) amount *= CourageStressMultiplier(employeeId);
+        string bandBefore = StressBandName(st);
+        bool imminentBefore = IsFaintImminent(st);
         st.Stress = Mathf.Clamp(st.Stress + amount, cfg.StressMin, cfg.StressMax);
         RoomEffectStats.NoteStress(st.Stress);   // 표시 전용 — 휴게 진입 요약이 쓴다
+        AnnounceStressBand(st, bandBefore, imminentBefore);
 
         if (!string.IsNullOrEmpty(reason))
             EventLog.Instance?.LogEvent(LogEventType.Neglect, employeeId, st.CurrentRoomId,
                 $"{Codename(employeeId)} 스트레스 {(amount >= 0 ? "+" : "")}{amount:0.#} ({reason}) → {st.Stress:0}");
 
         CheckFaint(st);
+    }
+
+    // 구간이 나빠지는 순간에만 한 번 알린다. 같은 구간 안에서 수치가 오르내리는 동안은 조용하다.
+    // (알림이 잦으면 읽지 않게 되고, 정작 위험 단계를 놓친다.)
+    private readonly Dictionary<string, string> _stressBandSaid = new();
+    private readonly HashSet<string> _faintSoonSaid = new();
+
+    private void AnnounceStressBand(EmployeeState st, string bandBefore, bool imminentBefore)
+    {
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        string band = StressBandName(st);
+        string name = Codename(st.EmployeeId);
+
+        // ① 주의 → 위험. 작업 효율이 눈에 띄게 떨어지는 지점이다.
+        if (band != bandBefore && band == "위험"
+            && _stressBandSaid.GetValueOrDefault(st.EmployeeId, "") != band)
+        {
+            _stressBandSaid[st.EmployeeId] = band;
+            int rate = Mathf.RoundToInt(StressWorkRate(st) * 100f);
+            NSP.Ui.FacilityAlertHud.Instance?.Notify($"{name} 스트레스 위험 단계 — 작업 효율 {rate}%",
+                NSP.Ui.NoticeLevel.Warning);
+        }
+        else if (band != bandBefore && band is "주의" or "정상")
+        {
+            // 내려갔으면 다시 올라올 때 또 알린다.
+            _stressBandSaid[st.EmployeeId] = band;
+            _faintSoonSaid.Remove(st.EmployeeId);
+        }
+
+        // ② 기절 임박 — 붉게. 지금 쉬게 하지 않으면 쓰러진다.
+        if (!imminentBefore && IsFaintImminent(st) && _faintSoonSaid.Add(st.EmployeeId))
+            NSP.Ui.FacilityAlertHud.Instance?.Notify($"{name} 기절 임박 — 스트레스 {st.Stress:0}",
+                NSP.Ui.NoticeLevel.Critical);
     }
 
     // 46~50 = 기절. 근무에서 빠지고 의무실로 옮겨졌다가, 회복 시간이 지나면 복귀한다.
@@ -405,6 +441,33 @@ public partial class FacilitySimulation : Node
         if (st.Stress >= cfg.StressDangerFrom) return "위험";
         if (st.Stress >= cfg.StressCautionFrom) return "주의";
         return "정상";
+    }
+
+    // 구간 색 — 배치 카드 · 미니맵 · 상세창이 모두 이 색을 쓴다. 한 곳에서만 정한다.
+    // (예전에는 FacilityMonitorView 가 BBCode 로만 들고 있어 화면마다 색이 갈렸다.)
+    public static Color StressBandColor(string band) => band switch
+    {
+        "기절" => new Color(1f, 0.33f, 0.33f),
+        "위험" => new Color(1f, 0.60f, 0.20f),
+        "주의" => new Color(0.87f, 0.87f, 0.33f),
+        _ => new Color(0.53f, 0.80f, 0.53f),
+    };
+
+    public static string StressBandHex(string band) => band switch
+    {
+        "기절" => "#ff5555",
+        "위험" => "#ff9933",
+        "주의" => "#dddd55",
+        _ => "#88cc88",
+    };
+
+    // 곧 쓰러진다 — 기절 문턱 바로 아래. 알림은 여기서 한 번 더 울린다.
+    public bool IsFaintImminent(EmployeeState st)
+    {
+        var cfg = Config.Instance.Data;
+        return DayFeatures.StressEnabled && st is { Alive: true, Incapacitated: false }
+               && st.Stress >= cfg.StressFaintFrom - cfg.StressFaintSoonMargin
+               && st.Stress < cfg.StressFaintFrom;
     }
 
     // --- 능력치 3종의 효과 (Config 의 배열에서만 읽는다) ----------------------

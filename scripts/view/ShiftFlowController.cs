@@ -205,6 +205,48 @@ public partial class ShiftFlowController : Node
         }
     }
 
+    // ── 시스템 해금 안내 ────────────────────────────────────────────────
+    //
+    // 잠겨 있던 시스템이 열리는 날, 배치표 앞에서 한 묶음만 읽어 준다. 교육에서 미리 가르치지
+    // 않는다 — 그날 쓸 수 없는 것을 먼저 배우면 정작 열렸을 때 기억나지 않는다.
+    private static readonly System.Collections.Generic.HashSet<string> _unlockSaid = new();
+
+    private void ShowUnlockGuideIfDue()
+    {
+        var gs = GameState.Instance;
+        var cfg = Config.Instance?.Data;
+        if (gs == null || cfg == null || DayFeatures.IsTutorialDay) return;
+        if (gs.CurrentDay != cfg.StressUnlockDay) return;
+        if (!_unlockSaid.Add($"stress|{gs.CurrentDay}")) return;
+        _ = PlayGuideLines("unlock_stress");
+    }
+
+    // @guide 블록의 줄을 자막 띠로 차례대로 읽는다. 화면은 빼앗지 않는다.
+    private async System.Threading.Tasks.Task PlayGuideLines(string guideId)
+    {
+        var block = NSP.Prologue.PrologueScript.GetGuide(guideId);
+        if (block == null || block.Beats.Count == 0) return;
+        var hud = NSP.Prologue.GuideSubtitleHud.Instance;
+        var face = NSP.Prologue.GuideArt.Portrait("normal", out bool mouthless);
+        NSP.Prologue.GuideCornerFace.SetPortraitAll("normal", face, mouthless);
+        NSP.Prologue.GuideCornerFace.ShowAll(true);
+        hud?.SetTopAligned(false);
+        hud?.SetActive(true);
+        Sfx.Instance?.Play("alert_beep3", -14f);
+
+        foreach (var beat in block.Beats)
+        {
+            if (beat.Kind != NSP.Prologue.PrologueScript.GuideBeatKind.Line || string.IsNullOrEmpty(beat.Value)) continue;
+            hud?.SetLine(beat.Value);
+            await Wait(5.5);
+            if (!IsInstanceValid(this) || _stage != Stage.Schedule) break;
+        }
+        if (!IsInstanceValid(this)) return;
+        hud?.Clear();
+        hud?.SetActive(false);
+        NSP.Prologue.GuideCornerFace.ShowAll(false);
+    }
+
     // 화면을 빼앗지 않는다. 근무를 그대로 두고 자막 띠 한 줄 + 구석 얼굴창만 잠깐 띄운다.
     // 문구는 코드가 아니라 런타임 문서(NSP_PROLOGUE_RUNTIME.md)가 소유한다.
     private async void ShowStressCautionHint(string employeeName)
@@ -334,6 +376,8 @@ public partial class ShiftFlowController : Node
         if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
         // DAY1 = 교육이 끝나고 처음 혼자 앉는 날. 패드를 꺼내 주고 "지침은 여기서 다시 본다"를 알린다.
         else if (GameState.Instance?.CurrentDay == 1) _ = ShowDay1PadHint();
+        // 오늘 새로 열린 시스템이 있으면 그 자리에서 한 묶음만 읽어 준다.
+        else ShowUnlockGuideIfDue();
     }
 
     // 배치표가 뜨고 화면이 밝아진 뒤, 패드를 꺼내며 그 위에 한 줄 안내를 띄운다.

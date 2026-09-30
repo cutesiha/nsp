@@ -3,6 +3,7 @@ using System.Reflection;
 using Godot;
 using NSP.Core;
 using NSP.Data;
+using NSP.Facility;
 using NSP.View;
 
 namespace NSP.Debug;
@@ -41,6 +42,21 @@ public partial class Day1PadHintShot : Node
             now = at[i];
             GD.Print($"   t={at[i]:0.0}s 패드열림={pad?.IsOpen} 든상태={pad?.IsHeld} 안내={bubble?.Visible}");
             GetViewport().GetTexture().GetImage()?.SavePng($"{_dir}/hint_{i}_{at[i]:0.0}s.png");
+        }
+
+        // 스트레스 구간이 카드에 보이는지 — 세 명을 서로 다른 구간에 세워 둔다(F-2).
+        var simX = FacilitySimulation.Instance;
+        if (simX != null)
+        {
+            var ids = simX.GetActiveEmployeeIds().ToList();
+            if (ids.Count >= 3)
+            {
+                simX.GetEmployeeState(ids[0]).Stress = 20f;   // 주의
+                simX.GetEmployeeState(ids[1]).Stress = 38f;   // 위험
+                simX.GetEmployeeState(ids[2]).Stress = 47f;   // 기절
+                simX.GetEmployeeState(ids[2]).Incapacitated = true;
+                if (ids.Count >= 4) simX.GetEmployeeState(ids[3]).Isolated = true;
+            }
         }
 
         // 모니터2 — 직원 블록 6개(증명사진)와 블록 하나를 고른 상세(3:4 상반신).
