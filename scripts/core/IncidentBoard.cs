@@ -128,9 +128,17 @@ public static class IncidentBoard
             float limit = NSP.Facility.RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
             if (limit <= 0f) continue;
             float remaining = Mathf.Max(0f, limit - room.UnstaffedTimer);
+            // 근무자가 돌아와 머무는 중이면, 경고가 풀리기까지 얼마나 더 있어야 하는지 보여 준다(G-1).
+            float clearNeed = Mathf.Max(0f, NSP.Core.Config.Instance?.Data?.UnstaffedClearSeconds ?? 0f);
+            bool staying = sim.OnDutyCount(roomId) > 0 && clearNeed > 0f;
+            string hint = staying
+                ? $"배치 유지 — {Mathf.CeilToInt(Mathf.Max(0f, clearNeed - room.UnstaffedClearTimer))}초 남음"
+                : "직원 배치 필요";
 
             list.Add(new IncidentDisplayData
             {
+                StabilizeDoneSeconds = staying ? room.UnstaffedClearTimer : -1f,
+                StabilizeNeedSeconds = staying ? clearNeed : -1f,
                 IncidentId = $"risk:unstaffed:{roomId}",
                 RoomId = roomId,
                 Title = string.IsNullOrEmpty(def.AccidentName) ? "설비 이상" : def.AccidentName,
@@ -138,7 +146,7 @@ public static class IncidentBoard
                 CauseText = "근무자 부재",
                 WarningRemainingSeconds = remaining,
                 WarningTotalSeconds = limit,
-                ActionHint = "직원 배치 필요",
+                ActionHint = hint,
                 Severity = remaining <= WarningThreshold ? AlertSeverity.Critical : AlertSeverity.Warning,
                 RepairWorkers = Mathf.Max(1, def.RepairMinWorkers),
                 ConsequenceLines = { ConsequenceText(def.AccidentConsequence, def.AccidentAmount) },

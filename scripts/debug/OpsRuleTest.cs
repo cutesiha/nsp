@@ -39,6 +39,7 @@ public partial class OpsRuleTest : Node
         CheckSaboteurNeedsCompany();
         CheckDay1SabotageIsRare();
         CheckRelocationRoutes();
+        CheckUnstaffedNeedsStay();
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
@@ -276,6 +277,53 @@ public partial class OpsRuleTest : Node
     }
 
     private string RoomName(string roomId) => _sim.GetRoomDef(roomId)?.DisplayName ?? roomId;
+
+    // ── G-1 : 무인 경고는 머물러야 풀린다 ────────────────────────────────
+    //
+    // 예전에는 문만 열고 들어가면 그 순간 타이머가 0으로 돌아갔다. 스쳐 지나가며 경고만 끄고
+    // 다시 나오는 것이 최적 플레이가 되어, 방을 비운 대가가 사라졌다.
+    private void CheckUnstaffedNeedsStay()
+    {
+        GD.Print("\n---------------- 무인 경고 해제에 체류가 필요하다 ----------------");
+        var sim = FacilitySimulation.Instance;
+        var cfg = Config.Instance.Data;
+        const float step = 1f / 30f;
+        const string room = "power_room";
+
+        Check(cfg.UnstaffedClearSeconds > 0f, $"체류 요구 시간이 설정돼 있다 ({cfg.UnstaffedClearSeconds:0}초)");
+
+        GameState.Instance.ResetRun(2);
+        sim.ResetRun();
+        sim.ResetForNewShift();
+        EventLog.Instance.ClearAll();
+        GameState.Instance.SetPhase(GamePhase.Live);
+
+        // 방을 비워 두고 경고를 키운다.
+        foreach (string id in sim.GetActiveEmployeeIds()) sim.ClearAssignment(id);
+        var st = sim.GetRoomState(room);
+        for (float t = 0f; t < 20f; t += step) sim.Tick(step);
+        float grown = st.UnstaffedTimer;
+        Check(grown > 1f, $"비워 두면 무인 타이머가 오른다 ({grown:0.0}초)");
+
+        // 잠깐 들렀다 나간다 — 아직 풀리지 않는다.
+        sim.AssignToRoom("cat", room);
+        for (int i = 0; i < 3000 && sim.GetEmployeeState("cat").CurrentRoomId != room; i++) sim.Tick(step);
+        float onArrival = st.UnstaffedTimer;
+        for (float t = 0f; t < cfg.UnstaffedClearSeconds * 0.5f; t += step) sim.Tick(step);
+        Check(st.UnstaffedTimer > 1f, $"들어온 것만으로는 풀리지 않는다 ({st.UnstaffedTimer:0.0}초)");
+        Check(st.UnstaffedTimer <= onArrival + 0.1f, "머무는 동안 사고 타이머는 더 오르지 않는다");
+
+        // 방이 다시 비면 머문 시간이 날아간다.
+        sim.ClearAssignment("cat");
+        for (int i = 0; i < 3000 && sim.GetEmployeeState("cat").CurrentRoomId == room; i++) sim.Tick(step);
+        Check(st.UnstaffedClearTimer <= 0.01f, "방이 다시 비면 머문 시간이 초기화된다");
+
+        // 끝까지 머무르면 풀린다.
+        sim.AssignToRoom("cat", room);
+        for (int i = 0; i < 3000 && sim.GetEmployeeState("cat").CurrentRoomId != room; i++) sim.Tick(step);
+        for (float t = 0f; t < cfg.UnstaffedClearSeconds + 1f; t += step) sim.Tick(step);
+        Check(st.UnstaffedTimer <= 0.01f, $"체류 시간을 채우면 경고가 풀린다 ({st.UnstaffedTimer:0.0}초)");
+    }
 
     private void Check(bool ok, string label)
     {

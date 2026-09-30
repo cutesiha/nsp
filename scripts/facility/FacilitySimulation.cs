@@ -2119,7 +2119,20 @@ public partial class FacilitySimulation : Node
             // 이미 그 방에 사고 수리 업무가 걸려 있으면 타이머를 멈춘다(중복 발생 방지).
             if (HasActiveRepair(roomId)) { room.UnstaffedTimer = 0f; continue; }
 
-            if (OnDutyCount(roomId) > 0) { room.UnstaffedTimer = 0f; continue; }
+            // 근무자가 들어왔다고 곧바로 풀리지 않는다 — 일정 시간 머물러야 경고가 내려간다(G-1).
+            // 머무는 동안 사고 타이머는 멈추고, 방이 다시 비면 머문 시간이 날아간다.
+            // 덕분에 "스쳐 지나가며 경고만 끄는" 플레이가 사라지고 왕복에 비용이 생긴다.
+            if (OnDutyCount(roomId) > 0)
+            {
+                room.UnstaffedClearTimer += delta;
+                if (room.UnstaffedClearTimer >= Mathf.Max(0f, cfg.UnstaffedClearSeconds))
+                {
+                    room.UnstaffedTimer = 0f;
+                    room.UnstaffedClearTimer = 0f;
+                }
+                continue;
+            }
+            room.UnstaffedClearTimer = 0f;
 
             // 오늘 이 방은 비워 둬도 되는가. 0 이하면 무인 사고가 나지 않는다
             // (저장고·경비실이 그렇다 — 대신 다른 방식으로 손해를 본다).

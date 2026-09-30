@@ -180,6 +180,9 @@ public partial class ConfigData : Resource
     // 근무자가 한 명도 없는 상태가 이 시간을 넘기면 그 방의 사고가 발생한다.
     // 방마다 다르게 하려면 RoomDef.UnstaffedAccidentSeconds 를 0 보다 크게 준다.
     [Export] public float UnstaffedAccidentSecondsDefault = 75f;
+    // 비어 있던 방에 근무자가 돌아온 뒤 경고가 풀리기까지 머물러야 하는 시간(초).
+    // 들어온 순간 풀리면 문만 열고 지나가도 경고가 꺼져, 왕복에 아무 비용이 들지 않는다(G-1).
+    [Export] public float UnstaffedClearSeconds = 12f;
 
     // --- 작업실 상시 효과 ---------------------------------------------------
     // 야간 근무 자체의 피로 — 배치된 직원 전원이 이 주기마다 조금씩 오른다.
