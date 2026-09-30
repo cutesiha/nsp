@@ -606,7 +606,10 @@ public partial class RestEvidenceTest : Node
         Head("신규 J", "설비 쪽 목격 증언 + 사고 기록 → 행동 추궁");
         Reset();
         Deploy();
-        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(30), Odd);
+        // 목격과 사고의 간격은 재석 창(10분)보다 넓고 행동 창(20분)보다 좁아야 한다.
+        // 딱 10분으로 두면 "10분 초과인가" 비교가 부동소수점 오차로 갈려, 하루 길이를 바꾸는 것만으로
+        // 재석 추궁이 먼저 잡히기도 한다(둘 다 성립하는 경계값이라 어느 쪽도 틀리지 않는다).
+        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(28), Odd);
         Incident(LogEventType.TaskFailed, Maintenance, At(40));
 
         var s = new InterviewSession("cat");
