@@ -237,7 +237,7 @@ public partial class ControlRoomAtmosphere : Node3D
 
         // FAIL-02 환기 고장: 정전이 아니어도 환기가 죽어 있으면 vent 를 눌러둔다.
         PollVentFault();
-        if (_ventFaultDown && !blackout) _vent.TgtDb = Mathf.Min(_vent.TgtDb, -42f);
+        TickVentStop(d, blackout);
 
         foreach (var l in _all) l.Apply(d);
 
@@ -374,17 +374,79 @@ public partial class ControlRoomAtmosphere : Node3D
         var tier = RoomStatusText.GetDangerTier("vent_room");
         if (tier == _ventTier) return;
         _ventTier = tier;
-        bool nowFailed = tier == RoomDangerTier.Failure;
-        if (nowFailed && !_ventFaultDown)
+        if (tier == RoomDangerTier.Failure) BeginVentStop();
+        else BeginVentRestart();
+    }
+
+    // ── 환풍기 정지 연출 ──────────────────────────────────────────────
+    //
+    // 설계 문서 13절: 팬이 느려짐 → 피치 감소 → 정지 → **갑자기 공간이 너무 조용해짐**.
+    // 예전에는 볼륨만 -42dB 로 깎아, 소리가 그냥 작아질 뿐 "멎었다" 는 느낌이 없었다.
+    // 마지막 정적이 이 연출의 핵심이다 — 환풍기가 멎은 자리를 다른 상시음까지 함께 비워 준다.
+    private const float VentSpinDownSeconds = 3.0f;   // 다 느려지는 데 걸리는 시간
+    private const float VentStoppedPitch = 0.35f;     // 멎기 직전의 회전(피치)
+    private const float HushSeconds = 2.5f;           // 멎은 뒤 공간이 조용해져 있는 시간
+    private const float HushDb = 6f;                  // 그동안 다른 상시음을 낮추는 폭
+
+    private float _ventDownT = -1f;   // 정지 연출 경과(초). 음수 = 진행 중 아님
+    private float _hushT = -1f;       // 정적 경과(초). 음수 = 진행 중 아님
+    private bool _hushDone;           // 이번 정지에서 정적을 이미 한 번 썼는가
+
+    private void BeginVentStop()
+    {
+        if (_ventFaultDown) return;
+        _ventFaultDown = true;
+        _ventDownT = 0f;
+        _hushT = -1f;
+        _hushDone = false;
+        PlayOn(_vent.P3?.GetParentNode3D(), "vent_stop", -4f);
+    }
+
+    private void BeginVentRestart()
+    {
+        if (!_ventFaultDown) return;
+        _ventFaultDown = false;
+        _ventDownT = -1f;
+        _hushT = -1f;
+        _hushDone = false;
+        _vent.TgtPitch = 1f;
+        PlayOn(_vent.P3?.GetParentNode3D(), "vent_restart", -3f);
+    }
+
+    // 지금 정적이 걸려 있는가(검사용).
+    public bool VentHushActive => _hushT >= 0f;
+    public bool VentStopping => _ventFaultDown;
+    public float VentPitchTarget => _vent?.TgtPitch ?? 1f;
+
+    private void TickVentStop(float d, bool blackout)
+    {
+        if (_ventDownT >= 0f) _ventDownT += d;
+        if (_hushT >= 0f) _hushT += d;
+
+        if (_ventFaultDown && !blackout)
         {
-            _ventFaultDown = true;
-            PlayOn(_vent.P3?.GetParentNode3D(), "vent_stop", -4f);
+            float u = _ventDownT < 0f ? 1f : Mathf.Clamp(_ventDownT / VentSpinDownSeconds, 0f, 1f);
+            // ① 회전이 느려진다 — 피치가 1.0 에서 0.35 로.
+            _vent.TgtPitch = Mathf.Lerp(1f, VentStoppedPitch, u);
+            // ② 다 느려지면 소리가 완전히 사라진다.
+            _vent.TgtDb = Mathf.Min(_vent.TgtDb, Mathf.Lerp(_vent.NormalDb, Silent, u));
+            // ③ 멎는 순간부터 정적이 시작된다(이번 정지에 한 번만).
+            if (u >= 1f && !_hushDone) { _hushDone = true; _hushT = 0f; }
         }
-        else if (!nowFailed && _ventFaultDown)
-        {
-            _ventFaultDown = false;
-            PlayOn(_vent.P3?.GetParentNode3D(), "vent_restart", -3f);
-        }
+
+        // ④ 갑자기 공간이 너무 조용해진다 — 다른 상시음도 함께 눌렀다가 서서히 되돌린다.
+        if (_hushT < 0f) return;
+        if (_hushT >= HushSeconds) { _hushT = -1f; return; }
+        ApplyHush(HushDb * (1f - Mathf.Clamp((_hushT - (HushSeconds - 0.8f)) / 0.8f, 0f, 1f)));
+    }
+
+    // 상시음을 cut(dB) 만큼 눌러 둔다. 목표값은 매 프레임 다시 계산되므로 여기서 덮어써야 한다.
+    private void ApplyHush(float cut)
+    {
+        if (cut <= 0f) return;
+        foreach (var l in new[] { _machinery, _drone, _fluor })
+            if (l != null) l.TgtDb -= cut;
+        foreach (var l in _crt) l.TgtDb -= cut * 0.5f;
     }
 
     // --- 랜덤 One-shot / 깜빡임 -----------------------------------------
@@ -441,17 +503,10 @@ public partial class ControlRoomAtmosphere : Node3D
     }
 
     // --- 외부 훅(공포 연출 등) — 기존 이름 유지 ---------------------------
-    public void KillVent()
-    {
-        _ventFaultDown = true;
-        PlayOn(_vent.P3?.GetParentNode3D(), "vent_stop", -4f);
-    }
+    // 밖에서 부르는 입구. 고장 감지(PollVentFault)와 같은 길을 타야 연출이 갈리지 않는다.
+    public void KillVent() => BeginVentStop();
 
-    public void RestoreVent()
-    {
-        _ventFaultDown = false;
-        PlayOn(_vent.P3?.GetParentNode3D(), "vent_restart", -3f);
-    }
+    public void RestoreVent() => BeginVentRestart();
 
     public void CreakChair()
     {
