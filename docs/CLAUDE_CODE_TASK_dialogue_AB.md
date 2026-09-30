@@ -163,11 +163,6 @@
 ---
 
 ## 작업 순서
-
-1. A-1 → A-2 → A-3 (Composer 만 건드림) → 샘플 덤프 → 수치 확인
-2. A-4 → A-5 → A-6 → 샘플 덤프 → 수치 확인, 기존 테스트 전부 PASS 확인
-3. B-1 → B-2 → B-4(여우만) → 샘플 덤프에서 여우 `WhereAtIncident.alone/with` 가 실제로 뽑히는지 확인
-4. B-3 → B-5
-5. `_개요.md` 검수 항목 갱신, 커밋은 A 와 B 를 나눠서
-
-각 단계마다 `tools/dialogue_samples/fox.md` 에서 "어색한 답 20개" 를 뽑아 보고할 것 — 수치가 통과해도 사람 귀에 이상한 건 남을 수 있다.
+A(A-1~A-6) 전부 → 커밋 → B(B-1~B-5) 전부 → 커밋.
+끝나고 한 번만: DialogueSampleDump 재실행 → A-7 수치 · 기존 기계 검사 40개 PASS 확인 →
+tools/dialogue_samples/fox.md 에서 어색한 답 20개 보고 → _개요.md 검수 항목 갱신.

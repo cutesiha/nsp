@@ -1361,7 +1361,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
-transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1115116, 0.018909156)
+transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1419306, -0.00757578)
 current = true
 fov = 64.0
 near = 0.02
