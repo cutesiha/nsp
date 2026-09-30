@@ -82,14 +82,26 @@ public partial class FaintRescueTest : Node
         Check(v.Faint == FaintPhase.Transporting, "승인하면 이송이 시작된다");
         Check(v.TransporterId == "wolf", "운반자가 지정된다");
 
+        // 들어 올린 뒤부터 침대에 눕기까지, 환자는 운반자에게 붙어 있어야 한다.
+        // 예전에는 의무실에 도착하는 순간 환자를 놓아 버려, 의식 없는 사람이 제 발로
+        // 침대까지 걸어갔다(F-3). 도착 뒤의 '눕히는 중' 구간까지 함께 본다.
         bool victimPathed = false;
+        bool detachedFromCarrier = false;
+        var carrier = _sim.GetEmployeeState("wolf");
         for (float t = 0f; t < 60f; t += Step)
         {
             Tick();
             if (v.PathQueue.Count > 0 || v.IsMoving) victimPathed = true;
+            // 이송 · 눕히는 중에는 운반자가 계속 안고 있고, 환자 위치도 운반자와 같다.
+            if (v.Faint is FaintPhase.Transporting or FaintPhase.InMedicalBed)
+            {
+                if (carrier.CarryingVictimId != "sheep") detachedFromCarrier = true;
+                if (v.Position.DistanceTo(carrier.Position) > 0.01f) detachedFromCarrier = true;
+            }
             if (v.Faint == FaintPhase.Recovering) break;
         }
         Check(!victimPathed, "이송 내내 환자에게 경로가 생기지 않는다");
+        Check(!detachedFromCarrier, "들어 올린 뒤 침대에 눕기까지 환자는 운반자에게 붙어 있다");
         Check(v.CurrentRoomId == "medical_room", $"의무실에 도착했다 ({v.CurrentRoomId})");
         Check(v.Faint == FaintPhase.Recovering, $"침대에 눕혀져 회복 중이다 ({v.Faint})");
         Check(!string.IsNullOrEmpty(v.MedicalBedSpotId), $"침대를 잡았다 ({v.MedicalBedSpotId})");

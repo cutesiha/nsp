@@ -240,7 +240,12 @@ public sealed partial class RoomWorkVisualController
 
             // ② 환자를 침대에 눕히는 것은 **실제로 의무실까지 실려 온 뒤**뿐이다(FaintRescueSystem).
             // 그 전 단계(바닥·이송)는 위의 기절 흐름이 그린다. 멀쩡히 일하는 직원은 눕는 자리를 쓰지 않는다.
-            if (st is { Faint: FaintPhase.InMedicalBed or FaintPhase.Recovering })
+            // 눕히는 중(InMedicalBed)에 아직 운반자가 안고 있으면 그쪽이 환자 노드를 잡고 있다 —
+            // 여기서 또 자리를 잡으면 한 프레임에 두 곳이 위치를 써 서로 밀어낸다(F-3).
+            bool heldByCarrier = st is { Faint: FaintPhase.InMedicalBed }
+                                 && !string.IsNullOrEmpty(st.TransporterId)
+                                 && sim.GetEmployeeState(st.TransporterId)?.CarryingVictimId == v.Id;
+            if (st is { Faint: FaintPhase.InMedicalBed or FaintPhase.Recovering } && !heldByCarrier)
             {
                 var bed = PickSpot(spots, "__patient__", actor.Spot, used);
                 if (bed != null)
@@ -248,6 +253,9 @@ public sealed partial class RoomWorkVisualController
                     used[bed] = used.GetValueOrDefault(bed) + 1;
                     if (actor.Spot != bed) { actor.Spot = bed; actor.Arrived = false; }
                     actor.SeatState = SeatPhase.None;
+                    // 의식이 없는 사람은 침대까지 걸어가지 않는다 — 운반자가 내려놓는다.
+                    // 그래서 걷는 경로 없이 침대 자리에 바로 놓는다(F-3).
+                    actor.Arrived = true;
                     MoveToLyingSpot(node, anim, actor, bed, delta, "lying_idle");
                     continue;
                 }

@@ -157,7 +157,7 @@ public sealed class FaintRescueSystem
                     break;
 
                 case FaintPhase.InMedicalBed:
-                    if (st.FaintPhaseTimer >= BedHandoffSeconds) BeginRecovery(st, cfg);
+                    TickBedHandoff(st, cfg);
                     break;
 
                 case FaintPhase.Recovering:
@@ -333,6 +333,26 @@ public sealed class FaintRescueSystem
         if (string.IsNullOrEmpty(bed)) return;
         victim.MedicalBedSpotId = bed;
         Enter(victim, FaintPhase.InMedicalBed);
+    }
+
+    // 침대에 눕히는 동안(BedHandoffSeconds)은 아직 운반자가 환자를 안고 있다.
+    //
+    // 예전에는 이 구간에서 환자를 놓아 버려, 의무실에 도착한 순간 일반 이동·연출 쪽이 환자를
+    // 넘겨받아 **의식 없는 사람이 제 발로 침대까지 걸어갔다**. 눕히는 것이 끝나는 순간까지
+    // 환자는 운반자에게 붙어 있고, 위치는 그때 침대로 한 번에 옮긴다.
+    private void TickBedHandoff(EmployeeState victim, ConfigData cfg)
+    {
+        var t = _sim.GetEmployeeState(victim.TransporterId);
+        if (t != null)
+        {
+            victim.Position = t.Position;
+            victim.IsMoving = false;
+            victim.PathQueue.Clear();
+            victim.TargetRoomId = victim.CurrentRoomId;
+            _sim.SyncCarriedRoom(victim, t.CurrentRoomId);
+        }
+        if (victim.FaintPhaseTimer < BedHandoffSeconds) return;
+        BeginRecovery(victim, cfg);
     }
 
     // 의무실 침대. 실제 씬의 MedicalBedSpot 수와 같아야 한다(§37 · §44).
