@@ -402,7 +402,13 @@ public sealed class FaintRescueSystem
     private void TickRecovery(EmployeeState victim, float delta, ConfigData cfg)
     {
         if (cfg.StressFaintRecoverySeconds <= 0f) return;
-        victim.FaintRecoverTimer -= delta;
+        // 의무실이 고장 난 동안에는 회복이 느리다(G-4). 설비가 망가진 방에 누워 있는 것이므로,
+        // 고쳐 놓지 않으면 쓰러진 사람이 그만큼 오래 빠져 있다.
+        // (치료 업무는 수리 중 진행되지 않으므로 스트레스 회복은 이미 막혀 있다.)
+        float rate = _sim.HasActiveRepair(FacilitySimulation.MedicalRoomIdPublic)
+            ? 1f / Mathf.Max(1f, cfg.MedicalFaultRecoveryRate)
+            : 1f;
+        victim.FaintRecoverTimer -= delta * rate;
         if (victim.FaintRecoverTimer > 0f) return;
 
         victim.Incapacitated = false;

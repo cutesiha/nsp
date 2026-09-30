@@ -2169,7 +2169,7 @@ public partial class FacilitySimulation : Node
 
     private const TabooConsequenceType RoomAccidentNone = (TabooConsequenceType)(-1);
 
-    private bool HasActiveRepair(string roomId) =>
+    public bool HasActiveRepair(string roomId) =>
         _activeTasks.Any(t => t.RoomId == roomId && t.IsRepair && t.Status == SpawnedTaskStatus.Active);
 
     // 경고에 제때 대응하지 못했다 → 실제 고장. 무인 방치 사고와 완전히 같은 경로를 쓰므로

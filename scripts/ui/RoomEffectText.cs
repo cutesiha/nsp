@@ -79,7 +79,12 @@ public static class RoomEffectText
                 string who = sim.GetEmployeeDef(patient.EmployeeId)?.Codename ?? patient.EmployeeId;
                 // 아직 걸어오는 중이면 "치료 중" 이 아니다.
                 string verb = patient.CurrentRoomId == roomId ? "치료 중" : "이송 중";
-                return $"{verb}: {who} (회복까지 {Mathf.Max(0f, patient.FaintRecoverTimer):0}초)";
+                // 의무실이 고장 나 있으면 회복이 느려지고 치료(스트레스 회복)도 돌지 않는다(G-4).
+                // 고장 난 의무실이 아무 대가 없이 방치되던 것을 화면에서도 읽히게 한다.
+                string fault = sim.HasActiveRepair(roomId)
+                    ? $" · 고장 — 회복 {cfg.MedicalFaultRecoveryRate:0.#}배 느림 · 치료 정지"
+                    : "";
+                return $"{verb}: {who} (회복까지 {Mathf.Max(0f, patient.FaintRecoverTimer):0}초){fault}";
             }
         }
         return "";
