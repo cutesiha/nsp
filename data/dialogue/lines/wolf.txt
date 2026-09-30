@@ -751,3 +751,53 @@
 ## emotion.alarm.indirect
 - 소리가 상당했습니다.
 - 벽 너머로도 확실히 들렸습니다.
+
+# ── B: 동석자 여부까지 한 문장으로(조립기가 근무 기억을 덧붙이는 대신 사람이 통째로 쓴 틀) ──
+## WhereAtIncident.alone
+- {room}에 있었습니다. 혼자였습니다.
+- {room}입니다. 저 혼자 있었고, 자리를 비운 적 없습니다.
+- {time}경에는 {room}에 혼자 있었습니다.
+
+## WhereAtIncident.with
+- {room}에 있었습니다. {who} 직원도 같이 있었습니다.
+- {room}입니다. {who} 직원이 확인해 줄 겁니다.
+- {who} 직원과 {room}에 있었습니다. 그 이상은 없습니다.
+
+## selfloc.alone
+- {room}에 혼자 있었습니다. 문제없었습니다.
+- {room}입니다. 저뿐이었습니다.
+- 혼자 {room}에 있었습니다. 제 일은 끝냈습니다.
+
+## selfloc.with
+- {room}에 {who} 직원과 있었습니다.
+- {room}입니다. {who} 직원이 같이 있었습니다.
+- {who} 직원과 {room}에서 근무 중이었습니다.
+
+## incident.direct.with
+- {iroom}에서 직접 봤습니다. {what} {who} 직원도 그 자리에 있었습니다.
+- {who} 직원과 {iroom}에 있을 때였습니다. {what}
+- {iroom}입니다. {what} {who} 직원이 증인입니다.
+
+## incident.direct
+- {iroom}에서 {what_stem}는 것을 직접 봤습니다.
+
+## phrase.stem.TaskFailed
+- 설비가 멈추
+- 장비가 서
+
+## phrase.stem.PowerOutage
+- 전원이 끊기
+- 조명이 나가
+
+## phrase.direct.TaskFailed
+- 설비가 멈췄
+- 장비 하나가 정지했
+
+## phrase.direct.PowerOutage
+- 전원이 끊겼
+- 조명이 전부 나갔
+
+## phrase.sound.any
+- 충격음이 들렸
+- 벽을 통해 진동이 왔
+- 둔탁한 소리가 났

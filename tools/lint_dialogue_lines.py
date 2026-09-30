@@ -21,7 +21,11 @@ BARE = ["이에요", "이었", "이요", "이라고", "이랑", "이야", "으�
 
 ALLOWED = {
     "greet.interview": [], "greet.call": [], "call.prefix": [],
-    "selfloc": ["room"], "incident.direct": ["iroom", "what"], "incident.indirect": ["iroom", "sound"],
+    "selfloc": ["room"], "incident.direct": ["iroom", "what", "what_stem"], "incident.indirect": ["iroom", "sound"],
+    # B — 동석자 여부까지 한 문장으로(조립기가 근무 기억을 덧붙이는 대신 사람이 통째로 쓴 틀).
+    "selfloc.alone": ["room"], "selfloc.with": ["room", "who"],
+    "incident.direct.with": ["iroom", "what", "who"],
+    "WhereAtIncident.alone": ["room", "time"], "WhereAtIncident.with": ["room", "who", "time"],
     "noanomaly": [], "sight": ["who", "sroom"], "nosight": [], "opinion": ["target", "trait"],
     "deny": [], "deny.evidence": [],
     "status.ok": [], "status.quiet": [], "status.busy": ["iroom"], "status.hard": [], "status.blocked": [],
@@ -106,7 +110,7 @@ def repeats(a, b):
 SAMPLE = {"room": "저장고", "iroom": "발전실", "sroom": "정비실", "droom": "코어실", "to": "경비실",
           "from": "정비실", "prev": "코어실", "next": "경비실", "who": "토끼", "who2": "여우", "dname": "고양이",
           "target": "늑대", "trait": "겁이 많은 편", "task": "자재 생산", "time": "22시 40분",
-          "mood": "괜찮음", "n": "두", "subject": "이상현상"}
+          "mood": "괜찮음", "n": "두", "subject": "이상현상", "what_stem": "설비가 멈추"}
 
 
 def fill(t, formal):
@@ -126,7 +130,10 @@ def particle_lint(t):
     while True:
         at = t.find("}", at)
         if at < 0: return ""
+        # 어간 변수 뒤의 "는" 은 조사가 아니라 관형형 어미다("{what_stem}는 걸 봤죠") — 받침과 무관하다.
+        name = t[t.rfind("{", 0, at) + 1:at]
         at += 1
+        if name == "what_stem": continue
         rest = t[at:]
         if any(rest.startswith(a + "/" + b) for a, b in PAIRS): continue
         for b in BARE:

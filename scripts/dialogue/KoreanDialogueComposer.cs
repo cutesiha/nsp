@@ -26,7 +26,8 @@ public static class KoreanDialogueComposer
     {
         var voice = DialogueVoices.Get(ctx.EmployeeId);
         var vars = Vars(ctx, plan, voice);
-        var up = DialogueUtterancePlanner.Plan(ctx, plan, voice, vars, CoreSlot(plan));
+        string coreSlot = CompanionVariant(ctx, plan, memory, vars) ?? CoreSlot(plan);
+        var up = DialogueUtterancePlanner.Plan(ctx, plan, voice, vars, coreSlot);
 
         var f = new ReplyFrame
         {
@@ -84,6 +85,61 @@ public static class KoreanDialogueComposer
     // 카드에 남는 주장 문구. 표현(슬롯 문장)은 캐릭터마다 달라도 주장은 하나다.
     public const string EquipmentDenialText = "설비 근처에 가지 않았다";
 
+    // --- 동석자까지 한 문장으로 (B-2) --------------------------------------------
+    //
+    // "핵심 + 근무 기억 한 줄" 조합 중 가장 잦은 두 가지(혼자였다 · 누구와 있었다)를 사람이 통째로 쓴
+    // 한 문장으로 바꾼다. 그 캐릭터 파일에 변형 슬롯이 있을 때만 — 없으면 null 을 돌려주고 기존
+    // selfloc + mem.alone/with 조합이 그대로 나간다(캐릭터 파일을 하나씩 채워도 되게).
+    //   · selfloc.alone / selfloc.with     — "그때 어디 있었나". 동석자는 내세우는 방(결번자가 거짓
+    //     알리바이를 대는 중이면 주장한 방) 기준으로 센다 — ShiftMemory.Recall 이 Lying 일 때와 같다.
+    //   · incident.direct.with             — 사고를 직접 봤고 옆에 누가 있었다(mem.with.incident 후보가 있을 때만).
+    // 변형을 쓰면 그 기억 줄은 빼고 "이미 한 이야기"로 적는다 — 같은 세션에서 동료 얘기가 두 번 나오지 않게.
+    private static string CompanionVariant(DialogueContext ctx, DialogueResponsePlan plan, RecallResult memory,
+        Dictionary<string, string> vars)
+    {
+        if (plan.Core == CoreKind.SelfLocation && ctx.HasSubjectTime)
+        {
+            var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
+            bool lying = ctx.IsSaboteur && !claim.ClaimTruthful && !string.IsNullOrEmpty(claim.ClaimedRoomId);
+            string room = lying ? claim.ClaimedRoomId
+                : string.IsNullOrEmpty(plan.RoomId) ? ctx.AssignedRoomId : plan.RoomId;
+            if (string.IsNullOrEmpty(room)) return null;
+            var others = DialogueContextBuilder.OccupantsAt(room, ctx.CurrentDay, ctx.SubjectTime, ctx.EmployeeId);
+            string slot = others.Count == 0 ? "selfloc.alone" : "selfloc.with";
+            if (!DialogueLineBank.HasOwn(ctx.EmployeeId, slot)) return null;
+            vars["room"] = RoomName(room);
+            if (others.Count > 0)
+            {
+                vars["who"] = Codename(others[0]);
+                // "그 시각 그 방에서 저 사람과 함께 있었다" — 상대의 위치까지 걸린 진술이다(AskWhoWasPresent 와 같다).
+                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, others[0], room, ctx.SubjectTime);
+            }
+            DropCompanionMemory(memory, a => a.Slot.StartsWith("mem.with") || a.Slot == "mem.alone");
+            return slot;
+        }
+
+        if (plan.Core == CoreKind.IncidentDirect && memory != null)
+        {
+            var with = memory.Addenda.FirstOrDefault(a => a.Slot == "mem.with.incident" && !ShiftMemory.WasSaid(a));
+            if (with == null || !with.Vars.TryGetValue("who", out var who) || string.IsNullOrEmpty(who)) return null;
+            if (!DialogueLineBank.HasOwn(ctx.EmployeeId, "incident.direct.with")) return null;
+            vars["who"] = who;
+            DropCompanionMemory(memory, a => a == with);
+            return "incident.direct.with";
+        }
+        return null;
+    }
+
+    private static void DropCompanionMemory(RecallResult memory, System.Func<ReplyAddendum, bool> pick)
+    {
+        if (memory == null) return;
+        foreach (var a in memory.Addenda.Where(pick).ToList())
+        {
+            ShiftMemory.MarkSaid(a);
+            memory.Addenda.Remove(a);
+        }
+    }
+
     // --- 슬롯 결정 ------------------------------------------------------
 
     private static string CoreSlot(DialogueResponsePlan plan) => plan.Core switch
@@ -140,6 +196,9 @@ public static class KoreanDialogueComposer
             ["dname"] = Codename(plan.DetailName),
             ["what"] = IncidentClause(ctx.EmployeeId, plan.IncidentType, KnowledgeLevel.Direct, voice),
             ["sound"] = IncidentClause(ctx.EmployeeId, plan.IncidentType, KnowledgeLevel.Indirect, voice),
+            // 어간("기계가 멈추") — "…{what_stem}는 걸 봤죠~" 처럼 문장 안에 들어간다. 캐릭터 파일의
+            // phrase.stem.<종류> 에만 있고, 없으면 빈 값이라 그 변수를 쓰는 틀은 뽑히지 않는다.
+            ["what_stem"] = DialogueLineBank.Any(ctx.EmployeeId, $"phrase.stem.{plan.IncidentType}", voice.Formal),
         };
     }
 

@@ -5,7 +5,8 @@
 
 세는 것(캐릭터마다):
   · 문장 수가 MaxSentences 를 넘는 답(양·토끼는 보정(caveat)이 붙은 답에 한해 +1 허용)
-    - 그중 핵심 틀 하나만으로 넘는 답(조립기가 붙인 게 아니라 틀 자체가 긴 것)은 따로 센다
+    - 조립기가 덧붙여서(여는 말 · 인상 · 덧붙임 · 되묻기 · 기억) 넘은 것 — 0 이어야 한다
+    - 핵심 틀 자체가(또는 핵심 + 보정이) 넘은 것 — 틀을 손봐야 줄어든다(보정은 사실 정확성 때문에 못 뺀다)
   · 물음표가 2개 이상인 답
   · deny / nosight / noanomaly / status.* 틀에 기억[...] 이 실제로 붙은 답
   · (닫힘) 표시된 답 뒤에 덧붙임 · 되묻기 · 기억 · 인상이 붙은 답
@@ -64,7 +65,8 @@ def stats(cid, show=0):
     for kind, ans, tr in rows:
         n = sentences(ans)
         slot = tr.split(" + ")[0].replace("(닫힘)", "")
-        added = kept_memories(tr) or parts(tr)
+        # 보정은 조립기의 "덧붙임"이 아니다 — 사실 정확성 때문에 반드시 붙는 하한이다.
+        added = kept_memories(tr) or [p for p in parts(tr) if p != "보정"]
         has_caveat = "보정" in parts(tr)
         limit = cap + (1 if cid in CAVEAT_PLUS_ONE and has_caveat else 0)
         if n > limit:
@@ -75,7 +77,7 @@ def stats(cid, show=0):
         if "(닫힘)" in tr and (kept_memories(tr) or any(p in ("덧붙임", "되묻기", "인상") for p in parts(tr))):
             closed_plus.append((kind, ans, tr))
     print(f"== {cid} (MaxSentences {cap}) · 답 {len(rows)}개")
-    print(f"   상한 초과(조립기가 덧붙여서) {len(over)} · 상한 초과(핵심 틀 자체가 긺) {len(over_core)}")
+    print(f"   상한 초과(조립기가 덧붙여서) {len(over)} · 상한 초과(핵심 틀 자체 · 핵심+보정) {len(over_core)}")
     print(f"   물음표 2개 이상 {len(q2)} · deny/nosight/noanomaly/status 틀에 기억 붙음 {len(memdeny)}"
           f" · (닫힘) 뒤에 덧붙임/되묻기/기억/인상 {len(closed_plus)}")
     if show:

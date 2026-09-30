@@ -152,13 +152,13 @@
 # ── 수신 전화(직원이 먼저 거는 전화) ──
 ## report.direct
 - 관리자님! {iroom}에서 {what} 저 가볼까요?!
-- 어?! {iroom}에서 {what} 어떡해요?
+- 어어! {iroom}에서 {what} 어떡해요?
 - {iroom}이요/요! {what} 제가 가서 볼게요!
 
 ## report.indirect
 - 관리자님! {iroom} 쪽에서 {sound} 저 가볼까요?
 - 어?! {iroom} 쪽에서 {sound}
-- 방금 들으셨어요? {sound} 확인하러 갈까요?
+- 방금 들으셨죠! {sound} 확인하러 갈까요?
 
 ## report.blackout
 - 으악, 정전이에요! 어떡해요?
@@ -182,7 +182,7 @@
 - 한 번 더 말할게요!
 
 ## react.accused
-- 네?! 저요?
+- 에엑, 저요?
 - 에엑?
 - 잠깐만요!
 
@@ -480,7 +480,7 @@
 - 들었어요! 가보고 싶었어요!
 
 ## IncidentKnown.none
-- 어? 그런 일이 있었어요? 처음 들어요!
+- 어, 그런 일이 있었어요? 처음 들어요!
 - 몰랐어요! 무슨 일이었어요?
 - 진짜요? 전혀 몰랐어요!
 - 전혀요! {room}에서 그런 일이 있었어요?
@@ -764,3 +764,53 @@
 ## emotion.alarm.indirect
 - 소리가 엄청 컸어요!
 - 벽이 쿵쿵 울렸다니까요!
+
+# ── B: 동석자 여부까지 한 문장으로(조립기가 근무 기억을 덧붙이는 대신 사람이 통째로 쓴 틀) ──
+## WhereAtIncident.alone
+- {room}에 혼자 있었어요! 그래도 열심히 했어요!
+- 저 혼자 {room}이었/였어요! 확인해 보셔도 돼요!
+- {time}쯤엔 {room}에 혼자 있었어요! 좀 심심했어요!
+
+## WhereAtIncident.with
+- {room}이요/요! {who} 씨랑 같이 있었어요!
+- {who} 씨랑 {room}에 있었어요! 물어보셔도 돼요!
+- {room}에 있었어요! 옆에 {who} 씨도 있었고요!
+
+## selfloc.alone
+- {room}에 혼자 있었어요! 혼잣말 좀 했어요!
+- 저 혼자 {room}이요/요! 그래도 딴 데 안 갔어요!
+- {room}에서 혼자 열심히 했어요!
+
+## selfloc.with
+- {room}에서 {who} 씨랑 있었어요!
+- {who} 씨랑 {room}이요/요! 같이 있어서 안 심심했어요!
+- {room}에 있었어요! {who} 씨도 같이요!
+
+## incident.direct.with
+- {iroom}에서요! {what} {who} 씨도 같이 봤어요!
+- {who} 씨랑 {iroom}에 있을 때였어요! {what}
+- 봤어요! {what} {who} 씨랑 둘이 엄청 놀랐어요!
+
+## incident.direct
+- {iroom}에서 {what_stem}는 거 제가 봤어요!
+
+## phrase.stem.TaskFailed
+- 기계가 갑자기 멈추
+- 설비가 확 서
+
+## phrase.stem.PowerOutage
+- 불이 확 꺼지
+- 전기가 나가
+
+## phrase.direct.TaskFailed
+- 기계가 갑자기 멈췄
+- 설비가 확 서 버렸
+
+## phrase.direct.PowerOutage
+- 불이 확 꺼졌
+- 전기가 확 나갔
+
+## phrase.sound.any
+- 쿵 소리가 엄청 크게 났
+- 뭔가 와장창 부서지는 소리가 들렸
+- 벽이 쿵쿵 울렸

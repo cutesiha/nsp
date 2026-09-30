@@ -81,6 +81,9 @@ public static class DialogueComposer
             opener = Pick(id, f.OpenerSlot, f.Vars, formal);
         // 여는 말이 핵심과 같은 말로 시작하면 뺀다("네." + "네, 자리를 …").
         if (opener.Length > 0 && core.Length >= 2 && opener.StartsWith(core[..2])) opener = "";
+        // 핵심이 이미 묻고 있으면(어디든 '?') 묻는 여는 말은 뺀다 — "지금이요? … 뭐라도 해야 할까요?" 처럼
+        // 한 답에서 두 번 묻지 않는다.
+        if (opener.Length > 0 && opener.Contains('?') && core.Contains('?')) opener = "";
         // 핵심 문장 틀이 이미 그 말을 품고 있어도 뺀다 — "오, 수상한 사람이요?" + "수상한 사람이요? 못 봤어요!",
         // "진짜 깜짝 놀랐어요!" + "… 진짜 깜짝 놀랐어요." 는 한 답 안에서 같은 말을 두 번 하는 것이다.
         if (opener.Length > 0 && RepeatsAnySentence(core, opener)) opener = "";

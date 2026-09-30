@@ -104,7 +104,11 @@ public static class KoreanParticle
         int at = 0;
         while ((at = template.IndexOf('}', at)) >= 0)
         {
+            // 어간 변수 뒤의 "는" 은 조사가 아니라 관형형 어미다("{what_stem}는 걸 봤죠") — 받침과 무관하다.
+            int open = template.LastIndexOf('{', at);
+            string name = open >= 0 ? template[(open + 1)..at] : "";
             at++;
+            if (name == "what_stem") continue;
             if (at >= template.Length) break;
             string rest = template[at..];
             // "이었/였" 처럼 슬래시 표기면 통과.

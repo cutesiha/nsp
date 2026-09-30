@@ -460,6 +460,7 @@ public partial class DialogueScenarioTest : Node
     {
         string q = LocalInterviewDialogue.GetQuestionText(employeeId, questionId);
         string a = LocalDialogueGenerator.InterviewAnswer(employeeId, questionId);
-        GD.Print($"  Q({questionId}) {q}\n    → {a}");
+        // 틀 이름도 같이 — 동석자 변형(selfloc.alone/with)이 실제로 뽑히는지 여기서 본다.
+        GD.Print($"  Q({questionId}) {q}\n    → {a}  [{DialogueComposer.LastTrace}]");
     }
 }

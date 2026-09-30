@@ -37,7 +37,9 @@
 | 슬롯 | 상황 | 변수 |
 |---|---|---|
 | selfloc | "그때 어디 있었나" — 방을 댄다 | room |
-| incident.direct | 사고를 그 방에서 직접 봤다 | iroom, what |
+| selfloc.alone / selfloc.with | 같은 질문 — 혼자였다 / {who} 와 있었다까지 **한 문장**으로(캐릭터 파일에 있을 때만 쓰고, 없으면 selfloc + mem.alone/with 조합) | room / room, who |
+| incident.direct | 사고를 그 방에서 직접 봤다. `{what_stem}` = 어간("멈추")이라 "…{what_stem}는 걸 봤죠" 처럼 문장 안에 넣을 수 있다 | iroom, what, what_stem |
+| incident.direct.with | 직접 봤고 옆에 {who} 가 있었다(mem.with.incident 후보가 있을 때만 시도) | iroom, what, who |
 | incident.indirect | 옆방이라 소리·진동만 알았다. **원인을 말하면 안 됨** | iroom, sound |
 | noanomaly | 아는 이상 없음 | — |
 | sight | 실제로 목격한 다른 직원의 수상한 모습(그 자리에 있었다는 것까지) | who, sroom |
@@ -67,6 +69,7 @@
 | opener.repeat | 같은 질문을 또 받았을 때 여는 말(쉼표로 끝나도 됨) |
 | react.accused | 추궁받을 때 짧은 반응 |
 | emotion.alarm / emotion.fear / emotion.annoy | 사고 이야기 전 짧은 반응 |
+| emotion.alarm.indirect | 소리만 들은 사고 이야기 전 반응 — 시각 표현("봤다" · "볼만했다") 금지. 캐릭터 파일에만 두고, 없으면 여는 말을 비운다 |
 | caveat.indirect | "직접 보지는 못했다" — 간접 인지일 때 반드시 붙음 |
 | caveat.cause | "원인은 모른다" |
 | support.task / support.taskname(task) / support.nothing / support.hedge | 덧붙이는 한 마디 |
@@ -93,6 +96,7 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | ActionThere.task / repair / check / evasive | 거기서 한 일 | task, room |
 | IncidentKnown.direct / indirect / none | 이 사고를 알았나 | room |
 | WhereAtIncident.any | 그 시각 어디 있었나 | room, time |
+| WhereAtIncident.alone / WhereAtIncident.with | 같은 질문 — 혼자였다 / {who} 와 있었다까지 한 문장으로(캐릭터 파일에 있을 때만, 없으면 .any + mem.alone/with) | room, time / room, who, time |
 | BeforeIncident.task / moved / plain | 사고 직전 | room, task, prev |
 | WhoSeenNear.someone / none | 그 무렵 본 사람 | who |
 | RouteAround.full / short / evasive | 앞뒤 동선 | prev, room, next |
@@ -161,4 +165,6 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 
 ### 표현 조각(common.txt 의 `@char any`)
 `phrase.direct.<사건종류>` / `phrase.sound.<사건종류>` — 과거형 동사 줄기("설비가 멈췄"). 말투에 따라 "어요/습니다" 가 붙습니다.
+캐릭터 파일에 같은 슬롯을 두면 그쪽이 먼저 쓰입니다(`{what}` 이 공통 문장으로 밋밋해지지 않게 — 6명 모두 TaskFailed · PowerOutage · sound.any 를 갖고 있습니다).
+`phrase.stem.<사건종류>` — 어간("기계가 멈추"). `{what_stem}` 으로 문장 안에 들어갑니다("…{what_stem}는 걸 봤죠~"). 캐릭터 파일에만 있고, 없으면 그 변수를 쓰는 틀은 뽑히지 않습니다.
 `echo.wrap`(subject) · `echo.certain/seen/heard/where` · `time.vague` — 되받기와 시간 표현.

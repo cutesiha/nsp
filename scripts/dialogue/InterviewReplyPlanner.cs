@@ -194,14 +194,29 @@ public static class InterviewReplyPlanner
             }
 
             case InterviewIntent.AskWhereAtIncident:
+            {
                 f.Topic = ReplyTopic.WhereAtIncident;
                 f.Variant = "any";
-                f.Set("room", RoomName(plan.RoomId));
+                // 내세우는 방 — 결번자가 거짓 알리바이를 대는 중이면 주장한 방(ShiftMemory.Recall 의 Lying 과 같은 기준).
+                string room = !truthful && !string.IsNullOrEmpty(claim.ClaimedRoomId) ? claim.ClaimedRoomId : plan.RoomId;
+                f.Set("room", RoomName(room));
+                // B-2: 동석자 여부까지 사람이 통째로 쓴 한 문장(alone/with)이 캐릭터 파일에 있으면 그것을 쓴다.
+                // 없으면 .any + 근무 기억(mem.alone/with) 조합을 그대로 쓴다.
+                var others = DialogueContextBuilder.OccupantsAt(room, day, t, id);
+                string variant = others.Count == 0 ? "alone" : "with";
+                if (DialogueLineBank.HasOwn(id, "WhereAtIncident." + variant))
+                {
+                    f.Variant = variant;
+                    if (others.Count > 0) { f.Set("who", Codename(others[0])); RecordSighting(id, others[0], room, t); }
+                    covered.Add(MemoryKind.Companion);
+                    if (q.HasAnchorTime) ShiftMemory.MarkCompanionAsked(id, day, q.AnchorTime);
+                }
                 memTopic = RecallTopic.Location;
-                memRoom = plan.RoomId;
+                memRoom = room;
                 // 이 답변은 그대로 '이 직원의 진술' 자료가 된다.
-                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, room, t);
                 break;
+            }
 
             case InterviewIntent.AskBeforeIncident:
             {

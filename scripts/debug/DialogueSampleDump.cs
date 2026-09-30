@@ -515,6 +515,60 @@ public partial class DialogueSampleDump : Node
         var twice = answers.Where(a => roomNames.Any(n => Count(a, n) >= 2)).ToList();
         foreach (var a in twice.Take(5)) GD.Print("   방 반복: " + a);
         Check(twice.Count == 0, $"(c) 한 답 안에 같은 작업실을 두 번 말한 답 0개 ({twice.Count}개)");
+
+        AssemblyChecks();
+    }
+
+    // ── 조립 규칙 검수 수치 (CLAUDE_CODE_TASK_dialogue_AB A-7) ─────────────────
+    // tools/dialogue_sample_stats.py 와 같은 규칙으로 센다 — 문장 경계는 DialogueComposer.SentenceCount.
+    //   · 조립기가 덧붙여서(여는 말 · 인상 · 덧붙임 · 되묻기 · 기억) 문장 수 상한을 넘은 답 0
+    //     (핵심 틀 자체나 핵심 + 보정이 넘는 것은 틀의 문제라 여기서 세지 않는다. 양 · 토끼는 보정 +1 허용)
+    //   · 물음표 2개 이상인 답: 여우 5개 이하, 나머지 0
+    //   · deny / nosight / noanomaly / status.* 틀에 기억이 붙은 답 0
+    //   · (닫힘) 틀 뒤에 덧붙임 · 되묻기 · 기억 · 인상이 붙은 답 0
+    private void AssemblyChecks()
+    {
+        GD.Print("\n===== 조립 규칙 수치 =====");
+        foreach (string id in Ids)
+        {
+            var mine = _said.Where(x => x.Speaker == id).ToList();
+            int cap = DialogueVoices.Get(id).MaxSentences;
+            bool plusOne = id is "sheep" or "rabbit";
+            var over = mine.Where(x => DialogueComposer.SentenceCount(x.Answer)
+                                       > cap + (plusOne && HasPart(x.Trace, "보정") ? 1 : 0)
+                                       && (KeptMemories(x.Trace) > 0 || Parts(x.Trace).Any(p => p != "보정"))).ToList();
+            var q2 = mine.Where(x => x.Answer.Count(c => c == '?') >= 2).ToList();
+            var memDeny = mine.Where(x => Regex.IsMatch(SlotOf(x.Trace), @"^(deny|nosight|noanomaly|status\.)")
+                                          && KeptMemories(x.Trace) > 0).ToList();
+            var closedPlus = mine.Where(x => x.Trace.Contains("(닫힘)")
+                                             && (KeptMemories(x.Trace) > 0 || HasPart(x.Trace, "덧붙임")
+                                                 || HasPart(x.Trace, "되묻기") || HasPart(x.Trace, "인상"))).ToList();
+            foreach (var x in over.Take(3)) GD.Print($"   [{Nm(id)}] 상한 초과: {x.Answer}  ({x.Trace})");
+            foreach (var x in q2.Take(3)) GD.Print($"   [{Nm(id)}] 물음표 2개: {x.Answer}  ({x.Trace})");
+            int q2Limit = id == "fox" ? 5 : 0;
+            Check(over.Count == 0, $"[{Nm(id)}] 조립기가 덧붙여 문장 수 상한({cap})을 넘은 답 0개 ({over.Count}/{mine.Count})");
+            Check(q2.Count <= q2Limit, $"[{Nm(id)}] 물음표 2개 이상인 답 {q2Limit}개 이하 ({q2.Count})");
+            Check(memDeny.Count == 0, $"[{Nm(id)}] deny/nosight/noanomaly/status 틀에 기억이 붙은 답 0개 ({memDeny.Count})");
+            Check(closedPlus.Count == 0, $"[{Nm(id)}] 닫힌 틀 뒤에 덧붙임 · 되묻기 · 기억 · 인상이 붙은 답 0개 ({closedPlus.Count})");
+        }
+    }
+
+    private static string SlotOf(string trace) => (trace ?? "").Split(" + ")[0].Replace("(닫힘)", "");
+
+    private static List<string> Parts(string trace)
+    {
+        var m = Regex.Match(trace ?? "", @"조각\[([^\]]*)\]");
+        return m.Success ? m.Groups[1].Value.Split(", ").ToList() : new List<string>();
+    }
+
+    private static bool HasPart(string trace, string part) => Parts(trace).Contains(part);
+
+    // 트레이스에서 실제로 답에 남은 기억 줄의 수(종류 불문).
+    private static int KeptMemories(string trace)
+    {
+        var m = Regex.Match(trace ?? "", @"기억\[([^\]]*)\]");
+        if (!m.Success) return 0;
+        return m.Groups[1].Value.Split(", ").Count(s => s.Length > 0 && !s.EndsWith("(잘림)"));
     }
 
     // 트레이스에서 실제로 답에 남은 동료 기억 줄(mem.with* · mem.alone)의 수.

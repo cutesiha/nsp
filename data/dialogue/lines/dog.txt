@@ -483,7 +483,7 @@
 - 몰랐어요. 다친 분은 없으세요?
 - 처음 들어요. 무슨 일이었어요?
 - 그런 일이 있었어요? 전혀 몰랐어요.
-- {room}에서요? 전혀 몰랐어요. 괜찮으세요?
+- {room}에서요? 전혀 몰랐어요. 다친 분은 없었으면 좋겠는데요.
 - 저는 못 들었어요. 무슨 일이 있었는지 여쭤봐도 될까요?
 - 모르고 있었어요. 다친 분은 없는 거죠?
 
@@ -765,3 +765,53 @@
 ## emotion.alarm.indirect
 - 소리가 많이 컸어요.
 - 벽이 울리는 게 느껴졌어요.
+
+# ── B: 동석자 여부까지 한 문장으로(조립기가 근무 기억을 덧붙이는 대신 사람이 통째로 쓴 틀) ──
+## WhereAtIncident.alone
+- {room}에 혼자 있었어요. 조금 적적했어요.
+- {room}이었/였어요. 저 혼자였는데, 확인하실 게 있으면 말씀해 주세요.
+- {time}쯤엔 {room}에 혼자 있었어요.
+
+## WhereAtIncident.with
+- {room}에 {who} 씨랑 같이 있었어요.
+- {room}이었/였어요. {who} 씨가 계셔서 든든했어요.
+- {who} 씨랑 {room}에 있었어요. 같이 있어서 마음이 놓였어요.
+
+## selfloc.alone
+- {room}에 혼자 있었어요. 별일은 없었어요.
+- {room}이었/였어요. 저 혼자였어요.
+- 혼자 {room}에서 제 일 하고 있었어요.
+
+## selfloc.with
+- {room}에서 {who} 씨랑 있었어요.
+- {room}이었/였어요. {who} 씨랑 같이요.
+- {who} 씨랑 {room}에 있었어요. 뭔가 확인하실 게 있나요?
+
+## incident.direct.with
+- {iroom}에서 봤어요. {what} {who} 씨도 많이 놀라셨어요.
+- {who} 씨랑 {iroom}에 있을 때였어요. {what}
+- 바로 앞이었어요. {what} {who} 씨가 옆에 계셔서 다행이었어요.
+
+## incident.direct
+- {iroom}에서 {what_stem}는 걸 봤어요. 다들 많이 놀랐을 거예요.
+
+## phrase.stem.TaskFailed
+- 기계가 멈추
+- 설비가 갑자기 서
+
+## phrase.stem.PowerOutage
+- 불이 꺼지
+- 전기가 나가
+
+## phrase.direct.TaskFailed
+- 기계가 멈췄
+- 설비가 갑자기 섰
+
+## phrase.direct.PowerOutage
+- 불이 다 꺼졌
+- 전기가 끊겼
+
+## phrase.sound.any
+- 쿵 하는 소리가 크게 났
+- 뭔가 부서지는 소리가 들렸
+- 벽이 울리는 게 느껴졌
