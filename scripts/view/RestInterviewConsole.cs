@@ -179,10 +179,14 @@ public partial class RestInterviewConsole : Control
 
     public void Close() => Visible = false;
 
-    // 오늘 무엇을 밝혀야 하는가. PhoneCallHud 가 시설 로그 화면에 뜬 사건에서 만들어 넘긴다.
+    // 오늘의 경비 기록 수를 갱신한다. PhoneCallHud 가 심문을 열 때 부른다.
+    //
+    // 예전에는 여기에 "조사 목표: … 그 시각 {방}에 있던 사람은?" 한 줄도 같이 띄웠다 —
+    // 게임이 무엇을 밝혀야 하는지 대신 정해 주는 문장이라 뺐다(플레이테스트 지적).
+    // text 인자는 호출부 호환용으로만 남아 있고 화면에는 쓰지 않는다.
     public void SetGoal(string text)
     {
-        _goal.Text = string.IsNullOrEmpty(text) ? "" : "조사 목표: " + text;
+        _goal.Text = "";
 
         // 경비실이 오늘 무엇을 남겼는가. 없으면 왜 없는지까지 적는다 —
         // 자료가 비는 이유가 "경비실을 비웠기 때문"이라는 것을 여기서 알게 한다.

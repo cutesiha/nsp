@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace NSP.Dialogue;
 
@@ -36,18 +37,42 @@ public static class InterviewQuestionFactory
 
         switch (ev.Kind)
         {
+            // 이동 — 지시 없는 이동은 "근무지 이탈 아니냐"고 따질 수 있다. 어디로 갔는지 · 몇 시였는지는
+            // 기록에 이미 있으니 묻지 않는다(다음 행선지는 답변 뒤 꼬리질문으로만).
             case EvidenceKind.Movement:
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskMoveReason);
+                if (!ev.PlayerOrdered) Add(list, targetEmployeeId, ev, InterviewIntent.ConfrontUnorderedMove);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskWhoWasPresent);
-                Add(list, targetEmployeeId, ev, InterviewIntent.AskNextLocation);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskActionAtDestination);
                 break;
 
+            // 사고 — 알리바이를 대라 · 증명하라 · 무관하다는 근거를 대라 · 누가 그랬다고 보나.
+            // "기록상 거기 있었다"는 관리자가 실제로 그 재석을 알 때만 열린다.
             case EvidenceKind.Incident:
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskIncidentKnown);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskWhereAtIncident);
-                Add(list, targetEmployeeId, ev, InterviewIntent.AskBeforeIncident);
-                Add(list, targetEmployeeId, ev, InterviewIntent.AskWhoSeenNear);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskAlibiProof);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskProveInnocence);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskSuspectOpinion);
+                if (PlayerKnowsPresence(targetEmployeeId, ev)) Add(list, targetEmployeeId, ev, InterviewIntent.PressPresence);
+                break;
+
+            // 통화 — 왜 걸었나 · 끝나고 무엇을 했나 · (놀러 가겠다는 전화가 잦으면) 근무 태만 아니냐.
+            case EvidenceKind.Call:
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskCallReason);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskCallAfter);
+                if (ev.CallEvent == DialogueRepository.EventIdleVisit
+                    && InterviewEvidenceBoard.IdleVisitCallCount(targetEmployeeId) >= 2)
+                    Add(list, targetEmployeeId, ev, InterviewIntent.ConfrontNeglect);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskWhoWasPresent);
+                break;
+
+            // 이상 개체 조우 — 괜찮은가 · 어떻게 생겼나 · 무엇을 했나 · 같이 있던 사람은.
+            case EvidenceKind.Anomaly:
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskGhostWellbeing);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskGhostAppearance);
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskGhostWhatHappened);
+                if (ev.RelatedEmployeeIds.Count > 0) Add(list, targetEmployeeId, ev, InterviewIntent.AskGhostOthers);
                 break;
 
             case EvidenceKind.Cctv:
@@ -90,6 +115,17 @@ public static class InterviewQuestionFactory
         if (!string.IsNullOrEmpty(q.Text)) list.Add(q);
     }
 
+    // 사고 시각에 이 직원이 사고 난 방에 있었다는 것을 관리자가 아는가 — CCTV 로 직접 봤거나, 시설 로그
+    // 화면의 배치 · 이동 줄이 그 방을 가리킬 때. 그때만 "기록상 거기 있었다"고 따질 수 있다.
+    // (시스템만 아는 사실로 추궁 문장을 만들지 않는다 — PlayerKnownEvidence 의 규칙.)
+    public static bool PlayerKnowsPresence(string target, InterviewEvidence incident)
+    {
+        if (incident == null || !incident.HasTime || string.IsNullOrEmpty(incident.SubjectRoomId)) return false;
+        float window = EvidenceContradiction.WindowMinutes * DialogueClock.SecondsPerMinute;
+        if (PlayerKnownEvidence.CctvSeenRoomOf(target, incident.AnchorTime, window) == incident.SubjectRoomId) return true;
+        return DialogueContextBuilder.RoomAt(target, DialogueContextBuilder.Day(), incident.AnchorTime) == incident.SubjectRoomId;
+    }
+
     // 자료의 값을 그대로 옮겨 담은 질문 하나.
     public static InterviewQuestion Make(string target, InterviewEvidence ev, InterviewIntent intent)
     {
@@ -105,10 +141,18 @@ public static class InterviewQuestionFactory
             FromRoomId = ev?.FromRoomId ?? "",
             ToRoomId = ev?.ToRoomId ?? "",
             SubjectRoomId = ev?.SubjectRoomId ?? "",
-            OtherEmployeeId = ev?.SpeakerEmployeeId == target ? "" : ev?.SpeakerEmployeeId ?? "",
+            // 개체 조우 자료는 "그때 같이 있던 사람"이 곧 질문의 상대다.
+            OtherEmployeeId = ev?.Kind == EvidenceKind.Anomaly ? ev.RelatedEmployeeIds.FirstOrDefault() ?? ""
+                : ev?.SpeakerEmployeeId == target ? "" : ev?.SpeakerEmployeeId ?? "",
             PlayerOrderedMove = ev?.PlayerOrdered ?? false,
             MoodText = ev?.MoodText ?? "",
+            CallEvent = ev?.CallEvent ?? "",
+            CallKind = ev?.CallKind ?? default,
+            CallRoomId = ev?.CallRoomId ?? "",
+            RepeatIndex = ev?.RepeatIndex ?? 0,
         };
+        // 근무 태만 추궁은 카드 한 장이 아니라 오늘 전체 횟수를 말한다.
+        if (intent == InterviewIntent.ConfrontNeglect) q.RepeatIndex = InterviewEvidenceBoard.IdleVisitCallCount(target);
         q.Text = KoreanParticle.Resolve(Text(q, ev));
         return q;
     }
@@ -163,6 +207,51 @@ public static class InterviewQuestionFactory
 
             InterviewIntent.FollowExactTime =>
                 "정확히 몇 시였습니까?",
+
+            // ── 이동 따지기 ──
+            InterviewIntent.ConfrontUnorderedMove =>
+                $"{at}지시도 없이 {from}에서 {to}으로/로 이동했습니다. 근무지 이탈 아닙니까?",
+
+            // ── 통화 기록 ──
+            InterviewIntent.AskCallReason => q.CallKind switch
+            {
+                CallRecordKind.Missed => $"{at}전화를 걸었다가 왜 끊었습니까? 무슨 일이었습니까?",
+                CallRecordKind.ManagerCalled => $"{at}통화했을 때 무엇을 하고 있었습니까?",
+                _ => q.CallEvent switch
+                {
+                    DialogueRepository.EventIdleVisit =>
+                        $"{at}{InterviewEvidenceBoard.RoomName(q.CallRoomId)}에 가고 싶다고 전화한 이유는 무엇입니까?",
+                    DialogueRepository.EventIdleWorry =>
+                        $"{at}{InterviewEvidenceBoard.RoomName(q.CallRoomId)}에서 무슨 소리를 들었습니까?",
+                    _ => $"{at}전화로 알린 내용을 다시 설명해 주십시오.",
+                },
+            },
+            InterviewIntent.AskCallAfter =>
+                "통화를 끝낸 뒤에는 무엇을 했습니까?",
+            InterviewIntent.ConfrontNeglect =>
+                $"오늘 {q.RepeatIndex}번이나 다른 작업실에 놀러 가고 싶다고 전화했습니다. 근무 태만 아닙니까?",
+
+            // ── 이상 개체 조우 ──
+            InterviewIntent.AskGhostWellbeing =>
+                $"{at}{here}에서 그것을 마주쳤을 때 괜찮았습니까? 지금 상태는 어떻습니까?",
+            InterviewIntent.AskGhostAppearance =>
+                "그것은 어떻게 생겼습니까? 본 대로 말해 주십시오.",
+            InterviewIntent.AskGhostWhatHappened =>
+                $"{at}그것이 나타났을 때 무엇을 했습니까?",
+            InterviewIntent.AskGhostOthers =>
+                $"그때 함께 있던 {who} 직원은 어떻게 했습니까?",
+
+            // ── 알리바이 · 따지기 ──
+            InterviewIntent.AskAlibiProof =>
+                $"{at}당신이 있던 곳을 누가 증명해 줄 수 있습니까?",
+            InterviewIntent.AskProveInnocence =>
+                string.IsNullOrEmpty(here)
+                    ? "이 사고와 무관하다는 근거를 대십시오."
+                    : $"{here} 사고와 무관하다는 근거를 대십시오.",
+            InterviewIntent.AskSuspectOpinion =>
+                "누가 그랬다고 생각합니까? 짚이는 사람이 있습니까?",
+            InterviewIntent.PressPresence =>
+                $"기록상 {at}당신은 {here}에 있었습니다. 설명하십시오.",
 
             _ => "",
         };

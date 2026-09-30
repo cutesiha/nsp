@@ -253,6 +253,8 @@ public static class InterviewEvidenceDisplay
         EvidenceKind.Testimony => "증언",
         EvidenceKind.OwnStatement => "진술",
         EvidenceKind.Overheard => "대화",
+        EvidenceKind.Call => "통화",
+        EvidenceKind.Anomaly => "개체",
         _ => "기분",
     };
 }

@@ -41,7 +41,160 @@ public static class InterviewScenarioTest
         TestEquipmentDenial();
         TestInnocentAdmitsBehavior();
         TestDenialVersusWitness();
+        // 3차 — 통화 기록 · 이상 개체 조우 · 알리바이 따지기(질문 확장).
+        TestIdleCallNeglect();
+        TestGhostEncounter();
+        TestAlibiQuestions();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
+    }
+
+    // ── 3차-A : 놀러 가고 싶다는 전화가 잦으면 근무 태만을 따질 수 있다 ──────────
+    private static void TestIdleCallNeglect()
+    {
+        Head("3차-A", "여우가 놀러 가고 싶다고 두 번 전화 → 통화 자료 두 장 · 근무 태만 추궁");
+        Reset();
+        Deploy(new() { ["fox"] = Guard, ["cat"] = Storage, ["dog"] = Core,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["wolf"] = Vent });
+        CallMemoryLog.RecordAt(1, At(12), "fox", CallRecordKind.Reported, Storage, DialogueRepository.EventIdleVisit);
+        CallMemoryLog.RecordAt(1, At(30), "fox", CallRecordKind.Reported, Core, DialogueRepository.EventIdleVisit);
+
+        var board = InterviewEvidenceBoard.Build("fox");
+        var calls = board.Where(e => e.Kind == EvidenceKind.Call).OrderBy(e => e.AnchorTime).ToList();
+        if (!Check(calls.Count == 2, $"통화 자료가 두 장 뜬다 ({calls.Count})")) return;
+        foreach (var c in calls) GD.Print($"   자료: [{c.Header}] {c.OneLine}");
+        Check(calls[1].Body.Contains("2번째"), "두 번째 통화에는 횟수가 적힌다");
+        Check(calls[0].SubjectRoomId == Guard && calls[0].CanAnchorPosition, "전화한 순간 있던 방(경비실)이 재석 근거가 된다");
+        Check(InterviewEvidenceBoard.Build("cat").All(e => e.Kind != EvidenceKind.Call), "다른 직원의 노트에는 여우의 통화가 없다");
+
+        var qs = InterviewQuestionFactory.For("fox", calls[1]);
+        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent}{(q.IsConfront ? " · 따짐" : "")})");
+        var neglect = qs.FirstOrDefault(q => q.Intent == InterviewIntent.ConfrontNeglect);
+        Check(neglect != null && neglect.Text.Contains("2번") && neglect.IsConfront, "근무 태만 추궁이 열리고 횟수를 말한다");
+        Check(qs.Any(q => q.Intent == InterviewIntent.AskCallReason && q.Text.Contains("코어실")), "전화 이유 질문이 그 통화가 말한 작업실을 인용한다");
+        Check(qs.All(q => q.Intent != InterviewIntent.FollowExactTime), "몇 시였냐는 질문은 없다");
+        if (neglect == null) return;
+
+        string a = InterviewReplyPlanner.Answer(neglect);
+        GD.Print($"   A(태만): {a}");
+        Check(!string.IsNullOrEmpty(a) && a != "…", "추궁에 답이 돌아온다");
+        Check(InterviewReplyPlanner.FrameFor(neglect).Variant == "justify",
+            $"자리를 비운 기록이 없으면 항변한다 ({InterviewReplyPlanner.FrameFor(neglect).Variant})");
+        foreach (var q in qs.Where(q => q.Intent != InterviewIntent.ConfrontNeglect))
+        {
+            string ans = InterviewReplyPlanner.Answer(q);
+            GD.Print($"   A({q.Intent}): {ans}");
+            Check(!string.IsNullOrEmpty(ans) && ans != "…", $"{q.Intent} 에 답이 있다");
+        }
+
+        // 지시 없이 실제로 옮긴 기록이 화면에 떴으면 발뺌하지 못한다.
+        Move("fox", Guard, Storage, At(14));
+        InterviewReplyPlanner.Reset();
+        var neglect2 = InterviewQuestionFactory.Make("fox", calls[1], InterviewIntent.ConfrontNeglect);
+        GD.Print($"   A(태만·이탈 기록 있음): {InterviewReplyPlanner.Answer(neglect2)}");
+        Check(InterviewReplyPlanner.FrameFor(neglect2).Variant == "caught", "지시 없는 이동 기록이 있으면 인정한다");
+
+        // 한 번뿐이면 태만 추궁은 없다.
+        Reset();
+        Deploy(new() { ["fox"] = Guard, ["cat"] = Storage });
+        CallMemoryLog.RecordAt(1, At(12), "fox", CallRecordKind.Reported, Storage, DialogueRepository.EventIdleVisit);
+        var one = InterviewEvidenceBoard.Build("fox").First(e => e.Kind == EvidenceKind.Call);
+        Check(InterviewQuestionFactory.For("fox", one).All(q => q.Intent != InterviewIntent.ConfrontNeglect),
+            "한 번 물어본 것으로는 태만을 따지지 않는다");
+    }
+
+    // ── 3차-B : 이상 개체를 마주친 직원에게 안부 · 생김새 · 행동 · 동료를 묻는다 ────
+    private static void TestGhostEncounter()
+    {
+        Head("3차-B", "코어실 개체 관측 소멸 · 양과 늑대가 그 방에 있었다 → 개체 자료 · 질문 · 증언");
+        Reset();
+        Deploy(new() { ["sheep"] = Core, ["wolf"] = Core, ["cat"] = Storage, ["dog"] = Guard,
+                       ["rabbit"] = Maintenance, ["fox"] = Vent });
+        Log(LogEventType.AnomalyDispelled, "", Core, At(20));
+
+        var sheep = InterviewEvidenceBoard.Build("sheep").FirstOrDefault(e => e.Kind == EvidenceKind.Anomaly);
+        if (!Check(sheep != null, "양의 조사 노트에 개체 조우 자료가 뜬다")) return;
+        GD.Print($"   자료: [{sheep.Header}] {sheep.OneLine}");
+        Check(sheep.RelatedEmployeeIds.Contains("wolf"), "같이 있던 늑대가 자료에 실린다");
+        Check(sheep.SubjectRoomId == Core && sheep.CanAnchorPosition, "코어실 · 그 시각의 재석 근거다");
+        Check(InterviewEvidenceBoard.Build("cat").All(e => e.Kind != EvidenceKind.Anomaly), "다른 방에 있던 고양이에게는 없다");
+
+        var qs = InterviewQuestionFactory.For("sheep", sheep);
+        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent})");
+        Check(qs.Count == 4, $"괜찮은가 · 생김새 · 무엇을 했나 · 같이 있던 사람 — 네 질문 ({qs.Count})");
+        foreach (var q in qs)
+        {
+            string a = InterviewReplyPlanner.Answer(q);
+            GD.Print($"   A({q.Intent}): {a}");
+            Check(!string.IsNullOrEmpty(a) && a != "…", $"{q.Intent} 에 답이 있다");
+        }
+        var well = qs.FirstOrDefault(q => q.Intent == InterviewIntent.AskGhostWellbeing);
+        Check(well != null && InterviewReplyPlanner.FrameFor(well).Variant == "shaken", "겁 많은 양은 아직 떨고 있다");
+        var others = qs.FirstOrDefault(q => q.Intent == InterviewIntent.AskGhostOthers);
+        Check(others != null && others.Text.Contains("늑대"), "같이 있던 사람 질문이 늑대를 부른다");
+        var say = InterviewEvidenceBoard.Build("wolf")
+            .FirstOrDefault(e => e.Kind == EvidenceKind.Testimony && e.SpeakerEmployeeId == "sheep");
+        Check(say != null && !string.IsNullOrEmpty(say.BehaviorDetail), $"양의 답이 늑대에 대한 증언 카드가 된다 — {say?.Body}");
+
+        var wolfEv = InterviewEvidenceBoard.Build("wolf").FirstOrDefault(e => e.Kind == EvidenceKind.Anomaly);
+        var wolfQ = InterviewQuestionFactory.Make("wolf", wolfEv, InterviewIntent.AskGhostWellbeing);
+        GD.Print($"   A(늑대·안부): {InterviewReplyPlanner.Answer(wolfQ)}");
+        Check(InterviewReplyPlanner.FrameFor(wolfQ).Variant == "ok", "늑대는 담담하다");
+    }
+
+    // ── 3차-C : 사고 기록에는 알리바이를 증명하라 · 무관 근거를 대라 · 지목하라 · 재석을 따진다 ──
+    private static void TestAlibiQuestions()
+    {
+        Head("3차-C", "사고 기록 → 알리바이 증명 · 무관 근거 · 지목 · 기록상 재석 따지기");
+        Reset();
+        Deploy(new() { ["cat"] = Power, ["dog"] = Power, ["wolf"] = Vent,
+                       ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
+        Incident(LogEventType.TaskFailed, Power, At(40));
+
+        var inc = InterviewEvidenceBoard.Build("cat").First(e => e.Kind == EvidenceKind.Incident);
+        var qs = InterviewQuestionFactory.For("cat", inc);
+        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent}{(q.IsConfront ? " · 따짐" : "")})");
+        Check(qs.Any(q => q.Intent == InterviewIntent.AskAlibiProof), "알리바이 증명 요구가 있다");
+        Check(qs.Any(q => q.Intent == InterviewIntent.AskProveInnocence && q.IsConfront), "무관하다는 근거를 대라는 추궁이 있다");
+        Check(qs.Any(q => q.Intent == InterviewIntent.AskSuspectOpinion), "누가 그랬다고 보느냐는 질문이 있다");
+        Check(qs.Any(q => q.Intent == InterviewIntent.PressPresence), "기록상 발전실에 있던 고양이에게는 재석 추궁이 열린다");
+        Check(qs.All(q => q.Intent != InterviewIntent.FollowExactTime && !q.Text.Contains("몇 시")), "몇 시였냐는 질문은 없다");
+        Check(InterviewQuestionFactory.For("wolf", inc).All(q => q.Intent != InterviewIntent.PressPresence),
+            "환기실에 있던 늑대에게는 재석 추궁이 없다");
+
+        var alibi = qs.First(q => q.Intent == InterviewIntent.AskAlibiProof);
+        string a1 = InterviewReplyPlanner.Answer(alibi);
+        GD.Print($"   A(증명): {a1}");
+        Check(InterviewReplyPlanner.FrameFor(alibi).Variant == "witness" && a1.Contains("강아지"), "같이 있던 강아지를 증인으로 댄다");
+        Check(PlayerKnownEvidence.SightingsOf("dog").Any(s => s.SpeakerId == "cat" && s.RoomId == Power),
+            "그 말이 강아지에 대한 목격 증언으로 남는다");
+
+        var press = qs.First(q => q.Intent == InterviewIntent.PressPresence);
+        string a2 = InterviewReplyPlanner.Answer(press);
+        GD.Print($"   A(재석): {a2}");
+        Check(InterviewReplyPlanner.FrameFor(press).Variant == "admit", "결백한 직원은 거기 있었음을 인정한다");
+
+        var suspect = qs.First(q => q.Intent == InterviewIntent.AskSuspectOpinion);
+        string a4 = InterviewReplyPlanner.Answer(suspect);
+        GD.Print($"   A(지목): {a4}");
+        Check(InterviewReplyPlanner.FrameFor(suspect).Variant == "none", "본 것이 없으면 아무도 지목하지 않는다");
+
+        // 결번자 — 무관 근거를 대라고 하면 부정하거나 흐린다.
+        GameState.Instance.SetSaboteur("cat");
+        InterviewReplyPlanner.Reset();
+        DialogueClaimState.ResetAll();
+        var prove = InterviewQuestionFactory.Make("cat", inc, InterviewIntent.AskProveInnocence);
+        string a3 = InterviewReplyPlanner.Answer(prove);
+        GD.Print($"   A(결번자·무관 근거): {a3}");
+        var fr = InterviewReplyPlanner.FrameFor(prove);
+        Check(fr.Variant is "deny" or "evasive", $"결번자는 부정하거나 흐린다 ({fr.Variant})");
+        // 지시 없는 이동은 근무지 이탈로 따질 수 있다.
+        Move("cat", Power, Storage, At(50));
+        var mv = InterviewEvidenceBoard.Build("cat").First(e => e.Kind == EvidenceKind.Movement);
+        var mq = InterviewQuestionFactory.For("cat", mv);
+        foreach (var q in mq) GD.Print($"   Q(이동): {q.Text}  ({q.Intent}{(q.IsConfront ? " · 따짐" : "")})");
+        Check(mq.Any(q => q.Intent == InterviewIntent.ConfrontUnorderedMove && q.Text.Contains("근무지 이탈")),
+            "지시 없는 이동에는 근무지 이탈 추궁이 열린다");
+        Check(mq.All(q => q.Intent != InterviewIntent.AskNextLocation), "그 뒤 어디로 갔냐는 질문은 기본 목록에서 빠졌다(꼬리질문으로만)");
     }
 
     // ── A : 이동 기록을 고르면 그 이동을 그대로 묻는다 ──────────────────
@@ -430,6 +583,8 @@ public static class InterviewScenarioTest
         EventLog.Instance.ClearAll();
         GameState.Instance.SetSaboteur("");
         DialogueClaimState.ResetAll();
+        CallMemoryLog.ResetAll();
+        InterviewReplyPlanner.Reset();
     }
 
     // 배치 + 근무 시작. TaskStart 가 있어야 이후 이동이 시설 로그 화면에 뜬다.

@@ -309,13 +309,15 @@ public sealed class InterviewSession
         if (ev == null) return result;
 
         // 방금 물은 것과 같은 자료에서, 아직 안 물어본 중립 질문을 최대 둘.
+        // "정확히 몇 시였나"(FollowExactTime)는 더 이상 내지 않는다 — 시각은 기록에 이미 있다.
         var pool = new List<InterviewIntent>();
         switch (asked.Intent)
         {
             case InterviewIntent.AskMoveReason:
-                pool.Add(InterviewIntent.FollowExactTime);
+            case InterviewIntent.ConfrontUnorderedMove:
                 pool.Add(InterviewIntent.AskWhoWasPresent);
                 pool.Add(InterviewIntent.AskActionAtDestination);
+                pool.Add(InterviewIntent.AskNextLocation);
                 break;
             case InterviewIntent.AskPresenceReason:
                 pool.Add(InterviewIntent.AskWhoWasPresent);
@@ -326,25 +328,56 @@ public sealed class InterviewSession
                 pool.Add(InterviewIntent.AskWhoWasPresent);
                 break;
             case InterviewIntent.AskWhereAtIncident:
-                pool.Add(InterviewIntent.AskWhoWasPresent);
+                pool.Add(InterviewIntent.AskAlibiProof);
                 pool.Add(InterviewIntent.AskBeforeIncident);
                 break;
             case InterviewIntent.AskIncidentKnown:
                 pool.Add(InterviewIntent.AskWhereAtIncident);
-                pool.Add(InterviewIntent.FollowExactTime);
+                pool.Add(InterviewIntent.AskWhoSeenNear);
+                break;
+            case InterviewIntent.AskAlibiProof:
+                pool.Add(InterviewIntent.AskProveInnocence);
+                pool.Add(InterviewIntent.AskBeforeIncident);
+                break;
+            case InterviewIntent.AskProveInnocence:
+            case InterviewIntent.PressPresence:
+                pool.Add(InterviewIntent.AskAlibiProof);
+                pool.Add(InterviewIntent.AskSuspectOpinion);
+                break;
+            case InterviewIntent.AskSuspectOpinion:
+                pool.Add(InterviewIntent.AskWhoSeenNear);
                 break;
             case InterviewIntent.AskConfirmTestimony:
                 pool.Add(InterviewIntent.AskWhoWasPresent);
-                pool.Add(InterviewIntent.FollowExactTime);
+                pool.Add(InterviewIntent.AskRestate);
                 break;
             case InterviewIntent.AskWhoWasPresent:
                 pool.Add(InterviewIntent.AskNextLocation);
+                break;
+            case InterviewIntent.AskCallReason:
+                pool.Add(InterviewIntent.AskCallAfter);
+                pool.Add(InterviewIntent.AskWhoWasPresent);
+                break;
+            case InterviewIntent.AskCallAfter:
+            case InterviewIntent.ConfrontNeglect:
+                pool.Add(InterviewIntent.AskWhoWasPresent);
+                break;
+            case InterviewIntent.AskGhostWellbeing:
+                pool.Add(InterviewIntent.AskGhostWhatHappened);
+                pool.Add(InterviewIntent.AskGhostAppearance);
+                break;
+            case InterviewIntent.AskGhostAppearance:
+            case InterviewIntent.AskGhostWhatHappened:
+                pool.Add(InterviewIntent.AskGhostOthers);
+                pool.Add(InterviewIntent.AskGhostWellbeing);
                 break;
         }
 
         foreach (var intent in pool)
         {
             if (result.Count >= 2) break;
+            // 개체 조우 꼬리질문 "같이 있던 사람은" 은 같이 있던 사람이 있을 때만.
+            if (intent == InterviewIntent.AskGhostOthers && ev.RelatedEmployeeIds.Count == 0) continue;
             var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent);
             // 꼬리질문은 '방금 답변에서 이어지는 것'이라 이미 물은 건 뺀다
             // (기본 목록과 자료 질문에는 그대로 남아 있다).

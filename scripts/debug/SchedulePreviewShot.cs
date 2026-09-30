@@ -54,8 +54,13 @@ public partial class SchedulePreviewShot : Node
         Click(staffVp, new Vector2(736f, 56f));
         await Frames(3);
         Save(staffVp, dir, "schedule_staff_after_close.png");
+        // 첫 블록 직원의 한마디를 일부러 길게 — 칸 폭 안에서 줄이 바뀌는지(잘리지 않는지) 본다.
+        string first = sim.GetActiveEmployeeIds().FirstOrDefault() ?? "";
+        var firstState = sim.GetEmployeeState(first);
+        if (firstState != null)
+            firstState.DailyRemark = "오늘은 왠지 발전실 쪽에서 계속 이상한 진동이 느껴지는데, 저만 그런 건지 모르겠어요. 혹시 관리자님도 느끼셨나요?";
         Click(staffVp, new Vector2(186f, 216f));
-        await Frames(3);
+        await Seconds(7.0);   // 한 글자씩 찍히는 한마디가 끝까지 나올 때까지
         Save(staffVp, dir, "schedule_staff_detail.png");
         Click(staffVp, new Vector2(736f, 56f));
         await Frames(3);
@@ -144,6 +149,9 @@ public partial class SchedulePreviewShot : Node
 
     private static void Save(SubViewport vp, string dir, string name) =>
         vp.GetTexture().GetImage().SavePng(dir + "/" + name);
+
+    private async System.Threading.Tasks.Task Seconds(double s)
+        => await ToSignal(GetTree().CreateTimer(s), SceneTreeTimer.SignalName.Timeout);
 
     private async System.Threading.Tasks.Task Frames(int n)
     {

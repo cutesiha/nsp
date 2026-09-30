@@ -252,6 +252,65 @@ emission_enabled = true
 emission = Color(0.95, 0.6, 0.1, 1)
 emission_energy_multiplier = 2.0
 
+[sub_resource type="StandardMaterial3D" id="Mat_PadMetal"]
+albedo_color = Color(0.08, 0.09, 0.1, 1)
+metallic = 0.55
+roughness = 0.45
+
+[sub_resource type="BoxMesh" id="PadMesh_CradleBase"]
+size = Vector3(0.258, 0.012, 0.13)
+
+[sub_resource type="BoxMesh" id="PadMesh_CradleLip"]
+size = Vector3(0.258, 0.022, 0.01)
+
+[sub_resource type="BoxMesh" id="PadMesh_CradleBack"]
+size = Vector3(0.2064, 0.008, 0.1302)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pcvob"]
+albedo_color = Color(0.05, 0.08, 0.08, 1)
+emission_enabled = true
+emission = Color(0.3, 0.95, 1, 1)
+emission_energy_multiplier = 1.4
+
+[sub_resource type="BoxMesh" id="PadMesh_Led"]
+size = Vector3(0.018, 0.003, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="Mat_PadShell"]
+albedo_color = Color(0.1, 0.115, 0.125, 1)
+metallic = 0.55
+roughness = 0.45
+
+[sub_resource type="BoxMesh" id="PadMesh_Shell"]
+size = Vector3(0.3, 0.012, 0.21)
+
+[sub_resource type="StandardMaterial3D" id="Mat_PadGlass"]
+albedo_color = Color(0.01, 0.015, 0.02, 1)
+metallic = 0.2
+roughness = 0.15
+
+[sub_resource type="QuadMesh" id="PadMesh_Glass"]
+size = Vector2(0.28, 0.178)
+
+[sub_resource type="StandardMaterial3D" id="Mat_PadScreenOff"]
+albedo_color = Color(0.03, 0.1, 0.12, 1)
+emission_enabled = true
+emission = Color(0.1, 0.42, 0.5, 1)
+emission_energy_multiplier = 0.6
+
+[sub_resource type="QuadMesh" id="PadMesh_Screen"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qbmyc"]
+albedo_color = Color(0.2, 0.15, 0.05, 1)
+emission_enabled = true
+emission = Color(1, 0.72, 0.25, 1)
+emission_energy_multiplier = 0.0
+
+[sub_resource type="BoxMesh" id="PadMesh_BadgeLed"]
+size = Vector3(0.014, 0.002, 0.005)
+
+[sub_resource type="BoxShape3D" id="PadShape_Click"]
+size = Vector3(0.32, 0.042, 0.23)
+
 [sub_resource type="StandardMaterial3D" id="Mat_GlassDark"]
 albedo_color = Color(0.03, 0.03, 0.04, 1)
 metallic = 0.5
@@ -965,12 +1024,12 @@ surface_material_override/0 = SubResource("PC_Skin")
 transform = Transform3D(0.97, 0, 0.242, 0, 1, 0, -0.242, 0, 0.97, -0.47, 0, -0.75)
 
 [node name="M01_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1587461643]
-transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
+transform = Transform3D(0.84, 0, -9.313226e-10, 0, 0.65999997, 0, 1.4901161e-08, 0, 0.06, 0, 1.1436116, 0)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
 [node name="M01_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=749959280]
-transform = Transform3D(0.73999995, 0, 0, 0, 0.55499995, 0, 1.4901161e-08, 0, 1, -0.00064590573, 1.1299999, 0.04258895)
+transform = Transform3D(0.7399999, 0, 0, 0, 0.5549999, 0, 2.9802322e-08, 0, 1, -0.00064593554, 1.1436114, 0.04258901)
 mesh = SubResource("Quad")
 script = ExtResource("3_screen")
 
@@ -994,7 +1053,7 @@ font_size = 26
 outline_size = 0
 
 [node name="M01_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
-transform = Transform3D(-1, 0, 0, 0, 0.95105654, 0.309017, 0, 0.309017, -0.95105654, 0, 1.13, 0.07)
+transform = Transform3D(-1.0002681, 7.450581e-09, 0, 0, 0.9510808, 0.30894205, 0, 0.3090249, -0.95133567, -2.9802322e-08, 1.1436116, 0.07000005)
 light_color = Color(0.5, 0.8, 1, 1)
 light_energy = 3.0
 light_specular = 0.1
@@ -1011,12 +1070,12 @@ spot_angle_attenuation = 0.4
 transform = Transform3D(0.97, 0, -0.242, 0, 1, 0, 0.242, 0, 0.97, 0.47, 0, -0.75)
 
 [node name="M02_Bezel" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=668823157]
-transform = Transform3D(0.84, 0, 0, 0, 0.66, 0, 0, 0, 0.06, 0, 1.13, 0)
+transform = Transform3D(0.84, 0, 9.313226e-10, 0, 0.65999997, 0, -1.4901161e-08, 0, 0.06, 0, 1.1436116, 0)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
 [node name="M02_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=2035591087]
-transform = Transform3D(0.74, 0, 0, 0, 0.555, 0, 0, 0, 1, 0, 1.13, 0.04)
+transform = Transform3D(0.73999995, 0, 0, 0, 0.55499995, 0, -1.4901161e-08, 0, 1, 2.9802322e-08, 1.1436116, 0.04000002)
 mesh = SubResource("Quad")
 script = ExtResource("3_screen")
 
@@ -1040,7 +1099,7 @@ font_size = 26
 outline_size = 0
 
 [node name="M02_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
-transform = Transform3D(-1, 0, 0, 0, 0.95105654, 0.309017, 0, 0.309017, -0.95105654, 0, 1.13, 0.07)
+transform = Transform3D(-1.0002681, -7.450581e-09, 0, 0, 0.9510808, 0.30894205, 0, 0.3090249, -0.95133567, 2.9802322e-08, 1.1436116, 0.07000005)
 light_color = Color(0.5, 0.8, 1, 1)
 light_energy = 3.0
 light_specular = 0.1
@@ -1054,7 +1113,7 @@ spot_angle = 46.0
 spot_angle_attenuation = 0.4
 
 [node name="Keyboard" type="MeshInstance3D" parent="ControlRoom" unique_id=1690353115]
-transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0.011912666, 0.762, -0.36119446)
+transform = Transform3D(0.44, 0, 0, 0, 0.028, 0, 0, 0, 0.15, 0.011912666, 0.762, -0.3275726)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_DarkPlastic")
 
@@ -1078,7 +1137,7 @@ mesh = SubResource("DialRing")
 surface_material_override/0 = SubResource("Mat_DialRing")
 
 [node name="PhoneModel" parent="ControlRoom/Telephone" unique_id=1126881769 instance=ExtResource("21_phone_model")]
-transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0.02616015)
+transform = Transform3D(0.3, 0, 0, 0, 0.3, 0, 0, 0, 0.3, 0, 0, 0.07948953)
 
 [node name="PhoneModelSplitter" type="Node" parent="ControlRoom/Telephone" unique_id=740296021]
 script = ExtResource("24_phone_splitter")
@@ -1141,15 +1200,68 @@ ScreenOffset = Vector3(0.01, 0.5, 0.19)
 transform = Transform3D(0.29, 0, -7.450581e-09, 0, 0.236, 0, 7.450581e-09, 0, 0.236, -0.012483373, 0, 0.02654463)
 
 [node name="AdminPad" type="Node3D" parent="ControlRoom" unique_id=771100892]
-transform = Transform3D(0.9022264, 0, 0.43087822, 0, 1, 0, -0.43087822, 0, 0.9022264, -0.36562842, 0.755, -0.40949714)
+transform = Transform3D(0.9022264, 0, 0.43087822, 0, 1, 0, -0.43087822, 0, 0.9022264, -0.37810868, 0.755, -0.33074608)
 script = ExtResource("34_adminpad")
 
+[node name="PadCradle" type="Node3D" parent="ControlRoom/AdminPad" unique_id=554838578]
+
+[node name="Base" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=651584678]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.006, 0)
+material_override = SubResource("Mat_PadMetal")
+mesh = SubResource("PadMesh_CradleBase")
+
+[node name="Lip" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=1780179170]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.016, 0.053)
+material_override = SubResource("Mat_PadMetal")
+mesh = SubResource("PadMesh_CradleLip")
+
+[node name="Back" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=823990304]
+transform = Transform3D(1, 0, 0, 0, 0.5299193, -0.8480481, 0, 0.8480481, 0.5299193, 0, 0.1317647, -0.0282359)
+material_override = SubResource("Mat_PadMetal")
+mesh = SubResource("PadMesh_CradleBack")
+
+[node name="Led" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=1296692488]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09804, 0.0135, 0.061)
+material_override = SubResource("StandardMaterial3D_pcvob")
+mesh = SubResource("PadMesh_Led")
+
+[node name="PadBody" type="Node3D" parent="ControlRoom/AdminPad" unique_id=1590197408]
+transform = Transform3D(0.9022264, 0.36540544, 0.22833067, 0, 0.52991927, -0.8480481, -0.43087822, 0.76513135, 0.47810715, -0.38050145, 0.8712245, -0.33575636)
+top_level = true
+
+[node name="Shell" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=37329021]
+material_override = SubResource("Mat_PadShell")
+mesh = SubResource("PadMesh_Shell")
+
+[node name="Glass" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=1805232285]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.0064, 0.004)
+material_override = SubResource("Mat_PadGlass")
+mesh = SubResource("PadMesh_Glass")
+
+[node name="Screen" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=1863730787]
+transform = Transform3D(0.272, 0, 0, 0, 0, 1, 0, -0.17, 0, 0, 0.0068, 0.004)
+material_override = SubResource("Mat_PadScreenOff")
+mesh = SubResource("PadMesh_Screen")
+
+[node name="BadgeLed" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=868969769]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.126, 0.0066, -0.098)
+material_override = SubResource("StandardMaterial3D_qbmyc")
+mesh = SubResource("PadMesh_BadgeLed")
+
+[node name="GripPoint" type="Marker3D" parent="ControlRoom/AdminPad/PadBody" unique_id=692864851]
+transform = Transform3D(1, 0, 0, 0, 0.29237178, -0.9563047, 0, 0.9563047, 0.29237178, -0.101, -0.056, 0.092)
+
+[node name="ClickArea" type="Area3D" parent="ControlRoom/AdminPad/PadBody" unique_id=388065389]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ControlRoom/AdminPad/PadBody/ClickArea" unique_id=1113568747]
+shape = SubResource("PadShape_Click")
+
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
-transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.3873454)
+transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.37415373)
 script = ExtResource("15_powerpanel")
 
 [node name="SwitchModel" parent="ControlRoom/PowerSwitchPanel" unique_id=647797286 instance=ExtResource("23_switch_model")]
-transform = Transform3D(0.24000002, 0, -7.450581e-09, 0, 0.24000002, 0, 7.450581e-09, 0, 0.24000002, 0.013676226, 0, 0.03698951)
+transform = Transform3D(0.24000011, 0, -1.4901161e-08, 0, 0.24000007, 0, 1.4901161e-08, 0, 0.24000011, 0.02287203, 0, 0.06186104)
 
 [node name="Vent" type="Node3D" parent="ControlRoom" unique_id=521371302]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1.75, -2.54)
@@ -1249,7 +1361,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
-transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1304073, 0.018909156)
+transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1115116, 0.018909156)
 current = true
 fov = 64.0
 near = 0.02

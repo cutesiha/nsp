@@ -196,11 +196,16 @@ public partial class TutorialDirector : Node
         // (플레이어가 지시와 다르게 움직여 재배치 기록이 없으면 그 단계는 건너뛴다.)
         if (!string.IsNullOrEmpty(_rabbitOriginRoomName))
             await SayThen("tut_contradiction", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
+        // D 를 눌러 대화 기록을 **실제로 연 뒤에만** "통화를 종료하라"는 다음 줄이 뜬다.
         await SayThen("tut_dialogue_log", () => Day1HistoryOverlay.Instance?.IsDialogueOpen == true);
+        await SayThen("tut_end_call", () => PhoneCallHud.Instance?.IsOpen != true);
 
         // ── STEP 7 : 교육 종료 ────────────────────────────────────────
         // 대화 기록까지 확인한 뒤 통화를 끊어야 교육이 끝난다.
         await Until(() => PhoneCallHud.Instance?.IsOpen != true);
+        // 여기서부터 DAY1 배치 화면이 켜질 때까지 책상 위 기기를 잠근다 — 마무리 안내가 흐르는 동안
+        // 전화기가 눌려 통화가 열린 채로 DAY1 에 들어가는 일이 있었다. 배치 단계(EnterSchedule)가 푼다.
+        ControlRoom3DController.Instance?.SetInputLocked(true);
         GuideSubtitleHud.Instance?.SetTopAligned(false);   // 마무리 대사는 원래 자리로
         GuideCornerFace.SetLifted(false);
         // 마무리 멘트는 제어실 전체가 보이는 자리에서 한다. 모니터를 확대해 둔 채로 끝나면
@@ -334,16 +339,18 @@ public partial class TutorialDirector : Node
 
     // ── 이상 개체 교육 ───────────────────────────────────────────────
     //
-    // 순서가 중요하다. 먼저 나타나게 해 두고, 그 다음에 "찾아보라"고 말한다 —
-    // 설명을 다 듣고 나서야 나타나면 관리자는 찾은 것이 아니라 안내받은 것이 된다.
+    // 순서가 중요하다. 설명(tut_anomaly_intro)을 먼저 듣고, "찾아보라"(tut_anomaly_find)고
+    // 말하는 **그 순간에** 나타난다. 예전에는 설명보다 먼저 불러 두었는데, 관리자가 마침
+    // 코어실 CCTV 를 보고 있으면 설명을 듣는 동안 관측 게이지가 차서 개체가 소리 없이
+    // 소멸해 버렸다 — 찾으라는 말도 듣기 전에 끝나 있었다.
     //
     // 교육 중에는 사고로 번지지 않는다(유예 9999초). 헤매도 벌은 없고, 배우기만 하면 된다.
     private async Task RunAnomalyLesson(FacilitySimulation sim)
     {
         if (sim?.Ghost == null) return;
-        if (!sim.Ghost.ForceAppear(AnomalyRoomId, sim, 9999f)) return;
 
         await Say("tut_anomaly_intro");
+        if (!sim.Ghost.ForceAppear(AnomalyRoomId, sim, 9999f)) return;
         // 찾을 때까지 — 그 방을 CCTV 로 띄우는 순간이 "찾았다" 다.
         await SayThen("tut_anomaly_find", () => sim.SurveillanceTargetRoomId == AnomalyRoomId
                                                 || !sim.Ghost.Active);

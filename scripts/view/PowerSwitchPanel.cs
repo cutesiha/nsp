@@ -478,7 +478,7 @@ public partial class PowerSwitchPanel : Node3D
     private void OnAreaInput(PowerConsumer channel, InputEvent ev)
     {
         if (ev is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
-        BeginToggle(channel);
+        BeginToggle(channel);   // 입력 잠금(단계 전환 연출 · 교육 마무리)은 BeginToggle 이 본다
     }
 
     // 확대 상태에서는 메인 카메라 광선을 패널 평면에 직접 투영한다. 작은 Area3D가
@@ -514,6 +514,8 @@ public partial class PowerSwitchPanel : Node3D
     {
         if (GameState.Instance == null) return;
         if (GameState.Instance.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+        // 확대 상태의 광선 조작(TryInteractRay)도 여기를 지난다 — 잠금은 한 곳에서만 본다.
+        if (ControlRoom3DController.Instance?.IsInputLocked == true) return;
         if (_flipUntil.GetValueOrDefault(channel) > Time.GetTicksMsec() / 1000.0) return; // 연타 방지
 
         bool turningOn = !GameState.Instance.IsConsumerPowered(channel);

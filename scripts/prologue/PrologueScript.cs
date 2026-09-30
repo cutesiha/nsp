@@ -46,6 +46,9 @@ public static class PrologueScript
         public float Shake;
         // 슬라이드가 뜨는 순간 좌우로 짧게 흔들리는 시간(초). 0 이면 흔들지 않는다.
         public float Jolt;
+        // 슬라이드가 뜨는 순간의 점프스케어 세기(0~1). 화면 전체가 붉게 번쩍이며 제어실 카메라와
+        // 컷 화면이 아주 빠르게 떨린다 — 사이렌 · 효과음과 같은 프레임에 터진다.
+        public float Scare;
         // 무전 수신 상태 HUD(0 이면 안 띄운다). 낮을수록 파형이 거칠고 노이즈가 늘어난다.
         public int Signal;
         // 대사가 다 찍히는 순간 통신이 치직 하고 끊긴다.
@@ -313,6 +316,7 @@ public static class PrologueScript
                 inheritedShake = s.Shake;
                 return true;
             case "jolt": s.Jolt = ParseFloat(value, 0f); return true;
+            case "scare": s.Scare = Mathf.Clamp(ParseFloat(value, 0f), 0f, 1f); return true;
             case "signal": s.Signal = Mathf.Clamp(Mathf.RoundToInt(ParseFloat(value, 0f)), 0, 100); return true;
             case "cutoff": s.Cutoff = ParseBool(value); return true;
             case "ken": s.KenBurns = !value.Equals("off", StringComparison.OrdinalIgnoreCase); return true;

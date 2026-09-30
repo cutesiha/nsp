@@ -210,6 +210,8 @@ imagenote: 직전 컷 그대로 — 화면이 찢어지며 뒤틀린다
 ken: off
 sfx: noise
 sfxloop: siren
+# scare: 사이렌이 터지는 이 프레임에 화면 전체가 붉게 번쩍이고 제어실 카메라 · 컷 화면이 거칠게 떨린다.
+scare: 1.0
 shake: 3.0
 hold: 2.6
 fx: warp
@@ -679,6 +681,11 @@ line: L키로 /5시설 기록/0을 열어 방금 들은 말과 맞대어 보십�
 @guide tut_dialogue_log
 portrait: normal
 line: D키를 눌러 이전 진술을 확인할 수 있습니다.
+
+# 대화 기록(D)을 실제로 연 것을 확인한 뒤에야 다음 줄이 뜬다 — 위 줄과 한 블록이면 D 를 누르기도
+# 전에 "통화를 종료하라"까지 읽혀 버린다(TutorialDirector 가 두 블록을 차례로 기다린다).
+@guide tut_end_call
+portrait: normal
 line: 이제 통화를 종료해보십시오.
 
 # STEP 7 — 종료

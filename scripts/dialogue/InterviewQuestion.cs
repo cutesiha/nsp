@@ -39,10 +39,31 @@ public enum InterviewIntent
     BasicSuspicious,        // 수상한 행동을 한 사람을 봤는가
 
     // ── 중립 꼬리질문 ────────────────────────────────────────────────
+    // (FollowExactTime 은 더 이상 만들지 않는다 — 시각은 기록에 이미 있다. 열거값만 호환용으로 남긴다.)
     FollowExactTime,        // 정확히 몇 시였는가
 
     // ── 플레이어가 자료 두 장으로 직접 제시하는 모순 ─────────────────────
     Confront,
+
+    // ── 통화 기록 ────────────────────────────────────────────────────
+    AskCallReason,          // 그 시각 왜 전화했는가(잡담 · 신고 · 못 받은 전화 · 관리자가 건 전화)
+    AskCallAfter,           // 통화를 끝낸 뒤 무엇을 했는가
+    ConfrontNeglect,        // 놀러 가고 싶다는 전화가 잦다 — 근무 태만 아닌가
+
+    // ── 이상 개체 조우 ────────────────────────────────────────────────
+    AskGhostWellbeing,      // 괜찮은가 · 지금 상태는
+    AskGhostAppearance,     // 어떻게 생겼는가
+    AskGhostWhatHappened,   // 나타났을 때 무엇을 했는가
+    AskGhostOthers,         // 같이 있던 사람은 어떻게 했는가
+
+    // ── 알리바이 · 따지기(사고 기록) ──────────────────────────────────
+    AskAlibiProof,          // 그 시각 위치를 누가 증명해 주는가
+    AskProveInnocence,      // 이 사고와 무관하다는 근거를 대라
+    AskSuspectOpinion,      // 누가 그랬다고 생각하는가
+    PressPresence,          // 기록상 그 방에 있었다 — 설명하라(관리자가 실제로 아는 재석만)
+
+    // ── 이동 기록 따지기 ──────────────────────────────────────────────
+    ConfrontUnorderedMove,  // 지시 없이 이동했다 — 근무지 이탈 아닌가
 }
 
 // 질문 한 건이 들고 다니는 맥락 전부.
@@ -76,8 +97,18 @@ public sealed class InterviewQuestion
     public bool PlayerOrderedMove;
     public string MoodText = "";
 
+    // 통화 기록 질문일 때 — 통화 종류 · 누가 걸었나 · 잡담 전화가 말한 작업실 · 같은 종류의 통화 횟수.
+    public string CallEvent = "";
+    public CallRecordKind CallKind;
+    public string CallRoomId = "";
+    public int RepeatIndex;
+
     // 화면에 뜨는 질문 문장.
     public string Text = "";
+
+    // 묻는 것이 아니라 따지는 질문 — 화면이 붉게 칠해 구분한다(모순 제시 버튼과 같은 색).
+    public bool IsConfront => Intent is InterviewIntent.ConfrontNeglect or InterviewIntent.PressPresence
+        or InterviewIntent.ConfrontUnorderedMove or InterviewIntent.AskProveInnocence;
 
     // 같은 자료·같은 의도를 다시 묻지 않게 하는 키.
     public string Key => $"{Intent}|{EvidenceId}|{SecondEvidenceId}";

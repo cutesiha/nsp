@@ -110,12 +110,19 @@ public static class EmployeeMouthAnimator
         Speaker = employeeId ?? "";
         Expression = EmployeeExpression.For(Speaker, line);
         Talking = true;
-        _step = 0;
+        // 말이 시작되는 바로 그 프레임부터 입이 벌어져 있어야 한다. 예전에는 닫은 입(패턴 0번)에서
+        // 출발해 첫 글자의 여는 따옴표 정지(PunctuationHold)까지 겹쳐, 소리가 난 뒤 0.3초쯤 지나서야
+        // 입이 움직였다 — 휴게시간 심문에서 "말과 입이 어긋난다"는 지적이 그것이다.
+        _step = OpenStep;
         _frameClock = 0;
         _hold = 0;
         _lastChar = '\0';
-        Frame = GuideMouthFrame.Closed;
+        Frame = GuideMouthAnimator.Pattern[OpenStep];
     }
+
+    // 패턴에서 처음으로 입이 크게 열리는 자리.
+    private static readonly int OpenStep =
+        System.Array.IndexOf(GuideMouthAnimator.Pattern, GuideMouthFrame.Open) is var i && i >= 0 ? i : 0;
 
     public static void StopTalking()
     {
@@ -134,6 +141,8 @@ public static class EmployeeMouthAnimator
 
     public static void NoticeCharacter(char c)
     {
+        // 대사를 감싸는 여는 따옴표 — 말이 아니므로 입을 멈추지 않는다.
+        if (c == '"' && _lastChar == '\0') { _lastChar = c; return; }
         if (c is '.' or '…' or '·')
         {
             bool run = _lastChar is '.' or '…' or '·';

@@ -245,6 +245,7 @@ public partial class CutscenePlayer : Control
         _impactFallStarted = false;
         _afterFired = false;
         _joltUntil = s.Jolt > 0f ? s.Jolt : 0.0;
+        _scare = s.Scare;
         if (_fx == PrologueScript.SlideFx.Cut) _cutStyle = PickCutStyle();
 
         // 배경 이미지: 최종 파일이 있으면 그걸, 없으면 같은 자리에 임시 패널.
@@ -332,7 +333,23 @@ public partial class CutscenePlayer : Control
             Sfx.Instance?.Play("impact_blunt", -1f);
             ControlRoom3DController.Instance?.ShakeCamera(7.5f, 0.5f);
         }
+
+        // 점프스케어(scare:) — 사이렌 · 효과음이 터지는 바로 이 프레임에 화면 전체가 붉게 번쩍이고
+        // 제어실 카메라와 컷 화면이 아주 빠르게 떨린다. 컷 안의 떨림은 ApplyFx 가 이어서 그린다.
+        if (_scare > 0f)
+        {
+            Sfx.Instance?.PlayJumpscareTone(-3f);
+            ControlRoom3DController.Instance?.ShakeCamera(ScareCameraDeg * _scare, ScareSeconds);
+            NSP.Ui.AmbientOverlay.Instance?.FlashColor(new Color(0.95f, 0.08f, 0.06f), 0.55f * _scare, ScareSeconds * 0.8f);
+            NSP.Ui.AmbientOverlay.Instance?.PulseNoise(0.6f * _scare);
+        }
     }
+
+    // 점프스케어 — 컷 화면이 떨리는 시간(초) · 제어실 카메라가 흔들리는 각(도) · 컷 화면 흔들림(px).
+    private const float ScareSeconds = 0.55f;
+    private const float ScareCameraDeg = 12f;
+    private const float ScareShakePx = 26f;
+    private float _scare;
 
     // 컷마다 하나만 — 같은 연출이 두 번 연속 나오지 않게 한 번 다시 뽑는다.
     private CutStyle PickCutStyle()
@@ -568,6 +585,14 @@ public partial class CutscenePlayer : Control
             offset.X += Mathf.Sin(t * 95f) * 11f * decay;
         }
 
+        // 점프스케어 — 첫 반 초 동안 화면이 사방으로 거칠게 튄다(부드러운 흔들림이 아니라 덜컹거림).
+        if (_scare > 0f && t < ScareSeconds)
+        {
+            float k = _scare * (1f - t / ScareSeconds);
+            offset += new Vector2(Mathf.Sin(t * 143f) + Mathf.Sin(t * 211f) * 0.5f,
+                                  Mathf.Cos(t * 167f) + Mathf.Cos(t * 97f) * 0.5f) * ScareShakePx * k;
+        }
+
         // 무전 신호가 약할수록 화면 노이즈가 늘어난다.
         float radioNoise = _radioHud.Visible ? (1f - _radioHud.Signal / 100f) * 0.35f : 0f;
 
@@ -689,6 +714,14 @@ public partial class CutscenePlayer : Control
         }
 
         _glitch.Amount = Mathf.Max(_glitch.Amount, radioNoise);
+        // 점프스케어의 붉은 섬광 — 컷 안에서도 fx 가 정한 색 위에 얹어 같이 번쩍인다.
+        if (_scare > 0f && t < ScareSeconds)
+        {
+            float k = _scare * (1f - t / ScareSeconds);
+            var red = new Color(0.95f, 0.10f, 0.06f, Mathf.Max(_tint.Color.A, 0.6f * k));
+            _tint.Color = red;
+            _glitch.Amount = Mathf.Max(_glitch.Amount, 0.7f * k);
+        }
         _glitch.QueueRedraw();
         _frame.Position = offset;
     }

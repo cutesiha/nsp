@@ -150,18 +150,29 @@ public partial class StaffTimelineView : Control
         QueueRedraw();
     }
 
-    // 직원 수에 맞는 최소 높이.
+    // 직원 수에 맞는 최소 높이(기본 글자 크기 기준).
     public static float PreferredHeight(int employeeCount, int incidentCount) =>
-        AxisH + HeadH + Mathf.Max(1, employeeCount) * 16f;
+        BaseAxisH + BaseHeadH + Mathf.Max(1, employeeCount) * 16f;
 
     // ── 치수 ───────────────────────────────────────────────────────────
-    private const float AxisH = 13f;        // 맨 위 시각 눈금
+    //
+    // 글자 크기(px). 기본 12 는 800×600 모니터 캔버스(휴게 콘솔)의 값이다. 전체 화면 위에 뜨는
+    // 시설 로그 창은 아래 목록 줄과 같은 크기(ViewFont.FS(18))를 넣는다 — 눈금 · 코드네임 · 방 이름 ·
+    // 사고 라벨이 전부 이 값을 쓰고, 눈금 칸 · 라벨 칸 · 이름 칸 높이도 같은 비율로 커진다.
+    public int FontPx = 12;
+    private float K => FontPx / 12f;
+
+    private const float BaseAxisH = 13f;    // 맨 위 시각 눈금
     // 사고 라벨 두 줄. 사고가 여럿이면 번갈아 위·아래로 놓아 글자가 겹치지 않게 한다.
     // (예전에는 번호만 쓰고 띠 아래에 작은 범례를 달았는데, 그 글자가 너무 작아 읽히지 않았다.)
-    private const float HeadH = 30f;
-    private const float NameW = 46f;        // 왼쪽 코드네임 칸
+    private const float BaseHeadH = 30f;
+    private const float BaseNameW = 46f;    // 왼쪽 코드네임 칸
     private const float PadR = 6f;
     private const float RowGap = 2f;
+
+    private float AxisH => BaseAxisH * K;
+    private float HeadH => BaseHeadH * K;
+    private float NameW => BaseNameW * K;
 
     private float TrackX => NameW;
     private float TrackW => Mathf.Max(10f, Size.X - NameW - PadR);
@@ -195,9 +206,10 @@ public partial class StaffTimelineView : Control
             DrawLine(new Vector2(x, AxisH - 2f), new Vector2(x, bottom), faint, 1f);
             if (h % 3 != 0) continue;
             string text = $"{(22 + h) % 24:00}:00";
-            var w = _font.GetStringSize(text, HorizontalAlignment.Left, -1f, 9);
+            int fs = Mathf.RoundToInt(9f * K);
+            var w = _font.GetStringSize(text, HorizontalAlignment.Left, -1f, fs);
             float tx = h == 0 ? x : (h == 6 ? x - w.X : x - w.X * 0.5f);
-            DrawString(_font, new Vector2(tx, AxisH - 3f), text, HorizontalAlignment.Left, -1f, 9,
+            DrawString(_font, new Vector2(tx, AxisH - 3f * K), text, HorizontalAlignment.Left, -1f, fs,
                 new Color(0.62f, 0.66f, 0.70f, 0.85f));
         }
     }
@@ -213,7 +225,7 @@ public partial class StaffTimelineView : Control
             // 코드네임. 자리가 좁으면 두 글자까지만.
             var nameCol = new Color(0.70f, 0.74f, 0.78f);
             string name = Codename(id);
-            int fs = (int)Mathf.Clamp(h - 3f, 8f, 11f);
+            int fs = (int)Mathf.Clamp(h - 3f, 8f, Mathf.Max(8f, 11f * K));
             if (_font.GetStringSize(name, HorizontalAlignment.Left, -1f, fs).X > NameW - 4f)
                 name = name.Length > 2 ? name[..2] : name;
             DrawString(_font, new Vector2(2f, y + h * 0.5f + fs * 0.36f), name,
@@ -236,11 +248,12 @@ public partial class StaffTimelineView : Control
                     DrawLine(new Vector2(x0, y), new Vector2(x0, y + h), new Color(0f, 0f, 0f, 0.45f), 1f);
 
                 // 칸이 넉넉하면 방 이름을 띠 안에 얹는다.
-                if (x1 - x0 < 46f || h < 11f) continue;
+                int rfs = Mathf.RoundToInt(9f * K);
+                if (x1 - x0 < 46f * K || h < 11f * K) continue;
                 var ink = col.Luminance > 0.5f ? new Color(0.08f, 0.09f, 0.10f, 0.9f)
                                                : new Color(1f, 1f, 1f, 0.88f);
-                DrawString(_font, new Vector2(x0 + 4f, y + h * 0.5f + 3.4f), RoomName(seg.RoomId),
-                    HorizontalAlignment.Left, x1 - x0 - 8f, 9, ink);
+                DrawString(_font, new Vector2(x0 + 4f, y + h * 0.5f + rfs * 0.38f), RoomName(seg.RoomId),
+                    HorizontalAlignment.Left, x1 - x0 - 8f, rfs, ink);
             }
         }
     }
@@ -267,12 +280,13 @@ public partial class StaffTimelineView : Control
 
             // 라벨은 언제나 전문으로 쓴다. 여럿이면 위·아래 두 줄로 번갈아 놓아 겹치지 않게 한다.
             string label = Glyph(n) + " " + IncidentLabel(row);
-            var size = _font.GetStringSize(label, HorizontalAlignment.Left, -1f, 12);
-            float lx = Mathf.Clamp(x - size.X * 0.5f, 10f, Mathf.Max(10f, Size.X - size.X - 1f));
-            float ly = AxisH + (many && n % 2 == 1 ? 26f : 12f);
-            DrawString(_font, new Vector2(lx, ly), label, HorizontalAlignment.Left, -1f, 12, col);
+            int lfs = FontPx;
+            var size = _font.GetStringSize(label, HorizontalAlignment.Left, -1f, lfs);
+            float lx = Mathf.Clamp(x - size.X * 0.5f, 10f * K, Mathf.Max(10f * K, Size.X - size.X - 1f));
+            float ly = AxisH + (many && n % 2 == 1 ? 26f : 12f) * K;
+            DrawString(_font, new Vector2(lx, ly), label, HorizontalAlignment.Left, -1f, lfs, col);
             // 방 색 네모 — 어느 방에서 난 사고인지 띠 색과 바로 맞춰 보라는 표시다.
-            DrawRect(new Rect2(lx - 10f, ly - 8f, 8f, 8f), RoomColor(IncidentRoom(row)));
+            DrawRect(new Rect2(lx - 10f * K, ly - 8f * K, 8f * K, 8f * K), RoomColor(IncidentRoom(row)));
             // 라벨과 선을 잇는 짧은 목.
             DrawLine(new Vector2(x, ly + 2f), new Vector2(x, top - 8f), col with { A = 0.45f }, 1f);
         }
@@ -404,6 +418,8 @@ public partial class StaffTimelineView : Control
         EvidenceKind.OwnStatement => new Color(0.92f, 0.92f, 0.94f),
         EvidenceKind.Mood => new Color(0.66f, 0.62f, 0.78f),
         EvidenceKind.Overheard => new Color(0.55f, 0.90f, 0.62f),
+        EvidenceKind.Call => new Color(0.98f, 0.68f, 0.30f),
+        EvidenceKind.Anomaly => new Color(0.78f, 0.45f, 0.95f),
         _ => new Color(0.80f, 0.80f, 0.84f),
     };
 

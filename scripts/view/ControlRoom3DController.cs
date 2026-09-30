@@ -501,6 +501,9 @@ public partial class ControlRoom3DController : Node3D
 
         if (_modal != null)
         {
+            // 관리자 패드를 든 동안에도 오른쪽 아래의 업무 · 로그 · 대화 기록 버튼은 눌려야 한다 —
+            // 게임 밖 UI 다. 그 위의 클릭은 패드 화면으로 넘기지 않고 버튼(GUI)이 받게 둔다.
+            if (@event is InputEventMouseButton over && Day1HistoryOverlay.Instance?.IsOverIcons(over.Position) == true) return;
             switch (@event)
             {
                 case InputEventMouseButton mb: ForwardModal(mb); break;

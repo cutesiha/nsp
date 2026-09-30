@@ -210,6 +210,8 @@ public partial class Phone3D : Node3D
 
         // 근무 중(Live) 또는 휴게시간(Rest)에만 조작 가능 — 시작 화면 / 근무 배치 단계에서는 무시한다.
         if (_state == PhoneState.Idle && GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+        // 제어실 입력이 잠긴 동안(단계 전환 연출 · 교육 마무리)에는 수화기도 집지 않는다.
+        if (ControlRoom3DController.Instance?.IsInputLocked == true) return;
         // 관리자 패드를 든 동안에는 수화기를 집지 않는다 — 패드를 내려놓고 받는다.
         if (AdminPad3D.Instance?.IsOpen == true) return;
 

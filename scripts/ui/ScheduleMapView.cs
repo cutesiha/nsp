@@ -63,6 +63,8 @@ public partial class ScheduleMapView : Control
     // 관계 표시 — 불편(주황) · 밀접(하트).
     private static readonly Color Warn = new(1f, 0.56f, 0.18f);
     private static readonly Color Heart = new(1f, 0.45f, 0.62f);
+    // 마우스가 올라간 작업실 · 직원 카드의 테두리 — 시작 화면 신원 카드와 같은 하늘색.
+    private static readonly Color Cyan = NSP.View.GuideTextMarkup.ChoiceCyan;
     // 열린 방은 화면에서 바로 구분돼야 한다 — 둘의 차이가 거의 없어서 어디에 놓을 수
     // 있는지 한눈에 안 들어왔다. 열린 방은 하늘색을 띄우고, 잠긴 방은 바닥까지 낮춘다.
     private static readonly Color CellFill = new(0.10f, 0.24f, 0.27f);
@@ -77,6 +79,8 @@ public partial class ScheduleMapView : Control
     private readonly Dictionary<string, Rect2> _cells = new();
     private readonly List<(string Emp, Rect2 Rect)> _chipRects = new();
     private readonly List<(string Emp, Rect2 Rect)> _rosterRects = new();
+    // 마우스가 올라간 직원 카드(대기 인원 · 방 안의 칩). 테두리 색만 바꾼다.
+    private string _hoverEmp = "";
 
     // 끌어다 놓기 — SubViewport 안에서는 Godot 기본 DnD 가 시작되지 않아 직접 추적한다
     // (종이 배치표 · 근무 중 미니맵과 같은 방식).
@@ -114,6 +118,7 @@ public partial class ScheduleMapView : Control
         FocusEmployeeId = "";
         FocusRoomId = "";
         HoverRoomId = "";
+        _hoverEmp = "";
         EndDrag();
         NotifyChanged();
     }
@@ -392,8 +397,10 @@ public partial class ScheduleMapView : Control
         bool locked = !sim.IsRoomActive(roomId);
         bool restricted = def.IsRestricted;
 
-        string hoverTarget = HoverRoomId;
-        bool isHover = roomId == hoverTarget && (!string.IsNullOrEmpty(SelectedEmployeeId) || _dragging);
+        // 직원을 쥔 채 올라가 있으면 "여기 놓을 수 있다/없다"(민트/붉은색), 그냥 올라가 있으면
+        // 시작 화면 신원 카드와 같은 하늘색 — 마우스가 어디 있는지가 항상 보여야 한다.
+        bool carrying = !string.IsNullOrEmpty(SelectedEmployeeId) || _dragging;
+        bool isHover = roomId == HoverRoomId;
         bool focused = roomId == FocusRoomId;
 
         DrawRect(cell, locked || restricted ? CellLocked : CellFill);
@@ -404,14 +411,14 @@ public partial class ScheduleMapView : Control
         // 관계 경고가 걸린 방은 테두리 색으로도 알린다(거부 = 붉게 맥동, 불편 = 주황).
         PairBand? band = assignable ? RoomBand(sim, roomId) : null;
         float pulse = 0.55f + 0.45f * Mathf.Sin(_t * 6f);
-        Color border = isHover ? (assignable ? Mint : Alert)
+        Color border = isHover ? (carrying ? (assignable ? Mint : Alert) : Cyan)
             : band == PairBand.Refuse ? Alert with { A = 0.5f + 0.5f * pulse }
             : band == PairBand.Uneasy ? Warn
             : focused ? Mint
             : assignable ? Mint with { A = 0.35f } : Dim with { A = 0.35f };
         bool thick = isHover || focused || band is PairBand.Refuse or PairBand.Uneasy;
         DrawRect(cell, border, false, thick ? 2.2f : 1.1f);
-        if (isHover && assignable) DrawRect(cell, Mint with { A = 0.07f });
+        if (isHover && assignable) DrawRect(cell, (carrying ? Mint : Cyan) with { A = 0.07f });
 
         var nameCol = assignable ? Ink : Dim;
         DrawString(_font, cell.Position + new Vector2(8f, 17f), def.DisplayName, HorizontalAlignment.Left,
@@ -642,10 +649,11 @@ public partial class ScheduleMapView : Control
     {
         bool dragged = _dragging && _dragEmp == emp;
         bool selected = emp == SelectedEmployeeId || emp == FocusEmployeeId;
+        bool hot = emp == _hoverEmp && !dragged;
         Color tint = def?.IconColor ?? Mint;
         DrawRect(chip, new Color(0.03f, 0.07f, 0.07f, dragged ? 0.4f : 0.95f));
         DrawRect(new Rect2(chip.Position, new Vector2(3f, chip.Size.Y)), tint);
-        DrawRect(chip, (selected ? Ink : tint with { A = 0.6f }), false, selected ? 1.6f : 1f);
+        DrawRect(chip, hot ? Cyan : (selected ? Ink : tint with { A = 0.6f }), false, selected || hot ? 1.6f : 1f);
         DrawString(_font, chip.Position + new Vector2(7f, chip.Size.Y * 0.5f + fontSize * 0.42f), name,
             HorizontalAlignment.Left, chip.Size.X - 9f, Fs(fontSize), dragged ? Dim : Ink);
     }
@@ -670,15 +678,19 @@ public partial class ScheduleMapView : Control
             bool assigned = !string.IsNullOrEmpty(st.AssignedRoomId);
             bool selected = emp == SelectedEmployeeId || emp == FocusEmployeeId;
             bool dragged = _dragging && _dragEmp == emp;
+            bool hot = emp == _hoverEmp && !dragged && !st.Isolated;
             // 격리된 직원 — 오늘 근무에 넣을 수 없다. 칸 전체를 붉게 칠해 구분한다.
             DrawRect(card, st.Isolated
                 ? new Color(0.20f, 0.05f, 0.06f, 0.95f)
+                : hot ? new Color(0.07f, 0.15f, 0.16f, 0.95f)
                 : new Color(0.05f, 0.11f, 0.11f, dragged ? 0.4f : 0.95f));
             DrawRect(new Rect2(card.Position, new Vector2(3f, card.Size.Y)),
                 st.Isolated ? Alert : def.IconColor);
+            // 마우스를 올리면 테두리가 하늘색으로 — 시작 화면 신원 카드와 같은 규칙.
             DrawRect(card, st.Isolated ? Alert with { A = 0.85f }
+                    : hot ? Cyan
                     : selected ? Ink : Mint with { A = assigned ? 0.18f : 0.45f },
-                false, st.Isolated || selected ? 1.8f : 1f);
+                false, st.Isolated || selected || hot ? 1.8f : 1f);
 
             // 얼굴.
             float ps = Mathf.Min(h - 8f, 38f);
@@ -834,11 +846,12 @@ public partial class ScheduleMapView : Control
         // 이 뷰는 스케일 프레임(AddScaledView) 안에 있어 _Input 은 확대 좌표로 들어온다 — 로컬로 맞춘다.
         if (string.IsNullOrEmpty(_dragEmp))
         {
-            // 끌지 않을 때의 이동 = 호버(방 강조 · 오른쪽 모니터 비교 · 관계 말풍선).
+            // 끌지 않을 때의 이동 = 호버(방 강조 · 오른쪽 모니터 비교 · 관계 말풍선 · 직원 카드 강조).
             if (MakeInputLocal(e) is InputEventMouseMotion hover)
             {
                 _mouse = hover.Position;
                 SetHover(RoomAt(hover.Position));
+                SetHoverEmp(EmployeeAt(hover.Position));
             }
             return;
         }
@@ -945,7 +958,18 @@ public partial class ScheduleMapView : Control
         room ??= "";
         if (HoverRoomId == room) return;
         HoverRoomId = room;
+        // 작업실 위로 들어온 순간 한 번 — 시작 화면 신원 카드와 같은 소리.
+        if (room.Length > 0) Sfx.Instance?.Play("tick", -20f);
         NotifyChanged();
+    }
+
+    private void SetHoverEmp(string emp)
+    {
+        emp ??= "";
+        if (_hoverEmp == emp) return;
+        _hoverEmp = emp;
+        if (emp.Length > 0) Sfx.Instance?.Play("tick", -20f);
+        QueueRedraw();
     }
 
     private void NotifyChanged() => Changed?.Invoke();

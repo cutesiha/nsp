@@ -198,6 +198,14 @@ public partial class AdminPadShot : Node
         Vector3 n = screen.GlobalTransform.Basis.Z.Normalized();   // 화면이 바라보는 방향
         Transform3D rig = skel.GlobalTransform;
 
+        // 화면이 눈 반대쪽을 보고 있으면(법선 뒤집힘) 아래 판정이 통째로 뒤집힌다 —
+        // 씬에 author 한 트랜스폼을 잘못 적으면 실제로 그렇게 된다(.tscn 의 Transform3D 는 행 순서다).
+        var cam0 = GetViewport().GetCamera3D();
+        float facing = cam0 != null ? n.Dot((cam0.GlobalPosition - center).Normalized()) : 1f;
+        if (facing < 0f)
+            GD.Print($"   [진단] 화면이 눈 반대쪽을 본다(법선·시선={facing:0.000}) — 화면 트랜스폼이 뒤집혔다."
+                     + $" 법선={n.Snapped(Vector3.One * 0.001f)} · 화면스케일={screen.GlobalTransform.Basis.Scale.Snapped(Vector3.One * 0.001f)}");
+
         var bad = new List<(string Name, float D)>();
         float worstName = float.MinValue;
         string worst = "—";

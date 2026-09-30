@@ -22,6 +22,18 @@ public enum ReplyTopic
     MoodRelated,
     ExactTime,
     Confront,
+    // 통화 기록 · 이상 개체 조우 · 알리바이/따지기 (질문 확장 — InterviewQuestionFactory 참고)
+    CallReason,
+    CallAfter,
+    Neglect,
+    GhostState,
+    GhostLook,
+    GhostAct,
+    GhostOthers,
+    AlibiProof,
+    Innocence,
+    Suspect,
+    PressPresence,
     Unknown,
 }
 

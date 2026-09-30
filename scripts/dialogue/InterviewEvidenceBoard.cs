@@ -33,11 +33,13 @@ public static class InterviewEvidenceBoard
 
         AddMood(list, targetEmployeeId);
         AddLogRows(list, rows, targetEmployeeId);
+        AddAnomalies(list, rows, targetEmployeeId);
         AddCctv(list, targetEmployeeId);
         AddTestimonies(list, targetEmployeeId);
         AddOwnStatements(list, targetEmployeeId);
         AddBehaviorClaims(list, targetEmployeeId);
         AddOverheard(list, targetEmployeeId);
+        AddCalls(list, targetEmployeeId);
 
         foreach (var e in list) e.Day = day;
         return Sort(list);
@@ -384,6 +386,111 @@ public static class InterviewEvidenceBoard
         {
             var ev = FromOverheard(h, target);
             if (ev != null) list.Add(ev);
+        }
+    }
+
+    // --- 관리자와의 통화 ------------------------------------------------
+    //
+    // 직원이 먼저 건 전화(사고 신고 · 잡담) · 못 받은 전화 · 관리자가 건 전화. 통화는 관리자가 직접 한
+    // 일이니 그대로 자료다. 무엇을 말했는지는 통화 종류(DialogueEvent)로만 적는다 — 화면에 떴던 문장을
+    // 다시 읽어 뜻을 추측하지 않는다(CallMemoryLog 의 규칙). 통화 안에서 내린 지시(가라/대기)는
+    // 그 통화의 일부라 따로 카드가 되지 않는다.
+    private static void AddCalls(List<InterviewEvidence> list, string target)
+    {
+        int day = DialogueContextBuilder.Day();
+        var counts = new Dictionary<string, int>();
+        foreach (var r in CallMemoryLog.For(target, day).OrderBy(r => r.Time))
+        {
+            if (r.Kind is CallRecordKind.OrderedGo or CallRecordKind.OrderedStay) continue;
+            string ev = r.DialogueEvent ?? "";
+            int n = counts.GetValueOrDefault(ev) + 1;
+            counts[ev] = n;
+            // 전화한 직원은 그 시각 자기 자리(시설 로그의 배치 · 이동 줄로 아는 방)에 있었다 — 재석 근거다.
+            string where = DialogueContextBuilder.RoomAt(target, day, r.Time);
+            list.Add(new InterviewEvidence
+            {
+                Id = $"call:{target}:{r.Time:0.0}:{r.Kind}",
+                Kind = EvidenceKind.Call,
+                Header = "통화 기록",
+                TimeText = DialogueClock.Text(r.Time),
+                Body = CallBody(r, n),
+                SubjectEmployeeId = target,
+                AnchorTime = r.Time,
+                HasTime = true,
+                Position = string.IsNullOrEmpty(where) ? PositionClaim.None : PositionClaim.AtRoom,
+                SubjectRoomId = where,
+                CallEvent = ev,
+                CallKind = r.Kind,
+                CallRoomId = IsIdleEvent(ev) ? r.RoomId ?? "" : "",
+                RepeatIndex = n,
+            });
+        }
+    }
+
+    // 조용한 시간의 잡담 전화인가(놀러 가도 되나 · 옆 방 소리가 이상하다).
+    public static bool IsIdleEvent(string dialogueEvent) =>
+        dialogueEvent is DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry;
+
+    // 오늘 이 직원이 "놀러 가도 되냐"고 건 전화 수. 둘 이상이면 근무 태만을 따질 수 있다.
+    public static int IdleVisitCallCount(string employeeId) =>
+        CallMemoryLog.For(employeeId, DialogueContextBuilder.Day())
+            .Count(r => r.Kind == CallRecordKind.Reported && r.DialogueEvent == DialogueRepository.EventIdleVisit);
+
+    private static string CallBody(CallRecord r, int nth)
+    {
+        string room = RoomName(r.RoomId);
+        string what = r.Kind switch
+        {
+            CallRecordKind.Missed => "전화를 걸었지만 관리자가 받지 않았다",
+            CallRecordKind.ManagerCalled => "관리자가 걸었다",
+            _ => r.DialogueEvent switch
+            {
+                DialogueRepository.EventIdleVisit => $"{room}에 놀러 가도 되냐고 물었다",
+                DialogueRepository.EventIdleWorry => $"{room}에서 이상한 소리가 난다고 알렸다",
+                DialogueRepository.EventAccidentNearby => $"{room} 쪽 사고를 알렸다",
+                DialogueRepository.EventScreamNextRoom => $"{room} 쪽 비명을 알렸다",
+                DialogueRepository.EventBlackout => "정전을 알렸다",
+                DialogueRepository.EventWitnessSuspicious => "수상한 행동을 봤다고 알렸다",
+                DialogueRepository.EventFaintTransportRequest => $"{room}의 동료가 쓰러졌다고 알렸다",
+                DialogueRepository.EventTutorialRepairDone => "수리를 마쳤다고 알렸다",
+                _ => "관리자에게 전화했다",
+            },
+        };
+        string count = nth >= 2 && r.DialogueEvent == DialogueRepository.EventIdleVisit ? $"  (오늘 {nth}번째)" : "";
+        return what + count;
+    }
+
+    // --- 이상 개체 조우 ---------------------------------------------------
+    //
+    // 시설 로그 화면에 뜬 이상 개체 줄(관측 소멸 · 접촉 사고)마다, 그 순간 그 방에 있던 직원의 자료가 된다.
+    // 누가 있었는지는 같은 화면의 배치 · 이동 줄로 아는 사실이다(띠 시간표가 그리는 것과 같다).
+    private static void AddAnomalies(List<InterviewEvidence> list, List<DisplayLogEntry> rows, string target)
+    {
+        if (rows == null) return;
+        int day = DialogueContextBuilder.Day();
+        foreach (var r in rows)
+        {
+            if (r.SourceEventType is not (LogEventType.AnomalyDispelled or LogEventType.AnomalyIncident)) continue;
+            string room = IncidentRoomOf(r);
+            if (string.IsNullOrEmpty(room) || DialogueContextBuilder.RoomAt(target, day, r.Timestamp) != room) continue;
+            bool struck = r.SourceEventType == LogEventType.AnomalyIncident;
+            var ev = new InterviewEvidence
+            {
+                Id = $"ghost:{target}:{room}:{r.Timestamp:0.0}",
+                Kind = EvidenceKind.Anomaly,
+                Header = "이상 개체",
+                TimeText = DialogueClock.Text(r.Timestamp),
+                Body = struck ? $"{RoomName(room)} · 이상 개체 접촉 사고 당시 그 방에 있었다"
+                              : $"{RoomName(room)} · 이상 개체가 나타났을 때 그 방에 있었다",
+                SubjectEmployeeId = target,
+                AnchorTime = r.Timestamp,
+                HasTime = true,
+                Position = PositionClaim.AtRoom,
+                SubjectRoomId = room,
+                IncidentType = r.SourceEventType,
+            };
+            ev.RelatedEmployeeIds.AddRange(DialogueContextBuilder.OccupantsAt(room, day, r.Timestamp, target));
+            list.Add(ev);
         }
     }
 

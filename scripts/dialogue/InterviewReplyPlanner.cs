@@ -312,6 +312,194 @@ public static class InterviewReplyPlanner
                 f.Variant = !truthful || plan.Deception == DeceptionMode.Vague ? "vague" : "exact";
                 break;
 
+            // ── 이동 따지기 — 같은 사실을 묻되 어조가 다르다. 답은 이동 이유와 같은 규칙으로 정하고,
+            //    앞에 발끈하는 한마디(react.accused)를 붙인다.
+            case InterviewIntent.ConfrontUnorderedMove:
+                f.Topic = ReplyTopic.MoveReason;
+                FillMoveReason(f, q, id, day, truthful);
+                f.OpenerSlot = "react.accused";
+                memTopic = RecallTopic.Movement;
+                memRoom = truthful ? q.ToRoomId : plan.RoomId;
+                covered.Add(MemoryKind.Relocated);
+                covered.Add(MemoryKind.Dispatched);
+                if (f.Variant is "task" or "repair") covered.Add(MemoryKind.Worked);
+                RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t);
+                break;
+
+            // ── 통화 기록 ──
+            case InterviewIntent.AskCallReason:
+                f.Topic = ReplyTopic.CallReason;
+                f.Variant = q.CallKind switch
+                {
+                    CallRecordKind.Missed => "missed",
+                    CallRecordKind.ManagerCalled => "manager",
+                    _ => q.CallEvent switch
+                    {
+                        DialogueRepository.EventIdleVisit => "idle",
+                        DialogueRepository.EventIdleWorry => "worry",
+                        _ => "report",
+                    },
+                };
+                f.Set("room", RoomName(string.IsNullOrEmpty(q.CallRoomId) ? q.SubjectRoomId : q.CallRoomId));
+                f.Set("here", RoomName(q.SubjectRoomId));
+                memTopic = RecallTopic.Presence;
+                memRoom = q.SubjectRoomId;
+                covered.Add(MemoryKind.CallReported);
+                covered.Add(MemoryKind.CallMissed);
+                covered.Add(MemoryKind.ManagerCalled);
+                break;
+
+            case InterviewIntent.AskCallAfter:
+            {
+                f.Topic = ReplyTopic.CallAfter;
+                string next = truthful ? DialogueContextBuilder.RoomAfter(id, day, t) : "";
+                var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
+                if (!truthful) f.Variant = "evasive";
+                else if (!string.IsNullOrEmpty(next)) { f.Variant = "moved"; f.Set("next", RoomName(next)); }
+                else if (kind is "task" or "repair") { f.Variant = "task"; f.Set("task", kind == "repair" ? "수리" : task); }
+                else f.Variant = "stayed";
+                f.Set("room", RoomName(q.SubjectRoomId));
+                memTopic = RecallTopic.Presence;
+                memRoom = q.SubjectRoomId;
+                if (f.Variant == "task") covered.Add(MemoryKind.Worked);
+                if (f.Variant == "moved") covered.Add(MemoryKind.Relocated);
+                break;
+            }
+
+            // 근무 태만 추궁 — 지시 없이 자리를 옮긴 기록이 화면에 떴으면 발뺌할 수 없다(caught).
+            // 그런 기록이 없으면 "자리는 지켰다"고 항변한다(justify). 결번자는 흐린다.
+            case InterviewIntent.ConfrontNeglect:
+            {
+                f.Topic = ReplyTopic.Neglect;
+                bool left = PlayerKnownEvidence.VisibleMoves(id, day).Any(m => !m.PlayerOrdered);
+                f.Variant = !truthful ? "evasive" : left ? "caught" : "justify";
+                f.Set("n", q.RepeatIndex.ToString());
+                f.Set("room", RoomName(q.CallRoomId));
+                f.OpenerSlot = "react.accused";
+                memTopic = RecallTopic.ShiftReview;
+                covered.Add(MemoryKind.CallReported);
+                break;
+            }
+
+            // ── 이상 개체 조우 — 성격(AvoidsDanger)이 겁을 정한다. 양 · 토끼는 무너지고, 늑대는 담담하다.
+            case InterviewIntent.AskGhostWellbeing:
+                f.Topic = ReplyTopic.GhostState;
+                f.Variant = Frightened(id, ctx) ? "shaken" : "ok";
+                f.Set("room", RoomName(q.SubjectRoomId));
+                memTopic = RecallTopic.Anomaly;
+                memRoom = q.SubjectRoomId;
+                break;
+
+            case InterviewIntent.AskGhostAppearance:
+                f.Topic = ReplyTopic.GhostLook;
+                f.Variant = Frightened(id, ctx) ? "fear" : "calm";
+                f.Set("room", RoomName(q.SubjectRoomId));
+                break;
+
+            case InterviewIntent.AskGhostWhatHappened:
+            {
+                f.Topic = ReplyTopic.GhostAct;
+                int avoid = EmployeeTraits.Get(id).AvoidsDanger;
+                f.Variant = avoid >= 2 ? "hid" : avoid == 1 ? "froze" : "worked";
+                // 놓친 개체 — 설비까지 부서졌다는 보정 한 줄.
+                if (q.IncidentType == LogEventType.AnomalyIncident) f.Caveats.Add("GhostAct.struck");
+                f.Set("room", RoomName(q.SubjectRoomId));
+                memTopic = RecallTopic.Anomaly;
+                memRoom = q.SubjectRoomId;
+                break;
+            }
+
+            case InterviewIntent.AskGhostOthers:
+            {
+                f.Topic = ReplyTopic.GhostOthers;
+                string other = q.OtherEmployeeId;
+                if (string.IsNullOrEmpty(other)) { f.Variant = "none"; break; }
+                int oa = EmployeeTraits.Get(other).AvoidsDanger;
+                f.Variant = oa >= 2 ? "panicked" : oa == 1 ? "froze" : "calm";
+                f.Set("who", Codename(other));
+                f.Set("room", RoomName(q.SubjectRoomId));
+                // "그 사람이 그때 그 방에서 …했다" — 행동까지 실린 목격 증언으로 남는다.
+                string detail = f.Variant switch
+                {
+                    "panicked" => "이상 개체 앞에서 주저앉았다",
+                    "froze" => "이상 개체 앞에서 굳어 있었다",
+                    _ => "이상 개체 앞에서도 자리를 지켰다",
+                };
+                PlayerKnownEvidence.RecordSighting(id, other, q.SubjectRoomId, t, detail);
+                break;
+            }
+
+            // ── 알리바이 · 따지기 ──
+            // 내세우는 위치(결번자는 주장한 방)에 같이 있던 사람을 댄다 — 그 사람의 위치까지 걸린 진술이다.
+            case InterviewIntent.AskAlibiProof:
+            {
+                f.Topic = ReplyTopic.AlibiProof;
+                string room = plan.RoomId;
+                var others = DialogueContextBuilder.OccupantsAt(room, day, t, id);
+                if (others.Count > 0) { f.Variant = "witness"; f.Set("who", Codename(others[0])); RecordSighting(id, others[0], room, t); }
+                else if (!truthful) f.Variant = "evasive";
+                else f.Variant = PlayerKnownEvidence.HasRoomRecord(room) ? "cctv" : "none";
+                f.Set("room", RoomName(room));
+                RecordClaim(id, ctx.ClaimKey, room, t);
+                memTopic = RecallTopic.Location;
+                memRoom = room;
+                covered.Add(MemoryKind.Companion);
+                if (q.HasAnchorTime) ShiftMemory.MarkCompanionAsked(id, day, q.AnchorTime);
+                break;
+            }
+
+            // 결백한 직원은 하던 일 · 있던 곳을 댄다. 결번자는 흐리거나(거짓 알리바이) "손대지 않았다"고
+            // 못 박는다 — 그 주장(Denial.equipment)이 카드로 남아 동료 증언과 부딪힐 수 있다(§3-2).
+            case InterviewIntent.AskProveInnocence:
+            {
+                f.Topic = ReplyTopic.Innocence;
+                string room = plan.RoomId;
+                bool inRoom = !string.IsNullOrEmpty(q.SubjectRoomId) && room == q.SubjectRoomId;
+                var (kind, task) = WorkAt(id, day, room, t);
+                if (ctx.IsSaboteur && !truthful) f.Variant = "evasive";
+                else if (ctx.IsSaboteur) f.Variant = "deny";
+                else if (!inRoom) f.Variant = "elsewhere";
+                else if (kind is "task" or "repair") { f.Variant = "task"; f.Set("task", kind == "repair" ? "수리" : task); }
+                else f.Variant = "plain";
+                f.Set("room", RoomName(room));
+                f.OpenerSlot = "react.accused";
+                RecordClaim(id, ctx.ClaimKey, room, t);
+                memTopic = RecallTopic.Presence;
+                memRoom = room;
+                if (f.Variant == "task") covered.Add(MemoryKind.Worked);
+                break;
+            }
+
+            // 직접 본 수상한 행동이 있을 때만 사람을 댄다 — 그 목격이 행동까지 실린 증언 카드가 된다.
+            // 본 것이 없으면 아무도 지목하지 않는다. 결번자는 이름 없이 남을 흘려 넣는다.
+            case InterviewIntent.AskSuspectOpinion:
+            {
+                f.Topic = ReplyTopic.Suspect;
+                string suspect = truthful ? ctx.KnownSuspiciousActorId : "";
+                if (!string.IsNullOrEmpty(suspect))
+                {
+                    f.Variant = "named";
+                    f.Set("who", Codename(suspect));
+                    f.Set("room", RoomName(ctx.KnownSuspicious?.RoomId ?? ""));
+                    PlayerKnownEvidence.RecordSighting(id, suspect, ctx.KnownSuspicious?.RoomId ?? "",
+                        ctx.KnownSuspicious?.TimeSeconds ?? -1f, ctx.KnownSuspiciousDetail);
+                }
+                else f.Variant = ctx.IsSaboteur ? "deflect" : "none";
+                break;
+            }
+
+            // "기록상 거기 있었다" — 결백한 직원은 인정하고, 거짓 알리바이를 댄 결번자는 부정한다
+            // (그 부정이 진술 카드로 남아 CCTV · 로그와 맞부딪힌다). 제자리 범행이면 있었던 건 인정하되 흐린다.
+            case InterviewIntent.PressPresence:
+                f.Topic = ReplyTopic.PressPresence;
+                f.Variant = !truthful ? "deny" : ctx.IsSaboteur ? "evasive" : "admit";
+                f.Set("room", RoomName(q.SubjectRoomId));
+                f.OpenerSlot = "react.accused";
+                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                memTopic = RecallTopic.Location;
+                memRoom = plan.RoomId;
+                break;
+
             default:
                 f.Topic = ReplyTopic.Unknown;
                 f.Variant = "any";
@@ -337,12 +525,17 @@ public static class InterviewReplyPlanner
             f.Addenda.AddRange(mem.Addenda);
         }
 
-        // 결번자의 "설비 쪽엔 손도 안 댔다" — 자기 위치 · 그 방에 있던 이유 · 거기서 한 일을
-        // 답할 때만 붙는다(KoreanDialogueComposer 와 같은 규칙). 결백한 직원은 오지 않는다.
+        // 결번자의 "설비 쪽엔 손도 안 댔다" — 자기 위치 · 그 방에 있던 이유 · 거기서 한 일 · 무관하다는
+        // 근거 · 재석 추궁을 답할 때만 붙는다(KoreanDialogueComposer 와 같은 규칙). 결백한 직원은 오지 않는다.
         KoreanDialogueComposer.ApplyEquipmentDenial(f, ctx,
-            f.Topic is ReplyTopic.PresenceReason or ReplyTopic.ActionThere);
+            f.Topic is ReplyTopic.PresenceReason or ReplyTopic.ActionThere
+                or ReplyTopic.Innocence or ReplyTopic.PressPresence);
         return f;
     }
+
+    // 이상 개체 앞에서 무너지는 쪽인가 — 성격 축(GhostHauntSystem.FearScale)과 지금 상태(기절)로 본다.
+    private static bool Frightened(string employeeId, DialogueContext ctx) =>
+        GhostHauntSystem.FearScale(employeeId) >= 1.2f || ctx.Incapacitated;
 
     // --- 사실 조회 -------------------------------------------------------
 

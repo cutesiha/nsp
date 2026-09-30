@@ -16,6 +16,8 @@ public enum EvidenceKind
     OwnStatement,   // 이 직원이 관리자에게 스스로 한 진술
     Mood,           // 근무 전 자가보고 — 오늘의 기분
     Overheard,      // CCTV 오디오로 엿들은 두 사람의 대화
+    Call,           // 관리자와의 통화 기록(직원이 건 전화 · 못 받은 전화 · 관리자가 건 전화)
+    Anomaly,        // 이상 개체가 나타났을 때 그 방에 있었다(시설 로그의 개체 줄에서)
 }
 
 // 자료 한 장이 "그 직원이 언제 어디 있었는가"를 주장하는가.
@@ -78,6 +80,13 @@ public sealed class InterviewEvidence
     // 설비 접근이 보이던 CCTV 에만 붙는다. 행동 추궁(ConfrontKind.Behavior)의 근거다.
     public string BehaviorDetail = "";
 
+    // 통화 자료일 때만 — 통화 종류(DialogueRepository.Event*) · 누가 걸었나 · 잡담 전화가 말한 작업실 ·
+    // 같은 종류의 통화 중 오늘 몇 번째인가(놀러 가고 싶다는 전화가 잦으면 근무 태만을 물을 수 있다).
+    public string CallEvent = "";
+    public CallRecordKind CallKind;
+    public string CallRoomId = "";
+    public int RepeatIndex;
+
     // 모순 판정에 쓸 수 있는 자료인가 — 직원과 시각과 위치가 모두 있어야 한다.
     public bool CanAnchorPosition =>
         Position != PositionClaim.None && HasTime && !string.IsNullOrEmpty(SubjectRoomId);
@@ -93,6 +102,8 @@ public sealed class InterviewEvidence
         EvidenceKind.Testimony => "증언",
         EvidenceKind.OwnStatement => "진술",
         EvidenceKind.Overheard => "대화",
+        EvidenceKind.Call => "통화",
+        EvidenceKind.Anomaly => "개체",
         _ => "기분",
     };
 

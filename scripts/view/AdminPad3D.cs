@@ -20,8 +20,10 @@ namespace NSP.View;
 // 전력: 전력 패널의 세 번째 채널(PowerConsumer.Sensor — 표시는 「패드」)이 이 기기의 전원이다.
 // 꺼지면 화면이 글리치 뒤 꺼지고, 들고 있었다면 내려놓는다. 다시 켜지면 부팅 화면을 거친다.
 //
-// 든 동안에는 근무 시간이 멈춘다(PausesGame). 통화 중에는 꺼낼 수 없고, 든 동안에는 전화기를
-// 집을 수 없다 — 왼손 · 오른손이 서로의 물건을 동시에 쥐지 않게.
+// 든 동안에도 근무 시간은 그대로 흐른다(PauseWhileHeld 를 켜면 멈춘다 — 플레이테스트에서
+// "너무 사기"라 껐다). 통화 중에는 꺼낼 수 없고, 든 동안에는 전화기를 집을 수 없다 —
+// 왼손 · 오른손이 서로의 물건을 동시에 쥐지 않게. 로그 · 대화 기록 · 오늘의 업무(L · D · T)는
+// 게임 밖 UI 라 든 채로도 열린다.
 // 판정은 하지 않는다. 자료는 ClueBoard · InterviewEvidenceBoard 가 쥐고 있다.
 //
 // 거치대 위 화면: 근무 · 휴게시간(InService)에는 홈(지침 · 단서 · 직원)이 켜져 있다 — 아이콘을 누르면
@@ -43,18 +45,20 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     // 화면이 앞면에서 차지하는 크기(m). 나머지는 베젤(아래쪽 베젤이 조금 두껍다).
     [Export] public Vector2 ScreenSize = new(0.272f, 0.170f);
     // 들고 있을 때의 자리 — 자리에 앉은 카메라 기준(오른쪽 +X · 위 +Y · 앞 -Z).
-    // 화면은 눈을 향한다 — 눈보다 아래에 들고 있으므로 자연히 뒤로 기운다(약 25°).
-    // 눈에서 약 23cm — 태블릿을 읽는 거리다. 1920 화면에서 본체 가로가 65% 를 차지한다.
+    // 화면은 카메라 화면과 평행하다(HoldFlatToCamera) — 눈보다 아래에 들어도 기울지 않는다.
+    // 눈에서 약 28cm(파지 밀림 8cm 를 빼면 약 20cm) — 1920 화면에서 본체 가로가 약 69% 를 차지한다.
     // (패드는 왼손 소켓을 따라가므로 실제 자리는 여기서 파지 깊이만큼 눈 쪽으로 당겨진다 —
     //  HoldDriftMeters 로 그 양을 잰다. 파지를 바꾸면 이 값도 같이 다시 맞춰야 크기가 유지된다.)
-    [Export] public Vector3 HoldOffset = new(0.04f, -0.105f, -0.232f);
-    // 눈을 향한 기울기에서 더 뒤로(+) / 앞으로(-) 기울이는 각(도).
+    [Export] public Vector3 HoldOffset = new(0.04f, -0.105f, -0.285f);
+    // 켜면 화면이 카메라 화면과 평행하다(시점과 각도가 어긋나지 않는 "일자" 파지 — 기본).
+    // 끄면 화면 법선이 눈을 향한다 — 눈보다 아래에 들고 있으므로 자연히 뒤로 기운다(약 25°).
+    [Export] public bool HoldFlatToCamera = true;
+    // 위 기준에서 더 뒤로(+) / 앞으로(-) 기울이는 각(도).
     [Export] public float HoldExtraTiltDeg = 0f;
-    // 화면 안에서 패드를 갸웃 기울이는 각(도). 양수 = 오른쪽이 아래로.
-    // 눈보다 아래 · 옆으로 든 판이라 원근만으로도 오른쪽이 3~4° 내려가 보인다 — 화면에 실제로
-    // 보이는 기울기는 이 값보다 그만큼 크다. 기본값은 실측 +2° 에 맞춘 것이다
-    // (AdminPadShot pose 의 「기울기」 출력으로 잰다).
-    [Export] public float HoldRollDeg = -1.4f;
+    // 화면 안에서 패드를 갸웃 기울이는 각(도). 양수 = 오른쪽이 아래로. 0 = 카메라 수평과 나란히.
+    // (눈을 향하는 파지(HoldFlatToCamera=false)에서는 원근 때문에 오른쪽이 3~4° 내려가 보이므로
+    //  그때는 -1.4 정도가 화면상 +2° 였다 — AdminPadShot pose 의 「기울기」 출력으로 잰다.)
+    [Export] public float HoldRollDeg = 0f;
     // 왼손 그립 마커 — 본체 로컬 위치 · 방향. 손 소켓(손바닥 한가운데)이 이 마커에 정확히 겹친다.
     //
     // 「뒷면 받침 파지」 — 손은 통째로 화면 평면 **뒤**에 있다. 앞면(화면 쪽)에는 손목도 엄지도
@@ -95,8 +99,10 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     public static bool InService => GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Rest;
 
     // 패드가 거치대에 놓여 있지 않은 동안(집으러 가는 중 · 들어 올리는 중 · 들고 있음 · 내려놓는 중)
-    // 근무 시간은 흐르지 않는다.
-    public static bool PausesGame => Instance != null && Instance._state != PadState.Stowed;
+    // 근무 시간을 멈출 것인가. 기본은 끔 — 든 채로 시간이 멈추면 감시 · 통화 압박이 사라져 너무 쉬웠다.
+    [Export] public bool PauseWhileHeld = false;
+    public static bool PausesGame =>
+        Instance != null && Instance.PauseWhileHeld && Instance._state != PadState.Stowed;
 
     // 패드 전원 — 근무 중에는 전력 패널의 패드 채널을 따른다. 근무 밖(휴게시간 등)은 늘 켜져 있다.
     public static bool PadPowered =>
@@ -164,8 +170,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         ControlRoom3DController.AddScaledView(_vp, _view, CanvasSize,
             ControlRoom3DController.DocumentSupersample, ControlRoom3DController.DocumentMinRenderScale);
 
-        BuildCradle();
-        BuildBody(_vp.GetTexture());
+        if (HasAuthoredParts()) AdoptAuthoredParts(_vp.GetTexture());
+        else { BuildCradle(); BuildBody(_vp.GetTexture()); }
         _body.GlobalTransform = RestTransform();
 
         _powered = PadPowered;
@@ -186,14 +192,64 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
     // 거치대 · 본체를 (다시) 만든다. 스크립트를 다시 빌드하면 C# 필드가 비워지므로 이름으로 옛것을 치운다.
     // 여기서 만든 노드는 Owner 가 없어 씬 파일에 저장되지 않는다.
+    // 씬에 PadCradle · PadBody 가 이미 author 되어 있으면(메인 씬이 그렇다) 만들지 않고 그것을 쓴다.
     private void BuildEditorPreview()
     {
+        if (HasAuthoredParts()) { AdoptAuthoredParts(null); _editorShape = EditorShape(); PlaceEditorPreview(); return; }
         foreach (string n in new[] { "PadCradle", "PadBody" })
             if (GetNodeOrNull(n) is { } old) { RemoveChild(old); old.QueueFree(); }
         BuildCradle();
         BuildBody(null);
         _editorShape = EditorShape();
         PlaceEditorPreview();
+    }
+
+    // ── 씬에 들어 있는 기기 ───────────────────────────────────────────────
+    //
+    // 다른 책상 기기(경고 단말기 · 전력 패널)처럼 패드도 메인 씬 안에 실제 노드로 들어 있다.
+    // 그래야 에디터에서 보이고, 고르고, 옮기고, 재질을 바꿀 수 있다.
+    // 여기서는 그 노드를 그대로 집어 쓰기만 한다 — 모양을 코드로 다시 만들지 않는다.
+    // (씬에 없으면 예전처럼 코드가 만든다 — 검사용 빈 씬에서도 패드가 뜨도록.)
+    private bool HasAuthoredParts() =>
+        GetNodeOrNull<Node3D>("PadBody") != null && GetNodeOrNull<Node3D>("PadCradle") != null;
+
+    private void AdoptAuthoredParts(Texture2D screenTex)
+    {
+        _body = GetNode<Node3D>("PadBody");
+        _body.TopLevel = true;                      // 들면 손을 따라가야 하므로 부모와 끊는다
+        _screen = _body.GetNode<MeshInstance3D>("Screen");
+        _grip = _body.GetNode<Marker3D>("GripPoint");
+        _grip.Position = GripLocal;
+        _grip.RotationDegrees = GripRotDeg;
+
+        // 표시등 재질은 매 프레임 밝기를 바꾼다 — 씬에 저장된 원본을 건드리지 않게 복제해서 쓴다.
+        _ledMat = DuplicateMaterial(_body.GetNodeOrNull<MeshInstance3D>("BadgeLed"));
+        _cradleLed = DuplicateMaterial(GetNodeOrNull<MeshInstance3D>("PadCradle/Led"));
+
+        if (screenTex != null)
+        {
+            _screenMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://shaders/crt_screen.gdshader") };
+            _screenMat.SetShaderParameter("screen_tex", screenTex);
+            _screenMat.SetShaderParameter("region_min", Vector2.Zero);
+            _screenMat.SetShaderParameter("region_max", Vector2.One);
+            _screenMat.SetShaderParameter("noise_strength", 0.012f);
+            _screen.MaterialOverride = _screenMat;
+        }
+
+        if (Engine.IsEditorHint()) return;
+        if (_body.GetNodeOrNull<Area3D>("ClickArea") is { } area)
+        {
+            area.InputRayPickable = true;
+            area.InputEvent += OnAreaInput;
+        }
+    }
+
+    private static StandardMaterial3D DuplicateMaterial(MeshInstance3D mi)
+    {
+        if (mi?.MaterialOverride is not StandardMaterial3D m) return null;
+        var copy = (StandardMaterial3D)m.Duplicate();
+        mi.MaterialOverride = copy;
+        return copy;
     }
 
     private string EditorShape() => $"{BodySize}|{ScreenSize}|{CradleLeanDeg}";
@@ -369,12 +425,16 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         return new Transform3D(Basis.FromEuler(GripRotDeg * (Mathf.Pi / 180f)), GripLocal);
     }
 
-    // 들고 있을 자리 — 자리에 똑바로 앉은 카메라 앞 아래. 화면은 눈을 향한다.
+    // 들고 있을 자리 — 자리에 똑바로 앉은 카메라 앞 아래.
+    // HoldFlatToCamera: 화면 법선 = 카메라 뒤(+Z) — 화면이 카메라 화면과 평행한 "일자" 파지.
+    // 아니면 화면 법선이 눈을 향한다(눈보다 아래에 드므로 뒤로 기운다).
     private Transform3D HoldTransform()
     {
         Transform3D cam = SeatCamera();
         Vector3 origin = cam * HoldOffset;
-        Vector3 up = (cam.Origin - origin).Normalized();                 // 본체 +Y(화면) → 눈
+        Vector3 up = HoldFlatToCamera
+            ? cam.Basis.Z.Normalized()                                    // 본체 +Y(화면) ∥ 시선 축
+            : (cam.Origin - origin).Normalized();                         // 본체 +Y(화면) → 눈
         // 화면의 위아래를 카메라의 위아래에 맞춘다 — 기준을 가로축에서 뽑으면 패드를 눈 축에서
         // 옆으로 비켜 든 만큼(HoldOffset.X) 화면이 저절로 돌아간다(예전엔 왼쪽이 4° 내려갔다).
         Vector3 camDown = -cam.Basis.Y;
@@ -592,7 +652,9 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         if (Engine.IsEditorHint()) return;
         // 들고 있는 동안 우클릭 = 한 단계 뒤로(상세 → 목록 → 홈). 홈에서 한 번 더 누르면 내려놓기.
         // Tab 은 어느 화면에서든 곧바로 내려놓는다(ClueHud). (ControlRoom3DController 보다 먼저 받는다.)
+        // 기록 창(로그 · 대화 기록 · 업무)이 패드 위에 떠 있으면 우클릭은 그 창을 닫는 데 쓴다(Day1HistoryOverlay).
         if (_state is PadState.Held or PadState.Lifting
+            && Day1HistoryOverlay.Instance?.IsWindowOpen != true
             && e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
             if (_state != PadState.Held || _view?.TryGoBack() != true) Close();

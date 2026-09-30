@@ -169,6 +169,17 @@ public partial class Day1HistoryOverlay : CanvasLayer
         return GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Settlement or GamePhase.Rest;
     }
 
+    // 화면 좌표가 오른쪽 아래의 업무 · 로그 · 대화 기록 버튼 위인가. 관리자 패드를 든 동안 제어실이
+    // 마우스 입력을 통째로 패드 화면에 넘기는데(ControlRoom3DController.ForwardModal), 이 버튼들은
+    // 게임 밖 UI 라 그 위의 클릭은 패드가 아니라 버튼이 받아야 한다.
+    public bool IsOverIcons(Vector2 screenPos)
+    {
+        if (_icons == null || !_icons.Visible) return false;
+        foreach (var child in _icons.GetChildren())
+            if (child is Control c && c.Visible && c.GetGlobalRect().HasPoint(screenPos)) return true;
+        return false;
+    }
+
     private void ToggleLog()
     {
         if (_mode == WindowMode.Log) CloseWindow();
@@ -208,6 +219,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _scrim.Visible = true;
         _logPanel.Visible = true;
         _dialoguePanel.Visible = false;
+        // 근무 시작에 저절로 뜬 「오늘의 업무」 창 위에 로그 창이 겹쳐 뜨던 것을 막는다.
+        if (_objPanel != null) _objPanel.Visible = false;
         RebuildLog();
     }
 
@@ -218,6 +231,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _scrim.Visible = true;
         _logPanel.Visible = false;
         _dialoguePanel.Visible = true;
+        if (_objPanel != null) _objPanel.Visible = false;
         RebuildDialogue();
     }
 
@@ -332,6 +346,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
         {
             AnchorRight = 1f,
             OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 86f, OffsetBottom = 86f + LogBandH,
+            // 띠 안의 글자(시각 눈금 · 코드네임 · 방 이름 · 사고 라벨)는 아래 목록 줄과 같은 크기다.
+            FontPx = ViewFont.FS(18),
         };
         _logBand.SegmentPressed = (_, time) => ScrollLogTo(time);
         _logBand.IncidentPressed = ScrollLogToRow;
@@ -356,10 +372,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _logScroll.AddChild(_logRows);
     }
 
-    // 띠 높이. 창의 본문(제목 아래 ~ 바닥)을 띠와 텍스트 목록이 반씩 나눠 쓴다.
-    // 텍스트가 열 줄 넘게 늘어서면 "누가 언제 어디" 가 안 읽힌다는 게 이 띠를 만든 이유다 —
-    // 그런데 정작 띠가 아래쪽 목록보다 작으면 여전히 목록부터 눈이 간다.
-    private const float LogBandH = 280f;
+    // 띠 높이. 창의 본문(제목 아래 ~ 바닥, 566px)의 40% — 나머지 60% 가 텍스트 목록이다.
+    // 텍스트가 열 줄 넘게 늘어서면 "누가 언제 어디" 가 안 읽힌다는 게 이 띠를 만든 이유지만,
+    // 반반(280)으로 나누니 정작 목록이 너무 짧아졌다는 지적이 있었다.
+    private const float LogBandH = 226f;
 
     // 오늘 근무에 나온 직원만 띠에 올린다(배치표 · 휴게 명단과 같은 명단).
     private void RefreshLogBand()

@@ -275,11 +275,31 @@ public partial class ScheduleStaffView : Control
             _remarkSpoken++;
             Sfx.Instance?.PlayVoiceBlip(id, c);
         }
-        DrawString(_font, new Vector2(x, y), full[..shown], HorizontalAlignment.Left, 440f,
-            Fs(17), Ink with { A = 0.92f });
+        // 긴 한마디는 칸 폭(RemarkWidth) 안에서 줄을 바꾼다 — 예전에는 한 줄로 그려 오른쪽이 잘렸다.
+        // 줄 나누기는 **전문**으로 미리 정해 두고 보이는 글자만 줄마다 채운다. 찍히는 글자로 매번 다시
+        // 나누면 단어가 완성되는 순간 줄이 튀어 오른다.
+        int fs = Fs(17);
+        var para = new TextParagraph { Width = RemarkWidth, MaxLinesVisible = RemarkMaxLines };
+        para.AddString(full, _font, fs);
+        float lineY = y;
+        var ink = Ink with { A = 0.92f };
+        for (int i = 0; i < para.GetLineCount(); i++)
+        {
+            var range = para.GetLineRange(i);
+            int end = Mathf.Min(range.Y, shown);
+            if (end > range.X)
+                DrawString(_font, new Vector2(x, lineY), full[range.X..end], HorizontalAlignment.Left,
+                    RemarkWidth, fs, ink);
+            lineY += para.GetLineSize(i).Y + RemarkLineGap;
+            if (end < range.Y) break;
+        }
     }
 
     private const float RemarkCharSeconds = 0.055f;
+    // 한마디 칸 — 오른쪽 정보 열의 폭. 최대 줄 수는 아래 각주(Footer, y=538)까지 남는 자리에 맞춘 것이다.
+    private const float RemarkWidth = 440f;
+    private const int RemarkMaxLines = 5;
+    private const float RemarkLineGap = 3f;
 
     private void Stat(string label, int v, float x, float y)
     {

@@ -104,6 +104,17 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | Confront.honest / evasive / deny | 자료 두 장으로 모순을 들이밀었을 때 | room, time |
 | Confront.neutral | 자료 두 장이 어떤 추궁 규칙에도 걸리지 않았을 때(거절 대신 되묻는다) | room, time |
 | Denial.equipment | 결번자가 "설비 근처에 가지 않았다"고 못 박을 때 답변 뒤에 붙는 한 줄 | room, time |
+| CallReason.idle / worry / report / missed / manager | 통화 기록 카드 — 그 시각 왜 전화했나(잡담 · 옆 방 걱정 · 신고 · 못 받은 전화 · 관리자가 건 전화) | room, here |
+| CallAfter.stayed / moved / task / evasive | 통화를 끝낸 뒤 무엇을 했나 | room, next, task |
+| Neglect.caught / justify / evasive | "놀러 가고 싶다"는 전화가 잦다 — 근무 태만 추궁. 지시 없는 이동 기록이 있으면 caught | n, room |
+| GhostState.shaken / ok | 이상 개체를 마주친 뒤 괜찮은가(겁 많은 성격 = shaken) | room |
+| GhostLook.fear / calm | 그것이 어떻게 생겼나 | room |
+| GhostAct.hid / froze / worked · GhostAct.struck(보정) | 나타났을 때 무엇을 했나(성격 AvoidsDanger) · 놓쳐서 설비가 나갔을 때 한 줄 | room |
+| GhostOthers.panicked / froze / calm / none | 같이 있던 사람은 어떻게 했나 — 그 답이 목격 증언 카드가 된다 | who, room |
+| AlibiProof.witness / cctv / none / evasive | 그 시각 위치를 누가 증명하나 | who, room |
+| Innocence.task / elsewhere / plain / deny / evasive | 이 사고와 무관하다는 근거를 대라(결번자는 deny/evasive + Denial.equipment) | room, task |
+| Suspect.named / none / deflect | 누가 그랬다고 보나 — 직접 본 수상한 행동이 있을 때만 이름을 댄다 | who, room |
+| PressPresence.admit / evasive / deny | "기록상 그 방에 있었다" — 관리자가 실제로 아는 재석만 따진다 | room |
 | idle.visit | 혼자 근무 중 "{room}에 가도 되나" 하고 먼저 거는 전화 | room |
 | idle.visit.allowed / .denied | 그 요청을 관리자가 허락 / 거절했을 때의 대답 | room |
 | idle.worry | 옆 방({room})의 {who} 가 이상하다며 먼저 거는 전화 | room, who |

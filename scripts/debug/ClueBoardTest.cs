@@ -20,7 +20,7 @@ namespace NSP.Debug;
 //   ④ 단서는 날짜를 넘어 남는다(동결 사본) · (Day, Id) 로 갈린다 · 새 게임 / 교육일 종료에 비워진다.
 //   ⑤ 엿들은 대화가 조사 자료가 되고, 자막 · 단축키로 찍힌다.
 //   ⑥ 로그 창 ☆ 를 누르면 찍힌다 · 찍는 순간 토스트가 뜬다.
-//   ⑦ 관리자 패드 — Tab 으로 꺼내 든 동안 시간이 멈춘다 · 단서 / 직원 / 지침 화면 · CCTV 스냅샷.
+//   ⑦ 관리자 패드 — Tab 으로 꺼내 든 동안에도 시간은 흐른다(PauseWhileHeld 옵션) · 기록 창은 든 채로 열린다 · 단서 / 직원 / 지침 화면 · CCTV 스냅샷.
 public partial class ClueBoardTest : Node
 {
     private const string Power = "power_room";
@@ -377,7 +377,7 @@ public partial class ClueBoardTest : Node
     // ── 3D 패드 — 꺼내기 · 일시정지 · 내려놓기 ─────────────────────────
     private async System.Threading.Tasks.Task TestPad()
     {
-        Head("K", "관리자 패드 — Tab 으로 꺼내고 · 든 동안 시간 정지 · 내려놓기");
+        Head("K", "관리자 패드 — Tab 으로 꺼내고 · 든 동안에도 시간은 흐른다 · 기록 창은 열린다 · 내려놓기");
         Reset();
         GameState.Instance.SetPhase(GamePhase.Live);
         Deploy();
@@ -392,10 +392,35 @@ public partial class ClueBoardTest : Node
         Check(!pad.IsOpen && !AdminPad3D.PausesGame, "처음에는 책상 위에 놓여 있다");
 
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
-        Check(pad.IsOpen && AdminPad3D.PausesGame, "Tab — 꺼내는 순간부터 근무 시간이 멈춘다");
+        Check(pad.IsOpen && !AdminPad3D.PausesGame, "Tab — 꺼내도 근무 시간은 그대로 흐른다(PauseWhileHeld 기본 끔)");
+        pad.PauseWhileHeld = true;
+        Check(AdminPad3D.PausesGame, "PauseWhileHeld 를 켜면 든 동안 멈춘다(옵션)");
+        pad.PauseWhileHeld = false;
         Check(ClueBoard.UnseenCount == 1, "홈 화면에서는 새 단서 뱃지(+1)가 남아 있다");
         await Until(() => pad.IsHeld, 3000);
         Check(pad.IsHeld, "들어 올려 손에 쥐었다");
+        Check(pad.HoldFlatToCamera && Mathf.IsZeroApprox(pad.HoldRollDeg), "일자 파지 — 화면이 카메라와 평행하고 갸웃 기울기가 없다");
+
+        // 든 채로도 로그 · 대화 기록 · 업무 창은 열린다(게임 밖 UI). 창이 떠 있는 동안 우클릭은 창을 닫는 데 쓰인다.
+        var overlay = new Day1HistoryOverlay();
+        AddChild(overlay);
+        await Frames(1);
+        overlay._Input(new InputEventKey { Keycode = Key.L, Pressed = true });
+        Check(overlay.IsLogOpen && pad.IsHeld, "든 채로 L — 시설 로그 창이 열리고 패드는 그대로 손에 있다");
+        pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
+        Check(overlay.IsLogOpen && pad.IsHeld && pad.View.Current == PadView.Tab.Home, "창이 떠 있는 동안 우클릭은 패드를 뒤로 보내지 않는다");
+        overlay._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
+        Check(!overlay.IsWindowOpen && pad.IsHeld, "우클릭은 창을 닫고, 패드는 여전히 손에 있다");
+        overlay._Input(new InputEventKey { Keycode = Key.D, Pressed = true });
+        Check(overlay.IsDialogueOpen, "든 채로 D — 대화 기록 창");
+        overlay._Input(new InputEventKey { Keycode = Key.T, Pressed = true });
+        Check(overlay.IsObjectivesOpen, "든 채로 T — 오늘의 업무 창");
+        overlay.CloseWindow();
+        var logBtn = overlay.FindChild("LogHistoryButton", true, false) as Control;
+        Check(logBtn != null && overlay.IsOverIcons(logBtn.GetGlobalRect().GetCenter())
+              && !overlay.IsOverIcons(Vector2.Zero), "오른쪽 아래 버튼 위의 클릭은 패드 화면으로 넘기지 않는다");
+        overlay.QueueFree();
+        await Frames(1);
         Check(pad.View.Current == PadView.Tab.Home, "열면 언제나 홈 화면부터");
         pad.View.OpenApp(PadView.Tab.Clues, fade: false);
         Check(pad.View.Current == PadView.Tab.Clues && pad.View.VisibleClues().Count == 1, "단서 앱을 열면 단서 1장이 보인다");
@@ -411,9 +436,9 @@ public partial class ClueBoardTest : Node
         pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
         Check(pad.View.Current == PadView.Tab.Home && pad.IsHeld, "우클릭 ② 직원 목록 → 홈(아직 들고 있다)");
         pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
-        Check(pad.IsOpen && AdminPad3D.PausesGame, "우클릭 ③ 홈 → 내려놓기(내려놓는 동안에도 아직 멈춰 있다)");
+        Check(pad.IsOpen && !pad.IsHeld, "우클릭 ③ 홈 → 내려놓기");
         await Until(() => !pad.IsOpen, 3000);
-        Check(!pad.IsOpen && !AdminPad3D.PausesGame, "책상에 내려놓으면 시간이 다시 흐른다");
+        Check(!pad.IsOpen && !AdminPad3D.PausesGame, "책상에 내려놓았다");
         Check(!pad.View.IsLocked && pad.View.Current == PadView.Tab.Home,
             "근무 중 거치대 위 화면은 잠금 화면이 아니라 홈(지침 · 단서 · 직원)이다");
         Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always,

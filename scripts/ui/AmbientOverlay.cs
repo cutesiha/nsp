@@ -162,6 +162,19 @@ public partial class AmbientOverlay : CanvasLayer
         Sfx.Instance?.Play("flicker", -12f + 8f * strength);
     }
 
+    // 화면 전체가 한 색으로 번쩍인다(점프스케어의 붉은 섬광 등). Flash() 와 같은 사각형을 쓰고,
+    // 끝나면 흰색으로 되돌려 둔다 — 다음 Flash() 가 붉게 뜨면 안 된다.
+    public void FlashColor(Color color, float strength, float seconds)
+    {
+        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        _flash.Color = color with { A = 0f };
+        _flash.Visible = true;
+        var t = CreateTween();
+        t.TweenProperty(_flash, "color:a", strength, 0.02);
+        t.TweenProperty(_flash, "color:a", 0f, Mathf.Max(0.05f, seconds));
+        t.TweenCallback(Callable.From(() => _flash.Color = new Color(1f, 1f, 1f, 0f)));
+    }
+
     // 노이즈를 잠깐 확 끌어올린다(공포 이벤트 중).
     public void PulseNoise(float amount = 0.25f)
     {

@@ -1238,7 +1238,10 @@ public partial class PhoneCallHud : CanvasLayer
         foreach (var q in _intents)
         {
             var captured = q;
-            _choices.AddChild(InterviewChoiceButton(Mark(q), () => AskInterview(captured)));
+            var b = InterviewChoiceButton(Mark(q), () => AskInterview(captured));
+            // 묻는 질문과 따지는 질문을 색으로 가른다 — 모순 제시 버튼과 같은 붉은색.
+            if (q.IsConfront) TintAction(b, new Color(1f, 0.45f, 0.38f));
+            _choices.AddChild(b);
         }
         AddTail(InterviewChoiceButton("자료를 내려놓고 다른 질문을 한다.", () =>
         {

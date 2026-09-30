@@ -17,6 +17,10 @@ public partial class FacilityMinimap : Control
 
     public string SelectedRoomId = "";
     public string SelectedEmployeeId = "";
+    // 마우스가 올라간 작업실. 테두리가 하늘색으로 바뀌고 한 번 소리가 난다 —
+    // 배치 지도(ScheduleMapView) · 시작 화면 신원 카드와 같은 규칙.
+    private string _hoverRoom = "";
+    private static readonly Color HoverCyan = NSP.View.GuideTextMarkup.ChoiceCyan;
 
     // 직원 아이콘 반지름. 클릭 판정(EmployeeAt)도 이 값을 따라간다.
     private const float EmpDotRadius = 10f;
@@ -330,8 +334,9 @@ public partial class FacilityMinimap : Control
         }
 
         bool selected = roomId == SelectedRoomId;
-        Color border = selected ? new Color(0.5f, 1f, 0.85f) : new Color(0.3f, 0.4f, 0.38f);
-        DrawRect(box, border, false, selected ? 2.5f : 1.2f);
+        bool hot = roomId == _hoverRoom && !inactive;
+        Color border = hot ? HoverCyan : selected ? new Color(0.5f, 1f, 0.85f) : new Color(0.3f, 0.4f, 0.38f);
+        DrawRect(box, border, false, selected || hot ? 2.5f : 1.2f);
         if (state.Locked)
             DrawRect(box.Grow(3f), new Color(0.9f, 0.5f, 0.2f), false, 1.5f);
 
@@ -664,7 +669,14 @@ public partial class FacilityMinimap : Control
 
     public override void _Input(InputEvent e)
     {
-        if (string.IsNullOrEmpty(_dragEmp)) return;
+        if (string.IsNullOrEmpty(_dragEmp))
+        {
+            // 끌지 않을 때의 이동 = 작업실 호버. CRT 로 밀려 들어오는 이동 이벤트는 _GuiInput 까지
+            // 오지 않으므로 여기서 받는다(ScheduleMapView 와 같은 방식).
+            if (IsVisibleInTree() && MakeInputLocal(e) is InputEventMouseMotion hover)
+                SetHoverRoom(RoomAt(hover.Position));
+            return;
+        }
 
         // 이 뷰는 스케일 프레임 안에 있다 — 입력이 뷰포트(확대) 좌표로 들어오므로 로컬로 바꾼다.
         e = MakeInputLocal(e);
@@ -683,6 +695,17 @@ public partial class FacilityMinimap : Control
             _dragging = false;
             QueueRedraw();
         }
+    }
+
+    private void SetHoverRoom(string roomId)
+    {
+        roomId ??= "";
+        if (_hoverRoom == roomId) return;
+        _hoverRoom = roomId;
+        // 열린 작업실 위로 들어온 순간 한 번 — 잠긴 방은 눌러도 볼 것이 없으니 조용히 지난다.
+        if (roomId.Length > 0 && FacilitySimulation.Instance?.IsRoomActive(roomId) == true)
+            NSP.Core.Sfx.Instance?.Play("tick", -20f);
+        QueueRedraw();
     }
 
     private void DropEmployee(Vector2 pos)
