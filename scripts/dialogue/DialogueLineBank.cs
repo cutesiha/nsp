@@ -148,6 +148,15 @@ public static class DialogueLineBank
 
     public static bool Has(string employeeId, string slot, bool formal) => Get(employeeId, slot, formal).Length > 0;
 
+    // 그 캐릭터 파일 자체에 슬롯이 있는가 — 말투 공통(fml/sft) · any 로 떨어지지 않는다.
+    // 캐릭터 목소리로 써야만 말이 되는 자리(간접 목격 반응 · 동석자까지 한 문장)에서 쓴다.
+    public static bool HasOwn(string employeeId, string slot)
+    {
+        EnsureLoaded();
+        return !string.IsNullOrEmpty(employeeId) && !string.IsNullOrEmpty(slot)
+               && _slots.TryGetValue($"{employeeId}|{slot}", out var own) && own.Length > 0;
+    }
+
     // 하나를 무작위로 — 동사 줄기 같은 표현 조각을 뽑을 때 쓴다(반복 회피 없음).
     public static string Any(string employeeId, string slot, bool formal)
     {

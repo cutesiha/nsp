@@ -187,7 +187,8 @@ public static class InterviewReplyPlanner
                 f.Variant = level == KnowledgeLevel.Direct ? "direct"
                     : level == KnowledgeLevel.Indirect ? "indirect" : "none";
                 f.Set("room", RoomName(q.SubjectRoomId));
-                memTopic = RecallTopic.Anomaly;
+                // "그 사고는 처음 듣는다" 뒤에는 기억을 붙이지 않는다 — 가리킬 순간이 없다.
+                memTopic = f.Variant == "none" ? RecallTopic.None : RecallTopic.Anomaly;
                 memRoom = truthful ? ctx.RoomAtSubject : plan.RoomId;
                 break;
             }
@@ -250,8 +251,8 @@ public static class InterviewReplyPlanner
                 f.Variant = matches ? "admit" : "deny";
                 f.Set("room", RoomName(matches ? q.SubjectRoomId : plan.RoomId));
                 RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
-                memTopic = RecallTopic.Location;
-                memRoom = plan.RoomId;
+                // 남의 증언을 인정/부정하는 답이다 — 위치를 새로 묻는 게 아니므로 기억을 붙이지 않는다.
+                memTopic = RecallTopic.None;
                 break;
             }
 
@@ -342,8 +343,8 @@ public static class InterviewReplyPlanner
                 };
                 f.Set("room", RoomName(string.IsNullOrEmpty(q.CallRoomId) ? q.SubjectRoomId : q.CallRoomId));
                 f.Set("here", RoomName(q.SubjectRoomId));
-                memTopic = RecallTopic.Presence;
-                memRoom = q.SubjectRoomId;
+                // 왜 전화했나 — 위치 · 동선을 묻는 답이 아니다. 기억은 "통화 뒤 무엇을 했나"(CallAfter)에만.
+                memTopic = RecallTopic.None;
                 covered.Add(MemoryKind.CallReported);
                 covered.Add(MemoryKind.CallMissed);
                 covered.Add(MemoryKind.ManagerCalled);
@@ -376,8 +377,7 @@ public static class InterviewReplyPlanner
                 f.Set("n", q.RepeatIndex.ToString());
                 f.Set("room", RoomName(q.CallRoomId));
                 f.OpenerSlot = "react.accused";
-                memTopic = RecallTopic.ShiftReview;
-                covered.Add(MemoryKind.CallReported);
+                memTopic = RecallTopic.None;   // 추궁에 대한 항변 — 기억을 덧붙이지 않는다
                 break;
             }
 
@@ -386,8 +386,8 @@ public static class InterviewReplyPlanner
                 f.Topic = ReplyTopic.GhostState;
                 f.Variant = Frightened(id, ctx) ? "shaken" : "ok";
                 f.Set("room", RoomName(q.SubjectRoomId));
-                memTopic = RecallTopic.Anomaly;
-                memRoom = q.SubjectRoomId;
+                // 안부 · 행동 답은 그 자체로 완결이다 — 동석자는 AskGhostOthers 가 따로 묻는다.
+                memTopic = RecallTopic.None;
                 break;
 
             case InterviewIntent.AskGhostAppearance:
@@ -404,8 +404,7 @@ public static class InterviewReplyPlanner
                 // 놓친 개체 — 설비까지 부서졌다는 보정 한 줄.
                 if (q.IncidentType == LogEventType.AnomalyIncident) f.Caveats.Add("GhostAct.struck");
                 f.Set("room", RoomName(q.SubjectRoomId));
-                memTopic = RecallTopic.Anomaly;
-                memRoom = q.SubjectRoomId;
+                memTopic = RecallTopic.None;
                 break;
             }
 

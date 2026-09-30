@@ -66,10 +66,19 @@ public static class DialogueComposer
 
         var parts = new List<(Part Kind, string Text)>();
 
+        // 핵심 틀이 이미 완결된 답인가(두 문장 이상 · 되묻기로 끝남 · "…인데요~" 처럼 덧붙임 어미로 끝남).
+        // 닫힌 틀 뒤에 완결 문장을 또 붙이는 것이 어색한 답의 가장 큰 원인이었다 — 덧붙임 · 되묻기 ·
+        // 근무 기억 · 인상은 아예 붙이지 않고, 보정만 핵심 **앞**에 넣는다.
+        bool closed = IsClosed(core);
+        // 핵심 틀이 이미 되받으며 시작하면("수상한 사람이라~ 딱히요.") 주제 되받기 · 반응 여는 말은 군더더기다.
+        bool echoes = AlreadyEchoes(core);
+
         // ── 여는 말(하나만) ────────────────────────────────────────────
         string opener = "";
-        if (!string.IsNullOrEmpty(f.OpenerText)) { if (!OpensWithQuestion(core)) opener = f.OpenerText; }
-        else if (!string.IsNullOrEmpty(f.OpenerSlot)) opener = Pick(id, f.OpenerSlot, f.Vars, formal);
+        if (!string.IsNullOrEmpty(f.OpenerText)) { if (!echoes) opener = f.OpenerText; }
+        else if (!string.IsNullOrEmpty(f.OpenerSlot)
+                 && !(echoes && (f.OpenerSlot.StartsWith("react.") || f.OpenerSlot.StartsWith("emotion."))))
+            opener = Pick(id, f.OpenerSlot, f.Vars, formal);
         // 여는 말이 핵심과 같은 말로 시작하면 뺀다("네." + "네, 자리를 …").
         if (opener.Length > 0 && core.Length >= 2 && opener.StartsWith(core[..2])) opener = "";
         // 핵심 문장 틀이 이미 그 말을 품고 있어도 뺀다 — "오, 수상한 사람이요?" + "수상한 사람이요? 못 봤어요!",
@@ -80,21 +89,22 @@ public static class DialogueComposer
         parts.Add((Part.Core, core));
 
         // ── 보정 — 사실 정확성 때문에 빠지지 않는다 ──────────────────────
+        // 닫힌 틀이면 앞에 둔다: "직접 본 건 아니에요~ 벽 너머였죠. 궁금하긴 하더라고요~"
         foreach (string slot in f.Caveats)
             if (!CaveatCovered(slot, core))
-                TryAdd(parts, Part.Caveat, Pick(id, slot, f.Vars, formal));
+                AddCaveat(parts, Pick(id, slot, f.Vars, formal), front: closed);
 
         // ── 동료에 대한 인상 — 핵심이 사람을 댔을 때(같이 있던 사람 · 본 사람) ──
         // 질문이 그 사람을 물었으므로 근무 기억보다 먼저 남는다.
         // 핵심 문장 틀이 이미 한마디를 품고 있으면("{who} 씨요. 같이 있어서 든든했어요.") 겹쳐 붙이지 않는다.
         string whoInCore = WhoMentioned(core, f.Vars);
-        if (whoInCore.Length > 0 && SentenceCount(core) <= 1 && GD.Randf() < voice.ImpressionChance)
+        if (!closed && whoInCore.Length > 0 && SentenceCount(core) <= 1 && GD.Randf() < voice.ImpressionChance)
             TryAdd(parts, Part.Impression, Impression(id, whoInCore, formal));
 
         // ── 근무 기억 ─────────────────────────────────────────────────
         string memWho = "";
         var memLines = new string[f.Addenda.Count];
-        for (int i = 0; i < f.Addenda.Count; i++)
+        for (int i = 0; !closed && i < f.Addenda.Count; i++)
         {
             var a = f.Addenda[i];
             // 같은 질문을 다시 받으면 프레임(기억 포함)이 그대로 다시 온다 — 이미 한 동료 이야기는 건너뛴다.
@@ -109,25 +119,25 @@ public static class DialogueComposer
         }
         // 기억 속 동료 이야기에는 가끔만, 문장 수에 여유가 있을 때만 인상을 붙인다(묻지 않은 사람 이야기라서).
         int budget = f.MaxSentences > 0 ? f.MaxSentences : voice.MaxSentences;
-        if (memWho.Length > 0 && !parts.Any(p => p.Kind == Part.Impression) && parts.Count < budget
-            && GD.Randf() < voice.ImpressionChance * 0.5f)
+        if (!closed && memWho.Length > 0 && !parts.Any(p => p.Kind == Part.Impression)
+            && TotalSentences(parts) < budget && GD.Randf() < voice.ImpressionChance * 0.5f)
             TryAdd(parts, Part.Impression, Impression(id, memWho, formal));
 
         // ── 덧붙임 · 되묻기 ────────────────────────────────────────────
-        if (!string.IsNullOrEmpty(f.ExtraSlot) && !AlreadyCovered(f.ExtraSlot, core))
+        if (!closed && !string.IsNullOrEmpty(f.ExtraSlot) && !AlreadyCovered(f.ExtraSlot, core))
             TryAdd(parts, Part.Extra, Pick(id, f.ExtraSlot, f.Vars, formal, SaidSoFar(parts)));
-        if (!string.IsNullOrEmpty(f.BackSlot))
+        if (!closed && !string.IsNullOrEmpty(f.BackSlot))
             TryAdd(parts, Part.Back, Pick(id, f.BackSlot, f.Vars, formal));
 
-        // ── 문장 수 상한 ─────────────────────────────────────────────
+        // ── 문장 수 상한 — 조각 수가 아니라 **문장 수**로 잰다 ─────────────
+        // 틀 하나가 두 문장일 수 있어서 조각 수로 세면 상한이 2 인 사람이 4문장을 말했다.
+        // 핵심 + 보정의 문장 수는 하한이다(그 둘은 절대 빠지지 않는다).
         int max = budget;
-        // 사람을 물은 답에 붙은 인상은 상한을 한 칸 넘겨도 된다 — 그게 그 사람의 대답이다.
-        if (whoInCore.Length > 0 && parts.Any(p => p.Kind == Part.Impression)) max++;
-        int keep = parts.Count(p => p.Kind is Part.Core or Part.Caveat);
+        int keep = parts.Where(p => p.Kind is Part.Core or Part.Caveat).Sum(p => SentenceCount(p.Text));
         max = Mathf.Max(max, keep);
         foreach (var drop in DropOrder)
         {
-            while (parts.Count > max)
+            while (TotalSentences(parts) > max)
             {
                 int at = parts.FindLastIndex(p => p.Kind == drop);
                 if (at < 0) break;
@@ -140,8 +150,13 @@ public static class DialogueComposer
             parts.RemoveAll(p => p.Kind == Part.Impression);
 
         // 기억 한 줄마다 실제로 답에 남았는지 표시한다(겹쳐서 안 붙었거나 상한에 잘렸으면 "(잘림)").
-        LastTrace = f.Slot + (f.Addenda.Count == 0 ? "" : " + 기억[" + string.Join(", ",
-            f.Addenda.Select((a, i) => a.Slot + (Kept(parts, memLines[i]) ? "" : "(잘림)"))) + "]");
+        // 닫힌 틀은 "(닫힘)", 핵심 밖에 실제로 남은 조각은 "조각[…]" 으로 — 샘플 덤프가 세어 본다.
+        var extras = parts.Where(p => p.Kind is not (Part.Core or Part.Memory))
+            .Select(p => PartName(p.Kind)).Distinct().ToList();
+        LastTrace = f.Slot + (closed ? "(닫힘)" : "")
+            + (f.Addenda.Count == 0 ? "" : " + 기억[" + string.Join(", ",
+                f.Addenda.Select((a, i) => a.Slot + (Kept(parts, memLines[i]) ? "" : "(잘림)"))) + "]")
+            + (extras.Count == 0 ? "" : " + 조각[" + string.Join(", ", extras) + "]");
         _lastKept = f.Addenda.Where((a, i) => Kept(parts, memLines[i])).ToList();
         string joined = Finalize(string.Join(" ", parts.Select(p => p.Text)));
         int ex = f.MaxExclamations >= 0 ? f.MaxExclamations : voice.MaxExclamations;
@@ -152,6 +167,59 @@ public static class DialogueComposer
 
     private static bool Kept(List<(Part Kind, string Text)> parts, string line) =>
         line != null && parts.Any(p => p.Kind == Part.Memory && p.Text == line);
+
+    private static int TotalSentences(List<(Part Kind, string Text)> parts) =>
+        parts.Sum(p => SentenceCount(p.Text));
+
+    private static string PartName(Part kind) => kind switch
+    {
+        Part.Opener => "여는말",
+        Part.Caveat => "보정",
+        Part.Impression => "인상",
+        Part.Extra => "덧붙임",
+        Part.Back => "되묻기",
+        _ => kind.ToString(),
+    };
+
+    // --- 닫힌 틀 · 되받기 판정 ------------------------------------------------
+
+    // 이미 "덧붙임 성격" 으로 끝나는 어미. 이 뒤에 완결 문장을 붙이면 말이 두 번 끝난다.
+    private static readonly string[] ClosedEndings =
+        { "인데요~", "인데요.", "잖아요~", "잖아요.", "걸요?", "걸요~", "텐데.", "텐데~", "말이죠~", "말이죠." };
+
+    // 핵심 틀이 완결된 답인가 — 두 문장 이상 · 되묻기(?)로 끝남 · 덧붙임 어미로 끝남.
+    internal static bool IsClosed(string core)
+    {
+        if (string.IsNullOrEmpty(core)) return false;
+        if (SentenceCount(core) >= 2) return true;
+        string last = (Sentences(core).LastOrDefault() ?? core).TrimEnd();
+        if (last.EndsWith("?")) return true;
+        return ClosedEndings.Any(last.EndsWith);
+    }
+
+    // 되받기의 주제어 — 첫 문장이 이걸로 시작하면 질문을 이미 되받은 것이다.
+    private static readonly string[] EchoLeads = { "이상", "수상", "저요", "지금", "그때", "누구" };
+
+    // 핵심 틀이 이미 질문을 되받으며 시작하는가 — 짧은 첫 문장이 ? · ~ 로 끝나거나, 되받기 주제어로 시작한다.
+    // (예전 판정은 앞 6글자 안의 '?' 만 봐서 "수상한 사람이라~ 딱히요" 를 놓쳤다.)
+    internal static bool AlreadyEchoes(string core)
+    {
+        string first = (Sentences(core).FirstOrDefault() ?? "").TrimEnd();
+        if (first.Length == 0) return false;
+        if (first.Length <= 14 && (first.EndsWith("?") || first.EndsWith("~"))) return true;
+        return EchoLeads.Any(first.StartsWith);
+    }
+
+    // 보정 한 줄. 닫힌 틀이면 핵심 앞(여는 말 뒤)에 넣는다.
+    private static void AddCaveat(List<(Part Kind, string Text)> parts, string text, bool front)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        foreach (var p in parts)
+            if (RepeatsAnySentence(p.Text, text)) return;
+        if (!front) { parts.Add((Part.Caveat, text)); return; }
+        int at = parts.FindIndex(p => p.Kind == Part.Core);
+        parts.Insert(at < 0 ? parts.Count : at, (Part.Caveat, text));
+    }
 
     // --- 동료 인상 ---------------------------------------------------------
 
@@ -232,7 +300,8 @@ public static class DialogueComposer
 
     private static readonly Regex SentenceBreak = new(@"[.!?~…](?=\s)", RegexOptions.Compiled);
 
-    private static int SentenceCount(string text) => SentenceBreak.Matches(text).Count + 1;
+    // 문장 수 — [.!?~…] 뒤 공백을 경계로 센다("~" 뒤 공백도 경계다). tools/dialogue_sample_stats.py 와 같은 규칙.
+    internal static int SentenceCount(string text) => SentenceBreak.Matches(text ?? "").Count + 1;
 
     private static readonly string[] TicEndings = { "죠.", "는데요.", "거든요.", "잖아요.", "더군요.", "고요." };
 
@@ -248,13 +317,6 @@ public static class DialogueComposer
         var m = new Dictionary<string, string>(a);
         foreach (var kv in b) m[kv.Key] = kv.Value;
         return m;
-    }
-
-    // 핵심 문장이 이미 되물으며 시작하는가("제가요? …"). 그렇다면 주제 되받기는 군더더기다.
-    private static bool OpensWithQuestion(string core)
-    {
-        int q = core.IndexOf('?');
-        return q >= 0 && q <= 6;
     }
 
     // 이미 시점을 품고 있는 문장에는 시간 표현을 덧대지 않는다("아까 계속 …" 방지).

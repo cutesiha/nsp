@@ -404,15 +404,16 @@ public static class LocalDialogueGenerator
     // 결번자가 거짓 알리바이를 대는 중이면 주장한 방을 기준으로만 떠올린다.
     private static RecallResult Recall(DialogueContext ctx, DialogueResponsePlan plan)
     {
+        // 근무 기억은 위치 · 동행 · 동선을 묻는 답(과 하루 소감 · 근무 중 상태)에만 붙는다.
+        // "의심받을 때"(Accuse) · "수상한 사람 못 봤다"(NoSighting) 뒤에 동석자 기억이 붙으면
+        // 부인하다 말고 딴 사람 얘기를 꺼내는 꼴이 된다 — 그 둘은 뺐다.
         var topic = ctx.QuestionId switch
         {
             DialogueQuestions.ShiftReview => RecallTopic.ShiftReview,
             // 아는 사고가 없다는 답에는 "그쯤" 같은 기억을 붙이지 않는다 — 가리킬 시각이 없다.
             DialogueQuestions.Anomaly or DialogueQuestions.GeneralAnomaly
                 when plan.Core is CoreKind.IncidentDirect or CoreKind.IncidentIndirect => RecallTopic.Anomaly,
-            DialogueQuestions.Suspicious when plan.Core == CoreKind.NoSighting => RecallTopic.Suspicious,
             DialogueQuestions.Where => RecallTopic.Location,
-            DialogueQuestions.Accuse => RecallTopic.Accuse,
             DialogueQuestions.GeneralStatus => RecallTopic.Status,
             _ => RecallTopic.None,
         };

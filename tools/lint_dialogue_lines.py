@@ -28,7 +28,7 @@ ALLOWED = {
     "status.repair": [], "status.stress": [], "status.idle": [], "status.moving": [], "comply": [],
     "report.direct": ["iroom", "what"], "report.indirect": ["iroom", "sound"], "report.blackout": [],
     "accept": [], "decline": [],
-    "opener.repeat": [], "react.accused": [], "emotion.alarm": [], "emotion.fear": [], "emotion.annoy": [],
+    "opener.repeat": [], "react.accused": [], "emotion.alarm": [], "emotion.alarm.indirect": [], "emotion.fear": [], "emotion.annoy": [],
     "caveat.indirect": [], "caveat.cause": [],
     "support.task": [], "support.taskname": ["task"], "support.nothing": [], "support.hedge": [],
     "support.justify": [], "support.minimize": [], "support.vague": [], "support.redirect": ["who"],

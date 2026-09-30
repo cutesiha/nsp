@@ -3,6 +3,7 @@ using Godot;
 using NSP.Core;
 using NSP.Data;
 using NSP.Facility;
+using NSP.Dialogue;
 
 namespace NSP.Dialogue;
 
@@ -36,8 +37,82 @@ public partial class DialogueScenarioTest : Node
         FollowUpScenarios();
         // 증거 기반 심문(조사 자료 → 질문 → 모순 추궁) 검증.
         InterviewScenarioTest.RunAll();
+        // 조립 규칙(문장 수 상한 · 닫힌 틀 · 되받기 중복) 검증.
+        ComposerRuleChecks();
         GD.Print("=== 시나리오 검증 종료 ===");
         GetTree().Quit();
+    }
+
+    // --- 조립 규칙 (CLAUDE_CODE_TASK_dialogue_AB A-1 ~ A-3) ------------------
+    //
+    // 문장이 아니라 "무엇을 붙이고 무엇을 안 붙이는가"를 본다. 대사 뱅크가 바뀌어도 이 규칙은 그대로다.
+    private static int _rulePass, _ruleFail;
+
+    private static void RuleCheck(bool ok, string what)
+    {
+        if (ok) _rulePass++; else _ruleFail++;
+        GD.Print($"   {(ok ? "PASS" : "FAIL")}  {what}");
+    }
+
+    private static void ComposerRuleChecks()
+    {
+        GD.Print("\n################ 조립 규칙 검증 ################");
+        _rulePass = _ruleFail = 0;
+
+        // 문장 수 — "~" 뒤 공백도 경계다.
+        RuleCheck(DialogueComposer.SentenceCount("코어실에 있었어요~ 관리자님은 그때 어디 계셨어요? 그때는 혼자였어요~") == 3, "문장 수: ~ · ? 경계로 3문장");
+        RuleCheck(DialogueComposer.SentenceCount("혼자였습니다.") == 1, "문장 수: 한 문장");
+
+        // 닫힌 틀 — 두 문장 이상 · 되묻기로 끝남 · 덧붙임 어미로 끝남.
+        RuleCheck(DialogueComposer.IsClosed("코어실에 있었어요~ 관리자님은 그때 어디 계셨어요?"), "닫힘: 두 문장");
+        RuleCheck(DialogueComposer.IsClosed("제가 그렇게 수상해 보여요~?"), "닫힘: ~? 로 끝남");
+        RuleCheck(DialogueComposer.IsClosed("로그 보면 나오잖아요~"), "닫힘: 잖아요~ 로 끝남");
+        RuleCheck(DialogueComposer.IsClosed("자재만 오면 금방 할 텐데."), "닫힘: 텐데. 로 끝남");
+        RuleCheck(!DialogueComposer.IsClosed("저장고에 있었습니다."), "열림: 평서문 한 문장");
+        RuleCheck(!DialogueComposer.IsClosed("혼자였어요~"), "열림: ~ 로 끝나는 한 문장은 닫힌 틀이 아니다");
+
+        // 되받기 중복 — 짧은 첫 문장이 ? · ~ 로 끝나거나 되받기 주제어로 시작.
+        RuleCheck(DialogueComposer.AlreadyEchoes("수상한 사람이라~ 딱히요."), "되받음: 짧은 첫 문장이 ~ 로 끝남");
+        RuleCheck(DialogueComposer.AlreadyEchoes("저요? 코어실에 있었어요."), "되받음: 저요? 로 시작");
+        RuleCheck(DialogueComposer.AlreadyEchoes("이상현상이요~? 없었어요."), "되받음: 이상 으로 시작");
+        RuleCheck(!DialogueComposer.AlreadyEchoes("코어실에서 하던 일을 계속하고 있었습니다."), "안 되받음: 긴 평서문");
+
+        // 실제 조립 — 닫힌 틀에는 기억 · 되묻기가 붙지 않고, 보정은 앞에 온다.
+        var f = new ReplyFrame { EmployeeId = "fox", CustomSlot = "incident.indirect", MaxSentences = 3 };
+        f.Set("iroom", "발전실").Set("sound", "쿵 하는 소리가 들렸어요.");
+        f.Caveats.Add("caveat.indirect");
+        f.BackSlot = "closer.back";
+        f.Addenda.Add(new ReplyAddendum { Slot = "mem.alone" }.Set("room", "코어실"));
+        int closedRuns = 0, okRuns = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            string a = DialogueComposer.Compose(f);
+            string tr = DialogueComposer.LastTrace;
+            if (!tr.Contains("(닫힘)")) continue;
+            closedRuns++;
+            bool noTail = !tr.Contains("되묻기") && !tr.Contains("덧붙임") && !tr.Contains("인상")
+                          && !System.Text.RegularExpressions.Regex.IsMatch(tr, @"기억\[[^\]]*mem\.alone\]");
+            if (noTail) okRuns++;
+            if (i < 3) GD.Print($"   예: {a}  ({tr})");
+        }
+        RuleCheck(closedRuns > 0, $"여우 간접 목격 틀 중 닫힌 틀이 뽑혔다 ({closedRuns}/12)");
+        RuleCheck(closedRuns == okRuns, $"닫힌 틀 뒤에는 기억 · 되묻기 · 덧붙임이 붙지 않는다 ({okRuns}/{closedRuns})");
+
+        // 문장 수 상한 — 여우(2) 에게 기억 두 줄을 주어도 두 문장을 넘지 않는다(핵심이 한 문장일 때).
+        var g = new ReplyFrame { EmployeeId = "wolf", CustomSlot = "Companion.alone", MaxSentences = 2 };
+        g.Set("room", "경비실");
+        g.Addenda.Add(new ReplyAddendum { Slot = "mem.worked" }.Set("task", "순찰").Set("room", "경비실"));
+        g.Addenda.Add(new ReplyAddendum { Slot = "mem.repair" }.Set("room", "경비실"));
+        g.ExtraSlot = "support.nothing";
+        int over = 0;
+        for (int i = 0; i < 12; i++)
+        {
+            string a = DialogueComposer.Compose(g);
+            if (DialogueComposer.SentenceCount(a) > 2) { over++; GD.Print($"   초과: {a}  ({DialogueComposer.LastTrace})"); }
+        }
+        RuleCheck(over == 0, $"늑대(상한 2) — 기억 두 줄 · 덧붙임을 줘도 두 문장을 넘지 않는다 (초과 {over}/12)");
+
+        GD.Print($"\n################ 결과: {_rulePass} PASS / {_ruleFail} FAIL ################");
     }
 
     // --- 시나리오 A : 늑대가 인접 작업실에서 소리만 들었다 -----------------

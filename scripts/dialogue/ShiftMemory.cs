@@ -258,8 +258,9 @@ public static class ShiftMemory
         }
 
         // ── 1) 그 시각 같은 방에 있던 사람(모든 시각 질문에 공통) ─────────
+        // (Accuse 는 뺐다 — 의심을 부인하는 답 뒤에 동석자 이야기를 붙이지 않는다. 열거값은 남아 있다.)
         bool companionTopic = r.Topic is RecallTopic.Location or RecallTopic.Presence or RecallTopic.Anomaly
-            or RecallTopic.Accuse or RecallTopic.Movement;
+            or RecallTopic.Movement;
         if (anchored && companionTopic && !string.IsNullOrEmpty(r.AnchorRoom))
         {
             var others = DialogueContextBuilder.OccupantsAt(r.AnchorRoom, r.Day, r.AnchorTime, r.EmployeeId);
@@ -288,8 +289,7 @@ public static class ShiftMemory
             {
                 line.Set("room", RoomName(r.AnchorRoom));
                 // 의심받을 때 "같이 있던 사람"은 가장 중요한 해명이다.
-                float boost = r.Topic == RecallTopic.Accuse ? 1.8f : 1f;
-                Add(MemoryKind.Companion, boost * OthersWeight(voice) * (others.Count == 0 ? 0.6f : 1f), line);
+                Add(MemoryKind.Companion, OthersWeight(voice) * (others.Count == 0 ? 0.6f : 1f), line);
             }
         }
 

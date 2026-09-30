@@ -206,7 +206,14 @@ public static class DialogueUtterancePlanner
         if (plan.Core == CoreKind.ChallengeResponse) return "react.accused";
         if (plan.Core == CoreKind.DenyAccusation) return "";
         if (tone == SituationTone.Fearful) return "emotion.fear";
-        if (tone == SituationTone.Alarmed) return "emotion.alarm";
+        if (tone == SituationTone.Alarmed)
+        {
+            // 소리만 들은 사람이 "꽤 볼만했죠~" 라고 시작하면 안 된다 — 간접 인지에는 간접 반응만.
+            // 그 캐릭터 파일에 없으면 여는 말을 비운다(공통 문장으로 떨어뜨리면 말투가 흐려진다).
+            bool indirect = plan.Knowledge == KnowledgeLevel.Indirect || plan.NeedsIndirectCaveat;
+            if (indirect) return DialogueLineBank.HasOwn(ctx.EmployeeId, "emotion.alarm.indirect") ? "emotion.alarm.indirect" : "";
+            return "emotion.alarm";
+        }
         return "";
     }
 
