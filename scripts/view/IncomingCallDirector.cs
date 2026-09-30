@@ -151,6 +151,77 @@ public partial class IncomingCallDirector : Node
             PhoneCallHud.Instance.EventChoiceMade += OnEventChoiceMade;
             _hudWired = true;
         }
+        if (!_ghostWired && FacilitySimulation.Instance?.Ghost != null)
+        {
+            FacilitySimulation.Instance.Ghost.Dispelled += OnGhostDispelled;
+            _ghostWired = true;
+        }
+        TickGhostScreamCall();
+    }
+
+    // ── 비명 문의 전화(H-3) ───────────────────────────────────────────
+    //
+    // 이상 개체가 관측으로 소멸하며 비명을 지른 뒤, 그 소리를 들은 직원 하나가 물어 온다.
+    // 요구가 아니라 질문이다 — 순수 분위기 연출이고 단서가 아니다.
+    // 귀신이 있던 방의 직원은 제외한다(직접 봤으니 물어볼 이유가 없다).
+    [Export] public float GhostScreamCallChance = 0.40f;
+    [Export] public float GhostScreamDelayMinSeconds = 3f;
+    [Export] public float GhostScreamDelayMaxSeconds = 8f;
+    public const float GhostScreamTruthStress = 4f;
+
+    private bool _ghostWired;
+    private int _ghostCallDay = -1;
+    private bool _ghostCalledToday;
+    private double _ghostCallAt = -1;      // 이 시각(초)에 전화를 건다. 음수면 예약 없음
+    private string _ghostCallRoom = "";
+
+    // 예약했으면 true. 검사에서 발생률과 하루 상한을 그대로 셀 수 있게 결과를 돌려준다.
+    private bool OnGhostDispelledInner(string roomId)
+    {
+        if (!DayFeatures.AutoIncidentsEnabled) return false;            // 교육일에는 없다
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        if (day != _ghostCallDay) { _ghostCallDay = day; _ghostCalledToday = false; _ghostCallAt = -1; }
+        if (_ghostCalledToday || _ghostCallAt >= 0) return false;       // 하루 한 번
+        if (GD.Randf() >= GhostScreamCallChance) return false;
+
+        _ghostCallRoom = roomId;
+        _ghostCalledToday = true;
+        _ghostCallAt = Time.GetTicksMsec() / 1000.0
+                       + GD.RandRange(GhostScreamDelayMinSeconds, GhostScreamDelayMaxSeconds);
+        return true;
+    }
+
+    private void OnGhostDispelled(string roomId) => OnGhostDispelledInner(roomId);
+
+    // 검사용 — 실제 판정 경로를 그대로 탄다.
+    public bool DebugGhostDispelled(string roomId) => OnGhostDispelledInner(roomId);
+
+    private void TickGhostScreamCall()
+    {
+        if (_ghostCallAt < 0 || Time.GetTicksMsec() / 1000.0 < _ghostCallAt) return;
+        _ghostCallAt = -1;
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+
+        string caller = GhostScreamCaller(_ghostCallRoom);
+        if (string.IsNullOrEmpty(caller)) return;
+        Enqueue(caller, DialogueRepository.EventGhostScream, "ghostscream:" + _ghostCallRoom, _ghostCallRoom);
+    }
+
+    // 비명을 듣고 물어볼 만한 사람 — 살아 있고, 기절·격리가 아니고, 그 방에 없던 직원.
+    public static string GhostScreamCaller(string ghostRoomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return "";
+        var pool = sim.GetActiveEmployeeIds()
+            .Where(id =>
+            {
+                var st = sim.GetEmployeeState(id);
+                if (st is not { Alive: true, Isolated: false, Incapacitated: false }) return false;
+                // 그 방에 있던 사람은 직접 봤다 — 물어볼 이유가 없다.
+                return st.CurrentRoomId != ghostRoomId && st.AssignedRoomId != ghostRoomId;
+            })
+            .ToList();
+        return pool.Count == 0 ? "" : pool[(int)(GD.Randi() % (uint)pool.Count)];
     }
 
     public override void _ExitTree()
@@ -481,6 +552,16 @@ public partial class IncomingCallDirector : Node
             return;
         }
 
+        // 비명 문의(H-3) — 사실을 말해 주면 그만큼 겁을 먹는다. 그뿐이고 시설은 그대로 돌아간다.
+        if (dialogueEvent == DialogueRepository.EventGhostScream)
+        {
+            if (choiceIndex == 0)
+                FacilitySimulation.Instance?.AddStress(employeeId, GhostScreamTruthStress);
+            var incG = GetIncident(_active.DedupeKey);
+            if (incG != null) incG.Closed = true;
+            return;
+        }
+
         var inc = GetIncident(_active.DedupeKey);
         if (inc == null || inc.Closed || !IsDispatchEvent(dialogueEvent)) return;
 
@@ -539,7 +620,9 @@ public partial class IncomingCallDirector : Node
         }
 
         // 근무 기억용 — "전화드렸는데 안 받으셨어요".
-        CallMemoryLog.Record(employeeId, CallRecordKind.Missed, _active?.RoomId ?? "", dialogueEvent);
+        // 비명 문의(H-3)는 안 받아도 아무 일이 없다. 기록도 남기지 않는다.
+        if (dialogueEvent != DialogueRepository.EventGhostScream)
+            CallMemoryLog.Record(employeeId, CallRecordKind.Missed, _active?.RoomId ?? "", dialogueEvent);
         // 전화를 안 받은 것도 "확인 지시를 안 한" 것으로 본다 → 다른 직원이 2차로 건다.
         if (_active != null && IsDispatchEvent(_active.DialogueEvent))
         {

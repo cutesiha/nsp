@@ -248,6 +248,27 @@ public static class LocalDialogueGenerator
         if (dialogueEvent == DialogueRepository.EventTutorialRepairDone) return null;
 
         // 잡담 전화는 사건 기록을 필요로 하지 않는다 — 사건이 아니기 때문이다.
+        // 이상 개체가 소멸하며 지른 비명을 듣고 거는 전화(H-3). 요구가 아니라 질문이다 —
+        // 관리자가 무엇이라 답하든 시설은 그대로 돌아간다. 사실을 말해 주면 그만큼 겁을 먹을 뿐이다.
+        if (dialogueEvent == DialogueRepository.EventGhostScream)
+        {
+            var ghost = new CallLine
+            {
+                Opening = Slot(employeeId, "ghostscream.ask", "방금 그 소리… 뭐였습니까?"),
+            };
+            ghost.Choices.Add(new CallChoice
+            {
+                Text = "귀신으로 보이는 이상 개체의 비명입니다.",
+                Reply = Slot(employeeId, "ghostscream.truth", "…알겠습니다."),
+            });
+            ghost.Choices.Add(new CallChoice
+            {
+                Text = "신경 쓸 것 없습니다. 하던 일 마저 하십시오.",
+                Reply = Slot(employeeId, "ghostscream.calm", "…네, 알겠습니다."),
+            });
+            return ghost;
+        }
+
         if (dialogueEvent is DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry)
             return BuildIdleCall(employeeId, dialogueEvent, roomId);
 

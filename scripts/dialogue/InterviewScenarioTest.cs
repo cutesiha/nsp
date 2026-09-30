@@ -668,7 +668,9 @@ public static class InterviewScenarioTest
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
         // 결번자는 다른 사람이다. 고양이는 결백하지만 같은 행동이 목격됐다.
         GameState.Instance.SetSaboteur("fox");
-        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(30), Odd);
+        // 목격과 사고의 간격은 재석 창(10분)보다 넓어야 행동 추궁만 성립한다.
+        // 딱 10분으로 두면 경계값이라 재석 추궁이 먼저 잡히기도 한다(RestEvidenceTest 신규 J 와 같은 이유).
+        PlayerKnownEvidence.RecordSighting("wolf", "cat", Maintenance, At(28), Odd);
         Log(LogEventType.TaskFailed, "", Maintenance, At(40));
 
         var board = InterviewEvidenceBoard.Build("cat");

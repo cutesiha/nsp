@@ -31,6 +31,10 @@ public static class DialogueRepository
     // 같은 방 동료가 쓰러졌다 — 의무실로 옮겨도 되는지 묻는 전화.
     // 받지 않으면(timeout) 직원이 알아서 옮긴다. 명시적으로 거절하면 옮기지 않는다.
     public const string EventFaintTransportRequest = "faint_transport_request";
+
+    // 이상 개체가 소멸하며 지른 비명을 듣고 직원이 먼저 거는 전화(H-3).
+    // 분위기 연출이다 — 단서가 아니다. 통화 기록 · 근무 기억 · 조사 자료 어디에도 남지 않는다.
+    public const string EventGhostScream = "ghost_scream";
     // 가상 시뮬레이션(교육) 전용 고정 통화 — 수리를 끝낸 직원이 복귀를 묻는다.
     // 생성기를 태우지 않고 대사 파일의 문장을 그대로 쓴다.
     public const string EventTutorialRepairDone = "tutorial_repair_done";

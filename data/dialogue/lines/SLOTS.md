@@ -123,6 +123,8 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | idle.visit.allowed / .denied | 그 요청을 관리자가 허락 / 거절했을 때의 대답 | room |
 | idle.worry | 옆 방({room})의 {who} 가 이상하다며 먼저 거는 전화 | room, who |
 | idle.worry.allowed / .denied | 그 요청을 관리자가 허락 / 거절했을 때의 대답 | room, who |
+| ghostscream.ask | 이상 개체가 소멸하며 지른 비명을 듣고 먼저 거는 전화(H-3) | — |
+| ghostscream.truth / .calm | 사실대로 알려줬을 때 / 신경 쓰지 말라고 했을 때의 대답 | — |
 
 ### 근무 기억(ShiftMemory) — 답변 뒤에 덧붙는 한 문장
 실제 로그·통화 기록에서 골라 붙습니다. 캐릭터 말투가 몇 개를, 무엇을 먼저 꺼낼지 정합니다.

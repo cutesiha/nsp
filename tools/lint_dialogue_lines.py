@@ -72,6 +72,8 @@ ALLOWED = {
     "mem.call.missed": ["iroom"], "mem.called": ["room"], "mem.repair": ["room"], "mem.heard": ["iroom"],
     "mem.incident.here": ["room"], "mem.sum.moves": ["n"], "mem.sum.calls": ["n"],
     "slip.assert": [], "slip.concern.vague": [],
+    # 비명 문의(H-3) — 변수 없이 통째로 쓴 문장이다.
+    "ghostscream.ask": [], "ghostscream.truth": [], "ghostscream.calm": [],
     "echo.wrap": ["subject"], "echo.certain": [], "echo.seen": [], "echo.heard": [], "echo.where": [],
     "time.vague": [],
 }

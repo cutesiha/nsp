@@ -889,7 +889,9 @@ public partial class PhoneCallHud : CanvasLayer
             if (_event != null && !string.IsNullOrEmpty(_event.Opening))
             {
                 // 근무 기억용 구조화 기록 — "그래서 바로 관리자님께 전화드렸잖아요".
-                CallMemoryLog.Record(employeeId, CallRecordKind.Reported, _incidentRoomId, _dialogueEvent);
+                // 비명 문의(H-3)는 순수 분위기 연출이라 기록하지 않는다 — 기록하면 조사 자료 카드가 된다.
+                if (_dialogueEvent != DialogueRepository.EventGhostScream)
+                    CallMemoryLog.Record(employeeId, CallRecordKind.Reported, _incidentRoomId, _dialogueEvent);
                 RecordNpc(_event.Opening, DialogueEntryType.NpcLine, DialogueConversationType.IncomingCall);
                 StartTyping("\"" + _event.Opening + "\"", AfterMode.EventChoices);
                 return;
