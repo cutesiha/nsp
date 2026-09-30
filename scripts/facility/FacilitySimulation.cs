@@ -1980,6 +1980,32 @@ public partial class FacilitySimulation : Node
         return room != null && room.MicroFaultUntil > (GameState.Instance?.DayTimeSeconds ?? 0f);
     }
 
+    // 목격자가 그 장면을 실제로 기억할 확률. 관찰력이 높을수록 잘 본다.
+    private static float WitnessChance(string employeeId)
+    {
+        var cfg = Config.Instance?.Data;
+        float baseChance = cfg?.WitnessBaseChance ?? 0.45f;
+        float perStat = cfg?.WitnessChancePerObservation ?? 0.15f;
+        int obs = EmployeeTraits.Get(employeeId).ObservationalAwareness;
+        return Mathf.Clamp(baseChance + perStat * (obs - EmployeeTraits.AwarenessForWitness), 0.05f, 0.95f);
+    }
+
+    // 평범한 이동도 누군가에게는 "그러고 보니 이상했다" 로 남는다(F-5).
+    //
+    // 방해자의 몰래 이동만 증언 대상이면, 증언 한 건이 곧 범인 확정이 된다. 그래서 정상 직원의
+    // **실제 이동**도 낮은 확률로 같은 증언 통로를 탄다. 지어내지 않는다 — 그 시각 그 방으로
+    // 정말 들어왔을 때만, 본 그대로 적는다. 관리자가 시설 로그를 대조하면 "(지시)" 가 붙어 있어
+    // 해명이 된다. 그 대조가 이 게임의 추리다.
+    private void NoteOrdinaryArrival(EmployeeState emp, string roomId, bool passing)
+    {
+        if (passing || GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        if (emp == null || !emp.Alive || emp.Isolated || emp.Incapacitated) return;
+        var cfg = Config.Instance?.Data;
+        float chance = cfg?.OrdinaryMoveSightingChance ?? 0.22f;
+        if (chance <= 0f || GD.Randf() >= chance) return;
+        RecordOddBehaviour(emp.EmployeeId, roomId, $"{RoomName(roomId)}에 들어오는 것을 봤다");
+    }
+
     // ③ 목격 — 같은 방의 관찰력 있는 직원이 기억한다. 화면 로그에는 뜨지 않고
     //    휴게시간 증언으로만 나온다(Facility Log 를 미세 행동으로 더럽히지 않는다).
     public List<string> RecordOddBehaviour(string actorId, string roomId, string what)
@@ -1994,6 +2020,12 @@ public partial class FacilitySimulation : Node
             var st = _employeeStates.GetValueOrDefault(id);
             if (st is not { Alive: true, Isolated: false, Incapacitated: false }) continue;
             if (EmployeeTraits.Get(id).ObservationalAwareness < EmployeeTraits.AwarenessForWitness) continue;
+            // 관찰력이 있어도 늘 보는 것은 아니다(F-5).
+            //
+            // 예전에는 자격만 되면 전원이 목격자로 들어가, 방해공작 한 번에 확정 증언이 반드시
+            // 한 건 나왔다 — 그 증언 하나가 곧 범인 확정이었다. 이제는 확률로 걸러 "봤을 수도,
+            // 못 봤을 수도" 가 된다. 본 것은 여전히 전부 사실이다.
+            if (GD.Randf() >= WitnessChance(id)) continue;
             seen.Add(id);
         }
         if (seen.Count == 0) return seen;
@@ -2290,6 +2322,9 @@ public partial class FacilitySimulation : Node
         EventLog.Instance?.LogEvent(LogEventType.RoomEnter, emp.EmployeeId, emp.CurrentRoomId,
             $"{Codename(emp.EmployeeId)} - {RoomName(emp.CurrentRoomId)} {(passing ? "통과" : "입장")}",
             GetOtherOccupants(emp.CurrentRoomId, emp.EmployeeId), passing);
+
+        // 방에 들어온 것을 같은 방 동료가 기억할 수 있다 — 증언이 범인 확정표가 되지 않게 섞는 잡음.
+        NoteOrdinaryArrival(emp, emp.CurrentRoomId, passing);
 
         // 배치된 자리에 처음 도착 = 초기 배치 완료. 이후 이동은 근무 중 저속으로 걷는다.
         if (!emp.InitialDeployDone && emp.CurrentRoomId == emp.AssignedRoomId)

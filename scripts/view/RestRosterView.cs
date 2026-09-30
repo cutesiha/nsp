@@ -509,31 +509,11 @@ public partial class RestRosterView : Control
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[격리]",
                         HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.88f, 0.52f, 0.9f));
 
-                DrawConfrontMarks(d);
-            }
-
-            // 오늘 이 직원을 몇 번 흔들었고 몇 번 해명을 들었는가 — 코드네임 아래 한 줄씩.
-            // 색은 두 가지뿐이다. 붉은 점이 많다고 범인인 것은 아니고, 화면도 그렇게 말하지 않는다.
-            private void DrawConfrontMarks(float d)
-            {
-                float y = d + 30f;
-                y = MarkLine(y, d, ConfrontMarks.Shaken(EmployeeId), "진술 흔들림",
-                    new Color(0.93f, 0.33f, 0.31f));
-                MarkLine(y, d, ConfrontMarks.Explained(EmployeeId), "해명",
-                    new Color(0.62f, 0.66f, 0.70f));
-            }
-
-            private float MarkLine(float y, float d, int count, string text, Color col)
-            {
-                if (count <= 0) return y;
-                var f = ViewFont.Default;
-                int fs = ViewFont.S(12);
-                string label = $"{text} ×{count}";
-                float w = f.GetStringSize(label, HorizontalAlignment.Left, -1f, fs).X;
-                float left = d * 0.5f - (w + 12f) * 0.5f;
-                DrawCircle(new Vector2(left + 4f, y - fs * 0.32f), 3.4f, col);
-                DrawString(f, new Vector2(left + 12f, y), label, HorizontalAlignment.Left, -1f, fs, col);
-                return y + fs + 2f;
+                // "진술 흔들림 ×n" · "해명 ×n" 배지는 그리지 않는다(F-5).
+                //
+                // 화면이 세어 주는 순간 그 숫자가 곧 범인 지목표가 됐다 — 관리자가 기록을 읽고
+                // 판단하는 대신 점이 많은 사람을 골랐다. 세는 것(ConfrontMarks)은 그대로 두되
+                // 결론은 사람이 내린다.
             }
         }
     }

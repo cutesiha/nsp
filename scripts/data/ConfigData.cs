@@ -32,6 +32,13 @@ public partial class ConfigData : Resource
     [Export] public float StressFaintFrom = 46f;
     // 기절 문턱에서 이만큼 아래부터 "기절 임박" 으로 보고 붉은 알림을 한 번 울린다.
     [Export] public float StressFaintSoonMargin = 1f;
+
+    // ── 목격 증언(F-5) ──────────────────────────────────────────────
+    // 관찰력 문턱을 넘은 직원이 그 장면을 실제로 기억할 확률(관찰력 1당 아래 값만큼 오른다).
+    [Export(PropertyHint.Range, "0,1,0.01")] public float WitnessBaseChance = 0.45f;
+    [Export(PropertyHint.Range, "0,1,0.01")] public float WitnessChancePerObservation = 0.15f;
+    // 정상 직원의 실제 이동이 "수상한 목격" 후보가 될 확률. 증언이 범인 확정표가 되지 않게 섞는 잡음이다.
+    [Export(PropertyHint.Range, "0,1,0.01")] public float OrdinaryMoveSightingChance = 0.22f;
     // 기절 → 의무실에서 이 시간(초) 뒤 회복해 원래 배치로 복귀. 0 이하면 예전처럼 당일 복귀 없음.
     [Export] public float StressFaintRecoverySeconds = 45f;
     // 회복 직후 스트레스 값(다시 바로 기절하지 않게 '주의' 구간 근처로 내려 둔다).
