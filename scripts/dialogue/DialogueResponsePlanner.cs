@@ -434,7 +434,7 @@ public static class DialogueResponsePlanner
         ApplyImitationSlip(ctx, plan, profile);
     }
 
-    // 결번자는 그 직원의 성격을 흉내 내지만 완벽하지는 않다.
+    // 결번 개체는 그 직원의 성격을 흉내 내지만 완벽하지는 않다.
     // 사람을 통째로 바꾸지 않고, 그 사람답지 않은 아주 작은 어긋남 하나만 남긴다.
     // (주장 자체는 DialogueClaimState 가 쥐고 있으므로 여기서 바뀌지 않는다 — 말투만 흔들린다.)
     private const float ImitationSlipChance = 0.3f;
@@ -512,9 +512,9 @@ public static class DialogueResponsePlanner
         claim.ClaimTruthful = claim.ClaimedRoomId == real;
     }
 
-    // 결번자가 이 사건에 대해 "설비 근처에는 가지 않았다"고 못 박을 것인가(§3-2).
+    // 결번 개체가 이 사건에 대해 "설비 근처에는 가지 않았다"고 못 박을 것인가(§3-2).
     //
-    // 이 게임에서 결번자가 대는 **유일하게 반박 가능한 거짓말**이다. 위치는 거짓말하지
+    // 이 게임에서 결번 개체가 대는 **유일하게 반박 가능한 거짓말**이다. 위치는 거짓말하지
     // 않으므로(제자리 범행) 잡을 거리가 없었는데, 이 주장 하나가 동료의 목격 증언과
     // 정면으로 부딪친다. 그래서 알리바이와 똑같이 한 번만 정하고 끝까지 밀고 간다 —
     // 물을 때마다 말이 달라지면 맞대어 볼 수가 없다.

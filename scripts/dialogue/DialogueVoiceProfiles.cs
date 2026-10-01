@@ -16,7 +16,7 @@ public static class DialogueVoiceProfiles
     private static Dictionary<string, DialogueVoiceProfile> Build() => new()
     {
         // 무뚝뚝·침착·자신감. 짧고 단정하며, 본 것과 추측을 나눠 말한다. 정확한 시각을 말할 여지가 크다.
-        // 결번자일 때는 흔들림 없이 부정하거나 생략한다 — 그 단정함 자체가 V2 의 미세한 어긋남 재료가 된다.
+        // 결번일 때는 흔들림 없이 부정하거나 생략한다 — 그 단정함 자체가 V2 의 미세한 어긋남 재료가 된다.
         ["wolf"] = new DialogueVoiceProfile
         {
             EmployeeId = "wolf",
@@ -69,7 +69,7 @@ public static class DialogueVoiceProfiles
         },
 
         // 온순·다정·협조. 업무와 함께 있던 사람 이야기를 자연스럽게 꺼낸다. 남을 몰아가지 않는다.
-        // 결번자일 때는 친절하게 얼버무린다(누구를 지목하는 Redirect 는 쓰지 않는다).
+        // 결번일 때는 친절하게 얼버무린다(누구를 지목하는 Redirect 는 쓰지 않는다).
         ["dog"] = new DialogueVoiceProfile
         {
             EmployeeId = "dog",

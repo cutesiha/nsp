@@ -179,7 +179,7 @@ public partial class HorrorDirector : Node
         _faceEntity.AddChild(_faceLight);
     }
 
-    // 결번자를 카메라 바로 앞에 한 프레임 만에 켠다. 접근 트윈을 쓰지 않아 예고 없이 튀어나오며,
+    // 개체를 카메라 바로 앞에 한 프레임 만에 켠다. 접근 트윈을 쓰지 않아 예고 없이 튀어나오며,
     // 노출 시간도 약 0.1초로 제한해 형체를 오래 감상하는 연출이 되지 않게 한다.
     public async void PlayEntityFaceJumpscare()
     {

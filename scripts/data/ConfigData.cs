@@ -127,7 +127,7 @@ public partial class ConfigData : Resource
     [Export] public float GhostScreamIntervalSeconds = 7f;
 
     // ─────────────────────────────────────────────────────────────────────
-    //  조명이 오래 꺼져 있으면 — 결번자가 어둠 속에서 서두른다.
+    //  조명이 오래 꺼져 있으면 — 결번 개체가 어둠 속에서 서두른다.
     // ─────────────────────────────────────────────────────────────────────
     // 조명 전력이 이 시간(초) 이상 끊겨 있으면 "어둠" 상태로 본다.
     [Export] public float BlackoutMurderAfterSeconds = 18f;

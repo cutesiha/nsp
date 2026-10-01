@@ -19,7 +19,7 @@ namespace NSP.View;
 //  - 금기 판정 / 위반 로그        : TabooRuleSystem (그대로)
 //  - 전력 용량 감소                : GameState.TriggerPowerAccident (TabooRuleSystem.ApplyDeferredConsequence 경유)
 //  - CCTV 강제 전환 / 신호 차단    : FacilitySimulation.SetSurveillanceTarget + CCTVMonitorView
-//  - 3D 발전실 화면 / 결번자 모델  : FacilityCctvWorld (기존 entity.tscn GLB)
+//  - 3D 발전실 화면 / 개체 모델  : FacilityCctvWorld (기존 entity.tscn GLB)
 //  - SENSOR 경고                   : AlertSystem (PROTOCOL VIOLATION / POWER SYSTEM ABNORMALITY)
 //  - 스트레스                      : FacilitySimulation.AddStress (연동 지점)
 //  - 공포 연출 억제                : HorrorDirector.CustomEventActive
@@ -81,7 +81,7 @@ public partial class PowerRoomTabooEvent : Node
             if (HorrorDirector.Instance != null) HorrorDirector.Instance.CustomEventActive = true;
 
             // 1. CCTV 강제로 발전실 전환 + 전력/고장과 무관하게 피드 유지.
-            // 결번자 연출이 끝날 때까지 다른 방을 눌러도 발전실 CCTV에서 빠져나갈 수 없다.
+            // 개체 연출이 끝날 때까지 다른 방을 눌러도 발전실 CCTV에서 빠져나갈 수 없다.
             sim?.ForceSurveillanceTarget(RoomId, 14f);
             CCTVMonitorView.Instance?.ForceFeed(26f);
 
@@ -92,15 +92,15 @@ public partial class PowerRoomTabooEvent : Node
             CCTVMonitorView.Instance?.FlashGlitch(1f);
             CCTVMonitorView.Instance?.Shake(7f, 0.35f);
 
-            // 3. 결번자가 직원 뒤에 소리 없이 서 있음 — 플레이어가 직접 발견할 시간.
+            // 3. 개체가 직원 뒤에 소리 없이 서 있음 — 플레이어가 직접 발견할 시간.
             await Wait(1.1);
 
-            // 4. 직원이 이상현상을 인지 — 비명. 결번자가 카메라를 빠르게 돌아봄.
+            // 4. 직원이 이상현상을 인지 — 비명. 개체가 카메라를 빠르게 돌아봄.
             Sfx.Instance?.PlayScream(screamer);
             FacilityCctvWorld.Instance?.HauntLookAtCamera(0.65f);
             await Wait(0.78);
 
-            // 5. 결번자가 기괴하게 몸을 뒤틀며 CCTV 바로 앞으로 돌진.
+            // 5. 개체가 기괴하게 몸을 뒤틀며 CCTV 바로 앞으로 돌진.
             FacilityCctvWorld.Instance?.HauntChargeCamera(0.55f);
             await Wait(0.62);
 
@@ -120,7 +120,7 @@ public partial class PowerRoomTabooEvent : Node
                 await Wait(0.42);
             }
 
-            // 마지막에 결번자 웃음.
+            // 마지막에 개체 웃음.
             Sfx.Instance?.PlayEntityLaugh();
             await Wait(0.7);
 

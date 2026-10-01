@@ -98,10 +98,10 @@ public partial class FacilitySimulation : Node
     }
     // 오늘 이미 성공시킨 방해공작 횟수 — DAY1 은 한 번으로 제한한다.
     private int _sabotageActionsToday;
-    // 결번자가 "언제 어디서" 손을 댈지 정하는 기회 판정(이동·체류 전조를 남긴다).
+    // 결번 개체가 "언제 어디서" 손을 댈지 정하는 기회 판정(이동·체류 전조를 남긴다).
     private readonly SaboteurPlan _saboteurPlan = new();
     public SaboteurPlan Saboteur => _saboteurPlan;
-    // 성격에 따른 정상 직원의 반응 이동 — 결번자의 이동과 똑같이 로그에 남는다.
+    // 성격에 따른 정상 직원의 반응 이동 — 결번의 이동과 똑같이 로그에 남는다.
     private readonly EmployeeBehaviorSystem _behavior = new();
     public EmployeeBehaviorSystem Behavior => _behavior;
     private readonly Dictionary<string, float> _patrolTimers = new();
@@ -1295,7 +1295,7 @@ public partial class FacilitySimulation : Node
     // 지금은 어둠이 BlackoutMurderAfterSeconds 만큼 **이어졌을 때만** 일어난다 —
     // 잠깐 끄는 것은 판단이고, 오래 끄는 것은 방치다.
     //
-    // 이 경로만 오늘의 AllowMurder 를 보지 않는다. 다른 날에 살인이 없는 것은 결번자가
+    // 이 경로만 오늘의 AllowMurder 를 보지 않는다. 다른 날에 살인이 없는 것은 결번 개체가
     // 그럴 생각이 없어서가 아니라 기회가 없어서이고, 그 기회를 만든 것은 관리자다.
     private void TickPowerLossMurder(float delta)
     {
@@ -1836,7 +1836,7 @@ public partial class FacilitySimulation : Node
 
     // 경비실에 사람이 있으면, 자기 배치실이 아닌 방에 오래 머무는 직원은 기록에 남는다.
     //
-    // 결번자 전용 장치가 아니다 — 사고를 보러 간 직원도, 대응하러 간 직원도 똑같이 남는다.
+    // 결번 전용 장치가 아니다 — 사고를 보러 간 직원도, 대응하러 간 직원도 똑같이 남는다.
     // 그래서 이 기록만으로는 범인을 알 수 없고, 다만 "그 시각 그 방에 누가 있었나"가
     // 휴게시간에 대조할 수 있는 형태로 남는다. 경비실을 비우면 이 기록도 없다.
     private const float OffPostRecordSeconds = 12f;
@@ -2098,7 +2098,7 @@ public partial class FacilitySimulation : Node
     // 지금 모두가 달려들어 수습하고 있는 중인가.
     //
     // "고장이 하나 열려 있다"가 아니라 "실제로 수리가 돌아가고 있다"를 본다.
-    // 아무도 손대지 않은 채 방치된 고장이 결번자를 근무 내내 숨겨 주면,
+    // 아무도 손대지 않은 채 방치된 고장이 결번을 근무 내내 숨겨 주면,
     // 플레이어가 대응을 포기할수록 사건이 안 일어나는 이상한 게임이 된다.
     public bool HasSeriousIncidentActive() =>
         _activeTasks.Any(t => t.IsRepair && t.Status == SpawnedTaskStatus.Active && t.Progressing);

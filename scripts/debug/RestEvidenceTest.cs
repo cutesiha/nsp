@@ -298,7 +298,7 @@ public partial class RestEvidenceTest : Node
         // ① 지나가기만 한 방(화면 로그에 뜨지 않는다)
         Log(LogEventType.RoomExit, "wolf", Guard, At(9), passing: true);
         Log(LogEventType.RoomEnter, "wolf", Core, At(10), passing: true);
-        // ② 아무도 보지 못한 결번자의 행동 — EventLog 에는 남지만 화면에는 없다
+        // ② 아무도 보지 못한 결번의 행동 — EventLog 에는 남지만 화면에는 없다
         GameState.Instance.SetSaboteur("fox");
         Log(LogEventType.RoomEnter, "fox", Power, At(20), passing: true);
 
@@ -308,7 +308,7 @@ public partial class RestEvidenceTest : Node
                  $"{wolf.Count(e => e.Kind != EvidenceKind.Mood)}/{fox.Count(e => e.Kind != EvidenceKind.Mood)})");
 
         Check(!wolf.Any(e => e.Kind == EvidenceKind.Movement), "통과만 한 이동은 자료가 되지 않는다");
-        Check(!fox.Any(e => e.Kind == EvidenceKind.Movement), "결번자의 숨은 이동도 자료가 되지 않는다");
+        Check(!fox.Any(e => e.Kind == EvidenceKind.Movement), "결번의 숨은 이동도 자료가 되지 않는다");
         // 내부 진실은 여전히 알고 있지만, 그것이 자료로 새어 나오지 않아야 한다.
         Check(DialogueContextBuilder.RoomAt("fox", 1, At(25)) == Power,
             "내부 기록(SystemTruth)에는 그대로 남아 있다");
@@ -435,10 +435,10 @@ public partial class RestEvidenceTest : Node
         Check(!string.IsNullOrEmpty(r.Notice), "왜 안 되는지 화면에 설명이 나간다");
     }
 
-    // ── H : 결번자의 거짓 알리바이는 반복 질문에도 유지된다 ────────────────
+    // ── H : 결번의 거짓 알리바이는 반복 질문에도 유지된다 ────────────────
     private void TestH()
     {
-        Head("H", "결번자의 진술 자료 ↔ DialogueClaimState");
+        Head("H", "결번의 진술 자료 ↔ DialogueClaimState");
         Reset();
         Deploy();
         GameState.Instance.SetSaboteur("cat");
@@ -463,7 +463,7 @@ public partial class RestEvidenceTest : Node
         GD.Print($"   진술 자료 = {InterviewEvidenceBoard.RoomName(claimedRoom)} / " +
                  $"ClaimState = {InterviewEvidenceBoard.RoomName(state.ClaimedRoomId)} " +
                  $"(진실 {state.ClaimTruthful})");
-        Check(claimEv != null, "결번자의 진술도 자료로 남는다");
+        Check(claimEv != null, "결번의 진술도 자료로 남는다");
         Check(claimAfter?.SubjectRoomId == claimedRoom, "다시 물어도 진술 자료가 바뀌지 않는다");
         Check(claimedRoom == state.ClaimedRoomId, "진술 자료가 DialogueClaimState 와 같은 방을 가리킨다");
         Check(session.Board.Count(e => e.Kind == EvidenceKind.OwnStatement) == 1,

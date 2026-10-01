@@ -12,8 +12,8 @@ namespace NSP.Debug;
 //
 //   godot --headless --path . res://scenes/debug/CharacterRosterTest.tscn
 //
-// 게임 흐름에서 로드되지 않는다. 결번자 자율 이동(Test H)의 긴 검증은 SaboteurClueTest 가
-// 새 6명을 번갈아 결번자로 세워 12번 근무를 돌리며 따로 본다.
+// 게임 흐름에서 로드되지 않는다. 결번 자율 이동(Test H)의 긴 검증은 SaboteurClueTest 가
+// 새 6명을 번갈아 결번으로 세워 12번 근무를 돌리며 따로 본다.
 public partial class CharacterRosterTest : Node
 {
     private static readonly string[] Final = { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
@@ -89,7 +89,7 @@ public partial class CharacterRosterTest : Node
             GD.Print($"   {id,-6} 축=[{v.VoiceAxis}] 시작={v.LeadWith} 확신={v.Confidence} " +
                      $"타인언급={v.MentionOthersChance} 행동제안={v.OfferActionChance} 흉내어긋남={v.ImpostorTells}");
             Check(!string.IsNullOrEmpty(v.VoiceAxis) && v.ImpostorTells != ImpostorTell.None,
-                $"{id} V2 캐릭터 축·결번자 어긋남 데이터가 있다");
+                $"{id} V2 캐릭터 축·결번 개체 어긋남 데이터가 있다");
         }
     }
 
@@ -203,10 +203,10 @@ public partial class CharacterRosterTest : Node
         Check(!HasRetiredName(header.OneLine), "자료 문구에 옛 이름이 없다");
     }
 
-    // ── G : 결번자가 새 세 명 중 하나여도 주장·자료가 깨지지 않는다 ───────────
+    // ── G : 결번 개체가 새 세 명 중 하나여도 주장·자료가 깨지지 않는다 ───────────
     private void TestG_SaboteurMimic()
     {
-        Head("G", "결번자 = 양 / 늑대 / 강아지");
+        Head("G", "결번 = 양 / 늑대 / 강아지");
         foreach (string sab in NewThree)
         {
             NewGame(1);
@@ -250,7 +250,7 @@ public partial class CharacterRosterTest : Node
     // ── H : 직원은 스스로 방을 옮기지 않는다 ───────────────────────────
     private void TestH_NoAutonomousMove()
     {
-        Head("H", "근무 60초 동안 자율 이동 없음(결번자 = 양·늑대·강아지 순서)");
+        Head("H", "근무 60초 동안 자율 이동 없음(결번 = 양·늑대·강아지 순서)");
         foreach (string sab in NewThree)
         {
             NewGame(1);
@@ -277,7 +277,7 @@ public partial class CharacterRosterTest : Node
                     if (st.Alive && !st.Isolated && st.AssignedRoomId != kv.Value) wrong++;
                 }
             }
-            Check(wrong == 0, $"[결번자 {sab}] 배치가 플레이어 명령 없이 바뀌지 않는다 (위반 {wrong})");
+            Check(wrong == 0, $"[결번 {sab}] 배치가 플레이어 명령 없이 바뀌지 않는다 (위반 {wrong})");
         }
     }
 

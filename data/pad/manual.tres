@@ -26,7 +26,7 @@ Lines = PackedStringArray("사고 전까지 관제 업무를 맡던 당신에게
 script = ExtResource("3_page")
 ImagePath = "res://assets/cutscene/prologue/archive_04_core.png"
 Title = "최종 목표"
-Lines = PackedStringArray("비상 차폐는 앞으로 120시간(5일)만 유지됩니다.", "그 안에 봉쇄 코어를 100%까지 복구하십시오.", "직원 여섯 명 사이에 정체불명의 개체가 숨어 있습니다.", "시설 로그와 진술을 맞대어 찾아내십시오.")
+Lines = PackedStringArray("비상 차폐 120시간(5일) 안에 봉쇄 코어를 100%로 복구하십시오.", "직원 여섯 명 중 하나는 결번입니다.", "사번은 있으나 그 자리에 있어야 할 사람이 없습니다.", "시설 로그와 진술을 맞대어 찾아내십시오.")
 
 [sub_resource type="Resource" id="page_5"]
 script = ExtResource("3_page")
@@ -174,7 +174,7 @@ Pages = Array[Resource]([SubResource("page_13"), SubResource("page_14"), SubReso
 
 [sub_resource type="Resource" id="chapter_5"]
 script = ExtResource("2_chapter")
-Title = "결번자 색출"
+Title = "결번 색출"
 IconPath = "res://assets/pad/manual/pin_log.png"
 Pages = Array[Resource]([SubResource("page_17"), SubResource("page_18"), SubResource("page_19"), SubResource("page_20")])
 

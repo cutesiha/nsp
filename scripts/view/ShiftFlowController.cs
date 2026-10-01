@@ -497,7 +497,7 @@ public partial class ShiftFlowController : Node
         GameState.Instance?.RecordShiftObjectives(
             DayObjectives.RequiredTotal - DayObjectives.RequiredDone);
 
-        // 개발용 — 오늘 결번자가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
+        // 개발용 — 오늘 결번 개체가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
         FacilitySimulation.Instance?.PrintSaboteurDebug();
 
         GameState.Instance?.SetPhase(GamePhase.Settlement);

@@ -302,7 +302,7 @@ public static class DialogueContextBuilder
     }
 
     // 이 직원이 실제로 알고 있는 사건 중 가장 최근 것(일반 통화 "이상현상" 질문용).
-    // excludeOwnActs: 자기가 한 방해공작은 "겪은 사고"로 꺼내지 않는다(결번자가 스스로 화제에 올리지 않게).
+    // excludeOwnActs: 자기가 한 방해공작은 "겪은 사고"로 꺼내지 않는다(결번 개체가 스스로 화제에 올리지 않게).
     public static LogEntry MostRecentKnownIncident(string employeeId, int day, bool excludeOwnActs = false)
     {
         var log = EventLog.Instance;

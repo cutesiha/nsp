@@ -54,13 +54,13 @@ public static class KoreanDialogueComposer
         if (memory != null)
         {
             f.Addenda.AddRange(memory.Addenda);
-            // 결번자 흉내의 어긋남 — 겁먹어야 할 자리에서 놀란 기색이 없다.
+            // 결번 개체의 흉내의 어긋남 — 겁먹어야 할 자리에서 놀란 기색이 없다.
             if (memory.SuppressFear && f.OpenerSlot is "emotion.fear" or "emotion.alarm") f.OpenerSlot = "";
         }
         return f;
     }
 
-    // 결번자가 "설비 근처에는 가지 않았다"고 못 박은 사건이면, 그 답변 뒤에 한 줄을 붙인다.
+    // 결번 개체가 "설비 근처에는 가지 않았다"고 못 박은 사건이면, 그 답변 뒤에 한 줄을 붙인다.
     //
     // 붙는 자리는 Caveats 다 — 문장 수 상한에 걸려 빠지면 안 되기 때문이다. 이 한 줄은
     // 꾸밈이 아니라 **주장**이고, 나가는 순간 조사 자료의 진술 카드가 된다(§3-2).
@@ -90,7 +90,7 @@ public static class KoreanDialogueComposer
     // "핵심 + 근무 기억 한 줄" 조합 중 가장 잦은 두 가지(혼자였다 · 누구와 있었다)를 사람이 통째로 쓴
     // 한 문장으로 바꾼다. 그 캐릭터 파일에 변형 슬롯이 있을 때만 — 없으면 null 을 돌려주고 기존
     // selfloc + mem.alone/with 조합이 그대로 나간다(캐릭터 파일을 하나씩 채워도 되게).
-    //   · selfloc.alone / selfloc.with     — "그때 어디 있었나". 동석자는 내세우는 방(결번자가 거짓
+    //   · selfloc.alone / selfloc.with     — "그때 어디 있었나". 동석자는 내세우는 방(결번 개체가 거짓
     //     알리바이를 대는 중이면 주장한 방) 기준으로 센다 — ShiftMemory.Recall 이 Lying 일 때와 같다.
     //   · incident.direct.with             — 사고를 직접 봤고 옆에 누가 있었다(mem.with.incident 후보가 있을 때만).
     // 변형을 쓰면 그 기억 줄은 빼고 "이미 한 이야기"로 적는다 — 같은 세션에서 동료 얘기가 두 번 나오지 않게.

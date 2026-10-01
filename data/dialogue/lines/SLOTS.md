@@ -22,7 +22,7 @@
 1. **사실을 만들지 않는다.** 문장은 슬롯이 보장하는 사실만 말합니다. "다들 무사해요", "누가 했어요" 같은 새 사실 금지.
 2. **캐릭터 차이는 문장부호가 아니라 의미 구조로.** 무엇을 먼저 말하나 · 얼마나 확신하나 · 남을 언급하나 · 행동을 제안하나 · 추측과 사실을 나누나.
 3. 한 문장 틀 = 사람이 통째로 한 번에 할 말. 1~2문장.
-4. 결번자도 같은 슬롯을 씁니다. `*.evasive` `support.justify/minimize/vague` `deny.evidence` `challenge.evasive` `Confront.*` 는 결번자가 주로 쓰는 자리지만, 정상 직원이 쓸 때도 어색하지 않아야 합니다(범인 표시가 되면 안 됨).
+4. 결번 개체도 같은 슬롯을 씁니다. `*.evasive` `support.justify/minimize/vague` `deny.evidence` `challenge.evasive` `Confront.*` 는 결번 개체가 주로 쓰는 자리지만, 정상 직원이 쓸 때도 어색하지 않아야 합니다(범인 표시가 되면 안 됨).
 
 ## 슬롯 목록
 
@@ -73,7 +73,7 @@
 | caveat.indirect | "직접 보지는 못했다" — 간접 인지일 때 반드시 붙음 |
 | caveat.cause | "원인은 모른다" |
 | support.task / support.taskname(task) / support.nothing / support.hedge | 덧붙이는 한 마디 |
-| support.justify / support.minimize / support.vague / support.redirect(who) | 결번자 전략(합리화·축소·흐리기·시선 돌리기) |
+| support.justify / support.minimize / support.vague / support.redirect(who) | 결번 전략(합리화·축소·흐리기·시선 돌리기) |
 | support.seen | 평가 대상을 오늘 봤다 |
 | volunteer.noanomaly / volunteer.nosight / volunteer.sight | 묻지 않았지만 덧붙이는 말 |
 | closer / closer.back | 끝맺음 / 되묻기 |
@@ -89,7 +89,7 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | MoveReason.repair | 수리 업무 때문에 | to |
 | MoveReason.task | 업무 때문에 | to, task |
 | MoveReason.check / MoveReason.plain | 확인차 / 별 이유 없음(정상 직원) | to |
-| MoveReason.evasive | 설명 못 하는 이동(결번자) | — |
+| MoveReason.evasive | 설명 못 하는 이동(결번) | — |
 | PresenceReason.task / assigned / check / evasive | 그 시각 그 방에 있던 이유 | room, task |
 | Companion.with / Companion.alone | 그때 같이 있던 사람 | who, room |
 | NextLocation.moved / stayed / evasive | 그 뒤 어디로 | next, room |
@@ -107,7 +107,7 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | ExactTime.exact / vague | 정확한 시각 | time |
 | Confront.honest / evasive / deny | 자료 두 장으로 모순을 들이밀었을 때 | room, time |
 | Confront.neutral | 자료 두 장이 어떤 추궁 규칙에도 걸리지 않았을 때(거절 대신 되묻는다) | room, time |
-| Denial.equipment | 결번자가 "설비 근처에 가지 않았다"고 못 박을 때 답변 뒤에 붙는 한 줄 | room, time |
+| Denial.equipment | 결번 개체가 "설비 근처에 가지 않았다"고 못 박을 때 답변 뒤에 붙는 한 줄 | room, time |
 | CallReason.idle / worry / report / missed / manager | 통화 기록 카드 — 그 시각 왜 전화했나(잡담 · 옆 방 걱정 · 신고 · 못 받은 전화 · 관리자가 건 전화) | room, here |
 | CallAfter.stayed / moved / task / evasive | 통화를 끝낸 뒤 무엇을 했나 | room, next, task |
 | Neglect.caught / justify / evasive | "놀러 가고 싶다"는 전화가 잦다 — 근무 태만 추궁. 지시 없는 이동 기록이 있으면 caught | n, room |
@@ -116,7 +116,7 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | GhostAct.hid / froze / worked · GhostAct.struck(보정) | 나타났을 때 무엇을 했나(성격 AvoidsDanger) · 놓쳐서 설비가 나갔을 때 한 줄 | room |
 | GhostOthers.panicked / froze / calm / none | 같이 있던 사람은 어떻게 했나 — 그 답이 목격 증언 카드가 된다 | who, room |
 | AlibiProof.witness / cctv / none / evasive | 그 시각 위치를 누가 증명하나 | who, room |
-| Innocence.task / elsewhere / plain / deny / evasive | 이 사고와 무관하다는 근거를 대라(결번자는 deny/evasive + Denial.equipment) | room, task |
+| Innocence.task / elsewhere / plain / deny / evasive | 이 사고와 무관하다는 근거를 대라(결번 개체는 deny/evasive + Denial.equipment) | room, task |
 | Suspect.named / none / deflect | 누가 그랬다고 보나 — 직접 본 수상한 행동이 있을 때만 이름을 댄다 | who, room |
 | PressPresence.admit / evasive / deny | "기록상 그 방에 있었다" — 관리자가 실제로 아는 재석만 따진다 | room |
 | idle.visit | 혼자 근무 중 "{room}에 가도 되나" 하고 먼저 거는 전화 | room |
@@ -147,8 +147,8 @@ prevloc.same(room) · prevloc.moved(droom, room) · nextact.stayed(room) · next
 | mem.heard | 그 무렵 옆방에서 소리가 났다(원인 말하지 않기) | iroom |
 | mem.incident.here | 그 방에서 사고가 났을 때 거기 있었다 | room |
 | mem.sum.moves / mem.sum.calls | 하루 요약 — n = "두", "세" … | n |
-| mem.with.vague | (결번자 흉내 어긋남) 사람 기억이 뭉뚱그려짐 | — |
-| slip.assert / slip.concern.vague | (결번자 흉내 어긋남) 지나친 단정 / 구체성 없는 걱정 | — |
+| mem.with.vague | (결번 개체의 흉내 어긋남) 사람 기억이 뭉뚱그려짐 | — |
+| slip.assert / slip.concern.vague | (결번 개체의 흉내 어긋남) 지나친 단정 / 구체성 없는 걱정 | — |
 
 ### 동료 인상 — 캐릭터 파일에만
 | 슬롯 | 뜻 | 변수 |

@@ -37,7 +37,7 @@ public static class InterviewScenarioTest
         TestF();
         TestG();
         TestNoAutoChallenge();
-        // 2차 — 결번자의 "설비 근처에 가지 않았다" 거짓말(§3-2).
+        // 2차 — 결번의 "설비 근처에 가지 않았다" 거짓말(§3-2).
         TestEquipmentDenial();
         TestInnocentAdmitsBehavior();
         TestDenialVersusWitness();
@@ -343,15 +343,15 @@ public static class InterviewScenarioTest
         GD.Print($"   A(지목): {a4}");
         Check(InterviewReplyPlanner.FrameFor(suspect).Variant == "none", "본 것이 없으면 아무도 지목하지 않는다");
 
-        // 결번자 — 무관 근거를 대라고 하면 부정하거나 흐린다.
+        // 결번 — 무관 근거를 대라고 하면 부정하거나 흐린다.
         GameState.Instance.SetSaboteur("cat");
         InterviewReplyPlanner.Reset();
         DialogueClaimState.ResetAll();
         var prove = InterviewQuestionFactory.Make("cat", inc, InterviewIntent.AskProveInnocence);
         string a3 = InterviewReplyPlanner.Answer(prove);
-        GD.Print($"   A(결번자·무관 근거): {a3}");
+        GD.Print($"   A(결번·무관 근거): {a3}");
         var fr = InterviewReplyPlanner.FrameFor(prove);
-        Check(fr.Variant is "deny" or "evasive", $"결번자는 부정하거나 흐린다 ({fr.Variant})");
+        Check(fr.Variant is "deny" or "evasive", $"결번 개체는 부정하거나 흐린다 ({fr.Variant})");
         // 지시 없는 이동은 근무지 이탈로 따질 수 있다.
         Move("cat", Power, Storage, At(50));
         var mv = InterviewEvidenceBoard.Build("cat").First(e => e.Kind == EvidenceKind.Movement);
@@ -610,12 +610,12 @@ public static class InterviewScenarioTest
         GD.Print($"\n===== [증거심문 {id}] {title} =====");
     }
 
-    // ── §5-6 : 결번자는 "설비 쪽엔 손도 안 댔다"고 한 번 정하면 끝까지 그 말을 한다 ──
+    // ── §5-6 : 결번 개체는 "설비 쪽엔 손도 안 댔다"고 한 번 정하면 끝까지 그 말을 한다 ──
     //
     // 알리바이(ClaimedRoomId)와 같은 규칙이다 — 물을 때마다 말이 달라지면 추리가 성립하지 않는다.
     private static void TestEquipmentDenial()
     {
-        Head("2차-A", "결번자의 설비 접촉 부인 — 한 번 정하면 바뀌지 않는다");
+        Head("2차-A", "결번의 설비 접촉 부인 — 한 번 정하면 바뀌지 않는다");
         Reset();
         Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
@@ -666,7 +666,7 @@ public static class InterviewScenarioTest
         Reset();
         Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
-        // 결번자는 다른 사람이다. 고양이는 결백하지만 같은 행동이 목격됐다.
+        // 결번 개체는 다른 사람이다. 고양이는 결백하지만 같은 행동이 목격됐다.
         GameState.Instance.SetSaboteur("fox");
         // 목격과 사고의 간격은 재석 창(10분)보다 넓어야 행동 추궁만 성립한다.
         // 딱 10분으로 두면 경계값이라 재석 추궁이 먼저 잡히기도 한다(RestEvidenceTest 신규 J 와 같은 이유).
@@ -687,10 +687,10 @@ public static class InterviewScenarioTest
 
     // ── §3-2 마무리 : 부인 카드 + 동료 목격 증언 = 행동 추궁 ──────────────
     //
-    // 결번자에게서 잡을 수 있는 유일한 거짓말이 실제로 잡히는지 끝까지 본다.
+    // 결번 개체에게서 잡을 수 있는 유일한 거짓말이 실제로 잡히는지 끝까지 본다.
     private static void TestDenialVersusWitness()
     {
-        Head("2차-C", "결번자의 부인 진술 + 동료 목격 증언 → 행동 추궁 · deny");
+        Head("2차-C", "결번의 부인 진술 + 동료 목격 증언 → 행동 추궁 · deny");
         Reset();
         Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
@@ -720,7 +720,7 @@ public static class InterviewScenarioTest
 
         string answer = InterviewReplyPlanner.ConfrontAnswer("cat", r, out string variant);
         GD.Print($"   Q: {r.QuestionText}\n   A: ({variant}) {answer}");
-        Check(variant == "deny", "결번자는 물러서지 않는다(deny)");
+        Check(variant == "deny", "결번 개체는 물러서지 않는다(deny)");
     }
 
     // 목격 증언에 실리는 행동 — SaboteurPlan.TickPrecursors 가 남기는 문구 그대로.

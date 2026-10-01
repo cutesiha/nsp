@@ -62,7 +62,7 @@ public partial class DayScheduleTest : Node
         // 대역 셋. 셋 다 **같은 방해자 · 같은 순서**로 돈다(대역마다 따로 뽑으면 비교가 안 된다).
         //   수동 : CCTV 를 돌려 보지 않는다(괴물 방치). 격리도 안 한다.
         //   대응 : 괴물이 나타나면 그 방을 CCTV 로 지켜봐 없앤다. 격리는 안 한다.
-        //   탐정 : 대응과 같되 DAY1 이 끝난 뒤(휴게 시점) 결번자를 격리한다.
+        //   탐정 : 대응과 같되 DAY1 이 끝난 뒤(휴게 시점) 결번을 격리한다.
         //          — 추리로 도달할 수 있는 최선을 재는 대역이라 정답을 알고 시작해도 된다.
         RunMeasurement(spawns);
 
@@ -197,7 +197,7 @@ public partial class DayScheduleTest : Node
                  $"{(man.Average() >= 40f && man.Average() <= 60f && noNegative ? "OK" : "X")}");
 
         // ── 검사 ─────────────────────────────────────────────────────
-        // 결번자를 격리하지 않고도 100% 에 닿으면 추리할 이유가 사라진다.
+        // 결번을 격리하지 않고도 100% 에 닿으면 추리할 이유가 사라진다.
         float reactiveAvg = rea.Average();
         Check(reactiveAvg <= 100f, $"격리 없이 대응만으로는 코어 100% 에 닿지 않는다 (대응 합계 {reactiveAvg:0.0}%)");
 
@@ -271,9 +271,9 @@ public partial class DayScheduleTest : Node
         _sim.RollDailyMoods();
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.TodayTabooIds());
 
-        // 탐정 대역: 지난 휴게시간에 결번자를 격리해 둔 상태로 근무를 시작한다.
+        // 탐정 대역: 지난 휴게시간에 결번을 격리해 둔 상태로 근무를 시작한다.
         //
-        // **배치보다 먼저** 해야 한다. 순서가 뒤바뀌면 결번자가 자리를 하나 차지한 뒤
+        // **배치보다 먼저** 해야 한다. 순서가 뒤바뀌면 결번 개체가 자리를 하나 차지한 뒤
         // 격리돼, 그 자리가 빈 채로 근무가 돌아간다(예비가 들어갈 기회를 잃는다).
         if (isolateSaboteur && !string.IsNullOrEmpty(saboteurId)) _sim.IsolateEmployee(saboteurId);
 

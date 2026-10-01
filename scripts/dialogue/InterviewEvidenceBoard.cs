@@ -349,7 +349,7 @@ public static class InterviewEvidenceBoard
     // --- 이 직원이 "하지 않았다"고 말한 행동 -------------------------------
     //
     // 위치 진술과 따로 카드가 된다. 이 카드가 동료의 목격 증언과 짝이 되면 행동 추궁이
-    // 성립한다 — 결번자에게서 잡을 수 있는 유일한 거짓말이 여기서 자료가 된다(§3-2).
+    // 성립한다 — 결번 개체에게서 잡을 수 있는 유일한 거짓말이 여기서 자료가 된다(§3-2).
     private static void AddBehaviorClaims(List<InterviewEvidence> list, string target)
     {
         int n = 0;

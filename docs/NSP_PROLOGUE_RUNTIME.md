@@ -453,7 +453,8 @@ icons: employees
 line: 현재 현장에서 활동 가능한 직원은 여섯 명입니다.
 fx: noise
 portrait: sneer
-line: 그리고... 직원들 사이에 숨어 우리를 방해하려는 /1정체불명의 개체/0가 확인되었습니다. 
+line: 그리고... 직원 여섯 명 중 하나가 /1결번/0으로 확인되었습니다.
+line: 사번은 등록되어 있으나, 그 사람이 아닙니다.
 line: 시설을 복구하며 이를 알아내는 것이 당신의 과제이겠군요.
 
 @guide g_who_am_i
@@ -606,7 +607,7 @@ line: 직원을 끌어다 방을 옮길 수 있습니다. 토끼를 {ROOM}로 �
 portrait: smile
 line: 좋습니다.
 
-# 교육용 사고를 고친 직후 — 실제 근무의 방해공작을 설명한다(DAY0 에 방해자는 없다).
+# 교육용 사고를 고친 직후 — 실제 근무의 방해공작을 설명한다(DAY0 에 결번은 없다).
 @guide tut_sabotage_intro
 portrait: normal
 line: 실제 근무에서는 방금과 같은 작업실 사고 뿐만 아니라, 누군가 의도적으로 시설을 /1방해/0하는 경우도 있습니다.
@@ -712,7 +713,7 @@ text: 그 시간에는 계속 {FROM_ROOM}에 있었어요. 한 번도 안 나갔
 
 
 # ========================================================================
-# 결번자 영상 (왼쪽 모니터에서 재생되는 ‘영상’. 실제 CCTV 시스템 아님)
+# 개체 영상 (왼쪽 모니터에서 재생되는 ‘영상’. 실제 CCTV 시스템 아님)
 #
 # ※ 지금은 어디서도 재생하지 않는다. 교육 마지막에 붙어 있었지만
 #    "가상 시뮬레이션 종료 → DAY 1" 흐름을 끊어서 뺐다. 데이터는 남겨 둔다.
@@ -729,20 +730,20 @@ fx: cut
 
 @slide
 image: res://assets/cutscene/outage/ghost_02_standing.png
-imagenote: 화면 안쪽에 결번자가 가만히 서 있다
+imagenote: 화면 안쪽에 개체가 가만히 서 있다
 sfx: drone_loop
 hold: 2.4
 
 @slide
 image: res://assets/cutscene/outage/ghost_03_approach.png
-imagenote: 결번자가 카메라 바로 앞까지 다가온다
+imagenote: 개체가 카메라 바로 앞까지 다가온다
 sfx: pipe_knock
 hold: 1.2
 fx: shake
 
 @slide
 image: res://assets/cutscene/outage/ghost_04_impact.png
-imagenote: 결번자가 카메라에 머리를 들이받으며 비명을 지른다
+imagenote: 개체가 카메라에 머리를 들이받으며 비명을 지른다
 sfx: taboo_break
 jolt: 0.3
 hold: 1.4
