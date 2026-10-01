@@ -93,11 +93,11 @@ public partial class PowerSwitchPanel : Node3D
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BlendMode = BaseMaterial3D.BlendModeEnum.Add, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
         };
-        float faceY = LeverPivotY * _modelScale, faceZ = LeverPivotZ * _modelScale;
+        float faceY = FaceY, faceZ = FaceZ, centerX = PanelX(0f);
         _spark = new MeshInstance3D
         {
             Mesh = new SphereMesh { Radius = 0.03f, Height = 0.06f, RadialSegments = 6, Rings = 4 },
-            Position = new Vector3(0f, faceY + 0.06f, faceZ), MaterialOverride = _sparkMat,
+            Position = new Vector3(centerX, faceY + 0.06f, faceZ), MaterialOverride = _sparkMat,
         };
         AddChild(_spark);
         var sparkLight = new OmniLight3D
@@ -122,15 +122,23 @@ public partial class PowerSwitchPanel : Node3D
             _lastCapacity = GameState.Instance?.PowerCapacity ?? -1;
         }
 
-        _capacityLabel = new Label3D
+        // 전력 용량 표시 — 씬에 Label3D "CapacityLabel" 이 있으면 그것을 쓴다.
+        // 자리 · 크기 · 색을 에디터에서 잡을 수 있게 노드로 빼 두었다(메인 씬에 있다).
+        // 없는 씬(소품 미리보기 등)에서는 예전처럼 코드로 만들어 붙인다.
+        _capacityLabel = GetNodeOrNull<Label3D>("CapacityLabel");
+        if (_capacityLabel == null)
         {
-            Text = "POWER 3 / 3",
-            Position = new Vector3(0f, faceY + 0.115f, faceZ - 0.020f),
-            RotationDegrees = new Vector3(-14f, 0f, 0f),
-            PixelSize = 0.00042f, FontSize = 40, OutlineSize = 0,
-            Modulate = new Color(0.55f, 0.85f, 0.65f),
-        };
-        AddChild(_capacityLabel);
+            _capacityLabel = new Label3D
+            {
+                Name = "CapacityLabel",
+                Text = "POWER 3 / 3",
+                Position = new Vector3(centerX, faceY + 0.115f, faceZ - 0.020f),
+                RotationDegrees = new Vector3(-14f, 0f, 0f),
+                PixelSize = 0.00042f, FontSize = 40, OutlineSize = 0,
+                Modulate = new Color(0.55f, 0.85f, 0.65f),
+            };
+            AddChild(_capacityLabel);
+        }
     }
 
     private AudioStreamPlayer3D MakePlayer(string key, bool loop, float db)
@@ -145,14 +153,20 @@ public partial class PowerSwitchPanel : Node3D
     private bool _wantCrackle;
 
     // 모델(SwitchModel) 로컬 좌표 → PowerSwitchPanel 로컬 좌표.
+    // 기기를 책상 위 다른 자리로 옮기면 SwitchModel 에 이동값이 붙는다. 레버는 모델의
+    // 자식이라 같이 따라가지만, 코드로 붙이는 것들(LED · 클릭 영역 · 스파크 · 용량 라벨)은
+    // 패널의 자식이므로 그 이동값을 직접 더해 줘야 레버와 같은 자리에 선다.
     private float _modelScale = 1f;
-    private float PanelX(float modelX) => modelX * _modelScale;
+    private Vector3 _modelOffset = Vector3.Zero;
+    private float PanelX(float modelX) => _modelOffset.X + modelX * _modelScale;
+    private float FaceY => _modelOffset.Y + LeverPivotY * _modelScale;
+    private float FaceZ => _modelOffset.Z + LeverPivotZ * _modelScale;
 
     private void BuildSwitch(PowerConsumer channel, string label, float modelX)
     {
         float x = PanelX(modelX);
-        float faceY = LeverPivotY * _modelScale;
-        float faceZ = LeverPivotZ * _modelScale;
+        float faceY = FaceY;
+        float faceZ = FaceZ;
 
         var ledMat = new StandardMaterial3D
         {
@@ -218,13 +232,13 @@ public partial class PowerSwitchPanel : Node3D
     private void SplitLeversFromModel()
     {
         var model = GetNodeOrNull<Node3D>("SwitchModel");
+        if (model != null) { _modelScale = model.Scale.X; _modelOffset = model.Position; }
         var src = model == null ? null : FindMesh(model);
         if (src?.Mesh == null || src.Mesh.GetSurfaceCount() == 0)
         {
             GD.PushWarning("PowerSwitchPanel: SwitchModel 메시를 찾지 못해 레버를 분리하지 못했습니다.");
             return;
         }
-        _modelScale = model.Scale.X;
 
         var arrays = src.Mesh.SurfaceGetArrays(0);
         var verts = arrays[(int)Mesh.ArrayType.Vertex].AsVector3Array();
@@ -488,14 +502,13 @@ public partial class PowerSwitchPanel : Node3D
         Transform3D inv = GlobalTransform.AffineInverse();
         Vector3 origin = inv * rayOriginWorld;
         Vector3 direction = (inv.Basis * rayDirectionWorld).Normalized();
-        float faceZ = LeverPivotZ * _modelScale + 0.01f;
+        float faceZ = FaceZ + 0.01f;
         if (Mathf.Abs(direction.Z) < 0.0001f) return false;
         float distance = (faceZ - origin.Z) / direction.Z;
         if (distance <= 0f) return false;
 
         Vector3 hit = origin + direction * distance;
-        float faceY = LeverPivotY * _modelScale;
-        if (Mathf.Abs(hit.Y - faceY) > 0.16f) return false;
+        if (Mathf.Abs(hit.Y - FaceY) > 0.16f) return false;
 
         PowerConsumer nearest = Switches[0].Channel;
         float nearestX = float.MaxValue;
@@ -665,6 +678,7 @@ public partial class PowerSwitchPanel : Node3D
             }
         }
 
+        if (_capacityLabel == null) return;
         int max = Config.Instance.Data.PowerCapacityMax;
         _capacityLabel.Text = blackout ? "SHUT DOWN" : $"POWER {cap} / {max}";
         _capacityLabel.Modulate = cap >= max ? new Color(0.55f, 0.85f, 0.65f)
