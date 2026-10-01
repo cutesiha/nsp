@@ -76,6 +76,8 @@ public partial class PauseMenu : CanvasLayer
         if (TitleRoomDirector.Instance?.IsRunning == true) return;
         // 엔딩 연출 · 5일간의 근무 기록 동안에는 멈추지 않는다.
         if (EndingDirector.IsPlaying) return;
+        // 최종 격리 보고서는 제출 전까지 빠져나갈 수 없다.
+        if (FinalReportView.IsOpen) return;
 
         if (_confirm is { Visible: true }) HideConfirm();
         else if (Visible) Close();

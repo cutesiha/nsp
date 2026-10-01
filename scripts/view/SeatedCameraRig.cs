@@ -179,6 +179,20 @@ public partial class SeatedCameraRig : Node3D
         TweenBaseTo(rigWorld.Origin, rigWorld.Basis.GetEuler() * Rad2Deg, dur);
     }
 
+    // 엔딩 — 자리에 앉은 채 고개만 돌려 방 안의 한 점을 본다(문 · 벽 등).
+    // 눈 높이는 그대로 두고 회전만 역산하므로 "의자에서 몸을 돌려 돌아본" 것처럼 보인다.
+    public void TurnToLookAt(Vector3 worldTarget, float dur = 1.0f)
+    {
+        if (_camera == null) return;
+        var seat = new Transform3D(Basis.FromEuler(_seatRotDeg * (1f / Rad2Deg)), _seatPos);
+        Vector3 eye = (seat * _cameraBase).Origin;
+        var camWorld = new Transform3D(Basis.Identity, eye).LookingAt(worldTarget, Vector3.Up);
+        Transform3D rigWorld = camWorld * _cameraBase.AffineInverse();
+        _zoomed = true;            // 돌아보는 동안 숨쉬기 흔들림을 멈춘다
+        _focusWeight = 0f;
+        TweenBaseTo(rigWorld.Origin, rigWorld.Basis.GetEuler() * Rad2Deg, dur);
+    }
+
     public void ReturnToSeat(float dur = 0.3f)
     {
         _zoomed = false;

@@ -88,11 +88,21 @@ public partial class DeveloperHub : Node
         DebugEntryPoint.Call(flow, "ClearAllAssignments");
         DebugEntryPoint.SeedState(req);
 
-        // 엔딩은 배치를 거치지 않는다 — 그 자리에서 실제 EndingDirector 를 돌린다.
+        // 엔딩 · 보고서는 배치를 거치지 않는다 — 그 자리에서 실제 연출을 돌린다.
+        if (req.Phase == DebugEntryPoint.Phase.Verdict)
+        {
+            DebugEntryPoint.SetStage(flow, "Report");
+            DebugEntryPoint.Call(flow, "RequestRestFromReport");   // 마지막 날이면 EnterVerdict 로 간다
+            Log($"{req.Label} · 결번 {GameState.Instance?.SaboteurEmployeeId}");
+            return;
+        }
         if (req.Phase == DebugEntryPoint.Phase.Ending)
         {
             DebugEntryPoint.Call(flow, "StartEnding");
-            Log($"{req.Label} · CORE {GameState.Instance?.CoreProgress:0.0}%");
+            var g = GameState.Instance;
+            Log($"{req.Label} · CORE {g?.CoreProgress:0.0}% · 결번 {g?.SaboteurEmployeeId} · "
+                + $"지목 {(string.IsNullOrEmpty(g?.FinalAccusedId) ? "없음" : g.FinalAccusedId)} "
+                + $"(정답 {g?.WasCaught} · 증명 {g?.WasProven})");
             return;
         }
 
@@ -267,15 +277,33 @@ public partial class DeveloperHub : Node
             () => Enter(new DebugEntryPoint.Request
             { Day = 5, Phase = DebugEntryPoint.Phase.Report, Core = 73.7f, Label = "DAY5 최종 보고서(실패)" }), 250);
 
+        var verdictRow = Row(col);
+        Btn(verdictRow, "최종 격리 보고서 (코어 100%)",
+            () => Enter(new DebugEntryPoint.Request
+            { Day = 5, Phase = DebugEntryPoint.Phase.Verdict, Core = 100f, Label = "최종 보고서(100%)" }), 250);
+        Btn(verdictRow, "최종 격리 보고서 (코어 83.7%)",
+            () => Enter(new DebugEntryPoint.Request
+            { Day = 5, Phase = DebugEntryPoint.Phase.Verdict, Core = 83.7f, Label = "최종 보고서(83.7%)" }), 250);
+        col.AddChild(Hint("GUIDE-0 안내 → 보고서 화면 → 제출 → 그대로 엔딩까지 이어진다. "
+                        + "지목 결과에 따라 네 엔딩 중 하나가 나온다."));
+
+        // 코어 복구 × 지목 — 네 조합을 바로 재생한다("!" = 실제 결번을 지목).
         var endRow = Row(col);
-        Btn(endRow, "TRUE END (코어 100%)",
+        Btn(endRow, "TRUE (복구 O · 지목 O)",
             () => Enter(new DebugEntryPoint.Request
-            { Day = 5, Phase = DebugEntryPoint.Phase.Ending, Core = 100f, Label = "TRUE END" }), 200);
-        Btn(endRow, "BAD END (코어 83.7%)",
+            { Day = 5, Phase = DebugEntryPoint.Phase.Ending, Core = 100f, Accused = "!", Proven = true, Label = "TRUE END" }), 190);
+        Btn(endRow, "LOOSE (복구 O · 지목 X)",
             () => Enter(new DebugEntryPoint.Request
-            { Day = 5, Phase = DebugEntryPoint.Phase.Ending, Core = 83.7f, Label = "BAD END" }), 200);
-        col.AddChild(Hint("엔딩은 실제 EndingDirector 를 그대로 돌린다 — 암전 · CRT 재부팅 · "
-                        + "복구 시퀀스 · GUIDE-0 · 배너 · 최종 근무 기록까지 전부 나온다."));
+            { Day = 5, Phase = DebugEntryPoint.Phase.Ending, Core = 100f, Accused = "", Label = "LOOSE END" }), 190);
+        var endRow2 = Row(col);
+        Btn(endRow2, "LATE (복구 X · 지목 O)",
+            () => Enter(new DebugEntryPoint.Request
+            { Day = 5, Phase = DebugEntryPoint.Phase.Ending, Core = 83.7f, Accused = "!", Proven = true, Label = "LATE END" }), 190);
+        Btn(endRow2, "BAD (복구 X · 지목 X)",
+            () => Enter(new DebugEntryPoint.Request
+            { Day = 5, Phase = DebugEntryPoint.Phase.Ending, Core = 83.7f, Accused = "", Label = "BAD END" }), 190);
+        col.AddChild(Hint("엔딩은 실제 EndingDirector 를 그대로 돌린다 — 모니터 소등 · 방 · 패드 조회 · "
+                        + "엔딩별 연출 · 배너 · 최종 근무 기록까지 전부 나온다."));
 
         // ── 타이틀 ─────────────────────────────────────────────────
         col.AddChild(Title("TITLE", 18));
