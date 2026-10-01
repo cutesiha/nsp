@@ -192,7 +192,7 @@ omni_range = 7.5
 [node name="WorkSpots" type="Node3D" parent="." unique_id=1126893636]
 
 [node name="CoreRepairSpot" type="Node3D" parent="WorkSpots"]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -2.52, 0, 0.25)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -1.62, 0, 0.25)
 script = ExtResource("1_spot")
 SpotId = "CoreRepairSpot"
 SupportedTaskIds = PackedStringArray("core_direct_repair", "repair_core")

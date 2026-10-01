@@ -101,7 +101,9 @@ ROOMS = {
              prop="clipboard"),
     ],
     "room_core": [
-        dict(id="CoreRepairSpot", clip="crouch_repair", target=(-2.07, 0.45, 0.25), yaw=-90,
+        # 수리 유닛(CoreRepairUnit, x -2.825~-2.075)의 +X 면을 방 안쪽에서 만진다.
+        # yaw=-90 이면 벽 쪽에 서게 되어 직원이 유닛 상자 안에 박힌다.
+        dict(id="CoreRepairSpot", clip="crouch_repair", target=(-2.07, 0.45, 0.25), yaw=90,
              tasks=["core_direct_repair", "repair_core"], prio=21, prop="wrench"),
         dict(id="CoreManagementSpot", clip="console_operate", target=_core(-0.38, 0.16, 1.02), yaw=35.5,
              tasks=["core_log_review"], prio=20),
