@@ -491,6 +491,13 @@ public partial class Sfx : Node
         if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p)) p.VolumeDb = volumeDb;
     }
 
+    // 돌고 있는 루프의 피치만 바꾼다(엔딩에서 환풍기가 느려지다 멈추는 연출).
+    public void SetLoopPitch(string key, float pitch)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p))
+            p.PitchScale = Mathf.Max(0.01f, pitch);
+    }
+
     public bool IsLooping(string key) => _loops.ContainsKey(key);
 
     public void StopLoop(string key)

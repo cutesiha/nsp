@@ -41,11 +41,16 @@ public partial class TitleRoomDirector : Node
     public bool IsRunning { get; private set; }
 
     // 결말의 흔적 — 마지막으로 본 엔딩(EndingState)에 따라 시작 화면의 방 분위기가 다르다.
-    //   실패 : 붉은 CRT · 아주 느리게 붉게 점멸하는 비상등 · BGM 대신 낮은 기계음/경고음 · 가끔 혼자 울리는 전화
-    //   복구 : 아주 약한 아침빛 · 정상 색 · CRT 노이즈 감소 · 같은 곡의 조용한 버전
+    //   Bad  : 붉은 CRT · 아주 느리게 붉게 점멸하는 비상등 · BGM 대신 낮은 기계음/경고음 · 가끔 혼자 울리는 전화
+    //   Late : 영구 봉쇄 뒤. Bad 와 같은 어두운 방이되 경보는 울리지 않는다.
+    //   True : 아주 약한 아침빛 · 정상 색 · CRT 노이즈 감소 · 같은 곡의 조용한 버전
+    //   Loose: True 와 똑같이 밝다. 20초에 한 번 0.2초짜리 노이즈가 튀는 것만 다르다 —
+    //          조용한데 가끔 어긋난다.
     public static float EndingScreenNoise => EndingState.Last switch
     {
         EndingState.Kind.Bad => 0.06f,
+        EndingState.Kind.Late => 0.045f,
+        EndingState.Kind.Loose => 0.03f,
         EndingState.Kind.True => 0.008f,
         _ => 0.018f,
     };
@@ -55,6 +60,7 @@ public partial class TitleRoomDirector : Node
     private Color _m1C, _m2C, _deskC;
     private bool _endingLook;
     private double _nextRing = 24.0, _nextBeep = 9.0;
+    private double _looseGlitch = 14.0, _looseGlitchUntil;
     private float _pulseT;
 
     // 화면 오른쪽 아래에 늘 떠 있는 조작 안내. 이 한 줄만 남긴다.
@@ -522,7 +528,8 @@ public partial class TitleRoomDirector : Node
         if (_m2 != null) { _m2E = _m2.LightEnergy; _m2C = _m2.LightColor; }
         if (_deskFill != null) { _deskE = _deskFill.LightEnergy; _deskC = _deskFill.LightColor; }
 
-        if (kind == EndingState.Kind.Bad)
+        // 복구하지 못한 두 엔딩(Bad · Late)은 같은 어두운 방을 쓴다 — 경보 소리만 다르다.
+        if (!EndingState.Recovered(kind))
         {
             ControlRoom3DHorror.ExternalLightingOverride = true;
             _ctl.SetScreenTint(new Color(1.3f, 0.30f, 0.26f));
@@ -531,6 +538,12 @@ public partial class TitleRoomDirector : Node
             if (_m2 != null) _m2.LightColor = red;
             if (_deskFill != null) { _deskFill.LightColor = new Color(0.8f, 0.35f, 0.32f); _deskFill.LightEnergy = _deskE * 0.6f; }
             if (_emergency != null) { _emergency.Visible = true; _emergency.LightColor = new Color(0.95f, 0.1f, 0.08f); }
+            if (kind == EndingState.Kind.Late)
+            {
+                // 영구 봉쇄 — 붉은 경보가 아니라 흐린 주황 비상등 하나만 남아 있다.
+                _ctl.SetScreenTint(new Color(1.0f, 0.86f, 0.74f));
+                if (_emergency != null) _emergency.LightColor = new Color(1f, 0.72f, 0.45f);
+            }
             Sfx.Instance?.FadeOutMusic(1.0f);
             Sfx.Instance?.Loop("drone_loop", -18f);
             Sfx.Instance?.Loop("machinery_loop", -27f);
@@ -556,7 +569,28 @@ public partial class TitleRoomDirector : Node
 
     private void TickEndingLook(double delta)
     {
-        if (!_endingLook || EndingState.Last != EndingState.Kind.Bad) return;
+        if (!_endingLook) return;
+
+        // LOOSE — 방은 복구된 그대로 밝다. 20초에 한 번, CRT 가 0.2초 어긋난다.
+        if (EndingState.Last == EndingState.Kind.Loose)
+        {
+            _looseGlitch -= delta;
+            if (_looseGlitch <= 0)
+            {
+                _looseGlitch = _rng.RandfRange(17f, 23f);
+                _looseGlitchUntil = 0.2;
+                _ctl?.SetScreenNoise(0.42f);
+                Sfx.Instance?.Play("noise", -22f);
+            }
+            if (_looseGlitchUntil > 0)
+            {
+                _looseGlitchUntil -= delta;
+                if (_looseGlitchUntil <= 0) _ctl?.SetScreenNoise(EndingScreenNoise);
+            }
+            return;
+        }
+
+        if (EndingState.Last != EndingState.Kind.Bad) return;
         // 방 전체 비상등이 아주 느리게 붉게 점멸한다.
         _pulseT += (float)delta;
         if (_emergency != null)

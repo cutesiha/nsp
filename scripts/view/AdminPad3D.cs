@@ -182,6 +182,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         _view = new PadView();
         ControlRoom3DController.AddScaledView(_vp, _view, CanvasSize,
             ControlRoom3DController.DocumentSupersample, ControlRoom3DController.DocumentMinRenderScale);
+        // 엔딩의 신원 조회 콘솔 — 평소 패드 UI 위에 덮는 한 장(평소에는 숨어 있다).
+        _vp.GetChild<Control>(0)?.AddChild(new EndingPadConsole());
 
         if (HasAuthoredParts()) AdoptAuthoredParts(_vp.GetTexture());
         else { BuildCradle(); BuildBody(_vp.GetTexture()); }
@@ -710,6 +712,8 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             }
         }
 
+        if (_endingMode) return;
+
         // 전원 — 패드 채널 / 정전.
         bool powered = PadPowered;
         if (powered != _powered)
@@ -746,12 +750,59 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
 
         // 표시등 — 새 단서(패드 모서리) · 전원(거치대).
         _ledPhase += (float)delta * 5f;
+        if (_endingMode) { ApplyLed(); return; }
         if (_ledMat != null)
         {
             bool unseen = _powered && ClueBoard.UnseenCount > 0 && _state == PadState.Stowed;
             _ledMat.EmissionEnergyMultiplier = unseen ? 1.2f + 1.8f * (0.5f + 0.5f * Mathf.Sin(_ledPhase)) : 0f;
         }
         if (_cradleLed != null) _cradleLed.EmissionEnergyMultiplier = _powered ? 1.4f : 0f;
+    }
+
+    // ── 엔딩 전용 ────────────────────────────────────────────────────────
+    // 근무가 끝난 뒤(GamePhase.Result)라 평소 규칙으로는 꺼져 있을 화면이다.
+    // 엔딩 동안에는 거치대에 놓인 채로 화면을 켜 두고, 배지 표시등은 연출기가 직접 쥔다.
+    private bool _endingMode;
+    private Color _ledColor = new(0.25f, 0.70f, 1f);
+    private float _ledEnergy;
+    private Tween _ledTween;
+
+    // 카메라가 내려갈 대상(책상 위 패드 본체).
+    public Node3D BodyNode => _body;
+
+    public void SetEndingMode(bool on)
+    {
+        _endingMode = on;
+        if (_vp != null) _vp.RenderTargetUpdateMode = on ? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Once;
+        SetBrightness(on ? 1f : StowedLevel(), 0.3f);
+        if (!on) { _ledTween?.Kill(); _ledEnergy = 0f; ApplyLed(); }
+    }
+
+    public void SetBadgeLed(Color color, float energy)
+    {
+        _ledTween?.Kill();
+        _ledColor = color;
+        _ledEnergy = energy;
+        ApplyLed();
+    }
+
+    // 한 번 번쩍이고 돌아온다(조회 결과가 나오는 순간).
+    public void FlashBadgeLed(Color color, float energy, float seconds, float settle = 0f)
+    {
+        _ledTween?.Kill();
+        _ledColor = color;
+        _ledEnergy = energy;
+        ApplyLed();
+        _ledTween = CreateTween();
+        _ledTween.TweenMethod(Callable.From<float>(v => { _ledEnergy = v; ApplyLed(); }),
+            energy, settle, Mathf.Max(0.05f, seconds));
+    }
+
+    private void ApplyLed()
+    {
+        if (_ledMat == null) return;
+        _ledMat.Emission = _ledColor;
+        _ledMat.EmissionEnergyMultiplier = _ledEnergy;
     }
 
     public bool TryProjectRay(Vector3 rayOrigin, Vector3 rayDir, bool clamp, out Vector2 canvasPos)

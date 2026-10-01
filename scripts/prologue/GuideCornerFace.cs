@@ -62,6 +62,22 @@ public partial class GuideCornerFace : Control
 
     private static bool _alarmTint;
 
+    // 엔딩에서는 한쪽 CRT 가 얼굴창, 다른 쪽이 글자 · 명단을 맡는다. 어느 화면에 띄울지는
+    // 연출기가 고른다 — 접어 둔 화면에서는 ShowAll(true) 여도 그리지 않는다.
+    public static void MuteIn(Godot.SubViewport vp, bool mute)
+    {
+        if (vp == null) return;
+        foreach (var f in All)
+        {
+            if (!GodotObject.IsInstanceValid(f) || f.GetViewport() != vp) continue;
+            f._muted = mute;
+            f.Visible = f._shown && !mute;
+            f.QueueRedraw();
+        }
+    }
+
+    private bool _muted;
+
     // 마지막으로 켜진 상태 — 화면을 바꿔 끼운 뒤에도 같은 얼굴로 되살린다.
     private static bool _shownAll;
     private static Texture2D _lastTexture;
@@ -122,7 +138,7 @@ public partial class GuideCornerFace : Control
     {
         _shownAll = shown;
         _shown = shown;
-        Visible = shown;
+        Visible = shown && !_muted;
         QueueRedraw();
     }
 
@@ -142,7 +158,7 @@ public partial class GuideCornerFace : Control
 
     public override void _Draw()
     {
-        if (!_shown) return;
+        if (!_shown || _muted) return;
 
         Rect2 win;
         float barH = BarH;

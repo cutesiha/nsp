@@ -11,13 +11,15 @@ public partial class EndingMonitorView : Control
     public static EndingMonitorView Left { get; private set; }
     public static EndingMonitorView Right { get; private set; }
 
-    public enum Tone { Normal, Good, Bad, Dim, Title }
+    // Warn = 호박색. 「격리 대상 … 미확인」 한 줄에만 쓴다(LOOSE 엔딩의 유일한 단서).
+    public enum Tone { Normal, Good, Bad, Dim, Title, Warn }
 
     private static readonly Vector2 Canvas = new(800f, 600f);
     private static readonly Color Ink = new(0.84f, 0.90f, 0.89f);
     private static readonly Color Mint = new(0.46f, 0.92f, 0.80f);
     private static readonly Color Dim = new(0.40f, 0.50f, 0.52f);
     private static readonly Color Err = new(0.98f, 0.30f, 0.24f);
+    private static readonly Color Amber = new(1f, 0.78f, 0.38f);
     private const float CharTime = 0.022f;
 
     private sealed class Line
@@ -226,6 +228,7 @@ public partial class EndingMonitorView : Control
                 Tone.Good => Mint,
                 Tone.Bad => Err,
                 Tone.Dim => Dim,
+                Tone.Warn => Amber,
                 Tone.Title => _accent,
                 _ => Ink,
             };

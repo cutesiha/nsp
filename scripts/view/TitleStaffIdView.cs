@@ -159,8 +159,9 @@ public partial class TitleStaffIdView : Control
         _t += (float)delta;
         bool redraw = false;
 
-        // 진엔딩 뒤의 시작 화면은 시설이 정상화된 상태 — 신원 카드가 더는 깨지지 않는다.
-        if (_poweredOn && !_scanning && EndingState.Last != EndingState.Kind.True)
+        // 결번을 찾아낸 뒤의 시작 화면은 시설이 정리된 상태 — 신원 카드가 더는 깨지지 않는다.
+        // 찾지 못한 채 끝났으면(Loose · Bad) 그대로 깨진다. 아직 그 자리에 있기 때문이다.
+        if (_poweredOn && !_scanning && EndingState.Last is not (EndingState.Kind.True or EndingState.Kind.Late))
         {
             _nextGlitch -= delta;
             if (_nextGlitch <= 0)
@@ -281,13 +282,17 @@ public partial class TitleStaffIdView : Control
         string idle = EndingState.Last switch
         {
             EndingState.Kind.Bad => "CONTAINMENT FAILED",
+            EndingState.Kind.Late => "PERMANENT SEAL ENGAGED",
             EndingState.Kind.True => "야간 관리 업무 종료.   관리자님, 수고하셨습니다.",
+            // 명단은 여섯 명 전부 정상이다. 그 줄이 그대로 남아 있는 것이 이 엔딩의 뒷맛이다.
+            EndingState.Kind.Loose => "근무 인원 명단 정리 완료.   이상 없음.",
             _ => "ID STATUS : NORMAL",
         };
         var idleCol = EndingState.Last switch
         {
             EndingState.Kind.Bad => Err,
-            EndingState.Kind.True => Ink,
+            EndingState.Kind.Late => new Color(0.95f, 0.78f, 0.55f),
+            EndingState.Kind.True or EndingState.Kind.Loose => Ink,
             _ => Dim,
         };
         string line = _glitchIndex >= 0

@@ -181,11 +181,13 @@ public partial class SeatedCameraRig : Node3D
 
     // 엔딩 — 자리에 앉은 채 고개만 돌려 방 안의 한 점을 본다(문 · 벽 등).
     // 눈 높이는 그대로 두고 회전만 역산하므로 "의자에서 몸을 돌려 돌아본" 것처럼 보인다.
-    public void TurnToLookAt(Vector3 worldTarget, float dur = 1.0f)
+    // eyeOffset : 자리에서 눈만 얼마나 옮기고 보는가(의자에 기대 모니터 위로 올려다보는 등).
+    // 두 CRT 가 눈앞을 거의 다 가리기 때문에, 문 쪽을 보려면 고개만 돌려서는 모니터에 막힌다.
+    public void TurnToLookAt(Vector3 worldTarget, float dur = 1.0f, Vector3 eyeOffset = default)
     {
         if (_camera == null) return;
         var seat = new Transform3D(Basis.FromEuler(_seatRotDeg * (1f / Rad2Deg)), _seatPos);
-        Vector3 eye = (seat * _cameraBase).Origin;
+        Vector3 eye = (seat * _cameraBase).Origin + eyeOffset;
         var camWorld = new Transform3D(Basis.Identity, eye).LookingAt(worldTarget, Vector3.Up);
         Transform3D rigWorld = camWorld * _cameraBase.AffineInverse();
         _zoomed = true;            // 돌아보는 동안 숨쉬기 흔들림을 멈춘다

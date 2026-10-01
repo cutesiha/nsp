@@ -6,12 +6,25 @@ using NSP.Facility;
 
 namespace NSP.View;
 
-// 엔딩 뒤 「5일간의 근무 기록」 — 성적표. 엔딩은 코어 100% 하나로만 갈렸고,
-// 생존자 · 금기 · 사고 · 방해자 격리 · 업무 점수는 여기 기록으로만 남는다.
+// 엔딩 뒤 「5일간의 근무 기록」 — 성적표. 엔딩은 코어 100% × 최종 보고서의 지목으로 갈리고,
+// 생존자 · 금기 · 사고 · 업무 점수는 여기 기록으로만 남는다.
+// 지목의 "근거까지 맞았는가"(WasProven)도 엔딩이 아니라 여기에만 적힌다.
 // (예전 PROTOTYPE RESULT 화면을 대신한다. 숫자는 GameState 의 5일 누적을 읽기만 한다.)
 public partial class EndingRecordOverlay : Control
 {
     public event Action TitleRequested;
+
+    // 어떤 엔딩으로 끝났는가 — 맨 윗줄의 이름에만 쓴다.
+    public EndingState.Kind Kind { get; set; } = EndingState.Kind.None;
+
+    private static string EndingName(EndingState.Kind k) => k switch
+    {
+        EndingState.Kind.True => "근무 종료",
+        EndingState.Kind.Loose => "복구 완료 · 대상 미확인",
+        EndingState.Kind.Late => "대상 확인 · 복구 실패",
+        EndingState.Kind.Bad => "복구 실패",
+        _ => "종료 기록",
+    };
 
     private static readonly Color Ink = new(0.84f, 0.92f, 0.90f);
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
@@ -58,17 +71,25 @@ public partial class EndingRecordOverlay : Control
         int alive = roster.Count(id => sim.GetEmployeeState(id)?.Alive ?? false);
         float core = Mathf.Min(gs?.CoreProgress ?? 0f, 100f);
         int score = gs?.EvaluationScore ?? 0;
-        bool isolated = sim?.IsSaboteurIsolated() ?? false;
         int missed = gs?.MissedRequiredDays ?? 0;
+        bool caught = gs?.WasCaught ?? false;
+        bool proven = gs?.WasProven ?? false;
+        string accused = gs?.FinalAccusedId ?? "";
+        string accusedName = string.IsNullOrEmpty(accused)
+            ? "지목 없음"
+            : sim?.GetEmployeeDef(accused)?.Codename ?? accused;
 
         Row(col, "봉쇄 코어", $"{core:0.0}%", core >= 100f ? Cyan : Warn);
         Row(col, "생존 직원", $"{alive} / {roster.Count}", alive < roster.Count ? Warn : Ink);
         Row(col, "금기 위반", $"{gs?.TotalTabooViolations ?? 0}", Ink);
         Row(col, "발생 사고", $"{gs?.TotalIncidents ?? 0}", Ink);
-        Row(col, "방해공작자", isolated ? "격리 완료" : "미확인", isolated ? Cyan : Warn);
+        Row(col, "지목 대상", accusedName, caught ? Cyan : Warn);
+        Row(col, "지목 결과", caught ? (proven ? "정확 · 근거 일치" : "정확 · 근거 부족") : "오판",
+            caught ? (proven ? Cyan : Ink) : Warn);
         Row(col, "필수 업무 미달성", $"{missed}일", missed > 0 ? Warn : Ink);
         Row(col, "업무 평가", $"{score}점", Ink);
         col.AddChild(new HSeparator());
+        Row(col, "종료 기록", EndingName(Kind), Dim, 20);
         Row(col, "관리자 평가", DayObjectives.Grade(gs?.CoreProgress ?? 0f, score), Cyan, 30);
 
         col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });

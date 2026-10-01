@@ -366,6 +366,44 @@ public partial class Phone3D : Node3D
         _hud?.Open(_caller, _dialogueEvent, _incidentRoomId);
     }
 
+    // ── 엔딩 전용 ────────────────────────────────────────────────────────
+    // 통화 상태도 HUD 도 만들지 않고 수화기만 든다(TRUE 엔딩의 마지막 통화).
+    // 상대는 아무 말도 하지 않는다 — 이 연출에는 대사가 없다.
+    public void EndingLift()
+    {
+        if (_handset == null) return;
+        if (_player == null) { _handsetFollowsHand = false; return; }
+        _player.PhoneGripped += OnEndingGripped;
+        _player.PlayPhonePickup(_receiverGrip?.GlobalPosition ?? _handset.GlobalPosition);
+    }
+
+    private void OnEndingGripped()
+    {
+        if (_player != null) _player.PhoneGripped -= OnEndingGripped;
+        _handsetFollowsHand = _handset != null && _player?.HandSocket != null;
+    }
+
+    public void EndingHangUp()
+    {
+        if (_handset == null) return;
+        if (_player != null)
+        {
+            _player.PhoneReleased += OnEndingReleased;
+            _player.PlayPhoneHangup(_receiverRest?.GlobalPosition ?? _handsetCradleWorld());
+        }
+        else OnEndingReleased();
+    }
+
+    private void OnEndingReleased()
+    {
+        if (_player != null) _player.PhoneReleased -= OnEndingReleased;
+        _handsetFollowsHand = false;
+        var t = CreateTween();
+        t.SetParallel(true);
+        t.TweenProperty(_handset, "position", _handsetRestXform.Origin, 0.18).SetTrans(Tween.TransitionType.Sine);
+        t.TweenProperty(_handset, "quaternion", _handsetRestXform.Basis.GetRotationQuaternion(), 0.18);
+    }
+
     private void HangUp()
     {
         if (_state != PhoneState.OnCall) return;

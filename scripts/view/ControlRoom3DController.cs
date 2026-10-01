@@ -305,6 +305,9 @@ public partial class ControlRoom3DController : Node3D
         _endingLeftVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
         _endingRightVp = MakeViewport();
         AddScaledView(_endingRightVp, new EndingMonitorView(false), MonitorCanvasSize);
+        // 엔딩은 두 CRT 중 한쪽을 얼굴창으로 쓴다 — 어느 쪽이든 뜰 수 있게 양쪽에 둔다
+        // (실제로 어느 화면에 띄울지는 GuideCornerFace.MuteIn 으로 연출기가 고른다).
+        _endingRightVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
         _verdictVp = MakeViewport();
         AddScaledView(_verdictVp, new FinalReportView(), MonitorCanvasSize);
@@ -743,18 +746,28 @@ public partial class ControlRoom3DController : Node3D
 
     // 엔딩 연출 — 책상 위 아무 물건이나 카메라를 내린다(관리자 패드 · 수화기 · 전원 스위치).
     // 확대 대상 목록(ZoomTarget)에 없는 노드도 받는다. distance 가 0 이하면 책상 기기 기본값.
+    //
+    // 물건 자신의 법선(Basis.Z)을 쓰지 않는다 — 패드는 거치대에 눕혀져 있어 그 축이 위를
+    // 가리키고, 그대로 쓰면 카메라가 천장이나 책상 밑으로 들어간다.
+    // **앉은 자리의 눈에서 그 물건을 보는 방향**으로 다가간다(사람이 몸을 숙이는 것과 같다).
     public void FocusProp(Node3D node, float seconds = 0.9f, float distance = -1f, Vector3? offset = null)
     {
-        if (node == null) return;
+        if (node == null || _rig == null) return;
         _focusedNode = node;
         _focusedScreen = node as MonitorScreen3D;
         Vector3 center = node.GlobalPosition + (offset ?? DeskPropFocusOffset);
-        Vector3 normal = node.GlobalTransform.Basis.Z.Normalized();
-        _rig?.FocusOnScreen(center, normal, distance > 0f ? distance : DeskPropFocusDistance, seconds);
+        Vector3 eye = _rig.SeatedCameraGlobal().Origin;
+        Vector3 normal = (eye - center);
+        normal = normal.LengthSquared() < 0.0001f ? Vector3.Up : normal.Normalized();
+        _rig.FocusOnScreen(center, normal, distance > 0f ? distance : DeskPropFocusDistance, seconds);
     }
 
+    // 엔딩 연출 — 시선만 아주 살짝 옮긴다(카메라를 옮기지 않는다).
+    public void GazeAt(Vector3 worldTarget, float seconds = 0.9f) => _rig?.FocusOn(worldTarget, seconds);
+
     // 엔딩 연출 — 자리는 그대로 두고 고개만 돌려 방 안의 한 점을 본다(문 쪽 등).
-    public void TurnToLookAt(Vector3 worldTarget, float seconds = 1.0f) => _rig?.TurnToLookAt(worldTarget, seconds);
+    public void TurnToLookAt(Vector3 worldTarget, float seconds = 1.0f, Vector3 eyeOffset = default) =>
+        _rig?.TurnToLookAt(worldTarget, seconds, eyeOffset);
     public void ReturnToSeat(float seconds = 1.0f) => _rig?.ReturnToSeat(seconds);
 
     // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
