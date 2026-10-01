@@ -314,8 +314,15 @@ public partial class DeveloperHub : Node
         { Phase = DebugEntryPoint.Phase.Title, TitleAfter = EndingState.Kind.True, Label = "TRUE 이후 타이틀" }), 200);
         Btn(titleRow, "BAD END 이후 타이틀", () => Enter(new DebugEntryPoint.Request
         { Phase = DebugEntryPoint.Phase.Title, TitleAfter = EndingState.Kind.Bad, Label = "BAD 이후 타이틀" }), 200);
-        col.AddChild(Hint("눈 뜨는 연출(PendingWake)까지 포함한다. user:// 의 실제 진행 기록은 "
-                        + "F10 으로 허브에 돌아오는 순간 원래 값으로 되돌린다."));
+        var titleRow2 = Row(col);
+        Btn(titleRow2, "LOOSE 이후 타이틀", () => Enter(new DebugEntryPoint.Request
+        { Phase = DebugEntryPoint.Phase.Title, TitleAfter = EndingState.Kind.Loose, Label = "LOOSE 이후 타이틀" }), 200);
+        Btn(titleRow2, "LATE 이후 타이틀", () => Enter(new DebugEntryPoint.Request
+        { Phase = DebugEntryPoint.Phase.Title, TitleAfter = EndingState.Kind.Late, Label = "LATE 이후 타이틀" }), 200);
+        col.AddChild(Hint("눈 뜨는 연출(PendingWake)까지 포함한다 — Bad · Loose 는 충격으로 깨어나고 "
+                        + "True · Late 는 조용히 눈을 뜬다. LOOSE 는 복구된 방 그대로 밝되 20초에 "
+                        + "한 번 CRT 가 어긋난다. user:// 의 실제 진행 기록은 F10 으로 허브에 "
+                        + "돌아오는 순간 원래 값으로 되돌린다."));
 
         // ── 프리뷰 ─────────────────────────────────────────────────
         col.AddChild(Title("VISUAL PREVIEW · 기존 테스트 씬", 18));

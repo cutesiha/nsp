@@ -111,15 +111,27 @@ public partial class EndingShot : Node
         // 모드마다 눈여겨볼 지점의 시각을 따로 둔다.
         var shots = mode switch
         {
-            "loose" => new[] { (12.0, "1_pad"), (22.0, "2_recovered"), (30.0, "3_guide"), (38.0, "4_cards"), (46.0, "5_broken"), (54.0, "6_white"), (60.0, "7_record") },
-            "late" => new[] { (12.0, "1_pad"), (20.0, "2_countdown"), (28.0, "3_guide"), (36.0, "4_switch"), (44.0, "5_seal"), (54.0, "6_dark"), (62.0, "7_record") },
-            "bad" => new[] { (11.0, "1_pad"), (17.0, "2_warning"), (23.0, "3_guide"), (29.0, "4_bulkhead"), (36.0, "5_door"), (42.0, "6_banner"), (48.0, "7_record") },
-            _ => new[] { (12.0, "1_pad"), (20.0, "2_flashback"), (30.0, "3_record"), (38.0, "4_call"), (48.0, "5_recovered"), (58.0, "6_guide"), (68.0, "7_banner") },
+            "loose" => new[] { (9.0, "1_pad"), (20.0, "2_recovered"), (30.0, "3_guide"), (38.0, "4_cards"), (44.0, "5_broken"), (52.0, "6_white"), (62.0, "7_record") },
+            "late" => new[] { (10.0, "1_pad"), (22.0, "2_countdown"), (34.0, "3_guide"), (46.0, "4_switch"), (52.0, "5_seal"), (62.0, "6_dark"), (74.0, "7_record") },
+            "bad" => new[] { (3.0, "0_intro"), (8.0, "1_pad"), (13.0, "2_warning"), (18.0, "3_guide"), (22.0, "4_bulkhead"), (28.0, "5_door"), (38.0, "6_banner") },
+            _ => new[] { (10.0, "1_pad"), (16.6, "2_flashback"), (24.0, "3_record"), (31.0, "4_call"), (42.0, "5_recovered"), (47.0, "6_guide"), (60.0, "7_banner") },
         };
-        foreach (var (at, name) in shots)
+        // 인자에 sweep 을 더하면 4초마다 통째로 찍는다(연출 길이를 맞출 때 쓴다).
+        if (args.Length > 2 && args[2] == "sweep")
         {
-            await Until(at);
-            Save(dir, $"{mode}_{name}.png");
+            for (double at = 6.0; at <= 96.0; at += 4.0)
+            {
+                await Until(at);
+                Save(dir, $"{mode}_t{at:00}.png");
+            }
+        }
+        else
+        {
+            foreach (var (at, name) in shots)
+            {
+                await Until(at);
+                Save(dir, $"{mode}_{name}.png");
+            }
         }
         EndingState.Clear();
         GD.Print("saved → " + dir);
