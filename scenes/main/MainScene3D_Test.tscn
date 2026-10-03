@@ -33,9 +33,9 @@
 [ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
 [ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
 [ext_resource type="Script" uid="uid://cjimfhuslq8j8" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
-[ext_resource type="Script" uid="uid://ycv3yrqgmada" path="res://scripts/view/PresenceDirector.cs" id="36_presence"]
-[ext_resource type="Script" uid="uid://dsujspmv5drb0" path="res://scripts/view/PadHintBubble.cs" id="35_padhint"]
 [ext_resource type="Script" uid="uid://b4kg6dn61njga" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
+[ext_resource type="Script" uid="uid://dsujspmv5drb0" path="res://scripts/view/PadHintBubble.cs" id="35_padhint"]
+[ext_resource type="Script" uid="uid://ycv3yrqgmada" path="res://scripts/view/PresenceDirector.cs" id="36_presence"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -268,7 +268,7 @@ size = Vector3(0.258, 0.022, 0.01)
 [sub_resource type="BoxMesh" id="PadMesh_CradleBack"]
 size = Vector3(0.2064, 0.008, 0.1302)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pcvob"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_npiex"]
 albedo_color = Color(0.05, 0.08, 0.08, 1)
 emission_enabled = true
 emission = Color(0.3, 0.95, 1, 1)
@@ -301,7 +301,7 @@ emission_energy_multiplier = 0.6
 
 [sub_resource type="QuadMesh" id="PadMesh_Screen"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_qbmyc"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gkebq"]
 albedo_color = Color(0.2, 0.15, 0.05, 1)
 emission_enabled = true
 emission = Color(1, 0.72, 0.25, 1)
@@ -1224,7 +1224,7 @@ mesh = SubResource("PadMesh_CradleBack")
 
 [node name="Led" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=1296692488]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09804, 0.0135, 0.061)
-material_override = SubResource("StandardMaterial3D_pcvob")
+material_override = SubResource("StandardMaterial3D_npiex")
 mesh = SubResource("PadMesh_Led")
 
 [node name="PadBody" type="Node3D" parent="ControlRoom/AdminPad" unique_id=1590197408]
@@ -1247,7 +1247,7 @@ mesh = SubResource("PadMesh_Screen")
 
 [node name="BadgeLed" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=868969769]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.126, 0.0066, -0.098)
-material_override = SubResource("StandardMaterial3D_qbmyc")
+material_override = SubResource("StandardMaterial3D_gkebq")
 mesh = SubResource("PadMesh_BadgeLed")
 
 [node name="GripPoint" type="Marker3D" parent="ControlRoom/AdminPad/PadBody" unique_id=692864851]
@@ -1363,7 +1363,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.18982035)
 script = ExtResource("1_rig")
 
 [node name="Camera3D" type="Camera3D" parent="PlayerSeatRig" unique_id=421221128]
-transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1419306, -0.00757578)
+transform = Transform3D(1, 0, 0, 0, 0.9925418, 0.12190513, 0, -0.12190513, 0.9925418, 0, 1.1419306, 0.0040688515)
 current = true
 fov = 64.0
 near = 0.02
