@@ -151,7 +151,7 @@ public partial class OpsRuleTest : Node
         GD.Print("\n---------------- ③ 혼자일 때는 손대지 않는다 ----------------");
         const int Trials = 6;
 
-        // (가) 결번자를 코어실에 **혼자** 둔다. 나머지는 다른 방에 흩어 둔다.
+        // (가) 결번을 코어실에 **혼자** 둔다. 나머지는 다른 방에 흩어 둔다.
         int aloneSabotage = 0;
         for (int i = 0; i < Trials; i++) aloneSabotage += RunSabotageTrial(2, withCompany: false);
         GD.Print($"   혼자 있을 때 — {Trials}회 중 방해공작 {aloneSabotage}건");
@@ -164,7 +164,7 @@ public partial class OpsRuleTest : Node
         Check(companySabotage > 0, $"동료가 있으면 방해공작이 일어난다 ({companySabotage}/{Trials})");
     }
 
-    // 결번자를 코어실에 두고 한 근무를 끝까지 돌린다. 반환값 = 방해공작 건수.
+    // 결번을 코어실에 두고 한 근무를 끝까지 돌린다. 반환값 = 방해공작 건수.
     private int RunSabotageTrial(int day, bool withCompany)
     {
         StartShift(day);

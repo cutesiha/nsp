@@ -72,8 +72,8 @@ public partial class DialogueVoiceDef : Resource
     // "제가 가겠습니다" 같은 행동 제안을 하는가.
     [Export(PropertyHint.Range, "0,1")] public float OfferActionChance = 0.2f;
 
-    // 결번자가 이 직원 행세를 할 때 새어 나오는 미세한 어긋남.
-    // 플레이어에게 직접 보여주지 않는다 — V2 가 결번자 답변을 만들 때만 참고한다.
+    // 결번 개체가 이 직원 행세를 할 때 새어 나오는 미세한 어긋남.
+    // 플레이어에게 직접 보여주지 않는다 — V2 가 결번 답변을 만들 때만 참고한다.
     // 너무 노골적이면 범인 표시가 되므로 "정상 성격의 연장선에서 살짝 틀어진 것"만 적는다.
     [Export] public ImpostorTell ImpostorTells = ImpostorTell.None;
     [Export] public string ImpostorTellLine1 = "";
@@ -91,7 +91,7 @@ public enum VoiceLead
     Deflect,  // 답은 하되 비껴가거나 되묻는다 (여우)
 }
 
-// 결번자가 흉내 낼 때 어긋나는 지점. 여러 개를 겹칠 수 있다.
+// 결번 개체가 흉내 낼 때 어긋나는 지점. 여러 개를 겹칠 수 있다.
 [System.Flags]
 public enum ImpostorTell
 {

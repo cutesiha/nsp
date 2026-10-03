@@ -319,7 +319,7 @@ public partial class Sfx : Node
         _voiceRadioPlayer?.Stop();
     }
 
-    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 결번자 웃음 -------------
+    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 개체 웃음 -------------
     private readonly Dictionary<string, AudioStream> _employeeScreamStreams = new();
     private AudioStream _laughStream, _jumpscareToneStream;
 
@@ -336,14 +336,14 @@ public partial class Sfx : Node
         PlayGenerated(scream, volumeDb, _voiceRng.RandfRange(0.97f, 1.03f));
     }
 
-    // 결번자 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
+    // 개체 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
     public void PlayEntityLaugh(float volumeDb = -4f)
     {
         _laughStream ??= BuildLaugh();
         PlayGenerated(_laughStream, volumeDb, _voiceRng.RandfRange(0.94f, 1.03f));
     }
 
-    // 결번자가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
+    // 개체가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
     public void PlayJumpscareTone(float volumeDb = -1f)
     {
         _jumpscareToneStream ??= BuildJumpscareTone();
@@ -489,6 +489,13 @@ public partial class Sfx : Node
     public void SetLoopVolume(string key, float volumeDb)
     {
         if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p)) p.VolumeDb = volumeDb;
+    }
+
+    // 돌고 있는 루프의 피치만 바꾼다(엔딩에서 환풍기가 느려지다 멈추는 연출).
+    public void SetLoopPitch(string key, float pitch)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p))
+            p.PitchScale = Mathf.Max(0.01f, pitch);
     }
 
     public bool IsLooping(string key) => _loops.ContainsKey(key);

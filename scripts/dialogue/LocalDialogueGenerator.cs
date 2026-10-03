@@ -149,7 +149,7 @@ public static class LocalDialogueGenerator
     //
     // 사건을 말하는 답(PlanAnomaly)은 plan.RoomId 를 채우지 않는다 — 그 계산은 위치를
     // 묻는 답(PlanWhere)에만 있다. 여기서 같은 규칙을 그대로 쓴다.
-    //   결번자 : 자기가 대고 있는 방(ClaimedRoomId) — 실제 방을 남기면 진술이 아니라 진실이 샌다
+    //   결번 : 자기가 대고 있는 방(ClaimedRoomId) — 실제 방을 남기면 진술이 아니라 진실이 샌다
     //   그 외   : 그 시각 실제로 있던 방
     private static string SpokenRoom(DialogueContext ctx, DialogueResponsePlan plan, string claimKey)
     {
@@ -424,7 +424,7 @@ public static class LocalDialogueGenerator
     // --- 근무 기억 ---------------------------------------------------------
 
     // 이 답변 뒤에 덧붙일 기억을 고른다. 질문 종류가 "무엇을 떠올릴지"를 정하고,
-    // 결번자가 거짓 알리바이를 대는 중이면 주장한 방을 기준으로만 떠올린다.
+    // 결번 개체가 거짓 알리바이를 대는 중이면 주장한 방을 기준으로만 떠올린다.
     private static RecallResult Recall(DialogueContext ctx, DialogueResponsePlan plan)
     {
         // 근무 기억은 위치 · 동행 · 동선을 묻는 답(과 하루 소감 · 근무 중 상태)에만 붙는다.

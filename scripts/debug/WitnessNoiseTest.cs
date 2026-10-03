@@ -16,7 +16,7 @@ namespace NSP.Debug;
 // 여기서 보는 것은 세 가지다.
 //   ① 정상 직원의 실제 이동도 "수상한 목격" 후보가 된다(지어내지 않는다 — 로그와 일치).
 //   ② 목격은 확률이다 — 자격이 되는 사람이 늘 보지는 않는다.
-//   ③ 결번자도 남의 실제 이동을 목격해 보고할 수 있다.
+//   ③ 결번 개체도 남의 실제 이동을 목격해 보고할 수 있다.
 public partial class WitnessNoiseTest : Node
 {
     private const string Guard = "guard_room";
@@ -94,10 +94,10 @@ public partial class WitnessNoiseTest : Node
         Check(seen < trials, "늘 보지는 않는다 — 방해공작 한 번에 확정 증언이 반드시 생기지 않는다");
     }
 
-    // ── ③ 결번자도 남의 실제 이동을 보고할 수 있다 ───────────────────────
+    // ── ③ 결번 개체도 남의 실제 이동을 보고할 수 있다 ───────────────────────
     private void TestSaboteurCanReportOthers()
     {
-        Head("C", "결번자도 남의 실제 이동을 목격해 보고할 수 있다");
+        Head("C", "결번 개체도 남의 실제 이동을 목격해 보고할 수 있다");
         bool everPointed = false, pointedSelf = false;
         for (int i = 0; i < 200 && !everPointed; i++)
         {
@@ -111,9 +111,9 @@ public partial class WitnessNoiseTest : Node
             if (known == null) continue;
             everPointed = true;
             if (known.ActorEmployeeId == "cat") pointedSelf = true;
-            GD.Print($"   결번자(고양이)가 본 것: {known.ActorEmployeeId} @ {known.RoomId}");
+            GD.Print($"   결번(고양이)가 본 것: {known.ActorEmployeeId} @ {known.RoomId}");
         }
-        Check(everPointed, "결번자에게도 목격 자료가 생긴다('아무것도 모른다' 일변도가 아니다)");
+        Check(everPointed, "결번 개체에게도 목격 자료가 생긴다('아무것도 모른다' 일변도가 아니다)");
         Check(!pointedSelf, "자기 자신을 지목하지는 않는다");
     }
 

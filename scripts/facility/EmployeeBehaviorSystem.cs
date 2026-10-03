@@ -10,7 +10,7 @@ namespace NSP.Facility;
 //
 // 이게 없으면 설비 앞에 다가서는 행동 자체가 곧 범인 표시가 된다. 그래서 강아지는
 // 절차대로 패널을 점검하고, 고양이는 효율이 떨어진 이유를 확인하고, 토끼는 궁금해서
-// 장비를 들여다본다 — 결번자의 전조와 **완전히 같은 모양**으로 남는다.
+// 장비를 들여다본다 — 결번의 전조와 **완전히 같은 모양**으로 남는다.
 //
 // 중요한 규칙 하나: **이 시스템은 직원을 움직이지 않는다.**
 // 방 간 이동 권한은 오직 플레이어에게 있다. 여기서 하는 일은 배치된 자리 안에서의
@@ -86,7 +86,7 @@ public sealed class EmployeeBehaviorSystem
         foreach (string id in sim.GetActiveEmployeeIds())
         {
             if (_actedToday.Contains(id)) continue;
-            if (id == GameState.Instance?.SaboteurEmployeeId) continue;   // 결번자는 자기 계획이 있다
+            if (id == GameState.Instance?.SaboteurEmployeeId) continue;   // 결번 개체는 자기 계획이 있다
             var st = sim.GetEmployeeState(id);
             if (st is not { Alive: true, Isolated: false, Incapacitated: false }) continue;
             if (st.IsMoving || string.IsNullOrEmpty(st.AssignedRoomId)) continue;

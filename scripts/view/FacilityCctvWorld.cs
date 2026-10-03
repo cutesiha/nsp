@@ -12,7 +12,7 @@ namespace NSP.View;
 //  - 모든 방 씬은 원점에 겹쳐 배치하고, 선택된 방 하나만 Visible=true (나머지 조명/메시는 꺼짐).
 //  - 카메라는 단 하나. 방마다 각도가 달라지지 않도록 고정 구도(코너 위에서 대각선 아래)를 공유한다.
 //  - 직원 6명은 색만 다른 임시 모델(employee_placeholder.tscn). 현재 방에 있는 직원만 표시.
-//  - 결번자(entity.tscn)는 평소 숨김. HorrorDirector L3 때 잠깐 등장(연출 훅만, 튜닝은 이후).
+//  - 개체(entity.tscn)는 평소 숨김. HorrorDirector L3 때 잠깐 등장(연출 훅만, 튜닝은 이후).
 public partial class FacilityCctvWorld : Node3D
 {
     private const float EntityScale = 3.2f;
@@ -284,7 +284,7 @@ public partial class FacilityCctvWorld : Node3D
         _camShakeUntil = Time.GetTicksMsec() / 1000.0 + seconds;
     }
 
-    // 결번자가 직원들 뒤(카메라에서 먼 코너)에 소리 없이 나타난다. 방 조명도 확 낮춘다.
+    // 개체가 직원들 뒤(카메라에서 먼 코너)에 소리 없이 나타난다. 방 조명도 확 낮춘다.
     public void HauntSpawn(string roomId)
     {
         _hauntActive = true;
@@ -785,7 +785,7 @@ public partial class FacilityCctvWorld : Node3D
 
     private void OnHorrorLevel3(bool taboo) => FlashEntity();
 
-    // "결번자 등장" — 현재 보고 있는 방 구석에 잠깐 나타났다 사라진다.
+    // "개체 등장" — 현재 보고 있는 방 구석에 잠깐 나타났다 사라진다.
     public void FlashEntity(float seconds = 1.1f)
     {
         if (_entity == null) return;

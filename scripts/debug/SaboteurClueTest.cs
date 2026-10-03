@@ -8,13 +8,13 @@ using NSP.Facility;
 
 namespace NSP.Debug;
 
-// DAY1 템포 · 결번자 전조 자동 검증.
+// DAY1 템포 · 결번 전조 자동 검증.
 //
 //   godot --headless --path . scenes/debug/SaboteurClueTest.tscn --quit-after 2000
 //
 // 보는 것은 둘이다.
 //   ① 120초 안에 "판단할 거리"가 끊기지 않는가 (최장 무행동 구간)
-//   ② 결번자가 플레이어 명령 없이 방을 옮기지 않는가 (한 건이라도 있으면 실패)
+//   ② 결번 개체가 플레이어 명령 없이 방을 옮기지 않는가 (한 건이라도 있으면 실패)
 public partial class SaboteurClueTest : Node
 {
     private const float Step = 1f / 30f;
@@ -53,7 +53,7 @@ public partial class SaboteurClueTest : Node
 
     private void RunAll()
     {
-        GD.Print("################ DAY1 템포 / 결번자 전조 검증 ################");
+        GD.Print("################ DAY1 템포 / 결번 전조 검증 ################");
         var ops = OpsProfile.For(1);
         if (ops == null) { GD.PrintErr("data/ops/day1.tres 실패"); return; }
         float length = DayObjectives.MaxShiftSeconds;
@@ -195,7 +195,7 @@ public partial class SaboteurClueTest : Node
 
     private void Report(List<Run> runs, OpsProfileDef ops, float length)
     {
-        GD.Print("\n결번자   첫경고  두번째  준비    방해공작  전조 단서  코어    최장공백  판단");
+        GD.Print("\n결번   첫경고  두번째  준비    방해공작  전조 단서  코어    최장공백  판단");
         foreach (var r in runs)
             GD.Print($"  {Code(r.SaboteurId),-4}  {Fmt(r.FirstWarningAt),6}  {Fmt(r.SecondEventAt),6}  " +
                      $"{Fmt(r.PrepareAt),6}  {Fmt(r.SabotageAt),8}  {r.Precursors,3}  {r.CluePaths,3}   " +
@@ -235,7 +235,7 @@ public partial class SaboteurClueTest : Node
         bool prepared = _sim.Saboteur.Phase == SaboteurPhase.Preparing;
         GD.Print($"\n[C/D] 준비 시작 {(prepared ? "O" : "X")} (진행 {_sim.Saboteur.PrepareRatio:P0}) @ " +
                  $"{GameState.Instance.DayTimeSeconds:0}초");
-        Check(prepared, "C 결번자가 배치된 자리에서 준비 상태에 들어간다");
+        Check(prepared, "C 결번 개체가 배치된 자리에서 준비 상태에 들어간다");
         if (!prepared) return;
 
         Order("cat", "storage_room");

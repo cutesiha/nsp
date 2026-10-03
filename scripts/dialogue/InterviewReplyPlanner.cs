@@ -53,7 +53,7 @@ public static class InterviewReplyPlanner
     //
     // 규칙이 성립하지 않아도 답은 한다 — 거절이 아니라 중립으로 받는다(Confront.neutral).
     // 성립한 경우, 결백한 직원은 기록을 받아들이고 진술을 정정하며(새 알리바이를 만들지 않는다),
-    // 결번자는 이미 정해 둔 전략대로 흐리거나 불리한 기록이 쌓였으면 정면 부정한다.
+    // 결번 개체는 이미 정해 둔 전략대로 흐리거나 불리한 기록이 쌓였으면 정면 부정한다.
     public static string ConfrontAnswer(string employeeId, EvidenceContradiction.Result result, out string variant)
     {
         variant = "neutral";
@@ -72,7 +72,7 @@ public static class InterviewReplyPlanner
 
             // 행동 추궁 — 이미 "설비 근처에 가지 않았다"고 못 박아 둔 사건이라면 물러설 수 없다.
             // 여기서 흐리면 방금 한 주장을 스스로 접는 셈이고, 알리바이 일관성이 깨진다.
-            // 결번자는 위치에 대해서는 거짓말하지 않으므로(제자리 범행) ClaimTruthful 이 참일 때가
+            // 결번 개체는 위치에 대해서는 거짓말하지 않으므로(제자리 범행) ClaimTruthful 이 참일 때가
             // 많다 — 그 경우 위 조건만으로는 영영 honest 가 나온다. 이 한 줄이 §3-2 의 요점이다.
             if (result.Kind == ConfrontKind.Behavior && ctx.IsSaboteur && claim.DeniesEquipmentContact)
                 variant = "deny";
@@ -205,7 +205,7 @@ public static class InterviewReplyPlanner
             {
                 f.Topic = ReplyTopic.WhereAtIncident;
                 f.Variant = "any";
-                // 내세우는 방 — 결번자가 거짓 알리바이를 대는 중이면 주장한 방(ShiftMemory.Recall 의 Lying 과 같은 기준).
+                // 내세우는 방 — 결번 개체가 거짓 알리바이를 대는 중이면 주장한 방(ShiftMemory.Recall 의 Lying 과 같은 기준).
                 string room = !truthful && !string.IsNullOrEmpty(claim.ClaimedRoomId) ? claim.ClaimedRoomId : plan.RoomId;
                 f.Set("room", RoomName(room));
                 // B-2: 동석자 여부까지 사람이 통째로 쓴 한 문장(alone/with)이 캐릭터 파일에 있으면 그것을 쓴다.
@@ -391,7 +391,7 @@ public static class InterviewReplyPlanner
             }
 
             // 근무 태만 추궁 — 지시 없이 자리를 옮긴 기록이 화면에 떴으면 발뺌할 수 없다(caught).
-            // 그런 기록이 없으면 "자리는 지켰다"고 항변한다(justify). 결번자는 흐린다.
+            // 그런 기록이 없으면 "자리는 지켰다"고 항변한다(justify). 결번 개체는 흐린다.
             case InterviewIntent.ConfrontNeglect:
             {
                 f.Topic = ReplyTopic.Neglect;
@@ -452,7 +452,7 @@ public static class InterviewReplyPlanner
             }
 
             // ── 알리바이 · 따지기 ──
-            // 내세우는 위치(결번자는 주장한 방)에 같이 있던 사람을 댄다 — 그 사람의 위치까지 걸린 진술이다.
+            // 내세우는 위치(결번 개체는 주장한 방)에 같이 있던 사람을 댄다 — 그 사람의 위치까지 걸린 진술이다.
             case InterviewIntent.AskAlibiProof:
             {
                 f.Topic = ReplyTopic.AlibiProof;
@@ -470,7 +470,7 @@ public static class InterviewReplyPlanner
                 break;
             }
 
-            // 결백한 직원은 하던 일 · 있던 곳을 댄다. 결번자는 흐리거나(거짓 알리바이) "손대지 않았다"고
+            // 결백한 직원은 하던 일 · 있던 곳을 댄다. 결번 개체는 흐리거나(거짓 알리바이) "손대지 않았다"고
             // 못 박는다 — 그 주장(Denial.equipment)이 카드로 남아 동료 증언과 부딪힐 수 있다(§3-2).
             case InterviewIntent.AskProveInnocence:
             {
@@ -493,7 +493,7 @@ public static class InterviewReplyPlanner
             }
 
             // 직접 본 수상한 행동이 있을 때만 사람을 댄다 — 그 목격이 행동까지 실린 증언 카드가 된다.
-            // 본 것이 없으면 아무도 지목하지 않는다. 결번자는 이름 없이 남을 흘려 넣는다.
+            // 본 것이 없으면 아무도 지목하지 않는다. 결번 개체는 이름 없이 남을 흘려 넣는다.
             case InterviewIntent.AskSuspectOpinion:
             {
                 f.Topic = ReplyTopic.Suspect;
@@ -510,7 +510,7 @@ public static class InterviewReplyPlanner
                 break;
             }
 
-            // "기록상 거기 있었다" — 결백한 직원은 인정하고, 거짓 알리바이를 댄 결번자는 부정한다
+            // "기록상 거기 있었다" — 결백한 직원은 인정하고, 거짓 알리바이를 댄 결번 개체는 부정한다
             // (그 부정이 진술 카드로 남아 CCTV · 로그와 맞부딪힌다). 제자리 범행이면 있었던 건 인정하되 흐린다.
             case InterviewIntent.PressPresence:
                 f.Topic = ReplyTopic.PressPresence;
@@ -547,7 +547,7 @@ public static class InterviewReplyPlanner
             f.Addenda.AddRange(mem.Addenda);
         }
 
-        // 결번자의 "설비 쪽엔 손도 안 댔다" — 자기 위치 · 그 방에 있던 이유 · 거기서 한 일 · 무관하다는
+        // 결번의 "설비 쪽엔 손도 안 댔다" — 자기 위치 · 그 방에 있던 이유 · 거기서 한 일 · 무관하다는
         // 근거 · 재석 추궁을 답할 때만 붙는다(KoreanDialogueComposer 와 같은 규칙). 결백한 직원은 오지 않는다.
         KoreanDialogueComposer.ApplyEquipmentDenial(f, ctx,
             f.Topic is ReplyTopic.PresenceReason or ReplyTopic.ActionThere

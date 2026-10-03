@@ -26,7 +26,7 @@ public enum MemoryKind
     Companion,      // 그 시각 같은 방에 있던 사람 / 혼자였다
     DayCompanion,   // 오늘 가장 오래 같이 있던 사람
     Summary,        // 하루 요약(재배치 횟수 · 수리 횟수 · 통화 횟수)
-    Slip,           // 결번자 흉내의 어긋남
+    Slip,           // 결번 개체의 흉내의 어긋남
 }
 
 public sealed class MemoryItem
@@ -61,9 +61,9 @@ public sealed class RecallRequest
     public RecallTopic Topic;
     // 답변이 가리키는 시각. 음수면 하루 전체를 본다.
     public float AnchorTime = -1f;
-    // 답변이 가리키는 방(실제 위치 또는 결번자가 주장한 위치).
+    // 답변이 가리키는 방(실제 위치 또는 결번 개체가 주장한 위치).
     public string AnchorRoom = "";
-    // 결번자가 거짓 알리바이를 대는 중인가 — 그렇다면 AnchorRoom 이 주장한 방이다.
+    // 결번 개체가 거짓 알리바이를 대는 중인가 — 그렇다면 AnchorRoom 이 주장한 방이다.
     public bool Lying;
     public bool IsSaboteur;
     public bool IsRepeat;
@@ -76,7 +76,7 @@ public sealed class RecallRequest
 public sealed class RecallResult
 {
     public readonly List<ReplyAddendum> Addenda = new();
-    // 결번자 흉내의 어긋남: 겁먹어야 할 상황인데 놀란 기색을 빼 버린다.
+    // 결번 개체의 흉내의 어긋남: 겁먹어야 할 상황인데 놀란 기색을 빼 버린다.
     public bool SuppressFear;
 }
 
@@ -89,15 +89,15 @@ public sealed class RecallResult
 //
 // 지켜야 할 것
 //   · 없는 일을 만들지 않는다. 기억은 로그와 통화 기록에서만 나온다.
-//   · 결번자는 자기 방해공작을 기억으로 꺼내지 않는다.
-//   · 결번자가 거짓 알리바이를 대는 동안에는 그 시간대의 "진짜 동선"을 꺼내지 않는다.
+//   · 결번 개체는 자기 방해공작을 기억으로 꺼내지 않는다.
+//   · 결번 개체가 거짓 알리바이를 대는 동안에는 그 시간대의 "진짜 동선"을 꺼내지 않는다.
 //     같이 있던 사람도 주장한 방 기준으로 댄다(그 사람이 실제로 그 방에 있었으니 확인하면 들통난다).
 //   · 몇 개를, 무엇을 먼저 꺼내는지는 캐릭터 말투(DialogueVoiceDef)가 정한다.
 public static class ShiftMemory
 {
     // 질문 시각에서 이만큼(게임 분) 안의 기억만 "그때 일"로 꺼낸다.
     public const float RecallWindowMinutes = 20f;
-    // 결번자가 거짓 알리바이를 대는 동안 진짜 동선을 숨기는 폭(게임 분).
+    // 결번 개체가 거짓 알리바이를 대는 동안 진짜 동선을 숨기는 폭(게임 분).
     public const float LieWindowMinutes = 30f;
     // 흉내 어긋남이 한 답변에서 새어 나올 확률.
     public const float ImpostorSlipChance = 0.35f;
@@ -215,7 +215,7 @@ public static class ShiftMemory
             foreach (var e in log.GetAllEntries())
             {
                 if (e.Day != day) continue;
-                // 결번자는 자기가 한 방해공작을 "기억"으로 꺼내지 않는다.
+                // 결번 개체는 자기가 한 방해공작을 "기억"으로 꺼내지 않는다.
                 if (!DialogueContextBuilder.IsIncident(e.EventType)) continue;
                 if (e.ActorEmployeeId == id && e.EventType == LogEventType.Sabotage) continue;
 
@@ -416,7 +416,7 @@ public static class ShiftMemory
         int budget = r.IsRepeat ? 0 : Budget(voice);
         var picked = PickWeighted(cands, budget);
 
-        // ── 5) 결번자 흉내의 어긋남 ────────────────────────────────────
+        // ── 5) 결번 개체의 흉내의 어긋남 ────────────────────────────────────
         if (r.IsSaboteur && r.Lying && GD.Randf() < ImpostorSlipChance)
             ApplyImpostorTell(r, voice, picked, result);
 
@@ -424,7 +424,7 @@ public static class ShiftMemory
         return result;
     }
 
-    // 결번자가 거짓 알리바이를 대는 동안에는 그 시간대의 진짜 동선을 꺼내지 않는다.
+    // 결번 개체가 거짓 알리바이를 대는 동안에는 그 시간대의 진짜 동선을 꺼내지 않는다.
     private static bool Visible(MemoryItem m, RecallRequest r, float lieWindow)
     {
         if (!r.Lying || r.AnchorTime < 0f) return true;
@@ -618,7 +618,7 @@ public static class ShiftMemory
         return picked;
     }
 
-    // 결번자가 이 직원 행세를 하다 새는 미세한 어긋남(DialogueVoiceDef.ImpostorTells).
+    // 결번 개체가 이 직원 행세를 하다 새는 미세한 어긋남(DialogueVoiceDef.ImpostorTells).
     // 한 번에 하나만, 정상 성격의 연장선에서 살짝 틀어진 정도로만.
     private static void ApplyImpostorTell(RecallRequest r, DialogueVoiceDef v, List<Candidate> picked, RecallResult result)
     {

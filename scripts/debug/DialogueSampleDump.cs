@@ -20,7 +20,7 @@ namespace NSP.Debug;
 // 장면 4개(혼자 배치 · 둘이 배치 · 재배치 · 미배치 포함)를 각각 SamplesPerScene 번 처음부터 다시 만들고,
 // 매번 여섯 명 모두에게 같은 질문 묶음을 실제 순서대로(근무 중 전화 → 휴게시간 심문) 던진다.
 // 그래서 한 장면 · 한 캐릭터 · 한 질문 종류마다 서로 독립인 답이 SamplesPerScene 개 모인다.
-// 결번자 장면(거짓 알리바이)은 따로 한 번씩 돈다.
+// 결번 장면(거짓 알리바이)은 따로 한 번씩 돈다.
 //
 // 기계로 잡을 수 있는 것(빈칸 누출 · 조사 표기 누출 · 한 답 안의 같은 말 반복 · 거짓말 중
 // 실제 위치 누설 · 대사 뱅크 조사 오류 · 미배치 직원 이름 · 세션당 동료 언급 · 방 두 번)은
@@ -366,7 +366,7 @@ public partial class DialogueSampleDump : Node
         Check(withNames.All(n => n == Nm("wolf")), $"강아지 — 22:47 발전실에서 같이 있던 사람은 늑대뿐 ({string.Join(",", withNames)})");
     }
 
-    // ── 결번자가 거짓 알리바이를 대는 하루(장면마다 한 번) ──────────────────────
+    // ── 결번 개체가 거짓 알리바이를 대는 하루(장면마다 한 번) ──────────────────────
     private void SaboteurDay(string sab)
     {
         NewDay(sab);
@@ -380,11 +380,11 @@ public partial class DialogueSampleDump : Node
         Log(LogEventType.TaskFailed, "", real, At(42));
         GameState.Instance.AdvanceDayTime(At(90));
 
-        string title = $"결번자 장면 — {Nm(sab)}";
+        string title = $"결번 장면 — {Nm(sab)}";
         _scene = title; _sample = 1;
         _scenes.Add((title, KoreanParticle.Resolve(
             $"{Nm(sab)}은/는 {RoomName(assigned)} 배치 → 22:30 몰래 {RoomName(real)} → 22:33 방해공작 → 22:38 복귀 → 22:42 {RoomName(real)} 고장.\n" +
-            "결번자는 배치 자리에 계속 있었다고 주장해야 하고, 그 시간대의 진짜 동선을 기억으로 흘리면 안 된다.")));
+            "결번 개체는 배치 자리에 계속 있었다고 주장해야 하고, 그 시간대의 진짜 동선을 기억으로 흘리면 안 된다.")));
         GD.Print($"\n===== {title} =====");
 
         CheckLieMemory(sab, assigned, real);
@@ -405,7 +405,7 @@ public partial class DialogueSampleDump : Node
                 Rec(sab, kind, q.Text, a, anchor: q.HasAnchorTime ? q.AnchorTime : -1f);
                 if (intent == InterviewIntent.AskWhereAtIncident)
                 {
-                    // 결번자 전략이 '축소·합리화'면 위치 자체는 인정한다 — 그때는 누설 검사가 아니다.
+                    // 결번 전략이 '축소·합리화'면 위치 자체는 인정한다 — 그때는 누설 검사가 아니다.
                     string claimed = InterviewReplyPlanner.FrameFor(q)?.Vars.GetValueOrDefault("room", "") ?? "";
                     if (claimed == RoomName(real))
                         GD.Print($"   ({sab} 은/는 이번엔 위치를 인정하는 전략 — 축소/합리화)");
@@ -423,7 +423,7 @@ public partial class DialogueSampleDump : Node
         {
             var ms = new InterviewSession(mate);
             var q = InterviewQuestionFactory.Make(mate, incident, InterviewIntent.AskWhoWasPresent);
-            Rec(mate, $"결번자({Nm(sab)})와 같은 배치 · 같이 있던 사람", q.Text, ms.Ask(q).Answer,
+            Rec(mate, $"결번({Nm(sab)})와 같은 배치 · 같이 있던 사람", q.Text, ms.Ask(q).Answer,
                 anchor: q.HasAnchorTime ? q.AnchorTime : -1f);
         }
     }
@@ -609,7 +609,7 @@ public partial class DialogueSampleDump : Node
             md.AppendLine();
             md.AppendLine("`scenes/debug/DialogueSampleDump.tscn` 이 만든 파일입니다. 실행할 때마다 새로 뽑힙니다.");
             md.AppendLine($"장면 1~4 는 장면을 {SamplesPerScene}번 처음부터 다시 만들어 매번 같은 질문 묶음을 던진 결과입니다" +
-                          "(질문 종류마다 답 " + SamplesPerScene + "개). 결번자 장면은 한 번씩입니다.");
+                          "(질문 종류마다 답 " + SamplesPerScene + "개). 결번 장면은 한 번씩입니다.");
             md.AppendLine("각 답 뒤의 `틀:` 은 쓰인 문장 슬롯, `기억[...]` 은 근무 기억에서 덧붙인 슬롯(`(잘림)` = 답에 안 들어감)입니다.");
             md.AppendLine($"어색한 줄을 찾으면 `data/dialogue/lines/{id}.txt` 의 그 슬롯을 고치면 됩니다.");
             md.AppendLine();

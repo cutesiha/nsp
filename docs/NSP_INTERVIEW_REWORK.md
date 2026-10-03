@@ -9,7 +9,7 @@
 
 ## 0. 한 줄 요약
 
-지금 심문 엔진(`EvidenceContradiction`)은 **"자료 두 장의 위치가 어긋나는가"** 만 판정한다. 그런데 V2 이후 결번자는 **제자리에서 범행하고 위치에 대해 거짓말을 하지 않는다**. 잡을 모순이 생성되지 않으니 추궁이 계속 실패한다. 판정을 시뮬레이션이 실제로 남기는 단서(그 방에 있었는가 · 설비 쪽 이상 행동 · 동료 목격)에 맞추고, UI는 "MON01 = 조사 노트, MON02 + 자막 띠 = 대화"로 역할을 나눈다.
+지금 심문 엔진(`EvidenceContradiction`)은 **"자료 두 장의 위치가 어긋나는가"** 만 판정한다. 그런데 V2 이후 결번 개체는 **제자리에서 범행하고 위치에 대해 거짓말을 하지 않는다**. 잡을 모순이 생성되지 않으니 추궁이 계속 실패한다. 판정을 시뮬레이션이 실제로 남기는 단서(그 방에 있었는가 · 설비 쪽 이상 행동 · 동료 목격)에 맞추고, UI는 "MON01 = 조사 노트, MON02 + 자막 띠 = 대화"로 역할을 나눈다.
 
 ---
 
@@ -32,17 +32,17 @@ if (!a.CanAnchorPosition || !b.CanAnchorPosition)
 
 ### 1-2. 그 조합이 성립할 일이 거의 없다
 
-- `scripts/facility/SaboteurPlan.cs` 상단 주석: *"결번자는 스스로 방을 옮기지 않는다. 플레이어가 배치해 준 자리에서 정상 직원인 척 일하다가 기회를 잡는다."*
+- `scripts/facility/SaboteurPlan.cs` 상단 주석: *"결번 개체는 스스로 방을 옮기지 않는다. 플레이어가 배치해 준 자리에서 정상 직원인 척 일하다가 기회를 잡는다."*
 - `scripts/dialogue/DialogueResponsePlanner.cs` `EnsureClaimedRoom()`:
   ```
   string real  = RoomAtSubject (없으면 AssignedRoomId);
   string cover = AssignedRoomId;
   claim.ClaimedRoomId = hides && cover != real ? cover : real;
   ```
-  결번자가 배치된 방에서 범행하므로 `real == cover` → **`ClaimTruthful = true`** → 결번자는 위치에 대해 거짓말하지 않는다. (예외: 플레이어가 사고 뒤 결번자를 다른 방으로 옮긴 경우.)
-- 결번자가 실제로 쓰는 전략은 `Omit / Vague / Minimize / Justify`. 전부 "흐리기"이고, 반박 가능한 거짓 주장이 아니다.
+  결번 개체가 배치된 방에서 범행하므로 `real == cover` → **`ClaimTruthful = true`** → 결번 개체는 위치에 대해 거짓말하지 않는다. (예외: 플레이어가 사고 뒤 결번을 다른 방으로 옮긴 경우.)
+- 결번 개체가 실제로 쓰는 전략은 `Omit / Vague / Minimize / Justify`. 전부 "흐리기"이고, 반박 가능한 거짓 주장이 아니다.
 
-→ 위치 모순 판정은 V1(결번자가 돌아다니던 시절)용 규칙이다. 지금 시뮬레이션에는 잡을 거리가 없다.
+→ 위치 모순 판정은 V1(결번 개체가 돌아다니던 시절)용 규칙이다. 지금 시뮬레이션에는 잡을 거리가 없다.
 
 ### 1-3. 시뮬레이션이 실제로 만드는 단서
 
@@ -77,7 +77,7 @@ if (!a.CanAnchorPosition || !b.CanAnchorPosition)
 ## 2. 목표
 
 1. 플레이어가 자료를 고르면 **거의 항상 무언가를 물을 수 있다.** "자료가 아닙니다" 류의 거절은 원칙적으로 없앤다.
-2. 결번자에게 **잡을 수 있는 거짓말**을 최소 하나 준다. 결백한 직원은 같은 상황에서 순순히 인정한다.
+2. 결번 개체에게 **잡을 수 있는 거짓말**을 최소 하나 준다. 결백한 직원은 같은 상황에서 순순히 인정한다.
 3. 직원이 말한 것이 **그 자리에서 카드가 되는 것**이 보인다.
 4. 대화는 한 곳(MON02 + 자막 띠)에서, 자료는 한 곳(MON01)에서.
 5. 추궁의 결과가 휴게실 화면에 남아 격리 판단의 재료가 된다. 단, 게임은 정답을 알려주지 않는다.
@@ -97,19 +97,19 @@ public enum ConfrontKind { None, Presence, Behavior, Location }
 **① Presence(재석 추궁)** — `Incident` 카드 + 이 직원이 그 방에 있었다는 카드
 - 조건: 한쪽이 `Kind == Incident`, 다른 쪽이 `SubjectEmployeeId == target && CanAnchorPosition`, `RoomClaimedAt(other, incident.AnchorTime) == incident.SubjectRoomId`, 시간 차 ≤ `WindowMinutes`.
 - 질문문: `"{time}경 {room}에서 사고가 났을 때 그 방에 계셨습니다. 무엇을 하고 있었습니까?"`
-- 답변: 기존 `ConfrontAnswer` 경로 그대로. 결백 → `Confront.honest`, 결번자(Omit/Vague) → `Confront.evasive`, 증거 2개 이상 → `Confront.deny`.
+- 답변: 기존 `ConfrontAnswer` 경로 그대로. 결백 → `Confront.honest`, 결번(Omit/Vague) → `Confront.evasive`, 증거 2개 이상 → `Confront.deny`.
 - 이 규칙 하나로 §1-1의 벽이 사라진다.
 
 **② Behavior(행동 추궁)** — `Testimony`(Detail 있음) 또는 설비 접근 `Cctv` 카드 + 같은 방·같은 시간대의 `Incident` 카드
 - 조건: 한쪽이 `Incident`, 다른 쪽이 `SubjectEmployeeId == target` 이고 `BehaviorDetail` 이 비어 있지 않음, 같은 방, 시간 차 ≤ `WindowMinutes * 2` (전조는 사고보다 앞서 나오므로 폭을 두 배로).
 - 질문문: `"사고 직전 {room}에서 {detail}는 증언이 있습니다. 설명해 주시죠."`
-- 답변: 결번자가 `DeniesEquipmentContact` 를 주장한 상태면 `Confront.deny` 계열(§3-2), 아니면 evasive. 결백한 직원(가짜 단서의 주인)은 honest — "네, 수치가 이상해서 봤습니다" 류로 인정한다.
+- 답변: 결번 개체가 `DeniesEquipmentContact` 를 주장한 상태면 `Confront.deny` 계열(§3-2), 아니면 evasive. 결백한 직원(가짜 단서의 주인)은 honest — "네, 수치가 이상해서 봤습니다" 류로 인정한다.
 
-**③ Location(위치 추궁)** — 현재 규칙 그대로. 플레이어가 사고 뒤 결번자를 옮긴 경우에만 성립하는 보너스 루트.
+**③ Location(위치 추궁)** — 현재 규칙 그대로. 플레이어가 사고 뒤 결번을 옮긴 경우에만 성립하는 보너스 루트.
 
-**성립하지 않는 조합** — 거절하지 않는다. `Kind = None` 으로 돌려주고, UI 는 "두 자료를 함께 제시한다" 선택지를 그대로 띄운다. 답변은 새 슬롯 `Confront.neutral` (결번자·결백 공통, 중립 반응: "그 둘이 무슨 상관이죠?" 류). 화면에 **"모순 성립" 표시만 붙지 않는다.** 틀린 조합을 시도하는 것도 추리의 일부다.
+**성립하지 않는 조합** — 거절하지 않는다. `Kind = None` 으로 돌려주고, UI 는 "두 자료를 함께 제시한다" 선택지를 그대로 띄운다. 답변은 새 슬롯 `Confront.neutral` (결번·결백 공통, 중립 반응: "그 둘이 무슨 상관이죠?" 류). 화면에 **"모순 성립" 표시만 붙지 않는다.** 틀린 조합을 시도하는 것도 추리의 일부다.
 
-### 3-2. 결번자에게 반박 가능한 거짓말 하나
+### 3-2. 결번 개체에게 반박 가능한 거짓말 하나
 
 `DialogueClaim` 에 필드 추가:
 
@@ -120,11 +120,11 @@ public bool EquipmentDenialDecided;
 
 결정 시점: `DialogueResponsePlanner.Plan()` 에서 `EnsureClaimedRoom` 직후, `ctx.IsSaboteur && ctx.IsSubjectActor && mode is Omit or Vague or Deny` 이면 `DeniesEquipmentContact = true`. 한 번 정하면 그 사건 동안 바뀌지 않는다(알리바이와 같은 규칙).
 
-표출: 결번자가 이 사건에 대해 `SelfLocation` / `PresenceReason` / `ActionAtDestination` 을 답할 때 `DeniesEquipmentContact` 면 문장 뒤에 `Denial.equipment` 슬롯 한 줄을 덧붙인다("설비 쪽엔 손도 안 댔어요~"). 결백한 직원은 이 슬롯을 쓰지 않는다.
+표출: 결번 개체가 이 사건에 대해 `SelfLocation` / `PresenceReason` / `ActionAtDestination` 을 답할 때 `DeniesEquipmentContact` 면 문장 뒤에 `Denial.equipment` 슬롯 한 줄을 덧붙인다("설비 쪽엔 손도 안 댔어요~"). 결백한 직원은 이 슬롯을 쓰지 않는다.
 
 기록: 이 문장이 나가면 `PlayerKnownEvidence.RecordBehaviorClaim(employeeId, incidentKey, "설비 근처에 가지 않았다", time)` → `OwnStatement` 카드로 올라온다(Body: `본인 · 설비 쪽에 안 갔다`). 이 카드 + 동료 목격 `Testimony` 카드 = Behavior 규칙 성립.
 
-주의: `data/dialogue/lines/SLOTS.md` 규칙대로 결번자 전용 슬롯이라도 결백한 직원이 써도 어색하지 않아야 한다. 다만 이 슬롯은 결백한 직원이 부르지 않으므로 표현은 자유롭다.
+주의: `data/dialogue/lines/SLOTS.md` 규칙대로 결번 전용 슬롯이라도 결백한 직원이 써도 어색하지 않아야 한다. 다만 이 슬롯은 결백한 직원이 부르지 않으므로 표현은 자유롭다.
 
 ### 3-3. 카드에 내용을 싣기
 
@@ -153,7 +153,7 @@ case CoreKind.IncidentIndirect:
     break;
 ```
 
-`plan.RoomId` 는 결번자면 `ClaimedRoomId`, 아니면 실제 방이다(이미 그렇게 세팅됨). 이로써 "이상한 점" 답변이 시각+방이 붙은 `OwnStatement` 카드가 되어 세 규칙 전부에 쓸 수 있다.
+`plan.RoomId` 는 결번이면 `ClaimedRoomId`, 아니면 실제 방이다(이미 그렇게 세팅됨). 이로써 "이상한 점" 답변이 시각+방이 붙은 `OwnStatement` 카드가 되어 세 규칙 전부에 쓸 수 있다.
 
 ### 3-5. 추궁 결과 → 휴게실 화면
 
@@ -248,13 +248,13 @@ case CoreKind.IncidentIndirect:
 | 12c | `scripts/debug/InterviewHudShot.cs` | 캡처 씬을 새 레이아웃에 맞춤. |
 | 12d | `scripts/prologue/TutorialDirector.cs` | DAY0 교육이 자막 띠 위치·"진술 자동 재생"을 전제로 하는 단계가 있으면 선택지 방식에 맞게 문구·조건 수정. |
 
-### 2차 (10/31 마감 전 · 결번자에게 거짓말을 주고, 띠 시간표를 넣고, 피드백을 닫는다)
+### 2차 (10/31 마감 전 · 결번 개체에게 거짓말을 주고, 띠 시간표를 넣고, 피드백을 닫는다)
 
 | # | 파일 | 작업 |
 |---|---|---|
 | 13 | `scripts/dialogue/DialogueClaimState.cs`, `DialogueResponsePlanner.cs` | `DeniesEquipmentContact` 결정(§3-2). |
 | 14 | `scripts/dialogue/KoreanDialogueComposer.cs` 또는 `InterviewReplyComposer.cs` | `Denial.equipment` 슬롯 덧붙이기. `PlayerKnownEvidence.RecordBehaviorClaim` 호출. |
-| 15 | `data/dialogue/lines/*.txt`, `SLOTS.md` | `Denial.equipment` 슬롯(6명, 각 3줄). 결번자 전용이지만 성격은 유지. |
+| 15 | `data/dialogue/lines/*.txt`, `SLOTS.md` | `Denial.equipment` 슬롯(6명, 각 3줄). 결번 전용이지만 성격은 유지. |
 | 16 | `scripts/dialogue/InterviewEvidenceBoard.cs` | `AddOwnStatements` 에 행동 주장 카드(`Body = "본인 · 설비 쪽에 안 갔다"`, `BehaviorDetail` 채움). |
 | 17 | `scripts/data/RoomDef.cs`, `data/rooms/*.tres` | `MapColor` 추가 · 5개 방 색 지정. |
 | 18 | `scripts/view/StaffTimelineView.cs` (신규) | §3-7 띠 시간표 컨트롤. |
@@ -282,7 +282,7 @@ case CoreKind.IncidentIndirect:
 3. **Behavior 성립**: `RecordSighting("wolf","cat","maintenance_room",At(30),"설비 쪽에 평소보다 오래 머물렀다")` + 사고 기록(정비실, At(40)) → `Kind == Behavior`, 질문문에 detail 포함.
 4. **Testimony 카드 본문**: 3번 상황에서 cat 의 Board 에 `Body` 가 "늑대 · 설비 쪽에 평소보다 오래 머물렀다" 인 카드가 있다.
 5. **최초 진술 카드화**: cat 이 `Anomaly` 에 `IncidentDirect` 로 답한 뒤 `PlayerKnownEvidence.StatementsBy("cat")` 에 시각이 붙은 진술이 1건 있다.
-6. **결번자 거짓말(2차)**: 결번자 = cat, 사건 actor = cat, mode Omit → `DeniesEquipmentContact == true`, 두 번 물어도 값이 바뀌지 않는다. 결백한 cat 은 false.
+6. **결번 거짓말(2차)**: 결번 = cat, 사건 actor = cat, mode Omit → `DeniesEquipmentContact == true`, 두 번 물어도 값이 바뀌지 않는다. 결백한 cat 은 false.
 7. **결백 인정(2차)**: 결백한 직원이 가짜 단서(`EmployeeBehaviorSystem`)의 주인일 때 Behavior 추궁 variant 는 `honest`.
 8. **기존 위치 모순 케이스**: `RestEvidenceTest` 의 기존 케이스 전부 통과(`Kind == Location`).
 9. **UI 스모크**: `scenes/debug/InterviewHudShot.tscn` 에서 심문을 열었을 때 MON01 에 진술 블록이 없고, 자막 띠에 선택지가 있으며, 시작 탭이 현재 직원이다.
@@ -301,7 +301,7 @@ case CoreKind.IncidentIndirect:
 - …네? 둘 다 맞는 얘기 아닌가요?
 - 뭘 물으시려는 건지 다시 말씀해 주세요.
 
-`Denial.equipment` (결번자만 · 각 캐릭터 말투로)
+`Denial.equipment` (결번 개체만 · 각 캐릭터 말투로)
 - 설비 쪽엔 손도 안 댔어요.
 - 저는 제 자리에서 제 일만 했습니다.
 - 기계는 제 담당이 아니라서요.

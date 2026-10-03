@@ -120,7 +120,7 @@ public partial class RealShiftDialogueTest : Node
         await Frames(30);
 
         var incidents = EventLog.Instance.GetAllEntries().Count(e => e.Day == day && DialogueContextBuilder.IsIncident(e.EventType));
-        GD.Print($"\n   오늘 로그 {EventLog.Instance.GetAllEntries().Count}줄 · 사고 {incidents}건 · 결번자 {GameState.Instance.SaboteurEmployeeId}");
+        GD.Print($"\n   오늘 로그 {EventLog.Instance.GetAllEntries().Count}줄 · 사고 {incidents}건 · 결번 {GameState.Instance.SaboteurEmployeeId}");
         if (relocatedAt > 0f)
             Check(DialogueContextBuilder.RoomAt(Moved, day, relocatedAt - 1f) == Core,
                 "재배치 직전 여우의 시간표 위치는 여전히 코어실(지금 배치인 저장고가 아니다)");

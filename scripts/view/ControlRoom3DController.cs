@@ -110,6 +110,7 @@ public partial class ControlRoom3DController : Node3D
     // 근무 배치 단계의 두 CRT 프로그램(왼쪽 = 시설 지도 배치, 오른쪽 = 직원·작업실 정보).
     private SubViewport _scheduleMapVp, _scheduleStaffVp;
     private SubViewport _endingLeftVp, _endingRightVp;
+    private SubViewport _verdictVp, _endingStaffVp;
     private ScheduleMapView _scheduleMap;
     // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
     // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
@@ -201,6 +202,12 @@ public partial class ControlRoom3DController : Node3D
 
     public void SetInputLocked(bool locked) => _inputLocked = locked;
     public bool IsInputLocked => _inputLocked;
+
+    // 화면 안 UI 는 그대로 누를 수 있지만 카메라는 움직이지 않는다 — 확대 키 · 우클릭
+    // 뒤로가기가 먹지 않는다(최종 보고서처럼 "제출 전까지 못 빠져나가는" 화면).
+    public void SetFocusLocked(bool locked) => _focusLocked = locked;
+    public bool IsFocusLocked => _focusLocked;
+    private bool _focusLocked;
     // 지금 입력을 받고 있는 책상 위 표면(배치표 · 관리자 패드). 없으면 null.
     public IProjectionSurface ModalSurface => _modal;
 
@@ -219,6 +226,9 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport ScheduleStaffViewport => _scheduleStaffVp;
     // 엔딩 연출(FINAL RECOVERY SEQUENCE) 전용 두 화면.
     public SubViewport EndingLeftViewport => _endingLeftVp;
+    // DAY5 최종 격리 보고서 · LOOSE 엔딩의 신원 명단(둘 다 왼쪽 CRT).
+    public SubViewport VerdictViewport => _verdictVp;
+    public SubViewport EndingStaffViewport => _endingStaffVp;
     public SubViewport EndingRightViewport => _endingRightVp;
     public ScheduleMapView ScheduleMap => _scheduleMap;
 
@@ -295,6 +305,18 @@ public partial class ControlRoom3DController : Node3D
         _endingLeftVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
         _endingRightVp = MakeViewport();
         AddScaledView(_endingRightVp, new EndingMonitorView(false), MonitorCanvasSize);
+        // 엔딩은 두 CRT 중 한쪽을 얼굴창으로 쓴다 — 어느 쪽이든 뜰 수 있게 양쪽에 둔다
+        // (실제로 어느 화면에 띄울지는 GuideCornerFace.MuteIn 으로 연출기가 고른다).
+        _endingRightVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+
+        _verdictVp = MakeViewport();
+        AddScaledView(_verdictVp, new FinalReportView(), MonitorCanvasSize);
+        // 보고서 화면 위에서도 GUIDE-0 이 말한다(교육 때 쓰던 그 작은 얼굴창).
+        _verdictVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+
+        _endingStaffVp = MakeViewport();
+        AddScaledView(_endingStaffVp, new EndingStaffIdView(), MonitorCanvasSize);
+        _endingStaffVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
@@ -343,7 +365,7 @@ public partial class ControlRoom3DController : Node3D
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _endingLeftVp, _endingRightVp })
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _endingLeftVp, _endingRightVp, _verdictVp, _endingStaffVp })
         {
             if (vp == null) continue;
             bool bound = false;
@@ -521,7 +543,7 @@ public partial class ControlRoom3DController : Node3D
         {
             // ESC 는 PauseMenu 가 먼저 가져간다(확대 중이면 그쪽에서 UnzoomIfFocused 를 부른다).
             var target = GameSettings.TargetForKey(NormalizeNumpad(key.Keycode));
-            if (target.HasValue)
+            if (target.HasValue && !_focusLocked)
             {
                 // 예전 경고 단말기 자리에는 관리자 패드가 있다 — 그 키는 패드를 꺼낸다(Tab 과 같다).
                 if (target.Value == GameSettings.ZoomTarget.Sensor) AdminPad3D.Instance?.Toggle();
@@ -571,7 +593,7 @@ public partial class ControlRoom3DController : Node3D
         Vector3 origin = _camera.ProjectRayOrigin(mb.Position);
         Vector3 dir = _camera.ProjectRayNormal(mb.Position);
 
-        if (mb.Pressed && mb.ButtonIndex == MouseButton.Right && _focusedNode != null)
+        if (mb.Pressed && mb.ButtonIndex == MouseButton.Right && _focusedNode != null && !_focusLocked)
         {
             Unfocus();
             GetViewport().SetInputAsHandled();
@@ -722,6 +744,32 @@ public partial class ControlRoom3DController : Node3D
 
     public void ClearFocus(float seconds = 0.3f) => Unfocus(seconds);
 
+    // 엔딩 연출 — 책상 위 아무 물건이나 카메라를 내린다(관리자 패드 · 수화기 · 전원 스위치).
+    // 확대 대상 목록(ZoomTarget)에 없는 노드도 받는다. distance 가 0 이하면 책상 기기 기본값.
+    //
+    // 물건 자신의 법선(Basis.Z)을 쓰지 않는다 — 패드는 거치대에 눕혀져 있어 그 축이 위를
+    // 가리키고, 그대로 쓰면 카메라가 천장이나 책상 밑으로 들어간다.
+    // **앉은 자리의 눈에서 그 물건을 보는 방향**으로 다가간다(사람이 몸을 숙이는 것과 같다).
+    public void FocusProp(Node3D node, float seconds = 0.9f, float distance = -1f, Vector3? offset = null)
+    {
+        if (node == null || _rig == null) return;
+        _focusedNode = node;
+        _focusedScreen = node as MonitorScreen3D;
+        Vector3 center = node.GlobalPosition + (offset ?? DeskPropFocusOffset);
+        Vector3 eye = _rig.SeatedCameraGlobal().Origin;
+        Vector3 normal = (eye - center);
+        normal = normal.LengthSquared() < 0.0001f ? Vector3.Up : normal.Normalized();
+        _rig.FocusOnScreen(center, normal, distance > 0f ? distance : DeskPropFocusDistance, seconds);
+    }
+
+    // 엔딩 연출 — 시선만 아주 살짝 옮긴다(카메라를 옮기지 않는다).
+    public void GazeAt(Vector3 worldTarget, float seconds = 0.9f) => _rig?.FocusOn(worldTarget, seconds);
+
+    // 엔딩 연출 — 자리는 그대로 두고 고개만 돌려 방 안의 한 점을 본다(문 쪽 등).
+    public void TurnToLookAt(Vector3 worldTarget, float seconds = 1.0f, Vector3 eyeOffset = default) =>
+        _rig?.TurnToLookAt(worldTarget, seconds, eyeOffset);
+    public void ReturnToSeat(float seconds = 1.0f) => _rig?.ReturnToSeat(seconds);
+
     // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
     public void ShakeCamera(float strengthDegrees, float seconds) => _rig?.Shake(strengthDegrees, seconds);
 
@@ -734,7 +782,7 @@ public partial class ControlRoom3DController : Node3D
     // 확대 중이면 풀고 true. PauseMenu 가 ESC 를 받았을 때 "메뉴 열기"보다 먼저 시도한다.
     public bool UnzoomIfFocused()
     {
-        if (_focusedNode == null) return false;
+        if (_focusedNode == null || _focusLocked) return false;
         Unfocus();
         return true;
     }

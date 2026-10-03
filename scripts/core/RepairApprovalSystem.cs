@@ -59,7 +59,7 @@ public static class RepairApprovalSystem
         MazeStarted = false;
     }
 
-    // 수리가 걸렸다 — 승인 요청을 줄에 세운다. 결번자가 수리 중이어도 똑같이 뜬다.
+    // 수리가 걸렸다 — 승인 요청을 줄에 세운다. 결번 개체가 수리 중이어도 똑같이 뜬다.
     public static void Enqueue(string roomId, string roomName, NSP.Facility.SpawnedTask task)
     {
         if (task == null || string.IsNullOrEmpty(roomId)) return;

@@ -14,16 +14,16 @@ public enum SaboteurPhase
     Done,        // 오늘 몫을 끝냈다
 }
 
-// 결번자가 "언제" 손을 댈지 정한다.
+// 결번 개체가 "언제" 손을 댈지 정한다.
 //
-// V2 에서 바뀐 것 하나가 전부다 — **결번자는 스스로 방을 옮기지 않는다.**
+// V2 에서 바뀐 것 하나가 전부다 — **결번 개체는 스스로 방을 옮기지 않는다.**
 // 예전에는 범행 장소를 찾아 걸어갔다. 그러면 로그에 남는 그 이동이 곧 "이 사람이 범인"
 // 이라는 표시가 되어 버린다. 이제 방 간 이동 권한은 오직 플레이어에게 있고,
-// 결번자는 **플레이어가 배치해 준 자리에서** 정상 직원인 척 일하다가 기회를 잡는다.
+// 결번 개체는 **플레이어가 배치해 준 자리에서** 정상 직원인 척 일하다가 기회를 잡는다.
 //
 //   Idle → Opportunity → Preparing → (방해공작) → Done
 //
-// 플레이어가 준비 중인 결번자를 다른 방으로 옮기면 준비는 그 자리에서 취소되고,
+// 플레이어가 준비 중인 결번을 다른 방으로 옮기면 준비는 그 자리에서 취소되고,
 // 새 방에서 조건을 처음부터 다시 채워야 한다. 배치가 곧 기회이자 방어다.
 public sealed class SaboteurPlan
 {
@@ -54,7 +54,7 @@ public sealed class SaboteurPlan
     // 아직 정하지 않았으면 null — 첫 판정 때 그 날의 SabotageChancePerDay 로 굴린다.
     private bool? _willActToday;
 
-    // 검사·디버그용. 오늘 결번자가 애초에 저지를 생각이었는지.
+    // 검사·디버그용. 오늘 결번 개체가 애초에 저지를 생각이었는지.
     public bool WillActToday => _willActToday ?? true;
 
     public bool HasActed => ActedAtSeconds >= 0f;
@@ -116,7 +116,7 @@ public sealed class SaboteurPlan
         // 그 방이 지금 시끄럽다(경고가 떠 있거나 수리가 걸려 있다) — 손대지 않고 **기다린다**.
         //
         // 예전에는 여기서도 준비를 0으로 지웠다. 그런데 경고는 근무 내내 이 방 저 방에서
-        // 뜨기 때문에, 결번자는 준비를 채우는 족족 잃고 5일을 해도 한 번밖에 못 저질렀다.
+        // 뜨기 때문에, 결번 개체는 준비를 채우는 족족 잃고 5일을 해도 한 번밖에 못 저질렀다.
         // 자리를 뜨지 않았는데 준비가 사라지는 것도 앞뒤가 맞지 않는다 — 그대로 멈춰 둔다.
         if (sim.HasRepairPending(room) || sim.Warnings.HasActive(room)) return;
 
@@ -125,7 +125,7 @@ public sealed class SaboteurPlan
         // ① 활성 시각 전에는 기회 자체가 열리지 않는다.
         if (now < ops.SaboteurStartSeconds) return;
         // ② 지금 **이 방**이 수습 중이면 손대지 않는다 — 사람이 몰려 너무 눈에 띈다.
-        //    (다른 방의 사고까지 보면, 사고가 잦은 날에는 결번자가 아무것도 못 한다.)
+        //    (다른 방의 사고까지 보면, 사고가 잦은 날에는 결번 개체가 아무것도 못 한다.)
         if (sim.HasRepairPending(room)) return;
         // ③ 배치된 자리에 자리를 잡아야 한다.
         if (SettledSeconds < ops.SabotageSettleSeconds) return;
@@ -282,7 +282,7 @@ public sealed class SaboteurPlan
     public string DebugSummary(FacilitySimulation sim)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("──────── 결번자 디버그 (플레이어 비공개) ────────");
+        sb.AppendLine("──────── 결번 디버그 (플레이어 비공개) ────────");
         sb.AppendLine($"Saboteur: {SaboteurId}  ({sim?.GetEmployeeDef(SaboteurId)?.Codename ?? "?"})");
         sb.AppendLine(HasActed
             ? $"Sabotage: {Clock(ActedAtSeconds)} {ActedRoomId}  (준비 시작 {Clock(PreparingStartedAt)})"

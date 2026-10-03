@@ -53,7 +53,8 @@ public partial class ShiftFlowController : Node
     // 한 번 쓰면 바로 꺼진다.
     private static bool _skipToDay1Pending;
 
-    private enum Stage { Boot, Title, Prologue, Schedule, Booting, Shift, Ending, Report, Rest, DayTransition, Final }
+    // Verdict = DAY5 마지막 절차(최종 격리 보고서). Rest/Report 다음, 엔딩 바로 앞이다.
+    private enum Stage { Boot, Title, Prologue, Schedule, Booting, Shift, Ending, Report, Rest, Verdict, DayTransition, Final }
     private Stage _stage = Stage.Boot;
 
     private ControlRoom3DController _ctl;
@@ -113,7 +114,9 @@ public partial class ShiftFlowController : Node
             _titleRoom.StartRequested += OnStartPressed;
             if (!skipBoot) _titleRoom.Begin();
         }
-        if (wake != EndingState.Kind.None) _ = WakeAtTitle(wake == EndingState.Kind.Bad);
+        // 충격으로 깨어나는 엔딩(또 당한 것처럼) : BAD · LOOSE. 조용히 눈을 뜨는 엔딩 : TRUE · LATE.
+        if (wake != EndingState.Kind.None)
+            _ = WakeAtTitle(wake is EndingState.Kind.Bad or EndingState.Kind.Loose);
         // 예전 책상 위 종이 배치표. Phase 0 에서 배치는 CRT 콘솔(ScheduleMapView)로 옮겼다 —
         // 노드는 씬에 남아 있지만 켜지 않는다.
         _board?.SetActive(false);
@@ -497,7 +500,7 @@ public partial class ShiftFlowController : Node
         GameState.Instance?.RecordShiftObjectives(
             DayObjectives.RequiredTotal - DayObjectives.RequiredDone);
 
-        // 개발용 — 오늘 결번자가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
+        // 개발용 — 오늘 결번 개체가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
         FacilitySimulation.Instance?.PrintSaboteurDebug();
 
         GameState.Instance?.SetPhase(GamePhase.Settlement);
@@ -520,10 +523,10 @@ public partial class ShiftFlowController : Node
     private async void RequestRestFromReport()
     {
         if (_stage != Stage.Report) return;
-        // 마지막 날 — FINAL SHIFT REPORT 의 [계속] 은 휴게시간이 아니라 엔딩으로 간다.
+        // 마지막 날 — FINAL SHIFT REPORT 의 [계속] 은 휴게시간이 아니라 최종 보고서로 간다.
         if ((GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5))
         {
-            StartEnding();
+            EnterVerdict();
             return;
         }
         _stage = Stage.Rest;
@@ -611,7 +614,7 @@ public partial class ShiftFlowController : Node
         bool finalDay = (GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5);
         if (finalDay)
         {
-            StartEnding();
+            EnterVerdict();
         }
         else
         {
@@ -622,11 +625,74 @@ public partial class ShiftFlowController : Node
         }
     }
 
-    // 엔딩 — 코어 100% 여부 하나로만 갈린다(EndingDirector). 끝나면 최종 근무 기록 → 변한 시작 화면.
+    // --- DAY5 마지막 절차 : 최종 격리 보고서 -------------------------------
+
+    // GUIDE-0 이 먼저 말하고(@guide final_report), 왼쪽 CRT 에 보고서가 뜬다.
+    // 제출 전까지는 ESC · 뒤로가기 · 화면 확대 전환이 전부 막힌다(FinalReportView.IsOpen).
+    private async void EnterVerdict()
+    {
+        if (_stage is Stage.Verdict or Stage.Final) return;
+        _stage = Stage.Verdict;
+        GameState.Instance?.SetPhase(GamePhase.Settlement);
+        Sfx.Instance?.FadeOutMusic(1.0f);
+        ConfrontMarks.Clear();
+
+        var guide = NSP.Prologue.GuideHologramView.Instance;
+        NSP.Prologue.GuideSubtitleHud.Instance?.SetActive(true);
+        NSP.Prologue.GuideCornerFace.ShowAll(true);
+        if (guide != null)
+        {
+            await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report");
+            // 결번 개체가 이미 죽어 그 카드를 고를 수 없는 판 — 그 사실만 한 줄 덧붙인다.
+            if (SaboteurAlreadyGone()) await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report_gone");
+        }
+        NSP.Prologue.GuideCornerFace.ShowAll(false);
+        NSP.Prologue.GuideSubtitleHud.Instance?.SetActive(false);
+        NSP.Prologue.GuideSubtitleHud.Instance?.Clear();
+        if (!IsInstanceValid(this) || _stage != Stage.Verdict) return;
+
+        var view = FinalReportView.Instance;
+        if (view == null)
+        {
+            GD.PushWarning("ShiftFlowController: 최종 보고서 화면을 찾지 못해 바로 엔딩으로 넘어갑니다.");
+            StartEnding();
+            return;
+        }
+        view.Submitted += OnVerdictSubmitted;
+        view.Present();
+        await SwapScreensWithFlicker(() => _ctl?.SetLeftScreen(_ctl.VerdictViewport));
+        _ctl?.FocusMonitor(1, 0.5f);
+        _ctl?.SetFocusLocked(true);
+    }
+
+    // 지목 후보가 될 수 없는 경우 — 결번 개체가 이미 사망했다.
+    private static bool SaboteurAlreadyGone()
+    {
+        var sim = FacilitySimulation.Instance;
+        string id = GameState.Instance?.SaboteurEmployeeId ?? "";
+        if (sim == null || string.IsNullOrEmpty(id)) return false;
+        return !(sim.GetEmployeeState(id)?.Alive ?? true);
+    }
+
+    private async void OnVerdictSubmitted()
+    {
+        if (_stage != Stage.Verdict) return;
+        var view = FinalReportView.Instance;
+        if (view != null) view.Submitted -= OnVerdictSubmitted;
+        await Wait(1.2);
+        _ctl?.SetFocusLocked(false);
+        _ctl?.ClearFocus(0.6f);
+        await Wait(0.7);
+        StartEnding();
+    }
+
+    // 엔딩 — 코어 100% × 최종 보고서의 지목으로 네 갈래(EndingDirector).
+    // 끝나면 최종 근무 기록 → 변한 시작 화면.
     private void StartEnding()
     {
         if (_stage == Stage.Final) return;
         _stage = Stage.Final;
+        _ctl?.SetFocusLocked(false);
         if (_arms != null) _arms.Visible = false;
         var ending = new EndingDirector();
         AddChild(ending);

@@ -57,6 +57,43 @@ public partial class GameState : Node
         TotalIncidents += Math.Max(0, incidents);
     }
 
+    // ── 최종 격리 보고서 ────────────────────────────────────────────────
+    // DAY5 가 끝나고 제출하는 마지막 절차. 제출하면 되돌릴 수 없고, 엔딩 분기를 가른다.
+    //   FinalAccusedId  지목한 직원 id. 지목하지 않았으면 "".
+    //   FinalEvidence   근거로 붙인 단서(일자 + 자료 id). 0~2장. 비어 있어도 제출된다.
+    //   WasCaught       지목이 실제 결번과 맞았는가 — 엔딩 축.
+    //   WasProven       그 지목을 근거로 증명했는가 — 엔딩을 바꾸지 않고 GUIDE-0 한 줄과 등급에만 쓴다.
+    public string FinalAccusedId { get; private set; } = "";
+    public IReadOnlyList<(int Day, string EvidenceId)> FinalEvidence => _finalEvidence;
+    private readonly List<(int Day, string EvidenceId)> _finalEvidence = new();
+    public bool FinalReportSubmitted { get; private set; }
+
+    public bool WasCaught => !string.IsNullOrEmpty(FinalAccusedId)
+                             && FinalAccusedId == SaboteurEmployeeId;
+
+    // 붙인 근거 중 한 장이라도 지목한 직원이 등장하는 자료면 "증명"으로 본다.
+    public bool WasProven { get; private set; }
+
+    public void SubmitFinalReport(string accusedId, IEnumerable<(int Day, string EvidenceId)> evidence,
+        Func<int, string, bool> involvesAccused)
+    {
+        FinalAccusedId = accusedId ?? "";
+        _finalEvidence.Clear();
+        if (evidence != null) _finalEvidence.AddRange(evidence);
+        WasProven = WasCaught && involvesAccused != null
+                    && _finalEvidence.Any(e => involvesAccused(e.Day, e.EvidenceId));
+        FinalReportSubmitted = true;
+    }
+
+    // 개발 허브 · 캡처용 — 보고서 화면을 거치지 않고 판정만 세운다.
+    public void ForceFinalVerdict(string accusedId, bool proven)
+    {
+        FinalAccusedId = accusedId ?? "";
+        _finalEvidence.Clear();
+        WasProven = WasCaught && proven;
+        FinalReportSubmitted = true;
+    }
+
     private readonly Random _rng = new();
 
     // ── 전력 패널(LIGHTING / CCTV / SENSOR) ────────────────────────────
@@ -263,6 +300,10 @@ public partial class GameState : Node
         TotalIncidents = 0;
         MissedRequiredDays = 0;
         LastShiftMissedRequired = 0;
+        FinalAccusedId = "";
+        _finalEvidence.Clear();
+        WasProven = false;
+        FinalReportSubmitted = false;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON
         ResetFacilityFaults();
         // 관리자 패드의 단서는 한 판 동안만 남는다.

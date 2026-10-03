@@ -36,14 +36,14 @@
 
 마지막 두 장면(`EMERGENCY SEAL` 암전 · 플레이어가 쓰러짐)은 일부러 이미지가 없다.
 
-## outage/ — DAY0 STEP7 결번자 영상
+## outage/ — DAY0 STEP7 개체 영상
 
 | 파일명 | 장면 |
 |---|---|
 | `ghost_01_corridor.png` | 텅 빈 통로 · 정지된 녹화 화면 |
-| `ghost_02_standing.png` | 화면 안쪽에 결번자가 가만히 서 있다 |
-| `ghost_03_approach.png` | 결번자가 카메라 바로 앞까지 다가온다 |
-| `ghost_04_impact.png` | 결번자가 카메라에 머리를 들이받으며 비명 |
+| `ghost_02_standing.png` | 화면 안쪽에 개체가 가만히 서 있다 |
+| `ghost_03_approach.png` | 개체가 카메라 바로 앞까지 다가온다 |
+| `ghost_04_impact.png` | 개체가 카메라에 머리를 들이받으며 비명 |
 
 마지막 `SIGNAL LOST` 장면은 이미지 없이 암전으로 처리된다.
 

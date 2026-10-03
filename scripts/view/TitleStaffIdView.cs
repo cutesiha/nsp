@@ -12,7 +12,7 @@ namespace NSP.View;
 //   직원 여섯 명  ·  신원  ·  그중 뭔가 이상함
 //
 // 몇 초에 한 번 무작위로 한 명의 얼굴이 0.1초쯤 깨진다. 이건 순수한 연출이고
-// 실제 결번자/방해자와는 아무 관계가 없다 — 같은 직원이 연속으로 깨지지도 않는다.
+// 실제 결번/방해자와는 아무 관계가 없다 — 같은 직원이 연속으로 깨지지도 않는다.
 // (진짜 힌트로 오해되면 안 되므로 시뮬레이션 상태를 아예 읽지 않는다.)
 public partial class TitleStaffIdView : Control
 {
@@ -24,25 +24,10 @@ public partial class TitleStaffIdView : Control
     private static readonly Color Dim = new(0.36f, 0.44f, 0.45f);
     private static readonly Color Err = new(0.92f, 0.28f, 0.24f);
 
-    private const float GridLeft = 82f, GridTop = 150f;
-    private const float CardW = 208f, CardH = 152f, GapX = 16f, GapY = 18f;
-
-    // 데이터에 코드네임이 없을 때만 쓰는 폴백. 화면에는 한글 이름만 찍는다.
-    private static readonly Dictionary<string, string> Fallback = new()
-    {
-        { "rabbit", "토끼" }, { "cat", "고양이" }, { "fox", "여우" },
-        { "sheep", "양" }, { "wolf", "늑대" }, { "dog", "강아지" },
-    };
-
-    // 화면에 놓는 순서(윗줄 3명 / 아랫줄 3명). 목록에 없는 직원은 뒤에 붙는다.
-    private static readonly string[] Order = { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
-
+    // 카드 자리 · 색 · 그림은 StaffIdCard 가 가진다 — 엔딩(EndingStaffIdView)이 같은 그림을 쓴다.
     private sealed class Card
     {
-        public string Id = "";
-        public string Codename = "";
-        public Texture2D Face;
-        public Color Tint = Colors.White;
+        public StaffIdCard.Data Data = new();
         public bool Revealed;
         public bool Verified;
     }
@@ -86,30 +71,9 @@ public partial class TitleStaffIdView : Control
     private void BuildCards()
     {
         _cards.Clear();
-        var sim = FacilitySimulation.Instance;
-        if (sim == null) return;
         // 타이틀에서는 해금 여부와 상관없이 여섯 명을 전부 보여준다.
-        var ids = new List<string>(sim.GetEmployeeIds());
-        ids.Sort((a, b) =>
-        {
-            int ia = Array.IndexOf(Order, a), ib = Array.IndexOf(Order, b);
-            if (ia < 0) ia = int.MaxValue;
-            if (ib < 0) ib = int.MaxValue;
-            return ia != ib ? ia.CompareTo(ib) : string.CompareOrdinal(a, b);
-        });
-        foreach (var id in ids)
-        {
-            var def = sim.GetEmployeeDef(id);
-            if (def == null) continue;
-            _cards.Add(new Card
-            {
-                Id = id,
-                Codename = string.IsNullOrEmpty(def.Codename)
-                    ? Fallback.GetValueOrDefault(id, id) : def.Codename,
-                Face = def.IdPhoto ?? def.FacePortrait,
-                Tint = def.IconColor,
-            });
-        }
+        foreach (var d in StaffIdCard.Build(FacilitySimulation.Instance))
+            _cards.Add(new Card { Data = d });
     }
 
     // --- 전원 / 스캔 ---------------------------------------------------------
@@ -179,7 +143,7 @@ public partial class TitleStaffIdView : Control
         get
         {
             if (_hover < 0 || _hover >= _cards.Count) return "";
-            var c = _cards[_hover];
+            var c = _cards[_hover].Data;
             // 아주 낮은 확률로 이 줄까지 깨진다(마우스를 올린 직원과 무관한 연출).
             bool garbled = _glitchIndex == _hover && _glitchUntil > 0;
             return garbled
@@ -195,14 +159,17 @@ public partial class TitleStaffIdView : Control
         _t += (float)delta;
         bool redraw = false;
 
-        // 진엔딩 뒤의 시작 화면은 시설이 정상화된 상태 — 신원 카드가 더는 깨지지 않는다.
-        if (_poweredOn && !_scanning && EndingState.Last != EndingState.Kind.True)
+        // 결번을 찾아낸 뒤의 시작 화면은 시설이 정리된 상태 — 신원 카드가 더는 깨지지 않는다.
+        // 찾지 못한 채 끝났으면(Loose · Bad) 그대로 깨진다. 아직 그 자리에 있기 때문이다.
+        if (_poweredOn && !_scanning && EndingState.Last is not (EndingState.Kind.True or EndingState.Kind.Late))
         {
             _nextGlitch -= delta;
             if (_nextGlitch <= 0)
             {
                 // 5~8초에 한 번. 직전과 같은 직원은 고르지 않는다.
-                _nextGlitch = _rng.RandfRange(5f, 8f);
+                // LOOSE(복구했지만 결번을 놓침) 뒤에는 그 간격이 1.5배 잦아진다.
+                float rate = EndingState.Last == EndingState.Kind.Loose ? 1f / 1.5f : 1f;
+                _nextGlitch = _rng.RandfRange(5f, 8f) * rate;
                 if (_cards.Count > 1)
                 {
                     int pick;
@@ -248,11 +215,7 @@ public partial class TitleStaffIdView : Control
 
     // --- 그리기 ---------------------------------------------------------------
 
-    private static Rect2 CardRect(int i)
-    {
-        int col = i % 3, row = i / 3;
-        return new Rect2(GridLeft + col * (CardW + GapX), GridTop + row * (CardH + GapY), CardW, CardH);
-    }
+    private static Rect2 CardRect(int i) => StaffIdCard.Rect(i);
 
     public override void _Draw()
     {
@@ -308,47 +271,9 @@ public partial class TitleStaffIdView : Control
     private void DrawCard(int i)
     {
         var c = _cards[i];
-        var r = CardRect(i);
         if (!c.Revealed) return;
-
-        bool broken = i == _glitchIndex;
-        bool hot = i == _hover;
-
-        DrawRect(r, new Color(0.04f, 0.09f, 0.10f, 0.9f));
-        DrawRect(r, (broken ? Err : hot ? Mint : Dim) with { A = broken ? 0.9f : hot ? 0.85f : 0.4f },
-            false, hot || broken ? 2f : 1.2f);
-        if (hot) DrawRect(r, Mint with { A = 0.07f });
-
-        // 가면 초상.
-        var box = new Rect2(r.Position.X + (r.Size.X - 72f) * 0.5f, r.Position.Y + 14f, 72f, 72f);
-        DrawRect(box, new Color(0.02f, 0.05f, 0.06f, 0.9f));
-        if (broken)
-        {
-            // 얼굴이 뭉개진다.
-            for (int k = 0; k < 8; k++)
-                DrawRect(new Rect2(box.Position.X, box.Position.Y + k * 9f, box.Size.X, 7f),
-                    new Color(0.55f, 0.58f, 0.58f, _rng.RandfRange(0.25f, 0.85f)));
-        }
-        else if (c.Face != null)
-        {
-            var src = c.Face.GetSize();
-            if (src.X > 0f && src.Y > 0f)
-            {
-                float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
-                var dst = src * k;
-                DrawTextureRect(c.Face, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false);
-            }
-        }
-        else
-        {
-            DrawCircle(box.GetCenter(), 22f, c.Tint);
-        }
-        DrawRect(box, (broken ? Err : Dim) with { A = 0.6f }, false, 1f);
-
-        // 이름 한 줄만 둔다. 신원 오류는 이름이 깨지고 테두리가 붉어지는 것으로 읽힌다.
-        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 118f),
-            broken ? "████" : c.Codename, HorizontalAlignment.Center, r.Size.X,
-            ViewFont.S(20), broken ? Err : hot ? Ink : Ink with { A = 0.9f });
+        StaffIdCard.Draw(this, _font, c.Data, CardRect(i),
+            new StaffIdCard.Style { Hot = i == _hover, Broken = i == _glitchIndex }, _rng);
     }
 
     private void DrawFooter()
@@ -357,13 +282,17 @@ public partial class TitleStaffIdView : Control
         string idle = EndingState.Last switch
         {
             EndingState.Kind.Bad => "CONTAINMENT FAILED",
+            EndingState.Kind.Late => "PERMANENT SEAL ENGAGED",
             EndingState.Kind.True => "야간 관리 업무 종료.   관리자님, 수고하셨습니다.",
+            // 명단은 여섯 명 전부 정상이다. 그 줄이 그대로 남아 있는 것이 이 엔딩의 뒷맛이다.
+            EndingState.Kind.Loose => "근무 인원 명단 정리 완료.   이상 없음.",
             _ => "ID STATUS : NORMAL",
         };
         var idleCol = EndingState.Last switch
         {
             EndingState.Kind.Bad => Err,
-            EndingState.Kind.True => Ink,
+            EndingState.Kind.Late => new Color(0.95f, 0.78f, 0.55f),
+            EndingState.Kind.True or EndingState.Kind.Loose => Ink,
             _ => Dim,
         };
         string line = _glitchIndex >= 0

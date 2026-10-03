@@ -53,8 +53,8 @@ public partial class OpsProfileDef : Resource
     [Export] public int GhostMaxPerDay = -1;
 
     // ── 방해공작 기회 조건(SaboteurPlan) ───────────────────────────────
-    // 결번자가 노릴 수 있는 중요 시설. 비워 두면 예전 방식(현재 있는 방에서 바로 실행).
-    // 결번자가 실제로 그 방까지 걸어가야만 그 방에서 사고가 난다.
+    // 결번 개체가 노릴 수 있는 중요 시설. 비워 두면 예전 방식(현재 있는 방에서 바로 실행).
+    // 결번 개체가 실제로 그 방까지 걸어가야만 그 방에서 사고가 난다.
     [Export] public Godot.Collections.Array<string> SabotageTargetRooms = new();
     // 배치된 자리에 이만큼 자리를 잡아야 기회가 열린다.
     [Export] public float SabotageSettleSeconds = 6f;
@@ -68,7 +68,7 @@ public partial class OpsProfileDef : Resource
     // 방 안에 자기 말고 아무도 없으면 손대지 않는다.
     //
     // 혼자 있는 방에서 코어 복구율이 깎이면 로그만 보고도 범인이 확정된다. 그건 추리가
-    // 아니라 통보다. 결번자는 다른 사람이 같은 방에 있을 때만 움직인다 — 그래서
+    // 아니라 통보다. 결번 개체는 다른 사람이 같은 방에 있을 때만 움직인다 — 그래서
     // "혼자 두는 배치" 가 관리자의 실제 방어 수단이 된다(대신 방마다 효율이 떨어진다).
     [Export] public bool SabotageNeedsCompany = true;
 
@@ -76,7 +76,7 @@ public partial class OpsProfileDef : Resource
     // 켜면 그날 방해공작이 사실상 보장된다. DAY1 처럼 "거의 일어나지 않는" 날에는 끈다.
     [Export] public bool SabotageDeadlineRush = true;
 
-    // 그날 결번자가 **아예 손댈 생각이 있는가** — 근무 시작 때 한 번만 굴린다.
+    // 그날 결번 개체가 **아예 손댈 생각이 있는가** — 근무 시작 때 한 번만 굴린다.
     //
     // 준비 시간이나 목표 구간을 늘려 빈도를 낮추면, 그 날의 전조가 나오는 시점까지
     // 같이 밀려 추리 재료가 망가진다. 그래서 "할지 말지" 는 여기 숫자 하나로만 정하고,

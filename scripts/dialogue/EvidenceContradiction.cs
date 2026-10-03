@@ -75,7 +75,7 @@ public static class EvidenceContradiction
     // 사고 기록은 주인이 없는 자료다(누구에게나 물을 수 있다). 그 사고가 난 방에
     // 이 직원이 있었다는 자료가 한 장이라도 있으면, 그것만으로 물을 거리가 된다.
     // 거짓말을 잡는 규칙이 아니라 "그 자리에 있었던 사람에게 묻는" 규칙이다 —
-    // 결번자는 제자리에서 범행하므로 위치 모순은 거의 생기지 않는다(§1-2).
+    // 결번 개체는 제자리에서 범행하므로 위치 모순은 거의 생기지 않는다(§1-2).
     private static Result Presence(string target, InterviewEvidence a, InterviewEvidence b,
                                    InterviewEvidence earlier, InterviewEvidence later)
     {
@@ -114,7 +114,7 @@ public static class EvidenceContradiction
     {
         // ② - ㉠ 본인이 "그런 행동은 하지 않았다"고 한 말 + 동료가 "하고 있었다"고 한 증언.
         //
-        // 결번자에게서 잡을 수 있는 **유일한 정면 충돌**이다(§3-2). 사고 기록이 필요 없다 —
+        // 결번 개체에게서 잡을 수 있는 **유일한 정면 충돌**이다(§3-2). 사고 기록이 필요 없다 —
         // 두 사람의 말이 같은 방·같은 시간대에서 서로를 부정하는 것 자체가 물을 거리다.
         var own = Claim(a, target) ?? Claim(b, target);
         if (own != null)

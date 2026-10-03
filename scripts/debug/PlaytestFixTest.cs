@@ -273,7 +273,7 @@ public partial class PlaytestFixTest : Node
         sim.ResetRun();
         GameState.Instance.SetPhase(GamePhase.Schedule);
         sim.RollDailyMoods();
-        // 결번자와 관찰력 높은 직원을 같은 방에 둔다 — 가장 들키기 쉬운 배치.
+        // 결번 개체와 관찰력 높은 직원을 같은 방에 둔다 — 가장 들키기 쉬운 배치.
         sim.AssignToRoom("fox", Core);
         sim.AssignToRoom("cat", Core);
         sim.AssignToRoom("dog", Power);

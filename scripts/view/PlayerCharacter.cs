@@ -68,6 +68,12 @@ public partial class PlayerCharacter : Node3D
     [Export] public float MaxAimDeg = 175f;               // IK 가 팔꿈치를 굽힐 수 있는 전역 상한
     [Export] public bool DebugMarkers;
 
+    // 손 연출 임시 숨김(나중에 손 애니메이션을 고칠 때 false 로 되돌린다).
+    // 메시만 안 보이게 하고 포즈 · IK · 시퀀스 · 신호는 그대로 돌린다 — 그래서
+    // 수화기는 평소처럼 손 소켓을 따라 들렸다 내려가고, 스위치 레버도 같은 타이밍에 넘어간다.
+    // 에디터 뷰포트에서는 자세를 맞출 수 있게 계속 보인다.
+    [Export] public bool HideHandMeshes = true;
+
     private Skeleton3D _skel;
     private readonly Dictionary<string, int> _bone = new();
     private readonly Dictionary<int, Vector3> _globalPos = new();
@@ -558,7 +564,7 @@ public partial class PlayerCharacter : Node3D
         if (_skel == null) return;
         bool editor = Engine.IsEditorHint();
         foreach (var n in _sideNodes["L"])
-            if (IsInstanceValid(n)) n.Visible = (_armL.Visible && !hidden) || editor;
+            if (IsInstanceValid(n)) n.Visible = (_armL.Visible && !hidden && !HideHandMeshes) || editor;
     }
 
     private void SetArmVisible(ArmChannel ch, bool v)
@@ -566,10 +572,12 @@ public partial class PlayerCharacter : Node3D
         ch.Visible = v;
         if (_skel == null) return;
         bool editor = Engine.IsEditorHint();
-        bool show = v && !(ch.Side == "L" && _leftMeshHidden);
+        bool show = v && !HideHandMeshes && !(ch.Side == "L" && _leftMeshHidden);
         foreach (var n in _sideNodes[ch.Side])
             if (IsInstanceValid(n)) n.Visible = show || editor;
-        _skel.Visible = _armR.Visible || _armL.Visible || editor;
+        // 숨기는 동안에도 Rig 자체는 켜 둔다 — 본 포즈와 손 소켓(HandSocket)이 계속 갱신되어야
+        // 수화기 · 관리자 패드가 소켓을 따라 움직인다(Rig 은 스스로 그리는 것이 없다).
+        _skel.Visible = HideHandMeshes || _armR.Visible || _armL.Visible || editor;
     }
 
     private static float Smooth(float t) => t <= 0f ? 0f : t >= 1f ? 1f : t * t * (3f - 2f * t);

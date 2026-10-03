@@ -21,6 +21,7 @@ public static class DebugEntryPoint
         Shift,          // 실시간 근무
         Report,         // 근무 종료 보고서
         Rest,           // 휴게 / 심문
+        Verdict,        // DAY5 최종 격리 보고서
         Ending,         // 엔딩 연출(EndingDirector)
         Title,          // 타이틀(엔딩 이후 상태 포함)
     }
@@ -35,6 +36,11 @@ public static class DebugEntryPoint
         public bool SeedStress = true;
         /// <summary>Phase.Title 에서 '마지막으로 본 엔딩'을 무엇으로 볼지.</summary>
         public EndingState.Kind TitleAfter = EndingState.Kind.None;
+        /// <summary>엔딩을 바로 재생할 때 최종 보고서의 지목을 강제한다.
+        /// null = 건드리지 않음 · "" = 지목 없음 · "!" = 실제 결번을 지목(정답).</summary>
+        public string Accused;
+        /// <summary>지목이 정답일 때 근거까지 맞았던 것으로 둘지(GUIDE-0 한 줄 · 등급에만 반영).</summary>
+        public bool Proven;
         public string Label = "";
     }
 
@@ -124,6 +130,14 @@ public static class DebugEntryPoint
         if (gs == null) return;
 
         if (req.Core >= 0f) gs.AddCoreProgress(req.Core - gs.CoreProgress, "디버그 진입");
+
+        // 보고서 · 엔딩을 바로 재생할 때는 근무를 거치지 않아 결번이 비어 있다 — 여기서 뽑는다.
+        if (req.Phase is Phase.Verdict or Phase.Ending && string.IsNullOrEmpty(gs.SaboteurEmployeeId))
+            gs.AssignRandomSaboteur(sim?.GetActiveEmployeeIds()
+                                    ?? new System.Collections.Generic.List<string>());
+
+        if (req.Accused != null)
+            gs.ForceFinalVerdict(req.Accused == "!" ? gs.SaboteurEmployeeId : req.Accused, req.Proven);
 
         // 스트레스가 잠긴 날에는 넣어도 화면에 안 뜬다 — 해금된 날에만.
         if (!req.SeedStress || sim == null || !DayFeatures.StressEnabled) return;

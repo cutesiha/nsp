@@ -17,7 +17,7 @@
 
 작업 원칙:
 - 사실 계층(`DialogueResponsePlanner`, `InterviewReplyPlanner`, `ShiftMemory` 의 사실 선택 로직)은 건드리지 않는다. 바꾸는 것은 "무엇을 붙이느냐 / 몇 문장이냐" 뿐이다.
-- 결번자 거짓말 검증(`InterviewScenarioTest`, `DialogueScenarioTest` 의 "거짓말 중 실제 방을 흘리지 않는다" 류)은 전부 그대로 PASS 해야 한다.
+- 결번 거짓말 검증(`InterviewScenarioTest`, `DialogueScenarioTest` 의 "거짓말 중 실제 방을 흘리지 않는다" 류)은 전부 그대로 PASS 해야 한다.
 - 모든 작업 후 `scenes/debug/DialogueSampleDump.tscn` 을 돌려 `tools/dialogue_samples/*.md` 를 다시 뽑고, 아래 "검수 기준" 을 확인한다.
 
 ---
@@ -103,7 +103,7 @@
 
 ### B-2. 계획기 수정
 
-- `InterviewReplyPlanner` `AskWhereAtIncident` 분기: `DialogueContextBuilder.OccupantsAt(room, day, t, id)` 로 동석자를 구해 `others.Count == 0 → Variant = "alone"`, `1명 이상 → Variant = "with"` + `f.Set("who", …)` 로 둔다. 단 **결번자가 거짓 알리바이를 대는 중(`!truthful`)이면 주장한 방 기준으로 동석자를 계산**한다(지금 `ShiftMemory.Recall` 이 `Lying` 일 때 하는 것과 같은 기준 — `AnchorRoom = claim.ClaimedRoomId`). 이 경우 `covered.Add(MemoryKind.Companion)`.
+- `InterviewReplyPlanner` `AskWhereAtIncident` 분기: `DialogueContextBuilder.OccupantsAt(room, day, t, id)` 로 동석자를 구해 `others.Count == 0 → Variant = "alone"`, `1명 이상 → Variant = "with"` + `f.Set("who", …)` 로 둔다. 단 **결번 개체가 거짓 알리바이를 대는 중(`!truthful`)이면 주장한 방 기준으로 동석자를 계산**한다(지금 `ShiftMemory.Recall` 이 `Lying` 일 때 하는 것과 같은 기준 — `AnchorRoom = claim.ClaimedRoomId`). 이 경우 `covered.Add(MemoryKind.Companion)`.
 - 해당 캐릭터 파일에 그 변형 슬롯이 없으면(`DialogueLineBank.Has(id, "WhereAtIncident.alone", formal)` 가 false) `Variant = "any"` 로 되돌리고 기억 조합을 그대로 쓴다 — 캐릭터 파일을 하나씩 채워도 되게 하기 위함.
 - `LocalDialogueGenerator` 의 `CoreKind.SelfLocation` 도 같은 방식으로 `selfloc.alone/with` 를 먼저 시도한다.
 - `incident.direct.with` 는 `mem.with.incident` 후보가 있을 때만 시도.

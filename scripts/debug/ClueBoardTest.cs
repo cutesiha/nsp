@@ -56,6 +56,7 @@ public partial class ClueBoardTest : Node
         await TestPad();
         await TestPadView();
         TestSnapshot();
+        TestFinalReport();
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
@@ -584,6 +585,57 @@ public partial class ClueBoardTest : Node
         Check(view.ManualChapter == -1, "◀ 목록으로 챕터 카드로 돌아간다");
         view.QueueFree();
         await Frames(1);
+    }
+
+    // ── 최종 격리 보고서 — 지목과 근거 판정 ────────────────────────────
+    //
+    // 엔딩을 가르는 값이라 여기서 못 박는다.
+    //   WasCaught = 지목 == 실제 결번  → 엔딩 축
+    //   WasProven = 맞혔고 + 붙인 근거 중 한 장이 그 직원이 등장하는 자료
+    //               (엔딩을 바꾸지 않는다 — 성적표와 GUIDE-0 한 줄에만 쓴다)
+    private void TestFinalReport()
+    {
+        Head("N", "최종 격리 보고서 — 지목 정답 · 근거 0장 / 무관 1장 / 유효 1장");
+        Reset();
+        Deploy();
+        GameState.Instance.SetSaboteur("cat");
+
+        // 고양이의 이동 자료(유효 근거)와 늑대의 이동 자료(무관 근거)를 한 장씩 찍어 둔다.
+        Move("cat", Storage, Power, At(30));
+        Move("wolf", Maintenance, Guard, At(40));
+        var evidence = Rows().Select(InterviewEvidenceBoard.FromLogRow).Where(e => e != null).ToList();
+        var catEv = evidence.FirstOrDefault(e => e.SubjectEmployeeId == "cat");
+        var wolfEv = evidence.FirstOrDefault(e => e.SubjectEmployeeId == "wolf");
+        if (!Check(catEv != null && wolfEv != null, "검사용 자료 두 장을 만들었다")) return;
+        ClueBoard.Pin(catEv);
+        ClueBoard.Pin(wolfEv);
+
+        bool Involves(int day, string id) =>
+            ClueBoard.Involves(ClueBoard.Find(day, id), GameState.Instance.FinalAccusedId);
+        var none = new List<(int Day, string EvidenceId)>();
+        var wolfOnly = new List<(int Day, string EvidenceId)> { (wolfEv.Day, wolfEv.Id) };
+        var catOnly = new List<(int Day, string EvidenceId)> { (catEv.Day, catEv.Id) };
+
+        GameState.Instance.SubmitFinalReport("cat", none, Involves);
+        Check(GameState.Instance.WasCaught && !GameState.Instance.WasProven,
+            "정답 + 근거 0장 → 맞혔지만 증명하지 못했다");
+
+        GameState.Instance.SubmitFinalReport("cat", wolfOnly, Involves);
+        Check(GameState.Instance.WasCaught && !GameState.Instance.WasProven,
+            "정답 + 무관한 근거 1장 → 증명으로 치지 않는다");
+
+        GameState.Instance.SubmitFinalReport("cat", catOnly, Involves);
+        Check(GameState.Instance.WasCaught && GameState.Instance.WasProven,
+            "정답 + 그 직원이 등장하는 근거 1장 → 증명");
+
+        GameState.Instance.SubmitFinalReport("wolf", catOnly, Involves);
+        Check(!GameState.Instance.WasCaught && !GameState.Instance.WasProven,
+            "오판이면 근거가 무엇이든 증명이 아니다");
+
+        GameState.Instance.SubmitFinalReport("", catOnly, Involves);
+        Check(!GameState.Instance.WasCaught, "미지목은 오판으로 친다");
+
+        Reset();
     }
 
     // ── 스냅샷 연결 ───────────────────────────────────────────────────
