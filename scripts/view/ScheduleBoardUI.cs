@@ -14,15 +14,18 @@ namespace NSP.View;
 // 흰 A4 메뉴 종이가 아니다. 방/직원 클릭은 화면 한쪽의 작은 정보 패널만 갱신한다(큰 팝업 없음).
 // 배치 데이터는 전적으로 FacilitySimulation 을 통해 변경하고, 능력치/설명은 전부 기존
 // TaskDef.RequiredStat / RoomDetailCard.Descriptions / EmployeeDef 값을 그대로 읽어온다.
+//
+// V3 초반 단순화: 능력치/금기가 잠긴 날(DayFeatures)에는 그 칸을 그리지 않고, 직원 카드의
+// 주 정보는 "오늘의 기분"이 된다. 잠긴 작업실(환기실/의무실)은 배치표에 아예 나오지 않는다.
 public partial class ScheduleBoardUI : Control
 {
     public Vector2I CanvasSize = new(768, 560);
     public Action StartPressed;
 
     // 종이(잉크) 톤 — 흰색이 아니라 누렇게 바랜 아이보리.
-    private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
-    private static readonly Color InkDim = new(0.42f, 0.35f, 0.24f);
-    private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
+    private static readonly Color Ink = new(0.13f, 0.10f, 0.06f);
+    private static readonly Color InkDim = new(0.30f, 0.23f, 0.13f);
+    private static readonly Color InkRed = new(0.50f, 0.10f, 0.07f);
     private static readonly Color HeadcountBlue = new(0.10f, 0.24f, 0.48f);
     private static readonly Color HeadcountBrown = new(0.38f, 0.20f, 0.07f);
     private static readonly Color SlotFill = new(0.80f, 0.75f, 0.60f, 0.55f);
@@ -30,9 +33,20 @@ public partial class ScheduleBoardUI : Control
     private static readonly Color DockBg = new(0.79f, 0.76f, 0.66f, 0.9f);
 
     private const float DocLeft = 24f, DocRight = 460f;
-    private const float DockLeft = 500f, DockRight = 744f;
+    private const float DockLeft = 492f, DockRight = 744f;
+
+    // 작업실 표가 끝나야 하는 선(종이 하단 구분선 바로 위)과 직원 카드가 끝나야 하는 선.
+    private const float RowsBottomLimit = 436f;
+    private const float DockBottomLimit = 418f;
+
+    // 직원 카드 — 초상 + 코드네임 + "오늘의 기분" 한 줄이 들어가는 높이.
+    // 인원 수에 따라 높이를 늘렸다 줄인다(3명이면 크게, 6명이면 촘촘하게).
+    private const float EmpCardTop = 32f;
+    // 마지막 카드가 끝난 y. RebuildForm 이 실제로 배치하면서 채운다.
+    private float _empCardsBottom = 340f;
 
     private Font _serif, _body;
+    private PaperTexture _paper;
     private Control _form;
     private Control _info;
 
@@ -58,7 +72,8 @@ public partial class ScheduleBoardUI : Control
         SetAnchorsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Stop;
 
-        AddChild(new PaperTexture { Size = CanvasSize, MouseFilter = MouseFilterEnum.Ignore });
+        _paper = new PaperTexture { Size = CanvasSize, MouseFilter = MouseFilterEnum.Ignore };
+        AddChild(_paper);
 
         _form = new Control { MouseFilter = MouseFilterEnum.Ignore };
         _form.SetAnchorsPreset(LayoutPreset.FullRect);
@@ -119,7 +134,7 @@ public partial class ScheduleBoardUI : Control
         var l = new Label { Text = name, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         l.SetAnchorsPreset(LayoutPreset.FullRect);
         l.AddThemeFontOverride("font", _serif);
-        l.AddThemeFontSizeOverride("font_size", 15);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
         l.AddThemeColorOverride("font_color", new Color(0.15f, 0.11f, 0.07f));
         _dragPreview.AddChild(l);
         AddChild(_dragPreview);
@@ -178,34 +193,51 @@ public partial class ScheduleBoardUI : Control
 
         int day = GameState.Instance?.CurrentDay ?? 1;
 
-        AddLabel(_form, $"DOC NO. NSP-04-{day:00}   FACILITY CONTROL DEPT.", new Vector2(DocLeft, 4), 11, InkDim, _body);
-        AddLabel(_form, $"DAY {day:00}", new Vector2(DocLeft, 17), 32, Ink, _serif);
-        AddLabel(_form, "N I G H T   S H I F T   A S S I G N M E N T", new Vector2(DocLeft, 60), 12, InkDim, _body);
+        AddLabel(_form, $"DOC NO. NSP-04-{day:00}   FACILITY CONTROL DEPT.", new Vector2(DocLeft, 2), 11, InkDim, _body);
+        AddLabel(_form, NSP.Core.DayFeatures.DayLabel(day), new Vector2(DocLeft, 14), 32, Ink, _serif);
+        AddLabel(_form, "N I G H T   S H I F T   A S S I G N M E N T", new Vector2(DocLeft, 66), 12, InkDim, _body);
 
-        AddLabel(_form, "오늘의 금기", new Vector2(DocLeft, 94), 16, InkRed, _serif);
-        var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
-        string tabooText = taboos == null || taboos.Count == 0 ? "특이사항 없음" : "⚠ " + string.Join("   ⚠ ", taboos.Select(t => t.Description));
-        var tabooLbl = AddLabel(_form, tabooText, new Vector2(DocLeft, 116), 19, InkRed, _body);
-        // 금기 문구는 왼쪽 단 안에서 두 줄까지 접힌다 — 오른쪽 서류받침을 침범하지 않게.
-        tabooLbl.CustomMinimumSize = new Vector2(DocRight - DocLeft, 46);
-        tabooLbl.Size = new Vector2(DocRight - DocLeft, 46);
-        tabooLbl.ClipText = true;
-        tabooLbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        // 금기가 해금되지 않은 날에는 금기 칸 자체를 싣지 않는다(빈 "특이사항 없음" 줄도 없앤다).
+        bool showTaboo = DayFeatures.TaboosEnabled;
+        if (showTaboo)
+        {
+            AddLabel(_form, "오늘의 금기", new Vector2(DocLeft, 96), 16, InkRed, _serif);
+            var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
+            string tabooText = taboos == null || taboos.Count == 0 ? "특이사항 없음" : "⚠ " + string.Join("   ⚠ ", taboos.Select(t => t.Description));
+            var tabooLbl = AddLabel(_form, tabooText, new Vector2(DocLeft, 122), 19, InkRed, _body);
+            // 금기 문구는 왼쪽 단 안에서 두 줄까지 접힌다 — 오른쪽 서류받침을 침범하지 않게.
+            tabooLbl.CustomMinimumSize = new Vector2(DocRight - DocLeft, 56);
+            tabooLbl.Size = new Vector2(DocRight - DocLeft, 56);
+            tabooLbl.ClipText = true;
+            tabooLbl.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        }
+        // 종이의 가로 구분선도 금기 칸이 있을 때만 그린다(본문 y 값과 짝을 이룬다).
+        if (_paper != null && !Mathf.IsEqualApprox(_paper.MidRuleY, showTaboo ? 182f : -1f))
+        {
+            _paper.MidRuleY = showTaboo ? 182f : -1f;
+            _paper.QueueRedraw();
+        }
 
         var rooms = sim.GetRoomIds()
             .Where(id =>
             {
                 var d = sim.GetRoomDef(id);
-                return d != null && !d.IsRestricted && sim.GetRoomTasksInPriorityOrder(id).Count > 0;
+                // 오늘 잠긴 작업실(환기실/의무실)은 배치 대상에서 제외된다.
+                return d != null && !d.IsRestricted && sim.IsRoomActive(id)
+                       && sim.GetRoomTasksInPriorityOrder(id).Count > 0;
             })
             .ToList();
 
-        AddLabel(_form, "작업실  ·  직원 카드를 끌어다 놓거나 카드를 고른 뒤 방을 누르세요", new Vector2(DocLeft, 170), 12, InkDim, _body);
+        float headY = showTaboo ? 186f : 100f;
 
-        float y = 194f;
+        // 글자를 키운 만큼 행도 키우되, 작업실이 많은 날에는 하단 구분선 위에서 끝나도록 줄인다.
+        float y = headY + 12f;
+        float rowStep = rooms.Count > 0
+            ? Mathf.Clamp((RowsBottomLimit - y) / rooms.Count, 34f, 50f)
+            : 40f;
         foreach (var roomId in rooms)
         {
-            var here = sim.GetEmployeeIds()
+            var here = sim.GetActiveEmployeeIds()
                 .Select(sim.GetEmployeeState)
                 .Where(s => s != null && s.AssignedRoomId == roomId)
                 .Select(s => s.EmployeeId)
@@ -214,11 +246,12 @@ public partial class ScheduleBoardUI : Control
             var row = new RoomRow(sim.GetRoomDef(roomId), _serif, _body)
             {
                 Position = new Vector2(DocLeft, y),
-                Size = new Vector2(DocRight - DocLeft - 8, 32),
+                Size = new Vector2(DocRight - DocLeft - 8, rowStep - 4f),
                 RoomId = roomId,
                 Occupants = here,
                 CodenameOf = id => sim.GetEmployeeDef(id)?.Codename ?? id,
                 JustWrote = _justWrote,
+                Focused = roomId == _focusRoom,
                 OnNameClick = OnRoomClicked,
                 OnClearOcc = OnClearOccupant,
                 OnHover = OnRoomHover,
@@ -226,13 +259,25 @@ public partial class ScheduleBoardUI : Control
             };
             _form.AddChild(row);
             _rows.Add(row);
-            y += 35f;
+            y += rowStep;
+        }
+
+        // 기분상태가 무엇인지 한 줄로만 일러둔다 — 숫자 능력치가 사라진 자리를 대신하는 정보다.
+        // (능력치가 해금된 날에는 카드 아랫줄이 다시 능력치라 이 안내를 싣지 않는다.)
+        if (!DayFeatures.StatsEnabled)
+        {
+            var note = AddLabel(_form, "※ ‘오늘의 기분’은 직원 본인이 근무 전에 적어 낸 자기보고입니다.",
+                new Vector2(DocLeft, Mathf.Min(y + 10f, RowsBottomLimit - 22f)), 12, InkDim, _body);
+            note.Size = new Vector2(DocRight - DocLeft, 24);
         }
 
         // --- 오른쪽 대기 인원(직원 카드) ---
-        AddLabel(_form, "대기 인원", new Vector2(DockLeft + 12, 16), 15, InkDim, _body);
-        float ey = 42f;
-        foreach (var empId in sim.GetEmployeeIds())
+        AddLabel(_form, "대기 인원", new Vector2(DockLeft + 12, 6), 15, InkDim, _body);
+        var dockRoster = sim.GetActiveEmployeeIds();
+        float cardStep = Mathf.Clamp((DockBottomLimit - EmpCardTop) / Mathf.Max(1, dockRoster.Count), 58f, 78f);
+        float cardH = cardStep - 5f;
+        float ey = EmpCardTop;
+        foreach (var empId in dockRoster)
         {
             var edef = sim.GetEmployeeDef(empId);
             var est = sim.GetEmployeeState(empId);
@@ -241,32 +286,35 @@ public partial class ScheduleBoardUI : Control
             var card = new EmpCard(edef, _serif, _body)
             {
                 Position = new Vector2(DockLeft + 10, ey),
-                Size = new Vector2(DockRight - DockLeft - 20, 48),
+                Size = new Vector2(DockRight - DockLeft - 20, cardH),
                 EmpId = empId,
                 Selected = empId == _selectedEmp,
+                DailyMood = est.DailyMood,
                 AssignedRoomName = string.IsNullOrEmpty(est.AssignedRoomId)
                     ? "" : sim.GetRoomDef(est.AssignedRoomId)?.DisplayName ?? "",
                 OnClick = OnEmployeeClicked,
                 OnPressStart = BeginDrag,
             };
             _form.AddChild(card);
-            ey += 52f;
+            ey += cardStep;
         }
+        _empCardsBottom = ey - (cardStep - cardH);
 
         // --- 하단 상태/버튼 ---
-        int total = sim.GetEmployeeIds().Count;
-        int placed = sim.GetEmployeeIds().Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
+        var roster = sim.GetActiveEmployeeIds();
+        int total = roster.Count;
+        int placed = roster.Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
         int missing = total - placed;
         // 배치 단계에서는 직원이 아직 방으로 이동하지 않았으므로(시뮬레이션 미가동)
         // 물리적 점유(OccupantEmployeeIds)가 아니라 배치 지정(AssignedRoomId)으로 판정한다.
-        bool coreStaffed = sim.GetEmployeeIds().Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
+        bool coreStaffed = roster.Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
 
         string statusText = !coreStaffed
             ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
             : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
         var status = AddLabel(_form, statusText,
-            new Vector2(DocLeft, CanvasSize.Y - 52), 17, !coreStaffed || missing > 0 ? InkRed : Ink, _body);
-        status.Size = new Vector2(360, 30);
+            new Vector2(DocLeft, CanvasSize.Y - 54), 16, !coreStaffed || missing > 0 ? InkRed : Ink, _body);
+        status.Size = new Vector2(500, 32);
 
         var start = new Button
         {
@@ -277,7 +325,7 @@ public partial class ScheduleBoardUI : Control
         };
         StyleDoc(start, coreStaffed ? new Color(0.95f, 0.92f, 0.83f) : InkDim,
             coreStaffed ? new Color(0.14f, 0.11f, 0.07f) : new Color(0.5f, 0.46f, 0.36f, 0.4f));
-        start.AddThemeFontSizeOverride("font_size", 21);
+        start.AddThemeFontSizeOverride("font_size", ViewFont.S(21));
         start.Pressed += () => StartPressed?.Invoke();
         _form.AddChild(start);
     }
@@ -292,11 +340,12 @@ public partial class ScheduleBoardUI : Control
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
 
-        // 직원 카드 6장(42 + 6×52 = 354)이 끝난 아래로 내려 겹치지 않게 한다.
+        // 직원 카드가 끝난 아래로 내려 겹치지 않게 한다.
         const float px = DockLeft + 12, pw = DockRight - DockLeft - 24;
-        const float py = 366f;
+        float py = _empCardsBottom + 12f;
 
-        if (!string.IsNullOrEmpty(_selectedEmp) && !string.IsNullOrEmpty(_hoverRoom))
+        // 능력치 비교는 능력치가 해금된 날에만 의미가 있다.
+        if (DayFeatures.StatsEnabled && !string.IsNullOrEmpty(_selectedEmp) && !string.IsNullOrEmpty(_hoverRoom))
         {
             DrawCompare(sim, _selectedEmp, _hoverRoom, px, py, pw);
             return;
@@ -325,32 +374,58 @@ public partial class ScheduleBoardUI : Control
 
         AddLabel(_info, def.DisplayName, new Vector2(px, py), 20, Ink, _serif);
 
-        // 요구 능력이 3개인 작업실(경비실: 담력·기술·관찰)은 한 줄에 다 넣으면 마지막
-        // 항목이 배치표 오른쪽 밖으로 삐져나간다. 폭을 재서 넘칠 때만 줄을 나눈다.
-        var stats = RoomRequiredStats(sim, roomId);
-        string joined = string.Join("  ·  ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
         float y = py + 28;
-        bool wrapped = stats.Count > 0 && TextWidth($"요구 능력  {joined}", 15) > pw;
-        if (!wrapped)
+        bool wrapped = false;
+        // 능력치가 잠긴 날에는 "요구 능력" 자체가 없다 — 줄을 아예 싣지 않는다.
+        if (DayFeatures.StatsEnabled)
         {
-            AddLabel(_info, $"요구 능력  {joined}", new Vector2(px, y), 15, InkRed, _body);
-            y += 24f;
+            // 요구 능력이 3개인 작업실(경비실: 담력·기술·관찰)은 한 줄에 다 넣으면 마지막
+            // 항목이 배치표 오른쪽 밖으로 삐져나간다. 폭을 재서 넘칠 때만 줄을 나눈다.
+            var stats = RoomRequiredStats(sim, roomId);
+            string joined = string.Join("  ·  ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
+            wrapped = stats.Count > 0 && TextWidth($"요구 능력  {joined}", 15) > pw;
+            if (!wrapped)
+            {
+                AddLabel(_info, $"요구 능력  {joined}", new Vector2(px, y), 15, InkRed, _body);
+                y += 24f;
+            }
+            else
+            {
+                // 머리말을 위로 올리고 능력 목록만 다음 줄에 둔다. 그래도 넘치면 한 단계 줄인다.
+                AddLabel(_info, "요구 능력", new Vector2(px, y), 15, InkRed, _body);
+                int statSize = TextWidth(joined, 15) <= pw ? 15 : 13;
+                AddLabel(_info, joined, new Vector2(px, y + 20f), statSize, InkRed, _body);
+                y += 40f;
+            }
+        }
+
+        // 오늘 이 방은 인원수에 따라 무엇이 달라지는가(data/ops/*.tres 의 RoleNote).
+        // 이 줄이 없으면 "한 명씩 고루 넣기"가 유일한 배치가 되어 버린다.
+        var ops = NSP.Core.OpsProfile.Room(roomId);
+        if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
+        {
+            int now = sim.OnDutyCount(roomId);
+            var head = AddLabel(_info, $"인원별 효과   (현재 {now}명)", new Vector2(px, y), 15, HeadcountBlue, _body);
+            head.AddThemeColorOverride("font_outline_color", HeadcountBlue.Darkened(0.18f));
+            head.AddThemeConstantOverride("outline_size", 1);
+            y += 22f;
+            // 아래 설명이 쓸 자리를 남겨야 하므로 세 줄까지만 싣는다.
+            foreach (string line in ops.RoleNote.Split(" / ").Take(3))
+            {
+                AddLabel(_info, "· " + line.Trim(), new Vector2(px + 4f, y), 13, HeadcountBrown, _body);
+                y += 18f;
+            }
+            y += 6f;
         }
         else
         {
-            // 머리말을 위로 올리고 능력 목록만 다음 줄에 둔다. 그래도 넘치면 한 단계 줄인다.
-            AddLabel(_info, "요구 능력", new Vector2(px, y), 15, InkRed, _body);
-            int statSize = TextWidth(joined, 15) <= pw ? 15 : 13;
-            AddLabel(_info, joined, new Vector2(px, y + 20f), statSize, InkRed, _body);
-            y += 40f;
+            int headcount = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
+            Color headcountColor = headcount >= 2 ? HeadcountBlue : HeadcountBrown;
+            var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, y), 15, headcountColor, _body);
+            headcountLabel.AddThemeColorOverride("font_outline_color", headcountColor.Darkened(0.18f));
+            headcountLabel.AddThemeConstantOverride("outline_size", 1);
+            y += 24f;
         }
-
-        int headcount = sim.GetRoomTasksInPriorityOrder(roomId).Select(t => t.RecommendedHeadcount).DefaultIfEmpty(1).Max();
-        Color headcountColor = headcount >= 2 ? HeadcountBlue : HeadcountBrown;
-        var headcountLabel = AddLabel(_info, $"권장 인원  {headcount}명", new Vector2(px, y), 15, headcountColor, _body);
-        headcountLabel.AddThemeColorOverride("font_outline_color", headcountColor.Darkened(0.18f));
-        headcountLabel.AddThemeConstantOverride("outline_size", 1);
-        y += 24f;
 
         string desc = FirstSentence(RoomDetailCard.Descriptions.GetValueOrDefault(roomId, ""));
         // 능력 목록이 두 줄로 늘어난 만큼 설명이 쓸 수 있는 높이가 줄어든다.
@@ -370,13 +445,22 @@ public partial class ScheduleBoardUI : Control
         if (def == null) return;
 
         if (def.FacePortrait != null)
-            _info.AddChild(MakeClippedPortrait(def.FacePortrait, new Vector2(px, py), new Vector2(52, 52)));
-        AddLabel(_info, def.Codename, new Vector2(px + 60, py + 4), 21, Ink, _serif);
+            _info.AddChild(MakeClippedPortrait(def.FacePortrait, new Vector2(px, py), new Vector2(36, 36)));
+        AddLabel(_info, def.Codename, new Vector2(px + 44, py - 2), 21, Ink, _serif);
 
-        float sy = py + 58;
-        AddLabel(_info, $"기술   {Bar(def.Tech)}  {def.Tech}", new Vector2(px, sy), 15, Ink, _body);
-        AddLabel(_info, $"담력   {Bar(def.Courage)}  {def.Courage}", new Vector2(px, sy + 22), 15, Ink, _body);
-        AddLabel(_info, $"관찰   {Bar(def.Observation)}  {def.Observation}", new Vector2(px, sy + 44), 15, Ink, _body);
+        float sy = py + 48;
+        if (DayFeatures.StatsEnabled)
+        {
+            AddLabel(_info, $"기술   {Bar(def.Tech)}  {def.Tech}", new Vector2(px, sy), 15, Ink, _body);
+            AddLabel(_info, $"담력   {Bar(def.Courage)}  {def.Courage}", new Vector2(px, sy + 22), 15, Ink, _body);
+            AddLabel(_info, $"관찰   {Bar(def.Observation)}  {def.Observation}", new Vector2(px, sy + 44), 15, Ink, _body);
+            return;
+        }
+
+        // 능력치 대신 오늘의 기분을 그대로 다시 보여준다(카드에서 읽은 것과 같은 값).
+        string mood = sim.GetDailyMood(employeeId);
+        AddLabel(_info, "오늘의 기분", new Vector2(px, sy), 13, Ink, _body);
+        AddLabel(_info, string.IsNullOrEmpty(mood) ? "—" : mood, new Vector2(px, sy + 15), 19, InkRed, _serif);
     }
 
     private void DrawCompare(FacilitySimulation sim, string employeeId, string roomId, float px, float py, float pw)
@@ -417,7 +501,19 @@ public partial class ScheduleBoardUI : Control
         }
         _focusRoom = roomId;
         _focusEmp = "";
+        RefreshRowFocus();
         RefreshInfoPanel();
+    }
+
+    // 고른 작업실은 다른 작업실을 누르거나 직원을 고를 때까지 붉은 글자 + 밑줄로 남는다.
+    private void RefreshRowFocus()
+    {
+        foreach (var r in _rows)
+        {
+            if (!IsInstanceValid(r)) continue;
+            bool f = r.RoomId == _focusRoom;
+            if (r.Focused != f) { r.Focused = f; r.QueueRedraw(); }
+        }
     }
 
     private void OnEmployeeClicked(string employeeId)
@@ -484,7 +580,7 @@ public partial class ScheduleBoardUI : Control
 
     // 정보 패널은 좌표로 직접 배치하므로, 줄을 나눌지 판단하려면 실제 글자 폭이 필요하다.
     private float TextWidth(string text, int size) =>
-        _body?.GetStringSize(text, HorizontalAlignment.Left, -1, size).X ?? 0f;
+        _body?.GetStringSize(text, HorizontalAlignment.Left, -1, ViewFont.S(size)).X ?? 0f;
 
     private static string StatIcon(StatType s) => s switch
     {
@@ -560,7 +656,7 @@ public partial class ScheduleBoardUI : Control
     {
         var l = new Label { Text = text, Position = pos, MouseFilter = MouseFilterEnum.Ignore };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         parent.AddChild(l);
         return l;
@@ -573,6 +669,8 @@ public partial class ScheduleBoardUI : Control
         public string EmpId = "";
         public bool Selected;
         public string AssignedRoomName = "";
+        // 오늘의 기분 — 능력치가 있던 자리를 대신하는 이 카드의 주 정보다.
+        public string DailyMood = "";
         public Action<string> OnClick;
         public Action<string, Vector2> OnPressStart;
 
@@ -609,23 +707,58 @@ public partial class ScheduleBoardUI : Control
             var ink = darkBg ? new Color(0.94f, 0.92f, 0.86f) : new Color(0.16f, 0.12f, 0.08f);
             var dim = darkBg ? new Color(0.80f, 0.78f, 0.72f) : new Color(0.42f, 0.35f, 0.24f);
 
-            DrawString(_serif, new Vector2(8, 20), (Selected ? "▶ " : "") + _def.Codename,
-                HorizontalAlignment.Left, -1, 19, ink);
+            // 얼굴 초상 — 카드에서 직원을 먼저 알아보게 하는 정보. 없으면 고유색 점으로 대신한다.
+            // 카드 높이는 인원 수에 따라 달라지므로 내부 좌표도 높이에서 뽑아 쓴다.
+            const float portraitX = 8f, portraitY = 5f;
+            float portraitSize = Mathf.Clamp(Size.Y * 0.46f, 26f, 34f);
+            var portraitBox = new Rect2(portraitX, portraitY, portraitSize, portraitSize);
+            DrawRect(portraitBox, new Color(0.30f, 0.24f, 0.14f, 0.18f));
+            if (_def.FacePortrait != null) DrawContained(_def.FacePortrait, portraitBox);
+            else DrawCircle(portraitBox.GetCenter(), portraitSize * 0.36f, _def.IconColor);
+            DrawRect(portraitBox, new Color(0.35f, 0.27f, 0.16f, 0.6f), false, 1f);
 
-            // 윗줄 오른쪽은 배치처(있으면) 아니면 특성 — 둘을 겹쳐 그리지 않는다.
-            string right = assigned ? "→ " + AssignedRoomName : _def.Trait;
+            float textX = portraitX + portraitSize + 9f;
+            float nameBase = portraitY + portraitSize * 0.86f;
+            DrawString(_serif, new Vector2(textX, nameBase), (Selected ? "▶" : "") + _def.Codename,
+                HorizontalAlignment.Left, -1, ViewFont.S(19), ink);
+
+            // 윗줄 오른쪽은 배치처만(특성 키워드는 싣지 않는다).
+            string right = assigned ? "→ " + AssignedRoomName : "";
             if (!string.IsNullOrEmpty(right))
-                DrawString(_body, new Vector2(Size.X - 124, 19), right,
-                    HorizontalAlignment.Right, 116, 13, dim);
+                DrawString(_body, new Vector2(Size.X - 104f, nameBase - 1f), right,
+                    HorizontalAlignment.Right, 96f, ViewFont.S(11), dim);
 
-            DrawMiniStat("기", _def.Tech, 8, 32, ink);
-            DrawMiniStat("담", _def.Courage, 66, 32, ink);
-            DrawMiniStat("관", _def.Observation, 124, 32, ink);
+            float moodBase = Size.Y - 10f;
+            if (DayFeatures.StatsEnabled)
+            {
+                float sy = moodBase - 14f;
+                DrawMiniStat("기", _def.Tech, textX, sy, ink);
+                DrawMiniStat("담", _def.Courage, textX + 60, sy, ink);
+                DrawMiniStat("관", _def.Observation, textX + 120, sy, ink);
+                return;
+            }
+
+            // 능력치가 잠긴 날 — 카드 아랫줄 전체를 "오늘의 기분"에 준다(작은 보조정보가 아니다).
+            DrawString(_body, new Vector2(portraitX + 1f, moodBase - 1f), "오늘의 기분",
+                HorizontalAlignment.Left, -1, ViewFont.S(12), darkBg ? new Color(0.96f, 0.90f, 0.76f) : ink);
+            DrawString(_serif, new Vector2(portraitX + 84f, moodBase), string.IsNullOrEmpty(DailyMood) ? "—" : DailyMood,
+                HorizontalAlignment.Left, Size.X - portraitX - 92f, ViewFont.S(17),
+                darkBg ? new Color(1f, 0.90f, 0.72f) : new Color(0.45f, 0.13f, 0.09f));
+        }
+
+        // 초상을 비율 그대로 박스 안에 넣는다(넘치지 않게 축소만).
+        private void DrawContained(Texture2D tex, Rect2 box)
+        {
+            var src = tex.GetSize();
+            if (src.X <= 0f || src.Y <= 0f) return;
+            float scale = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
+            var dst = src * scale;
+            DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false);
         }
 
         private void DrawMiniStat(string label, int v, float x, float y, Color ink)
         {
-            DrawString(_body, new Vector2(x, y + 10), label, HorizontalAlignment.Left, -1, 12, ink);
+            DrawString(_body, new Vector2(x, y + 10), label, HorizontalAlignment.Left, -1, ViewFont.S(12), ink);
             for (int i = 0; i < 3; i++)
             {
                 var r = new Rect2(x + 16 + i * 10, y, 8, 10);
@@ -657,12 +790,13 @@ public partial class ScheduleBoardUI : Control
         public Action<string, bool> OnHover;
         public Func<string, string, bool> TryDropAssign;
         public bool ManualHover;     // ScheduleBoardUI 의 수동 드래그가 이 행 위에 있을 때
+        public bool Focused;         // 지금 골라 둔 작업실 — 마우스가 떠나도 강조가 남는다
 
         private readonly RoomDef _def;
         private readonly Font _serif, _body;
         private bool _hover;         // 마우스가 이 행 위에 있을 때(작업실 글자 색 변경)
 
-        private const float NameW = 128f, SlotW = 142f, SlotGap = 8f;
+        private const float NameW = 140f, SlotW = 138f, SlotGap = 6f;
 
         public RoomRow(RoomDef def, Font serif, Font body)
         {
@@ -675,18 +809,23 @@ public partial class ScheduleBoardUI : Control
 
         public override void _Draw()
         {
-            var ink = new Color(0.17f, 0.13f, 0.09f);
-            var dim = new Color(0.42f, 0.35f, 0.24f);
+            var ink = new Color(0.12f, 0.09f, 0.05f);
+            var dim = new Color(0.34f, 0.27f, 0.16f);
             bool dh = ManualHover;
+            // 행 높이는 작업실 개수에 따라 달라진다 — 글자 기준선도 높이에서 뽑는다.
+            float baseY = Size.Y * 0.5f + 8f;
+            int nameSize = ViewFont.S(19);
+            int slotSize = ViewFont.S(15);
 
             // 마우스를 올리면 작업실 이름이 붉게 밝아지고 밑줄이 그어진다.
-            bool nameHot = _hover || dh;
-            var nameCol = nameHot ? new Color(0.62f, 0.16f, 0.10f) : ink;
-            DrawString(_serif, new Vector2(0, 22), _def.DisplayName, HorizontalAlignment.Left, NameW, 19, nameCol);
+            bool nameHot = _hover || dh || Focused;
+            var nameCol = nameHot ? new Color(0.60f, 0.13f, 0.08f) : ink;
+            DrawString(_serif, new Vector2(0, baseY), _def.DisplayName, HorizontalAlignment.Left, NameW, nameSize, nameCol);
             if (nameHot)
             {
-                float w = _serif.GetStringSize(_def.DisplayName, HorizontalAlignment.Left, NameW, 19).X;
-                DrawLine(new Vector2(0, 26), new Vector2(Mathf.Min(w, NameW - 6), 26), nameCol with { A = 0.75f }, 1.4f);
+                float w = _serif.GetStringSize(_def.DisplayName, HorizontalAlignment.Left, NameW, nameSize).X;
+                DrawLine(new Vector2(0, baseY + 4f), new Vector2(Mathf.Min(w, NameW - 6), baseY + 4f),
+                    nameCol with { A = 0.75f }, 1.4f);
             }
 
             for (int s = 0; s < 2; s++)
@@ -698,11 +837,11 @@ public partial class ScheduleBoardUI : Control
 
                 string occ = s < Occupants.Count ? Occupants[s] : "";
                 if (!string.IsNullOrEmpty(occ))
-                    DrawString(_body, new Vector2(x + 10, 22), "[ " + (CodenameOf?.Invoke(occ) ?? occ) + " ]",
-                        HorizontalAlignment.Left, SlotW - 16, 15, ink);
+                    DrawString(_body, new Vector2(x + 10, baseY), "[ " + (CodenameOf?.Invoke(occ) ?? occ) + " ]",
+                        HorizontalAlignment.Left, SlotW - 16, slotSize, ink);
                 else
-                    DrawString(_body, new Vector2(x + 10, 22), "[          ]",
-                        HorizontalAlignment.Left, SlotW - 16, 15, dim);
+                    DrawString(_body, new Vector2(x + 10, baseY), "[          ]",
+                        HorizontalAlignment.Left, SlotW - 16, slotSize, dim);
             }
         }
 
@@ -724,6 +863,9 @@ public partial class ScheduleBoardUI : Control
 
     private partial class PaperTexture : Control
     {
+        // 본문 가운데 구분선(금기 칸 아래). 금기가 잠긴 날에는 -1 이라 그리지 않는다.
+        public float MidRuleY = 182f;
+
         public override void _Draw()
         {
             var baseA = new Color(0.85f, 0.79f, 0.63f);
@@ -733,8 +875,8 @@ public partial class ScheduleBoardUI : Control
             var rng = new RandomNumberGenerator { Seed = 20940182 };
 
             // 오른쪽 서류받침(대기 인원/정보 패널) 카드 — 살짝 다른 톤.
-            DrawRect(new Rect2(500, 12, 244, Size.Y - 24), new Color(0.80f, 0.78f, 0.70f, 0.85f));
-            DrawRect(new Rect2(500, 12, 244, Size.Y - 24), new Color(0, 0, 0, 0.12f), false, 1.2f);
+            DrawRect(new Rect2(486, 12, 258, Size.Y - 24), new Color(0.80f, 0.78f, 0.70f, 0.85f));
+            DrawRect(new Rect2(486, 12, 258, Size.Y - 24), new Color(0, 0, 0, 0.12f), false, 1.2f);
 
             // 큰 얼룩.
             for (int i = 0; i < 16; i++)
@@ -767,19 +909,20 @@ public partial class ScheduleBoardUI : Control
             // 표 구분선 — 완전히 곧지 않게 짧은 세그먼트로 약간씩 어긋나게.
             // (본문 레이아웃 y 값과 짝을 이룬다 — 한쪽만 바꾸면 어긋난다.)
             DrawRoughLine(new Vector2(24, 88), new Vector2(460, 88), rng);
-            DrawRoughLine(new Vector2(24, 166), new Vector2(460, 166), rng);
+            if (MidRuleY > 0f) DrawRoughLine(new Vector2(24, MidRuleY), new Vector2(460, MidRuleY), rng);
             DrawRoughLine(new Vector2(24, 446), new Vector2(460, 446), rng);
 
             // 하단 좌측 부서명.
             var font = ViewFont.Default;
-            DrawString(font, new Vector2(24, 468), "FACILITY CONTROL DEPT.", HorizontalAlignment.Left, -1, 13, new Color(0.35f, 0.28f, 0.18f));
+            DrawString(font, new Vector2(24, 470), "FACILITY CONTROL DEPT.", HorizontalAlignment.Left, -1,
+                ViewFont.S(13), new Color(0.28f, 0.22f, 0.13f));
 
             // 붉은 승인 도장 — 본문(작업실 표)과 겹치지 않게 하단 우측 여백에.
             DrawSetTransform(new Vector2(430, 480), Mathf.DegToRad(-11f), Vector2.One);
             var stampCol = new Color(0.62f, 0.10f, 0.08f, 0.6f);
             DrawArc(Vector2.Zero, 33f, 0f, Mathf.Tau, 40, stampCol, 2.2f);
             DrawArc(Vector2.Zero, 26f, 0f, Mathf.Tau, 36, stampCol, 1.5f);
-            DrawString(font, new Vector2(-22f, 7f), "승인", HorizontalAlignment.Left, -1, 20, stampCol);
+            DrawString(font, new Vector2(-24f, 8f), "승인", HorizontalAlignment.Left, -1, ViewFont.S(20), stampCol);
             DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
         }
 

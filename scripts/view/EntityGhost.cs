@@ -2,7 +2,7 @@ using Godot;
 
 namespace NSP.View;
 
-// entity.glb(결번자 "존재") 인스턴스의 메시에 석고/플라스터 느낌 머티리얼을 입힌다.
+// entity.glb(개체 "존재") 인스턴스의 메시에 석고/플라스터 느낌 머티리얼을 입힌다.
 //  - 몸통: 흰색~옅은 회색, 거칠고 무광(StandardMaterial3D, roughness 높음, metallic 0)
 //  - 손끝/발끝: 검붉은색 — 메시 로컬 AABB 기준으로 "아래쪽(발) / 좌우로 뻗은 위쪽(손)" 정점에
 //    버텍스 컬러를 구워 넣고, StandardMaterial3D 의 vertex_color_use_as_albedo 로 표현한다.

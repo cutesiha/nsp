@@ -1,4 +1,4 @@
-namespace NSP.Data;
+﻿namespace NSP.Data;
 
 public enum GamePhase
 {
@@ -157,4 +157,27 @@ public enum LogEventType
     PowerCapacityChanged,
     // 자원이 모자라 업무가 멈추거나 다시 돌기 시작한 순간(상태가 바뀔 때 한 번만).
     ResourceShortage,
+    // 불편(Uneasy) 관계인 두 직원이 같은 방에서 언쟁을 벌임(관계 시스템 Phase 1).
+    Argument,
+    // 이상 개체(괴물)를 CCTV 로 끝까지 지켜봐 소멸시킴. 관리자가 잘한 일이다.
+    AnomalyDispelled,
+    // 이상 개체를 끝내 찾지 못해 그 작업실에 사고가 남음.
+    // 설비 고장(TaskFailed)과 **따로 둔다** — 원인이 다르고, 막는 방법도 다르기 때문이다.
+    // 사람이 저지른 일이 아니므로 심문의 주제(DialogueContextBuilder.IsIncident)도 되지 않는다.
+    AnomalyIncident,
+    // 작업실이 실제로 일을 해낸 순간(자재 +1, 코어 +1%, 경비 기록, 환기 재개 등).
+    // 표시 전용이다 — 시뮬레이션은 이 기록을 읽지 않고, 심문 자료도 되지 않는다.
+    // 화면에서는 그 방의 RoomDef.MapColor 로 써서 경고/사고 색과 겹치지 않게 한다.
+    RoomEffect,
+}
+
+// 로그 한 줄의 세부 종류. EventType 만으로는 갈리지 않는 근무 상태 변화를 적는다 —
+// 기절 · 회복은 Neglect, 배치 해제는 TaskEnd 로 남아 표시 문구 말고는 구분이 안 되기 때문이다.
+// 표시 문구는 언제든 바뀔 수 있으므로 판정(대화 쪽 근무 구간)은 문구가 아니라 이 값을 본다.
+public enum LogDetail
+{
+    None,
+    Fainted,        // 기절 — 근무에서 빠짐
+    Recovered,      // 기절 회복 — 근무 복귀
+    Unassigned,     // 관리자가 배치를 해제함
 }

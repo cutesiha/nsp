@@ -33,6 +33,7 @@ public partial class Sfx : Node
     // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
     // 최소 간격(Rate Limit)으로 너무 촘촘하게 울리지 않게 한다.
     private AudioStreamPlayer _voicePlayer;
+    private AudioStreamPlayer _voiceRadioPlayer;
     private readonly RandomNumberGenerator _voiceRng = new();
     private readonly Dictionary<string, List<AudioStream>> _voiceVariantCache = new();
     private double _lastVoiceBlipMsec = -10000;
@@ -58,6 +59,11 @@ public partial class Sfx : Node
 
         _voicePlayer = new AudioStreamPlayer { Bus = GameSettings.BusSfx };
         AddChild(_voicePlayer);
+
+        // 무전 채널 — 같은 보이스 파일을 Radio 버스(대역통과+약한 찌그러짐)로만 흘려보낸다.
+        // 직원별 보이스 파일도, 평소 통화/인터뷰 재생 경로도 전혀 바뀌지 않는다.
+        _voiceRadioPlayer = new AudioStreamPlayer { Bus = GameSettings.BusRadio };
+        AddChild(_voiceRadioPlayer);
 
         for (int i = 0; i < 2; i++)
         {
@@ -158,15 +164,72 @@ public partial class Sfx : Node
             b.Pressed += () => Play("click", -8f);
     }
 
+    // 효과음 파일 하나. 확장자는 넣어 준 순서대로 찾는다 — 새로 넣는 소리가 .ogg 여도
+    // 코드에서는 파일 이름만 쓰면 된다.
+    private static readonly string[] SfxExtensions = { ".wav", ".ogg", ".mp3" };
+
     private AudioStream Load(string key)
     {
         if (_cache.TryGetValue(key, out var s)) return s;
-        string path = key == "electrical_background"
-            ? "res://assets/audio/electrical_noise2_[cut_3sec].mp3"
-            : $"res://assets/audio/sfx/{key}.wav";
-        s = ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;
+        if (key == "electrical_background")
+        {
+            const string bg = "res://assets/audio/electrical_noise2_[cut_3sec].mp3";
+            s = ResourceLoader.Exists(bg) ? GD.Load<AudioStream>(bg) : null;
+            _cache[key] = s;
+            return s;
+        }
+        foreach (string ext in SfxExtensions)
+        {
+            string path = $"res://assets/audio/sfx/{key}{ext}";
+            if (!ResourceLoader.Exists(path)) continue;
+            s = GD.Load<AudioStream>(path);
+            break;
+        }
         _cache[key] = s;
         return s;
+    }
+
+    // ── 괴물의 비명 ───────────────────────────────────────────────────
+    // 두 녹음 중 하나를 무작위로, **아주 크게**, 울리는 버스로 내보낸다.
+    // 이 소리 하나가 "지금 저 방에 그것이 있다"를 알려 주는 유일한 신호라서
+    // 다른 효과음과 같은 크기면 묻힌다.
+    private static readonly string[] GhostScreams =
+    {
+        "귀신비명1_CCTV_괴기", "귀신비명2_CCTV_괴기",
+    };
+
+    // 비명은 전용 재생기를 쓴다. 공용 풀을 빌리면 다음 효과음이 끼어들며 소리가 잘리고,
+    // 울림 버스가 그 재생기에 그대로 남는다.
+    private AudioStreamPlayer _screamPlayer;
+
+    // volumeDb 기본값이 크다. 이 소리는 "지금 저 방에 그것이 있다"를 알려 주는 유일한
+    // 신호라 다른 효과음과 같은 크기면 묻힌다. 버스 쪽 리미터가 찢어지는 것을 막는다.
+    public void PlayGhostScream(float volumeDb = 15f)
+    {
+        string key = GhostScreams[(int)(GD.Randi() % (uint)GhostScreams.Length)];
+        var stream = Load(key);
+        if (stream == null) { Play("alert_beep3", 2f); return; }
+
+        if (_screamPlayer == null)
+        {
+            _screamPlayer = new AudioStreamPlayer { Bus = GameSettings.BusScream };
+            AddChild(_screamPlayer);
+        }
+        _screamPlayer.Stream = stream;
+        _screamPlayer.VolumeDb = volumeDb;
+        _screamPlayer.PitchScale = (float)GD.RandRange(0.92, 1.05);
+        _screamPlayer.Play();
+    }
+
+    // 벽 너머로 새어 나오는 정도의 기척.
+    //
+    // 전용 비명 버스(Scream)를 쓰지 않는다. 그쪽은 "존나 크게" 나가도록 버스 +10dB 에
+    // 리미터 프리게인 +12dB 가 걸려 있어서, 재생기 볼륨을 아무리 낮춰도 도로 끌어올려진다.
+    // 여기서는 평범한 효과음 버스로, 낮은 피치(먹먹하게)로 작게 흘린다.
+    public void PlayGhostScreamDistant(float volumeDb = -20f)
+    {
+        string key = GhostScreams[(int)(GD.Randi() % (uint)GhostScreams.Length)];
+        Play(key, volumeDb, (float)GD.RandRange(0.80, 0.90));
     }
 
     public void Play(string key, float volumeDb = 0f, float pitch = 1f)
@@ -203,7 +266,9 @@ public partial class Sfx : Node
     // res://assets/audio/sfx_voice_{employeeId}_01.wav, _02, _03... 처럼 variant가
     // 여러 개 있으면 매번 그중 하나를 무작위로 골라 같은 글자에도 완전히 같은 소리가
     // 반복되지 않게 한다(variant가 없는 캐릭터는 voice_{employeeId}.wav 단일 파일로 폴백).
-    public void PlayVoiceBlip(string employeeId, char c)
+    // radio: true 면 같은 보이스를 무전 버스로 흘린다(프롤로그 대재난 무전 전용).
+    // 기본값이 false 라 기존 호출부(전화/인터뷰)의 동작은 한 글자도 바뀌지 않는다.
+    public void PlayVoiceBlip(string employeeId, char c, bool radio = false)
     {
         if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
 
@@ -213,11 +278,14 @@ public partial class Sfx : Node
         var variants = LoadVoiceVariants(employeeId);
         if (variants.Count == 0) return;
 
+        var player = radio ? _voiceRadioPlayer : _voicePlayer;
+        if (player == null) return;
+
         _lastVoiceBlipMsec = now;
-        _voicePlayer.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
+        player.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
         float semitones = _voiceRng.RandfRange(-VoicePitchVariationSemitones, VoicePitchVariationSemitones);
-        _voicePlayer.PitchScale = Mathf.Pow(2f, semitones / 12f);
-        _voicePlayer.Play();
+        player.PitchScale = Mathf.Pow(2f, semitones / 12f);
+        player.Play();
     }
 
     private List<AudioStream> LoadVoiceVariants(string employeeId)
@@ -245,9 +313,13 @@ public partial class Sfx : Node
     }
 
     // 대사 스킵/즉시 완성 시 트레일링 블립을 바로 끊는다.
-    public void StopVoiceBlip() => _voicePlayer?.Stop();
+    public void StopVoiceBlip()
+    {
+        _voicePlayer?.Stop();
+        _voiceRadioPlayer?.Stop();
+    }
 
-    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 결번자 웃음 -------------
+    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 개체 웃음 -------------
     private readonly Dictionary<string, AudioStream> _employeeScreamStreams = new();
     private AudioStream _laughStream, _jumpscareToneStream;
 
@@ -264,14 +336,14 @@ public partial class Sfx : Node
         PlayGenerated(scream, volumeDb, _voiceRng.RandfRange(0.97f, 1.03f));
     }
 
-    // 결번자 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
+    // 개체 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
     public void PlayEntityLaugh(float volumeDb = -4f)
     {
         _laughStream ??= BuildLaugh();
         PlayGenerated(_laughStream, volumeDb, _voiceRng.RandfRange(0.94f, 1.03f));
     }
 
-    // 결번자가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
+    // 개체가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
     public void PlayJumpscareTone(float volumeDb = -1f)
     {
         _jumpscareToneStream ??= BuildJumpscareTone();
@@ -320,15 +392,15 @@ public partial class Sfx : Node
     private static AudioStreamWav BuildEmployeeScream(string employeeId)
     {
         const int rate = 22050;
-        // 낮고 절제된 올빼미/까마귀, 날카로운 고양이, 떨리는 해파리,
-        // 밝고 높은 토끼, 중간 톤의 여우로 기존 음성 인상을 유지한다.
+        // 낮고 거친 늑대, 따뜻한 중간 톤의 강아지, 날카로운 고양이, 떨리는 양,
+        // 밝고 높은 토끼, 중간 톤의 여우.
         (float startHz, float peakHz, float duration, float rough, float vibrato, float fall) profile = employeeId switch
         {
-            "owl" => (310f, 610f, 0.86f, 0.18f, 24f, 0.72f),
+            "dog" => (400f, 780f, 0.80f, 0.16f, 30f, 0.68f),
             "cat" => (510f, 970f, 0.68f, 0.25f, 38f, 0.60f),
-            "jellyfish" => (560f, 1040f, 0.94f, 0.22f, 46f, 0.78f),
+            "sheep" => (570f, 1060f, 0.96f, 0.22f, 48f, 0.80f),
             "rabbit" => (590f, 1120f, 0.78f, 0.17f, 42f, 0.66f),
-            "crow" => (250f, 540f, 0.82f, 0.34f, 28f, 0.70f),
+            "wolf" => (240f, 520f, 0.80f, 0.34f, 24f, 0.70f),
             "fox" => (430f, 820f, 0.84f, 0.20f, 32f, 0.68f),
             _ => (460f, 860f, 0.78f, 0.25f, 36f, 0.66f),
         };
@@ -353,7 +425,7 @@ public partial class Sfx : Node
             float glottal = Mathf.Sin(ph) + 0.46f * Mathf.Sin(ph * 2.03f)
                 + 0.20f * Mathf.Sin(ph * 3.01f) + 0.08f * Mathf.Sin(ph * 4.97f);
             breath = Mathf.Lerp(breath, rng.RandfRange(-1f, 1f), 0.34f);
-            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "jellyfish" ? 17f : 11f) * Mathf.Tau);
+            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "sheep" ? 17f : 11f) * Mathf.Tau);
             float attack = Mathf.Min(1f, t * 34f);
             float release = Mathf.Pow(Mathf.Max(0f, 1f - t), 0.42f);
             float env = attack * release * tremble;
@@ -412,6 +484,21 @@ public partial class Sfx : Node
         p.Play();
         _loops[key] = p;
     }
+
+    // 돌고 있는 루프의 볼륨만 바꾼다(엔딩 경고음이 점점 커지는 연출).
+    public void SetLoopVolume(string key, float volumeDb)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p)) p.VolumeDb = volumeDb;
+    }
+
+    // 돌고 있는 루프의 피치만 바꾼다(엔딩에서 환풍기가 느려지다 멈추는 연출).
+    public void SetLoopPitch(string key, float pitch)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p))
+            p.PitchScale = Mathf.Max(0.01f, pitch);
+    }
+
+    public bool IsLooping(string key) => _loops.ContainsKey(key);
 
     public void StopLoop(string key)
     {

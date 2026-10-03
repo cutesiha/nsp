@@ -1,8 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
+using NSP.Dialogue;
 using NSP.Facility;
 
 namespace NSP.View;
@@ -20,15 +21,24 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
     // 시설 로그의 중요도 색. 경고 단말기(AlertTerminalView)와 같은 팔레트를 쓴다.
     private static readonly Color LogNormal = new(0.82f, 0.96f, 0.98f);
-    private static readonly Color LogWarning = new(0.95f, 0.80f, 0.25f);
-    private static readonly Color LogCritical = new(1f, 0.40f, 0.20f);
+    private static readonly Color LogMove = new(0.45f, 0.92f, 0.88f);
+    private static readonly Color LogWarning = new(0.98f, 0.70f, 0.20f);
+    private static readonly Color LogCritical = new(1f, 0.44f, 0.26f);
+    private static readonly Color LogSabotage = new(1f, 0.26f, 0.24f);
     private static readonly Color LogRecovery = new(0.40f, 0.95f, 0.50f);
     private static readonly Color LogTime = new(0.45f, 0.66f, 0.72f);
 
-    private enum WindowMode { None, Log, Dialogue }
+    private enum WindowMode { None, Log, Dialogue, Objectives }
 
     public static Day1HistoryOverlay Instance { get; private set; }
     public bool IsWindowOpen => _mode != WindowMode.None;
+    // 튜토리얼(TutorialDirector)이 "플레이어가 실제로 이 창을 열었는가"를 확인한다.
+    public bool IsLogOpen => _mode == WindowMode.Log;
+    public bool IsDialogueOpen => _mode == WindowMode.Dialogue;
+    public bool IsObjectivesOpen => _mode == WindowMode.Objectives;
+
+    // 오늘의 업무 창에서 "근무 종료" 를 눌렀을 때. ShiftFlowController 가 받는다.
+    public event System.Action EndShiftRequested;
 
     private WindowMode _mode;
     private Control _root;
@@ -39,6 +49,11 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private ScrollContainer _logScroll;
     private ScrollContainer _dialogueScroll;
     private VBoxContainer _logRows;
+    // 로그 창 맨 위의 띠 시간표. 아래 텍스트 목록을 대신하지 않고, 어디를 봐야 할지만 가리킨다.
+    private StaffTimelineView _logBand;
+    private Tween _logFlash;
+    // 방금 고른 줄 아래의 흰 밑줄. 그 줄이 사라지면 같이 없어진다.
+    private ColorRect _logMark;
     private VBoxContainer _dialogueRows;
     private Font _body;
     private Font _serif;
@@ -46,6 +61,21 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 화면용으로 해석된 로그. EventLog 원본은 그대로 두고 여기에만 요약본을 만든다.
     private List<DisplayLogEntry> _displayLog = new();
     private int _dialogueRendered;
+    // 대화 기록에서 지금 골라 둔 직원들. 비어 있으면 전부 보여준다.
+    private readonly HashSet<string> _dialogueFilter = new();
+    private HBoxContainer _dialogueTabs;
+
+    // 오늘의 업무 창.
+    private Panel _objPanel;
+    private VBoxContainer _objRows;
+    private Label _objTitle, _objTime, _objHint;
+    private Button _objButton, _objEndBtn;
+    private string _objSignature = "";
+    private bool _objAutoShown;
+    private float _objTick;
+    // 로그 줄의 ☆ — 그 줄이 조사 자료가 되는 경우(이동 · 사고)에만 달린다.
+    private readonly List<(Button Star, InterviewEvidence Ev, Control Row)> _logStars = new();
+    private const float LogStarWidth = 30f;
     private bool _logStick;
     private bool _dialogueStick;
     private double _logOldScroll;
@@ -71,6 +101,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             DialogueHistory.Instance.EntryAdded += OnDialogueAdded;
             DialogueHistory.Instance.Cleared += OnDialogueCleared;
         }
+        ClueBoard.Changed += OnClueChanged;
     }
 
     public override void _ExitTree()
@@ -87,6 +118,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             DialogueHistory.Instance.EntryAdded -= OnDialogueAdded;
             DialogueHistory.Instance.Cleared -= OnDialogueCleared;
         }
+        ClueBoard.Changed -= OnClueChanged;
         if (Instance == this) Instance = null;
     }
 
@@ -98,6 +130,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
         // 기록은 DAY1의 근무/정산/휴게시간에만 열람한다. 새 판 타이틀이나 배치표로
         // 돌아가면 남아 있던 오버레이만 닫고 데이터 초기화는 새 게임 시작 지점이 맡는다.
         if (IsWindowOpen && !CanOpen()) CloseWindow();
+        TickObjectives((float)delta);
+        if (_mode == WindowMode.Log) PaintLogStars();
     }
 
     public override void _Input(InputEvent e)
@@ -116,6 +150,13 @@ public partial class Day1HistoryOverlay : CanvasLayer
             GetViewport().SetInputAsHandled();
             return;
         }
+        // 오늘의 업무는 별도 입력 액션을 만들지 않고 T 키로 연다(프로젝트 설정 불변).
+        if (e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.T })
+        {
+            ToggleObjectives();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
         if (IsWindowOpen && e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
             CloseWindow();
@@ -126,6 +167,17 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private bool CanOpen()
     {
         return GameState.Instance?.CurrentPhase is GamePhase.Live or GamePhase.Settlement or GamePhase.Rest;
+    }
+
+    // 화면 좌표가 오른쪽 아래의 업무 · 로그 · 대화 기록 버튼 위인가. 관리자 패드를 든 동안 제어실이
+    // 마우스 입력을 통째로 패드 화면에 넘기는데(ControlRoom3DController.ForwardModal), 이 버튼들은
+    // 게임 밖 UI 라 그 위의 클릭은 패드가 아니라 버튼이 받아야 한다.
+    public bool IsOverIcons(Vector2 screenPos)
+    {
+        if (_icons == null || !_icons.Visible) return false;
+        foreach (var child in _icons.GetChildren())
+            if (child is Control c && c.Visible && c.GetGlobalRect().HasPoint(screenPos)) return true;
+        return false;
     }
 
     private void ToggleLog()
@@ -140,13 +192,35 @@ public partial class Day1HistoryOverlay : CanvasLayer
         else if (CanOpen()) OpenDialogue();
     }
 
-    private void OpenLog()
+    private void ToggleObjectives()
+    {
+        if (_mode == WindowMode.Objectives) CloseWindow();
+        // 오늘의 업무는 근무 중에만 의미가 있다.
+        else if (GameState.Instance?.CurrentPhase == GamePhase.Live) OpenObjectives();
+    }
+
+    private void OpenObjectives()
+    {
+        _mode = WindowMode.Objectives;
+        _scrim.Color = new Color(0f, 0f, 0f, 0.30f);
+        _scrim.Visible = true;
+        _logPanel.Visible = false;
+        _dialoguePanel.Visible = false;
+        _objPanel.Visible = true;
+        _objSignature = "";
+        RefreshObjectives();
+    }
+
+    // 캡처 도구(RoomEffectShot)가 L키를 흉내 내지 않고 바로 열 수 있게 공개한다.
+    public void OpenLog()
     {
         _mode = WindowMode.Log;
         _scrim.Color = new Color(0f, 0f, 0f, 0.38f);
         _scrim.Visible = true;
         _logPanel.Visible = true;
         _dialoguePanel.Visible = false;
+        // 근무 시작에 저절로 뜬 「오늘의 업무」 창 위에 로그 창이 겹쳐 뜨던 것을 막는다.
+        if (_objPanel != null) _objPanel.Visible = false;
         RebuildLog();
     }
 
@@ -157,6 +231,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _scrim.Visible = true;
         _logPanel.Visible = false;
         _dialoguePanel.Visible = true;
+        if (_objPanel != null) _objPanel.Visible = false;
         RebuildDialogue();
     }
 
@@ -166,6 +241,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _scrim.Visible = false;
         _logPanel.Visible = false;
         _dialoguePanel.Visible = false;
+        if (_objPanel != null) _objPanel.Visible = false;
     }
 
     private void BuildUi()
@@ -184,24 +260,36 @@ public partial class Day1HistoryOverlay : CanvasLayer
         {
             Name = "HistoryIcons",
             AnchorLeft = 1f, AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
-            OffsetLeft = -260f, OffsetRight = -20f, OffsetTop = -76f, OffsetBottom = -20f,
+            OffsetLeft = -598f, OffsetRight = -20f, OffsetTop = -80f, OffsetBottom = -20f,
             MouseFilter = Control.MouseFilterEnum.Pass,
+            // 오른쪽에 붙인다 — 휴게시간에 '업무' 버튼이 빠져도 로그/대화 기록이 화면 오른쪽 끝에 남는다.
+            Alignment = BoxContainer.AlignmentMode.End,
         };
         _icons.AddThemeConstantOverride("separation", 10);
         _icons.Visible = false;
         _root.AddChild(_icons);
 
-        Button logIcon = MonitorUi.Button("L  로그", Cyan, _body, ToggleLog, 17);
+        // 오늘의 업무 — 평소에는 진행도만 작게 보여주고, 누르면 창이 열린다.
+        // 맨 왼쪽에 둔다 — 휴게시간에 이 버튼이 사라져도 나머지가 오른쪽에 그대로 붙어 있다.
+        _objButton = MonitorUi.Button("T  업무 0/0", new Color(0.62f, 0.92f, 0.70f), _body,
+            ToggleObjectives, ViewFont.FS(17));
+        _objButton.Name = "ObjectivesButton";
+        _objButton.TooltipText = "오늘의 업무 (T)";
+        _objButton.CustomMinimumSize = new Vector2(186, 56);
+        _objButton.MouseFilter = Control.MouseFilterEnum.Stop;
+        _icons.AddChild(_objButton);
+
+        Button logIcon = MonitorUi.Button("L  로그", Cyan, _body, ToggleLog, ViewFont.FS(17));
         logIcon.Name = "LogHistoryButton";
-        logIcon.TooltipText = "DAY1 시설 로그";
-        logIcon.CustomMinimumSize = new Vector2(100, 52);
+        logIcon.TooltipText = "시설 로그";
+        logIcon.CustomMinimumSize = new Vector2(134, 56);
         logIcon.MouseFilter = Control.MouseFilterEnum.Stop;
         _icons.AddChild(logIcon);
 
-        Button dialogueIcon = MonitorUi.Button("D  대화 기록", new Color(0.88f, 0.76f, 0.48f), _body, ToggleDialogue, 17);
+        Button dialogueIcon = MonitorUi.Button("D  대화 기록", new Color(0.88f, 0.76f, 0.48f), _body, ToggleDialogue, ViewFont.FS(17));
         dialogueIcon.Name = "DialogueHistoryButton";
         dialogueIcon.TooltipText = "DAY1 대화 기록";
-        dialogueIcon.CustomMinimumSize = new Vector2(110, 52);
+        dialogueIcon.CustomMinimumSize = new Vector2(216, 56);
         dialogueIcon.MouseFilter = Control.MouseFilterEnum.Stop;
         _icons.AddChild(dialogueIcon);
 
@@ -216,6 +304,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
         BuildLogPanel(_root);
         BuildDialoguePanel(_root);
+        BuildObjectivePanel(_root);
     }
 
     private void RefreshRootSize()
@@ -250,10 +339,24 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _logPanel.AddChild(title);
         _logPanel.AddChild(CloseButton(false));
 
+        // 띠 시간표 — 텍스트가 길게 늘어서면 "누가 언제 어디 있었는지"가 안 읽힌다는
+        // 플레이테스트 의견에 대한 자리다(§3-7). 목록보다 위에 두고, 구간을 누르면
+        // 아래 목록이 그 시각으로 내려간다.
+        _logBand = new StaffTimelineView
+        {
+            AnchorRight = 1f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 86f, OffsetBottom = 86f + LogBandH,
+            // 띠 안의 글자(시각 눈금 · 코드네임 · 방 이름 · 사고 라벨)는 아래 목록 줄과 같은 크기다.
+            FontPx = ViewFont.FS(18),
+        };
+        _logBand.SegmentPressed = (_, time) => ScrollLogTo(time);
+        _logBand.IncidentPressed = ScrollLogToRow;
+        _logPanel.AddChild(_logBand);
+
         _logScroll = new ScrollContainer
         {
             AnchorRight = 1f, AnchorBottom = 1f,
-            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 88f, OffsetBottom = -28f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 86f + LogBandH + 12f, OffsetBottom = -28f,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
             VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
             MouseFilter = Control.MouseFilterEnum.Stop,
@@ -267,6 +370,71 @@ public partial class Day1HistoryOverlay : CanvasLayer
         };
         _logRows.AddThemeConstantOverride("separation", 8);
         _logScroll.AddChild(_logRows);
+    }
+
+    // 띠 높이. 창의 본문(제목 아래 ~ 바닥, 566px)의 40% — 나머지 60% 가 텍스트 목록이다.
+    // 텍스트가 열 줄 넘게 늘어서면 "누가 언제 어디" 가 안 읽힌다는 게 이 띠를 만든 이유지만,
+    // 반반(280)으로 나누니 정작 목록이 너무 짧아졌다는 지적이 있었다.
+    private const float LogBandH = 226f;
+
+    // 오늘 근무에 나온 직원만 띠에 올린다(배치표 · 휴게 명단과 같은 명단).
+    private void RefreshLogBand()
+    {
+        _logBand?.SetData(FacilitySimulation.Instance?.GetActiveEmployeeIds(), _displayLog);
+    }
+
+    // 띠에서 구간을 누르면 아래 텍스트 목록을 그 시각으로 내린다.
+    private void ScrollLogTo(float time)
+    {
+        if (_displayLog == null) return;
+        for (int i = 0; i < _displayLog.Count; i++)
+            if (_displayLog[i].Timestamp >= time - 0.01f) { ScrollLogToRow(i); return; }
+        ScrollLogToRow(_displayLog.Count - 1);
+    }
+
+    // 사고 세로선을 누르면 그 줄 자체로 내린다.
+    private void ScrollLogToRow(int index)
+    {
+        if (_logScroll == null || _logRows == null) return;
+        if (index < 0 || index >= _logRows.GetChildCount()) return;
+        if (_logRows.GetChild(index) is not Control row) return;
+        _logScroll.ScrollVertical = Mathf.Max(0, (int)row.Position.Y - 6);
+        Sfx.Instance?.Play("relay_click", -16f);
+        MarkLogRow(row);
+    }
+
+    // 어느 줄로 왔는지 표시한다. 예전에는 밝기만 한 번 깜빡여서, 스크롤이 멈추기도 전에
+    // 효과가 끝나 있었다. 지금은 **흰 밑줄**을 긋고 천천히 지운다 — 눈이 그 줄을 찾을
+    // 시간이 있어야 띠를 누른 의미가 생긴다.
+    private void MarkLogRow(Control row)
+    {
+        _logFlash?.Kill();
+        if (_logMark != null && IsInstanceValid(_logMark)) _logMark.QueueFree();
+
+        _logMark = new ColorRect
+        {
+            Color = new Color(1f, 1f, 1f, 0.9f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
+            OffsetTop = -2f, OffsetBottom = 0f,
+        };
+        row.AddChild(_logMark);
+
+        row.Modulate = Colors.White;
+        _logFlash = CreateTween();
+        _logFlash.SetParallel(true);
+        // 글자는 잠깐 밝아졌다가 원래대로.
+        _logFlash.TweenProperty(row, "modulate", new Color(1.6f, 1.6f, 1.6f), 0.1f);
+        _logFlash.Chain().TweenProperty(row, "modulate", Colors.White, 1.1f);
+        // 밑줄은 한참 남아 있다가 천천히 사라진다.
+        _logFlash.TweenProperty(_logMark, "modulate:a", 1f, 0.1f);
+        _logFlash.Chain().TweenInterval(1.6);
+        _logFlash.Chain().TweenProperty(_logMark, "modulate:a", 0f, 1.2f);
+        var mark = _logMark;
+        _logFlash.Chain().TweenCallback(Callable.From(() =>
+        {
+            if (IsInstanceValid(mark)) mark.QueueFree();
+        }));
     }
 
     private void BuildDialoguePanel(Control root)
@@ -298,10 +466,20 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _dialoguePanel.AddChild(title);
         _dialoguePanel.AddChild(CloseButton(true));
 
+        // 직원별로 골라 보는 줄. 아무것도 고르지 않으면 전체 기록이 그대로 뜬다.
+        _dialogueTabs = new HBoxContainer
+        {
+            AnchorRight = 1f,
+            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 106f, OffsetBottom = 150f,
+            MouseFilter = Control.MouseFilterEnum.Pass,
+        };
+        _dialogueTabs.AddThemeConstantOverride("separation", 6);
+        _dialoguePanel.AddChild(_dialogueTabs);
+
         var rule = new HSeparator
         {
             AnchorRight = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 105f, OffsetBottom = 107f,
+            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 158f, OffsetBottom = 160f,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         rule.AddThemeColorOverride("separator", new Color(0.38f, 0.29f, 0.16f, 0.75f));
@@ -310,7 +488,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _dialogueScroll = new ScrollContainer
         {
             AnchorRight = 1f, AnchorBottom = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 122f, OffsetBottom = -34f,
+            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 172f, OffsetBottom = -34f,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
             VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
             MouseFilter = Control.MouseFilterEnum.Stop,
@@ -326,6 +504,196 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _dialogueScroll.AddChild(_dialogueRows);
     }
 
+    // --- 오늘의 업무 -----------------------------------------------------
+
+    private void BuildObjectivePanel(Control root)
+    {
+        _objPanel = new Panel
+        {
+            AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.5f, AnchorBottom = 0.5f,
+            OffsetLeft = -382f, OffsetRight = 382f, OffsetTop = -250f, OffsetBottom = 250f,
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            Visible = false,
+        };
+        _objPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = new Color(0.03f, 0.09f, 0.11f, 0.94f),
+            BorderColor = Cyan with { A = 0.6f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+        });
+        root.AddChild(_objPanel);
+
+        var frame = new HologramFrame { Accent = Cyan, MouseFilter = Control.MouseFilterEnum.Ignore };
+        frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _objPanel.AddChild(frame);
+
+        _objTitle = LabelFor("DAY 1 - 오늘의 업무", 24, Cyan, _body);
+        _objTitle.Position = new Vector2(28, 30);
+        _objTitle.Size = new Vector2(500, 34);
+        _objPanel.AddChild(_objTitle);
+
+        _objTime = LabelFor("남은 근무시간  --:--", 20, LogNormal, _body);
+        _objTime.Position = new Vector2(28, 70);
+        _objTime.Size = new Vector2(600, 28);
+        _objPanel.AddChild(_objTime);
+        _objPanel.AddChild(CloseButton(false));
+
+        _objRows = new VBoxContainer
+        {
+            AnchorRight = 1f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 112f, OffsetBottom = -110f,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _objRows.AddThemeConstantOverride("separation", 7);
+        _objPanel.AddChild(_objRows);
+
+        _objEndBtn = MonitorUi.Button("근무 종료", new Color(1f, 0.78f, 0.35f), _body,
+            () => { CloseWindow(); EndShiftRequested?.Invoke(); }, ViewFont.FS(19));
+        _objEndBtn.AnchorLeft = 0.5f; _objEndBtn.AnchorRight = 0.5f;
+        _objEndBtn.AnchorTop = 1f; _objEndBtn.AnchorBottom = 1f;
+        _objEndBtn.OffsetLeft = -110f; _objEndBtn.OffsetRight = 110f;
+        _objEndBtn.OffsetTop = -92f; _objEndBtn.OffsetBottom = -44f;
+        _objEndBtn.MouseFilter = Control.MouseFilterEnum.Stop;
+        _objPanel.AddChild(_objEndBtn);
+
+        _objHint = LabelFor("", 14, LogTime, _body);
+        _objHint.HorizontalAlignment = HorizontalAlignment.Center;
+        _objHint.AnchorRight = 1f; _objHint.AnchorTop = 1f; _objHint.AnchorBottom = 1f;
+        _objHint.OffsetLeft = 20f; _objHint.OffsetRight = -20f;
+        _objHint.OffsetTop = -38f; _objHint.OffsetBottom = -14f;
+        _objPanel.AddChild(_objHint);
+    }
+
+    private void TickObjectives(float delta)
+    {
+        var gs = GameState.Instance;
+        bool live = gs?.CurrentPhase == GamePhase.Live;
+
+        // 버튼은 근무 중 + 오늘 업무가 등록된 날에만. 닫혀 있어도 진행도(1/2)는 읽힌다.
+        // (가상 시뮬레이션 교육일에는 업무 데이터가 없으므로 버튼도 뜨지 않는다.)
+        bool show = live && DayObjectives.Today != null;
+        if (_objButton != null && _objButton.Visible != show) _objButton.Visible = show;
+
+        if (!live)
+        {
+            _objAutoShown = false;
+            if (_mode == WindowMode.Objectives) CloseWindow();
+            return;
+        }
+
+        _objTick += delta;
+        if (_objTick >= 0.25f)
+        {
+            _objTick = 0f;
+            if (_objButton != null)
+            {
+                string label = "T  " + DayObjectives.ShortStatus();
+                if (_objButton.Text != label) _objButton.Text = label;
+            }
+        }
+
+        // DAY 가 시작되면 한 번만 저절로 열어 "오늘 뭘 해야 하는지"를 먼저 보여준다.
+        // 교육(가상 시뮬레이션)은 GUIDE-0 가 직접 안내하므로 건드리지 않는다.
+        if (!_objAutoShown && !DayFeatures.IsTutorialDay && DayObjectives.Today != null)
+        {
+            _objAutoShown = true;
+            if (_mode == WindowMode.None) OpenObjectives();
+        }
+
+        if (_mode == WindowMode.Objectives) RefreshObjectives();
+    }
+
+    private void RefreshObjectives()
+    {
+        if (_objPanel == null || !_objPanel.Visible) return;
+
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        _objTitle.Text = $"{DayFeatures.DayLabel(day)} - 오늘의 업무";
+
+        // 남은 시간은 매 프레임 갱신한다. 30초 아래로 내려가면 붉게만 바꾼다
+        // (화면 전체를 깜빡이게 하지 않는다).
+        float left = DayObjectives.RemainingSeconds;
+        _objTime.Text = $"남은 근무시간   {(int)left / 60:00}:{(int)left % 60:00}";
+        _objTime.AddThemeColorOverride("font_color", left <= 30f ? LogCritical : LogNormal);
+
+        var lines = DayObjectives.Lines();
+        // 내용이 바뀐 경우에만 줄을 다시 만든다(매 프레임 새로 만들 이유가 없다).
+        string sig = string.Join("|", lines.Select(l => $"{l.Def.ObjectiveId}:{l.Done}:{l.ProgressText}"));
+        if (sig != _objSignature)
+        {
+            _objSignature = sig;
+            RebuildObjectiveRows(lines);
+        }
+
+        bool can = DayObjectives.CanEndShift;
+        if (_objEndBtn.Disabled == can) _objEndBtn.Disabled = !can;
+        _objHint.Text = can
+            ? "필수 업무 완료 — 더 일하거나, 지금 근무를 마칠 수 있습니다."
+            : "필수 업무를 완료해야 근무를 종료할 수 있습니다.";
+    }
+
+    private void RebuildObjectiveRows(System.Collections.Generic.List<DayObjectives.Line> lines)
+    {
+        ClearRows(_objRows);
+        if (lines.Count == 0)
+        {
+            AddEmpty(_objRows, "등록된 업무가 없습니다.", Cyan with { A = 0.65f });
+            return;
+        }
+
+        bool headedRequired = false, headedOptional = false;
+        foreach (var l in lines.Where(x => x.Required).Concat(lines.Where(x => !x.Required)))
+        {
+            if (l.Required && !headedRequired)
+            {
+                headedRequired = true;
+                _objRows.AddChild(SectionHead("필수 업무"));
+            }
+            else if (!l.Required && !headedOptional)
+            {
+                headedOptional = true;
+                _objRows.AddChild(SectionHead("선택 업무"));
+            }
+            _objRows.AddChild(ObjectiveRow(l));
+        }
+    }
+
+    private Label SectionHead(string text)
+    {
+        var l = LabelFor(text, 15, LogTime, _body);
+        l.CustomMinimumSize = new Vector2(0, 26);
+        return l;
+    }
+
+    // "☑ 봉쇄 코어 복구율 18% 달성        18.4 / 18%"
+    private RichTextLabel ObjectiveRow(DayObjectives.Line l)
+    {
+        var line = new RichTextLabel
+        {
+            BbcodeEnabled = true,
+            FitContent = true,
+            ScrollActive = false,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, 30),
+        };
+        line.AddThemeFontOverride("normal_font", _body);
+        line.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(18));
+
+        // 근무가 끝나야 확정되는 업무는 근무 중에 '달성'으로 보여주지 않는다 —
+        // 시작하자마자 초록 별이 켜져 있으면 이미 끝낸 줄 안다.
+        bool settled = l.Done && !l.Provisional;
+        string mark = l.Required ? (settled ? "☑" : "□") : (settled ? "★" : "☆");
+        Color col = settled ? LogRecovery : (l.Required ? LogNormal : LogTime);
+        string tail = l.ProgressText;
+        if (l.Provisional) tail += l.Done ? "  유지 중" : "  실패";
+        line.Text = $"[color=#{col.ToHtml(false)}]  {mark}  {Escape(l.Def.DisplayText)}[/color]" +
+                    (string.IsNullOrEmpty(tail)
+                        ? ""
+                        : $"   [color=#{LogTime.ToHtml(false)}]{Escape(tail)}[/color]");
+        return line;
+    }
+
     private Button CloseButton(bool paper)
     {
         Color color = paper ? InkDim : Cyan;
@@ -337,7 +705,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             TooltipText = "닫기",
         };
         close.AddThemeFontOverride("font", _body);
-        close.AddThemeFontSizeOverride("font_size", 22);
+        close.AddThemeFontSizeOverride("font_size", ViewFont.FS(22));
         close.AddThemeColorOverride("font_color", color);
         close.AddThemeColorOverride("font_hover_color", Colors.White);
         var normal = new StyleBoxFlat
@@ -359,22 +727,102 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private void RebuildLog()
     {
         ClearRows(_logRows);
+        _logStars.Clear();
         _logRendered = 0;
-        _displayLog = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(), 1);
-        foreach (var row in _displayLog) AppendLogRow(row);
+        // 교육일(DAY0)에도 그날의 기록이 그대로 뜬다 — 1 로 못 박으면 튜토리얼이 통째로 빈다.
+        _displayLog = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
+            GameState.Instance?.CurrentDay ?? 1);
+        for (int i = 0; i < _displayLog.Count; i++) AppendLogRow(_displayLog, i);
+        RefreshLogBand();
         if (_logRendered == 0) AddEmpty(_logRows, "아직 기록된 시설 로그가 없습니다.", Cyan with { A = 0.65f });
         QueueLogScroll(true, 0);
     }
 
     private void RebuildDialogue()
     {
+        BuildDialogueTabs();
         ClearRows(_dialogueRows);
         _dialogueRendered = 0;
-        foreach (var entry in DialogueHistory.Instance?.GetAllEntries().Where(e => e.Day == 1)
-                     ?? Enumerable.Empty<DialogueHistoryEntry>())
+        // 기록된 차례 그대로 내려 쓴다 — 다시 정렬하지 않는다.
+        foreach (var entry in DialogueHistory.Instance?.GetAllEntries() ?? Enumerable.Empty<DialogueHistoryEntry>())
+        {
+            // 교육일(DAY0)의 대화도 그대로 뜬다 — 튜토리얼에서 이 화면을 쓰는 법을 배운다.
+            if (entry.Day != (GameState.Instance?.CurrentDay ?? 1) || !PassesFilter(entry)) continue;
             AppendDialogueRow(entry);
-        if (_dialogueRendered == 0) AddEmpty(_dialogueRows, "아직 기록된 대화가 없습니다.", InkDim);
+        }
+        if (_dialogueRendered == 0)
+            AddEmpty(_dialogueRows, _dialogueFilter.Count > 0
+                ? "고른 직원과의 대화 기록이 없습니다."
+                : "아직 기록된 대화가 없습니다.", InkDim);
         QueueDialogueScroll(true, 0);
+    }
+
+    // 고른 직원이 없으면 전부, 있으면 그 직원들과 오간 대화만.
+    private bool PassesFilter(DialogueHistoryEntry e)
+    {
+        if (_dialogueFilter.Count == 0) return true;
+        foreach (string id in _dialogueFilter)
+            if (DialogueHistory.Involves(e, id)) return true;
+        return false;
+    }
+
+    // 직원 이름 버튼 줄. 각자의 고유색으로 칠하고, 누르면 켜지고 다시 누르면 꺼진다.
+    private void BuildDialogueTabs()
+    {
+        if (_dialogueTabs == null) return;
+        foreach (Node c in _dialogueTabs.GetChildren()) { _dialogueTabs.RemoveChild(c); c.QueueFree(); }
+
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return;
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            var def = sim.GetEmployeeDef(id);
+            if (def == null) continue;
+            string captured = id;
+            bool on = _dialogueFilter.Contains(id);
+            _dialogueTabs.AddChild(SpeakerTab(def.Codename, def.IconColor, on, () =>
+            {
+                if (!_dialogueFilter.Remove(captured)) _dialogueFilter.Add(captured);
+                RebuildDialogue();
+            }));
+        }
+    }
+
+    // 종이 위에 찍힌 이름표처럼 보이게 한다. 켜지면 그 직원 색으로 칠해진다.
+    private Button SpeakerTab(string label, Color own, bool on, System.Action onPressed)
+    {
+        // 밝은 고유색은 종이 위에서 흐려진다 — 잉크 쪽으로 섞어 글자가 읽히게 한다.
+        Color ink = own.Lerp(Ink, 0.45f);
+        var b = new Button
+        {
+            Text = label,
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, 38),
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            ToggleMode = false,
+        };
+        b.AddThemeFontOverride("font", _body);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
+        b.AddThemeColorOverride("font_color", on ? Paper : ink);
+        b.AddThemeColorOverride("font_hover_color", on ? Paper : InkRed);
+        b.AddThemeColorOverride("font_pressed_color", on ? Paper : InkRed);
+
+        var normal = new StyleBoxFlat
+        {
+            BgColor = on ? ink : new Color(ink.R, ink.G, ink.B, 0.10f),
+            BorderColor = ink with { A = on ? 1f : 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = on ? 3 : 1,
+            CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3,
+            ContentMarginLeft = 6, ContentMarginRight = 6, ContentMarginTop = 4, ContentMarginBottom = 4,
+        };
+        var hover = (StyleBoxFlat)normal.Duplicate();
+        hover.BgColor = on ? ink : new Color(ink.R, ink.G, ink.B, 0.26f);
+        b.AddThemeStyleboxOverride("normal", normal);
+        b.AddThemeStyleboxOverride("hover", hover);
+        b.AddThemeStyleboxOverride("pressed", hover);
+        b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        b.Pressed += () => onPressed();
+        return b;
     }
 
     // 원본 기록 하나가 화면 로그 0줄이 될 수도, 여러 줄이 될 수도 있다.
@@ -382,15 +830,17 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private void OnLogAdded()
     {
         if (_mode != WindowMode.Log) return;
-        var rebuilt = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(), 1);
-        if (rebuilt.Count == _displayLog.Count) { _displayLog = rebuilt; return; }
+        var rebuilt = FacilityLogFormatter.Build(EventLog.Instance?.GetAllEntries(),
+            GameState.Instance?.CurrentDay ?? 1);
+        if (rebuilt.Count == _displayLog.Count) { _displayLog = rebuilt; RefreshLogBand(); return; }
         if (rebuilt.Count < _logRendered) { _displayLog = rebuilt; RebuildLog(); return; }
 
         bool stick = IsAtBottom(_logScroll);
         double old = _logScroll.GetVScrollBar().Value;
         if (_logRendered == 0) ClearRows(_logRows);
-        for (int i = _logRendered; i < rebuilt.Count; i++) AppendLogRow(rebuilt[i]);
+        for (int i = _logRendered; i < rebuilt.Count; i++) AppendLogRow(rebuilt, i);
         _displayLog = rebuilt;
+        RefreshLogBand();
         QueueLogScroll(stick, old);
     }
 
@@ -398,7 +848,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     {
         if (_mode != WindowMode.Dialogue) return;
         var entry = DialogueHistory.Instance?.GetAllEntries().LastOrDefault();
-        if (entry == null || entry.Day != 1) return;
+        if (entry == null || entry.Day != (GameState.Instance?.CurrentDay ?? 1)) return;
+        if (!PassesFilter(entry)) return;
         bool stick = IsAtBottom(_dialogueScroll);
         double old = _dialogueScroll.GetVScrollBar().Value;
         if (_dialogueRendered == 0) ClearRows(_dialogueRows);
@@ -418,8 +869,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     // 시각은 기본색, 본문은 "직원 고유색" 또는 "중요도 색". 두 색을 한 줄에 쓰기 위해
     // RichTextLabel 을 사용한다.
-    private void AppendLogRow(DisplayLogEntry row)
+    private void AppendLogRow(List<DisplayLogEntry> rows, int index)
     {
+        var row = rows[index];
         var line = new RichTextLabel
         {
             BbcodeEnabled = true,
@@ -434,28 +886,100 @@ public partial class Day1HistoryOverlay : CanvasLayer
         line.AddThemeFontSizeOverride("normal_font_size", ViewFont.FS(18));
         line.Text = $"[color=#{LogTime.ToHtml(false)}]{ShiftClock(row.Timestamp)}[/color]  " +
                     $"[color=#{BodyColor(row).ToHtml(false)}]{Marker(row.Severity)} {Escape(row.Text)}[/color]";
+        // 줄 왼쪽에 ☆ 자리를 비워 둔다 — 별이 없는 줄도 글자가 같은 세로선에서 시작한다.
+        // 별은 줄(RichTextLabel)의 자식으로 얹는다. 줄 하나 = 노드 하나 구조를 그대로 둬야
+        // 띠 시간표의 "그 줄로 내려가기 · 밑줄 긋기"가 그대로 동작한다.
+        line.AddThemeStyleboxOverride("normal", new StyleBoxEmpty { ContentMarginLeft = LogStarWidth });
+        var ev = InterviewEvidenceBoard.FromLogRow(rows, index);
+        if (ev != null) AddLogStar(line, ev);
         _logRows.AddChild(line);
         _logRendered++;
     }
 
-    // 직원 개인의 행동이면 그 직원의 고유색(IconColor), 시설 사건이면 중요도 색.
-    private static Color BodyColor(DisplayLogEntry row)
+    // ☆ — 심문 조사 노트의 ★ 와 같은 모양 · 같은 조작이다. 누르면 관리자 패드의 단서로 찍힌다.
+    // 평소에는 숨어 있고 줄 위에 마우스를 올렸을 때만 보인다(찍힌 줄은 늘 ★).
+    private void AddLogStar(Control line, InterviewEvidence ev)
     {
+        var star = new Button
+        {
+            Text = "☆",
+            Position = Vector2.Zero,
+            Size = new Vector2(LogStarWidth, 29),
+            TooltipText = "단서로 기록 — 관리자 패드에 보관",
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            MouseDefaultCursorShape = Control.CursorShape.PointingHand,
+            FocusMode = Control.FocusModeEnum.None,
+        };
+        star.AddThemeFontOverride("font", _body);
+        star.AddThemeFontSizeOverride("font_size", ViewFont.FS(18));
+        star.AddThemeColorOverride("font_hover_color", LogStarOn);
+        foreach (string st in new[] { "normal", "hover", "pressed", "focus" })
+            star.AddThemeStyleboxOverride(st, new StyleBoxEmpty());
+        var captured = ev;
+        star.Pressed += () => ClueBoard.Toggle(captured);
+        line.AddChild(star);
+        _logStars.Add((star, ev, line));
+        PaintLogStar(star, ev, false);
+    }
+
+    private static readonly Color LogStarOn = new(1f, 0.80f, 0.36f);   // 조사 노트 ★ 와 같은 호박색
+    private static readonly Color LogStarOff = new(0.55f, 0.95f, 1f, 0.55f);
+
+    private static void PaintLogStar(Button star, InterviewEvidence ev, bool hover)
+    {
+        bool pinned = ClueBoard.IsPinned(ev);
+        star.Text = pinned ? "★" : "☆";
+        star.AddThemeColorOverride("font_color", pinned ? LogStarOn : LogStarOff);
+        star.Modulate = pinned || hover ? Colors.White : Colors.Transparent;
+    }
+
+    // 마우스가 올라간 줄의 ☆ 만 보인다. 줄 수가 많아도 창이 열려 있을 때만 돈다.
+    private void PaintLogStars()
+    {
+        if (_logStars.Count == 0 || _root == null) return;
+        Vector2 mouse = _root.GetGlobalMousePosition();
+        foreach (var (star, ev, row) in _logStars)
+        {
+            if (!IsInstanceValid(star)) continue;
+            PaintLogStar(star, ev, row.GetGlobalRect().HasPoint(mouse));
+        }
+    }
+
+    private void OnClueChanged(ClueBoard.Entry entry, bool pinned)
+    {
+        if (_mode == WindowMode.Log) PaintLogStars();
+    }
+
+    // 직원 개인의 행동이면 그 직원의 고유색(IconColor), 시설 사건이면 중요도 색.
+    // 검사(RoomEffectTest)가 "로그 줄이 색으로 갈라지는가" 를 실제 함수로 확인하도록 공개한다.
+    public static Color BodyColor(DisplayLogEntry row)
+    {
+        // 중요한 사건은 직원 고유색에 묻히면 안 된다 — 중요도 색이 항상 이긴다.
+        switch (row.Severity)
+        {
+            case DisplayLogSeverity.Warning: return LogWarning;
+            case DisplayLogSeverity.Critical: return LogCritical;
+            case DisplayLogSeverity.Sabotage: return LogSabotage;
+            case DisplayLogSeverity.Recovery: return LogRecovery;
+            // 작업실 효과는 그 방의 지도 색으로 쓴다 — 어느 방이 일하고 있는지가
+            // 문장을 읽기 전에 색으로 먼저 들어온다.
+            case DisplayLogSeverity.RoomEffect:
+            {
+                var rdef = FacilitySimulation.Instance?.GetRoomDef(row.RoomId);
+                if (rdef != null) return Readable(rdef.MapColor);
+                return LogNormal;
+            }
+        }
+        // 배치·이동은 누구의 줄인지가 먼저 읽혀야 하므로 그 직원의 고유색으로 쓴다.
         if (!string.IsNullOrEmpty(row.RelatedEmployeeId))
         {
             var def = FacilitySimulation.Instance?.GetEmployeeDef(row.RelatedEmployeeId);
             if (def != null) return Readable(def.IconColor);
         }
-        return row.Severity switch
-        {
-            DisplayLogSeverity.Warning => LogWarning,
-            DisplayLogSeverity.Critical => LogCritical,
-            DisplayLogSeverity.Recovery => LogRecovery,
-            _ => LogNormal,
-        };
+        return row.Severity == DisplayLogSeverity.Move ? LogMove : LogNormal;
     }
 
-    // 까마귀처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
+    // 늑대처럼 어두운 고유색은 검은 배경에서 안 읽힌다. 색상(hue)은 그대로 두고
     // 최소 밝기까지만 끌어올린다. 로그는 글자가 작고 줄이 빽빽해 통화창(0.55)보다
     // 더 밝게 잡는다 — 이 값은 시설 로그에서만 쓴다.
     private static Color Readable(Color c)
@@ -467,9 +991,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
 
     private static string Marker(DisplayLogSeverity severity) => severity switch
     {
+        DisplayLogSeverity.Move => "→",
         DisplayLogSeverity.Warning => "⚠",
-        DisplayLogSeverity.Critical => "■",
+        DisplayLogSeverity.Critical => "⚠",
+        DisplayLogSeverity.Sabotage => "■",
         DisplayLogSeverity.Recovery => "✓",
+        DisplayLogSeverity.RoomEffect => "◆",
         _ => "·",
     };
 
@@ -566,10 +1093,6 @@ public partial class Day1HistoryOverlay : CanvasLayer
         return label;
     }
 
-    private static string ShiftClock(float elapsedSeconds)
-    {
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMinutes = 22 * 60 + Mathf.FloorToInt(Mathf.Max(0f, elapsedSeconds) * (360f / Mathf.Max(1f, shiftLength)));
-        return $"{(totalMinutes / 60) % 24:00}:{totalMinutes % 60:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string ShiftClock(float elapsedSeconds) => NSP.Dialogue.DialogueClock.Text(elapsedSeconds);
 }

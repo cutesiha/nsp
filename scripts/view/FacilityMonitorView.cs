@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using System.Text;
 using Godot;
 using NSP.Core;
@@ -33,7 +33,15 @@ public partial class FacilityMonitorView : Control
     // 인스펙터 얼굴 썸네일 한 변(1:1).
     private const float FaceSize = 72f;
     private Button _isolateBtn;
-    private RichTextLabel _log;
+    private Label _notice;
+    private double _noticeUntil;
+    private Control _roomDots;
+    private readonly System.Collections.Generic.List<Color> _roomDotColors = new();
+
+    // 위 두 블록(지도 · 설명) 높이와 아래 한 줄 알림 높이.
+    private const float BodyHeight = 448f;
+    private const float NoticeHeight = 40f;
+    private const float EmpDotRadius = 10f;   // FacilityMinimap 의 직원 아이콘과 같은 크기
     private Control _endShiftConfirmation;
 
     private string _selRoom = "";
@@ -61,9 +69,8 @@ public partial class FacilityMonitorView : Control
         if (EventLog.Instance != null)
         {
             EventLog.Instance.EntryLogged += OnLog;
-            EventLog.Instance.Cleared += OnLog;
         }
-        RebuildLog();
+        FacilityAlertHud.Noticed += OnNotice;
     }
 
     public override void _ExitTree()
@@ -71,8 +78,9 @@ public partial class FacilityMonitorView : Control
         if (EventLog.Instance != null)
         {
             EventLog.Instance.EntryLogged -= OnLog;
-            EventLog.Instance.Cleared -= OnLog;
         }
+        FacilityAlertHud.Noticed -= OnNotice;
+        NSP.Facility.RoomEffectStats.MaterialsGained -= PopMaterials;
         if (Instance == this) Instance = null;
     }
 
@@ -89,7 +97,7 @@ public partial class FacilityMonitorView : Control
     {
         var l = new Label { Text = text };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -105,31 +113,38 @@ public partial class FacilityMonitorView : Control
         bar.AddChild(title);
 
         _clock = MakeLabel("--:--", 20, Amber);
-        _clock.Position = new Vector2(560, 8);
-        _clock.Size = new Vector2(130, 28);
+        _clock.Position = new Vector2(420, 8);
+        _clock.Size = new Vector2(262, 28);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         bar.AddChild(_clock);
 
-        var endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, 14);
-        endBtn.Position = new Vector2(690, 6);
-        endBtn.Size = new Vector2(104, 32);
-        bar.AddChild(endBtn);
+        _endBtn = MonitorUi.Button("근무 종료", Amber, _font, OnEndShiftPressed, ViewFont.S(14));
+        _endBtn.Position = new Vector2(690, 6);
+        _endBtn.Size = new Vector2(104, 32);
+        _endBtn.TooltipText = "필수 업무를 모두 끝내야 누를 수 있습니다.";
+        bar.AddChild(_endBtn);
 
         _alertLine = MakeLabel("", 15, Alert);
         _alertLine.Position = new Vector2(12, 46);
         _alertLine.Size = new Vector2(776, 20);
         AddChild(_alertLine);
 
-        _protocol = MakeLabel("TODAY'S PROTOCOL", 13, Amber);
-        _protocol.Position = new Vector2(12, 66);
-        _protocol.Size = new Vector2(776, 24);
-        _protocol.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        // 자재는 근무 내내 가장 자주 보는 숫자인데, 화면 왼쪽 위 경고줄 밑에 주황색으로
+        // 깔려 있어 경고와 섞여 눈에 들어오지 않았다. 「근무 종료」 버튼 바로 아래
+        // 오른쪽 끝에 흰 글씨로 따로 세운다.
+        _protocol = MakeLabel("", 16, Colors.White);
+        _protocol.Position = new Vector2(400, 44);
+        _protocol.Size = new Vector2(394, 24);
+        _protocol.HorizontalAlignment = HorizontalAlignment.Right;
+        // 오른쪽 끝을 축으로 커졌다 돌아온다 — 숫자가 제자리에서 튀어 보인다.
+        _protocol.PivotOffset = new Vector2(394f, 12f);
         AddChild(_protocol);
+        RoomEffectStats.MaterialsGained += PopMaterials;
     }
 
     private void BuildBody()
     {
-        var mapPanel = new Panel { Position = new Vector2(8, 96), Size = new Vector2(452, 372) };
+        var mapPanel = new Panel { Position = new Vector2(8, 96), Size = new Vector2(452, BodyHeight) };
         mapPanel.AddThemeStyleboxOverride("panel", Panelbox(new Color(0.05f, 0.08f, 0.07f)));
         AddChild(mapPanel);
 
@@ -137,12 +152,12 @@ public partial class FacilityMonitorView : Control
         mapHead.Position = new Vector2(6, 4);
         mapPanel.AddChild(mapHead);
 
-        _minimap = new FacilityMinimap { Position = new Vector2(10, 24), Size = new Vector2(432, 340) };
+        _minimap = new FacilityMinimap { Position = new Vector2(10, 24), Size = new Vector2(432, BodyHeight - 32f) };
         _minimap.OnRoomSelected = SelectRoom;
         _minimap.OnEmployeeSelected = SelectEmployee;
         mapPanel.AddChild(_minimap);
 
-        var insPanel = new Panel { Position = new Vector2(468, 96), Size = new Vector2(324, 372) };
+        var insPanel = new Panel { Position = new Vector2(468, 96), Size = new Vector2(324, BodyHeight) };
         insPanel.AddThemeStyleboxOverride("panel", Panelbox(new Color(0.05f, 0.08f, 0.07f)));
         AddChild(insPanel);
 
@@ -171,37 +186,49 @@ public partial class FacilityMonitorView : Control
             ScrollActive = false,
         };
         _inspector.AddThemeFontOverride("normal_font", _font);
-        _inspector.AddThemeFontSizeOverride("normal_font_size", 17);
+        _inspector.AddThemeFontSizeOverride("normal_font_size", ViewFont.S(19));
+        _inspector.AddThemeFontOverride("bold_font", new FontVariation { BaseFont = _font, VariationEmbolden = 0.9f });
         _inspector.AddThemeColorOverride("default_color", Ink);
         insPanel.AddChild(_inspector);
 
-        _isolateBtn = new Button { Position = new Vector2(10, 328), Size = new Vector2(304, 36), Text = "격리", Visible = false };
-        _isolateBtn.AddThemeFontSizeOverride("font_size", 15);
+        // 작업실을 고르면 "직원 :" 줄 옆에 미니맵과 같은 동그란 직원 아이콘만 늘어놓는다.
+        _roomDots = new Control { MouseFilter = MouseFilterEnum.Ignore, Visible = false, Size = new Vector2(300f, 30f) };
+        _roomDots.Draw += DrawRoomDots;
+        insPanel.AddChild(_roomDots);
+
+        _isolateBtn = new Button { Position = new Vector2(10, BodyHeight - 44f), Size = new Vector2(304, 36), Text = "격리", Visible = false };
+        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
         _isolateBtn.Pressed += OnIsolatePressed;
         insPanel.AddChild(_isolateBtn);
     }
 
+    // 아래 블록 = 한 줄 알림. 메인 화면 왼쪽 아래 알림(FacilityAlertHud)이 뜰 때만 그 한 줄을 띄운다.
+    // (전체 기록은 L 키 시설 로그가 맡는다.)
     private void BuildLog()
     {
-        var panel = new Panel { Position = new Vector2(8, 476), Size = new Vector2(784, 118) };
+        var panel = new Panel { Position = new Vector2(8, 96 + BodyHeight + 6), Size = new Vector2(784, NoticeHeight) };
         panel.AddThemeStyleboxOverride("panel", Panelbox(new Color(0.05f, 0.08f, 0.07f)));
         AddChild(panel);
 
-        var head = MakeLabel(" LOG", 12, Dim);
-        head.Position = new Vector2(6, 2);
-        panel.AddChild(head);
+        _notice = MakeLabel("", 17, Ink);
+        _notice.Position = new Vector2(12, 0);
+        _notice.Size = new Vector2(760, NoticeHeight);
+        _notice.VerticalAlignment = VerticalAlignment.Center;
+        _notice.ClipText = true;
+        panel.AddChild(_notice);
+    }
 
-        _log = new RichTextLabel
+    private void OnNotice(string text, NoticeLevel level)
+    {
+        if (_notice == null) return;
+        _notice.Text = text;
+        _notice.AddThemeColorOverride("font_color", level switch
         {
-            Position = new Vector2(10, 20),
-            Size = new Vector2(764, 92),
-            BbcodeEnabled = true,
-            ScrollActive = false,
-        };
-        _log.AddThemeFontOverride("normal_font", _font);
-        _log.AddThemeFontSizeOverride("normal_font_size", 12);
-        _log.AddThemeColorOverride("default_color", Dim);
-        panel.AddChild(_log);
+            NoticeLevel.Critical => Alert,
+            NoticeLevel.Warning => Amber,
+            _ => Ink,
+        });
+        _noticeUntil = Time.GetTicksMsec() / 1000.0 + (level == NoticeLevel.Critical ? 6.5 : 4.0);
     }
 
     private StyleBoxFlat Panelbox(Color bg)
@@ -237,9 +264,14 @@ public partial class FacilityMonitorView : Control
             FacilitySimulation.Instance?.SetSurveillanceTarget(_selRoom);
     }
 
+    private Button _endBtn;
+
     private void OnEndShiftPressed()
     {
-        float limit = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
+        // 필수 업무를 끝내기 전에는 근무를 끝낼 수 없다(오늘의 업무 창과 같은 규칙).
+        if (!DayObjectives.CanEndShift) return;
+
+        float limit = DayObjectives.MaxShiftSeconds;
         float elapsed = GameState.Instance?.DayTimeSeconds ?? 0f;
         if (elapsed < limit)
         {
@@ -293,7 +325,7 @@ public partial class FacilityMonitorView : Control
         message.VerticalAlignment = VerticalAlignment.Center;
         panel.AddChild(message);
 
-        var no = MonitorUi.Button("아니오", Dim, _font, () => _endShiftConfirmation.Visible = false, 16);
+        var no = MonitorUi.Button("아니오", Dim, _font, () => _endShiftConfirmation.Visible = false, ViewFont.S(16));
         no.Position = new Vector2(125, 158);
         no.Size = new Vector2(110, 40);
         panel.AddChild(no);
@@ -324,13 +356,52 @@ public partial class FacilityMonitorView : Control
     {
         string clock = ShiftClock(GameState.Instance?.DayTimeSeconds ?? 0f);
         if (_clock.Text != clock) _clock.Text = clock;
+
+        // 필수 업무를 끝내기 전에는 근무를 끝낼 수 없다는 걸 버튼 모양으로 보여준다.
+        if (_endBtn != null)
+        {
+            bool can = DayObjectives.CanEndShift;
+            if (_endBtn.Disabled == can) _endBtn.Disabled = !can;
+        }
         UpdateProtocol();
         UpdateInspector();
+        if (_notice != null && _notice.Text != "" && Time.GetTicksMsec() / 1000.0 > _noticeUntil) _notice.Text = "";
 
         if (Time.GetTicksMsec() / 1000.0 > _alertUntil)
             _alertLine.Text = "";
         else
             _alertLine.Modulate = new Color(1, 1, 1, 0.4f + 0.6f * Mathf.Abs(Mathf.Sin(Time.GetTicksMsec() / 120f)));
+    }
+
+    // DAY0 교육에서 "이 줄을 보라"고 한 번 짚어 주기 위한 강조. 그 방을 처음 배치한
+    // 직후 몇 초 동안만 (a) 줄이 노랗게 뜬다. 게임 규칙과는 무관한 표시 장치다.
+    private static string _highlightRoom = "";
+    private static float _highlightUntil;
+    private static bool HighlightAlive => Time.GetTicksMsec() / 1000f < _highlightUntil;
+
+    public static void HighlightRoomNumber(string roomId, float seconds = 12f)
+    {
+        _highlightRoom = roomId ?? "";
+        _highlightUntil = Time.GetTicksMsec() / 1000f + seconds;
+        // 카드가 떠 있지 않으면 강조할 줄 자체가 없다 — 그 방을 골라 준다.
+        if (!string.IsNullOrEmpty(roomId)) Instance?.SelectRoom(roomId);
+    }
+
+    // 방 이름이나 직원 이름에 대괄호가 들어가도 BBCode 태그로 읽히지 않게 한다.
+    private static string Escape(string text) => (text ?? "").Replace("[", "[lb]");
+
+    // 자재가 늘어난 순간 자재 숫자가 0.2초 동안 커졌다 돌아온다.
+    // 정비실이 지금 무엇을 만들어 내고 있는지 눈이 먼저 안다.
+    private Tween _materialsPop;
+
+    private void PopMaterials()
+    {
+        if (_protocol == null || !IsInsideTree()) return;
+        _materialsPop?.Kill();
+        _protocol.Scale = new Vector2(1.16f, 1.16f);
+        _materialsPop = CreateTween();
+        _materialsPop.TweenProperty(_protocol, "scale", Vector2.One, 0.2)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
     }
 
     // 성능: RichTextLabel 에 Text 를 대입하면 내용이 같아도 BBCode 를 다시 파싱하고
@@ -355,17 +426,24 @@ public partial class FacilityMonitorView : Control
         // 방을 고르면 격리 버튼이 숨으므로 그 자리까지 설명이 내려올 수 있다.
         // (직원을 고르면 y 328 의 격리 버튼 위에서 끊어야 한다.)
         float top = tex != null ? 30f + FaceSize + 6f : 30f;
-        float bottom = tex != null ? 322f : 362f;
+        float bottom = tex != null ? BodyHeight - 50f : BodyHeight - 10f;
         _inspector.Position = new Vector2(10, top);
         _inspector.Size = new Vector2(304, bottom - top);
     }
 
+    // 화면 위 한 줄 — 근무 중 가장 자주 확인해야 하는 자재 보유/한도를 싣는다.
+    // (금기가 켜진 날에는 그 뒤에 함께 붙는다. 금기가 없으면 자재만 뜬다.)
     private void UpdateProtocol()
     {
-        var sb = new StringBuilder("TODAY'S PROTOCOL   ");
+        var gs = NSP.Core.GameState.Instance;
+        var sb = new StringBuilder();
+        sb.Append($"자재  {gs?.Materials ?? 0} / {gs?.MaterialsCap ?? 0}");
+        // 소모량은 "코어 1% 당" 으로 환산해 쓴다 — 관리자가 실제로 세는 단위가 %다.
+        // (코어 복구 업무 한 번이 몇 % 를 올리는지는 데이터가 정한다.)
+        sb.Append($"    코어 복구 1%당 {NSP.Facility.RoomStaffing.CoreMaterialCostPerPercent()} 소모");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
-        if (taboos == null || taboos.Count == 0) sb.Append("—");
-        else sb.Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
+        if (taboos is { Count: > 0 })
+            sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
         string protocol = sb.ToString();
         if (_protocol.Text != protocol) _protocol.Text = protocol;
     }
@@ -385,36 +463,58 @@ public partial class FacilityMonitorView : Control
             var task = sim.GetActiveTaskForRoom(st.CurrentRoomId);
             string status = !st.Alive ? "[color=#ff5555]활동 중단[/color]"
                 : st.Isolated ? "[color=#dd88dd]격리됨[/color]"
-                : st.Incapacitated ? "[color=#ff5555]기절 — 당일 업무 불가[/color]"
+                : st.Incapacitated ? "[color=#ff5555]기절 — 의무실에서 회복 중[/color]"
                 : st.IsMoving ? "이동 중" : "정상";
-
-            // 스트레스는 1~50 구간제. 구간 이름과 그 구간의 업무 속도를 같이 보여준다.
-            string band = sim.StressBandName(st);
-            string bandColor = band switch
-            {
-                "기절" => "#ff5555",
-                "위험" => "#ff9933",
-                "주의" => "#dddd55",
-                _ => "#88cc88",
-            };
-            int workPct = Mathf.RoundToInt(sim.StressWorkRate(st) * 100f);
-            float stressMax = Config.Instance?.Data?.StressMax ?? 50f;
 
             string doing = st.IsMoving ? "이동 중" : task?.DisplayName ?? "대기";
             bool abnormal = !st.Alive || st.Isolated || st.Incapacitated;
+
+            // 능력치/스트레스가 잠긴 날에는 그 줄 자체를 싣지 않고,
+            // 배치 판단에 실제로 쓰는 "오늘의 기분"을 대신 보여준다.
+            string detail;
+            if (DayFeatures.StatsEnabled || DayFeatures.StressEnabled)
+            {
+                var sb = new System.Text.StringBuilder();
+                if (DayFeatures.StatsEnabled)
+                {
+                    sb.Append($"기술 {def.Tech} · 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"담력 {def.Courage} · 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"관찰 {def.Observation} · 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n");
+                }
+                if (DayFeatures.StressEnabled)
+                {
+                    // 스트레스는 1~50 구간제. 구간 이름과 그 구간의 업무 속도를 같이 보여준다.
+                    string band = sim.StressBandName(st);
+                    string bandColor = band switch
+                    {
+                        "기절" => "#ff5555",
+                        "위험" => "#ff9933",
+                        "주의" => "#dddd55",
+                        _ => "#88cc88",
+                    };
+                    float stressMax = Config.Instance?.Data?.StressMax ?? 50f;
+                    sb.Append($"스트레스 {st.Stress:0} / {stressMax:0} · [color={bandColor}]{band}[/color]" +
+                              $" · 작업 {Mathf.RoundToInt(sim.StressWorkRate(st) * 100f)}%");
+                }
+                detail = sb.ToString().TrimEnd('\n');
+            }
+            else
+            {
+                string mood = sim.GetDailyMood(_selEmp);
+                // 경영 리워크: 특성(Trait)은 싣지 않는다.
+                detail = $"오늘의 기분 · [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "—" : mood)}[/color]";
+            }
 
             SetFace(def.FacePortrait);
             SetInspector(
                 $"[color=#ffc040]EMPLOYEE[/color]\n[font_size=23]{def.Codename}[/font_size]\n" +
                 $"[color=#8a99a8]{room} · {doing}[/color]\n\n" +
-                $"기술 {def.Tech} · 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n" +
-                $"담력 {def.Courage} · 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n" +
-                $"관찰 {def.Observation} · 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n" +
-                $"스트레스 {st.Stress:0} / {stressMax:0} · [color={bandColor}]{band}[/color] · 작업 {workPct}%" +
+                detail +
                 (abnormal ? $"\n{status}" : ""));
 
             _isolateBtn.Visible = st.Alive;
             _isolateBtn.Text = st.Isolated ? "격리 취소" : "격리";
+            HideRoomDots();
             return;
         }
 
@@ -424,73 +524,97 @@ public partial class FacilityMonitorView : Control
         {
             var def = sim.GetRoomDef(_selRoom);
             var state = sim.GetRoomState(_selRoom);
-            if (def == null || state == null) { SetFace(null); SetInspector("—"); return; }
+            if (def == null || state == null) { SetFace(null); SetInspector("—"); HideRoomDots(); return; }
 
             var st = sim.GetPrimarySpawnedTask(_selRoom);
-            var tier = RoomStatusText.GetDangerTier(_selRoom);
-            string dangerTxt = tier switch
-            {
-                RoomDangerTier.Failure => "[color=#ff4444]FAILURE[/color]",
-                RoomDangerTier.Unstable => "[color=#ff9933]UNSTABLE[/color]",
-                RoomDangerTier.Delayed => "[color=#dddd55]DELAYED[/color]",
-                _ => "정상",
-            };
-            var occ = state.OccupantEmployeeIds
-                .Select(id => sim.GetEmployeeDef(id)?.Codename).Where(c => c != null);
+            var workers = state.OccupantEmployeeIds;
+            bool broken = RoomStatusText.GetDangerTier(_selRoom) == RoomDangerTier.Failure;
+            // 상태는 네 가지뿐 — 작업중 / 수리중 / 고장 / 비어있음.
+            string statusLabel, statusCol;
+            if (broken && st is { IsRepair: true } && workers.Count > 0) { statusLabel = "수리중"; statusCol = "#ffc040"; }
+            else if (broken) { statusLabel = "고장"; statusCol = "#ff4444"; }
+            else if (workers.Count == 0) { statusLabel = "비어있음"; statusCol = "#8a99a8"; }
+            else { statusLabel = "작업중"; statusCol = "#9ee6c4"; }
 
-            var sb = new StringBuilder($"[color=#ffc040]ROOM[/color]\n[font_size=23]{def.DisplayName}[/font_size]\n\n");
+            // 진행 = 10칸 블록. 상시 업무는 한 바퀴 차면 다시 비워지며 반복된다.
+            int filled = st == null ? 0 : Mathf.Clamp(Mathf.FloorToInt(Mathf.Clamp(st.Ratio, 0f, 1f) * 10f + 0.0001f), 0, 10);
+            string bar = new string('■', filled) + new string('□', 10 - filled);
 
-            NSP.Ui.RoomDetailCard.Descriptions.TryGetValue(_selRoom, out string roomDesc);
-            if (!string.IsNullOrEmpty(roomDesc))
-                sb.Append($"[color=#8a99a8]{roomDesc}[/color]\n\n");
-
-            if (st != null)
-            {
-                var tdef = sim.GetTaskDef(st.TaskId);
-                sb.Append($"현재 작업 : {tdef?.DisplayName ?? st.TaskId}\n");
-                if (!st.Recurring && st.Status == SpawnedTaskStatus.Active)
-                    sb.Append($"남은 시간 : {Clock(st.Remaining)}\n");
-                sb.Append($"진행도 : {Mathf.Clamp(st.Ratio, 0f, 1f) * 100f:0}%\n");
-            }
-            else sb.Append("현재 작업 : 없음\n");
-            sb.Append($"배치 직원 : {(occ.Any() ? string.Join(", ", occ) : "없음")}\n");
-
-            // 자재를 다루는 방(정비실 · 저장고)에는 현재 보유량과 한도를 같이 보여준다.
-            if (def.ManagedResource is RoomResourceType.Materials or RoomResourceType.Storage)
-                sb.Append($"[color=#9ecfa0]📦 자재 : {GameState.Instance?.Materials ?? 0}"
-                          + $" / 한도 {GameState.Instance?.MaterialsCap ?? 0}"
-                          + $" (최대 {Config.Instance?.Data?.MaterialsCapMax ?? 60})[/color]\n");
-
-            // 위험 요약 — 원인과 남은 시간만 짧게. 결과·조치 등 상세는 경고 단말기가 담당한다.
-            var risk = NSP.Core.IncidentBoard.ForRoom(_selRoom);
-            if (risk != null)
-            {
-                string label = risk.State switch
-                {
-                    NSP.Core.IncidentState.Active => "사고 발생",
-                    NSP.Core.IncidentState.Warning => "사고 위험",
-                    _ => "주의",
-                };
-                sb.Append($"[color=#ff9933]⚠ {label} — {risk.Title}[/color]\n");
-                sb.Append($"[color=#c9a06a]원인 : {risk.CauseText}[/color]\n");
-                if (risk.WarningRemainingSeconds >= 0f)
-                    sb.Append($"[color=#ff9933]남은 시간 : {Clock(risk.WarningRemainingSeconds)}[/color]\n");
-            }
-
-            sb.Append($"상태 : {dangerTxt}");
-            if (state.Locked) sb.Append("  [color=#ff9933][봉쇄][/color]");
-            if (TabooRuleSystem.Instance?.IsRoomAtTabooRisk(_selRoom) == true)
-                sb.Append("\n[color=#ffcc33]⚠ 금기 대상 구역[/color]");
-
-            // 설명 아래 — 고장 위험(카운트다운) 또는 이미 고장난 상태. 둘 다 아니면 안 띄운다.
-            sb.Append(BuildRiskBlock(_selRoom, st, tier));
             SetFace(null);            // 방 선택 — 얼굴 없음
-            SetInspector(sb.ToString());
+            // 구분선은 **한 줄에 들어가는 길이**로 긋는다. 예전에는 56칸을 긋고 있었는데
+            // 이 칸의 폭이 304px 뿐이라 자동 줄바꿈으로 네 줄이 되어 있었다
+            // (그래서 구분선이 여러 개처럼 보였다).
+            string rule = $"[font_size={ViewFont.S(10)}][color=#3f5f55]" + new string('─', 30) + "[/color][/font_size]";
+            string desc = NSP.Ui.RoomDetailCard.Descriptions.TryGetValue(_selRoom, out var d0) ? d0 : "";
+
+            // 이 방이 지금 무엇을 만들어 내고 있는가(한 줄), 그리고 비어서 무엇을 잃고
+            // 있는가(붉은 한 줄). 둘 다 시뮬레이션 값을 읽어 문장으로 옮긴 것뿐이다.
+            string headline = NSP.Ui.RoomEffectText.Headline(_selRoom);
+            string idle = NSP.Ui.RoomEffectText.Idle(_selRoom);
+            string headCol = _highlightRoom == _selRoom && HighlightAlive ? "#ffe27a" : "#cfe8dd";
+            string headLine = string.IsNullOrEmpty(headline) ? ""
+                : $"[font_size={ViewFont.S(17)}][color={headCol}]{Escape(headline)}[/color][/font_size]\n";
+            string idleLine = string.IsNullOrEmpty(idle) ? ""
+                : $"[font_size={ViewFont.S(15)}][color=#ff7566]{Escape(idle)}[/color][/font_size]\n";
+
+            SetInspector(
+                $"[font_size={ViewFont.S(27)}][b]{def.DisplayName}[/b][/font_size]\n" +
+                rule + "\n" +
+                (string.IsNullOrEmpty(desc) ? "" :
+                    $"[font_size={ViewFont.S(15)}][color=#8fa8a0]{desc}[/color][/font_size]\n") +
+                headLine + idleLine +
+                rule + "\n" +
+                $"상태 : [color={statusCol}]{statusLabel}[/color]\n" +
+                $"진행 : [color=#9ee6c4]{bar}[/color]\n" +
+                "직원 :");
+            ShowRoomDots(sim, workers);
             return;
         }
 
+        HideRoomDots();
         SetFace(null);
         SetInspector("[color=#556]지도에서 방 또는 직원을 선택하세요.[/color]");
+    }
+
+    // "직원 :" 줄 옆 동그란 아이콘(미니맵과 같은 모양 · 색). 나중에 미니맵 아이콘 그림이 생기면 여기도 같이 바꾼다.
+    private void ShowRoomDots(FacilitySimulation sim, System.Collections.Generic.IEnumerable<string> ids)
+    {
+        _roomDotColors.Clear();
+        foreach (var id in ids)
+        {
+            var d = sim.GetEmployeeDef(id);
+            var e = sim.GetEmployeeState(id);
+            if (d != null) _roomDotColors.Add(e?.Alive == false ? new Color(0.35f, 0.35f, 0.35f) : d.IconColor);
+        }
+        // "직원 :" 은 설명의 마지막 줄 — 그 줄 높이 가운데, 글자 바로 오른쪽에 붙인다.
+        int last = Mathf.Max(0, _inspector.GetLineCount() - 1);
+        float lineY = _inspector.GetLineOffset(last);
+        int fs = ViewFont.S(19);
+        float labelW = _font.GetStringSize("직원 : ", HorizontalAlignment.Left, -1, fs).X;
+        _roomDots.Position = _inspector.Position + new Vector2(labelW + 4f, lineY + fs * 0.62f - _roomDots.Size.Y / 2f);
+        _roomDots.Visible = true;
+        _roomDots.QueueRedraw();
+    }
+
+    private void HideRoomDots()
+    {
+        if (_roomDots != null && _roomDots.Visible) _roomDots.Visible = false;
+    }
+
+    private void DrawRoomDots()
+    {
+        float x = EmpDotRadius + 2f, y = _roomDots.Size.Y / 2f;
+        if (_roomDotColors.Count == 0)
+        {
+            _roomDots.DrawString(_font, new Vector2(0f, y + 6f), "—", HorizontalAlignment.Left, -1, ViewFont.S(19), Dim);
+            return;
+        }
+        foreach (var c in _roomDotColors)
+        {
+            _roomDots.DrawCircle(new Vector2(x, y), EmpDotRadius, c);
+            _roomDots.DrawCircle(new Vector2(x, y), EmpDotRadius, new Color(0f, 0f, 0f, 0.7f), false, 1.6f);
+            x += EmpDotRadius * 2f + 6f;
+        }
     }
 
     // 고장 위험 / 고장 상태 블록. 위험도 고장도 없으면 아무것도 붙이지 않는다.
@@ -529,20 +653,7 @@ public partial class FacilityMonitorView : Control
                 _alertUntil = Time.GetTicksMsec() / 1000.0 + 6.0;
             }
         }
-        RebuildLog();
     }
-
-    private void RebuildLog()
-    {
-        var entries = EventLog.Instance?.GetAllEntries();
-        if (entries == null) return;
-        var sb = new StringBuilder();
-        foreach (var en in entries.TakeLast(6))
-            sb.AppendLine($"{Clock(en.GameTimeSeconds)}  {Strip(en.Description)}");
-        _log.Text = sb.ToString();
-    }
-
-    private static string Strip(string s) => s.Replace("⚠", "").Replace("🚨", "").Trim();
 
     private static string Clock(float s)
     {
@@ -550,13 +661,6 @@ public partial class FacilityMonitorView : Control
         return $"{t / 60:0}:{t % 60:00}";
     }
 
-    private static string ShiftClock(float t)
-    {
-        // 현실 3분(설정값) 동안 22:00에서 다음 날 04:00까지 흐른다.
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (360f / Mathf.Max(1f, shiftLength)));
-        int h = (totalMin / 60) % 24;
-        int m = totalMin % 60;
-        return $"{h:00}:{m:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string ShiftClock(float t) => NSP.Dialogue.DialogueClock.Text(t);
 }

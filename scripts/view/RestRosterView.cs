@@ -1,10 +1,54 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 using NSP.Data;
+using NSP.Dialogue;
 using NSP.Facility;
 
 namespace NSP.View;
+
+// 추궁 표식 — **플레이어의 메모다.**
+//
+// 오늘 누구를 몇 번 흔들었고 몇 번 해명을 들었는지, 심문하다 보면 금방 뒤섞인다.
+// 아이콘 옆에 그 횟수를 남겨 두는 것뿐이고, 그 이상은 아무 뜻이 없다.
+//
+// **어떤 판정도 이 값을 읽지 않는다** — 격리 판정도, 엔딩 판정도, 결번 AI 도.
+// 읽는 순간 "흔들린 사람이 범인"이 되어, 플레이어가 자료를 맞춰 볼 이유가 사라진다.
+// 자백을 받아 내는 게임이 아니라 기록을 맞춰 보는 게임이기 때문이다(§3-5).
+//
+// 다음 날로 넘어가면 지운다(ShiftFlowController 의 Rest → DayTransition).
+public static class ConfrontMarks
+{
+    // evasive / deny — 말을 돌리거나 부인했다.
+    private static readonly Dictionary<string, int> _shaken = new();
+    // honest — 순순히 인정하거나 설명했다.
+    private static readonly Dictionary<string, int> _explained = new();
+
+    public static int Shaken(string employeeId) => _shaken.GetValueOrDefault(employeeId, 0);
+    public static int Explained(string employeeId) => _explained.GetValueOrDefault(employeeId, 0);
+
+    // neutral 은 아무 표식도 남기지 않는다 — 추궁이 성립하지 않아 되물은 것뿐이다.
+    public static void Note(string employeeId, string variant)
+    {
+        if (string.IsNullOrEmpty(employeeId)) return;
+        switch (variant)
+        {
+            case "evasive":
+            case "deny":
+                _shaken[employeeId] = Shaken(employeeId) + 1;
+                break;
+            case "honest":
+                _explained[employeeId] = Explained(employeeId) + 1;
+                break;
+        }
+    }
+
+    public static void Clear()
+    {
+        _shaken.Clear();
+        _explained.Clear();
+    }
+}
 
 // 왼쪽 CRT — 휴게시간. 휴게실(BREAK ROOM)을 위에서 내려다본 2D 도식 화면이다.
 // 직원은 동물 얼굴 아이콘(EmployeeDef.FacePortrait)으로 크게 표시되고, 클릭하면
@@ -33,12 +77,15 @@ public partial class RestRosterView : Control
     private BreakRoomTopView _map;
     private Label _selected;
     private Label _instruction;
+    private Label _summary;
+    private Tween _summaryFade;
     private Button _isolateBtn;
     private Button _nextBtn;
 
     public override void _Ready()
     {
         Instance = this;
+        InterviewSession.Confronted += OnConfronted;
         _font = ViewFont.Default;
         SetAnchorsPreset(LayoutPreset.FullRect);
         MouseFilter = MouseFilterEnum.Stop;
@@ -52,6 +99,15 @@ public partial class RestRosterView : Control
         var sub = MakeLabel("휴게실 상단 감시 · 인터뷰 대상 선택", 13, Dim);
         sub.Position = new Vector2(20, 36);
         AddChild(sub);
+
+        // 제목 줄 오른쪽 — 방금 끝난 근무에서 작업실들이 실제로 만들어 낸 것.
+        // 휴게에 들어온 직후 5초만 떠 있다가 조용히 사라진다.
+        _summary = MakeLabel("", 15, new Color(0.62f, 0.9f, 0.82f));
+        _summary.Position = new Vector2(300, 14);
+        _summary.Size = new Vector2(484, 24);
+        _summary.HorizontalAlignment = HorizontalAlignment.Right;
+        _summary.Visible = false;
+        AddChild(_summary);
 
         var mapPanel = new Panel { Position = new Vector2(16, 58), Size = new Vector2(768, 400) };
         mapPanel.AddThemeStyleboxOverride("panel", Panelbox());
@@ -78,25 +134,46 @@ public partial class RestRosterView : Control
 
         _isolateBtn = new Button { Position = new Vector2(532, 476), Size = new Vector2(244, 38), Text = "격리" };
         _isolateBtn.AddThemeFontOverride("font", _font);
-        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
+        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
         _isolateBtn.Pressed += OnIsolatePressed;
         _isolateBtn.Disabled = true;
         AddChild(_isolateBtn);
 
         _nextBtn = new Button { Position = new Vector2(532, 534), Size = new Vector2(244, 44), Text = "다음 날 근무 배치 ▶" };
         _nextBtn.AddThemeFontOverride("font", _font);
-        _nextBtn.AddThemeFontSizeOverride("font_size", ViewFont.FS(16));
+        _nextBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(16));
         _nextBtn.Pressed += () => NextRequested?.Invoke();
         AddChild(_nextBtn);
+
+        // 심문 중에는 이 화면 위에 심문 콘솔(진술 · 조사 노트)이 덮인다. 통화를 끊으면 다시 휴게실.
+        AddChild(new RestInterviewConsole());
     }
 
     public override void _ExitTree()
     {
+        InterviewSession.Confronted -= OnConfronted;
         if (Instance == this) Instance = null;
+    }
+
+    // 추궁했다 — 그 직원 아이콘 옆 횟수를 하나 올린다. 그뿐이다(ConfrontMarks 주석 참조).
+    private void OnConfronted(string employeeId, ConfrontKind kind, string variant)
+    {
+        if (kind == ConfrontKind.None) return;
+        ConfrontMarks.Note(employeeId, variant);
+        _map?.Refresh();
+    }
+
+    // DAY0 교육 중에는 다음 날로 넘어가지 못하게 잠근다(TutorialDirector 가 제어).
+    public void SetNextEnabled(bool enabled, string lockedText = "")
+    {
+        if (_nextBtn == null) return;
+        _nextBtn.Disabled = !enabled;
+        if (!enabled && !string.IsNullOrEmpty(lockedText)) _nextBtn.Text = lockedText;
     }
 
     public void Present(bool finalDay)
     {
+        _nextBtn.Disabled = false;
         _nextBtn.Text = finalDay ? "최종 결과 확인 ▶" : "다음 날 근무 배치 ▶";
         SelectedEmployeeId = "";
         _selected.Text = "휴게실 안의 직원 아이콘을 선택하세요.";
@@ -105,6 +182,32 @@ public partial class RestRosterView : Control
         _isolateBtn.Text = "격리";
         _map?.Populate(FacilitySimulation.Instance);
         _map?.SetSelected("");
+        ShowShiftSummary();
+    }
+
+    // 오늘 방별 성과 한 줄. 근무 중에는 방 카드로만 보이던 숫자들을 한 번에 모아 보여
+    // 준다 — "어느 방을 비워 뒀는지"가 여기서 결과로 드러난다.
+    private void ShowShiftSummary()
+    {
+        if (_summary == null) return;
+        var parts = new System.Collections.Generic.List<string>
+        {
+            $"코어 +{RoomEffectStats.CoreUpToday:0.#}%",
+            $"자재 +{RoomEffectStats.MaterialsToday}",
+            $"경비 기록 {RoomEffectStats.GuardRecordsToday}건",
+        };
+        // 스트레스가 잠긴 날에는 아예 움직이지 않는 수치라 적지 않는다.
+        if (NSP.Core.DayFeatures.StressEnabled)
+            parts.Add($"스트레스 최고 {RoomEffectStats.StressPeakToday:0}");
+
+        _summaryFade?.Kill();
+        _summary.Text = "오늘 방별 성과 — " + string.Join(" · ", parts);
+        _summary.Visible = true;
+        _summary.Modulate = new Color(1f, 1f, 1f, 1f);
+        _summaryFade = CreateTween();
+        _summaryFade.TweenInterval(4.2);
+        _summaryFade.TweenProperty(_summary, "modulate:a", 0f, 0.8);
+        _summaryFade.TweenCallback(Callable.From(() => _summary.Visible = false));
     }
 
     private void Select(string employeeId)
@@ -164,7 +267,7 @@ public partial class RestRosterView : Control
     {
         var l = new Label { Text = text };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
@@ -179,7 +282,7 @@ public partial class RestRosterView : Control
         public event Action<string> EmployeeSelected;
 
         private const float WallThickness = 16f;
-        private const float IconSize = 84f;
+        private const float IconSize = 100f;
 
         private readonly List<EmployeeIcon> _icons = new();
         private string _selectedId = "";
@@ -201,7 +304,7 @@ public partial class RestRosterView : Control
             if (sim == null) return;
 
             int seat = 0;
-            foreach (string id in sim.GetEmployeeIds())
+            foreach (string id in sim.GetActiveEmployeeIds())
             {
                 if (seat >= Seats.Length) break;
                 var def = sim.GetEmployeeDef(id);
@@ -263,7 +366,7 @@ public partial class RestRosterView : Control
             DrawRect(table, new Color(0.20f, 0.17f, 0.13f));
             DrawRect(table, new Color(0.34f, 0.28f, 0.19f), false, 2f);
             DrawString(ViewFont.Default, table.Position + new Vector2(0, table.Size.Y * 0.5f + 5f),
-                "TABLE", HorizontalAlignment.Center, table.Size.X, ViewFont.FS(12),
+                "TABLE", HorizontalAlignment.Center, table.Size.X, ViewFont.S(12),
                 new Color(0.45f, 0.40f, 0.32f));
 
             // 왼쪽 벽 붙박이 — 커피/구급.
@@ -277,7 +380,7 @@ public partial class RestRosterView : Control
             DrawRect(locker, new Color(0.17f, 0.13f, 0.20f));
             DrawRect(locker, new Color(0.45f, 0.36f, 0.55f), false, 1.5f);
             DrawString(ViewFont.Default, locker.Position + new Vector2(0, 19f), "LOCKER",
-                HorizontalAlignment.Center, locker.Size.X, ViewFont.FS(12), new Color(0.68f, 0.58f, 0.80f));
+                HorizontalAlignment.Center, locker.Size.X, ViewFont.S(12), new Color(0.68f, 0.58f, 0.80f));
 
             // 오른쪽 벽의 인터뷰실 출입문 — 선택한 직원이 이 앞으로 간다.
             float doorH = 120f;
@@ -298,7 +401,7 @@ public partial class RestRosterView : Control
         private void DrawStringRotated(string text, Vector2 at, Color col)
         {
             var f = ViewFont.Default;
-            int fs = ViewFont.FS(11);
+            int fs = ViewFont.S(11);
             float y = at.Y;
             foreach (char c in text)
             {
@@ -386,25 +489,31 @@ public partial class RestRosterView : Control
                 }
                 else
                 {
-                    // 원화 미제작 직원(해파리 / 올빼미) 대체 표시.
+                    // 얼굴 원화가 없는 직원의 대체 표시.
                     DrawCircle(c, r * 0.72f, new Color(accent.R, accent.G, accent.B, alive ? 0.55f : 0.25f));
                     string initial = string.IsNullOrEmpty(def.Codename) ? "?" : def.Codename.Substring(0, 1);
                     DrawString(ViewFont.Default, c + new Vector2(-r, 10f), initial,
-                        HorizontalAlignment.Center, r * 2f, ViewFont.FS(30),
+                        HorizontalAlignment.Center, r * 2f, ViewFont.S(30),
                         alive ? Colors.White : new Color(0.6f, 0.6f, 0.6f));
                 }
 
                 // 코드네임 + 상태.
                 var nameCol = alive ? new Color(0.95f, 0.95f, 0.86f) : new Color(0.55f, 0.55f, 0.58f);
                 DrawString(ViewFont.Default, new Vector2(-14f, d + 13f), def.Codename,
-                    HorizontalAlignment.Center, d + 28f, ViewFont.FS(14), nameCol);
+                    HorizontalAlignment.Center, d + 28f, ViewFont.S(17), nameCol);
 
                 if (st is { Alive: false })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "응답 없음",
-                        HorizontalAlignment.Center, d + 28f, ViewFont.FS(11), new Color(0.9f, 0.35f, 0.35f));
+                        HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.9f, 0.35f, 0.35f));
                 else if (st is { Isolated: true })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[격리]",
-                        HorizontalAlignment.Center, d + 28f, ViewFont.FS(11), new Color(0.88f, 0.52f, 0.9f));
+                        HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.88f, 0.52f, 0.9f));
+
+                // "진술 흔들림 ×n" · "해명 ×n" 배지는 그리지 않는다(F-5).
+                //
+                // 화면이 세어 주는 순간 그 숫자가 곧 범인 지목표가 됐다 — 관리자가 기록을 읽고
+                // 판단하는 대신 점이 많은 사람을 골랐다. 세는 것(ConfrontMarks)은 그대로 두되
+                // 결론은 사람이 내린다.
             }
         }
     }

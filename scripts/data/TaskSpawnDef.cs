@@ -15,10 +15,18 @@ public partial class TaskSpawnDef : Resource
     // 근무 시작(DayTimeSeconds=0) 기준 몇 초 뒤에 발생하는가.
     [Export] public float SpawnAtSeconds = 0f;
 
+    // ±이 값 안에서 시각이 흔들린다(0 이면 고정). 사건 자체는 반드시 발생한다 —
+    // 매번 같은 초에 뜨면 대본처럼 보이기 때문에 시각만 흔든다.
+    [Export] public float JitterSeconds = 0f;
+
     // true 면 상시 업무(코어 수리·자재 생산처럼 계속 돌아가는 것). 제한시간/실패 없이
     // 게이지가 차면 효과 적용 후 다시 0부터 순환한다.
     [Export] public bool Recurring = false;
 
     // 선택 필드. 비우면 TaskDef.RoomId 를 사용한다. 검증·가독성용으로만 채운다.
     [Export] public string RoomId = "";
+
+    // 이 스폰이 실제로 발생하는 날. 0 이면 모든 날.
+    // (DAY1 에서 빼고 싶은 업무는 지우지 말고 여기에 해금 날짜를 적는다.)
+    [Export] public int Day = 0;
 }

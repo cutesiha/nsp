@@ -1,0 +1,720 @@
+[gd_scene format=3 uid="uid://bnelrprelro78"]
+
+[ext_resource type="PackedScene" uid="uid://dini35l64x4wj" path="res://scenes/cctv_characters/EmployeeCctvBase_F.tscn" id="1_base"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/sheep_accent.tres" id="2_sheepaccent"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/sheep_mask.tres" id="3_sheepmask"]
+[ext_resource type="Material" uid="uid://c88eawmi7otg2" path="res://scenes/cctv_characters/employees/materials/nose_dark.tres" id="4_nosedark"]
+[ext_resource type="Material" uid="uid://c0td25lbiat86" path="res://scenes/cctv_characters/employees/materials/eye_dark.tres" id="5_eyedark"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/materials/body_white.tres" id="5_tdnuu"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/sheep_hair.tres" id="6_sheephair"]
+[ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="7_badgegold"]
+
+[sub_resource type="SphereMesh" id="M11"]
+radius = 0.085
+height = 0.17
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M12"]
+radius = 0.075
+height = 0.15
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M13"]
+radius = 0.075
+height = 0.15
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M14"]
+radius = 0.072
+height = 0.144
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M15"]
+radius = 0.072
+height = 0.144
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M16"]
+radius = 0.082
+height = 0.164
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M17"]
+radius = 0.072
+height = 0.144
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M18"]
+radius = 0.066
+height = 0.132
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M19"]
+radius = 0.066
+height = 0.132
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M20"]
+radius = 0.086
+height = 0.172
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M21"]
+radius = 0.0688
+height = 0.1376
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M22"]
+radius = 0.09
+height = 0.18
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M23"]
+radius = 0.072
+height = 0.144
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M24"]
+radius = 0.088
+height = 0.176
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M25"]
+radius = 0.0704
+height = 0.1408
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M26"]
+radius = 0.084
+height = 0.168
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M27"]
+radius = 0.0672
+height = 0.1344
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M28"]
+radius = 0.078
+height = 0.156
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M29"]
+radius = 0.0624
+height = 0.1248
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M30"]
+radius = 0.068
+height = 0.136
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M31"]
+radius = 0.0544
+height = 0.1088
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M32"]
+radius = 0.058
+height = 0.116
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M33"]
+radius = 0.0464
+height = 0.0928
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M34"]
+radius = 0.086
+height = 0.172
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M35"]
+radius = 0.0688
+height = 0.1376
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M36"]
+radius = 0.09
+height = 0.18
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M37"]
+radius = 0.072
+height = 0.144
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M38"]
+radius = 0.088
+height = 0.176
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M39"]
+radius = 0.0704
+height = 0.1408
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M40"]
+radius = 0.084
+height = 0.168
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M41"]
+radius = 0.0672
+height = 0.1344
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M42"]
+radius = 0.078
+height = 0.156
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M43"]
+radius = 0.0624
+height = 0.1248
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M44"]
+radius = 0.068
+height = 0.136
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M45"]
+radius = 0.0544
+height = 0.1088
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M46"]
+radius = 0.058
+height = 0.116
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M47"]
+radius = 0.0464
+height = 0.0928
+radial_segments = 10
+rings = 5
+
+[sub_resource type="SphereMesh" id="M01"]
+radius = 0.1
+height = 0.2
+radial_segments = 12
+rings = 9
+
+[sub_resource type="SphereMesh" id="M02"]
+radius = 0.055
+height = 0.11
+radial_segments = 12
+rings = 6
+
+[sub_resource type="BoxMesh" id="M03"]
+size = Vector3(0.026, 0.0115, 0.01)
+
+[sub_resource type="BoxMesh" id="M04"]
+size = Vector3(0.026, 0.0115, 0.01)
+
+[sub_resource type="BoxMesh" id="M05"]
+size = Vector3(0.026, 0.0115, 0.01)
+
+[sub_resource type="BoxMesh" id="M06"]
+size = Vector3(0.026, 0.0115, 0.01)
+
+[sub_resource type="BoxMesh" id="M07"]
+size = Vector3(0.026, 0.0115, 0.01)
+
+[sub_resource type="BoxMesh" id="M08"]
+size = Vector3(0.026, 0.0115, 0.01)
+
+[sub_resource type="SphereMesh" id="M09"]
+radius = 0.042
+height = 0.084
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="M10"]
+radius = 0.042
+height = 0.084
+radial_segments = 12
+rings = 6
+
+[sub_resource type="SphereMesh" id="M48"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M49"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M50"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M51"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M52"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M53"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M54"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M55"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M56"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M57"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M58"]
+radius = 0.011
+height = 0.022
+radial_segments = 8
+rings = 4
+
+[sub_resource type="SphereMesh" id="M59"]
+radius = 0.03
+height = 0.06
+radial_segments = 12
+rings = 6
+
+[sub_resource type="CylinderMesh" id="M60"]
+top_radius = 0.011
+bottom_radius = 0.011
+height = 0.018
+radial_segments = 12
+rings = 0
+
+[sub_resource type="BoxMesh" id="M61"]
+size = Vector3(0.034, 0.008, 0.01)
+
+[node name="SheepEmployee3D" unique_id=1446378348 instance=ExtResource("1_base")]
+
+[node name="BandOverBustL1" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="15" unique_id=492162774]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustL2" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="16" unique_id=1545716276]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustL3" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="17" unique_id=1936993715]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustL4" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="18" unique_id=816146138]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustL5" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="19" unique_id=897205305]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustR1" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="20" unique_id=31657516]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustR2" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="21" unique_id=416519812]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustR3" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="22" unique_id=903498726]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustR4" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="23" unique_id=109061807]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="BandOverBustR5" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="24" unique_id=1234853195]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="ChestBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="25" unique_id=1324881492]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="CollarBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" parent_id_path=PackedInt32Array(441613077) index="1" unique_id=1997149230]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="Curl00" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="0" unique_id=1518132789]
+transform = Transform3D(1, 0, 0, 0, 1.1350707, 0, 0, 0, 1.0981374, 0, 0.08500004, 0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M11")
+
+[node name="Curl01" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="1" unique_id=104346953]
+transform = Transform3D(1, 0, 0, 0, 1.1592268, 0, 0, 0, 1.2694342, -0.09, 0.07000005, 0.02)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M12")
+
+[node name="Curl02" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="2" unique_id=1564859789]
+transform = Transform3D(1, 0, 0, 0, 1.0879536, 0, 0, 0, 1.1544093, 0.09, 0.07000005, 0.02)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M13")
+
+[node name="Curl03" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="3" unique_id=642747604]
+transform = Transform3D(1, 0, 0, 0, 1.3484874, 0, 0, 0, 1, -0.13, 0, 0.025)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M14")
+
+[node name="Curl04" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="4" unique_id=1994143121]
+transform = Transform3D(1, 0, 0, 0, 1.2540293, 0, 0, 0, 1.2004141, 0.13, 0, 0.025)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M15")
+
+[node name="Curl05" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="5" unique_id=2087244127]
+transform = Transform3D(1, 0, 0, 0, 1.1699543, 0, 0, 0, 1, 0, 0.029999971, 0.11)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M16")
+
+[node name="Curl06" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="6" unique_id=1216239955]
+transform = Transform3D(1.6909829, 0, 0, 0, 1.484052, 0, 0, 0, 1.3799804, 0, -0.049999952, 0.092)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M17")
+
+[node name="Curl07" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="7" unique_id=1838146675]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.055, 0.08, 0.078)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M18")
+
+[node name="Curl08" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="8" unique_id=844407093]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.055, 0.08, 0.078)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M19")
+
+[node name="Curl09" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="9" unique_id=1973690936]
+transform = Transform3D(0.8063893, 0, 0, 0, 1.1670135, 0, 0, 0, 1, -0.1616702, -0.100000024, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M20")
+
+[node name="Curl10" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="10" unique_id=1787405316]
+transform = Transform3D(1.2778914, 0, 0, 0, 1.4545693, 0, 0, 0, 1.2105578, -0.115, -0.14999998, 0.123932295)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M21")
+
+[node name="Curl11" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="11" unique_id=221865261]
+transform = Transform3D(0.8184814, 0, 0, 0, 1, 0, 0, 0, 1, -0.196, -0.22000003, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M22")
+
+[node name="Curl12" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="12" unique_id=1476213505]
+transform = Transform3D(1.3299178, 0, 0, 0, 1.3119416, 0, 0, 0, 1.2533308, -0.136, -0.26999998, 0.12500909)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M23")
+
+[node name="Curl13" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="13" unique_id=2005322721]
+transform = Transform3D(0.9902189, 0, 0, 0, 1, 0, 0, 0, 1, -0.22652853, -0.34000003, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M24")
+
+[node name="Curl14" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="14" unique_id=1316347440]
+transform = Transform3D(1.4239367, 0, 0, 0, 1.4738642, 0, 0, 0, 1.6233838, -0.136, -0.39, 0.10894673)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M25")
+
+[node name="Curl15" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="15" unique_id=1603027707]
+transform = Transform3D(1.1270849, 0, 0, 0, 1.1567403, 0, 0, 0, 1, -0.2566274, -0.46000004, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M26")
+
+[node name="Curl16" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="16" unique_id=690226758]
+transform = Transform3D(1.3269492, 0, 0, 0, 1.1943512, 0, 0, 0, 1.3581432, -0.13715458, -0.51476264, 0.13988459)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M27")
+
+[node name="Curl17" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="17" unique_id=1338526488]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.26899153, -0.58, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M28")
+
+[node name="Curl18" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="18" unique_id=860815607]
+transform = Transform3D(1.3269492, 0, 0, 0, 1.1943512, 0, 0, 0, 1.1468527, -0.11857729, -0.6193107, 0.12397533)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M29")
+
+[node name="Curl19" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="19" unique_id=788691686]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22676538, -0.7, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M30")
+
+[node name="Curl20" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="20" unique_id=1995631361]
+transform = Transform3D(1.3269492, 0, 0, 0, 1.1943512, 0, 0, 0, 1.1468527, -0.11529213, -0.7144537, 0.111105435)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M31")
+
+[node name="Curl21" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="21" unique_id=395508969]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.19501765, -0.8, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M32")
+
+[node name="Curl22" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="22" unique_id=791660103]
+transform = Transform3D(1.3269492, 0, 0, 0, 1.1943512, 0, 0, 0, 1.1468527, -0.104011595, -0.7850499, 0.12122869)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M33")
+
+[node name="Curl23" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="23" unique_id=825266175]
+transform = Transform3D(0.81850815, 0, 0, 0, 1.0345187, 0, 0, 0, 1, 0.15522383, -0.100000024, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M34")
+
+[node name="Curl24" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="24" unique_id=1913387404]
+transform = Transform3D(1.2450765, 0, 0, 0, 1.6516113, 0, 0, 0, 1.258394, 0.115, -0.14999998, 0.102790825)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M35")
+
+[node name="Curl25" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="25" unique_id=90415084]
+transform = Transform3D(0.83388376, 0, 0, 0, 1, 0, 0, 0, 1, 0.196, -0.22000003, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M36")
+
+[node name="Curl26" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="26" unique_id=884442034]
+transform = Transform3D(1.3005617, 0, 0, 0, 1.3705953, 0, 0, 0, 1.1565228, 0.136, -0.26999998, 0.12179866)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M37")
+
+[node name="Curl27" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="27" unique_id=241948016]
+transform = Transform3D(1.0679352, 0, 0, 0, 1, 0, 0, 0, 1, 0.20838131, -0.34000003, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M38")
+
+[node name="Curl28" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="28" unique_id=403711322]
+transform = Transform3D(1.4128339, 0, 0, 0, 1.5429988, 0, 0, 0, 1.7020141, 0.136, -0.39, 0.09543108)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M39")
+
+[node name="Curl29" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="29" unique_id=1704503422]
+transform = Transform3D(1.123735, 0, 0, 0, 1.11183, 0, 0, 0, 1, 0.25363305, -0.46000004, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M40")
+
+[node name="Curl30" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="30" unique_id=148481717]
+transform = Transform3D(1.3529081, 0, 0, 0, 1.2305048, 0, 0, 0, 1.3152453, 0.13788143, -0.5092931, 0.13654664)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M41")
+
+[node name="Curl31" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="31" unique_id=375842674]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22527716, -0.58, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M42")
+
+[node name="Curl32" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="32" unique_id=1570071966]
+transform = Transform3D(1.3529081, 0, 0, 0, 1.2305048, 0, 0, 0, 1.1846998, 0.11894071, -0.61732227, 0.13996667)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M43")
+
+[node name="Curl33" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="33" unique_id=1820549088]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.19695087, -0.7, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M44")
+
+[node name="Curl34" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="34" unique_id=201458090]
+transform = Transform3D(1.3529081, 0, 0, 0, 1.2305048, 0, 0, 0, 1.1846998, 0.112729296, -0.71973133, 0.104453914)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M45")
+
+[node name="Curl35" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="35" unique_id=777604077]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.1654485, -0.8, -0.015)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M46")
+
+[node name="Curl36" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="36" unique_id=1758691990]
+transform = Transform3D(1.3529081, 0, 0, 0, 1.2305048, 0, 0, 0, 1.1846998, 0.08441314, -0.79467726, 0.097535424)
+material_override = ExtResource("6_sheephair")
+mesh = SubResource("M47")
+
+[node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
+
+[node name="Face" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="0" unique_id=1145354228]
+transform = Transform3D(1.3, 0, 0, 0, 1.42, 0, 0, 0, 0.68, 0, -0.007758, 0.002208)
+material_override = ExtResource("3_sheepmask")
+mesh = SubResource("M01")
+
+[node name="Nose" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="1" unique_id=1068806448]
+transform = Transform3D(0.258329, 0, 0, 0, 0.248043, 0, 0, 0, 0.131714, 0, -0.04, -0.066)
+material_override = ExtResource("5_tdnuu")
+mesh = SubResource("M02")
+
+[node name="EyeL0" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="2" unique_id=1605894689]
+transform = Transform3D(0.90625805, -0.42272383, 0, 0.42272383, 0.90625805, 0, 0, 0, 1, -0.0367, 0.00670135, -0.058000006)
+material_override = ExtResource("5_eyedark")
+mesh = SubResource("M03")
+
+[node name="EyeL1" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="3" unique_id=1903566088]
+transform = Transform3D(0.9997044, -0.024322882, 0, 0.024322882, 0.9997044, 0, 0, 0, 1, -0.0577, 0.00066185, -0.058000006)
+material_override = ExtResource("5_eyedark")
+mesh = SubResource("M04")
+
+[node name="EyeL2" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="4" unique_id=1483667419]
+transform = Transform3D(0.99998426, -0.0055781454, 0, 0.0055781454, 0.99998426, 0, 0, 0, 1, -0.0777, 0.0013227463, -0.058000006)
+material_override = ExtResource("5_eyedark")
+mesh = SubResource("M05")
+
+[node name="EyeR0" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="5" unique_id=1486495066]
+transform = Transform3D(0.921773, 0.3877288, 0, -0.3877288, 0.921773, 0, 0, 0, 1, 0.0367, 0.00670135, -0.058000006)
+material_override = ExtResource("5_eyedark")
+mesh = SubResource("M06")
+
+[node name="EyeR1" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="6" unique_id=1484892932]
+transform = Transform3D(0.9999674, -0.008125924, 0, 0.008125924, 0.9999674, 0, 0, 0, 1, 0.0577, 0.00066185, -0.058000006)
+material_override = ExtResource("5_eyedark")
+mesh = SubResource("M07")
+
+[node name="EyeR2" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="7" unique_id=2042875733]
+transform = Transform3D(0.99931663, 0.036957175, 0, -0.036957175, 0.99931663, 0, 0, 0, 1, 0.0777, 0.00045084953, -0.058000006)
+material_override = ExtResource("5_eyedark")
+mesh = SubResource("M08")
+
+[node name="EarL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="8" unique_id=404437719]
+transform = Transform3D(1.395693, -0.674197, 0, 0.313175, 0.648322, 0, 0, 0, 0.7, -0.118, 0.052, 0.012)
+material_override = ExtResource("3_sheepmask")
+mesh = SubResource("M09")
+
+[node name="EarR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="9" unique_id=609999916]
+transform = Transform3D(1.395693, 0.674197, 0, -0.313175, 0.648322, 0, 0, 0, 0.7, 0.118, 0.052, 0.012)
+material_override = ExtResource("3_sheepmask")
+mesh = SubResource("M10")
+
+[node name="SleeveBandL" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL" parent_id_path=PackedInt32Array(763783934) index="1" unique_id=1976599066]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="CuffL" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderL/UpperArmL/LowerArmL" parent_id_path=PackedInt32Array(1218260968) index="1" unique_id=110810591]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="SleeveBandR" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR" parent_id_path=PackedInt32Array(253892737) index="1" unique_id=785277675]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="CuffR" parent="VisualRoot/RigRoot/Hips/Torso/Chest/ShoulderR/UpperArmR/LowerArmR" parent_id_path=PackedInt32Array(278095433) index="1" unique_id=1750640346]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="ThighBandL" parent="VisualRoot/RigRoot/Hips/UpperLegL" parent_id_path=PackedInt32Array(111173917) index="3" unique_id=1942057966]
+material_override = ExtResource("2_sheepaccent")
+
+[node name="AccessoryAnchor" parent="." index="1" unique_id=1377769933]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1926758, -0.005974591)
+
+[node name="Bead00" type="MeshInstance3D" parent="AccessoryAnchor" index="0" unique_id=80633567]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.092012, 0.122949004, -0.053675026)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M48")
+
+[node name="Bead01" type="MeshInstance3D" parent="AccessoryAnchor" index="1" unique_id=1659737814]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.079196, 0.113857985, -0.06882373)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M49")
+
+[node name="Bead02" type="MeshInstance3D" parent="AccessoryAnchor" index="2" unique_id=2009106860]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06278, 0.10631895, -0.08536729)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M50")
+
+[node name="Bead03" type="MeshInstance3D" parent="AccessoryAnchor" index="3" unique_id=1855396567]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.043509, 0.10067403, -0.09011424)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M51")
+
+[node name="Bead04" type="MeshInstance3D" parent="AccessoryAnchor" index="4" unique_id=369895710]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.022261, 0.097182035, -0.10282862)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M52")
+
+[node name="Bead05" type="MeshInstance3D" parent="AccessoryAnchor" index="5" unique_id=1185988427]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.095999956, -0.105835676)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M53")
+
+[node name="Bead06" type="MeshInstance3D" parent="AccessoryAnchor" index="6" unique_id=183045260]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.022261, 0.097182035, -0.1039691)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M54")
+
+[node name="Bead07" type="MeshInstance3D" parent="AccessoryAnchor" index="7" unique_id=1809603803]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.043509, 0.10067403, -0.086408444)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M55")
+
+[node name="Bead08" type="MeshInstance3D" parent="AccessoryAnchor" index="8" unique_id=673297838]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06278, 0.10631895, -0.08361328)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M56")
+
+[node name="Bead09" type="MeshInstance3D" parent="AccessoryAnchor" index="9" unique_id=90417926]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.079196, 0.113857985, -0.06752374)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M57")
+
+[node name="Bead10" type="MeshInstance3D" parent="AccessoryAnchor" index="10" unique_id=998472974]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.092012, 0.122949004, -0.04822156)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M58")
+
+[node name="BellBody" type="MeshInstance3D" parent="AccessoryAnchor" index="11" unique_id=482984852]
+transform = Transform3D(1, 0, 0, 0, 0.95, 0, 0, 0, 1, 0, 0.05405295, -0.09553297)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M59")
+
+[node name="BellTop" type="MeshInstance3D" parent="AccessoryAnchor" index="12" unique_id=256159042]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08005297, -0.093532965)
+material_override = ExtResource("7_badgegold")
+mesh = SubResource("M60")
+
+[node name="BellSlit" type="MeshInstance3D" parent="AccessoryAnchor" index="13" unique_id=97978544]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04405296, -0.11953296)
+material_override = ExtResource("4_nosedark")
+mesh = SubResource("M61")

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Core;
@@ -30,15 +30,27 @@ public partial class IncomingCallDirector : Node
     [Export] public float StaleCallSeconds = 75f;
     [Export] public int MaxQueueLength = 5;
     // 한 상황당 걸려오는 전화 수 상한.
-    [Export] public int MaxCallsPerIncident = 2;
+    // 2 였을 때는 한 사고에 두 명이 연달아 걸어, DAY2 부터 사고가 겹치면 벨이 끊이지 않았다.
+    [Export] public int MaxCallsPerIncident = 1;
+
+    // 사고가 났을 때 실제로 신고 전화가 오는 비율.
+    //
+    // 예전에는 사고마다 100% 전화가 왔다. 그러면 전화는 "정보"가 아니라 "확인 버튼"이 된다 —
+    // 어차피 다 알려 주니 경고 단말기도 시설 로그도 볼 이유가 없다.
+    // 이제 절반쯤만 걸려오고, 나머지는 관리자가 화면에서 직접 찾아야 한다.
+    [Export] public float AccidentCallChance = 0.45f;
+
+    // 한 근무에 걸려오는 사고 신고 전화의 총량 상한(잡담 전화는 따로 센다).
+    [Export] public int MaxAccidentCallsPerShift = 4;
 
     // 근무 시작 직후에는 전화가 오지 않는다 — 배치를 확인할 시간을 준다.
     [Export] public float FirstCallDelaySeconds = 5f;
     // 이 시간 안에 이만큼 걸렸으면, 창이 지날 때까지 다음 전화를 미룬다.
-    [Export] public float CallWindowSeconds = 20f;
-    [Export] public int MaxCallsPerWindow = 2;
-    // 벨과 벨 사이의 최소 간격. 창 제한과 함께 걸어 "20초에 2통"을 확실히 지킨다.
-    [Export] public float MinRingGapSeconds = 7f;
+    [Export] public float CallWindowSeconds = 30f;
+    [Export] public int MaxCallsPerWindow = 1;
+    // 벨과 벨 사이의 최소 간격. 창 제한과 함께 걸어 "30초에 1통"을 확실히 지킨다.
+    // (근무가 120초이므로 한 근무에 많아야 서너 통이다.)
+    [Export] public float MinRingGapSeconds = 20f;
     // 켜면 전화가 걸릴 때마다 이유와 최근 통화 수를 출력한다(개발용).
     [Export] public bool DebugCalls = false;
 
@@ -77,18 +89,27 @@ public partial class IncomingCallDirector : Node
     // 최근에 실제로 벨이 울린 시각들 — 짧은 시간에 전화가 몰리지 않게 한다.
     private readonly List<double> _recentCalls = new();
     private double _lastRingAt = -1000.0;
-    private bool _eventWired, _phoneWired, _hudWired;
+    private bool _eventWired, _phoneWired, _hudWired, _rescueWired;
+    // 잡담 전화 — 마지막으로 무슨 일이 있었던 시각과 오늘 건 횟수.
+    private float _lastTroubleAt;
+    private float _nextIdleCheckAt;
+    private int _idleCallsToday;
+    private int _idleCallDay = -1;
     private readonly RandomNumberGenerator _rng = new();
 
     // 첫 선택지가 "그 방으로 가보라"는 지시인 이벤트 — 원본 대사 목록 기준.
     private static bool IsDispatchEvent(string dialogueEvent) =>
-        dialogueEvent is DialogueRepository.EventAccidentNearby or DialogueRepository.EventScreamNextRoom;
+        dialogueEvent is DialogueRepository.EventAccidentNearby or DialogueRepository.EventScreamNextRoom
+            // 잡담 전화도 첫 선택지가 "가도 좋다" 다 — 허락하면 실제로 그 방으로 옮겨 간다.
+            or DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry;
 
     public override void _Process(double delta)
     {
         Wire();
+        TickIdleCalls();
 
-        if (GameState.Instance?.CurrentPhase != GamePhase.Live)
+        // DAY0(교육)에는 자동 전화가 걸려오지 않는다 — 튜토리얼이 정해진 한 통만 직접 건다.
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live || !DayFeatures.AutoCallsEnabled)
         {
             // 근무가 아니면 큐를 비운다(정산/휴게/다음 날로 이월하지 않는다).
             if (_queue.Count > 0) _queue.Clear();
@@ -113,6 +134,11 @@ public partial class IncomingCallDirector : Node
             EventLog.Instance.EntryLogged += OnEntryLogged;
             _eventWired = true;
         }
+        if (!_rescueWired && FacilitySimulation.Instance?.Rescue != null)
+        {
+            FacilitySimulation.Instance.Rescue.TransportRequested += OnTransportRequested;
+            _rescueWired = true;
+        }
         if (!_phoneWired && Phone3D.Instance != null)
         {
             Phone3D.Instance.PickedUp += OnAnswered;
@@ -125,12 +151,85 @@ public partial class IncomingCallDirector : Node
             PhoneCallHud.Instance.EventChoiceMade += OnEventChoiceMade;
             _hudWired = true;
         }
+        if (!_ghostWired && FacilitySimulation.Instance?.Ghost != null)
+        {
+            FacilitySimulation.Instance.Ghost.Dispelled += OnGhostDispelled;
+            _ghostWired = true;
+        }
+        TickGhostScreamCall();
+    }
+
+    // ── 비명 문의 전화(H-3) ───────────────────────────────────────────
+    //
+    // 이상 개체가 관측으로 소멸하며 비명을 지른 뒤, 그 소리를 들은 직원 하나가 물어 온다.
+    // 요구가 아니라 질문이다 — 순수 분위기 연출이고 단서가 아니다.
+    // 귀신이 있던 방의 직원은 제외한다(직접 봤으니 물어볼 이유가 없다).
+    [Export] public float GhostScreamCallChance = 0.40f;
+    [Export] public float GhostScreamDelayMinSeconds = 3f;
+    [Export] public float GhostScreamDelayMaxSeconds = 8f;
+    public const float GhostScreamTruthStress = 4f;
+
+    private bool _ghostWired;
+    private int _ghostCallDay = -1;
+    private bool _ghostCalledToday;
+    private double _ghostCallAt = -1;      // 이 시각(초)에 전화를 건다. 음수면 예약 없음
+    private string _ghostCallRoom = "";
+
+    // 예약했으면 true. 검사에서 발생률과 하루 상한을 그대로 셀 수 있게 결과를 돌려준다.
+    private bool OnGhostDispelledInner(string roomId)
+    {
+        if (!DayFeatures.AutoIncidentsEnabled) return false;            // 교육일에는 없다
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        if (day != _ghostCallDay) { _ghostCallDay = day; _ghostCalledToday = false; _ghostCallAt = -1; }
+        if (_ghostCalledToday || _ghostCallAt >= 0) return false;       // 하루 한 번
+        if (GD.Randf() >= GhostScreamCallChance) return false;
+
+        _ghostCallRoom = roomId;
+        _ghostCalledToday = true;
+        _ghostCallAt = Time.GetTicksMsec() / 1000.0
+                       + GD.RandRange(GhostScreamDelayMinSeconds, GhostScreamDelayMaxSeconds);
+        return true;
+    }
+
+    private void OnGhostDispelled(string roomId) => OnGhostDispelledInner(roomId);
+
+    // 검사용 — 실제 판정 경로를 그대로 탄다.
+    public bool DebugGhostDispelled(string roomId) => OnGhostDispelledInner(roomId);
+
+    private void TickGhostScreamCall()
+    {
+        if (_ghostCallAt < 0 || Time.GetTicksMsec() / 1000.0 < _ghostCallAt) return;
+        _ghostCallAt = -1;
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+
+        string caller = GhostScreamCaller(_ghostCallRoom);
+        if (string.IsNullOrEmpty(caller)) return;
+        Enqueue(caller, DialogueRepository.EventGhostScream, "ghostscream:" + _ghostCallRoom, _ghostCallRoom);
+    }
+
+    // 비명을 듣고 물어볼 만한 사람 — 살아 있고, 기절·격리가 아니고, 그 방에 없던 직원.
+    public static string GhostScreamCaller(string ghostRoomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return "";
+        var pool = sim.GetActiveEmployeeIds()
+            .Where(id =>
+            {
+                var st = sim.GetEmployeeState(id);
+                if (st is not { Alive: true, Isolated: false, Incapacitated: false }) return false;
+                // 그 방에 있던 사람은 직접 봤다 — 물어볼 이유가 없다.
+                return st.CurrentRoomId != ghostRoomId && st.AssignedRoomId != ghostRoomId;
+            })
+            .ToList();
+        return pool.Count == 0 ? "" : pool[(int)(GD.Randi() % (uint)pool.Count)];
     }
 
     public override void _ExitTree()
     {
         if (_eventWired && EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnEntryLogged;
+        if (_rescueWired && FacilitySimulation.Instance?.Rescue != null)
+            FacilitySimulation.Instance.Rescue.TransportRequested -= OnTransportRequested;
         if (_phoneWired && Phone3D.Instance != null)
         {
             Phone3D.Instance.PickedUp -= OnAnswered;
@@ -149,6 +248,9 @@ public partial class IncomingCallDirector : Node
         var entries = EventLog.Instance?.GetAllEntries();
         if (entries == null || entries.Count == 0) return;
         var e = entries[^1];
+
+        // 방금 무슨 일이 있었다 — 잡담 전화는 한동안 오지 않는다.
+        if (IsTrouble(e.EventType)) _lastTroubleAt = GameState.Instance?.DayTimeSeconds ?? 0f;
 
         switch (e.EventType)
         {
@@ -181,6 +283,21 @@ public partial class IncomingCallDirector : Node
         }
     }
 
+    // 같은 방 동료가 쓰러진 것을 발견했다 → 이송 허가 전화.
+    //
+    // 사고 신고와 달리 확률로 걸러 내지 않는다. 사람이 쓰러진 일이고, 이 전화를 놓치면
+    // 직원이 알아서 옮기므로(§20) 어차피 관리자가 개입할 기회는 이 한 통뿐이다.
+    private void OnTransportRequested(string responderId, string victimId)
+    {
+        var sim = FacilitySimulation.Instance;
+        string room = sim?.GetEmployeeState(victimId)?.CurrentRoomId ?? "";
+        Enqueue(responderId, DialogueRepository.EventFaintTransportRequest, "faint:" + victimId, room);
+    }
+
+    // 지금 울리고 있는(또는 통화 중인) 전화가 누구의 이송 건인가.
+    private static string FaintVictimOf(string dedupeKey) =>
+        dedupeKey != null && dedupeKey.StartsWith("faint:") ? dedupeKey["faint:".Length..] : "";
+
     // 정전(전력 용량 0) 진입 순간 → 근무 가능한 직원 아무나 "정전 발생"(③).
     // 정전은 발전실 사고의 '결과'다. 플레이어에게는 "발전실 사고" 하나로 보이므로
     // 발전실과 같은 상황으로 묶는다 — 따로 두면 발전실 2통 + 정전 2통 = 4통이 된다.
@@ -212,10 +329,26 @@ public partial class IncomingCallDirector : Node
     // 묶는다. 그래야 발전실 하나 때문에 6명이 번갈아 전화하는 일이 없다(상황당 2통 상한).
     private static string RoomKey(string roomId) => "room:" + roomId;
 
+    // 오늘 실제로 걸려온 사고 신고 전화 수(잡담 전화는 따로 센다).
+    private int _accidentCallsThisShift;
+    private int _accidentCallDay = -1;
+
     private void EnqueueAccident(string roomId, string excludeEmployeeId)
     {
         // 대사가 발전실 기준으로 쓰여 있어, 다른 작업실 사고로는 전화를 걸지 않는다.
         if (AccidentCallsPowerRoomOnly && roomId != PowerRoomId()) return;
+
+        int day = GameState.Instance?.CurrentDay ?? 0;
+        if (_accidentCallDay != day) { _accidentCallDay = day; _accidentCallsThisShift = 0; }
+
+        // 사고가 났다고 매번 누가 전화하지는 않는다.
+        //
+        // 사고는 경고 단말기·시설 로그·미니맵에 이미 전부 떠 있다. 전화까지 매번 오면
+        // 화면을 볼 이유가 없어지고, 사고가 겹치는 DAY2 부터는 벨만 울리다 근무가 끝난다.
+        // 걸려오는 전화는 "놓치고 있었을지도 모를 것"을 알려 줄 때만 값이 있다.
+        if (_accidentCallsThisShift >= MaxAccidentCallsPerShift) return;
+        if (_rng.Randf() >= AccidentCallChance) return;
+        _accidentCallsThisShift++;
 
         string key = RoomKey(roomId);
         string caller = NearestAvailable(roomId, key, excludeEmployeeId);
@@ -283,6 +416,75 @@ public partial class IncomingCallDirector : Node
         });
     }
 
+    // 잡담 전화를 막는 사건들. 사고 · 방해공작 · 경고 · 죽음 · 정전 · 이상 개체.
+    private static bool IsTrouble(LogEventType t) => t is LogEventType.TaskFailed
+        or LogEventType.TaskSpawned or LogEventType.Sabotage or LogEventType.Death
+        or LogEventType.PowerOutage or LogEventType.CctvDisconnect or LogEventType.TabooViolation
+        or LogEventType.AnomalyIncident or LogEventType.AnomalyDispelled;
+
+    // 아무 일도 없이 조용한 시간에만 걸려온다.
+    //
+    // 근무가 사고 대응으로만 채워지면 직원은 배경이 된다. 사고가 없을 때 사람 목소리가
+    // 한 번 끼어들어야 이 여섯 명이 시설을 돌리고 있다는 것이 남는다.
+    // 다만 **시끄러운 동안에는 절대 걸지 않는다** — 사고 신고 전화와 겹치면 방해가 된다.
+    private void TickIdleCalls()
+    {
+        var cfg = Config.Instance?.Data;
+        var sim = FacilitySimulation.Instance;
+        if (cfg == null || sim == null) return;
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        // 교육일(DAY0)에는 대본이 흐르는 중이라 끼어들지 않는다.
+        if (!DayFeatures.AutoIncidentsEnabled) return;
+
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        if (_idleCallDay != day)
+        {
+            _idleCallDay = day;
+            _idleCallsToday = 0;
+            _lastTroubleAt = 0f;
+            _nextIdleCheckAt = 0f;
+        }
+        if (_idleCallsToday >= cfg.IdleCallMaxPerDay) return;
+
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        if (now - _lastTroubleAt < cfg.IdleCallQuietSeconds) return;
+        // 지금 처리해야 할 일이 하나라도 걸려 있으면 조용한 게 아니다.
+        if (sim.Warnings.Active.Count > 0 || sim.Ghost.Active) return;
+        if (_active != null || _queue.Count > 0) return;
+
+        if (_nextIdleCheckAt <= 0f) { _nextIdleCheckAt = now + cfg.IdleCallCheckSeconds; return; }
+        if (now < _nextIdleCheckAt) return;
+        _nextIdleCheckAt = now + cfg.IdleCallCheckSeconds;
+        if (_rng.Randf() >= cfg.IdleCallChance) return;
+
+        // 혼자 근무 중인 사람이 건다 — 심심하다는 말도, 옆 방 소리를 들었다는 말도
+        // 혼자 있어야 나온다.
+        var alone = sim.GetActiveEmployeeIds()
+            .Where(id => Available(id) && sim.OnDutyCount(sim.GetEmployeeState(id)?.CurrentRoomId ?? "") == 1)
+            .ToList();
+        if (alone.Count == 0) return;
+        string caller = alone[_rng.RandiRange(0, alone.Count - 1)];
+        string from = sim.GetEmployeeState(caller)?.CurrentRoomId ?? "";
+
+        // 갈 만한 다른 작업실. 사람이 있는 방이면 "소리를 들었다", 비어 있으면 "놀러 가도 되나".
+        var others = sim.GetActiveEmployeeIds()
+            .Where(id => id != caller)
+            .Select(id => sim.GetEmployeeState(id)?.CurrentRoomId ?? "")
+            .Where(r => !string.IsNullOrEmpty(r) && r != from)
+            .Distinct().ToList();
+        if (others.Count == 0) return;
+        string target = others[_rng.RandiRange(0, others.Count - 1)];
+
+        // 그 방에 스트레스가 높은 사람이 있으면 "이상한 소리를 들었다"가 된다.
+        bool worry = sim.OnDutyEmployeeIds(target)
+            .Any(id => (sim.GetEmployeeState(id)?.Stress ?? 0f)
+                       >= (Config.Instance?.Data?.StressDangerFrom ?? 31f) || sim.IsPanicked(id));
+
+        _idleCallsToday++;
+        Enqueue(caller, worry ? DialogueRepository.EventIdleWorry : DialogueRepository.EventIdleVisit,
+            $"idle:{day}:{_idleCallsToday}", target);
+    }
+
     private void PumpQueue()
     {
         if (_active != null) return;
@@ -336,6 +538,30 @@ public partial class IncomingCallDirector : Node
     private void OnEventChoiceMade(string employeeId, string dialogueEvent, int choiceIndex)
     {
         if (_active == null || _active.EmployeeId != employeeId) return;
+
+        // 이송 허가 — HUD 는 선택만 전달하고, 실제 상태 변경은 시뮬레이션이 한다(§46).
+        if (dialogueEvent == DialogueRepository.EventFaintTransportRequest)
+        {
+            string victim = FaintVictimOf(_active.DedupeKey);
+            var rescue = FacilitySimulation.Instance?.Rescue;
+            if (rescue == null || victim.Length == 0) return;
+            var incF = GetIncident(_active.DedupeKey);
+            if (incF != null) incF.Closed = true;
+            if (choiceIndex == 0) rescue.Approve(victim);
+            else rescue.Deny(victim);
+            return;
+        }
+
+        // 비명 문의(H-3) — 사실을 말해 주면 그만큼 겁을 먹는다. 그뿐이고 시설은 그대로 돌아간다.
+        if (dialogueEvent == DialogueRepository.EventGhostScream)
+        {
+            if (choiceIndex == 0)
+                FacilitySimulation.Instance?.AddStress(employeeId, GhostScreamTruthStress);
+            var incG = GetIncident(_active.DedupeKey);
+            if (incG != null) incG.Closed = true;
+            return;
+        }
+
         var inc = GetIncident(_active.DedupeKey);
         if (inc == null || inc.Closed || !IsDispatchEvent(dialogueEvent)) return;
 
@@ -375,6 +601,28 @@ public partial class IncomingCallDirector : Node
 
     private void OnCallMissed(string employeeId, string dialogueEvent)
     {
+        // 쓰러진 동료 건은 "안 받음" 과 "받고 거절" 이 뜻이 다르다(§21).
+        //   받지 않음(시간 초과) → 직원이 알아서 옮긴다
+        //   수신 거부 버튼      → 관리자가 분명히 "하지 말라" 고 한 것으로 본다
+        if (dialogueEvent == DialogueRepository.EventFaintTransportRequest)
+        {
+            string victim = FaintVictimOf(_active?.DedupeKey);
+            var rescue = FacilitySimulation.Instance?.Rescue;
+            if (rescue != null && victim.Length > 0)
+            {
+                if (Phone3D.Instance?.LastCallRejectedByPlayer == true) rescue.Deny(victim);
+                else rescue.NoAnswer(victim);
+            }
+            var incF = GetIncident(_active?.DedupeKey ?? "");
+            if (incF != null) incF.Closed = true;
+            FinishActive();
+            return;
+        }
+
+        // 근무 기억용 — "전화드렸는데 안 받으셨어요".
+        // 비명 문의(H-3)는 안 받아도 아무 일이 없다. 기록도 남기지 않는다.
+        if (dialogueEvent != DialogueRepository.EventGhostScream)
+            CallMemoryLog.Record(employeeId, CallRecordKind.Missed, _active?.RoomId ?? "", dialogueEvent);
         // 전화를 안 받은 것도 "확인 지시를 안 한" 것으로 본다 → 다른 직원이 2차로 건다.
         if (_active != null && IsDispatchEvent(_active.DialogueEvent))
         {
@@ -405,7 +653,7 @@ public partial class IncomingCallDirector : Node
     {
         var sim = FacilitySimulation.Instance;
         if (sim == null) return "";
-        var pool = sim.GetEmployeeIds().Where(id => Available(id) && !AlreadyCalled(incidentKey, id)).ToList();
+        var pool = sim.GetActiveEmployeeIds().Where(id => Available(id) && !AlreadyCalled(incidentKey, id)).ToList();
         return pool.Count == 0 ? "" : pool[_rng.RandiRange(0, pool.Count - 1)];
     }
 

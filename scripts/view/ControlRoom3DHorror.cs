@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using NSP.Core;
 using NSP.Data;
 using NSP.Facility;
@@ -13,10 +13,12 @@ namespace NSP.View;
 //  [쿵]: 카메라 강타 + 손이 책상을 짚음 + 천장등 OFF + CRT 암전 → 비상등 → 복귀
 public partial class ControlRoom3DHorror : Node
 {
+    // 천장광 비활성 상태 — Lights 그룹(천장등 · 보조광 · 등 메쉬)은 숨겨져 있어 아래 밝기 제어는 화면에 효과가 없다.
+    // 방의 광원은 두 모니터(M01/M02_ScreenLight)로 통일. 비상등만 그룹 밖으로 꺼내 살려 두었다.
     [Export] public NodePath CeilingLightPath = "../ControlRoom/Lights/CeilingLight";
     [Export] public NodePath FillLightPath = "../ControlRoom/Lights/FillLight";
     [Export] public NodePath CeilingFixturePath = "../ControlRoom/Lights/CeilingFixture";
-    [Export] public NodePath EmergencyLightPath = "../ControlRoom/Lights/EmergencyLight";
+    [Export] public NodePath EmergencyLightPath = "../ControlRoom/EmergencyLight";
     [Export] public NodePath EmergencyMeshPath = "../ControlRoom/Lights/EmergencyLight_Mesh";
     [Export] public NodePath CameraRigPath = "../PlayerSeatRig";
     [Export] public NodePath ArmsPath = "../ControlRoom/PlayerCharacter";
@@ -36,7 +38,8 @@ public partial class ControlRoom3DHorror : Node
     private bool _wired;
     private bool _eventLogWired;
     private bool _tabooAlert;
-    private bool _lightsOff;         // 조명 스위치 OFF / 정전으로 실내등이 꺼진 상태
+    private bool _lightsOff;              // 조명 스위치 OFF / 정전으로 실내등이 꺼진 상태
+    private bool _blackoutStaged;         // 정전 연출(모니터 하나 소등 · 정적)을 이미 걸었는가
     private double _impactBlackUntil; // [쿵] 순간 강제 소등
 
     public override void _Ready()
@@ -62,6 +65,14 @@ public partial class ControlRoom3DHorror : Node
             EventLog.Instance.EntryLogged += OnEventLogged;
             _eventLogWired = true;
         }
+        RoomEffectStats.LightFlickerRequested += FlickerOnce;
+    }
+
+    // 짧은 깜빡임 한 번. 발전실 출력이 내려앉은 순간처럼 "전기가 흔들렸다"를
+    // 몸으로 알리는 데 쓴다. L2 연출과 같은 경로(_impactBlackUntil)를 지난다.
+    public void FlickerOnce()
+    {
+        _impactBlackUntil = System.Math.Max(_impactBlackUntil, Time.GetTicksMsec() / 1000.0 + 0.12);
     }
 
     private static readonly Color LightBlue = new(0.5f, 0.65f, 1f);
@@ -83,9 +94,12 @@ public partial class ControlRoom3DHorror : Node
 
     // 실내 조명 통합 제어: 조명 스위치 OFF / 정전 → 방이 어두워지고 비상등이 켜진다.
     // 정상일 때만 사고 수(2+)에 따라 파랑/빨강.
+    // 엔딩 연출 / 결말 타이틀이 비상등을 직접 다루는 동안 true — 여기서 되돌리지 않는다.
+    public static bool ExternalLightingOverride;
+
     private void TickRoomLighting(float delta)
     {
-        if (_ceiling == null) return;
+        if (_ceiling == null || ExternalLightingOverride) return;
         var gs = GameState.Instance;
         bool live = gs?.CurrentPhase == GamePhase.Live;
         if (!live) _tabooAlert = false;
@@ -95,6 +109,17 @@ public partial class ControlRoom3DHorror : Node
         bool lightingCut = live && !gs.IsConsumerPowered(PowerConsumer.Lighting);
         bool impactBlack = now < _impactBlackUntil;
         _lightsOff = blackout || lightingCut || impactBlack;
+
+        // 내 방 정전 — "시설이 정전됐다" 가 아니라 "내가 앉은 방이 어두워졌다" 로 느껴져야 한다.
+        // 천장등은 이미 꺼지고 비상등만 남는다. 여기에 두 가지를 더 얹는다(B-4).
+        if (blackout != _blackoutStaged)
+        {
+            _blackoutStaged = blackout;
+            // ① 모니터 두 대 중 하나가 죽는다. 남은 한 대로만 시설을 본다.
+            ControlRoom3DController.Instance?.SetScreenBrightnessFor("02", blackout ? 0f : 1f);
+            // ② 환풍기가 멎을 때와 같은 정적을 1.5초.
+            if (blackout) _atmos?.Hush(1.5f);
+        }
 
         float ceilTarget, fillTarget, fixTarget, emgTarget;
         Color colTarget;
@@ -119,6 +144,7 @@ public partial class ControlRoom3DHorror : Node
         }
 
         float k = Mathf.Clamp(delta * (_lightsOff ? 9f : 4f), 0f, 1f);
+        // 천장광 비활성 상태 — 천장등 · 보조광 · 등 메쉬는 숨겨져 있다(아래 비상등만 실제로 보인다).
         _ceiling.LightEnergy = Mathf.Lerp(_ceiling.LightEnergy, ceilTarget, k);
         _ceiling.LightColor = _ceiling.LightColor.Lerp(colTarget, Mathf.Clamp(delta * 1.8f, 0f, 1f));
         if (_fill != null)
@@ -154,6 +180,7 @@ public partial class ControlRoom3DHorror : Node
 
     public override void _ExitTree()
     {
+        RoomEffectStats.LightFlickerRequested -= FlickerOnce;
         if (_eventLogWired && EventLog.Instance != null)
             EventLog.Instance.EntryLogged -= OnEventLogged;
         if (!_wired || HorrorDirector.Instance == null) return;

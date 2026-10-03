@@ -197,7 +197,9 @@ public partial class ScheduleScreen : Control
             {
                 EmployeeId = employeeId,
                 CustomMinimumSize = new Vector2(132f, 58f),
-                Text = $"{def.Codename}\n기{def.Tech} 담{def.Courage} 관{def.Observation}",
+                Text = NSP.Core.DayFeatures.StatsEnabled
+                    ? $"{def.Codename}\n기{def.Tech} 담{def.Courage} 관{def.Observation}"
+                    : $"{def.Codename}\n오늘의 기분: {(string.IsNullOrEmpty(state.DailyMood) ? "—" : state.DailyMood)}",
             };
             chip.AddThemeFontSizeOverride("font_size", 16);
             chip.Pressed += () => ToggleEmployeeCard(employeeId);
@@ -224,9 +226,19 @@ public partial class ScheduleScreen : Control
         foreach (Node child in _cardStats.GetChildren())
             child.QueueFree();
 
-        AddStatRow("기술", def.Tech);
-        AddStatRow("담력", def.Courage);
-        AddStatRow("관찰", def.Observation);
+        if (NSP.Core.DayFeatures.StatsEnabled)
+        {
+            AddStatRow("기술", def.Tech);
+            AddStatRow("담력", def.Courage);
+            AddStatRow("관찰", def.Observation);
+        }
+        else
+        {
+            string mood = FacilitySimulation.Instance.GetDailyMood(employeeId);
+            var moodLbl = new Label { Text = $"오늘의 기분: {(string.IsNullOrEmpty(mood) ? "—" : mood)}" };
+            moodLbl.AddThemeFontSizeOverride("font_size", 18);
+            _cardStats.AddChild(moodLbl);
+        }
 
         _employeeCard.Visible = true;
     }

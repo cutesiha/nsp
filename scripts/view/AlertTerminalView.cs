@@ -144,7 +144,7 @@ public partial class AlertTerminalView : Control
             ClipText = true,
         };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", c);
         return l;
     }
@@ -160,7 +160,7 @@ public partial class AlertTerminalView : Control
             MouseFilter = MouseFilterEnum.Stop,
         };
         b.AddThemeFontOverride("font", font);
-        b.AddThemeFontSizeOverride("font_size", 20);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.S(20));
         b.AddThemeColorOverride("font_color", new Color(0.55f, 0.85f, 0.65f));
         b.AddThemeColorOverride("font_hover_color", Colors.White);
         var normal = new StyleBoxFlat
@@ -395,10 +395,6 @@ public partial class AlertTerminalView : Control
     }
 
     // 근무 시계(0초 = 22:00)를 실제 시각 표기로.
-    private static string Clock24(float seconds)
-    {
-        float length = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int total = 22 * 60 + Mathf.FloorToInt(Mathf.Max(0f, seconds) * (360f / Mathf.Max(1f, length)));
-        return $"{(total / 60) % 24:00}:{total % 60:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string Clock24(float seconds) => NSP.Dialogue.DialogueClock.Text(seconds);
 }

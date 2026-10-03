@@ -76,7 +76,10 @@ public partial class ControlRoomInteraction : Node
 
     private void OnPickedUp()
     {
-        _rig?.PhonePosture(true);       // 고개를 수화기 쪽으로 기울인다
+        // 휴게시간 심문은 예외다. 그때는 두 CRT 를 번갈아 읽으며 자료를 맞춰 봐야 하는데,
+        // 고개가 기울어 있으면 글자가 계속 비스듬히 보인다.
+        if (NSP.Core.GameState.Instance?.CurrentPhase != NSP.Data.GamePhase.Rest)
+            _rig?.PhonePosture(true);   // 고개를 수화기 쪽으로 기울인다
         Sfx.Instance?.Play("phone_pickup", -4f);
     }
 

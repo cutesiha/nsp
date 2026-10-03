@@ -29,6 +29,71 @@ public partial class GameState : Node
     public int TotalKills { get; private set; }
     public void RegisterKill() => TotalKills++;
 
+    // 업무평가 — 선택 업무를 달성할 때마다 +1. 게임 성능에는 전혀 영향을 주지 않고
+    // 마지막 날의 관리자 평가 등급에만 반영된다.
+    public int EvaluationScore { get; private set; }
+
+    // 필수 업무를 못 끝낸 채 끝난 근무. 임의의 수치 패널티는 주지 않고 사실만 남긴다 —
+    // 정산 화면과 마지막 관리자 평가가 이 값을 읽는다.
+    public int MissedRequiredDays { get; private set; }
+    // 방금 끝난 근무에서 못 끝낸 필수 업무 수(0이면 전부 달성).
+    public int LastShiftMissedRequired { get; private set; }
+
+    public void RecordShiftObjectives(int missedRequired)
+    {
+        LastShiftMissedRequired = Math.Max(0, missedRequired);
+        if (LastShiftMissedRequired > 0) MissedRequiredDays += 1;
+    }
+    public void AddEvaluation(int amount) => EvaluationScore = Math.Max(0, EvaluationScore + amount);
+
+    // 5일 누적 — 최종 근무 기록 화면 전용. 오늘 기록(EventLog · IncidentTracker)은 다음 근무 시작에
+    // 지워지므로, 근무가 끝날 때마다 그날 숫자를 여기 더해 둔다.
+    public int TotalTabooViolations { get; private set; }
+    public int TotalIncidents { get; private set; }
+
+    public void AddShiftTotals(int tabooViolations, int incidents)
+    {
+        TotalTabooViolations += Math.Max(0, tabooViolations);
+        TotalIncidents += Math.Max(0, incidents);
+    }
+
+    // ── 최종 격리 보고서 ────────────────────────────────────────────────
+    // DAY5 가 끝나고 제출하는 마지막 절차. 제출하면 되돌릴 수 없고, 엔딩 분기를 가른다.
+    //   FinalAccusedId  지목한 직원 id. 지목하지 않았으면 "".
+    //   FinalEvidence   근거로 붙인 단서(일자 + 자료 id). 0~2장. 비어 있어도 제출된다.
+    //   WasCaught       지목이 실제 결번과 맞았는가 — 엔딩 축.
+    //   WasProven       그 지목을 근거로 증명했는가 — 엔딩을 바꾸지 않고 GUIDE-0 한 줄과 등급에만 쓴다.
+    public string FinalAccusedId { get; private set; } = "";
+    public IReadOnlyList<(int Day, string EvidenceId)> FinalEvidence => _finalEvidence;
+    private readonly List<(int Day, string EvidenceId)> _finalEvidence = new();
+    public bool FinalReportSubmitted { get; private set; }
+
+    public bool WasCaught => !string.IsNullOrEmpty(FinalAccusedId)
+                             && FinalAccusedId == SaboteurEmployeeId;
+
+    // 붙인 근거 중 한 장이라도 지목한 직원이 등장하는 자료면 "증명"으로 본다.
+    public bool WasProven { get; private set; }
+
+    public void SubmitFinalReport(string accusedId, IEnumerable<(int Day, string EvidenceId)> evidence,
+        Func<int, string, bool> involvesAccused)
+    {
+        FinalAccusedId = accusedId ?? "";
+        _finalEvidence.Clear();
+        if (evidence != null) _finalEvidence.AddRange(evidence);
+        WasProven = WasCaught && involvesAccused != null
+                    && _finalEvidence.Any(e => involvesAccused(e.Day, e.EvidenceId));
+        FinalReportSubmitted = true;
+    }
+
+    // 개발 허브 · 캡처용 — 보고서 화면을 거치지 않고 판정만 세운다.
+    public void ForceFinalVerdict(string accusedId, bool proven)
+    {
+        FinalAccusedId = accusedId ?? "";
+        _finalEvidence.Clear();
+        WasProven = WasCaught && proven;
+        FinalReportSubmitted = true;
+    }
+
     private readonly Random _rng = new();
 
     // ── 전력 패널(LIGHTING / CCTV / SENSOR) ────────────────────────────
@@ -117,8 +182,13 @@ public partial class GameState : Node
         CurrentPhase = phase;
     }
 
+    // 코어 증감 장부. 측정 도구(DayScheduleTest)만 구독한다 — 게임 진행에는 아무 영향이 없다.
+    // 사유(reason)가 그대로 넘어가므로 "얼마나 늘었고 무엇 때문에 깎였는가" 를 나눌 수 있다.
+    public static System.Action<float, string> CoreLedger;
+
     public void AddCoreProgress(float delta, string reason)
     {
+        CoreLedger?.Invoke(delta, reason);
         CoreProgress = Mathf.Clamp(CoreProgress + delta, 0f, 100f);
     }
 
@@ -207,6 +277,13 @@ public partial class GameState : Node
 
     // 처음부터 다시 시작(시작화면으로 돌아가기). autoload 라 씬을 다시 로드해도 살아남는
     // 진행 상태를 전부 DAY 1 초기값으로 되돌린다.
+    // 프롤로그를 거쳐 새 게임을 시작하면 DAY0(교육)부터, 프롤로그를 건너뛰면 DAY1 부터.
+    public void ResetRun(int startDay)
+    {
+        ResetRun();
+        CurrentDay = Math.Max(0, startDay);
+    }
+
     public void ResetRun()
     {
         CurrentDay = 1;
@@ -218,8 +295,19 @@ public partial class GameState : Node
         Result = GameResult.None;
         SaboteurEmployeeId = "";
         TotalKills = 0;
+        EvaluationScore = 0;
+        TotalTabooViolations = 0;
+        TotalIncidents = 0;
+        MissedRequiredDays = 0;
+        LastShiftMissedRequired = 0;
+        FinalAccusedId = "";
+        _finalEvidence.Clear();
+        WasProven = false;
+        FinalReportSubmitted = false;
         RepairPowerAccident();     // 용량 복구 + 세 채널 ON
         ResetFacilityFaults();
+        // 관리자 패드의 단서는 한 판 동안만 남는다.
+        ClueBoard.ResetAll();
     }
 
     // CCTV를 실제로 볼 수 있는가 = 전력이 있고 + 설비 고장(FAIL-04)이 아니어야 한다.
@@ -266,6 +354,14 @@ public partial class GameState : Node
     public void GoToNextDay()
     {
         CurrentDay += 1;
+        // 가상 시뮬레이션(DAY0)에서 올린 복구율은 실적이 아니라 연습이다.
+        // 실제 근무 첫날은 반드시 0% 에서 시작한다.
+        // 교육 때 찍어 둔 단서도 마찬가지다 — 실제 근무의 패드는 비어서 시작한다.
+        if (CurrentDay == 1)
+        {
+            CoreProgress = 0f;
+            ClueBoard.ResetAll();
+        }
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;
         RepairPowerAccident();

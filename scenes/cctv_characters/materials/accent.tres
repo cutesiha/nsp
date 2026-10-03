@@ -1,0 +1,9 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+; 작업복 포인트 색(가슴 띠 · 소매 띠 · 카라 · 허벅지 띠).
+; 지금은 중립 회색. 나중에 직원별로 이 재질만 갈아 끼우면 색이 바뀐다.
+[resource]
+resource_name = "Accent"
+albedo_color = Color(0.56, 0.58, 0.62, 1)
+roughness = 0.7
+metallic = 0.0

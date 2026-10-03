@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -67,6 +67,8 @@ public partial class Phone3D : Node3D
     private double _autoPickupAt = -1;
 
     public bool IsBusy => _state != PhoneState.Idle;
+    // 지금 벨이 울리는 중인가. 대사 진행 입력이 수화기 클릭을 가로채지 않게 하는 데 쓴다.
+    public bool IsRinging => _state == PhoneState.Ringing;
 
     public override void _Ready()
     {
@@ -103,6 +105,8 @@ public partial class Phone3D : Node3D
 
         if (_area != null) _area.InputEvent += OnAreaInput;
         if (_hud != null) _hud.Closed += HangUp;
+        // 벨이 울리는 동안 「전화 끊기」를 누르면 받지 않고 끊는다.
+        if (_hud != null) _hud.RejectRequested += RejectIncoming;
 
         // 구식 전화벨 — "따르릉 따르릉" 이 벨이 울리는 동안 계속 반복되도록 재생이 끝나면 다시 건다.
         if (_ring != null) _ring.Finished += () =>
@@ -168,6 +172,8 @@ public partial class Phone3D : Node3D
                 _autoPickupAt = -1;
                 PickUp();
             }
+            // 관리자 패드를 보는 동안에는 근무 시간이 멈춘다 — 직원이 기다리는 시간도 늘어난다.
+            if (AdminPad3D.PausesGame && _patienceUntil > 0) _patienceUntil += delta;
             // 캐릭터별 대기시간이 지나면 직원이 전화를 포기한다.
             if (_isIncoming && _patienceUntil > 0 && Time.GetTicksMsec() / 1000.0 >= _patienceUntil)
                 GiveUp();
@@ -204,6 +210,10 @@ public partial class Phone3D : Node3D
 
         // 근무 중(Live) 또는 휴게시간(Rest)에만 조작 가능 — 시작 화면 / 근무 배치 단계에서는 무시한다.
         if (_state == PhoneState.Idle && GameState.Instance?.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+        // 제어실 입력이 잠긴 동안(단계 전환 연출 · 교육 마무리)에는 수화기도 집지 않는다.
+        if (ControlRoom3DController.Instance?.IsInputLocked == true) return;
+        // 관리자 패드를 든 동안에는 수화기를 집지 않는다 — 패드를 내려놓고 받는다.
+        if (AdminPad3D.Instance?.IsOpen == true) return;
 
         if (_state == PhoneState.Idle) StartOutgoing();
         else if (_state == PhoneState.Ringing) PickUp();
@@ -233,9 +243,24 @@ public partial class Phone3D : Node3D
         _patienceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(1f, patience);
 
         _ring?.Play();
+        LastCallRejectedByPlayer = false;
         _hud?.ShowIncoming(CallerColor());
         EmitSignal(SignalName.RingStarted);
     }
+
+    // 관리자가 **직접** 받지 않고 끊었다. 직원이 기다리다 포기한 것과 결과는 같다 —
+    // 그 상황의 다음 전화는 IncomingCallDirector 의 큐가 그대로 잇는다.
+    public void RejectIncoming()
+    {
+        if (_state != PhoneState.Ringing || !_isIncoming) return;
+        // 관리자가 **분명히** 거절했다 — 그냥 못 받은 것과 뜻이 다른 상황이 있다.
+        // (기절한 동료 이송: 안 받으면 직원이 알아서 옥기지만, 거절하면 옥기지 않는다.)
+        LastCallRejectedByPlayer = true;
+        GiveUp();
+    }
+
+    // 방금 끝난 수신 전화를 관리자가 직접 거절했는가(시간 초과가 아니라).
+    public bool LastCallRejectedByPlayer { get; private set; }
 
     // 관리자가 시간 안에 받지 않음 → 직원이 끊는다. 벨을 바로 끊고 "뚝" 소리, LED 회색 복귀.
     private void GiveUp()
@@ -339,6 +364,44 @@ public partial class Phone3D : Node3D
             RestRosterView.Instance?.DisarmInterrogate();
         EmitSignal(SignalName.PickedUp);
         _hud?.Open(_caller, _dialogueEvent, _incidentRoomId);
+    }
+
+    // ── 엔딩 전용 ────────────────────────────────────────────────────────
+    // 통화 상태도 HUD 도 만들지 않고 수화기만 든다(TRUE 엔딩의 마지막 통화).
+    // 상대는 아무 말도 하지 않는다 — 이 연출에는 대사가 없다.
+    public void EndingLift()
+    {
+        if (_handset == null) return;
+        if (_player == null) { _handsetFollowsHand = false; return; }
+        _player.PhoneGripped += OnEndingGripped;
+        _player.PlayPhonePickup(_receiverGrip?.GlobalPosition ?? _handset.GlobalPosition);
+    }
+
+    private void OnEndingGripped()
+    {
+        if (_player != null) _player.PhoneGripped -= OnEndingGripped;
+        _handsetFollowsHand = _handset != null && _player?.HandSocket != null;
+    }
+
+    public void EndingHangUp()
+    {
+        if (_handset == null) return;
+        if (_player != null)
+        {
+            _player.PhoneReleased += OnEndingReleased;
+            _player.PlayPhoneHangup(_receiverRest?.GlobalPosition ?? _handsetCradleWorld());
+        }
+        else OnEndingReleased();
+    }
+
+    private void OnEndingReleased()
+    {
+        if (_player != null) _player.PhoneReleased -= OnEndingReleased;
+        _handsetFollowsHand = false;
+        var t = CreateTween();
+        t.SetParallel(true);
+        t.TweenProperty(_handset, "position", _handsetRestXform.Origin, 0.18).SetTrans(Tween.TransitionType.Sine);
+        t.TweenProperty(_handset, "quaternion", _handsetRestXform.Basis.GetRotationQuaternion(), 0.18);
     }
 
     private void HangUp()

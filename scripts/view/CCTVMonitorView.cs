@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using Godot;
 using NSP.Core;
 using NSP.Data;
@@ -31,7 +31,17 @@ public partial class CCTVMonitorView : Control
     private Label _recLabel;
     private Label _camLabel;
     private Label _clock;
+    private CctvOverheardCaption _overheard;
     private TextureRect _noise;
+
+    // ── 괴물 ───────────────────────────────────────────────────────────
+    // "얼마나 더 봐야 사라지는가" 게이지. **지금 보고 있는 방**에만 뜬다 —
+    // 다른 방에 있는 괴물은 이 화면 어디에도 나타나지 않는다.
+    // (비명에는 자막을 달지 않는다. 소리와 화면 흔들림만으로 충분하고,
+    //  큰 글자가 뜨면 정작 방 안에서 무슨 일이 벌어지는지 가린다.)
+    private ColorRect _dispelBack, _dispelFill;
+    private Label _dispelLabel;
+    private bool _ghostWired;
     private ImageTexture[] _noiseFrames;
     private float _noiseSwap;
     private int _noiseIdx;
@@ -103,19 +113,132 @@ public partial class CCTVMonitorView : Control
         _recLabel.Position = new Vector2(44, 24);
         AddChild(_recLabel);
 
-        _camLabel = Lbl("", 15, new Color(0.75f, 0.85f, 0.8f));
-        _camLabel.Position = new Vector2(44, 512);
+        _camLabel = Lbl("", 22, new Color(0.78f, 0.90f, 0.84f));
+        _camLabel.Position = new Vector2(44, 504);
         AddChild(_camLabel);
 
+        // 같은 방 두 사람의 대화 자막(관계 시스템 Phase 2) — 상태 줄 바로 위.
+        _overheard = new CctvOverheardCaption
+        {
+            Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y - 112f),
+            Size = new Vector2(Frame.Size.X, 50f),
+        };
+        AddChild(_overheard);
+
         _clock = Lbl("--:--", 18, new Color(0.75f, 0.85f, 0.8f));
-        _clock.Position = new Vector2(600, 24);
-        _clock.Size = new Vector2(156, 24);
+        _clock.Position = new Vector2(536, 24);
+        _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);
+
+        BuildGhostOverlay();
+    }
+
+    // 소멸 게이지.
+    private void BuildGhostOverlay()
+    {
+        // 게이지는 화면 아래쪽 — 방 안을 가리지 않는 자리에 둔다.
+        float gy = Frame.Position.Y + Frame.Size.Y - 44f;
+        _dispelBack = new ColorRect
+        {
+            Color = new Color(0f, 0f, 0f, 0.55f),
+            Position = new Vector2(Frame.Position.X + 150f, gy),
+            Size = new Vector2(Frame.Size.X - 300f, 14f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        AddChild(_dispelBack);
+        _dispelFill = new ColorRect
+        {
+            Color = new Color(0.62f, 0.95f, 0.78f, 0.92f),
+            Position = _dispelBack.Position + new Vector2(2f, 2f),
+            Size = new Vector2(0f, 10f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        AddChild(_dispelFill);
+        _dispelLabel = Lbl("관측 유지 — 시선을 떼지 마십시오", 15, new Color(0.72f, 0.96f, 0.84f));
+        _dispelLabel.Position = new Vector2(Frame.Position.X, gy - 26f);
+        _dispelLabel.Size = new Vector2(Frame.Size.X, 22f);
+        _dispelLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _dispelLabel.Visible = false;
+        AddChild(_dispelLabel);
+    }
+
+    // 지금 보고 있는 방에 괴물이 있는 동안에만 게이지가 차오른다.
+    private void TickGhostOverlay(float d, FacilitySimulation sim, string roomId, bool feed)
+    {
+        var ghost = sim?.Ghost;
+        if (ghost != null && !_ghostWired)
+        {
+            ghost.Screamed += OnGhostScream;
+            _ghostWired = true;
+        }
+
+        bool show = feed && ghost is { Active: true } && ghost.ActiveRoomId == roomId;
+        if (_dispelBack.Visible != show)
+        {
+            _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = show;
+        }
+        if (!show) return;
+
+        float w = (_dispelBack.Size.X - 4f) * ghost.DispelRatio;
+        _dispelFill.Size = new Vector2(w, 10f);
+        _dispelLabel.Text = ghost.DispelRatio >= 0.999f
+            ? "관측 완료"
+            : $"관측 유지 — 시선을 떼지 마십시오  ({ghost.DispelRatio * 100f:0}%)";
+    }
+
+    // 벽 너머의 기척. 괴물의 비명과, 그 방에 있는 직원의 비명이 겹쳐 아주 작게 난다.
+    // 직원 비명은 그 직원의 목소리로 만들어지므로(Sfx.PlayScream), 귀가 밝은 플레이어는
+    // "누구 목소리인지"까지 짐작할 수 있다.
+    private const float DistantGhostDb = -17f;
+    private const float DistantScreamDb = -21f;
+
+    private void PlayDistantHaunt(FacilitySimulation sim, string roomId)
+    {
+        Sfx.Instance?.PlayGhostScreamDistant(DistantGhostDb);
+
+        // 그 방에 사람이 있으면 그 사람의 비명이 함께 샌다. 비어 있으면 괴물 소리만.
+        var here = sim.OnDutyEmployeeIds(roomId).ToList();
+        if (here.Count == 0) return;
+        Sfx.Instance?.PlayScream(here[(int)(GD.Randi() % (uint)here.Count)], DistantScreamDb);
+    }
+
+    private void OnGhostScream(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return;
+
+        // 다른 방을 보고 있다 — 그래도 소리는 들린다.
+        //
+        // 괴물은 로그에도 알림에도 뜨지 않는다. 화면을 돌려 찾아내는 것이 이 계통의
+        // 전부인데, 아무 기척이 없으면 찾을 이유 자체가 생기지 않는다.
+        // 벽 너머로 새어 나오는 정도의 소리만 흘려 "어디선가 났다"까지만 알린다 —
+        // 어느 방인지는 알려 주지 않으므로, 결국 CCTV 를 돌려 봐야 한다.
+        if (sim.SurveillanceTargetRoomId != roomId)
+        {
+            PlayDistantHaunt(sim, roomId);
+            return;
+        }
+        Shake(9f, 0.6f);
+        FlashGlitch(1f);
+        // 두 녹음 중 하나가 아주 크게, 울리며 나간다.
+        Sfx.Instance?.PlayGhostScream();
+        // 소리가 닿아 모니터 기기 자체가 흔들린다 — 화면 안이 아니라 책상 위가 흔들려야
+        // "저 안에서 난 소리" 가 이쪽으로 건너온 것처럼 읽힌다.
+        NSP.View.ControlRoom3DController.Instance?.ShakeMonitor("02", 1.8f, 0.7f);
     }
 
     public override void _ExitTree()
     {
+        // 괴물 시스템은 시뮬레이션(오토로드)과 함께 살아 있다 — 이 화면이 사라질 때
+        // 손을 떼지 않으면 해제된 노드로 신호가 들어온다.
+        if (_ghostWired && FacilitySimulation.Instance?.Ghost != null)
+        {
+            FacilitySimulation.Instance.Ghost.Screamed -= OnGhostScream;
+            _ghostWired = false;
+        }
         if (Instance == this) Instance = null;
     }
 
@@ -123,7 +246,7 @@ public partial class CCTVMonitorView : Control
     {
         var l = new Label { Text = t };
         l.AddThemeFontOverride("font", _font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.S(size));
         l.AddThemeColorOverride("font_color", c);
         l.AddThemeColorOverride("font_outline_color", Colors.Black);
         l.AddThemeConstantOverride("outline_size", 3);
@@ -140,6 +263,16 @@ public partial class CCTVMonitorView : Control
         float d = (float)delta;
         var sim = FacilitySimulation.Instance;
         string roomId = sim?.SurveillanceTargetRoomId ?? "";
+        bool feed = UpdateFeed(d, sim, roomId);
+        TickGhostOverlay(d, sim, roomId, feed);
+        // 엿들은 대화 — 정상 피드가 나오고 근무 중일 때만 들린다.
+        // 관리자 패드를 보는 동안에는 근무 시간이 멈추므로 대화도 그 자리에 멈춘다.
+        _overheard?.Tick(AdminPad3D.PausesGame ? 0f : d, roomId, feed && GameState.Instance?.CurrentPhase == GamePhase.Live);
+    }
+
+    // 화면 상태를 갱신하고, 방 영상이 정상적으로 나오고 있으면 true.
+    private bool UpdateFeed(float d, FacilitySimulation sim, string roomId)
+    {
 
         _clock.Text = FacilityClock(GameState.Instance?.DayTimeSeconds ?? 0f);
 
@@ -166,7 +299,7 @@ public partial class CCTVMonitorView : Control
         {
             ShowState("── SIGNAL LOST ──", darken: 0.94f);
             _noise.Modulate = new Color(1, 1, 1, 0.62f + _glitch * 0.3f);
-            return;
+            return false;
         }
         bool forceFeed = now < _forceFeedUntil;
 
@@ -175,7 +308,7 @@ public partial class CCTVMonitorView : Control
             ShowState("MONITOR 01에서 방을 선택하세요", darken: 1f);
             _camLabel.Text = "";
             _noise.Modulate = new Color(1, 1, 1, 0.05f + _glitch * 0.5f);
-            return;
+            return false;
         }
 
         var def = sim.GetRoomDef(roomId);
@@ -202,19 +335,19 @@ public partial class CCTVMonitorView : Control
             // FAIL-04: 경비실 감시 설비 고장 — 전력을 줘도 수리 전까지 신호 없음.
             ShowState("SIGNAL FAILURE\nSURVEILLANCE SYSTEM DOWN", darken: 0.92f);
             _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
-            return;
+            return false;
         }
         if (!forceFeed && disconnected)
         {
             ShowState("── SIGNAL LOST ──", darken: 0.92f);
             _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
-            return;
+            return false;
         }
         if (!forceFeed && !powered)
         {
             ShowState("NO SIGNAL\nCCTV POWER OFF", darken: 0.9f);
             _noise.Modulate = new Color(1, 1, 1, 0.16f);
-            return;
+            return false;
         }
 
         // 정상 피드 — 실제 3D 작업실 월드 텍스처를 그대로 깐다. 아직 준비 전이면 2D 폴백.
@@ -235,6 +368,8 @@ public partial class CCTVMonitorView : Control
         _noise.Modulate = new Color(1, 1, 1, (red ? 0.14f : 0.06f) + _glitch * 0.55f);
 
         RebuildEmployees(sim, state);
+    
+        return true;
     }
 
     private void ShowState(string text, float darken)
@@ -268,7 +403,9 @@ public partial class CCTVMonitorView : Control
         var existing = _employeeLayer.GetNodeOrNull<Label>("Status");
         var status = existing ?? Lbl("", 15, new Color(0.85f, 0.9f, 0.85f));
         status.Name = "Status";
-        status.Text = string.IsNullOrEmpty(block) ? "정상 근무 중" : block.Replace("\n", "   ");
+        // 이상이 있을 때만 쓴다. "정상 근무 중" 은 아무것도 알려주지 않으면서 화면 아래를
+        // 늘 차지해, 정작 문제가 떴을 때 그 줄이 눈에 덜 띄게 만들고 있었다.
+        status.Text = block?.Replace("\n", "   ") ?? "";
         status.Position = new Vector2(0, Frame.Size.Y - 60);
         status.Size = new Vector2(Frame.Size.X, 40);
         status.HorizontalAlignment = HorizontalAlignment.Center;
@@ -304,14 +441,8 @@ public partial class CCTVMonitorView : Control
         return ImageTexture.CreateFromImage(img);
     }
 
-    private static string FacilityClock(float t)
-    {
-        float shiftLength = Config.Instance?.Data?.DayLengthSeconds ?? 180f;
-        int totalMin = 22 * 60 + Mathf.FloorToInt(t * (360f / Mathf.Max(1f, shiftLength)));
-        int h = (totalMin / 60) % 24;
-        int m = totalMin % 60;
-        return $"{h:00}:{m:00}";
-    }
+    // 플레이어에게 보이는 시각 — 한글 시간대 표기(밤/새벽). 환산 · 표기는 DialogueClock 한 곳에서만.
+    private static string FacilityClock(float t) => NSP.Dialogue.DialogueClock.Text(t);
 
     // 배경 placeholder — 방별 가구 배치(CctvView.RoomFurniture 재사용)를 그린다.
     private partial class CctvPlaceholder : Control
