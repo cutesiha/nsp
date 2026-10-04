@@ -361,6 +361,12 @@ public partial class GameState : Node
         {
             CoreProgress = 0f;
             ClueBoard.ResetAll();
+            // 가상 시뮬레이션은 **아무것도 남기지 않는다.** 직원 상태(스트레스 · 기절 · 관계)도,
+            // 그날의 시설 로그와 대화 기록도 전부 교육의 것이다 —
+            // 하나라도 넘어오면 "첫날인데 누가 이미 지쳐 있다" 가 된다.
+            NSP.Facility.FacilitySimulation.Instance?.ResetRun();
+            EventLog.Instance?.ClearAll();
+            DialogueHistory.Instance?.ClearAll();
         }
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;

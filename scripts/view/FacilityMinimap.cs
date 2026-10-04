@@ -84,6 +84,12 @@ public partial class FacilityMinimap : Control
     private readonly Dictionary<string, float> _faintBlink = new();
     private bool _rescueWired;
 
+    // 스트레스 구간이 올라간 순간 — 그 직원 아이콘이 잠깐 점멸하고 위에 붉은 ! 가 뜬다.
+    // 숫자를 읽으러 들어가지 않아도 "누가 지금 올라갔다"가 지도에서 바로 보여야 한다.
+    private const float StressBlinkSeconds = 2.4f;
+    private const int StressBlinkCount = 6;
+    private readonly Dictionary<string, float> _stressBlink = new();
+
     public override void _Ready()
     {
         _font = ViewFont.Default;
@@ -95,7 +101,10 @@ public partial class FacilityMinimap : Control
         RoomEffectStats.RoomWorked += OnRoomWorked;
         WireRescue();
         RoomEffectStats.VentilationRestored += OnVentilationRestored;
+        FacilitySimulation.StressBandRaised += OnStressBandRaised;
     }
+
+    private void OnStressBandRaised(string employeeId, string band) => _stressBlink[employeeId] = 0f;
 
     // 그 작업실이 방금 제 일을 해냈다. 로그가 아니라 이 신호로 받는 이유는,
     // 로그 줄은 10초씩 모았다 나가지만 점멸은 그 순간에 보여야 하기 때문이다.
@@ -160,6 +169,7 @@ public partial class FacilityMinimap : Control
         if (_rescueWired && FacilitySimulation.Instance?.Rescue != null)
             FacilitySimulation.Instance.Rescue.Fainted -= OnEmployeeFainted;
         RoomEffectStats.VentilationRestored -= OnVentilationRestored;
+        FacilitySimulation.StressBandRaised -= OnStressBandRaised;
     }
 
     private void OnLogEntry()
@@ -202,6 +212,13 @@ public partial class FacilityMinimap : Control
                 float age = _faintBlink[id] + (float)delta;
                 if (age >= FaintBlinkSeconds + 0.5f) _faintBlink[id] = FaintBlinkSeconds;
                 else _faintBlink[id] = age;
+            }
+        if (_stressBlink.Count > 0)
+            foreach (string id in _stressBlink.Keys.ToList())
+            {
+                float age = _stressBlink[id] + (float)delta;
+                if (age >= StressBlinkSeconds) _stressBlink.Remove(id);
+                else _stressBlink[id] = age;
             }
         if (_flashAge.Count > 0)
             foreach (var roomId in _flashAge.Keys.ToList())
@@ -317,17 +334,20 @@ public partial class FacilityMinimap : Control
 
         // 색은 두 단계뿐이다 — 주황(경고) / 빨강(사고 발생).
         // 단계 판정만 경고 단말기와 같은 IncidentBoard 를 쓴다.
+        //
+        // 주황은 **사고 직전**에만 켠다. 주의(Caution)까지 칠하면 제한시간이 걸린 업무가
+        // 도는 방은 전부 근무 시작부터 주황이 되어, 정작 급한 방이 묻힌다.
+        // 주의 단계는 방 상자의 진행 막대(DrawWarningBar / 아래 업무 바)가 이미 보여 준다.
         var incident = dormant ? null : NSP.Core.IncidentBoard.ForRoom(roomId);
         Color fill = incident?.State switch
         {
             NSP.Core.IncidentState.Active => new Color(0.55f, 0.09f, 0.09f)
                 .Lerp(new Color(0.8f, 0.15f, 0.15f), 0.5f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 90f)),
-            NSP.Core.IncidentState.Warning or NSP.Core.IncidentState.Caution
-                => new Color(0.5f, 0.32f, 0.08f),
+            NSP.Core.IncidentState.Warning => new Color(0.5f, 0.32f, 0.08f),
             _ => tier switch
             {
                 RoomDangerTier.Failure => new Color(0.55f, 0.09f, 0.09f),
-                RoomDangerTier.Unstable or RoomDangerTier.Delayed => new Color(0.5f, 0.32f, 0.08f),
+                RoomDangerTier.Unstable => new Color(0.5f, 0.32f, 0.08f),
                 _ => dormant ? new Color(0.10f, 0.11f, 0.13f) : new Color(0.11f, 0.17f, 0.16f),
             },
         };
@@ -575,11 +595,24 @@ public partial class FacilityMinimap : Control
         var faint = FaintTint(id, sim);
         if (faint.HasValue) c = faint.Value;
 
+        // 스트레스 구간이 방금 올라갔다 — 아이콘이 점멸하고 위에 붉은 ! 가 같이 깜빡인다.
+        bool stressBeat = false;
+        if (_stressBlink.TryGetValue(id, out float sage))
+        {
+            stressBeat = (int)(sage / StressBlinkSeconds * StressBlinkCount * 2f) % 2 == 0;
+            if (stressBeat) c = FacilitySimulation.StressBandColor(sim.StressBandName(st));
+        }
+
         // 직원 아이콘은 고유색으로 구분한다 — 작게 그리면 색이 안 읽히므로 넉넉한 크기로.
         if (id == SelectedEmployeeId)
             DrawCircle(p, EmpDotRadius + 4f, new Color(1f, 1f, 1f, 0.9f), false, 2.4f);
+        if (stressBeat)
+            DrawCircle(p, EmpDotRadius + 5f, c with { A = 0.55f }, false, 3f);
         DrawCircle(p, EmpDotRadius, c);
         DrawCircle(p, EmpDotRadius, new Color(0f, 0f, 0f, 0.7f), false, 1.6f);
+        if (stressBeat)
+            DrawString(_font, p + new Vector2(-14f, -EmpDotRadius - 6f), "!", HorizontalAlignment.Center,
+                28f, ViewFont.S(20), new Color(1f, 0.26f, 0.22f));
 
         // 코드네임은 아이콘 아래 — 방 이름(상자 위쪽)과 부딪히지 않는다.
         DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 12f), def.Codename, HorizontalAlignment.Center, 60f, ViewFont.S(11),

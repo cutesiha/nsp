@@ -37,6 +37,8 @@ public partial class GuideSubtitleHud : CanvasLayer
     private RichTextLabel _label;
     // 강조 명령과 BBCode 를 뺀 순수 문장 — 홀로그램 창의 CurrentLineText 와 이 값을 비교한다.
     private string _raw = "";
+    // 지금 띠에 떠 있는 문장(검사 · 개발 탐침이 읽는다).
+    public string CurrentLine => _raw;
     private Label _arrow;          // 다음으로 넘길 수 있을 때 오른쪽 끝에서 둥둥 떠다니는 ▶
     private VBoxContainer _choices;
     private bool _active;

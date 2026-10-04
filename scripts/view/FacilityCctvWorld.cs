@@ -70,6 +70,10 @@ public partial class FacilityCctvWorld : Node3D
     private readonly Dictionary<string, Node3D> _rooms = new();
     private readonly Dictionary<string, Node3D> _employees = new();
     private readonly Dictionary<string, EmployeeCctvAnimator> _animators = new();
+
+    // 검수·디버그용 — 그 직원의 CCTV 3D 노드와 애니메이터. 게임 판정은 쓰지 않는다.
+    public Node3D EmployeeNode(string id) => _employees.GetValueOrDefault(id);
+    public EmployeeCctvAnimator EmployeeAnimator(string id) => _animators.GetValueOrDefault(id);
     // 방 안 작업 자리 배치(표현 전용).
     private readonly RoomWorkVisualController _workVisual = new();
     // 괴물 반응이 몇 초째인가 — 보고 있지 않은 방의 직원까지 계속 센다(표현 전용).

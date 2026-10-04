@@ -122,6 +122,10 @@ public static class RoomStatusText
         return new string('.', dots);
     }
 
+    // 제한시간 소진 비율이 이만큼 넘어야 "점검 지연" / "상태 불안정" 이다.
+    public const float DelayedFrom = 0.67f;
+    public const float UnstableFrom = 0.85f;
+
     public static RoomDangerTier GetDangerTier(string roomId)
     {
         var sim = FacilitySimulation.Instance;
@@ -152,8 +156,10 @@ public static class RoomStatusText
             if (hold > 0f) ratio = Mathf.Max(ratio, kv.Value / hold);
         }
 
-        if (ratio <= 0f) return RoomDangerTier.None;
-        return ratio < 0.5f ? RoomDangerTier.Delayed : RoomDangerTier.Unstable;
+        // 제한시간이 돌기 시작한 순간부터 "지연"으로 치면 근무 시작 직후 모든 방이 경고색이 된다.
+        // 경고는 **사고 직전 몇 초**를 가리켜야 쓸모가 있다 — 시한의 2/3 를 넘긴 뒤부터 센다.
+        if (ratio < DelayedFrom) return RoomDangerTier.None;
+        return ratio < UnstableFrom ? RoomDangerTier.Delayed : RoomDangerTier.Unstable;
     }
 
     // 이미 고장난 방이 "무엇을 못 하게 됐는지" 한 줄로. 고장이 아니면 빈 문자열.

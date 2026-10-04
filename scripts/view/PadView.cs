@@ -36,8 +36,9 @@ public partial class PadView : Control
     private const int FsAppLabel = 22;  // 홈 앱 아이콘 라벨
     private const int FsScreen = 26;    // 화면 제목(앱 바)
     private const int FsSection = 22;   // 섹션 제목 · 카드 제목
-    private const int FsBody = 19;      // 본문
-    private const int FsCaption = 16;   // 보조 · 캡션(최소값)
+    // 직원 탭의 설명 글이 너무 작아 거치대 위에서 읽히지 않았다 — 본문 · 캡션을 함께 올린다.
+    private const int FsBody = 23;      // 본문
+    private const int FsCaption = 19;   // 보조 · 캡션(최소값)
 
     private const float StatusH = 44f;
     private const float AppBarH = 62f;
@@ -118,6 +119,8 @@ public partial class PadView : Control
         BuildHome();
         BuildApp();
         BuildLock();
+        // 스트레스 구간 경고 — 잠금 화면 위. 승인 요청보다는 아래다(요청이 더 급하다).
+        AddChild(new PadStressBanner(Layout));
         // 수리 승인 절차 — 잠금 화면 위, 전원 연출 아래. 거치 중에도 떠야 관리자가 보고 집어 든다.
         _repair = new PadRepairOverlay(Layout) { Visible = false };
         AddChild(_repair);

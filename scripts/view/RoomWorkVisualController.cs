@@ -70,6 +70,8 @@ public sealed partial class RoomWorkVisualController
         public Transform3D ReleaseFrom;
         // 격리
         public IsoState Iso;
+        // 사람 이송(기절한 동료를 업고 의무실까지)
+        public CarryState Carry;
         // 괴물
         public GhostVisual Ghost;
         public Vector3? LastGhostSeen;  // 그날 마지막으로 괴물이 있던 곳(양 후유증 시선)
@@ -183,7 +185,8 @@ public sealed partial class RoomWorkVisualController
             // 평소의 작업 자리 배치를 따르지 않는다(구조가 일반 업무보다 우선). 그리는 것은 FaintVisuals.
             if (st != null)
             {
-                // 환자를 업고 가는 중 — 환자 노드를 운반자 몸에 붙인다.
+                // 환자를 옮기는 중 — 들어 올리기 · 걷기 · 침대 접근 · 내려놓기를 한 줄기로 그린다.
+                // 일반 이동/업무보다 우선한다(§63): 여기서 continue 하므로 아래 표현이 덮지 못한다.
                 if (!string.IsNullOrEmpty(st.CarryingVictimId))
                 {
                     var carried = visible.Find(x => x.Id == st.CarryingVictimId);
@@ -191,19 +194,25 @@ public sealed partial class RoomWorkVisualController
                     if (carried.Node != null && cs != null)
                     {
                         Release(actor);
-                        node.Position = v.FallbackPos;
-                        FaintVisuals.PoseCarry(node, anim, carried.Node, carried.Anim, cs, v.Id, delta);
-                        continue;
+                        if (TickCarry(v.Id, node, anim, actor, carried.Node, carried.Anim, cs, female,
+                                      v.FallbackPos, v.Action == CctvEmployeeAction.Leaving, spots, delta))
+                            continue;
                     }
                 }
 
+                // 환자를 막 눕혔다 — 손을 빼고 허리를 펴고 환자를 한 번 보는 동안은 그 자리에 선다.
+                // 이 동작이 끝나야 작업실로 걸어서 돌아간다(§48 · §52).
+                if (TickCarrierRecover(node, anim, actor, st, female, delta)) continue;
+
                 // 쓰러졌다 / 바닥에 있다 / 실려 가는 중이다.
-                if (st.Faint != FaintPhase.None && st.Faint != FaintPhase.InMedicalBed
-                    && st.Faint != FaintPhase.Recovering)
+                // 실려 가는 네 단계(들어 올리기 · 이동 · 침대 접근 · 내려놓기) 동안에는
+                // 운반자 쪽 TickCarry 가 환자 노드를 잡고 있다 — 여기서 자리를 또 쓰면 서로 밀어낸다.
+                bool beingCarried = st.Faint is FaintPhase.TransportPickup or FaintPhase.Transporting
+                                               or FaintPhase.BedApproach or FaintPhase.InMedicalBed;
+                if (st.Faint != FaintPhase.None && st.Faint != FaintPhase.Recovering)
                 {
                     Release(actor);
-                    // 실려 가는 중이면 운반자 쪽에서 이미 자리를 잡았다.
-                    if (st.Faint != FaintPhase.Transporting) node.Position = v.FallbackPos;
+                    if (!beingCarried) node.Position = v.FallbackPos;
                     if (FaintVisuals.PoseVictim(node, anim, st, delta)) continue;
                 }
 
@@ -242,10 +251,9 @@ public sealed partial class RoomWorkVisualController
             // 그 전 단계(바닥·이송)는 위의 기절 흐름이 그린다. 멀쩡히 일하는 직원은 눕는 자리를 쓰지 않는다.
             // 눕히는 중(InMedicalBed)에 아직 운반자가 안고 있으면 그쪽이 환자 노드를 잡고 있다 —
             // 여기서 또 자리를 잡으면 한 프레임에 두 곳이 위치를 써 서로 밀어낸다(F-3).
-            bool heldByCarrier = st is { Faint: FaintPhase.InMedicalBed }
-                                 && !string.IsNullOrEmpty(st.TransporterId)
-                                 && sim.GetEmployeeState(st.TransporterId)?.CarryingVictimId == v.Id;
-            if (st is { Faint: FaintPhase.InMedicalBed or FaintPhase.Recovering } && !heldByCarrier)
+            // 내려놓는 중(InMedicalBed)은 위에서 이미 운반자가 잡고 있다 — 여기까지 오지 않는다.
+            // 여기는 완전히 눕혀진 뒤(Recovering) 침대에 누워 있는 그림만 맡는다.
+            if (st is { Faint: FaintPhase.Recovering })
             {
                 var bed = PickSpot(spots, "__patient__", actor.Spot, used);
                 if (bed != null)

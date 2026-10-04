@@ -99,6 +99,11 @@ public static class DebugEntryPoint
         var f = typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static);
         if (f == null) GD.PushError("DebugEntryPoint: ShiftFlowController._skipToDay1Pending 이 없다 — 타이틀을 건너뛸 수 없다.");
         f?.SetValue(null, true);
+        // 그 첫 진입은 무조건 DAY1 로 열린다. 허브는 그 뒤에 원하는 날짜로 다시 들어가므로
+        // 첫 진입의 '그 날의 안내'(DAY0 교육 시작 · DAY1 패드 안내 · 해금 안내)는 건너뛴다.
+        typeof(ShiftFlowController)
+            .GetField("_skipScheduleIntroOnce", BindingFlags.NonPublic | BindingFlags.Static)
+            ?.SetValue(null, true);
     }
 
     // 허브가 넣은 스트레스(표시 확인용) 때문에 GUIDE-0 의 "스트레스 주의" 첫 안내가 뜨지 않게 한다.
@@ -139,6 +144,9 @@ public static class DebugEntryPoint
         if (req.Accused != null)
             gs.ForceFinalVerdict(req.Accused == "!" ? gs.SaboteurEmployeeId : req.Accused, req.Proven);
 
+        // DAY1 은 한 판의 첫날이다 — 스트레스는 반드시 0 에서 시작한다.
+        // (허브가 표시 확인용으로 섞어 넣으면 "첫날인데 주의 · 위험이 섞여 있다"가 된다.)
+        if (req.Day <= 1) return;
         // 스트레스가 잠긴 날에는 넣어도 화면에 안 뜬다 — 해금된 날에만.
         if (!req.SeedStress || sim == null || !DayFeatures.StressEnabled) return;
         var cfg = Config.Instance?.Data;

@@ -79,7 +79,9 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     // 집는 동작 · 내려놓는 동작은 켜도 그대로 보이고, 든 상태에서만 감춘다.
     [Export] public bool HideLeftArmWhileHolding = false;
     // 거치대에 기댄 각도 — 책상 면에서 잰 각(도).
-    [Export] public float CradleLeanDeg = 58f;
+    // 더 세우면 패드 윗변이 올라가 MONITOR 01 화면 아랫단을 덮는다(좌석 카메라 기준 58° 에서 약 29px).
+    // 38° 는 그 아래로 약 7px 여유가 남는 자리다 — 책상 기기 위치를 바꾸면 다시 맞춰야 한다.
+    [Export] public float CradleLeanDeg = 38f;
     // 집어 들고 · 내려놓는 데 걸리는 시간. 뻗기 · 쥐기 · 손 펴기 시간도 여기에 비례한다
     // (PlayerCharacter.PlayPadPickup / PlayPadPutDown) — 이 값 하나로 전체 속도를 조절한다.
     [Export] public float LiftSeconds = 0.26f;
@@ -194,11 +196,28 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         _view.SetStowed(true, locked: !_inService);
         SetScreenAwake(false);
         if (!_powered) _view.PowerOff(glitch: false);
+
+        RepairApprovalSystem.Opened += OnRepairApprovalOpened;
     }
 
     public override void _ExitTree()
     {
+        RepairApprovalSystem.Opened -= OnRepairApprovalOpened;
         if (Instance == this) Instance = null;
+    }
+
+    // 수리 승인 요청이 떴다 — 제한 시간 안에 패드를 봐야 한다.
+    //
+    // 요청은 책상 위 패드에만 그려진다. 모니터를 확대해 두고 있으면 패드가 화면 밖이라
+    // 소리도 알림도 없이 제한 시간이 지나가 버린다(= 거절, 수리 +50%). 그래서 셋을 함께 한다.
+    //   ① 경고음  ② 상단 알림  ③ 확대 중이면 자리로 되돌려 패드를 화면에 넣는다.
+    private void OnRepairApprovalOpened(string roomId, string roomName)
+    {
+        Sfx.Instance?.Play("alert_beep3", -4f);
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"⚠ {roomName} 수리 승인 요청 — 패드에서 응답하세요.", NSP.Ui.NoticeLevel.Warning);
+        // 들고 있는 중이면 그대로 둔다(이미 패드가 눈앞이다). 연출이 시점을 잡고 있으면 건드리지 않는다.
+        if (_state == PadState.Stowed) ControlRoom3DController.Instance?.UnzoomIfFocused();
     }
 
     // ── 에디터 미리보기 ──────────────────────────────────────────────────
@@ -557,6 +576,12 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         if (_state == PadState.Held && HideLeftArmWhileHolding) _player?.SetLeftArmMeshHidden(true);
     }
 
+    // 한 단계 뒤로. 상세 → 목록 → 홈 순으로 접히고, 홈이면 내려놓는다(Tab · 우클릭).
+    public void Back()
+    {
+        if (_state != PadState.Held || _view?.TryGoBack() != true) Close();
+    }
+
     public void Close()
     {
         if (_state is PadState.Stowed or PadState.Lowering) return;
@@ -682,16 +707,38 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             GetViewport().SetInputAsHandled();
             return;
         }
-        // 들고 있는 동안 우클릭 = 한 단계 뒤로(상세 → 목록 → 홈). 홈에서 한 번 더 누르면 내려놓기.
-        // Tab 은 어느 화면에서든 곧바로 내려놓는다(ClueHud). (ControlRoom3DController 보다 먼저 받는다.)
-        // 기록 창(로그 · 대화 기록 · 업무)이 패드 위에 떠 있으면 우클릭은 그 창을 닫는 데 쓴다(Day1HistoryOverlay).
-        if (_state is PadState.Held or PadState.Lifting
-            && Day1HistoryOverlay.Instance?.IsWindowOpen != true
-            && e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
+        // 들고 있는 동안의 조작(ControlRoom3DController 보다 먼저 받는다).
+        //   우클릭 · Tab(ClueHud) = 한 단계 뒤로(상세 → 목록 → 홈), 홈에서 한 번 더면 내려놓기
+        //   패드 **바깥** 좌클릭   = 그 자리에서 내려놓기
+        // 기록 창(로그 · 대화 기록 · 업무)이 패드 위에 떠 있으면 그 창의 입력이 우선이다.
+        if (_state is not (PadState.Held or PadState.Lifting)) return;
+        if (Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+
+        if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right })
         {
             if (_state != PadState.Held || _view?.TryGoBack() != true) Close();
             GetViewport().SetInputAsHandled();
+            return;
         }
+
+        // 화면을 보다가 패드 밖(책상 · 모니터 · 허공)을 누르면 손에서 내려놓는다.
+        // 패드 위를 누른 것은 건드리지 않는다 — 그건 화면 조작이라 제어실이 뷰포트로 넘긴다.
+        if (_state == PadState.Held
+            && e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } lb
+            && !PointsAtPad(lb.Position))
+        {
+            Close();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+
+    // 그 화면 좌표가 패드 본체를 가리키는가.
+    private bool PointsAtPad(Vector2 screenPos)
+    {
+        var cam = GetViewport()?.GetCamera3D();
+        if (cam == null) return true;   // 알 수 없으면 건드리지 않는다
+        return TryProjectRay(cam.ProjectRayOrigin(screenPos), cam.ProjectRayNormal(screenPos),
+            clamp: false, out _);
     }
 
     public override void _Process(double delta)
@@ -748,15 +795,46 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
                 Mathf.Clamp((float)delta * HandFollowSharpness, 0f, 1f));
         }
 
+        TickRepairGlow((float)delta);
+
         // 표시등 — 새 단서(패드 모서리) · 전원(거치대).
         _ledPhase += (float)delta * 5f;
         if (_endingMode) { ApplyLed(); return; }
         if (_ledMat != null)
         {
             bool unseen = _powered && ClueBoard.UnseenCount > 0 && _state == PadState.Stowed;
-            _ledMat.EmissionEnergyMultiplier = unseen ? 1.2f + 1.8f * (0.5f + 0.5f * Mathf.Sin(_ledPhase)) : 0f;
+            float led = unseen ? 1.2f + 1.8f * (0.5f + 0.5f * Mathf.Sin(_ledPhase)) : 0f;
+            // 승인 요청 중에는 배지 표시등도 같이 뛴다.
+            if (_repairGlow) led = Mathf.Max(led, 1.5f + 2.5f * RepairBeat);
+            _ledMat.EmissionEnergyMultiplier = led;
         }
-        if (_cradleLed != null) _cradleLed.EmissionEnergyMultiplier = _powered ? 1.4f : 0f;
+        if (_cradleLed != null)
+            _cradleLed.EmissionEnergyMultiplier = !_powered ? 0f
+                : _repairGlow ? 1.4f + 3.2f * RepairBeat : 1.4f;
+    }
+
+    // ── 수리 승인 요청 — 화면이 반짝인다 ──────────────────────────────────
+    //
+    // 요청은 제한 시간이 있는데 패드는 책상 구석에 있다. 알림음 · 상단 알림(OnRepairApprovalOpened)
+    // 과 함께, 화면 자체가 뛰게 해서 곁눈으로도 "지금 저기 뭔가 떴다"가 보이게 한다.
+    private bool _repairGlow;
+    private static float RepairBeat => 0.5f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 150f);
+
+    private void TickRepairGlow(float delta)
+    {
+        bool want = _powered && RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Asking;
+        if (want)
+        {
+            // 밝기 트윈과 싸우지 않도록 요청 중에는 이쪽이 직접 쥔다.
+            _brightTween?.Kill();
+            float baseLevel = _state == PadState.Stowed ? StowedLevel() : 1f;
+            _screenMat?.SetShaderParameter("brightness", baseLevel + 0.55f * RepairBeat);
+            _repairGlow = true;
+            return;
+        }
+        if (!_repairGlow) return;
+        _repairGlow = false;
+        SetBrightness(_state == PadState.Stowed ? StowedLevel() : (_powered ? 1f : 0f), 0.25f);
     }
 
     // ── 엔딩 전용 ────────────────────────────────────────────────────────

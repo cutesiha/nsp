@@ -39,6 +39,9 @@ public class EmployeeState
     public string CarryingVictimId = "";
     // 환자를 눕힌 뒤 돌아갈 작업실.
     public string TransportReturnRoomId = "";
+    // 환자를 침대에 눕힌 직후, 손을 빼고 허리를 펴고 환자를 한 번 보는 동안 남은 시간.
+    // 0 보다 크면 아직 침대 옆에 서 있다 — 이 시간이 지나야 작업실로 출발한다.
+    public float CarrierRecoverTimer;
     // 관리자가 "쓰러진 사람이 있는 방" 으로 직접 보낸 경우 그 방 id.
     // 이 지시로 도착하면 전화로 다시 묻지 않고 바로 구조한다(직접 보낸 뜻이 분명하므로).
     public string RescueDispatchRoomId = "";

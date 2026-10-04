@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using NSP.Core;
@@ -142,6 +143,11 @@ public partial class TutorialDirector : Node
         // 최소 인원을 "지금 그 방에 있는 인원 + 1" 로 잡아, 한 명을 더 보내야만 고쳐지게 한다.
         string originRoomId = sim?.GetEmployeeState(TutorialEmployeeId)?.AssignedRoomId ?? "";
         int need = (sim?.OnDutyCount(AccidentRoomId) ?? 0) + 1;
+        // 사고와 함께 승인 요청이 줄에 선다. 다만 **띄우지는 않는다** —
+        // 아직 아무도 보내지 않았는데 "수리를 승인하시겠습니까" 부터 뜨면 순서가 거꾸로다.
+        // 토끼가 그 방에 도착한 뒤에 풀어 준다(RunApprovalLesson).
+        RepairApprovalSystem.Held = true;
+        RepairApprovalSystem.Paused = true;
         sim?.TriggerTutorialAccident(AccidentRoomId, need);
         await Say("tut_incident");
         await Say("tut_relocate", new System.Collections.Generic.Dictionary<string, string>
@@ -154,6 +160,11 @@ public partial class TutorialDirector : Node
                           || sim?.HasRepairPending(AccidentRoomId) == false);
         if (sim?.GetEmployeeState(TutorialEmployeeId)?.AssignedRoomId == AccidentRoomId)
             _rabbitOriginRoomName = RoomName(originRoomId);
+
+        // ── STEP 3-A : 수리 승인 요청 · 미로 ──────────────────────────
+        // 사람을 보낸 직후, 수리가 끝나기 전에 가르친다 — 실제 근무에서 겪는 순서 그대로다.
+        await RunApprovalLesson();
+
         await Until(() => sim?.HasRepairPending(AccidentRoomId) == false);
         await Say("tut_repair_done");
         // 실제 근무의 방해공작을 설명만 한다 — DAY0 에는 방해자를 만들지 않는다.
@@ -163,6 +174,9 @@ public partial class TutorialDirector : Node
         // 설명만 하고 넘어가면 근무 중에 화면을 돌려 볼 이유가 생기지 않는다.
         // 그래서 한 번 실제로 나타나게 하고, 직접 찾아 직접 지켜보게 한다.
         await RunAnomalyLesson(sim);
+
+        // ── STEP 4 : 기절 · 의무실 이송 ───────────────────────────────
+        await RunFaintLesson(sim);
 
         // ── STEP 5 : 전화 / 대화 ──────────────────────────────────────
         // 벨이 먼저 울리고, 그 소리를 들은 뒤에 안내가 뜬다.
@@ -307,7 +321,19 @@ public partial class TutorialDirector : Node
     // 나머지 직원·질문은 평소대로 로그 기반 대사를 쓴다.
     private string ScriptedAnswer(string employeeId, string questionId)
     {
-        if (employeeId != TutorialEmployeeId || questionId != DialogueQuestions.Where) return null;
+        if (employeeId != TutorialEmployeeId) return null;
+
+        // "그러고 어딜 갔습니까?" — 교육에서 토끼는 발전실 수리 뒤 **기절한 동료를 의무실로
+        // 옮겼다.** 그 사실을 빼고 답하면 바로 앞에서 본 이송과 어긋나, 플레이어가 배운
+        // 모순 찾기가 거꾸로 이 대사를 가리키게 된다.
+        if (_carriedToMedical
+            && questionId == DialogueQuestions.FollowUpPrefix + NSP.Dialogue.FollowUpIntent.AskNextAction)
+        {
+            string after = PrologueScript.GetScripted("tut_rabbit_then");
+            if (!string.IsNullOrEmpty(after)) return after;
+        }
+
+        if (questionId != DialogueQuestions.Where) return null;
         _rabbitAnsweredWhere = true;
         // 옮긴 기록이 없으면 지어낼 모순도 없다 — 평소대로 로그 기반 대사를 쓰게 둔다.
         if (string.IsNullOrEmpty(_rabbitOriginRoomName)) return null;
@@ -315,9 +341,135 @@ public partial class TutorialDirector : Node
         return string.IsNullOrEmpty(text) ? null : text.Replace("{FROM_ROOM}", _rabbitOriginRoomName);
     }
 
+    // 교육에서 토끼가 실제로 기절한 동료를 의무실로 옮겼는가(심문 답변이 이 사실을 쓴다).
+    private bool _carriedToMedical;
+
+    // ── 수리 승인 · 미로 교육 ─────────────────────────────────────────
+    //
+    // 승인 요청은 사고와 함께 이미 떠 있다(제한 시간은 Paused 로 멈춰 있다).
+    // 안내를 한 줄 읽히고 나서야 시계가 돌기 시작한다 — 설명을 읽는 동안 제한 시간이
+    // 지나가 버리면 "배우는 중에 벌점"이 된다.
+    private async Task RunApprovalLesson()
+    {
+        // 사람을 보냈으니 이제 요청을 띄운다(제한 시간은 아직 멈춰 있다).
+        RepairApprovalSystem.Held = false;
+        // 줄에서 꺼내 화면에 올라오기까지 한 틱 — 떠 있는 것을 확인하고 말한다.
+        for (int i = 0; i < 120 && RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking; i++)
+            await NextFrame();
+
+        // 요청이 실제로 떠 있을 때만 가르친다(수리가 먼저 끝났거나 요청이 이미 닫혔으면 건너뛴다).
+        if (RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking)
+        {
+            RepairApprovalSystem.Paused = false;
+            return;
+        }
+
+        try
+        {
+            await Say("tut_approval");
+            // 여기서부터 응답 제한 시간이 흐른다.
+            RepairApprovalSystem.Paused = false;
+            // [예] 를 누르면 미로로 넘어간다. 거절하거나 시간을 넘겨도 교육은 이어진다.
+            await Until(() => RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking);
+
+            if (RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Maze)
+            {
+                // 미로 시계는 첫 방향키부터 흐르지만, 설명 중에 방향키를 눌러 시작해 버리는 것도 막는다.
+                RepairApprovalSystem.Paused = true;
+                await Say("tut_approval_maze");
+                RepairApprovalSystem.Paused = false;
+                // 풀든 실패하든 끝까지 지켜본 뒤 교육을 이어 간다.
+                await Until(() => RepairApprovalSystem.Current is RepairApprovalSystem.Phase.Idle
+                                      or RepairApprovalSystem.Phase.Result);
+            }
+        }
+        finally
+        {
+            RepairApprovalSystem.Paused = false;
+            RepairApprovalSystem.Held = false;
+        }
+
+        // 패드를 손에 든 채로 다음 안내가 흐르면 화면이 패드에 가린다 — 내려놓을 때까지 기다린다.
+        if (AdminPad3D.Instance?.IsOpen == true)
+        {
+            PadHintBubble.Show("패드를 내려놓으십시오. (Tab · 또는 패드 바깥을 클릭)", 3f);
+            await Until(() => AdminPad3D.Instance?.IsOpen != true);
+        }
+    }
+
+    // ── 기절 · 의무실 이송 교육 ───────────────────────────────────────
+    //
+    // 교육일에는 스트레스가 잠겨 있어 저절로 쓰러지는 일이 없다. 그래서 한 명을 직접
+    // 쓰러뜨리고, **실제 구조 절차(FaintRescueSystem)를 그대로** 밟게 한다.
+    // 의무실은 DAY1 에 열리는 방이라 이 교육 동안만 연다.
+    private async Task RunFaintLesson(FacilitySimulation sim)
+    {
+        if (sim == null) return;
+
+        string victim = PickFaintVictim(sim);
+        if (string.IsNullOrEmpty(victim)) return;
+
+        DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, true);
+        if (!sim.TriggerTutorialFaint(victim))
+        {
+            DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, false);
+            return;
+        }
+
+        var st = sim.GetEmployeeState(victim);
+        // ① 지도에서 그 아이콘을 직접 눌러 보게 한다.
+        // 아이콘을 누르지 않고 곧바로 사람을 보내 버려도 교육이 멈추지 않게, 구조가 시작되면 넘어간다.
+        await SayThen("tut_faint", () => NSP.View.FacilityMonitorView.Instance?.SelectedEmployeeId == victim
+                                         || st.Faint != FaintPhase.OnFloor);
+        // ② 다른 직원을 그 방으로 보내면 구조가 시작된다(WasDispatchedForRescue → 전화 없이 바로 이송).
+        await SayThen("tut_faint_carry",
+            () => st.Faint is FaintPhase.TransportPickup or FaintPhase.Transporting or FaintPhase.BedApproach
+                            or FaintPhase.InMedicalBed or FaintPhase.Recovering);
+        // ③ 침대에 눕을 때까지. 깨어나는 것은 기다리지 않는다 —
+        //    회복에는 실제 근무와 같은 시간(StressFaintRecoverySeconds)이 걸리고,
+        //    그동안 교육이 멈춰 서 있을 이유가 없다.
+        await Until(() => st.Faint is FaintPhase.Recovering or FaintPhase.None);
+        // 심문 단계에서 토끼가 이 일을 말한다(ScriptedAnswer) — 실제로 옮겼을 때만.
+        _carriedToMedical = sim.GetEmployeeState(TutorialEmployeeId)?.CurrentRoomId
+                            == FacilitySimulation.MedicalRoomIdPublic
+                            || st.TransporterId == TutorialEmployeeId;
+        await Say("tut_faint_done");
+        // ④ 옮긴 직원이 제자리로 돌아올 때까지 기다렸다가 다음 단계로.
+        await Until(() => sim.GetActiveEmployeeIds()
+            .All(id => string.IsNullOrEmpty(sim.GetEmployeeState(id)?.CarryingVictimId)));
+    }
+
+    // 쓰러질 직원. 교육 대사가 이름을 부르므로(tut_faint_carry · 전화) 고양이로 고정한다.
+    // 고양이를 쓸 수 없는 상황이면 혼자 근무 중인 다른 직원으로 떨어진다.
+    [Export] public string FaintEmployeeId = "cat";
+
+    private string PickFaintVictim(FacilitySimulation sim)
+    {
+        if (Eligible(sim, FaintEmployeeId)) return FaintEmployeeId;
+        foreach (string id in sim.GetActiveEmployeeIds())
+            if (Eligible(sim, id)) return id;
+        return "";
+    }
+
+    // 혼자 근무 중이어야 한다 — 같은 방 동료가 있으면 알아서 구조에 들어가,
+    // "다른 직원을 불러온다" 를 배울 자리가 없어진다. 토끼는 뒤 단계에서 쓰므로 제외한다.
+    private bool Eligible(FacilitySimulation sim, string id)
+    {
+        if (string.IsNullOrEmpty(id) || id == TutorialEmployeeId) return false;
+        var st = sim.GetEmployeeState(id);
+        if (st == null || !st.Alive || st.Incapacitated || st.Isolated || st.IsMoving) return false;
+        if (string.IsNullOrEmpty(st.CurrentRoomId)) return false;
+        if (sim.OnDutyCount(st.CurrentRoomId) != 1) return false;
+        // 수리가 걸린 방은 피한다 — 거기서 쓰러지면 수리까지 같이 멈춘다.
+        return !sim.HasRepairPending(st.CurrentRoomId);
+    }
+
     private void Finish()
     {
         IsRunning = false;
+        RepairApprovalSystem.Paused = false;
+        RepairApprovalSystem.Held = false;
+        DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, false);
         LocalDialogueGenerator.ScriptedAnswerOverride = null;
         InterviewSession.Asked -= OnInterviewAsked;
         if (PhoneCallHud.Instance != null)

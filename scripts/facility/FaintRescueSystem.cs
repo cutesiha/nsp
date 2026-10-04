@@ -26,9 +26,11 @@ public enum FaintPhase
     BeingChecked,      // 동료가 다가와 상태를 살피는 중
     AwaitingDecision,  // 관리자에게 전화를 걸어 두고 답을 기다리는 중
     TransportDenied,   // 관리자가 "그대로 두라" 고 했다
-    Transporting,      // 동료가 옮기는 중
-    InMedicalBed,      // 침대에 눕히는 중(연출)
-    Recovering,        // 침대에 누웠다 — 이제부터 회복 시간이 흐른다
+    TransportPickup,   // 운반자가 바닥의 환자를 실제로 들어 올리는 중(제자리)
+    Transporting,      // 동료가 옮기는 중 — 복도·방을 실제로 걸어서 간다
+    BedApproach,       // 의무실 안 — 아직 안고 있고, 침대 옆까지 걸어가는 중
+    InMedicalBed,      // 침대에 내려놓는 중(연출) — 아직 손을 놓지 않았다
+    Recovering,        // 침대에 완전히 눕혀졌다 — 이제부터 회복 시간이 흐른다
 }
 
 // 운반 자세. 캐릭터마다 다르다(§26~34).
@@ -46,8 +48,22 @@ public sealed class FaintRescueSystem
     public const float FallSeconds = 1.25f;      // 쓰러지는 데 걸리는 시간
     public const float ApproachSeconds = 1.1f;   // 놀라 달려와 옆에 앉기까지
     public const float CheckSeconds = 1.6f;      // 상태를 살피는 시간
-    public const float LiftSeconds = 1.3f;       // 들어 올리는 데 걸리는 시간
-    public const float BedHandoffSeconds = 1.8f; // 침대에 눕히는 데 걸리는 시간
+    public const float BedHandoffSeconds = 1.8f; // 침대에 눕히는 데 걸리는 시간(내려놓기 클립 길이와 같다)
+    public const float CarrierRecoverSeconds = 1.0f;  // 손을 떼고 허리를 펴고 환자를 한 번 보는 시간
+
+    // 들어 올리는 데 걸리는 시간 — 운반 방식마다 다르다(각 pickup 클립 길이와 같아야 한다).
+    // 이 시간이 지나기 전에는 운반자가 한 발짝도 걷지 않는다.
+    public static float PickupSeconds(CarryStyle style) => style switch
+    {
+        CarryStyle.Piggyback => 1.5f,
+        CarryStyle.Bridal => 1.6f,
+        _ => 1.8f,                 // Shoulder — 상체를 일으켜 어깨에 걸치는 만큼 가장 오래 걸린다
+    };
+
+    // 의무실 '방'에 들어온 뒤 침대 옆까지 실제로 걸어가는 구간의 최대 시간.
+    // 보통은 CCTV 쪽이 "침대 옆에 닿았다"고 알려 주지만(NotifyAtBedside), 그 방을 아무도
+    // 보고 있지 않으면 알려 줄 사람이 없다 — 판정이 화면에 묶이지 않게 여기서 끊는다.
+    public const float BedApproachTimeout = 6.0f;
 
     // 화면이 듣는 신호. 판정은 전부 이 안에서 끝나고, 밖에서는 보여 주기만 한다.
     public event Action<string> Fainted;              // 쓰러진 순간(미니맵 경고 · 쓰러지는 동작)
@@ -75,6 +91,7 @@ public sealed class FaintRescueSystem
             st.FaintPhaseTimer = 0f;
             st.ResponderId = st.TransporterId = "";
             st.CarryingVictimId = "";
+            st.CarrierRecoverTimer = 0f;
             st.TransportReturnRoomId = "";
             st.MedicalBedSpotId = "";
         }
@@ -122,7 +139,10 @@ public sealed class FaintRescueSystem
         foreach (string id in _sim.GetEmployeeIds())
         {
             var st = _sim.GetEmployeeState(id);
-            if (st == null || st.Faint == FaintPhase.None) continue;
+            if (st == null) continue;
+            // 환자를 눕히고 숨을 고르는 운반자 — 다 펴고 나야 작업실로 출발한다.
+            if (st.CarrierRecoverTimer > 0f) TickCarrierRecover(st, delta);
+            if (st.Faint == FaintPhase.None) continue;
             st.FaintPhaseTimer += delta;
 
             switch (st.Faint)
@@ -152,8 +172,16 @@ public sealed class FaintRescueSystem
                     if (!Usable(st.ResponderId)) { st.ResponderId = ""; Enter(st, FaintPhase.OnFloor); }
                     break;
 
+                case FaintPhase.TransportPickup:
+                    TickPickup(st);
+                    break;
+
                 case FaintPhase.Transporting:
                     TickTransport(st);
+                    break;
+
+                case FaintPhase.BedApproach:
+                    TickBedApproach(st);
                     break;
 
                 case FaintPhase.InMedicalBed:
@@ -290,34 +318,39 @@ public sealed class FaintRescueSystem
         t.CarryingVictimId = victim.EmployeeId;
         // 눕히고 나면 돌아갈 자리. 이송 중에 관리자가 새 배치를 내리면 그쪽이 이긴다(§40).
         t.TransportReturnRoomId = string.IsNullOrEmpty(t.AssignedRoomId) ? t.CurrentRoomId : t.AssignedRoomId;
-        Enter(victim, FaintPhase.Transporting);
+        // 먼저 '들어 올리는' 단계다 — 다 들기 전에는 아무도 움직이지 않는다.
+        Enter(victim, FaintPhase.TransportPickup);
         Lifting?.Invoke(transporterId, victim.EmployeeId);
 
         EventLog.Instance?.LogEvent(LogEventType.Neglect, transporterId, victim.CurrentRoomId,
             $"{Name(transporterId)}가 {Name(victim.EmployeeId)}를 의무실로 이송");
     }
 
+    // 운반자가 환자를 실제로 들어 올리는 동안. 둘 다 그 자리에 머문다 —
+    // 화면에서는 CCTV 쪽이 자세를 낮추고 잡고 들어 올리는 과정을 그린다.
+    private void TickPickup(EmployeeState victim)
+    {
+        if (!DropIfCarrierGone(victim)) return;
+        var t = _sim.GetEmployeeState(victim.TransporterId);
+        // 들어 올리는 동안은 운반자도 한 발짝도 움직이지 않는다.
+        t.IsMoving = false;
+        t.PathQueue.Clear();
+        t.TargetRoomId = t.CurrentRoomId;
+        victim.Position = t.Position;
+        victim.IsMoving = false;
+        if (victim.FaintPhaseTimer < PickupSeconds(StyleOf(t.EmployeeId))) return;
+        Enter(victim, FaintPhase.Transporting);
+    }
+
     private void TickTransport(EmployeeState victim)
     {
-        string tid = victim.TransporterId;
-        if (!Usable(tid))
-        {
-            // 운반자가 사라졌다 — 환자는 그 자리에 남는다.
-            var dropped = _sim.GetEmployeeState(tid);
-            if (dropped != null) dropped.CarryingVictimId = "";
-            victim.TransporterId = victim.ResponderId = "";
-            Enter(victim, FaintPhase.OnFloor);
-            return;
-        }
-
-        var t = _sim.GetEmployeeState(tid);
-        // 들어 올리는 동안은 아직 걷지 않는다.
-        if (victim.FaintPhaseTimer < LiftSeconds) return;
+        if (!DropIfCarrierGone(victim)) return;
+        var t = _sim.GetEmployeeState(victim.TransporterId);
 
         // 운반자가 **자기 발로** 의무실로 간다. 환자에게는 길을 주지 않는다.
         if (t.CurrentRoomId != FacilitySimulation.MedicalRoomIdPublic && !t.IsMoving)
         {
-            _sim.SendTransporterToMedical(tid);
+            _sim.SendTransporterToMedical(victim.TransporterId);
             return;
         }
 
@@ -328,11 +361,43 @@ public sealed class FaintRescueSystem
 
         if (t.CurrentRoomId != FacilitySimulation.MedicalRoomIdPublic || t.IsMoving) return;
 
-        // 도착 — 빈 침대를 하나 잡는다. 없으면 잡힐 때까지 기다린다(§44).
+        // 의무실 '방'에 들어왔다. 아직 침대 옆은 아니다 — 빈 침대를 잡고 그쪽으로 걸어간다(§31·§32).
         string bed = ClaimBed(victim);
         if (string.IsNullOrEmpty(bed)) return;
         victim.MedicalBedSpotId = bed;
-        Enter(victim, FaintPhase.InMedicalBed);
+        Enter(victim, FaintPhase.BedApproach);
+    }
+
+    // 의무실 안에서 침대 옆까지 걸어가는 구간. 환자는 계속 안겨 있다.
+    // CCTV 가 그 방을 보고 있으면 NotifyAtBedside 가 실제 도착을 알려 주고,
+    // 아무도 안 보고 있으면 BedApproachTimeout 으로 넘어간다.
+    private void TickBedApproach(EmployeeState victim)
+    {
+        if (!DropIfCarrierGone(victim)) return;
+        var t = _sim.GetEmployeeState(victim.TransporterId);
+        victim.Position = t.Position;
+        victim.IsMoving = false;
+        _sim.SyncCarriedRoom(victim, t.CurrentRoomId);
+        if (victim.FaintPhaseTimer >= BedApproachTimeout) Enter(victim, FaintPhase.InMedicalBed);
+    }
+
+    // CCTV 표현이 "운반자가 침대 바로 옆에 섰다"고 알려 준다. 그때부터 내려놓기가 시작된다.
+    public void NotifyAtBedside(string victimId)
+    {
+        var v = _sim?.GetEmployeeState(victimId);
+        if (v is { Faint: FaintPhase.BedApproach }) Enter(v, FaintPhase.InMedicalBed);
+    }
+
+    // 운반자가 사라졌으면(사망·격리) 환자를 그 자리에 내려놓는다. 계속 옮길 수 있으면 true.
+    private bool DropIfCarrierGone(EmployeeState victim)
+    {
+        if (Usable(victim.TransporterId)) return true;
+        var dropped = _sim.GetEmployeeState(victim.TransporterId);
+        if (dropped != null) { dropped.CarryingVictimId = ""; dropped.CarrierRecoverTimer = 0f; }
+        victim.TransporterId = victim.ResponderId = "";
+        victim.MedicalBedSpotId = "";
+        Enter(victim, FaintPhase.OnFloor);
+        return false;
     }
 
     // 침대에 눕히는 동안(BedHandoffSeconds)은 아직 운반자가 환자를 안고 있다.
@@ -386,17 +451,30 @@ public sealed class FaintRescueSystem
             $"{Name(victim.EmployeeId)} — 의무실 도착, 회복까지 {cfg.StressFaintRecoverySeconds:0}초");
         RoomEffectStats.Pulse(FacilitySimulation.MedicalRoomIdPublic);
 
-        // 운반자는 손을 떼고 자기 작업실로 돌아간다(§40).
+        // 운반자는 손을 뗀다. 다만 그 자리에서 **바로 사라지지 않는다** — 허리를 펴고
+        // 환자를 한 번 확인하는 동안(CarrierRecoverSeconds)은 침대 옆에 서 있고,
+        // 그 시간이 지나야 자기 작업실로 걸어서 돌아간다(§48~§52).
         var t = _sim.GetEmployeeState(victim.TransporterId);
         if (t != null)
         {
             t.CarryingVictimId = "";
-            // 이송 중에 관리자가 새 배치를 내렸으면 그쪽이 이긴다.
-            string back = !string.IsNullOrEmpty(t.AssignedRoomId) ? t.AssignedRoomId : t.TransportReturnRoomId;
-            if (!string.IsNullOrEmpty(back)) _sim.SendTransporterHome(t.EmployeeId, back);
-            t.TransportReturnRoomId = "";
+            t.CarrierRecoverTimer = CarrierRecoverSeconds;
         }
         victim.TransporterId = "";
+    }
+
+    // 환자를 눕힌 직후의 운반자 — 그 자리에서 손을 빼고 허리를 펴고 환자를 한 번 본다.
+    // 그동안은 움직이지 않는다(여기서 바로 보내면 화면에서 순간이동한 것처럼 보인다).
+    private void TickCarrierRecover(EmployeeState t, float delta)
+    {
+        t.IsMoving = false;
+        t.CarrierRecoverTimer -= delta;
+        if (t.CarrierRecoverTimer > 0f) return;
+        t.CarrierRecoverTimer = 0f;
+        // 이송 중에 관리자가 새 배치를 내렸으면 그쪽이 이긴다(§40).
+        string back = !string.IsNullOrEmpty(t.AssignedRoomId) ? t.AssignedRoomId : t.TransportReturnRoomId;
+        if (!string.IsNullOrEmpty(back)) _sim.SendTransporterHome(t.EmployeeId, back);
+        t.TransportReturnRoomId = "";
     }
 
     private void TickRecovery(EmployeeState victim, float delta, ConfigData cfg)
@@ -449,7 +527,8 @@ public sealed class FaintRescueSystem
     // 지금 바닥에 쓰러져 있는가(미니맵·CCTV 가 묻는다).
     public static bool IsDown(EmployeeState st) =>
         st != null && st.Faint is FaintPhase.Falling or FaintPhase.OnFloor
-            or FaintPhase.BeingChecked or FaintPhase.AwaitingDecision or FaintPhase.TransportDenied;
+            or FaintPhase.BeingChecked or FaintPhase.AwaitingDecision or FaintPhase.TransportDenied
+            or FaintPhase.TransportPickup;
 
     private bool IsRespondingToSomeoneElse(string id, string exceptVictimId)
     {

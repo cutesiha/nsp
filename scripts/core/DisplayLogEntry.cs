@@ -35,4 +35,8 @@ public sealed class DisplayLogEntry
 
     // 이 줄이 특정 작업실의 효과면 그 방 id. 화면이 RoomDef.MapColor 를 찾는 데만 쓴다.
     public string RoomId = "";
+
+    // 원본 기록의 세부 구분(기절 · 회복 등). 조사 자료가 "이 줄이 무엇인가" 를 문장 해석
+    // 없이 알아내는 데 쓴다 — 문구가 바뀌어도 자료가 사라지지 않는다.
+    public LogDetail Detail;
 }

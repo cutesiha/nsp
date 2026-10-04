@@ -52,6 +52,8 @@ public partial class ShiftFlowController : Node
     // 개발 허브(DebugEntryPoint)와 scripts/debug 의 검사 · 캡처 씬만 리플렉션으로 켠다.
     // 한 번 쓰면 바로 꺼진다.
     private static bool _skipToDay1Pending;
+    // 타이틀을 건너뛴 첫 배치 진입에서 "그 날의 안내"를 한 번만 건너뛴다(DebugEntryPoint 가 켠다).
+    private static bool _skipScheduleIntroOnce;
 
     // Verdict = DAY5 마지막 절차(최종 격리 보고서). Rest/Report 다음, 엔딩 바로 앞이다.
     private enum Stage { Boot, Title, Prologue, Schedule, Booting, Shift, Ending, Report, Rest, Verdict, DayTransition, Final }
@@ -375,8 +377,13 @@ public partial class ShiftFlowController : Node
         _ctl?.SetInputLocked(false);
         _rig?.ReturnToSeat(0.6f);
 
+        // 개발 허브 · 캡처 도구는 타이틀을 건너뛰어 DAY1 배치로 들어온 뒤, 원하는 날짜로
+        // 다시 StartNewRun → EnterSchedule 한다. 그 첫 진입의 '그 날의 안내'는 날짜가 아직
+        // DAY1 이라 틀린 것이 나온다 — DAY0 교육으로 가려는데 DAY1 패드 안내가 떠서 패드가
+        // 손에 올라오고, 그 상태로 교육이 시작돼 배치표를 누를 수 없었다.
+        if (_skipScheduleIntroOnce) { _skipScheduleIntroOnce = false; }
         // DAY0 = GUIDE-0 가 진행하는 관리자 교육. 배치표가 열린 직후부터 시작한다.
-        if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
+        else if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
         // DAY1 = 교육이 끝나고 처음 혼자 앉는 날. 패드를 꺼내 주고 "지침은 여기서 다시 본다"를 알린다.
         else if (GameState.Instance?.CurrentDay == 1) _ = ShowDay1PadHint();
         // 오늘 새로 열린 시스템이 있으면 그 자리에서 한 묶음만 읽어 준다.

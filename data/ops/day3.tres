@@ -31,9 +31,10 @@ WarningChance = PackedFloat32Array(0.25, 0.0765, 0.00875, 0, 0)
 WarningCheckSeconds = 11.0
 WarningResponseSeconds = 14.0
 WarningRequiredStaff = 2
+WarningStabilizeSeconds = 3.6
 WarningCooldownSeconds = 14.0
-UnstaffedAccidentSeconds = 75.0
-RepairSeconds = 16.0
+UnstaffedAccidentSeconds = 18.0
+RepairSeconds = 9.0
 RepairMinWorkers = 2
 
 ; ── 코어실 ───────────────────────────────────────────────────────────────
@@ -56,9 +57,10 @@ WarningChance = PackedFloat32Array(0, 0.0225, 0.0035, 0, 0)
 WarningCheckSeconds = 16.0
 WarningResponseSeconds = 14.0
 WarningRequiredStaff = 2
+WarningStabilizeSeconds = 3.2
 WarningCooldownSeconds = 20.0
-UnstaffedAccidentSeconds = 30.0
-RepairSeconds = 14.0
+UnstaffedAccidentSeconds = 20.0
+RepairSeconds = 8.0
 RepairMinWorkers = 2
 
 ; ── 정비실 ───────────────────────────────────────────────────────────────
@@ -81,9 +83,10 @@ WarningChance = PackedFloat32Array(0.1125, 0.027, 0.0035, 0, 0)
 WarningCheckSeconds = 15.0
 WarningResponseSeconds = 14.0
 WarningRequiredStaff = 1
+WarningStabilizeSeconds = 3.0
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 75.0
-RepairSeconds = 12.0
+UnstaffedAccidentSeconds = 25.0
+RepairSeconds = 7.0
 RepairMinWorkers = 1
 
 ; ── 경비실 ───────────────────────────────────────────────────────────────
@@ -107,9 +110,10 @@ WarningChance = PackedFloat32Array(0, 0.018, 0.0035, 0)
 WarningCheckSeconds = 18.0
 WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
+WarningStabilizeSeconds = 2.5
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 75.0
-RepairSeconds = 10.0
+UnstaffedAccidentSeconds = 25.0
+RepairSeconds = 6.0
 RepairMinWorkers = 1
 
 ; ── 저장고 ───────────────────────────────────────────────────────────────
@@ -133,9 +137,10 @@ WarningChance = PackedFloat32Array(0, 0.018, 0.0035, 0)
 WarningCheckSeconds = 18.0
 WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
+WarningStabilizeSeconds = 2.4
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 75.0
-RepairSeconds = 10.0
+UnstaffedAccidentSeconds = 30.0
+RepairSeconds = 6.0
 RepairMinWorkers = 1
 
 ; ── 정해진 시각의 경고 ───────────────────────────────────────────────────

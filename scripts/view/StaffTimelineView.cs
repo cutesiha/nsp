@@ -163,9 +163,8 @@ public partial class StaffTimelineView : Control
     private float K => FontPx / 12f;
 
     private const float BaseAxisH = 13f;    // 맨 위 시각 눈금
-    // 사고 라벨 두 줄. 사고가 여럿이면 번갈아 위·아래로 놓아 글자가 겹치지 않게 한다.
-    // (예전에는 번호만 쓰고 띠 아래에 작은 범례를 달았는데, 그 글자가 너무 작아 읽히지 않았다.)
-    private const float BaseHeadH = 30f;
+    // 눈금과 띠 사이 — 사고 선의 삼각 머리가 들어갈 만큼만 띄운다.
+    private const float BaseHeadH = 12f;
     private const float BaseNameW = 46f;    // 왼쪽 코드네임 칸
     private const float PadR = 6f;
     private const float RowGap = 2f;
@@ -258,11 +257,13 @@ public partial class StaffTimelineView : Control
         }
     }
 
+    // 사고는 띠를 관통하는 세로선 하나다. 글자는 쓰지 않는다 —
+    // 띠 위에 "23:47 · 정비실 · 고장" 같은 줄이 사고 수만큼 쌓이면 정작 띠가 안 보인다.
+    // 무슨 사고인지는 선을 누르거나(아래 목록이 그 줄로 내려간다) 올려 두면(툴팁) 읽는다.
     private void DrawIncidentLines()
     {
         float top = BandTop;
         float bottom = BandTop + _employees.Count * RowH;
-        bool many = _incidents.Count >= 2;
 
         for (int n = 0; n < _incidents.Count; n++)
         {
@@ -275,20 +276,8 @@ public partial class StaffTimelineView : Control
             // 선이 띠 색에 묻히지 않게 위쪽에 작은 삼각 머리를 단다.
             DrawColoredPolygon(new[]
             {
-                new Vector2(x - 4f, top - 8f), new Vector2(x + 4f, top - 8f), new Vector2(x, top - 2f),
+                new Vector2(x - 5f, top - 11f), new Vector2(x + 5f, top - 11f), new Vector2(x, top - 2f),
             }, col);
-
-            // 라벨은 언제나 전문으로 쓴다. 여럿이면 위·아래 두 줄로 번갈아 놓아 겹치지 않게 한다.
-            string label = Glyph(n) + " " + IncidentLabel(row);
-            int lfs = FontPx;
-            var size = _font.GetStringSize(label, HorizontalAlignment.Left, -1f, lfs);
-            float lx = Mathf.Clamp(x - size.X * 0.5f, 10f * K, Mathf.Max(10f * K, Size.X - size.X - 1f));
-            float ly = AxisH + (many && n % 2 == 1 ? 26f : 12f) * K;
-            DrawString(_font, new Vector2(lx, ly), label, HorizontalAlignment.Left, -1f, lfs, col);
-            // 방 색 네모 — 어느 방에서 난 사고인지 띠 색과 바로 맞춰 보라는 표시다.
-            DrawRect(new Rect2(lx - 10f * K, ly - 8f * K, 8f * K, 8f * K), RoomColor(IncidentRoom(row)));
-            // 라벨과 선을 잇는 짧은 목.
-            DrawLine(new Vector2(x, ly + 2f), new Vector2(x, top - 8f), col with { A = 0.45f }, 1f);
         }
     }
 
@@ -439,7 +428,4 @@ public partial class StaffTimelineView : Control
         int total = DialogueClock.StartHour * 60 + DialogueClock.MinutesAt(seconds);
         return $"{total / 60 % 24:00}:{total % 60:00}";
     }
-
-    private static string Glyph(int n) =>
-        n < 10 ? "①②③④⑤⑥⑦⑧⑨⑩"[n].ToString() : $"({n + 1})";
 }

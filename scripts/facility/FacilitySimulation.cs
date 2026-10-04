@@ -134,6 +134,28 @@ public partial class FacilitySimulation : Node
         ? _forcedSurveillanceRoomId
         : _surveillanceTargetRoomId;
 
+    // 지금 CCTV 화면에 **실제로 그 방 영상이 떠 있는가**. CCTVMonitorView 가 매 프레임 적어 둔다.
+    //
+    // 전력 스위치만 보고 판정하면 안 된다 — NO SIGNAL · SIGNAL LOST · 감시 설비 고장 ·
+    // 오른쪽 화면이 다른 용도(보고서 · 심문)로 쓰이는 동안에도 "보고 있다"가 되어,
+    // 꺼진 화면 앞에서 방만 골라 두면 이상 개체가 알아서 소멸했다.
+    // 화면이 없는 검사 씬에서는 아무도 적지 않으므로 true 로 둔다(헤드리스 판정 유지).
+    // 한 번이라도 적힌 뒤에는 **최근에 적힌 값만** 믿는다 — 오른쪽 화면이 CCTV 에서 내려가
+    // 보고가 끊기면, 마지막으로 켜져 있던 값이 그대로 남아 계속 "보고 있다"가 되기 때문이다.
+    private bool _cctvFeedLive;
+    private double _cctvFeedReportedAt = -1;
+    private const double CctvFeedReportTimeout = 0.5;
+
+    public bool CctvFeedLive => _cctvFeedReportedAt < 0
+        ? true
+        : _cctvFeedLive && Time.GetTicksMsec() / 1000.0 - _cctvFeedReportedAt <= CctvFeedReportTimeout;
+
+    public void ReportCctvFeedLive(bool live)
+    {
+        _cctvFeedLive = live;
+        _cctvFeedReportedAt = Time.GetTicksMsec() / 1000.0;
+    }
+
     public override void _EnterTree()
     {
         Instance = this;
@@ -328,11 +350,25 @@ public partial class FacilitySimulation : Node
     private readonly Dictionary<string, string> _stressBandSaid = new();
     private readonly HashSet<string> _faintSoonSaid = new();
 
+    // 어떤 직원의 스트레스 구간이 **나빠진** 순간. (직원 id, 새 구간 이름)
+    // 미니맵(아이콘 점멸 + 붉은 느낌표)과 관리자 패드(큰 글씨 배너)가 이 신호로 함께 알린다.
+    // 올라갈 때만 쏜다 — 내려갈 때까지 알리면 화면이 쉬지 않는다.
+    public static event Action<string, string> StressBandRaised;
+
+    // 구간이 나빠지는 방향인가. 정상 < 주의 < 위험 < 기절.
+    private static int BandRank(string band) => band switch
+    {
+        "주의" => 1, "위험" => 2, "기절" => 3, _ => 0,
+    };
+
     private void AnnounceStressBand(EmployeeState st, string bandBefore, bool imminentBefore)
     {
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
         string band = StressBandName(st);
         string name = Codename(st.EmployeeId);
+
+        // 구간이 한 칸이라도 올라가면 화면 두 곳이 같이 반짝인다(주의 · 위험 · 기절).
+        if (BandRank(band) > BandRank(bandBefore)) StressBandRaised?.Invoke(st.EmployeeId, band);
 
         // ① 주의 → 위험. 작업 효율이 눈에 띄게 떨어지는 지점이다.
         if (band != bandBefore && band == "위험"
@@ -1920,6 +1956,20 @@ public partial class FacilitySimulation : Node
     // 그 방에 아직 수리해야 할 사고가 남아 있는가(튜토리얼 진행 판정에도 쓴다).
     public bool HasRepairPending(string roomId) => HasActiveRepair(roomId);
 
+    // DAY0 교육 전용 — 그 직원을 그 자리에서 쓰러뜨린다.
+    //
+    // 교육일에는 스트레스 자체가 잠겨 있어(DayFeatures.StressEnabled) AddStress 로는 기절을
+    // 만들 수 없다. 그래서 수치를 직접 한계까지 올리고 실제 기절 경로(CheckFaint → 구조 절차)를
+    // 그대로 탄다 — 교육에서 보는 것과 실제 근무에서 보는 것이 같아야 한다.
+    public bool TriggerTutorialFaint(string employeeId)
+    {
+        var st = _employeeStates.GetValueOrDefault(employeeId);
+        if (st == null || !st.Alive || st.Incapacitated || st.Isolated) return false;
+        st.Stress = Config.Instance.Data.StressMax;
+        CheckFaint(st);
+        return st.Incapacitated;
+    }
+
     // ── 방해공작 전조 ────────────────────────────────────────────────
     //
     // 셋 다 "누가 무엇을 하려 한다"를 말하지 않는다. 시설이 아주 조금 이상해지고,
@@ -2248,6 +2298,9 @@ public partial class FacilitySimulation : Node
                 : RoomStaffing.RepairMinWorkers(roomId, def),
         };
         _activeTasks.Add(repair);
+        // 승인 요청(G-2)은 **빨간 사고로 생긴 수리에만** 붙는다. 여기가 그 유일한 입구다 —
+        // 주황 경고의 안정화 작업(FacilityWarningSystem)은 수리 업무를 만들지 않으므로
+        // 요청도 뜨지 않는다. 그 대신 사고 수리에는 예외 없이 붙는다.
         RepairApprovalSystem.Enqueue(roomId, RoomName(roomId), repair);
     }
 
@@ -2428,6 +2481,9 @@ public partial class FacilitySimulation : Node
             // 제한시간도 수리가 끝날 때까지 멈춘다. 사고 하나가 "어느 방에서 사람을 뺄까"가
             // 되는 이유가 바로 이것이다.
             if (!st.IsRepair && HasActiveRepair(st.RoomId)) { st.Progressing = false; continue; }
+            // 승인이 떨어지기 전에는 수리에 손을 대지 않는다(G-2). 이것이 없으면 관리자가
+            // 요청을 보고 있는 동안 직원들이 알아서 다 고쳐 버려, 승인 절차 자체가 장식이 된다.
+            if (st.IsRepair && RepairApprovalSystem.IsAwaiting(st)) { st.Progressing = false; continue; }
             // 미세 이상 — 진행도가 잠깐 멈춘다. 사고가 아니라 "뭔가 걸린" 정도다.
             if (!st.IsRepair && HasMicroFault(st.RoomId)) { st.Progressing = false; st.Elapsed += delta; continue; }
 

@@ -34,6 +34,7 @@ public partial class RepairApprovalTest : Node
         TestApproveThenFail();
         TestQueue();
         TestMazeTimerStartsOnFirstInput();
+        TestHeldAndGate();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
     }
@@ -188,6 +189,38 @@ public partial class RepairApprovalTest : Node
         };
         RepairApprovalSystem.Enqueue(roomId, roomId, task);
         return task;
+    }
+
+    // ── 요청이 뜨기 전에는 수리가 진행되지 않는다 ───────────────────────
+    private void TestHeldAndGate()
+    {
+        Head("H", "승인 전에는 수리가 한 톨도 진행되지 않는다");
+        Reset();
+        // Held = 줄에 세워만 두고 띄우지 않는다(DAY0 교육이 "사람을 보낸 뒤에" 띄우려고 쓴다).
+        // NewRepair 가 Reset 을 한 번 더 돌리므로(clean) 그 뒤에 켠다 — ResetAll 이 Held 를 내린다.
+        var task = NewRepair();
+        RepairApprovalSystem.Held = true;
+        Tick(2f);
+        Check(RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Idle, "붙잡아 두면 요청이 뜨지 않는다");
+        Check(RepairApprovalSystem.IsAwaiting(task), "그동안에도 그 수리는 대기 상태다");
+
+        RepairApprovalSystem.Held = false;
+        Tick(0.1f);
+        Check(RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Asking, "놓으면 그제서야 뜬다");
+        Check(RepairApprovalSystem.IsAwaiting(task), "묻는 동안에는 수리가 멈춰 있다");
+
+        RepairApprovalSystem.Approve();
+        Check(RepairApprovalSystem.IsAwaiting(task), "미로를 푸는 동안에도 멈춰 있다");
+
+        var m = RepairApprovalSystem.Maze;
+        var path = m.ShortestPath(m.Cursor, m.Goal);
+        for (int i = 1; i < path.Count; i++)
+        {
+            var d = path[i] - RepairApprovalSystem.Maze.Cursor;
+            RepairApprovalSystem.MazeInput(d.Y < 0 ? RepairMaze.Dir.Up : d.Y > 0 ? RepairMaze.Dir.Down
+                : d.X < 0 ? RepairMaze.Dir.Left : RepairMaze.Dir.Right);
+        }
+        Check(!RepairApprovalSystem.IsAwaiting(task), "절차가 끝나면 수리가 풀린다");
     }
 
     private void Reset()

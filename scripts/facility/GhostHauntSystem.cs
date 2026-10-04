@@ -55,6 +55,7 @@ public sealed class GhostHauntSystem
 
     public void Reset()
     {
+        Sfx.Instance?.StopLoop(PresenceLoopKey);
         ActiveRoomId = "";
         AliveSeconds = WatchedSeconds = 0f;
         AppearedToday = DispelledToday = StruckToday = 0;
@@ -136,6 +137,10 @@ public sealed class GhostHauntSystem
         AppearedToday++;
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
         _nextScreamAt = now + (Config.Instance?.Data?.GhostScreamIntervalSeconds ?? 7f) * 0.5f;
+        // 기척 — 개체가 시설 안에 있는 동안 아주 작게 계속 난다.
+        // 로그에도 알림에도 남기지 않으므로, 이 소리가 "뭔가 들어와 있다" 를 알리는 유일한 신호다.
+        // 찾는 것은 여전히 관리자의 몫이다 — 어느 방인지는 소리로 알 수 없다.
+        Sfx.Instance?.Loop(PresenceLoopKey, PresenceLoopDb);
         // 로그에도 알림에도 남기지 않는다 — 알려주는 순간 찾을 이유가 사라진다.
         Appeared?.Invoke(roomId);
     }
@@ -150,10 +155,13 @@ public sealed class GhostHauntSystem
         AliveSeconds += delta;
 
         // ── 관측 ──────────────────────────────────────────────────────
-        // "보고 있다" = 그 방을 CCTV 로 띄워 두었고, 전력이 살아 있고, 화면이 막히지 않았다.
+        // "보고 있다" = 그 방을 CCTV 로 띄워 두었고, 전력이 살아 있고, 화면이 막히지 않았고,
+        // **그 영상이 실제로 화면에 떠 있다**(CctvFeedLive). 마지막 조건이 없으면 꺼진 화면
+        // 앞에서 방만 골라 둬도 개체가 알아서 소멸했다.
         bool watching = sim.SurveillanceTargetRoomId == room
                         && (GameState.Instance?.IsCctvOperational() ?? false)
-                        && !sim.IsRoomCctvBlocked(room);
+                        && !sim.IsRoomCctvBlocked(room)
+                        && sim.CctvFeedLive;
         if (watching) WatchedSeconds += delta;
         // 눈을 떼면 되감긴다 — 여러 방을 번갈아 보며 조금씩 채울 수는 없다.
         else WatchedSeconds = Mathf.Max(0f, WatchedSeconds - delta * cfg.GhostWatchDecayPerSecond);
@@ -185,6 +193,9 @@ public sealed class GhostHauntSystem
             $"👁 {sim.RoomDisplayName(room)} — 관측으로 이상 개체 소멸");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"{sim.RoomDisplayName(room)}의 이상 개체가 소멸했습니다.", NSP.Ui.NoticeLevel.Info);
+        // 비명은 **소멸하는 순간** 에만 터진다. 그 전까지는 위의 기척뿐이다 —
+        // 보기도 전에 비명부터 지르면 "다 봤다" 의 신호가 되지 못한다.
+        Sfx.Instance?.PlayGhostScream();
         Sfx.Instance?.Play("task_done", -4f);
         BlockWorkAfterGhost(sim, room, now);
         Dispelled?.Invoke(room);
@@ -221,8 +232,13 @@ public sealed class GhostHauntSystem
         }
     }
 
+    // 개체가 들어와 있는 동안 깔리는 기척. 소리 하나로 "지금 어딘가에 있다" 까지만 알린다.
+    private const string PresenceLoopKey = "breath_faint";
+    private const float PresenceLoopDb = -13f;
+
     private void Clear(ConfigData cfg, float now)
     {
+        Sfx.Instance?.StopLoop(PresenceLoopKey);
         _graceOverride = -1f;
         ActiveRoomId = "";
         AliveSeconds = WatchedSeconds = 0f;

@@ -334,6 +334,7 @@ public static class FacilityLogFormatter
             Severity = severity,
             RelatedEmployeeId = employeeId ?? "",
             SourceEventType = e.EventType,
+            Detail = e.Detail,
         };
     }
 

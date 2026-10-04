@@ -15,10 +15,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private const string ToggleLogAction = "toggle_log_history";
     private const string ToggleDialogueAction = "toggle_dialogue_history";
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
-    private static readonly Color Paper = new(0.855f, 0.80f, 0.645f);
-    private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
-    private static readonly Color InkDim = new(0.42f, 0.35f, 0.24f);
-    private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
+    // 세 창(시설 로그 · 대화 기록 · 오늘의 업무)과 환경 설정 창이 같은 홀로그램 바탕을 쓴다.
+    private static readonly Color WindowBg = new(0.03f, 0.09f, 0.11f, 0.93f);
     // 시설 로그의 중요도 색. 경고 단말기(AlertTerminalView)와 같은 팔레트를 쓴다.
     private static readonly Color LogNormal = new(0.82f, 0.96f, 0.98f);
     private static readonly Color LogMove = new(0.45f, 0.92f, 0.88f);
@@ -56,7 +54,6 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private ColorRect _logMark;
     private VBoxContainer _dialogueRows;
     private Font _body;
-    private Font _serif;
     private int _logRendered;
     // 화면용으로 해석된 로그. EventLog 원본은 그대로 두고 여기에만 요약본을 만든다.
     private List<DisplayLogEntry> _displayLog = new();
@@ -88,7 +85,6 @@ public partial class Day1HistoryOverlay : CanvasLayer
         SetProcessInput(true);
         Layer = 115; // 통화(90) 위, ESC 메뉴(120) 아래
         _body = ViewFont.Default;
-        _serif = GD.Load<Font>("res://assets/fonts/KMU80TTFSungkokSerif.ttf") ?? _body;
         BuildUi();
 
         if (EventLog.Instance != null)
@@ -224,10 +220,11 @@ public partial class Day1HistoryOverlay : CanvasLayer
         RebuildLog();
     }
 
-    private void OpenDialogue()
+    // 캡처 도구가 D키를 흉내 내지 않고 바로 열 수 있게 공개한다(OpenLog 와 같은 이유).
+    public void OpenDialogue()
     {
         _mode = WindowMode.Dialogue;
-        _scrim.Color = new Color(0f, 0f, 0f, 0.55f);
+        _scrim.Color = new Color(0f, 0f, 0f, 0.42f);
         _scrim.Visible = true;
         _logPanel.Visible = false;
         _dialoguePanel.Visible = true;
@@ -323,7 +320,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         };
         _logPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = new Color(0.03f, 0.09f, 0.11f, 0.91f),
+            BgColor = WindowBg,
             BorderColor = Cyan with { A = 0.55f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         });
@@ -337,7 +334,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         title.Position = new Vector2(28, 38);
         title.Size = new Vector2(810, 38);
         _logPanel.AddChild(title);
-        _logPanel.AddChild(CloseButton(false));
+        _logPanel.AddChild(CloseButton());
 
         // 띠 시간표 — 텍스트가 길게 늘어서면 "누가 언제 어디 있었는지"가 안 읽힌다는
         // 플레이테스트 의견에 대한 자리다(§3-7). 목록보다 위에 두고, 구간을 누르면
@@ -446,31 +443,30 @@ public partial class Day1HistoryOverlay : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Stop,
             Visible = false,
         };
+        // 시설 로그 창 · 환경 설정 창과 같은 홀로그램 창(청록 테두리 · HologramFrame · 스캔라인).
         _dialoguePanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = Paper,
-            BorderColor = new Color(0.32f, 0.24f, 0.13f),
-            BorderWidthLeft = 3, BorderWidthTop = 3, BorderWidthRight = 3, BorderWidthBottom = 3,
+            BgColor = WindowBg,
+            BorderColor = Cyan with { A = 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         });
         root.AddChild(_dialoguePanel);
-        _dialoguePanel.AddChild(new DocumentPaperTexture { MouseFilter = Control.MouseFilterEnum.Ignore });
 
-        Label doc = LabelFor("DOC NO. NSP-D1-TRANSCRIPT   FACILITY CONTROL DEPT.", 13, InkDim, _body);
-        doc.Position = new Vector2(42, 26);
-        doc.Size = new Vector2(700, 24);
-        _dialoguePanel.AddChild(doc);
+        var dframe = new HologramFrame { Accent = Cyan, MouseFilter = Control.MouseFilterEnum.Ignore };
+        dframe.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _dialoguePanel.AddChild(dframe);
 
-        Label title = LabelFor("DAY1 대화 기록", 37, Ink, _serif);
-        title.Position = new Vector2(42, 48);
-        title.Size = new Vector2(700, 52);
+        Label title = LabelFor("DIALOGUE TRANSCRIPT  /  대화 기록", 24, Cyan, _body);
+        title.Position = new Vector2(28, 38);
+        title.Size = new Vector2(740, 38);
         _dialoguePanel.AddChild(title);
-        _dialoguePanel.AddChild(CloseButton(true));
+        _dialoguePanel.AddChild(CloseButton());
 
         // 직원별로 골라 보는 줄. 아무것도 고르지 않으면 전체 기록이 그대로 뜬다.
         _dialogueTabs = new HBoxContainer
         {
             AnchorRight = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 106f, OffsetBottom = 150f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 92f, OffsetBottom = 134f,
             MouseFilter = Control.MouseFilterEnum.Pass,
         };
         _dialogueTabs.AddThemeConstantOverride("separation", 6);
@@ -479,16 +475,16 @@ public partial class Day1HistoryOverlay : CanvasLayer
         var rule = new HSeparator
         {
             AnchorRight = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 158f, OffsetBottom = 160f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 144f, OffsetBottom = 146f,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        rule.AddThemeColorOverride("separator", new Color(0.38f, 0.29f, 0.16f, 0.75f));
+        rule.AddThemeColorOverride("separator", Cyan with { A = 0.28f });
         _dialoguePanel.AddChild(rule);
 
         _dialogueScroll = new ScrollContainer
         {
             AnchorRight = 1f, AnchorBottom = 1f,
-            OffsetLeft = 42f, OffsetRight = -42f, OffsetTop = 172f, OffsetBottom = -34f,
+            OffsetLeft = 28f, OffsetRight = -28f, OffsetTop = 158f, OffsetBottom = -28f,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
             VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
             MouseFilter = Control.MouseFilterEnum.Stop,
@@ -517,7 +513,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         };
         _objPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = new Color(0.03f, 0.09f, 0.11f, 0.94f),
+            BgColor = WindowBg,
             BorderColor = Cyan with { A = 0.6f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         });
@@ -536,7 +532,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _objTime.Position = new Vector2(28, 70);
         _objTime.Size = new Vector2(600, 28);
         _objPanel.AddChild(_objTime);
-        _objPanel.AddChild(CloseButton(false));
+        _objPanel.AddChild(CloseButton());
 
         _objRows = new VBoxContainer
         {
@@ -694,9 +690,9 @@ public partial class Day1HistoryOverlay : CanvasLayer
         return line;
     }
 
-    private Button CloseButton(bool paper)
+    private Button CloseButton()
     {
-        Color color = paper ? InkDim : Cyan;
+        Color color = Cyan;
         var close = new Button
         {
             Text = "✕",
@@ -710,12 +706,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
         close.AddThemeColorOverride("font_hover_color", Colors.White);
         var normal = new StyleBoxFlat
         {
-            BgColor = new Color(0, 0, 0, paper ? 0f : 0.12f),
+            BgColor = new Color(0, 0, 0, 0.12f),
             BorderColor = color with { A = 0.5f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         };
         var hover = (StyleBoxFlat)normal.Duplicate();
-        hover.BgColor = paper ? InkRed with { A = 0.82f } : Cyan with { A = 0.25f };
+        hover.BgColor = Cyan with { A = 0.25f };
         close.AddThemeStyleboxOverride("normal", normal);
         close.AddThemeStyleboxOverride("hover", hover);
         close.AddThemeStyleboxOverride("pressed", hover);
@@ -753,7 +749,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         if (_dialogueRendered == 0)
             AddEmpty(_dialogueRows, _dialogueFilter.Count > 0
                 ? "고른 직원과의 대화 기록이 없습니다."
-                : "아직 기록된 대화가 없습니다.", InkDim);
+                : "아직 기록된 대화가 없습니다.", Cyan with { A = 0.65f });
         QueueDialogueScroll(true, 0);
     }
 
@@ -788,11 +784,11 @@ public partial class Day1HistoryOverlay : CanvasLayer
         }
     }
 
-    // 종이 위에 찍힌 이름표처럼 보이게 한다. 켜지면 그 직원 색으로 칠해진다.
+    // 홀로그램 창의 탭. 켜지면 그 직원 색으로 채워진다.
     private Button SpeakerTab(string label, Color own, bool on, System.Action onPressed)
     {
-        // 밝은 고유색은 종이 위에서 흐려진다 — 잉크 쪽으로 섞어 글자가 읽히게 한다.
-        Color ink = own.Lerp(Ink, 0.45f);
+        // 어두운 바탕이라 고유색을 흰 쪽으로 올려야 글자가 읽힌다(종이 시절과 반대다).
+        Color ink = own.Lerp(Colors.White, 0.35f);
         var b = new Button
         {
             Text = label,
@@ -803,14 +799,15 @@ public partial class Day1HistoryOverlay : CanvasLayer
         };
         b.AddThemeFontOverride("font", _body);
         b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
-        b.AddThemeColorOverride("font_color", on ? Paper : ink);
-        b.AddThemeColorOverride("font_hover_color", on ? Paper : InkRed);
-        b.AddThemeColorOverride("font_pressed_color", on ? Paper : InkRed);
+        Color onInk = new(0.04f, 0.09f, 0.11f);
+        b.AddThemeColorOverride("font_color", on ? onInk : ink);
+        b.AddThemeColorOverride("font_hover_color", on ? onInk : Colors.White);
+        b.AddThemeColorOverride("font_pressed_color", on ? onInk : Colors.White);
 
         var normal = new StyleBoxFlat
         {
             BgColor = on ? ink : new Color(ink.R, ink.G, ink.B, 0.10f),
-            BorderColor = ink with { A = on ? 1f : 0.55f },
+            BorderColor = ink with { A = on ? 1f : 0.45f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = on ? 3 : 1,
             CornerRadiusTopLeft = 3, CornerRadiusTopRight = 3,
             ContentMarginLeft = 6, ContentMarginRight = 6, ContentMarginTop = 4, ContentMarginBottom = 4,
@@ -1018,7 +1015,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             : ShiftClock(entry.Timestamp);
         Color speakerColor = SpeakerInk(entry);
 
-        Label header = LabelFor($"[{when} / {entry.SpeakerDisplayName}]", 15, InkDim, _body);
+        Label header = LabelFor($"[{when} / {entry.SpeakerDisplayName}]", 15, LogTime, _body);
         block.AddChild(header);
         Label text = LabelFor($"{entry.SpeakerDisplayName}:\n\"{entry.Text}\"", 19, speakerColor, _body);
         text.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -1026,17 +1023,18 @@ public partial class Day1HistoryOverlay : CanvasLayer
         block.AddChild(text);
 
         var separator = new HSeparator { MouseFilter = Control.MouseFilterEnum.Ignore };
-        separator.AddThemeColorOverride("separator", new Color(0.36f, 0.28f, 0.16f, 0.35f));
+        separator.AddThemeColorOverride("separator", Cyan with { A = 0.16f });
         block.AddChild(separator);
         _dialogueRendered++;
     }
 
     private Color SpeakerInk(DialogueHistoryEntry entry)
     {
-        if (entry.SpeakerId == "manager") return InkRed;
-        Color own = FacilitySimulation.Instance?.GetEmployeeDef(entry.SpeakerId)?.IconColor ?? Ink;
-        // 밝은 고유색은 종이 위에서 흐려지므로 잉크 쪽으로 섞되 색 구분은 유지한다.
-        return own.Lerp(Ink, 0.58f);
+        // 관리자(나)의 말은 홀로그램 창의 강조색으로 둔다 — 직원 색과 섞이지 않는다.
+        if (entry.SpeakerId == "manager") return Cyan;
+        Color own = FacilitySimulation.Instance?.GetEmployeeDef(entry.SpeakerId)?.IconColor ?? LogNormal;
+        // 어두운 바탕에서는 고유색을 흰 쪽으로 올려야 읽힌다(색 구분은 유지).
+        return own.Lerp(Colors.White, 0.30f);
     }
 
     private static void ClearRows(Node parent)

@@ -319,6 +319,12 @@ Priority = 20
 IsSeated = true
 SeatHeight = 0.66
 
+[node name="CarrierApproach" type="Marker3D" parent="WorkSpots/MedicalBedSpot1"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.65)
+
+[node name="PatientLayTarget" type="Marker3D" parent="WorkSpots/MedicalBedSpot1"]
+
+
 [node name="MedicalBedSpot2" type="Node3D" parent="WorkSpots" unique_id=297834832]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.95, 0, -0.2)
 script = ExtResource("1_spot")
@@ -327,6 +333,12 @@ AnimationName = "lying_idle"
 Priority = 18
 IsSeated = true
 SeatHeight = 0.66
+
+[node name="CarrierApproach" type="Marker3D" parent="WorkSpots/MedicalBedSpot2"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.65)
+
+[node name="PatientLayTarget" type="Marker3D" parent="WorkSpots/MedicalBedSpot2"]
+
 
 [node name="Bed1Frame" type="MeshInstance3D" parent="." unique_id=800627182]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1, 0.46, -1.1)

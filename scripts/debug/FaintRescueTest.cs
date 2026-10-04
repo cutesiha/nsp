@@ -68,7 +68,7 @@ public partial class FaintRescueTest : Node
         for (float t = 0f; t < 6f; t += Step)
         {
             Tick();
-            if (v.Faint == FaintPhase.Transporting) break;
+            if (Carrying(v.Faint)) break;
             if (v.CurrentRoomId != fellIn) leftBeforeCarry = true;
             if (v.IsMoving) leftBeforeCarry = true;
         }
@@ -79,7 +79,7 @@ public partial class FaintRescueTest : Node
 
         // 승인 → 이송. 이 동안에도 환자는 자기 경로가 없다.
         _sim.Rescue.Approve("sheep");
-        Check(v.Faint == FaintPhase.Transporting, "승인하면 이송이 시작된다");
+        Check(v.Faint == FaintPhase.TransportPickup, $"승인하면 들어 올리기부터 시작된다 ({v.Faint})");
         Check(v.TransporterId == "wolf", "운반자가 지정된다");
 
         // 들어 올린 뒤부터 침대에 눕기까지, 환자는 운반자에게 붙어 있어야 한다.
@@ -93,7 +93,7 @@ public partial class FaintRescueTest : Node
             Tick();
             if (v.PathQueue.Count > 0 || v.IsMoving) victimPathed = true;
             // 이송 · 눕히는 중에는 운반자가 계속 안고 있고, 환자 위치도 운반자와 같다.
-            if (v.Faint is FaintPhase.Transporting or FaintPhase.InMedicalBed)
+            if (Carrying(v.Faint))
             {
                 if (carrier.CarryingVictimId != "sheep") detachedFromCarrier = true;
                 if (v.Position.DistanceTo(carrier.Position) > 0.01f) detachedFromCarrier = true;
@@ -149,7 +149,7 @@ public partial class FaintRescueTest : Node
         Check(_sim.Rescue.FindUnmovedVictimIn("maintenance_room") != null,
             "그 방에 아직 이송되지 않은 기절자가 있다");
         Check(_sim.Rescue.OrderTransport("wolf"), "직접 지시하면 이송이 시작된다");
-        Check(v.Faint == FaintPhase.Transporting, $"이송 중이다 ({v.Faint})");
+        Check(Carrying(v.Faint), $"이송 중이다 ({v.Faint})");
 
         RunUntilRecovering(v, 60f);
         Check(v.Faint == FaintPhase.Recovering, "의무실에 도착해 회복 중이다");
@@ -161,7 +161,7 @@ public partial class FaintRescueTest : Node
         GD.Print("\n---------------- 전화 미응답 ----------------");
         var v = SetupWaiting();
         _sim.Rescue.NoAnswer("sheep");
-        Check(v.Faint == FaintPhase.Transporting, $"직원이 알아서 옮긴다 ({v.Faint})");
+        Check(Carrying(v.Faint), $"직원이 알아서 옮긴다 ({v.Faint})");
         RunUntilRecovering(v, 60f);
         Check(v.Faint == FaintPhase.Recovering, "의무실에 도착한다");
     }
@@ -187,10 +187,10 @@ public partial class FaintRescueTest : Node
         {
             Tick();
             if (v.Faint == FaintPhase.AwaitingDecision) asked = true;
-            if (v.Faint == FaintPhase.Transporting) break;
+            if (Carrying(v.Faint)) break;
         }
         Check(!asked, "전화로 다시 묻지 않는다");
-        Check(v.Faint == FaintPhase.Transporting, $"도착하자마자 이송을 시작한다 ({v.Faint})");
+        Check(Carrying(v.Faint), $"도착하자마자 이송을 시작한다 ({v.Faint})");
     }
 
     // ── V : 회복 타이머는 침대에서만 흐른다 ──────────────────────────
@@ -205,7 +205,7 @@ public partial class FaintRescueTest : Node
         for (float t = 0f; t < 60f; t += Step)
         {
             Tick();
-            if (v.Faint == FaintPhase.Transporting) duringCarry = Mathf.Max(duringCarry, v.FaintRecoverTimer);
+            if (Carrying(v.Faint)) duringCarry = Mathf.Max(duringCarry, v.FaintRecoverTimer);
             if (v.Faint == FaintPhase.Recovering) break;
         }
         Check(duringCarry <= 0f, $"이송 중에도 회복 시간이 흐르지 않는다 (최대 {duringCarry:0.00})");
@@ -353,6 +353,12 @@ public partial class FaintRescueTest : Node
     {
         for (float t = 0f; t < seconds; t += Step) Tick();
     }
+
+    // 운반자가 환자를 쥐고 있는 네 단계(들어 올리기 · 이동 · 침대 접근 · 내려놓기).
+    // 이 동안에는 환자가 운반자에게 붙어 있고, 회복 시간도 흐르지 않는다.
+    private static bool Carrying(FaintPhase p) =>
+        p is FaintPhase.TransportPickup or FaintPhase.Transporting
+            or FaintPhase.BedApproach or FaintPhase.InMedicalBed;
 
     private void Check(bool ok, string label)
     {

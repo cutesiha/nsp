@@ -298,10 +298,12 @@ public partial class OpsRuleTest : Node
         EventLog.Instance.ClearAll();
         GameState.Instance.SetPhase(GamePhase.Live);
 
-        // 방을 비워 두고 경고를 키운다.
+        // 방을 비워 두고 경고를 키운다. 사고가 나 버리면 타이머가 0 으로 돌아가므로
+        // 그 방의 실제 한계(ops 값)의 절반까지만 키운다 — 고정 20초로 두면 한계를 줄일 때마다 깨진다.
         foreach (string id in sim.GetActiveEmployeeIds()) sim.ClearAssignment(id);
         var st = sim.GetRoomState(room);
-        for (float t = 0f; t < 20f; t += step) sim.Tick(step);
+        float limit = NSP.Facility.RoomStaffing.UnstaffedAccidentSeconds(room, sim.GetRoomDef(room));
+        for (float t = 0f; t < limit * 0.5f; t += step) sim.Tick(step);
         float grown = st.UnstaffedTimer;
         Check(grown > 1f, $"비워 두면 무인 타이머가 오른다 ({grown:0.0}초)");
 

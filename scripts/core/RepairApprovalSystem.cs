@@ -40,8 +40,33 @@ public static class RepairApprovalSystem
     public static bool LastApproved { get; private set; }
     public static bool LastSucceeded { get; private set; }
 
+    // 요청이 새로 뜬 순간(연출 · 효과음 · 확대 해제가 듣는다). (방 id, 방 이름)
+    //
+    // 이 신호가 없으면 요청은 책상 위 패드에만 조용히 뜬다. 모니터를 확대해 두고 있으면
+    // 패드가 화면 밖이라 제한 시간이 그대로 흘러가 버린다 — 그래서 요청은 반드시 알린다.
+    public static event Action<string, string> Opened;
+
     // 결과가 정해진 순간(연출 · 효과음이 듣는다). (성공했는가, 방 id)
     public static event Action<bool, string> Resolved;
+
+    // 시간만 멈춘다(요청은 그대로 떠 있고, [예]·방향키도 그대로 받는다).
+    // DAY0 교육이 "이게 승인 요청입니다" 를 설명하는 동안 제한 시간이 흐르지 않게 하려고 둔다.
+    // 교육 밖에서는 아무도 켜지 않는다.
+    public static bool Paused { get; set; }
+
+    // 줄에 세워만 두고 **띄우지 않는다**. DAY0 교육이 "사고 → 사람을 보낸다 → 그제서야 승인 요청"
+    // 순서를 만들려고 쓴다. 교육 밖에서는 아무도 켜지 않는다.
+    public static bool Held { get; set; }
+
+    // 이 수리가 아직 승인 절차를 기다리는 중인가. 그동안은 수리 게이지가 차지 않는다 —
+    // 승인하기도 전에 직원들이 알아서 고쳐 버리면 이 절차가 아무 의미가 없다.
+    public static bool IsAwaiting(NSP.Facility.SpawnedTask task)
+    {
+        if (task == null) return false;
+        if (Active?.Task == task && Current is Phase.Asking or Phase.Maze) return true;
+        foreach (var q in _queue) if (q.Task == task) return true;
+        return false;
+    }
 
     private static readonly Queue<Request> _queue = new();
     private const float ResultHoldSeconds = 0.5f;
@@ -52,6 +77,8 @@ public static class RepairApprovalSystem
     public static void ResetAll()
     {
         _queue.Clear();
+        Paused = false;
+        Held = false;
         Current = Phase.Idle;
         Active = null;
         Maze = null;
@@ -73,16 +100,17 @@ public static class RepairApprovalSystem
         switch (Current)
         {
             case Phase.Idle:
-                if (_queue.Count > 0) BeginAsking(_queue.Dequeue());
+                if (!Held && _queue.Count > 0) BeginAsking(_queue.Dequeue());
                 break;
 
             case Phase.Asking:
+                if (Paused) break;
                 SecondsLeft -= delta;
                 if (SecondsLeft <= 0f) Finish(approved: false, succeeded: false);   // 무응답 = 거절
                 break;
 
             case Phase.Maze:
-                if (!MazeStarted) break;              // 첫 입력 전에는 시간이 가지 않는다
+                if (!MazeStarted || Paused) break;     // 첫 입력 전에는 시간이 가지 않는다
                 SecondsLeft -= delta;
                 if (SecondsLeft > 0f) break;
                 Maze?.TimeOut();
@@ -108,6 +136,7 @@ public static class RepairApprovalSystem
         SecondsTotal = SecondsLeft = Mathf.Max(1f, Config.Instance?.Data?.RepairApproveSeconds ?? 6f);
         Maze = null;
         MazeStarted = false;
+        Opened?.Invoke(r.RoomId, r.RoomName);
     }
 
     // 관리자가 [예] 를 눌렀다 — 곧바로 미로.
@@ -131,7 +160,7 @@ public static class RepairApprovalSystem
     // 미로 입력 한 번. 첫 입력에서 시간이 흐르기 시작한다.
     public static void MazeInput(RepairMaze.Dir dir)
     {
-        if (Current != Phase.Maze || Maze == null || Maze.Failed) return;
+        if (Current != Phase.Maze || Maze == null || Maze.Failed || Paused) return;
         MazeStarted = true;
         var r = Maze.Step(dir);
         if (r == RepairMaze.StepResult.Reached) Finish(approved: true, succeeded: true);

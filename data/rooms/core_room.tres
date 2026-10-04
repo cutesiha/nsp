@@ -20,5 +20,5 @@ UnstaffedAccidentSeconds = 30.0
 AccidentConsequence = 10
 AccidentAmount = 0.0
 RepairTaskId = "repair_core"
-RepairSeconds = 20.0
+RepairSeconds = 10.0
 RepairMinWorkers = 2

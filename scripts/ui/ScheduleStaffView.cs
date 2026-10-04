@@ -433,13 +433,14 @@ public partial class ScheduleStaffView : Control
         DrawRect(box, Dim with { A = 0.6f }, false, 1f);
     }
 
-    // 스트레스 수치 + 구간. 잠긴 날에는 아무것도 그리지 않는다.
+    // 스트레스 수치. 잠긴 날에는 아무것도 그리지 않는다.
+    // 구간 이름(주의 · 위험 …)은 쓰지 않는다 — 숫자 색이 이미 같은 것을 말한다.
     private void DrawStressLine(FacilitySimulation sim, EmployeeState st, Vector2 at, float width)
     {
         if (!NSP.Core.DayFeatures.StressEnabled) return;
         string band = sim.StressBandName(st);
         float max = NSP.Core.Config.Instance?.Data?.StressMax ?? 50f;
-        DrawString(_font, at, $"스트레스 {st.Stress:0}/{max:0} · {band}",
+        DrawString(_font, at, $"스트레스 {st.Stress:0}/{max:0}",
             HorizontalAlignment.Center, width, Fs(13), FacilitySimulation.StressBandColor(band));
     }
 

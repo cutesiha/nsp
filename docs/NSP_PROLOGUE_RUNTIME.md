@@ -616,6 +616,19 @@ line: /1방해공작/0이 발생해도 시스템이 범인의 신원까지 알�
 portrait: normal
 line: 관리자님께서 직접 누가 방해공작을 했는지 알아내셔야 합니다.
 
+# 사고 수리 승인 절차(G-2) — 발전실 사고 수리 중에 한 번만 가르친다.
+# 이 블록이 흐르는 동안 RepairApprovalSystem.Paused 로 제한 시간이 멈춘다(TutorialDirector).
+@guide tut_approval
+portrait: normal
+line: 작업실 사고가 발생하면 /1사고 수리 승인 요청/0이 뜹니다. 책상 위 패드에서 /3‘예’/0를 눌러 보십시오.
+
+@guide tut_approval_maze
+portrait: normal
+line: 승인 요청을 하기 위해선 /5퍼즐/0을 풀어야 합니다.
+line: 제한 시간 안에 도착 지점까지 /3방향키/0로 이동해야 하며, 한 번이라도 벽에 닿거나 잘못된 길을 가면 실패합니다.
+portrait: sneer
+line: 실패하면 수리 시간이 길어지니 주의하십시오.
+
 # STEP 3-B — 이상 개체 (관측으로 소멸)
 @guide tut_anomaly_intro
 portrait: normal
@@ -638,6 +651,24 @@ portrait: normal
 line: 개체가 /1소멸/0했습니다. 이렇듯, 개체가 나타나면 관측하여 소멸시켜야 합니다.
 portrait: sneer
 line: 개체를 놓치면... 어떻게 되는지는 직접 알게 되실 겁니다.
+
+# STEP 4 — 기절 · 의무실 이송
+# 교육일에는 스트레스가 잠겨 있어 TutorialDirector 가 직접 쓰러뜨린다(TriggerTutorialFaint).
+@guide tut_faint
+portrait: sneer
+line: 직원 한 명이 쓰러졌습니다. 왼쪽 모니터에서 그 직원 아이콘을 눌러 확인하십시오.
+
+@guide tut_faint_carry
+portrait: normal
+line: /1스트레스/0가 한계에 도달해 기절했습니다. 기절한 직원은 스스로 한 발짝도 움직이지 못합니다.
+line: 이때는 /5다른 직원/0을 불러와 /1의무실/0로 이송해야 합니다.
+line: 토끼 직원을 그 작업실로 옮겨 보십시오.
+
+@guide tut_faint_done
+portrait: normal
+line: 이송이 끝났습니다. 의무실에 눕힌 직원은 시간이 지나면 깨어납니다.
+portrait: sneer
+line: 쓰러진 채로 방치하면 깨어나지 않습니다. 그 전에 옮기십시오.
 
 # STEP 5 — 전화
 @guide tut_call
@@ -724,6 +755,10 @@ line: 일부 인원은 이미 응답하지 않습니다.
 # STEP 6 — 토끼의 고정 진술(교육용 모순). {FROM_ROOM} = 로그에 남은 원래 작업실.
 @scripted tut_rabbit_where
 text: 그 시간에는 계속 {FROM_ROOM}에 있었어요. 한 번도 안 나갔는데요?
+
+# "그 뒤에는 어떻게 했습니까?" — 수리를 끝낸 뒤 기절한 동료를 의무실로 옮긴 것까지 말한다.
+@scripted tut_rabbit_then
+text: 수리 끝내고 바로 고양이 직원 업고 의무실로 갔어요. 침대에 눕히고 나왔습니다.
 
 
 # ========================================================================

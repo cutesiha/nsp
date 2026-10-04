@@ -108,6 +108,8 @@ public partial class PadUiShot : Node
         GD.Print($"단서 {ClueBoard.Count}장 · 스냅샷 {ClueBoard.Entries.Count(e => e.Snapshot != null)}장");
         await Seconds(2.4);
 
+        // 사고를 냈으니 수리 승인 요청이 패드를 덮고 있다 — 화면을 찍기 전에 닫는다.
+        RepairApprovalSystem.ResetAll();
         pad.Open();
         for (int i = 0; i < 300 && !pad.IsHeld; i++) await Frame();
         await Seconds(0.4);

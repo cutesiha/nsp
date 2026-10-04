@@ -223,8 +223,10 @@ public partial class CCTVMonitorView : Control
         }
         Shake(9f, 0.6f);
         FlashGlitch(1f);
-        // 두 녹음 중 하나가 아주 크게, 울리며 나간다.
-        Sfx.Instance?.PlayGhostScream();
+        // 보고 있는 동안에도 **크게 지르지 않는다.** 전체 음량의 비명은 소멸하는 순간 한 번뿐이다
+        // (GhostHauntSystem.Dispel) — 그래야 그 소리가 "다 봤다" 의 신호가 된다.
+        // 여기서는 화면이 흔들리고 기척이 조금 커지는 정도로만 둔다.
+        Sfx.Instance?.PlayGhostScreamDistant(-9f);
         // 소리가 닿아 모니터 기기 자체가 흔들린다 — 화면 안이 아니라 책상 위가 흔들려야
         // "저 안에서 난 소리" 가 이쪽으로 건너온 것처럼 읽힌다.
         NSP.View.ControlRoom3DController.Instance?.ShakeMonitor("02", 1.8f, 0.7f);
@@ -264,6 +266,8 @@ public partial class CCTVMonitorView : Control
         var sim = FacilitySimulation.Instance;
         string roomId = sim?.SurveillanceTargetRoomId ?? "";
         bool feed = UpdateFeed(d, sim, roomId);
+        // 이상 개체 소멸 판정이 "화면이 실제로 켜져 있었는가"를 여기서 받아 간다.
+        sim?.ReportCctvFeedLive(feed && FeedVisible);
         TickGhostOverlay(d, sim, roomId, feed);
         // 엿들은 대화 — 정상 피드가 나오고 근무 중일 때만 들린다.
         // 관리자 패드를 보는 동안에는 근무 시간이 멈추므로 대화도 그 자리에 멈춘다.

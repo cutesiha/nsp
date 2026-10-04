@@ -91,7 +91,7 @@ public partial class GuideHologramView : Control
         MouseFilter = MouseFilterEnum.Stop;
         BuildUi();
         SetProcess(true);
-        HideHologram();
+        HideHologramNow();
     }
 
     public override void _ExitTree()
@@ -171,8 +171,16 @@ public partial class GuideHologramView : Control
 
     // --- GUIDE-0 홀로그램 --------------------------------------------------
 
+    // 사라지는 연출이 돌고 있으면 그 트윈. 새 대사가 시작되면 반드시 죽여야 한다 —
+    // 그러지 않으면 0.3초 뒤 콜백이 **방금 시작한 대사**를 지운다(아래 HideHologram 참고).
+    private Tween _hideTween;
+
     public void ShowHologram()
     {
+        // 사라지는 중이었다면 그 연출을 여기서 끊는다. 늦게 도착한 콜백이 새 대사를 지우면
+        // 대사가 화면에 뜬 채로 영영 넘어가지 않는다(= 교육이 첫 줄에서 멈춘다).
+        _hideTween?.Kill();
+        _hideTween = null;
         if (_holoRoot.Visible) return;
         _holoRoot.Visible = true;
         _holoRoot.Modulate = new Color(1f, 1f, 1f, 0f);
@@ -187,20 +195,37 @@ public partial class GuideHologramView : Control
 
     public void HideHologram()
     {
+        _hideTween?.Kill();
+        _hideTween = null;
         if (!_holoRoot.Visible) { ResetGuideState(); return; }
         var t = CreateTween();
+        _hideTween = t;
         t.SetParallel(true);
         t.TweenProperty(_holoRoot, "modulate:a", 0f, 0.3);
         t.TweenProperty(_holoRoot, "scale", new Vector2(0.9f, 0.9f), 0.3);
         t.Chain().TweenCallback(Callable.From(() =>
         {
+            _hideTween = null;
             _holoRoot.Visible = false;
             ResetGuideState();
         }));
     }
 
+    // 연출 없이 즉시 감춘다. 시작할 때(_Ready)처럼 "사라질 것이 애초에 없는" 자리에서 쓴다 —
+    // 거기서 트윈을 걸면 0.3초짜리 콜백이 떠돌다가 그 사이에 시작된 대사를 지운다.
+    public void HideHologramNow()
+    {
+        _hideTween?.Kill();
+        _hideTween = null;
+        _holoRoot.Visible = false;
+        ResetGuideState();
+    }
+
     private void ResetGuideState()
     {
+        // 기다리던 쪽을 그냥 버리면 await 가 영영 돌아오지 않는다(교육이 통째로 멈춘다).
+        // 화면을 접더라도 약속은 반드시 돌려준다.
+        var done = _guideDone;
         _guide = null;
         _guideDone = null;
         _completeWhenTyped = false;
@@ -209,6 +234,7 @@ public partial class GuideHologramView : Control
         _icons.Visible = false;
         _hint.Visible = false;
         SetPanel("none");
+        done?.Invoke();
     }
 
     // 프롤로그에서 화면을 셋으로 나눌 때 켠다.

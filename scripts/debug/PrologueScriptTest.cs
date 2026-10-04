@@ -23,6 +23,8 @@ public partial class PrologueScriptTest : Node
                      "tut_intro", "tut_assign", "tut_incident", "tut_anomaly_intro", "tut_anomaly_find",
                      "tut_anomaly_watch", "tut_anomaly_done", "tut_call", "tut_rest", "tut_ask_where",
                      "tut_contradiction", "tut_dialogue_log", "tut_end_call", "tut_complete",
+                     "tut_approval", "tut_approval_maze",
+                     "tut_faint", "tut_faint_carry", "tut_faint_done",
                  })
         {
             var g = PrologueScript.GetGuide(id);

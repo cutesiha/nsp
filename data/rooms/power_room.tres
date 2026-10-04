@@ -19,5 +19,5 @@ UnstaffedAccidentSeconds = 18.0
 AccidentConsequence = 5
 AccidentAmount = 1.0
 RepairTaskId = "repair_generator"
-RepairSeconds = 20.0
+RepairSeconds = 10.0
 RepairMinWorkers = 2

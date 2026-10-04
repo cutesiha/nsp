@@ -68,7 +68,9 @@ public partial class ClueHud : CanvasLayer
         if (key.Keycode == Key.Tab && AdminPad3D.Instance is { } pad)
         {
             // Tab 은 UI 포커스 이동 키이기도 하다 — 패드를 다루는 순간에는 여기서 삼킨다.
-            if (pad.IsOpen) pad.Close();
+            // 들고 있으면 한 단계 뒤로(상세 → 목록 → 홈), 홈에서 한 번 더 누르면 내려놓는다.
+            // 그 자리에서 바로 내려놓고 싶으면 패드 바깥을 좌클릭한다(AdminPad3D).
+            if (pad.IsOpen) pad.Back();
             else if (pad.CanOpen()) pad.Open();
             else return;
             GetViewport().SetInputAsHandled();

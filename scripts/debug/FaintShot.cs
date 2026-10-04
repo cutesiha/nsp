@@ -97,6 +97,17 @@ public partial class FaintShot : Node3D
         if (ap != null && ap.HasAnimation(clip)) ap.Play(clip);
     }
 
+    private static bool IsFemaleNode(Node3D node) =>
+        node?.GetNodeOrNull("VisualRoot/RigRoot/Hips/Torso/Chest/BustMeshL") != null;
+
+    // 체형 전용 클립(_m / _f)이 있으면 그것을 쓴다(EmployeeCctvAnimator.BodyClip 과 같은 규칙).
+    private static string BodyName(Node3D node, string clip, bool female)
+    {
+        var ap = node?.GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
+        string own = clip + (female ? "_f" : "_m");
+        return ap != null && ap.HasAnimation(own) ? own : clip;
+    }
+
     private void ClearScene()
     {
         foreach (var n in _spawned) n.QueueFree();
@@ -151,13 +162,16 @@ public partial class FaintShot : Node3D
         var vNode = Spawn(victimId, new Vector3(0.4f, 0f, 0.4f));
         await Frames(2);
 
-        var vSt = Victim(victimId, FaintPhase.Transporting, true, FaintRescueSystem.LiftSeconds + 1f);
         var style = FaintRescueSystem.StyleOf(carrierId);
-        PlayClip(cNode, style == CarryStyle.Shoulder ? "carry_box_heavy" : "carry_box_normal");
-        PlayClip(vNode, style == CarryStyle.Bridal ? "lying_idle" : "idle");
+        _ = Victim(victimId, FaintPhase.Transporting, true,
+            FaintRescueSystem.PickupSeconds(style) + 1f);
+        // 사람 운반 전용 클립이다 — 박스 클립(carry_box_*)은 더 이상 쓰지 않는다.
+        bool cFemale = IsFemaleNode(cNode), vFemale = IsFemaleNode(vNode);
+        PlayClip(cNode, BodyName(cNode, FaintVisuals.CarryWalkClip(style), cFemale));
+        PlayClip(vNode, BodyName(vNode, FaintVisuals.VictimClip(style), vFemale));
         for (int i = 0; i < 60; i++)
         {
-            FaintVisuals.PoseCarry(cNode, null, vNode, null, vSt, carrierId, 1f / 60f);
+            vNode.GlobalTransform = FaintVisuals.VictimTransform(cNode, vNode, style);
             await Frame();
         }
         Save(dir, $"faint_{name}.png");

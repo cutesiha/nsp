@@ -40,7 +40,7 @@ public partial class ConfigData : Resource
     // 정상 직원의 실제 이동이 "수상한 목격" 후보가 될 확률. 증언이 범인 확정표가 되지 않게 섞는 잡음이다.
     [Export(PropertyHint.Range, "0,1,0.01")] public float OrdinaryMoveSightingChance = 0.22f;
     // 기절 → 의무실에서 이 시간(초) 뒤 회복해 원래 배치로 복귀. 0 이하면 예전처럼 당일 복귀 없음.
-    [Export] public float StressFaintRecoverySeconds = 45f;
+    [Export] public float StressFaintRecoverySeconds = 30f;
     // 회복 직후 스트레스 값(다시 바로 기절하지 않게 '주의' 구간 근처로 내려 둔다).
     [Export] public float StressAfterRecovery = 20f;
     [Export] public float StressWorkRateNormal = 1.00f;
@@ -64,8 +64,11 @@ public partial class ConfigData : Resource
     // DAY1 은 시스템을 배우는 날이라 대형 작업실 사고가 겹치지 않게 한다.
     // 활성 사고가 이 수 이상이거나, 직전 사고에서 이 시간이 지나지 않으면 새 사고를 미룬다.
     [Export] public int Day1MaxActiveIncidents = 1;
-    // 위 동시 사고 제한을 며칠째까지 유지하는가. 초반 단순화 규칙을 DAY5 까지 그대로 쓴다(5).
-    [Export] public int IncidentLimitLastDay = 5;
+    // 위 동시 사고 제한을 며칠째까지 유지하는가.
+    // DAY1~3 은 한 번에 한 건으로 묶어 읽히게 두고, 마지막 이틀만 고장이 겹치게 한다.
+    // (RepairFrequencyTest 로 잰 하루 승인 요청, 대응 배치 기준:
+    //  5 → 평균 6.0 · 3 → 평균 8.6(DAY4~5 가 13) · 2 → 평균 11.0. 5 로 올리면 예전처럼 평탄해진다.)
+    [Export] public int IncidentLimitLastDay = 3;
     [Export] public float IncidentGapSeconds = 18f;
 
     // --- 업무 수행 속도 --------------------------------------------------
@@ -182,18 +185,24 @@ public partial class ConfigData : Resource
     [Export] public float UnstaffedAccidentSecondsDefault = 75f;
     // 비어 있던 방에 근무자가 돌아온 뒤 경고가 풀리기까지 머물러야 하는 시간(초).
     // 들어온 순간 풀리면 문만 열고 지나가도 경고가 꺼져, 왕복에 아무 비용이 들지 않는다(G-1).
-    [Export] public float UnstaffedClearSeconds = 12f;
+    // 다만 12초는 "보냈는데 아무 일도 안 일어난다"로 읽혔다 — 걸어간 시간까지 합치면
+    // 주황 경고 하나에 20초가 녹았다. 머무는 비용은 남기되 눈에 보이는 길이로 줄인다.
+    [Export] public float UnstaffedClearSeconds = 4f;
 
     // ── 수리 승인 미로(G-2) ─────────────────────────────────────────
     // 관리자가 수리를 승인하면 패드에 뜨는 작은 미로. DAY 가 갈수록 커지고 시간이 줄어든다.
-    [Export] public int RepairMazeSize = 7;
+    // 7칸(49타일)은 한눈에 길이 안 들어와 "푸는" 게 아니라 "더듬는" 게 됐다.
+    // 5칸(25타일)이면 길이 보이되 한 번은 꺾어야 한다 — DAY5 에 7칸까지 자란다.
+    [Export] public int RepairMazeSize = 5;
     [Export] public float RepairMazeSizePerDay = 0.5f;
     [Export] public float RepairMazeTimeScale = 1f;
     [Export] public float RepairMazeTimeScalePerDay = 0.05f;
     // 승인 요청에 답할 시간(초). 무응답은 거절과 같다.
-    [Export] public float RepairApproveSeconds = 6f;
+    // 6초는 모니터를 보다 패드로 눈을 옮기는 데 다 쓰였다 — 확대가 풀리고 요청을 읽을 시간까지 준다.
+    [Export] public float RepairApproveSeconds = 9f;
     // 거절 · 무응답 · 미로 실패 시 그 수리에 걸리는 추가 시간 배율.
-    [Export] public float RepairDenyPenaltyRate = 0.5f;
+    // 수리가 느려지는 것 자체가 벌점이다 — 스트레스 · 낮은 기술과 겹치면 한 건에 하루가 녹는다.
+    [Export] public float RepairDenyPenaltyRate = 0.35f;
 
     // ── 순환 배치 규정(G-3) ─────────────────────────────────────────
     // 하루의 이 지점에서 한 번 걸린다(0~1). 제한 시간 안에 최소 인원을 다른 방으로 옮겨야 한다.

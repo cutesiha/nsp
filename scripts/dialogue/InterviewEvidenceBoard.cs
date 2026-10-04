@@ -212,7 +212,27 @@ public static class InterviewEvidenceBoard
             };
         }
 
-        // ② 사고 기록 — 특정 직원의 것이 아니라 시설 전체의 사건이다.
+        // ② 기절 — 그 직원에게 일어난 일이다. 스트레스가 한계를 넘은 순간이 로그에 남으므로
+        //    "그 시각 그 사람은 바닥에 누워 있었다" 가 알리바이·모순의 재료가 된다.
+        if (r.Detail == LogDetail.Fainted && !string.IsNullOrEmpty(r.RelatedEmployeeId))
+        {
+            return new InterviewEvidence
+            {
+                Id = $"faint:{r.RelatedEmployeeId}:{r.Timestamp:0.00}",
+                Kind = EvidenceKind.Incident,
+                Header = "기절 기록",
+                TimeText = DialogueClock.Text(r.Timestamp),
+                Body = $"{Codename(r.RelatedEmployeeId)} — 스트레스 한계 · 업무 불능",
+                SubjectEmployeeId = r.RelatedEmployeeId,
+                AnchorTime = r.Timestamp,
+                HasTime = true,
+                // 쓰러진 그 자리에 있었다는 뜻이다 — 위치 주장으로 쓸 수 있다.
+                Position = PositionClaim.AtRoom,
+                SubjectRoomId = r.RoomId,
+            };
+        }
+
+        // ③ 사고 기록 — 특정 직원의 것이 아니라 시설 전체의 사건이다.
         if (!IsIncidentRow(r)) return null;
         string room = IncidentRoomOf(r);
         string key = IncidentKeyOf(r.SourceEventType, room, r.Timestamp);
@@ -452,7 +472,7 @@ public static class InterviewEvidenceBoard
                 DialogueRepository.EventBlackout => "정전을 알렸다",
                 DialogueRepository.EventWitnessSuspicious => "수상한 행동을 봤다고 알렸다",
                 DialogueRepository.EventFaintTransportRequest => $"{room}의 동료가 쓰러졌다고 알렸다",
-                DialogueRepository.EventTutorialRepairDone => "수리를 마쳤다고 알렸다",
+                DialogueRepository.EventTutorialRepairDone => "동료를 의무실로 옮겼다고 알렸다",
                 _ => "관리자에게 전화했다",
             },
         };

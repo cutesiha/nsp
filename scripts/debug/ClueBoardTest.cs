@@ -445,12 +445,15 @@ public partial class ClueBoardTest : Node
         Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always,
             "근무 중에는 거치대 위에서도 화면을 계속 그린다(시각 · 배지 · 예고)");
 
-        // Tab 은 어느 화면에서든 곧바로 내려놓는다(뒤로 가지 않는다).
+        // Tab 도 우클릭과 같다 — 한 단계 뒤로, 홈에서 한 번 더 누르면 내려놓는다.
+        // (그 자리에서 바로 내려놓고 싶으면 패드 **바깥**을 좌클릭한다 — AdminPad3D._Input.)
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
         await Until(() => pad.IsHeld, 3000);
         pad.View.OpenApp(PadView.Tab.Clues, fade: false);
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
-        Check(!pad.IsHeld && pad.IsOpen, "Tab — 앱 화면에서도 한 단계 뒤로가 아니라 곧바로 내려놓는다");
+        Check(pad.IsHeld && pad.View.Current == PadView.Tab.Home, "Tab ① 앱 화면 → 홈(아직 들고 있다)");
+        hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
+        Check(!pad.IsHeld && pad.IsOpen, "Tab ② 홈 → 내려놓기");
         await Until(() => !pad.IsOpen, 3000);
         Check(pad.View.Current == PadView.Tab.Home && !pad.View.IsLocked, "앱 화면에서 내려놓아도 거치대 위 화면은 홈이다");
 

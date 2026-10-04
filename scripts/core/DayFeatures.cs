@@ -37,6 +37,21 @@ public static class DayFeatures
     // ("DAY 0" 이라고만 쓰면 실제 1일차와 헷갈린다.)
     public static string DayLabel(int day) => day <= 0 ? "가상 시뮬레이션" : $"DAY {day}";
 
+    // 해금일과 상관없이 오늘만 열어 두는 작업실. DAY0 교육이 기절 이송을 가르칠 때
+    // 의무실을 잠깐 여는 데 쓴다(교육이 끝나면 TutorialDirector 가 비운다).
+    // 데이터(RoomDef.UnlockDay)는 건드리지 않는다 — 여기 든 동안만 예외다.
+    private static readonly System.Collections.Generic.HashSet<string> _forcedOpenRooms = new();
+
+    public static void ForceRoomOpen(string roomId, bool open)
+    {
+        if (string.IsNullOrEmpty(roomId)) return;
+        if (open) _forcedOpenRooms.Add(roomId);
+        else _forcedOpenRooms.Remove(roomId);
+    }
+
+    public static void ClearForcedRooms() => _forcedOpenRooms.Clear();
+
     // 오늘 이 작업실을 쓰는가(배치 / 업무 발생 / 무인 사고 / 지도 표시 판정의 단일 창구).
-    public static bool IsRoomActive(RoomDef def) => def == null || Day >= def.UnlockDay;
+    public static bool IsRoomActive(RoomDef def) =>
+        def == null || Day >= def.UnlockDay || _forcedOpenRooms.Contains(def.RoomId);
 }

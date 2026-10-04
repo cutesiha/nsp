@@ -36,6 +36,7 @@
 [ext_resource type="Script" uid="uid://b4kg6dn61njga" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
 [ext_resource type="Script" uid="uid://dsujspmv5drb0" path="res://scripts/view/PadHintBubble.cs" id="35_padhint"]
 [ext_resource type="Script" uid="uid://ycv3yrqgmada" path="res://scripts/view/PresenceDirector.cs" id="36_presence"]
+[ext_resource type="Script" uid="uid://4f1a061qnnvj" path="res://scripts/view/PosterCamera.cs" id="37_poster"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -268,7 +269,7 @@ size = Vector3(0.258, 0.022, 0.01)
 [sub_resource type="BoxMesh" id="PadMesh_CradleBack"]
 size = Vector3(0.2064, 0.008, 0.1302)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_npiex"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gkebq"]
 albedo_color = Color(0.05, 0.08, 0.08, 1)
 emission_enabled = true
 emission = Color(0.3, 0.95, 1, 1)
@@ -301,7 +302,7 @@ emission_energy_multiplier = 0.6
 
 [sub_resource type="QuadMesh" id="PadMesh_Screen"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gkebq"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_e0to0"]
 albedo_color = Color(0.2, 0.15, 0.05, 1)
 emission_enabled = true
 emission = Color(1, 0.72, 0.25, 1)
@@ -1124,7 +1125,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.762, -0.42)
 script = ExtResource("13_deskboard")
 
 [node name="Telephone" type="Node3D" parent="ControlRoom" unique_id=98564310]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.46748805)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008590698, 0.758, -0.5074881)
 script = ExtResource("8_phone3d")
 HudPath = NodePath("../../PhoneCallHud")
 
@@ -1202,7 +1203,7 @@ ScreenOffset = Vector3(0.01, 0.5, 0.19)
 transform = Transform3D(0.29, 0, -7.450581e-09, 0, 0.236, 0, 7.450581e-09, 0, 0.236, -0.012483373, 0, 0.02654463)
 
 [node name="AdminPad" type="Node3D" parent="ControlRoom" unique_id=771100892]
-transform = Transform3D(0.9022264, 0, 0.43087822, 0, 1, 0, -0.43087822, 0, 0.9022264, -0.37810868, 0.755, -0.33074608)
+transform = Transform3D(0.9022264, 0, 0.43087822, 0, 1, 0, -0.43087822, 0, 0.9022264, -0.37810868, 0.755, -0.37074608)
 script = ExtResource("34_adminpad")
 
 [node name="PadCradle" type="Node3D" parent="ControlRoom/AdminPad" unique_id=554838578]
@@ -1218,17 +1219,17 @@ material_override = SubResource("Mat_PadMetal")
 mesh = SubResource("PadMesh_CradleLip")
 
 [node name="Back" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=823990304]
-transform = Transform3D(1, 0, 0, 0, 0.5299193, -0.8480481, 0, 0.8480481, 0.5299193, 0, 0.1317647, -0.0282359)
+transform = Transform3D(1, 0, 0, 0, 0.7880108, -0.6156615, 0, 0.6156615, 0.7880108, 0, 0.1002191, -0.0606773)
 material_override = SubResource("Mat_PadMetal")
 mesh = SubResource("PadMesh_CradleBack")
 
 [node name="Led" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=1296692488]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09804, 0.0135, 0.061)
-material_override = SubResource("StandardMaterial3D_npiex")
+material_override = SubResource("StandardMaterial3D_gkebq")
 mesh = SubResource("PadMesh_Led")
 
 [node name="PadBody" type="Node3D" parent="ControlRoom/AdminPad" unique_id=1590197408]
-transform = Transform3D(0.9022264, 0.36540544, 0.22833067, 0, 0.52991927, -0.8480481, -0.43087822, 0.76513135, 0.47810715, -0.38050145, 0.8712245, -0.33575636)
+transform = Transform3D(0.9022264, 0.26527512, 0.3395367, 0, 0.7880108, -0.6156615, -0.43087822, 0.55546606, 0.71096414, -0.39277887, 0.8483725, -0.4014643)
 top_level = true
 
 [node name="Shell" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=37329021]
@@ -1247,7 +1248,7 @@ mesh = SubResource("PadMesh_Screen")
 
 [node name="BadgeLed" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=868969769]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.126, 0.0066, -0.098)
-material_override = SubResource("StandardMaterial3D_gkebq")
+material_override = SubResource("StandardMaterial3D_e0to0")
 mesh = SubResource("PadMesh_BadgeLed")
 
 [node name="GripPoint" type="Marker3D" parent="ControlRoom/AdminPad/PadBody" unique_id=692864851]
@@ -1259,13 +1260,13 @@ transform = Transform3D(1, 0, 0, 0, 0.29237178, -0.9563047, 0, 0.9563047, 0.2923
 shape = SubResource("PadShape_Click")
 
 [node name="PowerSwitchPanel" type="Node3D" parent="ControlRoom" unique_id=1559205017]
-transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.37415373)
+transform = Transform3D(0.7690038, 0, -0.28432554, 0, 0.82, 0, 0.28432554, 0, 0.7690038, 0.3837002, 0.762, -0.41415372)
 script = ExtResource("15_powerpanel")
 
 [node name="SwitchModel" parent="ControlRoom/PowerSwitchPanel" unique_id=647797286 instance=ExtResource("23_switch_model")]
 transform = Transform3D(0.24000011, 0, -1.4901161e-08, 0, 0.24000007, 0, 1.4901161e-08, 0, 0.24000011, 0.02287203, 0, 0.06186104)
 
-[node name="CapacityLabel" type="Label3D" parent="ControlRoom/PowerSwitchPanel"]
+[node name="CapacityLabel" type="Label3D" parent="ControlRoom/PowerSwitchPanel" unique_id=352968916]
 transform = Transform3D(1, 0, 0, 0, 0.9702957, 0.2419219, 0, -0.2419219, 0.9702957, 0.022872, 0.22348, 0.101381)
 pixel_size = 0.00042
 modulate = Color(0.55, 0.85, 0.65, 1)
@@ -1439,3 +1440,11 @@ script = ExtResource("31_advinput")
 
 [node name="TitleRoomDirector" type="Node" parent="." unique_id=771100890]
 script = ExtResource("32_titleroom")
+
+[node name="PosterCamera" type="Camera3D" parent="." unique_id=349404629]
+editor_description = "포스터용 하이앵글 스틸 카메라. 게임 시점과 무관(current=false). F8 프리뷰 / F9 저장."
+transform = Transform3D(1, 0, 0, 0, 0.62479, 0.78079, 0, -0.78079, 0.62479, 0, 2.55, 0.62)
+fov = 88.0
+near = 0.02
+far = 40.0
+script = ExtResource("37_poster")
