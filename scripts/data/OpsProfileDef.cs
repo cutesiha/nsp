@@ -52,6 +52,11 @@ public partial class OpsProfileDef : Resource
     // 방해공작 한도와 함께 정해져야 한다.
     [Export] public int GhostMaxPerDay = -1;
 
+    // 첫 등장을 반드시 이 구간(초) 안에 띄운다. 음수면 쓰지 않는다(확률에만 맡긴다).
+    // DAY1 은 괴물을 처음 보는 날이라, 운이 나빠 한 번도 안 나오면 그 계통을 통째로 못 배운다.
+    [Export] public float GhostFirstAppearFromSeconds = -1f;
+    [Export] public float GhostFirstAppearBySeconds = -1f;
+
     // ── 방해공작 기회 조건(SaboteurPlan) ───────────────────────────────
     // 결번 개체가 노릴 수 있는 중요 시설. 비워 두면 예전 방식(현재 있는 방에서 바로 실행).
     // 결번 개체가 실제로 그 방까지 걸어가야만 그 방에서 사고가 난다.
@@ -84,6 +89,22 @@ public partial class OpsProfileDef : Resource
     // 실패한 날에도 준비와 전조는 그대로 흐른다 — 관리자는 무엇이 일어날 뻔했는지 모른다.
     [Export] public float SabotageChancePerDay = 1f;
 
+    // ── 작은 교란(MinorTamper) ─────────────────────────────────────────
+    //
+    // 실제 방해공작과 다른 행동이다. 설비를 부수지 않고 **신호만 흔든다** —
+    // 출력이 잠깐 떨어졌다 돌아오거나, 한 화면에 잡음이 끼거나, 센서가 한 번 튄다.
+    // 목적은 피해가 아니라 의심이다: 결번 개체는 하루에 한 번은 반드시 무언가를 한다.
+    //
+    // 방해공작(SabotageChancePerDay)은 "할지 말지" 를 굴리지만, 교란은 굴리지 않는다.
+    // 그래야 휴게시간에 "오늘 아무 일도 없었는데 누구를 의심하지" 가 되지 않는다.
+    [Export] public int TamperAttemptsPerDay = 0;
+    // 교란이 터질 수 있는 구간(초). 그 전에는 기회가 열려도 기다린다.
+    [Export] public float TamperWindowStartSeconds = 55f;
+    [Export] public float TamperWindowEndSeconds = 80f;
+    // 결번 개체가 손댄 방이 **아닌** 다른 방에 증상이 나타날 확률.
+    // 이 값이 0 이면 "이상이 난 방 = 범인이 있던 방" 공식이 성립해 추리가 끝난다.
+    [Export(PropertyHint.Range, "0,1,0.05")] public float TamperCrossRoomChance = 0.7f;
+
     // ── 오늘의 금기 ────────────────────────────────────────────────────
     // 이 날 적용할 금기 id 목록(data/taboos/*.tres). 비어 있으면 그 날은 금기가 없다.
     // DAY 별 차이는 전부 이 데이터에서 나온다 — 코드에 날짜 분기를 넣지 않는다.
@@ -92,6 +113,9 @@ public partial class OpsProfileDef : Resource
     // ── 정상 직원의 반응 이동(EmployeeBehaviorSystem) ──────────────────
     // 사고가 났을 때 성격에 따라 자리를 뜨는 최대 인원. 로그가 복잡해지지 않게 제한한다.
     [Export] public int MaxReactionMovesPerDay = 2;
+    // 첫 번째 행동까지의 시간. 0 이하면 ReactionMoveGapSeconds 를 그대로 쓴다.
+    // 따로 두는 이유: 첫 건은 근무 초반에, 두 번째는 중후반에 떨어져야 하루가 고르게 채워진다.
+    [Export] public float ReactionMoveFirstSeconds = 0f;
     [Export] public float ReactionMoveGapSeconds = 24f;
     [Export] public float ReactionStaySeconds = 18f;
 }

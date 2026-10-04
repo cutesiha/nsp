@@ -2030,6 +2030,46 @@ public partial class FacilitySimulation : Node
 
     private const float MicroFaultSeconds = 2.5f;
 
+    // ③ 작은 교란(MinorTamper) — 결번 개체가 설비를 **부수지 않고** 신호만 흔든다.
+    //
+    // 실제 방해공작과 다른 점 셋.
+    //   · 시설이 실제로 망가지지 않는다. 수리 업무도, 사고도, 코어 손실도 없다.
+    //   · 증상이 나타나는 방이 손댄 방과 다를 수 있다(Cross-Room). 그래서
+    //     "이상이 난 방 = 범인이 있던 방" 공식이 성립하지 않는다.
+    //   · 기록에는 결과만 남는다 — 누가 했는지도, 어디서 시작했는지도 쓰지 않는다.
+    //
+    // 플레이어가 잡을 수 있는 단서는 셋뿐이고 전부 기존 경로다:
+    //   손댄 방의 CCTV 행동 · 같은 방 직원의 기억 · 증상이 난 방의 수치 흔들림.
+    public void TriggerTamper(string originRoomId, string actorId, string affectedRoomId)
+    {
+        if (string.IsNullOrEmpty(affectedRoomId)) return;
+
+        // 손댄 자리 — CCTV 로 그 방을 보고 있었다면 관리자가 직접 본 것이 된다.
+        if (!string.IsNullOrEmpty(originRoomId) && !string.IsNullOrEmpty(actorId))
+        {
+            MarkSuspiciousAction(originRoomId, actorId);
+            // 목격 기억에 남는 문장은 정상 직원의 거짓 단서와 **같은 표**에서 뽑는다.
+            // 문장이 갈라지면 휴게시간 증언 한 줄만 보고 범인이 잡힌다 — 그 순간 추리가 끝난다.
+            RecordOddBehaviour(actorId, originRoomId, EmployeeBehaviorSystem.Reason(actorId));
+        }
+
+        // 증상이 난 자리 — 수치가 잠깐 흔들린다. 고장이 아니다.
+        TriggerMicroFault(affectedRoomId);
+
+        // 알림은 작게. 사고의 붉은 배너를 쓰면 플레이어가 고장으로 읽는다.
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"{RoomName(affectedRoomId)} 신호가 잠시 불안정했습니다.", NSP.Ui.NoticeLevel.Info);
+        Sfx.Instance?.Play("sensor_beep", -12f);
+
+        EventLog.Instance?.LogEvent(LogEventType.SignalAnomaly, "", affectedRoomId,
+            $"{RoomName(affectedRoomId)} — 계통 신호 일시 이상");
+
+        Tampered?.Invoke(originRoomId, affectedRoomId);
+    }
+
+    // 교란이 일어난 순간. (손댄 방, 증상이 난 방) — GUIDE-0 의 첫 안내가 이 신호를 듣는다.
+    public static event System.Action<string, string> Tampered;
+
     public bool HasMicroFault(string roomId)
     {
         var room = _roomStates.GetValueOrDefault(roomId);

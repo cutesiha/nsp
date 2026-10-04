@@ -40,6 +40,7 @@ public partial class SaboteurClueTest : Node
         public int CluePaths;
         public float CoreGain;
         public float LongestGap;
+        public bool Tampered;
         public int Decisions;
         public int Cancels;
     }
@@ -85,7 +86,7 @@ public partial class SaboteurClueTest : Node
         float startCore = GameState.Instance.CoreProgress;
         string borrowed = "", origin = "";
         float lastDecision = 0f;
-        int clues = 0;
+        int clues = 0, leads = 0;
         var where = Roster.ToDictionary(id => id, id => _sim.GetEmployeeState(id).CurrentRoomId);
 
         for (float t = 0f; t < length; t += Step)
@@ -158,9 +159,15 @@ public partial class SaboteurClueTest : Node
             if (IncidentTracker.ActiveCount > 0) lastDecision = now;
             // 전조(설비 접근·수치 이상)도 "지금 볼 것이 있다"에 해당한다.
             if (_sim.Saboteur.Clues.Count > clues) { clues = _sim.Saboteur.Clues.Count; lastDecision = now; }
+            // 괴물이 떠 있는 동안은 CCTV 에서 눈을 뗄 수 없다 — 빈 시간이 아니다.
+            if (_sim.Ghost.Active) lastDecision = now;
+            // 정상 직원의 거짓 단서도 그 순간 화면에서 볼 것이 생긴 것이다.
+            if (_sim.Behavior.FalseLeads.Count > leads)
+            { leads = _sim.Behavior.FalseLeads.Count; lastDecision = now; run.Decisions++; }
             run.LongestGap = Mathf.Max(run.LongestGap, now - lastDecision);
         }
 
+        run.Tampered = _sim.Saboteur.HasTampered;
         run.CoreGain = GameState.Instance.CoreProgress - startCore;
         run.Cancels = _sim.Saboteur.CancelCount;
         run.Precursors = _sim.Saboteur.Clues.Count;
@@ -256,7 +263,11 @@ public partial class SaboteurClueTest : Node
         var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
         GD.Print($"\n[E~I] 방해공작 {acted.Count}회 · 전조 평균 {Avg(acted, r => r.Precursors):0.0}개 · " +
                  $"단서 경로 평균 {Avg(acted, r => r.CluePaths):0.0}개");
-        Check(acted.Count >= runs.Count * 3 / 4, "방해공작이 대부분의 근무에서 발생한다");
+        // DAY1 의 실제 방해공작은 **드물다**(25~40%). 하루 한 번은 반드시 남는 쪽은
+        // 작은 교란(MinorTamper) 이고, 그건 Day1RhythmTest 가 따로 본다.
+        float hardRate = acted.Count * 100f / Mathf.Max(1, runs.Count);
+        Check(hardRate is >= 10f and <= 60f, $"방해공작이 드물게(설정 범위 안) 일어난다 ({hardRate:0}%)");
+        Check(runs.All(r => r.Tampered), "작은 교란은 모든 근무에서 남는다");
         Check(acted.All(r => r.Precursors >= 1), "E 방해공작 전에 전조가 최소 1개 생긴다");
         Check(acted.All(r => r.PrepareAt >= 0f && r.PrepareAt < r.SabotageAt),
             "F 전조는 방 이동이 아니라 그 자리에서의 준비 과정이다");

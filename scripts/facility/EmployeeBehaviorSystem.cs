@@ -44,7 +44,8 @@ public sealed class EmployeeBehaviorSystem
         if (ops == null || _movesToday >= ops.MaxReactionMovesPerDay) return;
 
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
-        if (_nextCheckAt <= 0f) _nextCheckAt = ops.ReactionMoveGapSeconds;
+        if (_nextCheckAt <= 0f)
+            _nextCheckAt = ops.ReactionMoveFirstSeconds > 0f ? ops.ReactionMoveFirstSeconds : ops.ReactionMoveGapSeconds;
         if (now < _nextCheckAt) return;
         _nextCheckAt = now + ops.ReactionMoveGapSeconds;
 
@@ -55,6 +56,14 @@ public sealed class EmployeeBehaviorSystem
         string room = st.CurrentRoomId;
         sim.MarkSuspiciousAction(room, pick);
         var seen = sim.RecordOddBehaviour(pick, room, Reason(pick));
+        // 아무도 못 본 행동은 거짓 단서가 되지 못한다 — 증언으로 남지 않으니 휴게시간에
+        // 비교할 것이 없고, 그러면 "설비 앞에 섰던 사람" 이 결번 개체 하나만 남는다.
+        // 그런 날은 오늘 몫을 쓰지 않고 다음 차례에 다시 고른다(CCTV 흔적은 이미 남았다).
+        if (seen.Count == 0)
+        {
+            // 목격 판정이 빗나갔다 — 오늘 몫을 쓰지 않고 다음 차례에 다시 시도한다.
+            return;
+        }
         _actedToday.Add(pick);
         _movesToday++;
 
@@ -90,6 +99,9 @@ public sealed class EmployeeBehaviorSystem
             var st = sim.GetEmployeeState(id);
             if (st is not { Alive: true, Isolated: false, Incapacitated: false }) continue;
             if (st.IsMoving || string.IsNullOrEmpty(st.AssignedRoomId)) continue;
+            // 혼자 있는 방에서는 아무도 못 본다 — 증언으로 남지 않는 행동은 거짓 단서가 되지 못하고,
+            // 그러면 휴게시간에 "설비 앞에 섰던 사람" 이 결번 개체 하나만 남는다.
+            if (sim.OnDutyCount(st.CurrentRoomId) <= 1) continue;
 
             var tr = EmployeeTraits.Get(id);
             int score = tr.Curiosity * 2 + tr.ObservationalAwareness + tr.ReportsAnomaly;
@@ -97,11 +109,16 @@ public sealed class EmployeeBehaviorSystem
             bestScore = score;
             best = id;
         }
-        return bestScore >= 5 ? best : "";
+        // 기준점(5)을 넘는 사람이 없으면 그래도 가장 호기심 많은 사람을 고른다.
+        // 하루에 거짓 단서가 하나도 없으면 "설비 앞에 간 사람 = 범인" 공식이 그대로 성립한다.
+        return bestScore > 0 ? best : "";
     }
 
     // 그 사람이라면 왜 설비 앞에 섰을까 — 전부 정상적인 이유다.
-    private static string Reason(string employeeId) => employeeId switch
+    //
+    // **결번 개체의 교란도 같은 표를 쓴다**(FacilitySimulation.TriggerTamper).
+    // 증언 문장이 갈라지면 휴게시간에 그 한 줄만 보고 범인이 잡힌다 — 같은 말이어야 한다.
+    public static string Reason(string employeeId) => employeeId switch
     {
         "dog" => "동료가 괜찮은지 살피다가 설비 쪽을 들여다봤다",
         "cat" => "효율이 떨어진 이유를 직접 확인했다",

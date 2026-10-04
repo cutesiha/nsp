@@ -176,6 +176,12 @@ public static class PrologueScript
         return _windows.GetValueOrDefault(id);
     }
 
+    // 대본에 든 모든 @guide 블록 id(검사용 — 같은 안내가 두 블록에 들어가지 않았는지 본다).
+    public static IEnumerable<string> GuideIds
+    {
+        get { EnsureLoaded(); return _guides.Keys; }
+    }
+
     public static GuideBlock GetGuide(string id)
     {
         EnsureLoaded();

@@ -89,6 +89,17 @@ public partial class DeskLayoutShot : Node
         await Seconds(0.4);
 
         // 수리 승인 요청 · 미로가 거치대 위 패드에서 읽히는지도 같은 시점에서 본다.
+        // 작은 교란 — 손댄 곳(정비실)과 증상이 난 곳(발전실)이 다르다.
+        // 화면에 "TAMPER" 같은 시스템명이 뜨지 않고, 로그에는 결과 한 줄만 남아야 한다.
+        sim.TriggerTamper("maintenance_room", sim.GetActiveEmployeeIds().First(), "power_room");
+        await Seconds(1.0);
+        GetViewport().GetTexture().GetImage()?.SavePng($"{_dir}/tamper_notice.png");
+        hist?.OpenLog();
+        await Seconds(0.8);
+        GetViewport().GetTexture().GetImage()?.SavePng($"{_dir}/tamper_log.png");
+        hist?.CloseWindow();
+        await Seconds(0.4);
+
         sim.TriggerTutorialAccident("power_room", 2);
         for (int i = 0; i < 300 && RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking; i++) await Frame();
         await Seconds(0.6);

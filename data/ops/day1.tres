@@ -194,16 +194,28 @@ SaboteurStartSeconds = 58.0
 ; DAY1 은 배우는 날이다 — 방해공작은 거의 일어나지 않는다.
 ; 준비와 전조는 평소대로 흐르되, 실제로 저지를지는 아래 확률이 정한다.
 MaxSabotageActionsPerDay = 1
-SabotageChancePerDay = 0.12
+SabotageChancePerDay = 0.45
 SabotageDeadlineRush = false
 AllowMurder = false
 GhostMaxPerDay = 1
+; DAY1 은 괴물을 처음 보는 날이다 — 운에 맡기면 한 번도 안 나오는 판이 생긴다.
+; 30~50초 사이에 반드시 한 번(정확한 초는 근무마다 흔들린다).
+GhostFirstAppearFromSeconds = 30.0
+GhostFirstAppearBySeconds = 50.0
 SabotageTargetRooms = Array[String](["core_room", "power_room", "maintenance_room", "storage_room", "guard_room"])
 SabotageSettleSeconds = 5.0
 SabotagePrepareMinSeconds = 10.0
 SabotagePrepareMaxSeconds = 12.5
+; ── 작은 교란(MinorTamper) ─ 실제 피해 없이 신호만 흔든다. 하루 1회 보장.
+;    증상이 난 방과 손댄 방이 70% 확률로 다르다 — 그래야 "이상이 난 방 = 범인이 있던 방" 이 안 된다.
+TamperAttemptsPerDay = 1
+TamperWindowStartSeconds = 55.0
+TamperWindowEndSeconds = 80.0
+TamperCrossRoomChance = 0.7
 SabotageWindowStartSeconds = 62.0
 SabotageWindowEndSeconds = 116.0
-MaxReactionMovesPerDay = 2
-ReactionMoveGapSeconds = 26.0
+MaxReactionMovesPerDay = 3
+; 첫 건은 근무 초반(배치 직후), 두 번째는 중후반 — 하루가 고르게 채워지게 떼어 놓는다.
+ReactionMoveFirstSeconds = 18.0
+ReactionMoveGapSeconds = 20.0
 ReactionStaySeconds = 18.0

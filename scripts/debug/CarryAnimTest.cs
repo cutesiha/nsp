@@ -11,6 +11,10 @@ namespace NSP.Debug;
 
 // 저장고 상자 운반 동작이 매 프레임 클립을 갈아타지 않는지 잰다.
 //
+// ※ 사람(기절한 동료) 운반 연출은 여기서 보지 않는다 — RescueCarryTest 가 따로 본다.
+//   godot --path . res://scenes/debug/RescueCarryTest.tscn -- <운반자> <환자>
+//   화면으로 볼 때는 RescueCarryShot(단계별 스틸, slow 인자로 0.5배속).
+//
 //   godot --headless --path . res://scenes/debug/CarryAnimTest.tscn
 //
 // 증상: 상자를 나르는 동안 팔이 앞뒤로 크게 휘저어졌다(토끼 · 고양이 · 양).

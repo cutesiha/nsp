@@ -258,6 +258,12 @@ public partial class IncomingCallDirector : Node
             // 아무도 못 봤다면 전화가 오지 않는다 — 흔적은 경고 단말기와 시설 로그에만 남는다.
             // (예전에는 목격자가 없을 때 "사고 발견" 전화를 걸어, 센서에는 아무 사고도 없는데
             //  직원이 그 작업실 사고를 보고하는 것처럼 보였다.)
+            // 계통 신호 흔들림(작은 교란) — 증상이 난 방에 사람이 있으면 "여기는 멀쩡하다" 고 알린다.
+            // 전화 한 통이 "증상 / 원인" 을 갈라 보게 만드는 유일한 재료다.
+            case LogEventType.SignalAnomaly:
+                EnqueueSignalCheck(e.RoomId);
+                break;
+
             case LogEventType.Sabotage:
                 var witness = e.WitnessEmployeeIds.FirstOrDefault(id => Available(id) && !AlreadyCalled(RoomKey(e.RoomId), id));
                 if (!string.IsNullOrEmpty(witness))
@@ -376,6 +382,19 @@ public partial class IncomingCallDirector : Node
             .Distinct()
             .ToList();
         return candidates.Count == 0 ? "" : candidates[_rng.RandiRange(0, candidates.Count - 1)];
+    }
+
+    // 증상이 난 방에 실제로 있던 사람만 건다. 그 방에 아무도 없으면 전화도 없다 —
+    // 직원은 자기가 보지 않은 것을 말하지 않는다.
+    private void EnqueueSignalCheck(string roomId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null || string.IsNullOrEmpty(roomId)) return;
+        string key = "signal:" + roomId;
+        string caller = sim.OnDutyEmployeeIds(roomId)
+            .FirstOrDefault(id => Available(id) && !AlreadyCalled(key, id));
+        if (string.IsNullOrEmpty(caller)) return;
+        Enqueue(caller, DialogueRepository.EventSignalCheck, key, roomId);
     }
 
     // --- 상황(Incident) -----------------------------------------------

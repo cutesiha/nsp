@@ -52,6 +52,9 @@ public partial class RescueCarryShot : Node
         var args = OS.GetCmdlineUserArgs();
         _dir = args.Length > 0 ? args[0] : ProjectSettings.GlobalizePath("user://rescue");
         DirAccess.MakeDirRecursiveAbsolute(_dir);
+        // 느린 재생 검수(§67) — 손 위치·접촉·인계를 눈으로 따라가기 쉽게 한다.
+        //   ... -- <폴더> <운반자> <환자> slow
+        if (System.Array.IndexOf(args, "slow") >= 0) { Engine.TimeScale = 0.5f; GD.Print("   (0.5배속 검수)"); }
 
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
             ?.SetValue(null, true);

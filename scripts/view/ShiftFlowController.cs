@@ -74,6 +74,8 @@ public partial class ShiftFlowController : Node
     private float _coreAtShiftStart;
     private int _materialsAtShiftStart;
 
+    public override void _ExitTree() => NSP.Facility.FacilitySimulation.Tampered -= OnTampered;
+
     public override void _Ready()
     {
         _ctl = GetNodeOrNull<ControlRoom3DController>(ControllerPath);
@@ -95,6 +97,7 @@ public partial class ShiftFlowController : Node
 
         GameState.Instance?.SetPhase(GamePhase.Prep);
         _ctl?.SetInputLocked(true);
+        NSP.Facility.FacilitySimulation.Tampered += OnTampered;
 
         if (_title != null)
         {
@@ -208,6 +211,23 @@ public partial class ShiftFlowController : Node
             ShowStressCautionHint(sim.GetEmployeeDef(id)?.Codename ?? id);
             return;
         }
+    }
+
+    // ── 작은 교란 첫 안내 ───────────────────────────────────────────────
+    //
+    // 증상이 난 방과 원인이 시작된 방이 다른 교란이 **처음** 화면에 나타난 직후 한 줄만.
+    // 하루에 한 번뿐이고, 같은 방에서 난 교란(원격이 아닌 것)은 설명할 것이 없으니 넘긴다.
+    // GUIDE-0 는 범인을 모른다 — "누가 조작했다" 라고 말하지 않는다.
+    private int _crossSignalSaidDay = -1;
+
+    private void OnTampered(string originRoomId, string affectedRoomId)
+    {
+        if (_stage != Stage.Shift || DayFeatures.IsTutorialDay) return;
+        if (originRoomId == affectedRoomId) return;              // 원격이 아니면 설명할 것이 없다
+        int day = GameState.Instance?.CurrentDay ?? 0;
+        if (_crossSignalSaidDay == day) return;
+        _crossSignalSaidDay = day;
+        _ = PlayGuideLines("ops_cross_signal");
     }
 
     // ── 시스템 해금 안내 ────────────────────────────────────────────────

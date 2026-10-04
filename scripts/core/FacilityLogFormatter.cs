@@ -122,6 +122,8 @@ public static class FacilityLogFormatter
         LogEventType.Argument => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),
         // 작업실이 제 일을 해낸 순간. 원문이 이미 "작업실 — 내용" 형태라 그대로 다듬는다.
         LogEventType.RoomEffect => RoomEffect(e),
+        // 계통 신호 흔들림 — 결과 한 줄만. 사고가 아니므로 붉게 쓰지 않는다.
+        LogEventType.SignalAnomaly => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning),
         LogEventType.Death => Death(e, s),
         LogEventType.Isolation => Isolation(e, s),
         LogEventType.FalseOrderFollowed => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),

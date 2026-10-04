@@ -106,6 +106,8 @@ public partial class RescueCarryTest : Node
         bool detachedEarly = false;
         bool recoverClipSeen = false;
         float minHipsY = 99f, maxAnchorGap = 0f, finalHipsY = -1f;
+        var maxPairPhase = FaintPhase.None;
+        float maxPairAfterSwitch = -1f, lastSwitchT = -99f;
         float recoverSeenAt = 0f, recoverDeadline = 0f;
         bool walkClipWhileMoving = false;
         Vector3 lastVictimPos = Vector3.Zero;
@@ -121,6 +123,7 @@ public partial class RescueCarryTest : Node
             if (c.CurrentRoomId != watching && !string.IsNullOrEmpty(c.CurrentRoomId))
             {
                 watching = c.CurrentRoomId;
+                lastSwitchT = t;
                 sim.SetSurveillanceTarget(watching);
             }
             var cn = world?.EmployeeNode(CarrierId);
@@ -154,7 +157,10 @@ public partial class RescueCarryTest : Node
                     var cc = cn?.GetNodeOrNull<Node3D>(ChestPath);
                     var vc = vn?.GetNodeOrNull<Node3D>(ChestPath);
                     if (cc != null && vc != null)
-                        maxPair = Mathf.Max(maxPair, cc.GlobalPosition.DistanceTo(vc.GlobalPosition));
+                    {
+                        float gap = cc.GlobalPosition.DistanceTo(vc.GlobalPosition);
+                        if (gap > maxPair) { maxPair = gap; maxPairPhase = phase; maxPairAfterSwitch = t - lastSwitchT; }
+                    }
                 }
 
                 // 업고 가는 동안 환자 골반이 바닥 가까이 내려오면 "끌고 가는" 그림이 된다.
@@ -231,7 +237,7 @@ public partial class RescueCarryTest : Node
             $"4. 이동 중 다리가 실제로 움직인다 (허벅지 {legSwing:0.0}° · 정강이 {shinSwing:0.0}°)");
 
         Check(maxPair > 0f && maxPair <= MaxPairDistance,
-            $"5. 운반 내내 두 몸통이 붙어 있다 (가슴 사이 최대 {maxPair:0.00}m / 허용 {MaxPairDistance:0.00}m)");
+            $"5. 운반 내내 두 몸통이 붙어 있다 (가슴 사이 최대 {maxPair:0.00}m @ {maxPairPhase} · 방전환 +{maxPairAfterSwitch:0.00}s / 허용 {MaxPairDistance:0.00}m)");
 
         int roomIdx = phasesSeen.IndexOf(FaintPhase.BedApproach);
         int recIdx = phasesSeen.IndexOf(FaintPhase.Recovering);

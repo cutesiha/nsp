@@ -70,6 +70,10 @@ public sealed class SaboteurPlan
         ActionCount = 0;
         _willActToday = null;
         _windowOffset = GD.Randf() * 6f;
+        TamperCount = 0;
+        TamperedAtSeconds = -1f;
+        TamperOriginRoomId = TamperAffectedRoomId = "";
+        _tamperOffset = GD.Randf() * 8f;
         Conditions.Clear();
         Clues.Clear();
         _firedPrecursors.Clear();
@@ -130,6 +134,10 @@ public sealed class SaboteurPlan
         // ③ 배치된 자리에 자리를 잡아야 한다.
         if (SettledSeconds < ops.SabotageSettleSeconds) return;
 
+        // 작은 교란은 방해공작 준비와 **별개로** 돈다. 오늘 손댈 생각이 없는 날에도,
+        // 준비가 끝나기 한참 전에도 일어난다 — 하루에 한 번은 반드시 무언가가 있어야 한다.
+        TickTamper(sim, saboteur, ops, room, now);
+
         if (Phase == SaboteurPhase.Idle)
         {
             Phase = SaboteurPhase.Opportunity;
@@ -150,6 +158,64 @@ public sealed class SaboteurPlan
 
         PrepareSeconds += delta;
         TickPrecursors(sim, saboteur, room, now);
+    }
+
+    // --- 작은 교란(MinorTamper) ------------------------------------------
+    //
+    // 방해공작과 **같은 조건에서 돌지만 같은 줄에 있지 않다.** 방해공작은 "오늘 할지" 를
+    // 굴려 대부분의 날에 아무 일도 없지만, 교란은 굴리지 않는다 — 하루에 한 번은 반드시
+    // 무언가가 일어나야 휴게시간에 되짚을 것이 남는다.
+    //
+    // 큰 피해를 주지 않으므로 방해공작처럼 긴 준비를 요구하지 않는다. 자리를 잡고 있고
+    // 그 방이 조용하면(위 Tick 의 조건들) 창 안에서 한 번 손을 댄다.
+
+    public int TamperCount { get; private set; }
+    public float TamperedAtSeconds { get; private set; } = -1f;
+    // 손댄 방 / 증상이 난 방. 둘이 다를 수 있다는 것이 이 장치의 전부다.
+    public string TamperOriginRoomId { get; private set; } = "";
+    public string TamperAffectedRoomId { get; private set; } = "";
+
+    public bool HasTampered => TamperedAtSeconds >= 0f;
+
+    // 그 구간 안에서 매번 같은 초에 터지지 않게 흔든다.
+    private float _tamperOffset;
+
+    private void TickTamper(FacilitySimulation sim, EmployeeState saboteur, OpsProfileDef ops,
+        string room, float now)
+    {
+        if (ops.TamperAttemptsPerDay <= 0 || TamperCount >= ops.TamperAttemptsPerDay) return;
+        if (now < ops.TamperWindowStartSeconds + _tamperOffset) return;
+        // 창을 넘겼어도 아직 못 했으면 그대로 한다 — 하루 한 번은 보장이다.
+        // 자리를 잡아야 한다는 조건(위 Tick)은 그대로다.
+        if (SettledSeconds < ops.SabotageSettleSeconds) return;
+
+        string affected = PickTamperRoom(sim, ops, room);
+        if (string.IsNullOrEmpty(affected)) return;
+
+        TamperCount++;
+        TamperedAtSeconds = now;
+        TamperOriginRoomId = room;
+        TamperAffectedRoomId = affected;
+        sim.TriggerTamper(room, saboteur.EmployeeId, affected);
+        Note(Clues, $"{sim.RoomDisplayName(affected)} 계통 신호 흔들림"
+                    + (affected == room ? "" : $" (손댄 곳은 {sim.RoomDisplayName(room)})"));
+    }
+
+    // 증상이 나타날 방. 대부분은 **다른 방**이다 — 그래야 이상이 난 곳만 보고
+    // 범인을 좁힐 수 없다. 고장 난 방은 고르지 않는다(이미 시끄럽다).
+    private string PickTamperRoom(FacilitySimulation sim, OpsProfileDef ops, string originRoom)
+    {
+        if (GD.Randf() >= Mathf.Clamp(ops.TamperCrossRoomChance, 0f, 1f)) return originRoom;
+
+        var pool = new List<string>();
+        foreach (string id in ops.SabotageTargetRooms)
+        {
+            if (id == originRoom) continue;
+            if (!sim.IsRoomActive(id) || sim.HasRepairPending(id)) continue;
+            pool.Add(id);
+        }
+        if (pool.Count == 0) return originRoom;
+        return pool[Mathf.Clamp((int)(GD.Randf() * pool.Count), 0, pool.Count - 1)];
     }
 
     // 준비에 걸리는 시간. 사람이 많을수록, 경비가 볼수록 오래 걸린다.

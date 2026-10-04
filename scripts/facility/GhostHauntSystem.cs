@@ -63,7 +63,17 @@ public sealed class GhostHauntSystem
         _cooldownUntil = 0f;
         _nextScreamAt = 0f;
         _rng.Randomize();
+        _lastRoomId = "";
+        // 오늘 첫 등장을 보장할 시각. 운영 규칙이 구간을 주지 않은 날은 -1(확률에만 맡긴다).
+        var ops = OpsProfile.Today;
+        float from = ops?.GhostFirstAppearFromSeconds ?? -1f;
+        float by = ops?.GhostFirstAppearBySeconds ?? -1f;
+        _forcedFirstAt = from >= 0f && by > from ? _rng.RandfRange(from, by) : -1f;
     }
+
+    // 오늘 첫 등장을 반드시 띄울 시각(-1 = 보장 없음)과 직전에 나왔던 방.
+    private float _forcedFirstAt = -1f;
+    private string _lastRoomId = "";
 
     // --- 진행 --------------------------------------------------------------
 
@@ -87,13 +97,21 @@ public sealed class GhostHauntSystem
         int max = OpsProfile.Today?.GhostMaxPerDay ?? -1;
         if (max < 0) max = cfg.GhostMaxPerDay;
         if (AppearedToday >= max) return;
-        if (now < cfg.GhostFirstAppearSeconds || now < _cooldownUntil) return;
+        if (now < _cooldownUntil) return;
+        // 보장 구간이 열려 있으면 전역 최소 시각(GhostFirstAppearSeconds)보다 먼저 나올 수 있다.
+        if (now < cfg.GhostFirstAppearSeconds && !(AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt))
+            return;
 
-        if (_nextCheckAt <= 0f) _nextCheckAt = now + cfg.GhostCheckSeconds;
-        if (now < _nextCheckAt) return;
-        _nextCheckAt = now + cfg.GhostCheckSeconds;
-
-        if (_rng.Randf() >= cfg.GhostAppearChance) return;
+        // 첫 등장 보장 — 그 날 운영 규칙이 구간을 정해 두었으면 그 안에서 반드시 한 번 나온다.
+        // (근무마다 다른 초로 흔들린다 — 같은 초에 나오면 대본으로 읽힌다.)
+        bool forced = AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt;
+        if (!forced)
+        {
+            if (_nextCheckAt <= 0f) _nextCheckAt = now + cfg.GhostCheckSeconds;
+            if (now < _nextCheckAt) return;
+            _nextCheckAt = now + cfg.GhostCheckSeconds;
+            if (_rng.Randf() >= cfg.GhostAppearChance) return;
+        }
         string room = PickRoom(sim);
         if (!string.IsNullOrEmpty(room)) Appear(room, sim);
     }
@@ -112,6 +130,12 @@ public sealed class GhostHauntSystem
             pool.Add(roomId);
         }
         if (pool.Count == 0) return "";
+        // ① 같은 방에서 연달아 나오지 않는다. ② 사람이 있는 방을 먼저 고른다 —
+        //    아무도 없는 방에 나타나면 직원 반응도, 위험도 보이지 않아 보여 줄 것이 없다.
+        var fresh = pool.Where(r => r != _lastRoomId).ToList();
+        if (fresh.Count > 0) pool = fresh;
+        var staffed = pool.Where(r => sim.OnDutyCount(r) > 0).ToList();
+        if (staffed.Count > 0) pool = staffed;
         return pool[_rng.RandiRange(0, pool.Count - 1)];
     }
 
@@ -133,6 +157,7 @@ public sealed class GhostHauntSystem
     private void Appear(string roomId, FacilitySimulation sim)
     {
         ActiveRoomId = roomId;
+        _lastRoomId = roomId;
         AliveSeconds = WatchedSeconds = 0f;
         AppearedToday++;
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
