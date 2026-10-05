@@ -449,11 +449,11 @@ public partial class ScheduleStaffView : Control
     //
     // 예전에는 **캐릭터마다 자기 그림의 가로폭**에 맞춰 배율을 정했다. 그래서 팔을 벌리거나
     // 귀가 넓은 캐릭터일수록 배율이 작아져, 여섯 명의 얼굴 크기가 제각각이었다
-    // (고양이만 크게 나오고 나머지는 작게). 지금은 인터뷰 화면(InterviewCCTVView.PortraitUnit)과
+    // (고양이만 크게 나오고 나머지는 작게). 지금은 인터뷰 화면(StandingPortraitLayout)과
     // 같은 방식으로 **여섯 명이 하나의 공통 배율**을 쓴다 — 가장 큰 원화를 기준으로 잡는다.
     private void FillUpper(Texture2D tex, Rect2 box)
     {
-        var c = NSP.View.InterviewCCTVView.ContentBox(tex);
+        var c = NSP.View.StandingPortraitLayout.ContentBox(tex);
         if (c.Size.X <= 0 || c.Size.Y <= 0 || box.Size.Y <= 0f) return;
 
         float unit = IdentUnit(box.Size.Y);
@@ -485,7 +485,7 @@ public partial class ScheduleStaffView : Control
         foreach (string id in sim.GetEmployeeIds())
         {
             var t = sim.GetEmployeeDef(id)?.StandingImage;
-            if (t != null) tallest = Mathf.Max(tallest, NSP.View.InterviewCCTVView.ContentBox(t).Size.Y);
+            if (t != null) tallest = Mathf.Max(tallest, NSP.View.StandingPortraitLayout.ContentBox(t).Size.Y);
         }
         if (tallest <= 0f) return 0f;   // 아직 원화가 준비되지 않았다 — 다음 프레임에 다시 본다
         _identUnit = boxHeight / (tallest * UpperBodyFraction);

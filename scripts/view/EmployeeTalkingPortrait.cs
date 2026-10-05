@@ -32,6 +32,16 @@ public static class EmployeeArt
     public static bool HasTalkingArt(string employeeId) =>
         !string.IsNullOrEmpty(employeeId) && Get(employeeId, DefaultExpression(employeeId), GuideMouthFrame.Closed) != null;
 
+    // 요청한 표정을 쓸 수 있는가 — 없는 표정("normal" 처럼 리소스가 없는 이름)을 스토리
+    // 스크립트가 지정했을 때 평소 표정으로 조용히 떨어지게 한다.
+    // 실제로 있는 표정은 smile · bad 둘뿐이다(standing_v2).
+    public static string ResolveExpression(string employeeId, string requested)
+    {
+        if (string.IsNullOrEmpty(requested)) return DefaultExpression(employeeId);
+        return Get(employeeId, requested, GuideMouthFrame.Closed) != null
+            ? requested : DefaultExpression(employeeId);
+    }
+
     public static Texture2D Get(string employeeId, string expression, GuideMouthFrame mouth)
     {
         string m = mouth switch
@@ -105,10 +115,15 @@ public static class EmployeeMouthAnimator
     private static char _lastChar;
 
     // 새 대사를 말하기 시작한다. 표정은 이 대사의 분위기로 정해져 다음 대사까지 유지된다.
-    public static void StartTalking(string employeeId, string line)
+    //
+    // expression 을 주면(스토리 컷인의 `expression:` 지정) 분위기 판정 대신 그 표정을 쓴다.
+    // 없는 표정 이름이면 그 직원의 평소 표정으로 떨어진다.
+    public static void StartTalking(string employeeId, string line, string expression = null)
     {
         Speaker = employeeId ?? "";
-        Expression = EmployeeExpression.For(Speaker, line);
+        Expression = string.IsNullOrEmpty(expression)
+            ? EmployeeExpression.For(Speaker, line)
+            : EmployeeArt.ResolveExpression(Speaker, expression);
         Talking = true;
         // 말이 시작되는 바로 그 프레임부터 입이 벌어져 있어야 한다. 예전에는 닫은 입(패턴 0번)에서
         // 출발해 첫 글자의 여는 따옴표 정지(PunctuationHold)까지 겹쳐, 소리가 난 뒤 0.3초쯤 지나서야
@@ -155,8 +170,16 @@ public static class EmployeeMouthAnimator
         _lastChar = c;
     }
 
+    // 같은 프레임에 두 번 돌지 않는다. 통화창(PhoneCallHud)은 열려 있지 않아도 매 프레임
+    // 여기를 돌리므로, 스토리 컷인까지 함께 돌리면 입이 두 배 속도로 움직인다.
+    private static ulong _tickedFrame = ulong.MaxValue;
+
     public static void Tick(double delta)
     {
+        ulong frame = Engine.GetProcessFrames();
+        if (frame == _tickedFrame) return;
+        _tickedFrame = frame;
+
         if (!Talking) { Frame = GuideMouthFrame.Closed; return; }
         if (_hold > 0)
         {
@@ -182,6 +205,16 @@ public static class EmployeeMouthAnimator
         bool speaking = employeeId == Speaker;
         string expr = speaking && !string.IsNullOrEmpty(Expression) ? Expression : EmployeeArt.DefaultExpression(employeeId);
         var frame = speaking ? Frame : GuideMouthFrame.Closed;
+        return EmployeeArt.Get(employeeId, expr, frame) ?? EmployeeArt.Get(employeeId, expr, GuideMouthFrame.Closed);
+    }
+
+    // 표정을 밖에서 정해 주는 경로(스토리 컷인). 2인 화면에서 **지금 말하는 사람만** 입이
+    // 움직이고, 듣는 쪽은 자기 표정의 닫은 입으로 서 있어야 하기 때문에 따로 둔다.
+    public static Texture2D PortraitFor(string employeeId, string expression)
+    {
+        if (!EmployeeArt.HasTalkingArt(employeeId)) return null;
+        string expr = EmployeeArt.ResolveExpression(employeeId, expression);
+        var frame = employeeId == Speaker && Talking ? Frame : GuideMouthFrame.Closed;
         return EmployeeArt.Get(employeeId, expr, frame) ?? EmployeeArt.Get(employeeId, expr, GuideMouthFrame.Closed);
     }
 }

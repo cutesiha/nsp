@@ -39,6 +39,15 @@ public partial class PrologueAdvanceInput : Node
         // 수화기를 눌러도 "대사 넘기기"로만 먹혀 전화를 받을 수 없다(키로는 그대로 넘어간다).
         if (byClick && Phone3D.Instance?.IsRinging == true) return;
 
+        // 스토리 컷인이 떠 있으면 그쪽이 먼저다 — 화면 제일 위에 있는 창이 입력을 받는다.
+        // 1차 = 문장 즉시 완성 / 2차 = 다음 줄 (규칙은 StoryCutinHud.RequestAdvance 안에 있다)
+        if (StoryCutinHud.Instance is { IsWaitingForInput: true } cutin)
+        {
+            cutin.RequestAdvance();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         if (CutscenePlayer.Instance is { IsWaitingForInput: true } cut)
         {
             cut.RequestAdvance();

@@ -271,7 +271,11 @@ public partial class CCTVMonitorView : Control
         TickGhostOverlay(d, sim, roomId, feed);
         // 엿들은 대화 — 정상 피드가 나오고 근무 중일 때만 들린다.
         // 관리자 패드를 보는 동안에는 근무 시간이 멈추므로 대화도 그 자리에 멈춘다.
-        _overheard?.Tick(AdminPad3D.PausesGame ? 0f : d, roomId, feed && GameState.Instance?.CurrentPhase == GamePhase.Live);
+        // 스토리 컷인이 말하는 동안에도 멈춘다 — 두 대사가 동시에 나오지 않게(문서 §28).
+        // 컷인이 끝나면 다시 첫 대기부터 정상으로 돌아간다(기존 Tick 의 복귀 경로).
+        _overheard?.Tick(AdminPad3D.PausesGame ? 0f : d, roomId,
+            feed && GameState.Instance?.CurrentPhase == GamePhase.Live
+                 && !StoryCutinDirector.SuppressesAmbientDialogue);
     }
 
     // 화면 상태를 갱신하고, 방 영상이 정상적으로 나오고 있으면 true.

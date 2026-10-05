@@ -43,6 +43,13 @@ public partial class PhoneCallHud : CanvasLayer
 
     private Panel _panel;
     private HologramFrame _frame;
+    // 통화 상대의 2D 스탠딩. 스토리 컷인과 **같은 공용 컴포넌트**를 쓴다
+    // (EmployeeStandingPortrait — 두 화면은 서로를 모르고 이 컴포넌트만 공유한다).
+    //
+    // 세계관에서 전화는 어디까지나 음성 통화다. 이 스탠딩은 영상통화 화면이 아니라,
+    // 상대 직원의 감정과 모습을 플레이어에게 보여 주는 연출이다 — 그래서 "연결됨"
+    // 같은 표시도, CCTV · COMM 틀도 붙이지 않는다(문서 §3.3).
+    private EmployeeStandingPortrait _standing;
     private Label _speaker;
     private Label _playerLine;
     private RichTextLabel _message;
@@ -125,6 +132,8 @@ public partial class PhoneCallHud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Stop,
             Visible = false,
         };
+        BuildStanding();
+
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = new Color(0.03f, 0.09f, 0.11f, 0.82f),
@@ -236,6 +245,37 @@ public partial class PhoneCallHud : CanvasLayer
 
     // 실제 프로그램 창처럼, 위쪽 띠를 잡고 끌면 창이 따라온다.
     // 심문 창은 화면을 크게 차지하므로 가리는 곳을 플레이어가 직접 치울 수 있어야 한다.
+    // --- 통화 상대 스탠딩 --------------------------------------------------
+    //
+    // 통화창보다 **먼저** 붙인다 — 스탠딩이 대사 뒤로 가야 글자가 가려지지 않는다.
+    // 자리는 화면 왼쪽. 통화창(가로 0.24~0.76)을 피해 바깥쪽에 세운다.
+    private void BuildStanding()
+    {
+        _standing = new EmployeeStandingPortrait
+        {
+            // 혼자 뜨는 화면이라 화자/청자 명암을 나누지 않는다.
+            AlwaysLit = true,
+            // 표정은 대사마다 EmployeeMouthAnimator 가 정한 것을 따라간다(smile ↔ bad).
+            FollowSpeakerExpression = true,
+            Zoom = 1.15f,
+            AnchorLeft = 0f, AnchorRight = 0.30f, AnchorTop = 0.17f, AnchorBottom = 1f,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        AddChild(_standing);
+    }
+
+    private const float StandingFadeSeconds = 0.3f;
+
+    // 심문(휴게시간)에서는 띄우지 않는다 — 그 화면은 오른쪽 CRT(InterviewCCTVView)가
+    // 이미 같은 직원의 스탠딩을 더 크게 보여 주고 있다. 두 번 띄우지 않는다.
+    private void ShowStanding(string employeeId, bool show)
+    {
+        if (_standing == null) return;
+        if (!show) { _standing.FadeOut(StandingFadeSeconds); return; }
+        _standing.SetEmployee(employeeId, "");
+        _standing.FadeIn(StandingFadeSeconds);
+    }
+
     private void BuildDragBar()
     {
         _dragBar = new Control
@@ -839,7 +879,10 @@ public partial class PhoneCallHud : CanvasLayer
         _incidentRoomId = incidentRoomId ?? "";
         HideIncoming();
         _panel.Visible = true;
-        SetInterviewLayout(_dialogueEvent == LocalInterviewDialogue.EventDay1Interview);
+        bool interview = _dialogueEvent == LocalInterviewDialogue.EventDay1Interview;
+        SetInterviewLayout(interview);
+        // 통화 상대의 모습 — 심문 화면에서는 오른쪽 CRT 가 이미 맡고 있으므로 띄우지 않는다.
+        ShowStanding(employeeId, !interview);
 
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
         _speaker.Text = "▶ " + (def?.Codename ?? employeeId);
@@ -1503,6 +1546,8 @@ public partial class PhoneCallHud : CanvasLayer
         _panel.Visible = false;
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
+        // 통화가 끝나면 스탠딩도 자연스럽게 사라진다(연출만 — 판정에는 관여하지 않는다).
+        ShowStanding("", false);
         EmployeeMouthAnimator.Reset();
         ClearChoices();
         _session = null;

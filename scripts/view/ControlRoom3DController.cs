@@ -503,6 +503,9 @@ public partial class ControlRoom3DController : Node3D
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
         // 관리자 패드를 들고 있는 동안 근무 시간은 멈춘다(시계 · 시뮬레이션 모두).
         if (AdminPad3D.PausesGame) return;
+        // 스토리 컷인이 새 규칙을 가르치는 동안도 멈춘다 — 대사를 읽는 사이에 시간이
+        // 흘러 불이익을 받지 않게(문서 §27). 컷인이 끝나면 곧바로 다시 흐른다.
+        if (StoryCutinDirector.PausesGameplay) return;
 
         GameState.Instance.AdvanceDayTime((float)delta);
         FacilitySimulation.Instance?.Tick(delta);

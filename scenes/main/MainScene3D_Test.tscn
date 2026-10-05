@@ -31,6 +31,8 @@
 [ext_resource type="Script" uid="uid://fppsaeswbeou" path="res://scripts/prologue/TutorialDirector.cs" id="29_tutorialdir"]
 [ext_resource type="Script" uid="uid://b08v5v32yrh8a" path="res://scripts/prologue/GuideSubtitleHud.cs" id="30_guidesub"]
 [ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
+[ext_resource type="Script" path="res://scripts/view/StoryCutinHud.cs" id="38_cutinhud"]
+[ext_resource type="Script" path="res://scripts/view/StoryCutinDirector.cs" id="39_cutindir"]
 [ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
 [ext_resource type="Script" uid="uid://cjimfhuslq8j8" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
 [ext_resource type="Script" uid="uid://b4kg6dn61njga" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
@@ -1434,6 +1436,12 @@ script = ExtResource("29_tutorialdir")
 
 [node name="GuideSubtitleHud" type="CanvasLayer" parent="." unique_id=771100888]
 script = ExtResource("30_guidesub")
+
+[node name="StoryCutinHud" type="CanvasLayer" parent="." unique_id=771100894]
+script = ExtResource("38_cutinhud")
+
+[node name="StoryCutinDirector" type="Node" parent="." unique_id=771100895]
+script = ExtResource("39_cutindir")
 
 [node name="PrologueAdvanceInput" type="Node" parent="." unique_id=771100889]
 script = ExtResource("31_advinput")

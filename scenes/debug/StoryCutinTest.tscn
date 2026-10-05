@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/debug/StoryCutinTest.cs" id="1_cutin"]
+
+[node name="StoryCutinTest" type="Node"]
+script = ExtResource("1_cutin")

@@ -347,99 +347,25 @@ public partial class InterviewCCTVView : Control
 
     // --- 스탠딩 원화 배치 ------------------------------------------------
     //
-    // 원화는 캐릭터마다 따로 잘려 있어 캔버스 크기가 제각각이다. 화면에 "맞춰" 그리면
-    // 키가 작은 캐릭터가 여우만큼 커 보인다. 그래서 모든 원화에 같은 배율을 적용하고
-    // 발끝을 화면 아래에 붙인다 — 원화 안의 실제 그림 높이가 곧 키가 된다.
-    //
-    // 배율 기준은 가장 큰 원화가 표시 영역에 딱 들어가는 값이며,
-    // 나머지는 그 비율대로 자동으로 작아진다. (원화를 교체하면 이 기준도 다시 확인할 것)
+    // 계산은 StandingPortraitLayout 에 있다(스토리 컷인 화면도 같은 계산을 쓴다).
+    // 여기 남은 두 상수가 "인터뷰 화면에서는 얼마나 키우고 얼마나 띄우는가" 다.
 
     // 원화 위쪽 여백 — 제일 큰 캐릭터의 머리가 프레임 위선에 닿지 않게 한다.
     private const float PortraitTopMargin = 12f;
     // 얼굴이 잘 보이도록 전원에게 같은 배율로 키운다. 키가 가장 큰 직원의 머리가 위로 잘리지 않게
-    // 여섯 명 모두 같은 만큼(아래 PortraitDrop) 내린다 — 대신 다리 쪽이 화면 아래로 잘린다.
+    // 여섯 명 모두 같은 만큼 내린다 — 대신 다리 쪽이 화면 아래로 잘린다.
     private const float PortraitZoom = 1.45f;
-
-    private static readonly System.Collections.Generic.Dictionary<ulong, Rect2I> _contentBoxes = new();
-    private static float _portraitUnit = -1f;
 
     private void ApplyPortrait(Texture2D tex)
     {
         _portrait.Texture = tex;
         if (tex == null) return;
 
-        Rect2I box = ContentBox(tex);
-        float avail = _portraitBox.Size.Y - PortraitTopMargin;
-        float unit = PortraitUnit(avail) * PortraitZoom;
-        // 확대로 늘어난 만큼 전원 똑같이 내린다 → 가장 큰 직원의 머리가 원래 자리(위 여백)에 머문다.
-        float drop = avail * (PortraitZoom - 1f);
-
-        _portrait.Size = new Vector2(tex.GetWidth() * unit, tex.GetHeight() * unit);
-        _portrait.Position = new Vector2(
-            // 가로는 그림의 중심을 표시 영역 중앙에.
-            _portraitBox.Size.X / 2f - (box.Position.X + box.Size.X / 2f) * unit,
-            // 세로는 발끝을 바닥에 맞춘 자리에서 공통 drop 만큼 아래로.
-            _portraitBox.Size.Y - (box.Position.Y + box.Size.Y) * unit + drop
-                - (FacilitySimulation.Instance?.GetEmployeeDef(_lastEmployee)?.InterviewPortraitLift ?? 0f));
-    }
-
-    // 여섯 명 중 가장 큰 원화가 표시 높이에 맞도록 하는 공통 배율.
-    private static float PortraitUnit(float availableHeight)
-    {
-        if (_portraitUnit > 0f) return _portraitUnit;
-
-        float tallest = 1f;
-        var sim = FacilitySimulation.Instance;
-        if (sim != null)
-        {
-            foreach (string id in sim.GetEmployeeIds())
-            {
-                var t = sim.GetEmployeeDef(id)?.StandingImage;
-                if (t != null) tallest = Mathf.Max(tallest, ContentBox(t).Size.Y);
-            }
-        }
-        _portraitUnit = availableHeight / Mathf.Max(1f, tallest);
-        return _portraitUnit;
-    }
-
-    // 원화에서 실제로 그림이 그려진 영역(투명 여백 제외). 원화를 교체해도 자동으로 다시 잡힌다.
-    public static Rect2I ContentBox(Texture2D tex)
-    {
-        ulong key = tex.GetInstanceId();
-        if (_contentBoxes.TryGetValue(key, out var cached)) return cached;
-
-        Rect2I box = Measure(tex.GetImage()) ?? new Rect2I(0, 0, tex.GetWidth(), tex.GetHeight());
-        _contentBoxes[key] = box;
-        return box;
-    }
-
-    // 알파가 충분히 진한 픽셀만 그림으로 본다. Image.GetUsedRect() 는 알파가 1이라도
-    // 포함해서, 원화 위쪽에 남은 아주 옅은 선까지 키로 계산되어 비율이 어긋난다.
-    private static Rect2I? Measure(Image img)
-    {
-        if (img == null) return null;
-        if (img.GetFormat() != Image.Format.Rgba8) img.Convert(Image.Format.Rgba8);
-
-        byte[] data = img.GetData();
-        int w = img.GetWidth(), h = img.GetHeight();
-        if (data == null || data.Length < w * h * 4) return null;
-
-        const int AlphaThreshold = 24;
-        int minX = w, maxX = -1, minY = h, maxY = -1;
-        for (int y = 0; y < h; y++)
-        {
-            int row = y * w * 4;
-            for (int x = 0; x < w; x++)
-            {
-                if (data[row + x * 4 + 3] <= AlphaThreshold) continue;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                if (y < minY) minY = y;
-                maxY = y;
-            }
-        }
-        if (maxX < 0) return null;
-        return new Rect2I(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        var (size, pos) = StandingPortraitLayout.Place(
+            tex, _portraitBox.Size, PortraitTopMargin, PortraitZoom,
+            FacilitySimulation.Instance?.GetEmployeeDef(_lastEmployee)?.InterviewPortraitLift ?? 0f);
+        _portrait.Size = size;
+        _portrait.Position = pos;
     }
 
     // 3D 작업실 월드(FacilityCctvWorld)의 SubViewport 텍스처를 배경으로 한 번만 연결한다.
