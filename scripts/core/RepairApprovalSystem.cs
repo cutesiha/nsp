@@ -163,6 +163,13 @@ public static class RepairApprovalSystem
         if (Current != Phase.Maze || Maze == null || Maze.Failed || Paused) return;
         MazeStarted = true;
         var r = Maze.Step(dir);
+        // 한 칸 움직일 때마다 짧은 소리 — 눌렸는지 아닌지 손끝으로 알 수 있어야 한다.
+        // 칸마다 음을 조금씩 올려 "앞으로 가고 있다"가 귀로도 들리게 한다.
+        if (r == RepairMaze.StepResult.Moved)
+        {
+            float climb = 0.92f + Mathf.Min(0.26f, Maze.Trail.Count * 0.02f);
+            Sfx.Instance?.Play("tick", -11f, climb);
+        }
         if (r == RepairMaze.StepResult.Reached) Finish(approved: true, succeeded: true);
         else if (r is RepairMaze.StepResult.HitWall or RepairMaze.StepResult.Backtracked)
             Finish(approved: true, succeeded: false);
@@ -183,9 +190,30 @@ public static class RepairApprovalSystem
                 approved ? $"⚠ {Active.RoomName} 수리 승인 절차 실패 — 수리 시간 증가"
                          : $"⚠ {Active.RoomName} 수리 미승인 — 수리 시간 증가");
         }
+        // 결과를 귀로도 알린다. 미로는 패드 화면 안에서 끝나므로, 소리가 없으면
+        // 풀었는지 틀렸는지 글자를 읽어야만 안다.
+        if (succeeded) Sfx.Instance?.Play("task_done", -5f);
+        else if (!approved) Sfx.Instance?.Play("switch_fail", -6f);          // [아니오] · 무응답
+        else Sfx.Instance?.Play("power_down", -7f, 1.15f);                   // 승인했지만 미로 실패
 
         Current = Phase.Result;
         ResultSeconds = ResultHoldSeconds;
         Resolved?.Invoke(succeeded, room);
+    }
+
+    // 근무가 끝났다 — 떠 있던 요청과 미로를 닫는다.
+    //
+    // 이게 없으면 미로를 푸는 도중에 근무가 자동 종료될 때 패드가 미로 화면에 멈춰 선다:
+    // 시뮬레이션이 멈춰 Tick 이 돌지 않으니 제한 시간도 흐르지 않고, 화면은 Busy 라 안 닫힌다.
+    // 벌점은 매기지 않는다 — 수리 자체가 근무와 함께 사라지므로 때릴 대상이 없다.
+    public static void AbortForShiftEnd()
+    {
+        if (Current == Phase.Idle && _queue.Count == 0) return;
+        _queue.Clear();
+        Current = Phase.Idle;
+        Active = null;
+        Maze = null;
+        SecondsLeft = SecondsTotal = ResultSeconds = 0f;
+        MazeStarted = false;
     }
 }

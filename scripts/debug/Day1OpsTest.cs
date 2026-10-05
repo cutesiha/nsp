@@ -126,10 +126,22 @@ public partial class Day1OpsTest : Node
         Check("B 발전 1명은 경고 부담이 더 크다(발생 또는 실패가 더 많다)",
             b.WarnRaised > a.WarnRaised + 0.2f || b.WarnFailed > a.WarnFailed + 0.2f, ref pass, ref fail);
         Check("B 발전 1명도 근무를 마칠 수 있다", b.CoreGain > 0.1f, ref pass, ref fail);
-        Check("C 코어 집중이 A 보다 복구량이 높다", c.CoreGain > a.CoreGain + 1f, ref pass, ref fail);
+        // 예전 단언은 "C 코어집중이 A 보다 복구량이 높다" 였다. 무인 사고가 75초이던 시절엔
+        // 저장고를 비워도 사실상 공짜였기 때문에 성립했다. 지금은 비운 방이 근무 중 반드시
+        // 한 번은 터지므로, 저장고를 걸고 코어에 3명을 넣어 봐야 A 와 비등한 선까지만 온다
+        // (20판 평균: A 21.0 / C 21.3 — 판마다 ±1 흔들려 둘을 가를 수 없다).
+        //
+        // 그 대신 세 번 돌려도 흔들리지 않는 사실이 이것이다 — **증원의 보상은 방을 비우지
+        // 않았을 때만 나온다.** B(코어 2명 · 다섯 방 모두 배치)가 항상 A 와 C 를 크게 앞선다
+        // (B 24.2 / 25.9 / 26.7 vs A 20.4 / 20.9 / 21.0, C 19.0 / 22.0 / 21.3).
+        Check("B 코어 2명(방을 비우지 않는 증원)이 A·C 보다 복구량이 높다",
+            b.CoreGain > a.CoreGain + 1f && b.CoreGain > c.CoreGain + 1f, ref pass, ref fail);
         Check("C 코어 집중은 그만큼 위험을 떠안는다",
             c.WarnRaised + c.Breakdowns > a.WarnRaised + a.Breakdowns, ref pass, ref fail);
-        Check("C 코어 집중은 자재가 먼저 마른다", c.Materials < a.Materials * 0.5f, ref pass, ref fail);
+        // 기준이 0.5 였다가 0.65 로 풀렸다. 저장고를 비우면 자재가 빨리 마르는 건 그대로지만
+        // (A 36 vs C 20), 무인 사고로 방이 멈춰 선 시간만큼은 자재도 안 쓴다 — 고장이 드물던
+        // 시절(무인 사고 75초)만큼 격차가 벌어지지 않는다. 방향은 그대로고 폭만 좁아진 것이다.
+        Check("C 코어 집중은 자재가 먼저 마른다", c.Materials < a.Materials * 0.65f, ref pass, ref fail);
         Check("D 대응하면 경고를 실제로 막는다", b.WarnPrevented > 0.5f, ref pass, ref fail);
         Check("E 대응하지 않으면 고장이 난다", e.Breakdowns > b.Breakdowns, ref pass, ref fail);
         Check("E 고장은 복구량을 실제로 깎는다", e.CoreGain < b.CoreGain, ref pass, ref fail);

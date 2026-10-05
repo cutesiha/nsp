@@ -512,6 +512,9 @@ public partial class ShiftFlowController : Node
 
     private async void EndShiftSequence()
     {
+        // 미로를 푸는 중에 근무가 끝날 수 있다 — 그대로 두면 패드가 미로 화면에 멈춰 선다.
+        RepairApprovalSystem.AbortForShiftEnd();
+
         // 선택 업무는 여기서 업무평가 점수로만 바뀐다 — 다음 날 능력치나 확률에는
         // 전혀 손대지 않는다(마지막 날 관리자 평가 등급에만 반영).
         int earned = DayObjectives.OptionalCompleted();

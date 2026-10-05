@@ -139,7 +139,7 @@ WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
 WarningStabilizeSeconds = 2.4
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 30.0
+UnstaffedAccidentSeconds = 50.0
 RepairSeconds = 6.0
 RepairMinWorkers = 1
 

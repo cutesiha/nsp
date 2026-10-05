@@ -155,6 +155,14 @@ public static class InterviewReplyPlanner
                 f.Topic = ReplyTopic.NextLocation;
                 if (!truthful) { f.Variant = "evasive"; break; }
                 string next = DialogueContextBuilder.RoomAfter(id, day, t);
+                // 그 뒤에 쓰러졌다면 제 발로 간 곳이 없다 — 들것에 실려 의무실로 갔다.
+                // 그 길은 동선 로그에 남지 않으므로(본인의 이동이 아니다) 여기서 따로 말한다.
+                if (FaintedAfter(id, day, t) || CarriedToMedical(id, day, next, t))
+                {
+                    f.Variant = "carried";
+                    f.Set("next", RoomName(FacilitySimulation.MedicalRoomIdPublic));
+                    break;
+                }
                 f.Variant = string.IsNullOrEmpty(next) ? "stayed" : "moved";
                 f.Set("next", RoomName(next));
                 f.Set("room", RoomName(AnchorRoom(q, ctx)));
@@ -575,8 +583,44 @@ public static class InterviewReplyPlanner
     }
 
     // 이동 이유는 실제 로그에서만 찾는다. 찾지 못하면 지어내지 않는다.
+    // 그날 쓰러져서 의무실로 **실려 간** 기록이 있는가(그 시각 전후).
+    //
+    // 이게 없으면 "왜 의무실에 갔습니까" 에 "상태 보러 갔다 / 잠깐 들렀다" 같은 답이 나온다.
+    // 의식이 없는 채로 동료가 업고 간 사람에게는 말이 안 되는 답이다 — 본인은 간 게 아니다.
+    private static bool CarriedToMedical(string id, int day, string toRoomId, float time)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        if (toRoomId != FacilitySimulation.MedicalRoomIdPublic) return false;
+        var log = EventLog.Instance;
+        if (log == null) return false;
+        // 기절은 의무실 도착보다 앞선다. 같은 근무 안에서 그 앞쪽을 본다.
+        return log.GetAllEntries().Any(e => e.Day == day
+                                            && e.Detail == LogDetail.Fainted
+                                            && e.ActorEmployeeId == id
+                                            && e.GameTimeSeconds <= time + 1f);
+    }
+
+
+    // 그 시각 **이후에** 쓰러진 기록이 있는가.
+    //
+    // "그 뒤에 어디로 갔습니까" 에 쓰인다. 들것에 실려 간 길은 본인의 이동이 아니므로
+    // 시설 로그의 동선에 남지 않는다(FacilityLogFormatter 가 일부러 뺀다). 그 상태로
+    // 동선만 보고 답하면 "안 옮겼습니다" 가 나오는데, 그건 사실이 아니다.
+    private static bool FaintedAfter(string id, int day, float time)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        var log = EventLog.Instance;
+        if (log == null) return false;
+        return log.GetAllEntries().Any(e => e.Day == day
+                                            && e.Detail == LogDetail.Fainted
+                                            && e.ActorEmployeeId == id
+                                            && e.GameTimeSeconds >= time - 1f);
+    }
+
     private static void FillMoveReason(ReplyFrame f, InterviewQuestion q, string id, int day, bool truthful)
     {
+        // 제 발로 간 게 아니다 — 쓰러져서 동료가 업고 갔다. 다른 어떤 이유보다 먼저다.
+        if (CarriedToMedical(id, day, q.ToRoomId, q.AnchorTime)) { f.Variant = "carried"; return; }
         if (q.PlayerOrderedMove) { f.Variant = "ordered"; return; }
         // 관리자가 전화로 "확인하러 가라"고 해서 옮긴 이동 — 통화 기록에서만 찾는다.
         float window = ShiftMemory.RecallWindowMinutes * DialogueClock.SecondsPerMinute;
@@ -596,6 +640,8 @@ public static class InterviewReplyPlanner
     private static void FillPresenceReason(ReplyFrame f, InterviewQuestion q, string id, int day,
         float t, bool truthful)
     {
+        // 의무실에 "있었던" 게 아니라 누워 있었다 — 쓰러진 뒤라면 그것부터 말한다.
+        if (CarriedToMedical(id, day, q.SubjectRoomId, t)) { f.Variant = "carried"; return; }
         var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
         if (kind != "none") { f.Variant = "task"; f.Set("task", task); return; }
 

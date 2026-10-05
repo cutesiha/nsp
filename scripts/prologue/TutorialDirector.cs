@@ -351,11 +351,12 @@ public partial class TutorialDirector : Node
     // 지나가 버리면 "배우는 중에 벌점"이 된다.
     private async Task RunApprovalLesson()
     {
-        // 사람을 보냈으니 이제 요청을 띄운다(제한 시간은 아직 멈춰 있다).
+        // 사람을 보냈으니 이제 요청을 띄울 수 있다(제한 시간은 아직 멈춰 있다).
         RepairApprovalSystem.Held = false;
-        // 줄에서 꺼내 화면에 올라오기까지 한 틱 — 떠 있는 것을 확인하고 말한다.
-        for (int i = 0; i < 120 && RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking; i++)
-            await NextFrame();
+        // 요청은 **필요한 인원이 실제로 그 방에 도착한 뒤** 에 뜬다 — 걸어가는 시간이
+        // 있으므로 틱 수로 세지 않고, 요청이 뜨거나 수리가 끝날 때까지 기다린다.
+        await Until(() => RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Asking
+                          || FacilitySimulation.Instance?.HasRepairPending(AccidentRoomId) == false);
 
         // 요청이 실제로 떠 있을 때만 가르친다(수리가 먼저 끝났거나 요청이 이미 닫혔으면 건너뛴다).
         if (RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking)

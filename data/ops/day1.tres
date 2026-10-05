@@ -124,6 +124,11 @@ RepairMinWorkers = 1
 ; ── 저장고 ───────────────────────────────────────────────────────────────
 ; 반드시 한 명 넣어야 하는 방이 아니다. 비워도 즉시 문제는 없지만
 ; 자재 낭비가 늘어 장기적으로 코어 복구가 먼저 말라붙는다.
+;
+; 무인 사고 시간(50초)만 다른 방보다 길다 — 150초 근무 안에 사고는 결국 오지만,
+; 여기만은 "비우고 코어에 한 명 더" 를 걸어 볼 수 있어야 한다. 이 값을 다른 방과
+; 같은 25~30초로 내리면 방을 비우는 배치가 전부 손해가 되어 선택지가 사라진다
+; (Day1OpsTest 의 C 코어집중 / F 감시형이 A 안정형보다 복구량이 낮아진다).
 [sub_resource type="Resource" id="ops_storage"]
 script = ExtResource("2_roomops")
 RoomId = "storage_room"
@@ -144,7 +149,7 @@ WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
 WarningStabilizeSeconds = 2.4
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 30.0
+UnstaffedAccidentSeconds = 50.0
 RepairSeconds = 6.0
 RepairMinWorkers = 1
 

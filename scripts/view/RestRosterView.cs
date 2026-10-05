@@ -223,6 +223,13 @@ public partial class RestRosterView : Control
             _selected.Text = $"{def.Codename} · 응답 없음";
             _isolateBtn.Disabled = true;
         }
+        else if (st.Incapacitated)
+        {
+            // 아직 깨어나지 않았다 — 심문할 수 없다. 묻고 싶으면 근무 중에 의무실을 돌려 놨어야 한다.
+            _selected.Text = $"{def.Codename} · 기절 — 심문 불가";
+            _isolateBtn.Disabled = false;
+            _isolateBtn.Text = st.Isolated ? "격리 취소" : "격리";
+        }
         else
         {
             string status = st.Isolated ? "격리됨" : "휴게 중";
@@ -508,6 +515,9 @@ public partial class RestRosterView : Control
                 else if (st is { Isolated: true })
                     DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[격리]",
                         HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.88f, 0.52f, 0.9f));
+                else if (st is { Incapacitated: true })
+                    DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[기절]",
+                        HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.95f, 0.62f, 0.3f));
 
                 // "진술 흔들림 ×n" · "해명 ×n" 배지는 그리지 않는다(F-5).
                 //

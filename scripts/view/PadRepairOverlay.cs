@@ -73,8 +73,8 @@ public partial class PadRepairOverlay : Control
     public bool TryPress(Vector2 at)
     {
         if (!Visible || RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking) return false;
-        if (YesRect.HasPoint(at)) { RepairApprovalSystem.Approve(); Sfx.Instance?.Play("relay_click", -10f); return true; }
-        if (NoRect.HasPoint(at)) { RepairApprovalSystem.Decline(); Sfx.Instance?.Play("switch_fail", -12f); return true; }
+        if (YesRect.HasPoint(at)) { RepairApprovalSystem.Approve(); Sfx.Instance?.Play("relay_click", -3f); return true; }
+        if (NoRect.HasPoint(at)) { RepairApprovalSystem.Decline(); Sfx.Instance?.Play("switch", -4f, 0.8f); return true; }
         return false;
     }
 

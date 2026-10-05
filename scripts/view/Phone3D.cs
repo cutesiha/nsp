@@ -295,9 +295,11 @@ public partial class Phone3D : Node3D
             : FacilityMonitorView.Instance?.SelectedEmployeeId ?? "";
         // 근무 중에는 오늘 근무표에 올라간 직원에게만 전화가 간다. 휴게시간에는 배치가
         // 의미 없으므로(전원이 쉬는 중) 생존·비격리만 본다.
+        // 다만 **아직 깨어나지 않은 직원은 심문할 수 없다** — 의무실에서 회복이 끝나지
+        // 않은 채로 근무가 끝났으면 휴게시간에도 의식이 없다.
         bool Callable(string id) => resting
-            ? sim.GetEmployeeState(id) is { Alive: true, Isolated: false }
-            : sim.IsOnDuty(id);
+            ? sim.GetEmployeeState(id) is { Alive: true, Isolated: false, Incapacitated: false }
+            : sim.IsOnDuty(id) && sim.GetEmployeeState(id)?.Incapacitated != true;
 
         if (string.IsNullOrEmpty(target) || !Callable(target))
         {

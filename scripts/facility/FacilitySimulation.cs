@@ -1234,10 +1234,10 @@ public partial class FacilitySimulation : Node
         }
         _fxMaterialCostX100 = x100;
 
-        // 환기실 — 스트레스가 계속 오르던 상태가 끝나는 순간.
-        // (사람이 들어왔거나 고장이 복구됐거나. 어느 쪽이든 "이제 안 오른다"가 요점이다.)
+        // 환기실 — 스트레스가 계속 오르던 상태가 끝나는 순간(= 환기 고장이 수리됐다).
+        // "사람이 없다" 만으로는 오르지 않는다 — 사고가 나야 오른다(TickVentilationFault).
         bool ventStressing = DayFeatures.StressEnabled && IsRoomActive(VentRoomId)
-            && (GameState.Instance.VentilationDown || OnDutyCount(VentRoomId) == 0);
+            && GameState.Instance.VentilationDown;
         if (_fxVentStressing && !ventStressing)
         {
             RoomEffectStats.Pulse(VentRoomId);
@@ -1672,6 +1672,12 @@ public partial class FacilitySimulation : Node
         }
     }
 
+    // 환기 고장으로 전 직원 스트레스가 계속 오르는 상태(FAIL-02).
+    //
+    // **사고가 난 뒤에만 적용된다.** 예전에는 "환기실에 아무도 없으면" 만으로도 바로
+    // 스트레스가 올랐는데, 그건 근무배치를 끝낸 순간 사고도 없이 디버프가 걸린다는 뜻이었다.
+    // 비워 둔 대가는 무인 방치 타이머 → 사고(VentilationFault) → 그 다음 이 디버프 순으로
+    // 온다. 그래야 경고를 보고 사람을 보낼 기회가 생긴다.
     private void TickVentilationFault(float delta)
     {
         var cfg = Config.Instance.Data;
@@ -1683,13 +1689,10 @@ public partial class FacilitySimulation : Node
             && !HasActiveRepair(VentRoomId))
             GameState.Instance.SetVentilationDown(false);
 
-        bool broken = GameState.Instance.VentilationDown;
-        bool staffed = OnDutyCount(VentRoomId) > 0;
+        if (!GameState.Instance.VentilationDown) { _ventStressTimer = 0f; return; }
 
-        if (!broken && staffed) { _ventStressTimer = 0f; return; }
-
-        float interval = broken ? cfg.VentFaultStressIntervalSeconds : cfg.VentUnstaffedStressIntervalSeconds;
-        float amount = broken ? cfg.VentFaultStressAmount : cfg.VentUnstaffedStressAmount;
+        float interval = cfg.VentFaultStressIntervalSeconds;
+        float amount = cfg.VentFaultStressAmount;
         if (interval <= 0f) return;
 
         _ventStressTimer += delta;
@@ -2338,10 +2341,12 @@ public partial class FacilitySimulation : Node
                 : RoomStaffing.RepairMinWorkers(roomId, def),
         };
         _activeTasks.Add(repair);
-        // 승인 요청(G-2)은 **빨간 사고로 생긴 수리에만** 붙는다. 여기가 그 유일한 입구다 —
-        // 주황 경고의 안정화 작업(FacilityWarningSystem)은 수리 업무를 만들지 않으므로
-        // 요청도 뜨지 않는다. 그 대신 사고 수리에는 예외 없이 붙는다.
-        RepairApprovalSystem.Enqueue(roomId, RoomName(roomId), repair);
+        // 승인 요청(G-2)은 **빨간 사고로 생긴 수리에만** 붙는다 — 주황 경고의 안정화 작업
+        // (FacilityWarningSystem)은 수리 업무를 만들지 않으므로 요청도 뜨지 않는다.
+        //
+        // 다만 **여기서 바로 띄우지는 않는다.** 요청은 필요한 인원이 현장에 다 도착한 뒤에
+        // 뜬다(TickActiveTasks 의 ApprovalRequested 게이트). 아직 아무도 안 보낸 방의 수리를
+        // 승인하라고 묻는 건 말이 안 되고, 사람을 보내는 동안 제한 시간만 흘러가 버린다.
     }
 
     // SAB-01 감시 사각: 파괴공작자가 CCTV로 감시되지 않는 작업실에 있을 때, 그 방의 업무를
@@ -2500,6 +2505,35 @@ public partial class FacilitySimulation : Node
             && GameState.Instance.Materials < Config.Instance.Data.MaterialsPerCoreGauge;
     }
 
+    // 이 수리에 필요한 인원이 그 방에 **실제로 도착해서** 일할 수 있는 상태인가.
+    //
+    // 승인 요청을 띄우는 조건이다. 걸어가는 중(IsMoving)은 세지 않는다 — 방을 통과해
+    // 지나가는 중인 사람도 OccupantEmployeeIds 에는 들어 있기 때문이다.
+    // 일할 수 없는 상태(기절 · 패닉 · 환자 운반 · 괴물 직후 경직)도 빼고 센다.
+    private bool RepairCrewArrived(SpawnedTask st)
+    {
+        var room = _roomStates.GetValueOrDefault(st.RoomId);
+        if (room == null) return false;
+        var taskDef = _taskDefs.GetValueOrDefault(st.TaskId);
+        int need = st.MinWorkersOverride > 0
+            ? st.MinWorkersOverride
+            : Mathf.Max(1, taskDef?.MinWorkersToProgress ?? 1);
+
+        float nowSec = GameState.Instance?.DayTimeSeconds ?? 0f;
+        int ready = 0;
+        foreach (string id in room.OccupantEmployeeIds)
+        {
+            var e = _employeeStates.GetValueOrDefault(id);
+            if (e is not { Alive: true, Isolated: false, Incapacitated: false }) continue;
+            if (e.IsMoving) continue;
+            if (_panicked.Contains(e.EmployeeId)) continue;
+            if (e.WorkBlockedUntil > nowSec) continue;
+            if (!string.IsNullOrEmpty(e.CarryingVictimId)) continue;
+            ready++;
+        }
+        return ready >= need;
+    }
+
     private void TickActiveTasks(float delta)
     {
         for (int i = _activeTasks.Count - 1; i >= 0; i--)
@@ -2521,6 +2555,13 @@ public partial class FacilitySimulation : Node
             // 제한시간도 수리가 끝날 때까지 멈춘다. 사고 하나가 "어느 방에서 사람을 뺄까"가
             // 되는 이유가 바로 이것이다.
             if (!st.IsRepair && HasActiveRepair(st.RoomId)) { st.Progressing = false; continue; }
+            // 승인 요청은 **필요한 인원이 현장에 다 도착한 뒤** 에 뜬다. 1명이면 1명이,
+            // 2명이면 2명이 전부 그 방에 들어와 멈춰 선 다음이다(걸어가는 중은 안 센다).
+            if (st.IsRepair && !st.ApprovalRequested && RepairCrewArrived(st))
+            {
+                st.ApprovalRequested = true;
+                RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
+            }
             // 승인이 떨어지기 전에는 수리에 손을 대지 않는다(G-2). 이것이 없으면 관리자가
             // 요청을 보고 있는 동안 직원들이 알아서 다 고쳐 버려, 승인 절차 자체가 장식이 된다.
             if (st.IsRepair && RepairApprovalSystem.IsAwaiting(st)) { st.Progressing = false; continue; }
@@ -2654,7 +2695,8 @@ public partial class FacilitySimulation : Node
             st.Elapsed = 0f;
             st.TimeLimitSeconds = float.MaxValue;
             st.StartedWorkerIds.Clear();
-            RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
+            // 승인 요청은 필요한 인원이 현장에 다 도착한 뒤에 뜬다(TickActiveTasks 의 게이트).
+            st.ApprovalRequested = false;
             return;
         }
         else

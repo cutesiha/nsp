@@ -168,6 +168,11 @@ public partial class Sfx : Node
     // 코드에서는 파일 이름만 쓰면 된다.
     private static readonly string[] SfxExtensions = { ".wav", ".ogg", ".mp3" };
 
+
+    // 이 키의 소리 파일이 실제로 있는가. 없는 키로 Play 를 부르면 아무 일도 일어나지 않아
+    // "효과음이 안 난다"가 된다 — 검사(QaFixTest)가 그걸 먼저 잡는다.
+    public bool Has(string key) => Load(key) != null;
+
     private AudioStream Load(string key)
     {
         if (_cache.TryGetValue(key, out var s)) return s;

@@ -9,6 +9,14 @@
 - 특별한 이유는 없었습니다. 잠시 자리를 옮긴 것뿐입니다.
 - {to}에 잠깐 들렀다가 돌아왔습니다.
 
+## MoveReason.carried
+- 제가 간 게 아닙니다. 쓰러져서 실려 갔다고 들었습니다.
+- 거기까지 어떻게 갔는지는 모릅니다. 눈을 떠 보니 의무실이었습니다.
+
+## PresenceReason.carried
+- 의식이 없었습니다. 누워 있었다는 것 말고는 말씀드릴 게 없습니다.
+- 쓰러진 뒤였습니다. 그 시간은 제 기억에 없습니다.
+
 ## PresenceReason.task
 - {room}에서 {task}을/를 하고 있었습니다.
 - {task} 때문에 계속 {room}에 있었습니다.
@@ -24,6 +32,10 @@
 ## PresenceReason.evasive
 - …거기 있었던 건 맞습니다. 이유는 지금 설명하기 어렵습니다.
 - 잠깐 지나간 것뿐입니다.
+
+
+## NextLocation.carried
+- 제 발로 간 게 아닙니다. 쓰러진 뒤에 {next}으로/로 옮겨졌다고 들었습니다.
 
 ## NextLocation.moved
 - 일을 마치고 {next}으로/로 이동했습니다.
@@ -398,6 +410,14 @@
 - 특별한 이유는 없었어요. 잠깐 옮긴 거예요.
 - {to}에 잠깐 갔다 왔어요.
 
+## MoveReason.carried
+- 제가 간 게 아니에요. 쓰러져서 누가 옮겨 줬대요.
+- 어떻게 갔는지 몰라요. 깨어나 보니 의무실이었어요.
+
+## PresenceReason.carried
+- 의식이 없었어요. 누워 있었다는 것밖에 몰라요.
+- 쓰러진 다음이에요. 그 시간은 기억이 안 나요.
+
 ## PresenceReason.task
 - {room}에서 {task} 하고 있었어요.
 - {task} 때문에 계속 거기 있었어요.
@@ -413,6 +433,10 @@
 ## PresenceReason.evasive
 - 거기 있었던 건 맞는데요... 그냥 지나간 거예요.
 - 딱히 이유는 없었어요. 잠깐이었고요.
+
+
+## NextLocation.carried
+- 제가 걸어간 게 아니에요. 쓰러져서 {next}으로/로 옮겨졌대요.
 
 ## NextLocation.moved
 - 끝내고 {next}으로/로 갔어요.

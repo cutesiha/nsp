@@ -15,12 +15,15 @@ IsCoreRoom = false
 UnlockDay = 1
 ManagedResource = 2
 AccidentName = "환기 필터 고장"
-; 0 = 비워 둬도 무인 사고가 나지 않는다.
 ; 환기실·의무실은 오늘의 운영 규칙(data/ops)에 든 작업실 5개에 들어가지 않는다.
-; 직원 6명으로는 다섯 작업실을 채우는 것이 한계라 여기까지 상주를 요구하면,
-; 관리자가 아무 실수를 하지 않아도 25초마다 사고가 터진다(승인 요청도 같이 뜬다).
-; 비워 둔 대가는 따로 있다 — 환기실은 전 직원 스트레스 상승, 의무실은 회복 지연.
-UnstaffedAccidentSeconds = 0.0
+; 직원 6명으로는 다섯 작업실을 채우는 것이 한계라, 여기까지 짧은 간격으로 상주를
+; 요구하면 관리자가 아무 실수를 하지 않아도 25초마다 사고가 터진다.
+;
+; 그래서 **길게** 잡는다(70초 · 근무는 150초). 비워 두면 근무 중 한 번은 반드시
+; 환기 고장이 나고, **그 사고가 난 뒤에야** 전 직원 스트레스가 오르기 시작한다
+; (TickVentilationFault). 배치만으로 디버프가 걸리지는 않는다 — 경고를 보고
+; 사람을 보낼 시간이 있어야 한다.
+UnstaffedAccidentSeconds = 70.0
 AccidentConsequence = 8
 AccidentAmount = 0.0
 RepairTaskId = "repair_vent"
