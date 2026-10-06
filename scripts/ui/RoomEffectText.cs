@@ -11,15 +11,64 @@ namespace NSP.Ui;
 // 이 파일은 **표시 전용**이다. 시뮬레이션의 값을 읽어 문장으로 옮기기만 하고,
 // 어떤 판정도 하지 않으며 어떤 수치도 바꾸지 않는다.
 //
-// 방마다 두 줄을 만든다.
+// 방마다 네 가지를 만든다.
+//   Summary  : 핵심 역할 한 문장(RoomDef.Summary) — 상황과 무관한 고정 설명.
+//   Brief    : 짧은 요약 줄(RoomDef.BriefLines + 무인 사고 시간 + 사고 수리 인원).
 //   Headline : 그 방의 핵심 수치 한 줄 — 사람이 있든 없든 늘 보인다.
 //   Idle     : 방이 비어 효과가 끊겼을 때 "무엇을 잃고 있는지" — 붉게 쓴다.
+//
+// Summary · Brief 의 문장은 data/rooms/*.tres 에만 있다(코드에 두지 않는다).
 //
 // 문장에 새 사실을 만들지 않는다. 전부 config / OpsProfile / GameState 의 실제 값이다.
 public static class RoomEffectText
 {
     // 붉은 줄에 쓰는 색(화면 쪽에서 가져다 쓴다).
     public static readonly Color IdleInk = new(1f, 0.46f, 0.40f);
+
+    // ── (0) 고정 설명 ────────────────────────────────────────────────
+    // 핵심 역할 한 문장. 방 카드 · 배치표 · 종이 배치표가 같은 문장을 쓴다.
+    public static string Summary(string roomId) =>
+        FacilitySimulation.Instance?.GetRoomDef(roomId)?.Summary ?? "";
+
+    // 방을 고른 화면에 띄우는 짧은 요약. 네 줄을 넘기지 않는다(문서 31절).
+    //
+    //   data/rooms/*.tres 의 BriefLines
+    // + "⚠ 비워 두면 N초 뒤 사고"      ← 오늘의 운영 규칙에서 읽는다
+    // + "⚙ 사고 수리 N명"              ← 같은 창구(RoomStaffing)에서 읽는다
+    //
+    // 뒤 두 줄은 날마다 값이 달라지므로 데이터 문장에 적지 않고 여기서 만든다.
+    //
+    // compact = true 면 계산 줄(⚠ · ⚙)만 돌려준다. 좁은 칸 — 근무 중 방 카드와 종이
+    // 배치표 — 에서 쓴다. 그 두 화면에는 Headline · Idle · 인원별 효과가 이미 붙어 있어
+    // 기능 줄까지 실으면 아래 "상태 / 진행 / 직원" 이 칸 밖으로 밀려난다.
+    public const int BriefMaxLines = 4;
+
+    public static System.Collections.Generic.List<string> Brief(string roomId, bool compact = false)
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        var def = FacilitySimulation.Instance?.GetRoomDef(roomId);
+        if (def == null) return lines;
+
+        // 계산 줄 먼저 — 네 줄 제한에 걸려 잘려 나가면 안 되는 쪽이다.
+        // 배치 대상이 아닌 구역(중앙 제어실 · 격리실)에는 무인 사고도 수리도 없다.
+        var computed = new System.Collections.Generic.List<string>();
+        if (!def.IsRestricted)
+        {
+            float unstaffed = RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
+            if (unstaffed > 0f) computed.Add($"⚠ 비워 두면 {unstaffed:0}초 뒤 사고");
+            int crew = RoomStaffing.RepairMinWorkers(roomId, def);
+            computed.Add(crew >= 2 ? $"⚙ 사고 수리 {crew}명 — 혼자서는 못 고친다" : $"⚙ 사고 수리 {crew}명");
+        }
+
+        int room = compact ? 0 : Mathf.Max(0, BriefMaxLines - computed.Count);
+        foreach (string l in def.BriefLines)
+        {
+            if (lines.Count >= room) break;
+            if (!string.IsNullOrWhiteSpace(l)) lines.Add(l.Trim());
+        }
+        lines.AddRange(computed);
+        return lines;
+    }
 
     // ── (a) 핵심 수치 ────────────────────────────────────────────────
     public static string Headline(string roomId)
@@ -136,11 +185,16 @@ public static class RoomEffectText
                 if (!DayFeatures.StressEnabled) return "";
                 bool down = gs.VentilationDown;
                 if (here > 0 && !down) return "";
-                // 고장과 무인은 증가량·주기가 따로다 — 지금 실제로 쓰이는 쪽을 쓴다.
-                float amount = down ? cfg.VentFaultStressAmount : cfg.VentUnstaffedStressAmount;
-                float interval = down ? cfg.VentFaultStressIntervalSeconds : cfg.VentUnstaffedStressIntervalSeconds;
-                string line = $"환기실 {(down ? "고장" : "비어 있음")} — 전원 스트레스 " +
-                              $"+{amount:0.#} / {interval:0}초";
+                // 스트레스를 올리는 것은 **환기 고장**뿐이다(TickVentilationFault).
+                // 비워 두는 것만으로는 오르지 않는다 — 비워 둔 대가는 무인 방치 타이머 →
+                // 환기 고장 → 그 다음 스트레스 순으로 온다. 예전에는 비어 있기만 해도
+                // "전원 스트레스 +1 / 15초" 라고 적고 있었는데, 시뮬레이션은 그 일을 하지 않는다.
+                if (!down)
+                    return $"환기실 비어 있음 — 방치하면 환기 고장 " +
+                           $"(그때부터 전원 스트레스 +{cfg.VentFaultStressAmount:0.#} / " +
+                           $"{cfg.VentFaultStressIntervalSeconds:0}초)";
+                string line = $"환기실 고장 — 전원 스트레스 " +
+                              $"+{cfg.VentFaultStressAmount:0.#} / {cfg.VentFaultStressIntervalSeconds:0}초";
                 // 기절선에 가까워진 사람이 있으면 이름을 붙인다 — 숫자보다 이름이 먼저 읽힌다.
                 var worst = sim.GetActiveEmployeeIds()
                     .Select(sim.GetEmployeeState)

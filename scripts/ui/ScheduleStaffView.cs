@@ -337,11 +337,13 @@ public partial class ScheduleStaffView : Control
         float x = 56f, y = 150f;
         if (!assignable)
         {
-            DrawDescription(roomId, x, y);
+            y = DrawSummary(roomId, x, y);
+            DrawBrief(roomId, x, y + 6f);
             Footer("이 작업실에는 직원을 배치할 수 없습니다.", Dim);
             return;
         }
 
+        y = DrawSummary(roomId, x, y) + 10f;
         var here = ScheduleMapView.AssignedTo(sim, roomId);
         var ops = OpsProfile.Room(roomId);
         if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
@@ -363,26 +365,38 @@ public partial class ScheduleStaffView : Control
                 HorizontalAlignment.Left, 680f, Fs(18), Mint);
             y += 32f;
         }
-        y += 6f;
-        DrawString(_font, new Vector2(x, y), $"사고 수리 최소 인원   {RoomStaffing.RepairMinWorkers(roomId, def)}명",
-            HorizontalAlignment.Left, 680f, Fs(18), Amber);
-        y += 38f;
-
-        DrawDescription(roomId, x, y);
+        DrawBrief(roomId, x, y + 10f);
 
         string who = here.Count == 0 ? "배치된 직원 없음"
             : "배치 : " + string.Join(" · ", here.Select(e => sim.GetEmployeeDef(e)?.Codename ?? e));
         Footer(who, here.Count == 0 ? Amber : Ink);
     }
 
-    // 작업실 설명 — 2D 방 카드(RoomDetailCard)와 같은 문장을 그대로 쓴다.
-    private void DrawDescription(string roomId, float x, float y)
+    // 작업실 설명 — 문장은 data/rooms/*.tres 에만 있고, RoomEffectText 창구로 읽는다.
+    // 같은 두 문장을 방 카드(FacilityMonitorView) · 종이 배치표(ScheduleBoardUI) 도 쓴다.
+
+    // 핵심 역할 한 줄. 그리고 난 다음 y 를 돌려준다.
+    private float DrawSummary(string roomId, float x, float y)
     {
-        string desc = RoomDetailCard.Descriptions.GetValueOrDefault(roomId, "");
-        if (string.IsNullOrEmpty(desc)) return;
-        // 줄바꿈 — DrawMultilineString 으로 폭 안에서 접는다.
-        DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, Fs(17),
-            4, Ink with { A = 0.92f }, TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.Mandatory);
+        string desc = RoomEffectText.Summary(roomId);
+        if (string.IsNullOrEmpty(desc)) return y;
+        int fs = Fs(17);
+        var para = new TextParagraph { Width = 688f, MaxLinesVisible = 2 };
+        para.AddString(desc, _font, fs);
+        DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, fs,
+            2, Ink with { A = 0.92f }, TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.Mandatory);
+        return y + Mathf.Min(2, para.GetLineCount()) * (fs + 8f);
+    }
+
+    // 짧은 요약 — 기능 · 무인 위험 · 사고 수리 인원. ⚠ 로 시작하는 줄만 호박색으로 쓴다.
+    private void DrawBrief(string roomId, float x, float y)
+    {
+        foreach (string line in RoomEffectText.Brief(roomId))
+        {
+            DrawString(_font, new Vector2(x + 8f, y), line, HorizontalAlignment.Left, 680f, Fs(16),
+                line.StartsWith('⚠') ? Amber : Ink with { A = 0.86f });
+            y += 26f;
+        }
     }
 
     // ── 적합도 비교 ──────────────────────────────────────────────────────

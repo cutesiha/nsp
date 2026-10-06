@@ -545,7 +545,21 @@ public partial class FacilityMonitorView : Control
             // 이 칸의 폭이 304px 뿐이라 자동 줄바꿈으로 네 줄이 되어 있었다
             // (그래서 구분선이 여러 개처럼 보였다).
             string rule = $"[font_size={ViewFont.S(10)}][color=#3f5f55]" + new string('─', 30) + "[/color][/font_size]";
-            string desc = NSP.Ui.RoomDetailCard.Descriptions.TryGetValue(_selRoom, out var d0) ? d0 : "";
+            // 이 칸은 304×280 로 고정이고 넘치는 글은 그냥 잘린다(ScrollActive=false) —
+            // 아래 "상태 / 진행 / 직원" 까지 반드시 들어가야 하므로 줄 수를 아낀다.
+            // 그래서 근무 중 카드에는 **고정 설명(RoomEffectText.Summary)을 싣지 않는다.**
+            // 그 방이 지금 무엇을 만들고(Headline) 무엇을 잃고 있는지(Idle)를 바로 아래에
+            // 실제 수치로 적고 있어, 같은 말을 고정 문장으로 한 번 더 할 자리가 없다.
+            // 역할 설명은 배치 화면의 작업실 칸과 패드 지침 4장이 맡는다.
+            //
+            // 짧은 요약 — 무인 위험 · 사고 수리 인원 두 줄. ⚠ 줄만 호박색으로 쓴다.
+            string desc = "";
+            var briefSb = new System.Text.StringBuilder();
+            foreach (string line in NSP.Ui.RoomEffectText.Brief(_selRoom, compact: true))
+                briefSb.Append($"[font_size={ViewFont.S(14)}]" +
+                               $"[color={(line.StartsWith('⚠') ? "#ffc040" : "#8fa8a0")}]" +
+                               $"{Escape(line)}[/color][/font_size]\n");
+
 
             // 이 방이 지금 무엇을 만들어 내고 있는가(한 줄), 그리고 비어서 무엇을 잃고
             // 있는가(붉은 한 줄). 둘 다 시뮬레이션 값을 읽어 문장으로 옮긴 것뿐이다.
@@ -562,6 +576,7 @@ public partial class FacilityMonitorView : Control
                 rule + "\n" +
                 (string.IsNullOrEmpty(desc) ? "" :
                     $"[font_size={ViewFont.S(15)}][color=#8fa8a0]{desc}[/color][/font_size]\n") +
+                briefSb +
                 headLine + idleLine +
                 rule + "\n" +
                 $"상태 : [color={statusCol}]{statusLabel}[/color]\n" +

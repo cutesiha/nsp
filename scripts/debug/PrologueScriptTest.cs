@@ -42,10 +42,10 @@ public partial class PrologueScriptTest : Node
         // ── 작은 교란(Cross-Room Tamper)을 이해시키는 두 줄 ─────────────────
         //
         // 플레이어가 외워야 하는 규칙은 없다. 쉬운 문장 둘이면 된다 —
-        //   ① 기계들은 서로 연결되어 있다(프롤로그 시설 안내 끝).
+        //   ① 기계들은 서로 연결되어 있다(근무 시작 안내).
         //   ② 문제가 보인 곳과 원인이 시작된 곳이 다를 수도 있다(첫 교란 직후).
         // 둘 다 **한 판에 한 번만** 떠야 한다. 반복하면 설명이 아니라 잔소리가 된다.
-        string tourEnd = Lines("tut_facility_end");
+        string tourEnd = Lines("tut_shift_start");
         Check(tourEnd.Contains("서로 연결되어 있습니다"), $"K 프롤로그에 기계 연결 안내가 있다 — {tourEnd}");
         Check(CountGuidesContaining("서로 연결되어 있습니다") == 1,
             "K-2 그 안내는 대본 전체에서 한 블록에만 있다(두 번 뜨지 않는다)");

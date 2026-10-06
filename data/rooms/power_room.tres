@@ -6,6 +6,8 @@
 script = ExtResource("1_room")
 RoomId = "power_room"
 DisplayName = "발전실"
+Summary = "시설 전체에 전력을 공급한다."
+BriefLines = PackedStringArray("· 전력 — 모든 작업실의 업무 속도를 좌우한다", "· 조명 · CCTV · 패드가 이 전력을 쓴다")
 ConnectedRoomIds = Array[String](["central_office", "core_room", "guard_room"])
 AdjacentRoomIds = Array[String](["guard_room", "vent_room"])
 MapPosition = Vector2(90, 170)

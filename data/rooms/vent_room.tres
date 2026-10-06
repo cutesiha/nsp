@@ -6,6 +6,8 @@
 script = ExtResource("1_room")
 RoomId = "vent_room"
 DisplayName = "환기실"
+Summary = "공조를 유지해 직원의 스트레스 상승을 억제한다."
+BriefLines = PackedStringArray("· 환기 — 전 직원 스트레스 관리", "⚠ 환기가 고장 나면 전원 스트레스가 계속 오른다")
 ConnectedRoomIds = Array[String](["guard_room", "medical_room"])
 AdjacentRoomIds = Array[String](["power_room", "medical_room"])
 MapPosition = Vector2(90, 560)

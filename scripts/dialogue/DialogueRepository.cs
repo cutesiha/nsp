@@ -42,6 +42,10 @@ public static class DialogueRepository
     // 가상 시뮬레이션(교육) 전용 고정 통화 — 수리를 끝낸 직원이 복귀를 묻는다.
     // 생성기를 태우지 않고 대사 파일의 문장을 그대로 쓴다.
     public const string EventTutorialRepairDone = "tutorial_repair_done";
+    // 같은 교육 전용 — 코어 복구가 자재가 없어 멈췄다(정비실을 가르치는 자리).
+    public const string EventTutorialMaterialShort = "tutorial_material_short";
+    // 같은 교육 전용 — 자재 보관 한도가 꽉 찼다(저장고를 가르치는 자리).
+    public const string EventTutorialStorageFull = "tutorial_storage_full";
 
     public sealed class Choice
     {

@@ -74,7 +74,11 @@ public partial class ShiftFlowController : Node
     private float _coreAtShiftStart;
     private int _materialsAtShiftStart;
 
-    public override void _ExitTree() => NSP.Facility.FacilitySimulation.Tampered -= OnTampered;
+    public override void _ExitTree()
+    {
+        NSP.Facility.FacilitySimulation.Tampered -= OnTampered;
+        NSP.Facility.FacilitySimulation.Sabotaged -= OnSabotaged;
+    }
 
     public override void _Ready()
     {
@@ -98,6 +102,7 @@ public partial class ShiftFlowController : Node
         GameState.Instance?.SetPhase(GamePhase.Prep);
         _ctl?.SetInputLocked(true);
         NSP.Facility.FacilitySimulation.Tampered += OnTampered;
+        NSP.Facility.FacilitySimulation.Sabotaged += OnSabotaged;
 
         if (_title != null)
         {
@@ -172,6 +177,7 @@ public partial class ShiftFlowController : Node
             _wiredSchedule = true;
         }
         TickStressCautionHint();
+        TickVentFaultHint();
 
         // 최대 근무시간이 다 되면 필수 업무를 못 끝냈어도 근무가 끝난다(막히지 않게).
         // 필수 업무를 끝냈다고 저절로 끝나지는 않는다 — 더 일할지는 플레이어가 고른다.
@@ -230,6 +236,44 @@ public partial class ShiftFlowController : Node
         _ = PlayGuideLines("ops_cross_signal");
     }
 
+    // ── 첫 환기 정지 안내 ───────────────────────────────────────────────
+    //
+    // 환기실은 "비워 두면 스트레스가 오른다"가 아니다 — **고장이 나야** 오른다
+    // (FacilitySimulation.TickVentilationFault). 그래서 설명도 그 고장이 실제로 난
+    // 뒤에 한 번만 한다(문서 §19 — 상태 변화가 먼저, 설명은 그 다음).
+    // 한 판에 한 번뿐이고, 스트레스가 잠긴 날과 교육일에는 뜨지 않는다.
+    private static bool _ventHintSaid;
+
+    public static void ResetVentFaultNotice() => _ventHintSaid = false;
+
+    private void TickVentFaultHint()
+    {
+        if (_ventHintSaid || _stage != Stage.Shift) return;
+        if (DayFeatures.IsTutorialDay || !DayFeatures.StressEnabled) return;
+        if (GameState.Instance?.VentilationDown != true) return;
+        _ventHintSaid = true;
+        _ = PlayGuideLines("ops_vent_down");
+    }
+
+    // ── 첫 방해공작 안내 ────────────────────────────────────────────────
+    //
+    // "이건 그냥 고장이 아니다" 를 **처음 한 번만** 말한다(문서 §21). 한 판에 한 번뿐이고,
+    // 교육(DAY0)에는 방해자가 없으므로 뜨지 않는다.
+    //
+    // GUIDE-0 는 범인을 모른다. 누구인지도, 몇 명인지도 말하지 않는다 —
+    // 그 판단은 휴게시간에 관리자가 기록과 진술을 맞대어 직접 한다.
+    private static bool _firstSabotageSaid;
+
+    public static void ResetFirstSabotageNotice() => _firstSabotageSaid = false;
+
+    private void OnSabotaged(string roomId)
+    {
+        if (_stage != Stage.Shift || DayFeatures.IsTutorialDay) return;
+        if (_firstSabotageSaid) return;
+        _firstSabotageSaid = true;
+        _ = PlayGuideLines("ops_first_sabotage");
+    }
+
     // ── 시스템 해금 안내 ────────────────────────────────────────────────
     //
     // 잠겨 있던 시스템이 열리는 날, 배치표 앞에서 한 묶음만 읽어 준다. 교육에서 미리 가르치지
@@ -259,12 +303,15 @@ public partial class ShiftFlowController : Node
         hud?.SetActive(true);
         Sfx.Instance?.Play("alert_beep3", -14f);
 
+        // 부른 자리(배치 · 근무)에 머무는 동안만 이어 읽는다. 예전에는 조건이 Schedule 로
+        // 고정돼 있어, 근무 중에 부르면 두 번째 줄부터 통째로 잘려 나갔다.
+        var startedAt = _stage;
         foreach (var beat in block.Beats)
         {
             if (beat.Kind != NSP.Prologue.PrologueScript.GuideBeatKind.Line || string.IsNullOrEmpty(beat.Value)) continue;
             hud?.SetLine(beat.Value);
             await Wait(5.5);
-            if (!IsInstanceValid(this) || _stage != Stage.Schedule) break;
+            if (!IsInstanceValid(this) || _stage != startedAt) break;
         }
         if (!IsInstanceValid(this)) return;
         hud?.Clear();
@@ -440,6 +487,9 @@ public partial class ShiftFlowController : Node
         DialogueHistory.Instance?.ClearAll();
         // 지난 판의 추궁 메모가 새 근무의 휴게실에 남아 있으면 안 된다.
         ConfrontMarks.Clear();
+        // 한 판에 한 번만 뜨는 안내들 — 새 판에서는 다시 뜬다.
+        ResetFirstSabotageNotice();
+        ResetVentFaultNotice();
 
         // DAY0 교육에는 방해자가 없다 — DAY1 근무가 시작될 때 ControlRoom3DController 가 뽑는다.
         if (!DayFeatures.SaboteurActive) return;

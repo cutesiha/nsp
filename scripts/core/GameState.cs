@@ -367,6 +367,11 @@ public partial class GameState : Node
             NSP.Facility.FacilitySimulation.Instance?.ResetRun();
             EventLog.Instance?.ClearAll();
             DialogueHistory.Instance?.ClearAll();
+            // 자재와 보관 한도도 마찬가지다. 교육에서 쓰고 남은 자재가 그대로 넘어오면
+            // 실제 근무 첫날의 시작 보유량이 그날 교육을 어떻게 했느냐에 따라 달라진다.
+            // (교육은 보관 한도를 작게 잡아 자재 부족 상황을 만든다 — TutorialDirector.)
+            Materials = Config.Instance.Data.MaterialsStart;
+            MaterialsCap = Config.Instance.Data.MaterialsCapBase;
         }
         DayTimeSeconds = 0f;
         CurrentPhase = GamePhase.Prep;

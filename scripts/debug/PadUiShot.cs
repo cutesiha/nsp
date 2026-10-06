@@ -119,7 +119,13 @@ public partial class PadUiShot : Node
         v.OpenApp(PadView.Tab.Manual, fade: false);
         await Seconds(0.4);
         Save("manual_chapters", pad, screen: true);
-        foreach (var (ch, pg) in new[] { (0, 0), (2, 3), (4, 0) })
+        // 장이 일곱 개라 챕터 목록도 두 쪽이다 — 둘째 쪽도 남긴다.
+        v.SetPage(1);
+        await Seconds(0.3);
+        Save("manual_chapters_p2", pad, screen: false);
+        v.SetPage(0);
+        await Seconds(0.2);
+        foreach (var (ch, pg) in new[] { (0, 0), (2, 3), (3, 1), (4, 0) })
         {
             v.OpenChapter(ch);
             v.SetManualPage(pg);

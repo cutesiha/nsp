@@ -13,7 +13,7 @@ namespace NSP.View;
 // 책상 위 배치표 종이의 실제 내용. 오래된 시설 공문서 느낌(누런 아이보리/얼룩/붉은 도장) —
 // 흰 A4 메뉴 종이가 아니다. 방/직원 클릭은 화면 한쪽의 작은 정보 패널만 갱신한다(큰 팝업 없음).
 // 배치 데이터는 전적으로 FacilitySimulation 을 통해 변경하고, 능력치/설명은 전부 기존
-// TaskDef.RequiredStat / RoomDetailCard.Descriptions / EmployeeDef 값을 그대로 읽어온다.
+// TaskDef.RequiredStat / RoomDef.Summary / EmployeeDef 값을 그대로 읽어온다.
 //
 // V3 초반 단순화: 능력치/금기가 잠긴 날(DayFeatures)에는 그 칸을 그리지 않고, 직원 카드의
 // 주 정보는 "오늘의 기분"이 된다. 잠긴 작업실(환기실/의무실)은 배치표에 아예 나오지 않는다.
@@ -427,7 +427,12 @@ public partial class ScheduleBoardUI : Control
             y += 24f;
         }
 
-        string desc = FirstSentence(RoomDetailCard.Descriptions.GetValueOrDefault(roomId, ""));
+        // 방 설명 — 문장은 data/rooms/*.tres 한 곳에만 있다(RoomEffectText 창구).
+        // 종이 배치표는 좁으므로 핵심 역할 한 문장 + ⚠ 로 시작하는 위험 줄만 싣는다.
+        // (사고 수리 인원은 이미 위에 호박색 한 줄로 그렸다.)
+        string desc = NSP.Ui.RoomEffectText.Summary(roomId);
+        foreach (string line in NSP.Ui.RoomEffectText.Brief(roomId, compact: true))
+            if (line.StartsWith('⚠')) { desc += "\n" + line; break; }
         // 능력 목록이 두 줄로 늘어난 만큼 설명이 쓸 수 있는 높이가 줄어든다.
         var d = AddLabel(_info, desc, new Vector2(px, y), wrapped ? 13 : 14, Ink, _body);
         // 줄바꿈을 먼저 켜야 한다. 끄고 폭을 주면 Label 의 최소 폭이 "한 줄 전체 길이"라
@@ -602,16 +607,6 @@ public partial class ScheduleBoardUI : Control
     {
         v = Mathf.Clamp(v, 0, max);
         return new string('■', v) + new string('□', max - v);
-    }
-
-    // 기존 RoomDetailCard.Descriptions 는 2문장짜리도 있다 — 배치표 정보 패널은
-    // 한 문장 이하만 보여준다는 지침에 맞춰 첫 문장만 잘라 쓴다(새 문장을 짓지 않는다).
-    private static string FirstSentence(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return "";
-        int idx = s.IndexOf(". ", StringComparison.Ordinal);
-        string first = idx >= 0 ? s[..idx] : s.TrimEnd('.', ' ');
-        return first.EndsWith('.') ? first : first + ".";
     }
 
     private void StyleDoc(Button b, Color fg, Color bgFill)

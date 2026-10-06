@@ -452,8 +452,16 @@ public partial class FacilityMinimap : Control
 
         // 수리 중일 때만 글자가 맥동한다 — 멈춰 있으면 가만히 떠 있다.
         float a = working ? 0.75f + 0.25f * Mathf.Sin(Time.GetTicksMsec() / 170f) : 1f;
+        // 둘 이상이 붙어야 고쳐지는 설비(코어실 · 발전실)는 "몇 명이 필요한지"를 막대가
+        // 직접 말한다. 혼자 보내 놓고 왜 게이지가 안 차는지 몰라 서 있던 자리다(문서 §17).
+        var sim = FacilitySimulation.Instance;
+        int need = st.MinWorkersOverride > 0
+            ? st.MinWorkersOverride
+            : RoomStaffing.RepairMinWorkers(st.RoomId, sim?.GetRoomDef(st.RoomId));
+        string label = working ? "수 리 중" : "수리 필요";
+        if (need >= 2) label += $"  {sim?.OnDutyCount(st.RoomId) ?? 0}/{need}";
         DrawString(_font, new Vector2(bar.Position.X, bar.Position.Y + 12f),
-            working ? "수 리 중" : "수리 필요", HorizontalAlignment.Center, bar.Size.X,
+            label, HorizontalAlignment.Center, bar.Size.X,
             ViewFont.S(10), new Color(1f, 0.94f, 0.92f, a));
     }
 

@@ -1959,6 +1959,30 @@ public partial class FacilitySimulation : Node
     // 그 방에 아직 수리해야 할 사고가 남아 있는가(튜토리얼 진행 판정에도 쓴다).
     public bool HasRepairPending(string roomId) => HasActiveRepair(roomId);
 
+    // DAY0 교육 전용 — 근무가 돌아가는 중에 작업실 하나를 연다.
+    //
+    // 교육은 "상황이 먼저, 설명은 그 다음" 순서로 진행한다. 자재가 떨어진 뒤에야
+    // 정비실이 열리고, 보관 한도에 닿은 뒤에야 저장고가 열린다. 그래야 그 방이
+    // 무엇을 위한 곳인지 글이 아니라 상황으로 읽힌다.
+    //
+    // 상시 업무 스폰(data/spawns)은 근무 시작 0초에 한 번 지나가며, 그때 잠겨 있던
+    // 작업실은 건너뛴다(SpawnFromDef). 그래서 여기서 그 방 몫만 다시 띄워 준다 —
+    // 같은 업무가 이미 돌고 있으면 SpawnFromDef 가 알아서 무시한다.
+    public void OpenRoomMidShift(string roomId)
+    {
+        if (string.IsNullOrEmpty(roomId)) return;
+        DayFeatures.ForceRoomOpen(roomId, true);
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        foreach (var def in _schedule)
+        {
+            if (!def.Recurring || def.SpawnAtSeconds > now) continue;
+            string target = !string.IsNullOrEmpty(def.RoomId)
+                ? def.RoomId
+                : _taskDefs.GetValueOrDefault(def.TaskId)?.RoomId ?? "";
+            if (target == roomId) SpawnFromDef(def);
+        }
+    }
+
     // DAY0 교육 전용 — 그 직원을 그 자리에서 쓰러뜨린다.
     //
     // 교육일에는 스트레스 자체가 잠겨 있어(DayFeatures.StressEnabled) AddStress 로는 기절을
@@ -2072,6 +2096,10 @@ public partial class FacilitySimulation : Node
 
     // 교란이 일어난 순간. (손댄 방, 증상이 난 방) — GUIDE-0 의 첫 안내가 이 신호를 듣는다.
     public static event System.Action<string, string> Tampered;
+
+    // 방해공작 흔적이 실제로 남은 순간(두 유형 모두). 인자는 그 작업실 id 다.
+    // **범인은 넘기지 않는다** — 화면도 안내도 "누가" 를 알면 안 된다(문서 §21).
+    public static event System.Action<string> Sabotaged;
 
     public bool HasMicroFault(string roomId)
     {
@@ -2366,6 +2394,7 @@ public partial class FacilitySimulation : Node
                 $"☣ {roomDef?.DisplayName ?? roomId} — 설비에 사람 손을 탄 흔적이 있다. 사고가 아니다.", witnesses);
             // 센서에는 범인을 절대 넘기지 않는다 — "누가" 가 아니라 "사고가 아니다" 까지만.
             IncidentTracker.Anomaly(roomId, "☣ 방해공작 흔적", "설비 손상 — 고의 조작 정황");
+            Sabotaged?.Invoke(roomId);
         }
         else
         {
@@ -2377,6 +2406,7 @@ public partial class FacilitySimulation : Node
             // 설비가 망가지지 않은 유형이라도 흔적은 남는다 — 센서에서 확인할 수 있어야 한다.
             IncidentTracker.Anomaly(roomId, "☣ 방해공작 흔적",
                 $"'{activeTask.DisplayName}' 진행 기록 조작");
+            Sabotaged?.Invoke(roomId);
         }
     }
 

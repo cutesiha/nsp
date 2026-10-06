@@ -504,6 +504,8 @@ public partial class PadView : Control
         _home.Visible = false;
         _app.Visible = true;
         if (tab == Tab.Clues) ClueBoard.MarkSeen();
+        // 교육 중에 지침을 다시 펼친 횟수만 센다(블라인드 테스트 기록 — 문서 §35 PHASE 6).
+        if (tab == Tab.Manual) NSP.Prologue.TutorialTelemetry.Count("지침 열람");
         RebuildCurrent();
         RefreshHome();
 
@@ -581,6 +583,7 @@ public partial class PadView : Control
     {
         ManualChapter = index;
         ManualPage = 0;
+        if (index < 0) Page = 0;   // 챕터 목록으로 돌아올 때는 첫 쪽부터
         if (Current != Tab.Manual) { OpenApp(Tab.Manual); return; }
         RebuildCurrent();
     }
@@ -603,8 +606,15 @@ public partial class PadView : Control
         {
             ManualChapter = -1;
             if (chapters.Count == 0) { EmptyNote("지침 문서를 불러오지 못했습니다."); return; }
-            for (int i = 0; i < chapters.Count; i++)
-                _appBody.AddChild(ChapterCard(i, chapters[i], CardPos(i)));
+            // 카드 자리는 한 화면에 2행 × 3열, 여섯 개뿐이다(CardPos) —
+            // 장이 일곱 개가 되면서 일곱째 카드가 첫째 위에 겹쳐 그려지고 있었다.
+            // 단서 · 직원 앱과 같은 방식으로 쪽을 넘긴다.
+            int chapterPages = Math.Max(1, (chapters.Count + CardsPerPage - 1) / CardsPerPage);
+            Page = Math.Clamp(Page, 0, chapterPages - 1);
+            if (chapterPages > 1) BuildPager(chapterPages);
+            int shown = 0;
+            for (int i = Page * CardsPerPage; i < chapters.Count && shown < CardsPerPage; i++)
+                _appBody.AddChild(ChapterCard(i, chapters[i], CardPos(shown++)));
             return;
         }
 
@@ -756,12 +766,17 @@ public partial class PadView : Control
         return byTime.OrderBy(e => order.IndexOf(PrimaryEmployee(e.Evidence)) is var i && i >= 0 ? i : 99).ToList();
     }
 
-    public int PageCount => Math.Max(1, (VisibleClues().Count + CardsPerPage - 1) / CardsPerPage);
+    // 지금 열려 있는 앱의 쪽 수. 단서 앱과 지침 챕터 목록이 같은 Page 를 쓰므로
+    // 어느 쪽을 보고 있는지에 따라 답이 달라야 한다 — 그러지 않으면 단서가 없는
+    // 판에서 지침의 ▶ 가 0 쪽으로 되돌려져 일곱째 장을 열 수 없다.
+    public int PageCount => Current == Tab.Manual && ManualChapter < 0
+        ? Math.Max(1, (Chapters().Count + CardsPerPage - 1) / CardsPerPage)
+        : Math.Max(1, (VisibleClues().Count + CardsPerPage - 1) / CardsPerPage);
 
     public void SetPage(int page)
     {
         Page = Math.Clamp(page, 0, PageCount - 1);
-        if (Current == Tab.Clues) RebuildCurrent();
+        if (Current is Tab.Clues or Tab.Manual) RebuildCurrent();
     }
 
     public void SetGroupByEmployee(bool on)
@@ -798,6 +813,23 @@ public partial class PadView : Control
             chip.Size = new Vector2(136, 44);
             _appTools.AddChild(chip);
         }
+        BuildPager(pages);
+
+        if (all.Count == 0)
+        {
+            EmptyNote(string.IsNullOrEmpty(EmployeeFilter)
+                ? "핀으로 기록한 단서가 없습니다.\n시설 로그의 ☆를 눌러 수상한 기록을 보관하세요."
+                : $"{Codename(EmployeeFilter)} 직원이 등장하는 단서가 없습니다.");
+            return;
+        }
+        int k = 0;
+        foreach (var entry in all.Skip(Page * CardsPerPage).Take(CardsPerPage))
+            _appBody.AddChild(ClueCard(entry, CardPos(k++)));
+    }
+
+    // 오른쪽 위 쪽 넘김 ◀ n / N ▶. SetPage 는 현재 앱을 다시 그린다.
+    private void BuildPager(int pages)
+    {
         var prev = Btn("◀", Cyan, () => SetPage(Page - 1), FsBody);
         prev.Position = new Vector2(Layout.X - 272, 9);
         prev.Size = new Vector2(56, 44);
@@ -813,17 +845,6 @@ public partial class PadView : Control
         next.Size = new Vector2(56, 44);
         next.Disabled = Page >= pages - 1;
         _appTools.AddChild(next);
-
-        if (all.Count == 0)
-        {
-            EmptyNote(string.IsNullOrEmpty(EmployeeFilter)
-                ? "핀으로 기록한 단서가 없습니다.\n시설 로그의 ☆를 눌러 수상한 기록을 보관하세요."
-                : $"{Codename(EmployeeFilter)} 직원이 등장하는 단서가 없습니다.");
-            return;
-        }
-        int k = 0;
-        foreach (var entry in all.Skip(Page * CardsPerPage).Take(CardsPerPage))
-            _appBody.AddChild(ClueCard(entry, CardPos(k++)));
     }
 
     // 카드 — 썸네일이 카드의 2/3 이상, 그 아래 제목(18자) · 시각 · 관련 직원 색 점. 설명 문장은 넣지 않는다.

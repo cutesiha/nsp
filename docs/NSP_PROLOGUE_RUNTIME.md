@@ -521,60 +521,6 @@ line: 먼저 현장 직원들을 확인하십시오.
 portrait: normal
 line: 오늘의 기분은 직원들이 직접 작성한 것입니다.
 
-# ── 시설 CCTV 투어 (tut_mood 와 tut_assign 사이) ──────────────────────
-# 왼쪽 지도의 작업실을 **직접 누르면** MONITOR 02 가 그 방 CCTV 로 바뀌고 한 줄이 나온다.
-# 여덟 방을 다 눌러야 넘어간다. 한 방당 한 줄만 쓴다.
-@guide tut_facility_intro
-portrait: normal
-line: 배치에 앞서 작업실의 기능을 간단히 안내하겠습니다.
-portrait: normal
-line: 왼쪽 지도에서 작업실을 하나 눌러 보십시오.
-
-# 두 번째 방을 누를 때 딱 한 번만 뜬다(여덟 번 반복하면 읽지 않게 된다).
-@guide tut_facility_pick
-portrait: normal
-line: 나머지 작업실도 눌러 보십시오.
-
-@guide tut_room_core
-portrait: normal
-line: 코어실은 /5봉쇄 코어/0를 관리하고 복구하는 시설의 핵심 작업실입니다.
-
-@guide tut_room_maintenance
-portrait: normal
-line: 정비실은 봉쇄 코어 복구에 필요한 /3자재/0를 생산합니다.
-
-@guide tut_room_storage
-portrait: normal
-line: 저장고는 봉쇄 코어 복구에 필요한 /3자재/0의 상한을 관리합니다.
-
-@guide tut_room_guard
-portrait: normal
-line: 경비실은 시설을 감시합니다. 인원을 배치하면 /1방해공작/0 억제에 도움이 됩니다.
-
-@guide tut_room_power
-portrait: normal
-line: 발전실은 시설 필요한 /5전력/0을 공급합니다. /5전력/0이 없으면 cctv, 조명 등을 켤 수 없습니다.
-
-@guide tut_room_vent
-portrait: normal
-line: 환기실은 시설 공조를 유지해 직원들의 /1스트레스/0 상승을 억제합니다.
-
-@guide tut_room_medical
-portrait: normal
-line: 의무실은 스트레스가 높은 직원을 /4회복/0시킵니다. /1기절/0한 직원도 이곳으로 이송됩니다.
-
-@guide tut_room_isolation
-portrait: sneer
-line: /1격리실/0은 의심되는 직원을 다른 직원들과 분리하는 공간입니다.
-
-@guide tut_facility_end
-portrait: normal
-# 교란(Cross-Room Tamper)을 나중에 이해시키기 위한 씨앗 한 줄. 여기서는 설명만 하고 넘어간다 —
-# 별도 단계도, 조작 요구도, 어려운 용어도 쓰지 않는다.
-line: 각 작업실의 기계는 서로 연결되어 있습니다. 한쪽의 문제가 다른 작업실에 영향을 줄 수도 있습니다.
-portrait: smile
-line: 설명은 여기까지입니다. 이제 직접 배치해 보시죠.
-
 # STEP 2 — 배치
 @guide tut_assign
 portrait: normal
@@ -591,14 +537,49 @@ line: 눈이 잘못되셨나요? {ROOM}에는 토끼를 배치해 보십시오.
 
 @guide tut_assign_rest
 portrait: smile
-line: 좋습니다. 오른쪽 방 카드의 /5첫 줄/0이 그 방이 지금 무엇을 만들어 내는지 알려 줍니다.
+line: 좋습니다. 작업실을 누르면 그 방이 무엇을 하는 곳인지 오른쪽에 뜹니다.
 line: 남은 직원도 배치한 뒤 /5‘근무 시작’/0을 누르십시오.
 
 @guide tut_shift_start
 portrait: normal
 line: 직원들이 시설 복구 작업을 하고 있습니다.
+# 교란(Cross-Room Tamper)을 나중에 이해시키기 위한 씨앗 한 줄. 여기서는 설명만 하고 넘어간다 —
+# 별도 단계도, 조작 요구도, 어려운 용어도 쓰지 않는다. (예전에는 작업실 순회 안내 끝에 있었다.)
+line: 각 작업실의 기계는 서로 연결되어 있습니다. 한쪽의 문제가 다른 작업실에 영향을 줄 수도 있습니다.
 
-# STEP 3 — 사고
+# STEP 3 — 자재가 떨어진다 → 정비실
+# 코어 복구가 자재를 다 쓰고 멈춘 **뒤에** 뜬다. 설명이 먼저 오지 않는다.
+# 전화(tutorial_material_short)로 직원이 먼저 알리고, GUIDE-0 는 원인과 해결만 한 줄씩 말한다.
+@guide tut_materials
+portrait: normal
+line: 봉쇄 코어 복구에는 /3자재/0가 필요합니다. 지금 보유량이 없습니다.
+portrait: normal
+line: /5정비실/0을 열었습니다. 직원을 배치하면 자재를 생산할 수 있습니다.
+
+@guide tut_materials_done
+portrait: smile
+line: 자재가 들어왔습니다. 코어 복구가 다시 진행됩니다.
+
+# STEP 4 — 보관 한도에 닿는다 → 저장고
+@guide tut_storage
+portrait: normal
+line: 자재 보관 한도가 찼습니다. 넘치는 자재는 그대로 사라집니다.
+portrait: normal
+line: /5저장고/0를 열었습니다. 직원을 배치하면 보관 한도가 올라갑니다.
+
+@guide tut_storage_done
+portrait: normal
+line: 저장고는 코어 복구에 드는 /3자재/0 소모도 줄여 줍니다.
+
+# STEP 5 — 사고
+# 발전실 사고는 전력 용량을 깎는다 — 조명 · CCTV · 패드 중 하나가 저절로 꺼진다.
+# 그 일이 실제로 일어났을 때만 아래 한 묶음이 뜬다(문서 §16).
+@guide tut_power_short
+portrait: normal
+line: 발전 출력이 떨어졌습니다. 전력이 모자라면 일부 장비를 쓸 수 없습니다.
+portrait: normal
+line: 책상 위 전력 패널에서 지금 무엇이 꺼졌는지 확인하십시오. 수리가 끝나면 되돌아옵니다.
+
 @guide tut_incident
 portrait: normal
 line: 작업실에 /1사고/0가 발생했습니다. 왼쪽 모니터를 확인하십시오.
@@ -606,6 +587,9 @@ line: 작업실에 /1사고/0가 발생했습니다. 왼쪽 모니터를 확인�
 @guide tut_relocate
 portrait: normal
 line: 직원을 끌어다 방을 옮길 수 있습니다. 토끼를 {ROOM}로 옮겨 수리하십시오.
+# 큰 설비는 혼자 못 고친다(문서 §17). 수리 막대가 "현재/필요 인원"을 직접 보여 주므로
+# 숫자는 되풀이하지 않고 규칙만 한 줄로 말한다.
+line: 큰 설비는 혼자 수리할 수 없습니다. 수리 막대의 인원 표시를 확인하십시오.
 
 @guide tut_repair_done
 portrait: smile
@@ -726,6 +710,9 @@ line: 이제 통화를 종료해보십시오.
 @guide tut_complete
 portrait: smile
 line: 관리자 교육이 성공적으로 완료되었습니다.
+portrait: normal
+line: 가상 교육 시뮬레이션을 종료합니다. 다음 근무부터는 실제 시설 기록이 적용됩니다.
+portrait: smile
 line: 그럼 이제, DAY 1 근무를 시작합니다.
 
 # ── 근무 중 한 번만 뜨는 안내 ─────────────────────────────────────────
@@ -734,6 +721,24 @@ line: 그럼 이제, DAY 1 근무를 시작합니다.
 @guide ops_cross_signal
 portrait: normal
 line: 방금 이상 신호가 잡혔습니다. 문제가 생긴 곳과 원인이 시작된 곳이 다를 수도 있습니다.
+
+# 환기가 처음 멈춘 직후. 한 판에 한 번만 뜬다.
+# 상태 변화(전 직원 스트레스 상승)가 이미 시작된 뒤에 설명한다 — 문서 §19.
+@guide ops_vent_down
+portrait: normal
+line: 환기가 멈췄습니다. 수리할 때까지 직원 전원의 /1스트레스/0가 계속 오릅니다.
+portrait: normal
+line: 환기실로 직원을 보내 고치십시오. 평소에 비워 두면 그만큼 빨리 고장 납니다.
+
+# 실제 근무에서 **의도적인 시설 손상**이 처음 확인된 직후. 한 판에 한 번만 뜬다.
+# 정답을 알려주지 않는다 — 누구인지도, 몇 명인지도 말하지 않는다(문서 §21).
+@guide ops_first_sabotage
+portrait: normal
+line: 단순 고장이 아닌 흔적이 확인되었습니다.
+portrait: sneer
+line: 직원 중 누군가가 시설을 방해하고 있을 가능성이 있습니다.
+portrait: normal
+line: 누구인지는 시스템이 알려주지 않습니다. 기록과 진술을 맞대어 보십시오.
 
 # ── 시스템 해금 안내 ──────────────────────────────────────────────────
 # 잠겨 있던 시스템이 열리는 날, 배치 화면에 들어오는 순간 한 묶음만 뜬다.
@@ -817,3 +822,74 @@ overlay: SIGNAL LOST
 sfx: noise
 hold: 0
 fx: blackout
+
+
+# ========================================================================
+# DAY 0 스토리 컷인 (@beat) — 3D 관제 화면 위 2D 스탠딩 + 자막
+# ========================================================================
+#
+# 풀스크린 비주얼 노벨이 아니다(문서 §24). 화면은 그대로 두고 스탠딩 한두 명만 올린다.
+#
+#   speaker / side / expression / hold / exit 를 한 번 적으면 다음 line 들이 물려받는다.
+#   side 는 left · right 두 자리뿐이고, 같은 자리에 다른 직원이 오면 그 자리가 교체된다.
+#   expression 은 smile · bad. 그 그림이 없으면 그 직원의 평소 표정으로 떨어진다.
+#
+# 여기 있는 것은 **직원끼리 주고받는 말**이다. 직원이 관리자에게 직접 하는 말은
+# 전부 전화(NSP_DIALOGUE_RUNTIME.md)로만 간다 — 문서 §2.1.
+
+# ── Beat A — 가상 시뮬레이션 시작 (배치 화면, tut_mood 다음) ─────────────
+# 직원 소개를 길게 하지 않는다. 세 사람이 각자 다른 태도를 한 줄씩 보이면 그걸로 끝이다.
+@beat day0_start
+speaker: rabbit
+side: left
+expression: smile
+line: 진짜 시작하는 거예요? 생각보다 본격적이네요!
+speaker: cat
+side: right
+expression:
+line: 연습이면 빨리 끝내죠.
+speaker: dog
+side: left
+expression: smile
+line: 천천히 하면 괜찮을 거예요. 다들 처음이잖아요.
+
+# ── Beat B — 첫 사고를 수습한 직후 (근무 중) ────────────────────────────
+# "사고와 재배치가 직원에게는 실제 상황이었다"를 보여 준다.
+# 덤으로 큰 설비는 둘이 붙어야 한다는 규칙(문서 §17)을 사람 말로 한 번 더 짚는다.
+@beat day0_incident_done
+speaker: wolf
+side: left
+line: 발전기 출력, 정상 범위로 돌아왔습니다.
+speaker: sheep
+side: right
+expression: bad
+line: 저, 저는 또 뭐가 터지는 줄 알았어요...
+speaker: wolf
+side: left
+line: 둘이 붙었으니 끝난 겁니다. 혼자였으면 아직 매달려 있었을 겁니다.
+
+# ── Beat C — 휴게시간 맛보기 (근무 종료 후) ─────────────────────────────
+# 관계성과 함께 "진술은 그 자체로 증거가 아니다"라는 다음 단계의 공기를 깐다.
+@beat day0_rest
+speaker: fox
+side: left
+expression: smile
+line: 관리자님이 아까부터 우리를 하나씩 불러 보시던데요~
+speaker: cat
+side: right
+line: 물어보면 대답하면 되죠. 숨길 게 있는 사람이나 신경 쓰겠죠.
+speaker: fox
+side: left
+expression:
+line: 그렇죠. 숨길 게 있는 사람이나.
+
+# ── Beat D — 교육 종료 직전 ─────────────────────────────────────────────
+# 짧은 불안 하나만 남기고 끝낸다. 설명하지 않는다.
+@beat day0_end
+speaker: rabbit
+side: left
+line: 오늘 거 전부 연습인 거죠? 진짜 아니죠?
+speaker: sheep
+side: right
+expression: bad
+line: ...연습인데도, 저는 왜 이렇게 무서웠을까요.

@@ -6,6 +6,8 @@
 script = ExtResource("1_room")
 RoomId = "storage_room"
 DisplayName = "저장고"
+Summary = "자재 보관 한도를 올리고 자재 소모를 줄인다."
+BriefLines = PackedStringArray("· 재고 정리 — 보관 한도 +10 (최대 60)", "· 인원이 늘면 코어 복구 자재 소모가 줄어든다")
 ConnectedRoomIds = Array[String](["central_office", "maintenance_room", "core_room"])
 AdjacentRoomIds = Array[String](["core_room", "maintenance_room"])
 MapPosition = Vector2(450, 170)

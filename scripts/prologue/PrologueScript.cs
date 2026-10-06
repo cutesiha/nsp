@@ -148,6 +148,8 @@ public static class PrologueScript
     private static readonly Dictionary<string, GuideBlock> _guides = new();
     private static readonly Dictionary<string, MenuBlock> _menus = new();
     private static readonly Dictionary<string, string> _scripted = new();
+    // @beat — 스토리 컷인 한 묶음(3D 화면 위 2D 스탠딩 + 자막). 문서 §24 · §25.
+    private static readonly Dictionary<string, NSP.View.StoryBeat> _beats = new();
     private static bool _loaded;
 
     public static void EnsureLoaded()
@@ -194,6 +196,22 @@ public static class PrologueScript
         return _menus.GetValueOrDefault(id);
     }
 
+    // 스토리 컷인 묶음. 없으면 null — 호출부는 그냥 건너뛴다(연출이 없다고 게임이 멈추지 않는다).
+    //
+    // 반환하는 StoryBeat 는 **대본 그대로의 읽기 전용 자료**로 다룬다. 호출부가 줄을
+    // 더하거나 고치지 않는다 — 같은 묶음을 두 번 재생해도 같은 것이 나와야 한다.
+    public static NSP.View.StoryBeat GetBeat(string id)
+    {
+        EnsureLoaded();
+        return _beats.GetValueOrDefault(id);
+    }
+
+    // 대본에 든 모든 @beat id(검사용).
+    public static IEnumerable<string> BeatIds
+    {
+        get { EnsureLoaded(); return _beats.Keys; }
+    }
+
     // 튜토리얼 전용 고정 대사. 치환자는 호출부가 Replace 로 채운다.
     public static string GetScripted(string id)
     {
@@ -223,6 +241,8 @@ public static class PrologueScript
         GuideBlock guide = null;
         MenuBlock menu = null;
         string scriptedId = null;
+        NSP.View.StoryBeat beat = null;
+        var beatCursor = new BeatCursor();
 
         while (!f.EofReached())
         {
@@ -239,7 +259,7 @@ public static class PrologueScript
                         cutscene = new Cutscene { Id = id };
                         _cutscenes[id] = cutscene;
                         slide = null; inheritedTitle = ""; inheritedShake = 0f;
-                        console = null; window = null; guide = null; menu = null; scriptedId = null;
+                        console = null; window = null; guide = null; menu = null; scriptedId = null; beat = null;
                         continue;
                     case "@slide":
                         if (cutscene == null) continue;
@@ -249,27 +269,34 @@ public static class PrologueScript
                     case "@console":
                         console = new ConsoleBlock { Id = id };
                         _consoles[id] = console;
-                        cutscene = null; slide = null; window = null; guide = null; menu = null; scriptedId = null;
+                        cutscene = null; slide = null; window = null; guide = null; menu = null; scriptedId = null; beat = null;
                         continue;
                     case "@window":
                         window = new WindowBlock { Id = id };
                         _windows[id] = window;
-                        cutscene = null; slide = null; console = null; guide = null; menu = null; scriptedId = null;
+                        cutscene = null; slide = null; console = null; guide = null; menu = null; scriptedId = null; beat = null;
                         continue;
                     case "@guide":
                         guide = new GuideBlock { Id = id };
                         _guides[id] = guide;
-                        cutscene = null; slide = null; console = null; window = null; menu = null; scriptedId = null;
+                        cutscene = null; slide = null; console = null; window = null; menu = null; scriptedId = null; beat = null;
                         continue;
                     case "@menu":
                         menu = new MenuBlock { Id = id };
                         _menus[id] = menu;
-                        cutscene = null; slide = null; console = null; window = null; guide = null; scriptedId = null;
+                        cutscene = null; slide = null; console = null; window = null; guide = null; scriptedId = null; beat = null;
+                        continue;
+                    case "@beat":
+                        beat = new NSP.View.StoryBeat { BeatId = id };
+                        beatCursor = new BeatCursor();
+                        _beats[id] = beat;
+                        cutscene = null; slide = null; console = null; window = null;
+                        guide = null; menu = null; scriptedId = null;
                         continue;
                     case "@scripted":
                         scriptedId = id;
                         _scripted[id] = "";
-                        cutscene = null; slide = null; console = null; window = null; guide = null; menu = null;
+                        cutscene = null; slide = null; console = null; window = null; guide = null; menu = null; beat = null;
                         continue;
                     default:
                         continue;
@@ -284,8 +311,48 @@ public static class PrologueScript
             if (window != null && ApplyWindowField(window, key, value)) continue;
             if (guide != null && ApplyGuideField(guide, key, value)) continue;
             if (menu != null && ApplyMenuField(menu, key, value)) continue;
+            if (beat != null && ApplyBeatField(beat, beatCursor, key, value)) continue;
             if (scriptedId != null && key == "text") _scripted[scriptedId] = value;
         }
+    }
+
+    // @beat 블록을 읽는 동안의 "지금 말하는 사람" 상태. @guide 의 portrait 처럼,
+    // speaker/side/expression 을 한 번 적으면 다음 line 들이 그대로 물려받는다.
+    private sealed class BeatCursor
+    {
+        public string Speaker = "";
+        public NSP.View.CutinSide Side = NSP.View.CutinSide.Left;
+        public string Expression = "";
+        public double Hold;
+        public NSP.View.CutinSide? ExitSide;
+    }
+
+    // @beat 블록의 한 줄. 알아듣지 못한 key 는 false 를 돌려 조용히 흘린다.
+    private static bool ApplyBeatField(NSP.View.StoryBeat b, BeatCursor c, string key, string value)
+    {
+        switch (key)
+        {
+            case "pause": b.PauseGameplay = ParseBool(value); return true;
+            case "ambient": b.SuppressAmbientDialogue = ParseBool(value); return true;
+            case "speaker": c.Speaker = value; return true;
+            case "side":
+                c.Side = value.Equals("right", StringComparison.OrdinalIgnoreCase)
+                    ? NSP.View.CutinSide.Right : NSP.View.CutinSide.Left;
+                return true;
+            case "expression": c.Expression = value; return true;
+            case "hold": c.Hold = ParseFloat(value, 0f); return true;
+            // 다음 line 을 띄우기 전에 그 자리의 스탠딩을 내보낸다. "off" 로 끈다.
+            case "exit":
+                c.ExitSide = value.Equals("off", StringComparison.OrdinalIgnoreCase) ? null
+                    : value.Equals("right", StringComparison.OrdinalIgnoreCase) ? NSP.View.CutinSide.Right
+                    : NSP.View.CutinSide.Left;
+                return true;
+            case "line":
+                b.Add(c.Speaker, Unescape(value), c.Side, c.Expression, c.Hold, c.ExitSide);
+                c.ExitSide = null;   // 퇴장은 한 줄에만 걸린다
+                return true;
+        }
+        return false;
     }
 
     private static (string tag, string id) SplitTag(string line)

@@ -8,6 +8,18 @@ public partial class RoomDef : Resource
 {
     [Export] public string RoomId = "";
     [Export] public string DisplayName = "";
+
+    // ── 화면에 뜨는 설명(표시 전용) ────────────────────────────────────
+    // 어떤 판정도 이 글을 읽지 않는다. 방 카드 · 배치표 · 패드 지침이 그대로 그린다.
+    //
+    // Summary    : 핵심 역할 한 문장. 방 이름 아래 한 줄로 들어간다.
+    // BriefLines : 방을 고르면 뜨는 짧은 요약(2~3줄). 한 줄 32자 이내로 쓴다.
+    //              "· " 로 시작하면 기능, "⚠ " 로 시작하면 비웠을 때의 위험이다.
+    //              무인 사고 시간 · 사고 수리 인원은 적지 않는다 —
+    //              그 두 줄은 RoomEffectText.Brief 가 오늘의 운영 규칙에서 읽어 붙인다.
+    [Export(PropertyHint.MultilineText)] public string Summary = "";
+    [Export] public string[] BriefLines = System.Array.Empty<string>();
+
     // 실제로 걸어서 오갈 수 있는 통로. 중앙 제어실이 모든 작업실의 허브다.
     [Export] public Array<string> ConnectedRoomIds = new();
     // 벽 하나를 사이에 둔 옆 작업실(소리·진동이 전해지는 범위).
