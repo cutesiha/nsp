@@ -449,10 +449,30 @@ public partial class ShiftFlowController : Node
         // DAY1 이라 틀린 것이 나온다 — DAY0 교육으로 가려는데 DAY1 패드 안내가 떠서 패드가
         // 손에 올라오고, 그 상태로 교육이 시작돼 배치표를 누를 수 없었다.
         if (_skipScheduleIntroOnce) { _skipScheduleIntroOnce = false; }
+        else _ = PlayDayIntro();
+    }
+
+    // 그 날 처음 보는 것들 — 메인 스토리가 먼저, 안내가 그 다음이다.
+    //
+    // 스토리(NSP_MAIN_STORY_DAY1_DAY5.md)는 배치에 손대기 전에 흐른다. 직원들이 서로
+    // 나누는 말이고, 관리자는 CCTV 로 엿듣는 입장이다 — 그래서 관리자에게 말을 거는
+    // 안내(패드 힌트 · 해금 안내)와 섞이면 안 되고, 반드시 끝난 뒤에 이어진다.
+    private async System.Threading.Tasks.Task PlayDayIntro()
+    {
+        // 두 CRT 가 배치 화면으로 바뀌고 밝기 트윈(0.5초)이 끝날 때까지 기다린다.
+        // 컷인은 "3D 관제 화면 위에" 뜨는 연출이라 배경이 아직 까만 상태에서 시작하면
+        // 스탠딩만 허공에 떠 있는 그림이 된다.
+        await Wait(0.8);
+        if (!IsInstanceValid(this) || _stage != Stage.Schedule) return;
+
+        await NSP.View.StoryBeatSelector.PlayDayStart(this);
+        // 스토리가 흐르는 동안 플레이어가 근무를 시작해 버렸을 수도 있다.
+        if (!IsInstanceValid(this) || _stage != Stage.Schedule) return;
+
         // DAY0 = GUIDE-0 가 진행하는 관리자 교육. 배치표가 열린 직후부터 시작한다.
-        else if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
+        if (DayFeatures.IsTutorialDay) TutorialDirector.Instance?.BeginDay0();
         // DAY1 = 교육이 끝나고 처음 혼자 앉는 날. 패드를 꺼내 주고 "지침은 여기서 다시 본다"를 알린다.
-        else if (GameState.Instance?.CurrentDay == 1) _ = ShowDay1PadHint();
+        else if (GameState.Instance?.CurrentDay == 1) await ShowDay1PadHint();
         // 오늘 새로 열린 시스템이 있으면 그 자리에서 한 묶음만 읽어 준다.
         else ShowUnlockGuideIfDue();
     }
@@ -490,6 +510,8 @@ public partial class ShiftFlowController : Node
         // 한 판에 한 번만 뜨는 안내들 — 새 판에서는 다시 뜬다.
         ResetFirstSabotageNotice();
         ResetVentFaultNotice();
+        // 메인 스토리도 마찬가지다. "이미 재생한 비트" 기록을 지워야 DAY1 자기소개부터 다시 흐른다.
+        NSP.View.StoryBeatSelector.ResetRun();
 
         // DAY0 교육에는 방해자가 없다 — DAY1 근무가 시작될 때 ControlRoom3DController 가 뽑는다.
         if (!DayFeatures.SaboteurActive) return;

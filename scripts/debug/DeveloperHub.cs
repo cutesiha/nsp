@@ -24,6 +24,7 @@ public partial class DeveloperHub : Node
         ("배치 콘솔(ScheduleConsoleTest)", "res://scenes/debug/ScheduleConsoleTest.tscn"),
         ("휴게 증거(RestEvidenceTest)", "res://scenes/debug/RestEvidenceTest.tscn"),
         ("DAY0 교육 구조(Day0FlowTest)", "res://scenes/debug/Day0FlowTest.tscn"),
+        ("DAY1~5 메인 스토리(MainStoryTest)", "res://scenes/debug/MainStoryTest.tscn"),
         ("DAY1 운영(Day1OpsTest)", "res://scenes/debug/Day1OpsTest.tscn"),
         ("DAY2 흐름(Day2FlowTest)", "res://scenes/debug/Day2FlowTest.tscn"),
         ("엔딩 캡처(EndingShot · 커맨드라인)", "res://scenes/debug/EndingShot.tscn"),
