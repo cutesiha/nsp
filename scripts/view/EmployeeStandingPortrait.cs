@@ -29,6 +29,10 @@ public partial class EmployeeStandingPortrait : Control
     // 전원에게 똑같이 걸리는 확대. 공통 배율 위에 곱해지므로 여섯 명의 키 비율은 유지된다.
     public float Zoom { get; set; } = 1f;
 
+    // 발끝을 바닥에서 이만큼(표시 영역 높이 비율) 띄운다. 양수면 그림이 위로 올라간다.
+    // 크기는 그대로 두고 자리만 올리는 값이다.
+    public float LiftFraction { get; set; }
+
     // 말하지 않는 쪽은 살짝 눌러 둔다 — 누가 말하는지 한눈에 보이게.
     private const float ListenDim = 0.55f;
     private const float SpeakDim = 1f;
@@ -218,7 +222,7 @@ public partial class EmployeeStandingPortrait : Control
         _lastTex = tex;
         _lastBox = Size;
         _portrait.Texture = tex;
-        var (size, pos) = StandingPortraitLayout.Place(tex, Size, TopMargin, Zoom, 0f);
+        var (size, pos) = StandingPortraitLayout.Place(tex, Size, TopMargin, Zoom, Size.Y * LiftFraction);
         _portrait.Size = size;
         _portrait.Position = pos;
     }

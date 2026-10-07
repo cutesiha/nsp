@@ -39,7 +39,7 @@ public partial class CCTVMonitorView : Control
     // 다른 방에 있는 괴물은 이 화면 어디에도 나타나지 않는다.
     // (비명에는 자막을 달지 않는다. 소리와 화면 흔들림만으로 충분하고,
     //  큰 글자가 뜨면 정작 방 안에서 무슨 일이 벌어지는지 가린다.)
-    private ColorRect _dispelBack, _dispelFill;
+    private ColorRect _dispelBack, _dispelFill, _dispelLabelBg;
     private Label _dispelLabel;
     private bool _ghostWired;
     private ImageTexture[] _noiseFrames;
@@ -135,36 +135,56 @@ public partial class CCTVMonitorView : Control
     }
 
     // 소멸 게이지.
+    //
+    // **화면 위쪽에 둔다.** 예전에는 아래쪽이었는데, 거기는 그 방의 업무 진행바와
+    // 엿들은 대화 자막이 이미 쓰는 자리다 — DAY0 교육에는 업무도 대화도 없어서 잘 보였지만,
+    // 실제 근무에서는 진행바가 게이지 위에 그대로 겹쳐 그려져 "게이지가 안 뜬다" 가 됐다.
+    // 위쪽은 방 천장이라 가릴 것이 없고, 괴물이 떠 있는 동안 가장 먼저 봐야 할 것이기도 하다.
     private void BuildGhostOverlay()
     {
-        // 게이지는 화면 아래쪽 — 방 안을 가리지 않는 자리에 둔다.
-        float gy = Frame.Position.Y + Frame.Size.Y - 44f;
+        float ly = Frame.Position.Y + 10f;
+        float gy = ly + 26f;
+        // 글자 받침. 방 천장 조명이 밝아서 외곽선만으로는 글자가 묻힌다
+        // (코어실 천장이 흰색이라 "관측 유지" 가 안 읽혔다).
+        _dispelLabelBg = new ColorRect
+        {
+            Color = new Color(0f, 0f, 0f, 0.6f),
+            Position = new Vector2(Frame.Position.X, ly - 2f),
+            Size = new Vector2(Frame.Size.X, 28f),
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        AddChild(_dispelLabelBg);
+
+        _dispelLabel = Lbl("관측 유지 — 시선을 떼지 마십시오", 16, new Color(0.72f, 0.96f, 0.84f));
+        _dispelLabel.Position = new Vector2(Frame.Position.X, ly);
+        _dispelLabel.Size = new Vector2(Frame.Size.X, 24f);
+        _dispelLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _dispelLabel.Visible = false;
+        AddChild(_dispelLabel);
+
         _dispelBack = new ColorRect
         {
-            Color = new Color(0f, 0f, 0f, 0.55f),
+            Color = new Color(0f, 0f, 0f, 0.72f),
             Position = new Vector2(Frame.Position.X + 150f, gy),
-            Size = new Vector2(Frame.Size.X - 300f, 14f),
+            Size = new Vector2(Frame.Size.X - 300f, 18f),
             MouseFilter = MouseFilterEnum.Ignore,
             Visible = false,
         };
         AddChild(_dispelBack);
         _dispelFill = new ColorRect
         {
-            Color = new Color(0.62f, 0.95f, 0.78f, 0.92f),
+            Color = new Color(0.62f, 0.95f, 0.78f, 0.95f),
             Position = _dispelBack.Position + new Vector2(2f, 2f),
-            Size = new Vector2(0f, 10f),
+            Size = new Vector2(0f, 14f),
             MouseFilter = MouseFilterEnum.Ignore,
             Visible = false,
         };
         AddChild(_dispelFill);
-        _dispelLabel = Lbl("관측 유지 — 시선을 떼지 마십시오", 15, new Color(0.72f, 0.96f, 0.84f));
-        _dispelLabel.Position = new Vector2(Frame.Position.X, gy - 26f);
-        _dispelLabel.Size = new Vector2(Frame.Size.X, 22f);
-        _dispelLabel.HorizontalAlignment = HorizontalAlignment.Center;
-        _dispelLabel.Visible = false;
-        AddChild(_dispelLabel);
     }
 
+    // 소멸 게이지가 지금 화면에 떠 있는가(검사 전용 — 판정에는 쓰지 않는다).
+    public bool DispelGaugeVisible => _dispelBack?.Visible ?? false;
     // 지금 보고 있는 방에 괴물이 있는 동안에만 게이지가 차오른다.
     private void TickGhostOverlay(float d, FacilitySimulation sim, string roomId, bool feed)
     {
@@ -178,12 +198,12 @@ public partial class CCTVMonitorView : Control
         bool show = feed && ghost is { Active: true } && ghost.ActiveRoomId == roomId;
         if (_dispelBack.Visible != show)
         {
-            _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = show;
+            _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = _dispelLabelBg.Visible = show;
         }
         if (!show) return;
 
         float w = (_dispelBack.Size.X - 4f) * ghost.DispelRatio;
-        _dispelFill.Size = new Vector2(w, 10f);
+        _dispelFill.Size = new Vector2(w, 14f);
         _dispelLabel.Text = ghost.DispelRatio >= 0.999f
             ? "관측 완료"
             : $"관측 유지 — 시선을 떼지 마십시오  ({ghost.DispelRatio * 100f:0}%)";

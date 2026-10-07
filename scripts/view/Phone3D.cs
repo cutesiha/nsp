@@ -104,6 +104,8 @@ public partial class Phone3D : Node3D
         BuildDialLed();
 
         if (_area != null) _area.InputEvent += OnAreaInput;
+        CacheClickShape();
+        ApplyClickRange();
         if (_hud != null) _hud.Closed += HangUp;
         // 벨이 울리는 동안 「전화 끊기」를 누르면 받지 않고 끊는다.
         if (_hud != null) _hud.RejectRequested += RejectIncoming;
@@ -155,6 +157,8 @@ public partial class Phone3D : Node3D
 
     public override void _Process(double delta)
     {
+        // 날짜가 바뀌면 클릭 범위도 바뀐다(DAY0 교육만 좁게). 값이 같으면 아무 일도 하지 않는다.
+        ApplyClickRange();
         if (_state == PhoneState.Ringing)
         {
             _lampPhase += (float)delta * 9f;
@@ -204,6 +208,57 @@ public partial class Phone3D : Node3D
     }
     private bool _handsetFollowsHand;
 
+
+    // ── 클릭 범위 (DAY1~5 는 넓게) ────────────────────────────────────
+    //
+    // 기본 판정 상자는 수화기 언저리만 덮는다. 실제 근무에서는 전화를 급히 집어야 하는데
+    // 받침(본체)을 눌러도 안 집혀서 벨이 끊길 때까지 몇 번씩 헛클릭하게 된다.
+    // 그래서 DAY1~5 에서는 본체까지 덮도록 넓힌다.
+    //
+    // **가상 시뮬(DAY0)은 기존 범위 그대로다.** 교육은 "수화기를 든다" 를 가르치는 자리라,
+    // 아무 데나 눌러도 집히면 무엇을 눌렀는지가 안 남는다.
+    [Export] public Vector3 WideClickSize = new(0.46f, 0.26f, 0.48f);
+    // 넓힌 상자는 받침까지 닿도록 조금 내려 앉힌다(위쪽은 수화기를 그대로 덮는다).
+    [Export] public float WideClickDrop = 0.02f;
+
+    private CollisionShape3D _clickShape;
+    private BoxShape3D _clickBox;
+    private Vector3 _clickSizeNarrow;
+    private Vector3 _clickPosNarrow;
+    private bool? _wideNow;
+
+    private void CacheClickShape()
+    {
+        if (_area == null) return;
+        foreach (var child in _area.GetChildren())
+        {
+            if (child is not CollisionShape3D cs || cs.Shape is not BoxShape3D box) continue;
+            _clickShape = cs;
+            // 상자는 씬에 박힌 SubResource 라 그대로 고치면 다음 실행까지 남는다. 복제해서 쓴다.
+            _clickBox = (BoxShape3D)box.Duplicate();
+            cs.Shape = _clickBox;
+            _clickSizeNarrow = _clickBox.Size;
+            _clickPosNarrow = cs.Position;
+            return;
+        }
+    }
+
+    // 오늘 넓은 범위를 쓰는가. 교육일(DAY0)만 좁은 기본값을 쓴다.
+    private void ApplyClickRange()
+    {
+        if (_clickBox == null || _clickShape == null) return;
+        bool wide = !NSP.Core.DayFeatures.IsTutorialDay;
+        if (_wideNow == wide) return;
+        _wideNow = wide;
+        _clickBox.Size = wide ? WideClickSize : _clickSizeNarrow;
+        _clickShape.Position = wide
+            ? _clickPosNarrow - new Vector3(0f, WideClickDrop, 0f)
+            : _clickPosNarrow;
+    }
+
+    // 지금 클릭 상자 크기(검사용).
+    public Vector3 ClickBoxSize => _clickBox?.Size ?? Vector3.Zero;
+    public Vector3 NarrowClickSize => _clickSizeNarrow;
     private void OnAreaInput(Node camera, InputEvent @event, Vector3 pos, Vector3 normal, long shapeIdx)
     {
         if (@event is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;

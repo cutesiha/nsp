@@ -149,7 +149,13 @@ public partial class StoryCutinHud : CanvasLayer
 
         // 스탠딩 — 모니터 안에서는 작게. 화자 강조가 목적이지 화면을 채우는 게 아니다.
         _left.Zoom = _right.Zoom = onMonitor ? MonitorPortraitZoom : PortraitZoom;
+        // 모니터2 안에서는 원화가 살짝 아래로 내려앉아 보인다 — 크기는 그대로 두고
+        // 자리만 조금 올린다.
+        _left.LiftFraction = _right.LiftFraction = onMonitor ? MonitorPortraitLift : 0f;
     }
+
+    // 모니터2 안에서 스탠딩을 올리는 양(자리 높이 비율). 작게 — 0.04 면 영상 높이의 4%.
+    private const float MonitorPortraitLift = 0.04f;
 
     // 모니터2 안에서 쓰는 스탠딩 배율.
     //
