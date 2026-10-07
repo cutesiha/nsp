@@ -293,6 +293,18 @@ public partial class StoryCutinHud : CanvasLayer
 
     // 지금 선택지가 떠 있는가 — 떠 있는 동안에는 대사 넘기기가 먹지 않는다.
     public bool IsChoosing => _choiceBox?.Visible ?? false;
+
+    // 선택지가 떠 있는 동안에는 마우스 입력을 3D CRT 로 재투사하면 안 된다.
+    //
+    // ControlRoom3DController._Input 은 GUI(버튼)보다 **먼저** 돌고, 클릭이 모니터 평면에
+    // 맞으면 그 화면 뷰포트로 넘긴 뒤 SetInputAsHandled() 로 먹어 버린다. 메인 스토리는
+    // 모니터2를 확대한 채로 도는데(FocusMonitor(2)), 그러면 모니터가 화면을 거의 덮어
+    // 선택지 버튼 위의 클릭까지 전부 모니터 몫으로 먹혔다 — 숫자키로만 고를 수 있고,
+    // 확대를 풀면(모니터가 화면 일부만 차지) 눌리던 증상이 이것이다.
+    //
+    // 선택지는 모달이다. 고르기 전에는 책상 기기를 만질 일이 없으므로 통째로 막는다
+    // (통화창의 BlocksCrtInput 과 같은 자리에서 같은 방식으로 쓰인다).
+    public bool BlocksCrtInput(InputEvent e) => IsChoosing && e is InputEventMouse;
     public int ChosenIndex => _chosen;
     public int ChoiceCount { get; private set; }
 

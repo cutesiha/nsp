@@ -540,6 +540,9 @@ public partial class ControlRoom3DController : Node3D
         // 다음 날 배치 버튼까지 동시에 눌릴 수 있다.
         // (휴게시간 심문은 MONITOR 01 에서 조작하므로 자막 띠 위를 누를 때만 막는다.)
         if (PhoneCallHud.Instance?.BlocksCrtInput(@event) == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+        // 스토리 선택지가 떠 있는 동안에도 마찬가지다 — 선택지 버튼(CanvasLayer)이 클릭을
+        // 받아야 하는데, 여기서 모니터 몫으로 먼저 먹으면 숫자키로만 고를 수 있게 된다.
+        if (StoryCutinHud.Instance?.BlocksCrtInput(@event) == true) return;
 
         if (_modal != null)
         {

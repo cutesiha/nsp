@@ -37,7 +37,7 @@ public partial class TutorialDirector : Node
     // 코어가 자재를 다 쓰고 멈추는 상황과, 보관함이 차는 상황이 근무 안에서 일어난다.
     [Export] public int TutorialMaterialsCap = 6;
     // 상황이 저절로 오지 않을 때 기다려 주는 시간. 넘기면 교육이 직접 그 상황을 만든다.
-    [Export] public float SituationWaitSeconds = 12f;
+    [Export] public float SituationWaitSeconds = 5f;
     // 교육용 사고가 나는 작업실. 배치한 방과 달라야 토끼가 실제로 옮겨 간 기록이 남고,
     // 그 기록이 STEP 6 의 모순 추리 재료가 된다.
     // 발전실은 수리에 두 명이 필요한 방이라 "한 명을 더 보내야 고쳐진다"가 자연스럽다.

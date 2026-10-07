@@ -26,7 +26,7 @@ public static class DayFeatures
     // 나오고, 자재가 **들어와야** 다음 줄로 넘어간다. 실제 근무 속도로는 그 사이가 수십 초
     // 비어 있어서, 안내와 안내 사이에 아무 일도 없는 구간이 생긴다. 교육에서만 빠르게 돌린다.
     // (밸런스가 아니라 템포 값이다 — 실제 근무 DAY1~5 는 1 그대로다.)
-    public const float TutorialWorkRate = 2.4f;
+    public const float TutorialWorkRate = 5.0f;
 
     public static float WorkRateMultiplier => IsTutorialDay ? TutorialWorkRate : 1f;
     // 방해자 배정/행동. 교육용 DAY0 에는 방해자가 존재하지 않는다.
