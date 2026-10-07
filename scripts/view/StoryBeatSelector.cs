@@ -64,8 +64,12 @@ public static class StoryBeatSelector
     }
 
     // DAY 시작에 한 번. 재생할 것이 없으면 아무 일도 하지 않고 곧바로 돌아온다(에러 아님).
+    //
+    // 스토리 앞뒤에 전환 연출이 붙는다(StoryTransition · 지시서 PART A). 재생할 비트가
+    // 하나도 없으면 전환도 하지 않는다 — 눈을 감았다 떴는데 아무 일도 없으면 버그로 보인다.
     public static async Task PlayDayStart(Node ctx)
     {
+        bool entered = false;
         try
         {
             int day = GameState.Instance?.CurrentDay ?? 0;
@@ -74,19 +78,25 @@ public static class StoryBeatSelector
             var queue = BuildQueue(day);
             if (queue.Count == 0) return;
 
-            // 그 DAY 의 스토리 전체가 **모니터2 안**에서 돈다(연출 규칙 §1 · §19).
-            // 비트마다 확대를 넣었다 풀지 않는다 — 한 번 들어가서 끝까지 보고 나온다.
-            StoryCutinDirector.Instance?.EnterMonitor();
-            foreach (var entry in queue)
+            // ① 이전 BGM 페이드아웃 → 날숨 → 암전 → 생활음 → 모니터2 → 확대 → 짧은 침묵.
+            //    EnterMonitor 는 이 안에서 불린다(화면과 카메라를 따로 켜야 하므로).
+            entered = true;
+            await StoryTransition.Enter(ctx);
+            if (!GodotObject.IsInstanceValid(ctx)) return;
+
+            // ② 그 DAY 의 스토리 전체가 **모니터2 안**에서 돈다(연출 규칙 §1 · §19).
+            //    비트마다 확대를 넣었다 풀지 않는다 — 한 번 들어가서 끝까지 보고 나온다.
+            for (int i = 0; i < queue.Count; i++)
             {
+                var entry = queue[i];
                 var dir = StoryCutinDirector.Instance;
                 if (dir == null || !GodotObject.IsInstanceValid(dir)) return;
                 if (!dir.CanPlay) return;   // 통화 중 등 — 남은 비트는 다음 날로 넘기지 않고 접는다
 
                 MarkPlayed(entry.Id);
-                // 메인 스토리는 **모니터2 영상 안**에서 돈다 — 제어실 화면 위에 스탠딩이
-                // 직접 뜨지 않는다(연출 규칙 §3). 카메라 확대 · 복귀는 디렉터가 맡는다.
-                if (!await PlayWithTimeout(ctx, dir, entry.Beat)) return;
+                // 마지막 비트만 끝에 침묵을 둔다 — 스탠딩이 빠지기 전의 0.4~0.8초(§8).
+                double silence = i == queue.Count - 1 ? ClosingSilenceSeconds : 0.0;
+                if (!await PlayWithTimeout(ctx, dir, entry.Beat, silence)) return;
                 if (!GodotObject.IsInstanceValid(ctx)) return;
             }
         }
@@ -97,16 +107,29 @@ public static class StoryBeatSelector
         }
         finally
         {
-            // 어떻게 끝났든 모니터 확대는 반드시 풀린다 — 남아 있으면 그 뒤로
-            // 배치도 근무도 할 수 없다(§17 · §18).
-            StoryCutinDirector.Instance?.ExitMonitor();
+            // ③ 어떻게 끝났든 되돌아온다 — 암전 · 확대 · 스토리 BGM 이 남으면 그 뒤로
+            //    배치도 근무도 할 수 없다(§10 · §17 · §18).
+            if (entered)
+            {
+                try { await StoryTransition.Exit(ctx); }
+                catch (Exception e)
+                {
+                    GD.PushWarning($"StoryBeatSelector: 종료 연출 실패 — {e.Message}");
+                    StoryTransition.Release();
+                }
+            }
+            else StoryCutinDirector.Instance?.ExitMonitor();
         }
     }
 
+    // 마지막 대사가 끝난 뒤의 침묵(초). 지시서 §8 — 0.4~0.8초.
+    private const double ClosingSilenceSeconds = 0.6;
+
     // 컷인이 끝나지 못하는 상황에서도 반드시 돌아온다(§10.5 fail-safe).
-    private static async Task<bool> PlayWithTimeout(Node ctx, StoryCutinDirector dir, StoryBeat beat)
+    private static async Task<bool> PlayWithTimeout(Node ctx, StoryCutinDirector dir, StoryBeat beat,
+        double closingSilenceSeconds = 0.0)
     {
-        var play = dir.Play(beat);
+        var play = dir.Play(beat, closingSilenceSeconds);
         double left = BeatTimeoutSeconds;
         while (!play.IsCompleted && left > 0.0 && GodotObject.IsInstanceValid(ctx))
         {

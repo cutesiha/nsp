@@ -27,6 +27,9 @@ AIService="*res://scripts/ai/AIService.cs"
 Sfx="*res://scripts/core/Sfx.cs"
 AmbientOverlay="*res://scripts/ui/AmbientOverlay.cs"
 AlertSystem="*res://scripts/core/AlertSystem.cs"
+BlinkOverlay="*res://scripts/ui/BlinkOverlay.cs"
+ShiftCardView="*res://scripts/view/ShiftCardView.cs"
+HorrorAudioDirector="*res://scripts/ui/HorrorAudioDirector.cs"
 
 [display]
 

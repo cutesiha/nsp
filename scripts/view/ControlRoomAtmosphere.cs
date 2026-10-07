@@ -18,6 +18,10 @@ namespace NSP.View;
 // 멜로디/리듬 없음. 음산한 지하 연구시설 기계 소음.
 public partial class ControlRoomAtmosphere : Node3D
 {
+    // 밖에서 상시음을 잠깐 비우거나(Hush) 관리자 호흡을 흔들 때 쓴다.
+    // 씬이 내려가면 비워진다 — 다음 씬의 환경음을 엉뚱하게 건드리지 않게.
+    public static ControlRoomAtmosphere Instance { get; private set; }
+
     [Export] public NodePath VentPath = "../ControlRoom/Vent";
     [Export] public NodePath M01ScreenPath = "../ControlRoom/Monitor01/M01_Screen";
     [Export] public NodePath M02ScreenPath = "../ControlRoom/Monitor02/M02_Screen";
@@ -87,6 +91,16 @@ public partial class ControlRoomAtmosphere : Node3D
     private bool _ventFaultDown;
     private RoomDangerTier _ventTier = RoomDangerTier.None;
 
+    public override void _EnterTree() => Instance = this;
+
+    public override void _ExitTree()
+    {
+        if (NSP.Core.EventLog.Instance != null)
+            NSP.Core.EventLog.Instance.EntryLogged -= OnEntryLogged;
+        if (_wiredSim != null) _wiredSim.EmployeeKilled -= OnEmployeeKilled;
+        if (Instance == this) Instance = null;
+    }
+
     public override void _Ready()
     {
         _vent = MakeLoop3D("vent_loop", NodeAt(VentPath), -6f, 0f, 3.5f, 14f, offDelay: 1.2f, onDelay: 2.0f);
@@ -112,6 +126,7 @@ public partial class ControlRoomAtmosphere : Node3D
         BuildBreath();
 
         _nextOneShot = (float)GD.RandRange(6.0, 14.0);
+        WireBreathEvents();
     }
 
     // Layer 목록(_all)에 넣지 않는 단순 3D 루프 — 상태별 볼륨/피치는 _Process 에서 직접 몬다.
@@ -246,6 +261,7 @@ public partial class ControlRoomAtmosphere : Node3D
 
         TickNewAmbience(d, blackout);
         TickOneShots(d);
+        TickBreathStress(d);
     }
 
     // 배전 치치직 / 패드 구동음 / 숨소리. Layer 시스템(_all) 밖에서 상태별로 직접 몬다.
@@ -288,6 +304,9 @@ public partial class ControlRoomAtmosphere : Node3D
         }
 
         // 숨소리 — 근무 중에는 계속. 정전에도 죽지 않고 오히려 또렷해진다(고립감).
+        //
+        // 여기에 **사건 후 잔여 반응**(_breathStress)이 더해진다. 평상시에는 거의 들리지
+        // 않고, 기절 · 사망 같은 일이 있은 뒤 몇 초 동안만 또렷해진다(§15 · §16).
         if (_breath != null)
         {
             float tgt = _amb switch
@@ -298,12 +317,107 @@ public partial class ControlRoomAtmosphere : Node3D
                 Amb.Blackout => BreathBaseDb + 7f,
                 _ => BreathBaseDb,
             };
+            // 가쁜 호흡은 최대 +9dB 까지. 그 위로 올리면 숨소리가 대사를 덮는다.
+            if (_amb != Amb.Off) tgt += _breathStress * 9f;
             _breath.VolumeDb = Mathf.MoveToward(_breath.VolumeDb, tgt, d * 8f);
             float pTgt = _amb is Amb.TabooPrecursor or Amb.Blackout ? 1.18f : _amb == Amb.Warning ? 1.08f : 1f;
+            // 빨라지는 쪽도 상한을 둔다 — 1.45 를 넘으면 사람 숨이 아니라 과호흡 효과음이 된다.
+            pTgt = Mathf.Min(1.45f, pTgt + _breathStress * 0.3f);
             _breath.PitchScale = Mathf.Lerp(_breath.PitchScale, pTgt, d * 1.5f);
         }
     }
 
+    // ── 관리자 호흡 (지시서 §15 · §16) ────────────────────────────────
+    //
+    // 호흡은 **지속 상태가 아니라 사건 후 잔여 반응**이다. 계속 헐떡거리면 귀찮아지므로
+    // 사건이 나면 한 번 올라갔다가 스스로 가라앉는다.
+    //
+    //   작은 사고 · 방해공작   : 짧은 숨 한 번      (5~10초)
+    //   직원 기절             : 조금 빨라짐         (5~8초)
+    //   직원 사망 · 치명적 실패 : 명확한 가쁜 호흡   (10~15초)
+    //
+    // 새 Stress HUD 를 만들지 않는다(§15) — 기존 _breath 플레이어의 볼륨과 피치만 흔든다.
+    // 연속 사건이면 쌓이되 상한이 있다(§16).
+    private float _breathStress;          // 0 = 평상시, 1 = 가쁜 호흡
+    private float _breathDecayPerSec = 0.1f;
+    private const float BreathStressMax = 1f;
+
+    // 사건 하나가 호흡에 남기는 반응. amount 는 0~1, seconds 는 가라앉는 데 걸리는 시간.
+    public void AddBreathStress(float amount, float seconds)
+    {
+        if (amount <= 0f) return;
+        _breathStress = Mathf.Min(BreathStressMax, _breathStress + amount);
+        // 더 긴 반응이 들어오면 그쪽에 맞춘다 — 짧은 사건이 긴 사건의 여운을 끊지 않게.
+        _breathDecayPerSec = Mathf.Min(_breathDecayPerSec, 1f / Mathf.Max(1f, seconds));
+    }
+
+    // 큰 충격 직후 — 숨이 짧게 멎었다가 급하게 들이마신다(§15).
+    public void GaspNow()
+    {
+        AddBreathStress(0.75f, 13f);
+        NSP.Core.Sfx.Instance?.Play("admin_gasp", -17f);
+    }
+
+    // 지금 호흡이 얼마나 가쁜가(검사용).
+    public float BreathStress => _breathStress;
+
+    private void TickBreathStress(float d)
+    {
+        if (_breathStress <= 0f) return;
+        _breathStress = Mathf.Max(0f, _breathStress - _breathDecayPerSec * d);
+        // 다 가라앉으면 감쇠 속도도 기본으로 돌린다.
+        if (_breathStress <= 0f) _breathDecayPerSec = 0.1f;
+    }
+
+
+    // ── 사건 → 호흡 배선 (§15) ───────────────────────────────────────
+    //
+    // 새 판정을 만들지 않는다 — 이미 화면에 뜬 사건(EventLog)과 사망 신호만 듣는다.
+    // 관리자 상태는 실제 게임 상황에만 반응한다.
+    private void WireBreathEvents()
+    {
+        if (_wired) return;
+        _wired = true;
+        if (NSP.Core.EventLog.Instance != null)
+            NSP.Core.EventLog.Instance.EntryLogged += OnEntryLogged;
+        _wiredSim = FacilitySimulation.Instance;
+        if (_wiredSim != null) _wiredSim.EmployeeKilled += OnEmployeeKilled;
+    }
+
+    private bool _wired;
+    private FacilitySimulation _wiredSim;
+
+    private void OnEntryLogged()
+    {
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        var e = NSP.Core.EventLog.Instance?.GetAllEntries();
+        if (e == null || e.Count == 0) return;
+        var last = e[^1];
+        switch (last.EventType)
+        {
+            // 직원이 기절했다 — 조금 빨라지고 5~8초 만에 가라앉는다(§16).
+            case LogEventType.Neglect when last.Detail == LogDetail.Fainted:
+                AddBreathStress(0.42f, 7f);
+                break;
+            // 작은 사고 · 정전 · CCTV 단절 — 짧은 숨 한 번.
+            case LogEventType.TaskFailed:
+            case LogEventType.PowerOutage:
+            case LogEventType.CctvDisconnect:
+                AddBreathStress(0.2f, 6f);
+                break;
+            // 대형 방해공작 — 5~10초(§16).
+            case LogEventType.Sabotage:
+                AddBreathStress(0.35f, 9f);
+                break;
+            // 금기 위반 — 치명적 실패에 가깝다.
+            case LogEventType.TabooViolation:
+                GaspNow();
+                break;
+        }
+    }
+
+    // 직원 사망 — 10~15초 동안 명확히 가쁜 호흡. 숨이 한 번 멎었다가 들이마신다(§15).
+    private void OnEmployeeKilled(string employeeId) => GaspNow();
     private Amb DetermineState()
     {
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return Amb.Off;

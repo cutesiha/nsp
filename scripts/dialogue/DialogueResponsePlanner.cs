@@ -121,6 +121,10 @@ public static class DialogueResponsePlanner
     {
         plan.Core = CoreKind.SelfLocation;
         plan.RoomId = ctx.IsSaboteur ? claim.ClaimedRoomId : ctx.RoomAtSubject;
+        // 정상 직원의 위치는 기록에서만 나온다. 기록이 없으면 지금 배치된 방으로 메우지
+        // 않는다 — 그 순간 "실제로 가 보지 않은 방"이 진술이자 조사 자료가 된다.
+        if (string.IsNullOrEmpty(plan.RoomId) && ctx.HasSubjectTime)
+            plan.RoomId = DialogueContextBuilder.RoomAtOrLast(ctx.EmployeeId, ctx.CurrentDay, ctx.SubjectTime);
         if (string.IsNullOrEmpty(plan.RoomId)) plan.RoomId = ctx.AssignedRoomId;
         plan.Certainty = Certainty.High;
 

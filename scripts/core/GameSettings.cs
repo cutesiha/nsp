@@ -16,6 +16,13 @@ public static class GameSettings
     // 기존 직원 보이스를 그대로 통과시키되 대역만 좁혀 "무전기에서 나오는 소리"로 만든다.
     public const string BusRadio = "Radio";
     public const string BusScream = "Scream";
+    // 공포 ambience 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
+    //
+    // 버스를 따로 두는 이유는 둘이다.
+    //   ① 좌우 패닝(AudioEffectPanner)을 **이 소리들에만** 걸 수 있다
+    //   ② 게임 정보음(전화벨 · 경고)과 섞이지 않게 통째로 눌러 둘 수 있다(§13 · §21)
+    // 가까운 소리는 이 버스를 아주 살짝 어둡게 통과시킨다 — 방 밖에서 들리는 느낌.
+    public const string BusHorror = "Horror";
 
     private const string ConfigPath = "user://nsp_settings.cfg";
 
@@ -102,6 +109,44 @@ public static class GameSettings
         }
         EnsureRadioBus();
         EnsureScreamBus();
+        EnsureHorrorBus();
+    }
+
+    // 공포 ambience 버스. 패너 하나와 아주 얕은 잔향만 둔다.
+    //
+    // 패너의 pan 값은 재생할 때마다 Sfx.PlayHorror 가 바꾼다 — 그래서 효과 인덱스를
+    // 찾아 둘 수 있게 패너를 **맨 앞**에 넣는다(HorrorPannerIndex).
+    // 잔향은 아주 얕다. 깊게 걸면 "동굴에서 나는 소리" 가 되어 내 옆에서 난 느낌이 사라진다.
+    private static void EnsureHorrorBus()
+    {
+        if (AudioServer.GetBusIndex(BusHorror) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusHorror);
+        AudioServer.SetBusSend(idx, BusSfx);
+
+        AudioServer.AddBusEffect(idx, new AudioEffectPanner { Pan = 0f }, HorrorPannerIndex);
+        AudioServer.AddBusEffect(idx, new AudioEffectReverb
+        {
+            RoomSize = 0.34f,
+            Damping = 0.72f,
+            Wet = 0.14f,
+            Dry = 1f,
+            Spread = 0.4f,
+        });
+    }
+
+    // 공포 버스의 패너 효과 인덱스. 재생 직전에 pan 을 바꿔 좌우를 정한다.
+    public const int HorrorPannerIndex = 0;
+
+    // 공포 소리의 좌우 위치를 정한다. -1 = 완전 왼쪽, +1 = 완전 오른쪽.
+    // 극단값(±1)은 쓰지 않는다 — 헤드폰에서 머리 밖에 붙어 버려 "옆" 이 아니게 된다(§14).
+    public static void SetHorrorPan(float pan)
+    {
+        int idx = AudioServer.GetBusIndex(BusHorror);
+        if (idx < 0) return;
+        if (AudioServer.GetBusEffect(idx, HorrorPannerIndex) is AudioEffectPanner p)
+            p.Pan = Mathf.Clamp(pan, -0.95f, 0.95f);
     }
 
     // 괴물의 비명 전용 버스. 좁은 지하 시설에서 울리는 느낌을 여기서만 만든다 —

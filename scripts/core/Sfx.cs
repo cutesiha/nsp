@@ -73,6 +73,22 @@ public partial class Sfx : Node
             AddChild(_music[i]);
         }
 
+
+        // 공포 ambience 채널 — 좌우 패닝이 걸린 Horror 버스로만 흘려보낸다.
+        _horrorPlayer = new AudioStreamPlayer { Bus = GameSettings.BusHorror };
+        AddChild(_horrorPlayer);
+
+        // BGM 더킹용 앰프. 버스 맨 앞에 한 번만 끼운다.
+        int bgmBus = AudioServer.GetBusIndex(GameSettings.BusBgm);
+        if (bgmBus >= 0)
+        {
+            if (AudioServer.GetBusEffect(bgmBus, 0) is AudioEffectAmplify existing) _bgmDuck = existing;
+            else
+            {
+                _bgmDuck = new AudioEffectAmplify { VolumeDb = 0f };
+                AudioServer.AddBusEffect(bgmBus, _bgmDuck, 0);
+            }
+        }
         GetTree().NodeAdded += OnNodeAdded;
     }
 
@@ -99,9 +115,8 @@ public partial class Sfx : Node
         if (name == _musicName && !restartIfSame && _music[_musicActive].Playing) return;
 
         // BGM은 용량 때문에 .ogg 로 보관한다(.wav 는 이전 자산 호환용 폴백).
-        string path = $"res://assets/audio/bgm/{name}.ogg";
-        if (!ResourceLoader.Exists(path)) path = $"res://assets/audio/bgm/{name}.wav";
-        if (!ResourceLoader.Exists(path)) { FadeOutMusic(fadeSeconds); return; }
+        string path = MusicPath(name);
+        if (path.Length == 0) { FadeOutMusic(fadeSeconds); return; }
         float fade = Mathf.Max(0.02f, fadeSeconds);
 
         int inIdx = 1 - _musicActive;
@@ -151,6 +166,87 @@ public partial class Sfx : Node
         foreach (var p in _music) if (IsInstanceValid(p)) p.Stop();
     }
 
+
+    // BGM 파일 하나. 용량 때문에 .ogg 로 보관하지만, 받아 온 곡이 .mp3 인 경우도 있다
+    // (스토리 전용 breakroom.mp3). 못 찾으면 빈 문자열.
+    private static string MusicPath(string name)
+    {
+        foreach (string ext in new[] { ".ogg", ".mp3", ".wav" })
+        {
+            string p = $"res://assets/audio/bgm/{name}{ext}";
+            if (ResourceLoader.Exists(p)) return p;
+        }
+        return "";
+    }
+
+    // 그 BGM 파일이 실제로 있는가(검사용).
+    public static bool HasMusic(string name) => MusicPath(name).Length > 0;
+
+    // 지금 울리고 있는 BGM 이름. 스토리가 끝난 뒤 되돌릴 곡을 기억해 두는 데 쓴다.
+    public string CurrentMusic => _musicName;
+
+    // ── 공포 ambience ────────────────────────────────────────────────
+    //
+    // 전용 채널 하나만 쓴다. 공포음은 **겹치지 않는 것이 규칙**이고(§12 — 같은 소리
+    // 연속 재생 금지 · 긴 쿨다운), 채널이 하나면 새 소리가 앞 소리를 자연히 끊는다.
+    // 좌우는 버스의 패너로 준다 — 파일은 전부 모노다.
+    private AudioStreamPlayer _horrorPlayer;
+
+    // 공포음 하나. pan 은 -1(왼쪽) ~ +1(오른쪽).
+    //
+    // **게임 정보음이 아니다.** 이 길로 나가는 소리는 플레이어가 확인해야 할 것을
+    // 알리지 않는다(§13). 전화벨 · 경고음은 여전히 Play() 로 SFX 버스를 쓴다.
+    public void PlayHorror(string key, float volumeDb = -18f, float pan = 0f, float pitch = 1f)
+    {
+        var stream = Load(key);
+        if (stream == null || _horrorPlayer == null) return;
+        GameSettings.SetHorrorPan(pan);
+        _horrorPlayer.Stream = stream;
+        _horrorPlayer.VolumeDb = volumeDb;
+        _horrorPlayer.PitchScale = Mathf.Clamp(pitch, 0.1f, 4f);
+        _horrorPlayer.Play();
+    }
+
+    // 지금 공포음이 울리고 있는가(검사 · 중복 방지용).
+    public bool HorrorPlaying => _horrorPlayer is { Playing: true };
+
+    public void StopHorror()
+    {
+        if (_horrorPlayer != null && IsInstanceValid(_horrorPlayer)) _horrorPlayer.Stop();
+    }
+
+    // ── BGM 더킹 ─────────────────────────────────────────────────────
+    //
+    // 강한 공포음이 울리는 동안 BGM 만 아주 잠깐 내린다(§17).
+    //
+    // 곡 플레이어의 volume_db 를 건드리지 않는다 — 거기는 크로스페이드 트윈이 쓰는
+    // 자리라 둘이 부딪히면 곡이 묻히거나 터진다. 대신 BGM 버스 맨 앞에 앰프 하나를
+    // 두고 그 값만 흔든다. 사용자가 설정한 BGM 볼륨과도 섞이지 않는다.
+    private AudioEffectAmplify _bgmDuck;
+    private Tween _duckTween;
+
+    public void DuckMusic(float db = -3f, float holdSeconds = 0.6f, float fade = 0.12f)
+    {
+        if (_bgmDuck == null) return;
+        float amount = Mathf.Clamp(db, -12f, 0f);
+        _duckTween?.Kill();
+        _duckTween = CreateTween();
+        _duckTween.TweenProperty(_bgmDuck, "volume_db", amount, fade).SetTrans(Tween.TransitionType.Sine);
+        _duckTween.TweenInterval(Mathf.Max(0f, holdSeconds));
+        _duckTween.TweenProperty(_bgmDuck, "volume_db", 0f, Mathf.Max(0.05f, fade * 3f))
+            .SetTrans(Tween.TransitionType.Sine);
+    }
+
+    // 더킹을 즉시 되돌린다(스토리 fail-safe 가 부른다).
+    public void ClearDuck()
+    {
+        _duckTween?.Kill();
+        _duckTween = null;
+        if (_bgmDuck != null) _bgmDuck.VolumeDb = 0f;
+    }
+
+    // 지금 BGM 이 눌려 있는 양(dB · 검사용).
+    public float DuckDb => _bgmDuck?.VolumeDb ?? 0f;
     public override void _ExitTree()
     {
         var tree = GetTree();

@@ -708,10 +708,47 @@ public partial class FacilitySimulation : Node
 
     // --- Assignment -------------------------------------------------------
 
+    // DAY 시작(배치표 진입) — 아직 기절해 있는 직원을 의무실 자리에 앉힌다.
+    //
+    // 걸어가는 연출이 아니라 "그 날의 시작 배치 상태"다. 회복이 끝나기 전에는 관리자가
+    // 일반 작업실로 끌어다 놓을 수 없고(AssignToRoom 이 막는다), 의무실 정원을 정상적으로
+    // 차지한다. 의무실이 고장 나 있어도 자리는 그대로 두고 회복만 지연된다 —
+    // 직원을 지우거나 멀쩡한 사람으로 되돌리지 않는다.
+    public void PlaceFaintedInMedical()
+    {
+        if (!_roomDefs.ContainsKey(MedicalRoomId)) return;
+        foreach (var emp in _employeeStates.Values)
+        {
+            if (!emp.Alive || emp.Isolated || !emp.Incapacitated) continue;
+            if (emp.AssignedRoomId == MedicalRoomId && emp.CurrentRoomId == MedicalRoomId) continue;
+
+            RemoveOccupant(emp.CurrentRoomId, emp.EmployeeId);
+            emp.CurrentRoomId = MedicalRoomId;
+            emp.AssignedRoomId = MedicalRoomId;
+            emp.IsMoving = false;
+            emp.PathQueue.Clear();
+            emp.InitialDeployDone = true;
+            AddOccupant(MedicalRoomId, emp.EmployeeId);
+            // 침대에 누운 상태로 시작한다 — 이래야 의무실 회복 절차가 그대로 돈다
+            // (의무실이 고장 나 있으면 그 규칙대로 회복이 느려진다).
+            emp.Faint = FaintPhase.Recovering;
+            emp.FaintRecoverTimer = Config.Instance.Data.StressFaintRecoverySeconds;
+            EventLog.Instance?.LogEvent(LogEventType.Relocation, emp.EmployeeId, MedicalRoomId,
+                $"{Codename(emp.EmployeeId)} - 기절 상태로 {RoomName(MedicalRoomId)} 수용");
+        }
+    }
+
+    // 아직 기절해 있는 직원은 의무실 말고는 어디에도 배치되지 않는다.
+    // (배치 화면에서 일반 작업실로 끌어다 놓는 것도 여기서 막힌다.)
+    public bool MustStayInMedical(string employeeId) =>
+        _employeeStates.TryGetValue(employeeId, out var e) && e.Alive && !e.Isolated && e.Incapacitated;
+
     public bool AssignToRoom(string employeeId, string roomId)
     {
         if (!_employeeStates.TryGetValue(employeeId, out var emp) || emp.Isolated || !emp.Alive)
             return false;
+        // 기절한 직원은 회복이 끝나기 전에는 의무실을 벗어날 수 없다.
+        if (emp.Incapacitated && roomId != MedicalRoomId) return false;
         if (!MoveEmployeeTo(employeeId, roomId))
             return false;
 
@@ -1080,13 +1117,22 @@ public partial class FacilitySimulation : Node
             room.UnstaffedTimer = 0f;
         }
         // 새 근무의 초기 배치 이동은 다시 원래 속도로 걷는다.
-        // 기절은 "당일 업무 불가"이므로 새 근무가 시작되면 풀린다(스트레스 수치는 이월).
+        //
+        // 기절은 더 이상 날이 바뀐다고 저절로 풀리지 않는다 — 의무실에 누워 회복 시간을
+        // 채워야 근무로 돌아온다(PlaceFaintedInMedical 이 배치표 진입 때 자리를 잡아 둔다).
+        // 다만 어떤 이유로든 의무실에 앉히지 못했다면 그 자리에서 풀어 준다. 그러지 않으면
+        // 영영 배치할 수 없는 직원이 남아 판이 막힌다.
         foreach (var emp in _employeeStates.Values)
         {
             emp.InitialDeployDone = false;
             emp.WorkBlockedUntil = 0f;
-            emp.Incapacitated = false;
-            emp.FaintRecoverTimer = 0f;
+            if (emp.Incapacitated && emp.CurrentRoomId != MedicalRoomId)
+            {
+                emp.Incapacitated = false;
+                emp.Faint = FaintPhase.None;
+                emp.FaintRecoverTimer = 0f;
+            }
+            else if (!emp.Incapacitated) emp.FaintRecoverTimer = 0f;
             emp.Stress = Mathf.Clamp(emp.Stress, Config.Instance.Data.StressMin, Config.Instance.Data.StressMax);
 
             // 격리된 직원은 다음 날에도 격리실에 있다.

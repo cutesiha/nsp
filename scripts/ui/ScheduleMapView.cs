@@ -265,6 +265,8 @@ public partial class ScheduleMapView : Control
         if (sim == null || !IsAssignable(sim, roomId)) return false;
         var st = sim.GetEmployeeState(employeeId);
         if (st != null && st.Isolated) return false;            // 격리 중에는 배치할 수 없다
+        // 기절한 직원은 회복 전까지 의무실 밖으로 못 나간다(AssignToRoom 도 같은 규칙).
+        if (sim.MustStayInMedical(employeeId) && roomId != FacilitySimulation.MedicalRoomIdPublic) return false;
         if (st != null && st.AssignedRoomId == roomId) return true; // 이미 그 방
         // ClearAssignment 를 먼저 부르면 걷던 상태가 지워져, 재배치가 "왔던 길을 되돌아가는"
         // 경로로 다시 계산된다. AssignToRoom 이 이미 재배치를 처리하므로 그대로 넘긴다.
@@ -706,7 +708,7 @@ public partial class ScheduleMapView : Control
 
             // 기분은 모니터 2 가 맡는다 — 여기는 "지금 어디에 있는가" 만.
             // 다만 배치할 수 없는 사람(기절 · 격리)과 스트레스 구간은 여기서도 바로 보여야 한다(F-2).
-            string sub = st.Incapacitated ? "기절 · 근무 불가"
+            string sub = st.Incapacitated ? "기절 · 의무실에서 회복 필요"
                 : st.Isolated ? "[격리] · 근무 불가"
                 : assigned ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
                 : "미배치";

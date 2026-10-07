@@ -175,7 +175,14 @@ public partial class TutorialDirector : Node
         await Wait(IncidentDelaySeconds);
         // STEP 9 의 모순을 만들려면 토끼가 실제로 방을 옮긴 기록이 남아야 한다. 그래서 수리
         // 최소 인원을 "지금 그 방에 있는 인원 + 1" 로 잡아, 한 명을 더 보내야만 고쳐지게 한다.
-        string originRoomId = sim?.GetEmployeeState(TutorialEmployeeId)?.AssignedRoomId ?? "";
+        // 사고 직전에 토끼가 **실제로 서 있던** 방. 배치표에 적힌 방(AssignedRoomId)이 아니다 —
+        // 아직 도착하지 않았으면 가 본 적 없는 방이 진술에 들어가고, 교육이 가르치려는
+        // "기록과 진술을 맞대어 본다"가 거짓 자료 위에서 이루어진다.
+        string originRoomId = NSP.Dialogue.DialogueContextBuilder.RoomAtOrLast(
+            TutorialEmployeeId, GameState.Instance?.CurrentDay ?? 0,
+            GameState.Instance?.DayTimeSeconds ?? 0f);
+        if (string.IsNullOrEmpty(originRoomId))
+            originRoomId = sim?.GetEmployeeState(TutorialEmployeeId)?.CurrentRoomId ?? "";
         // **최소 두 명**이어야 한다. 한 명으로 고쳐지면 "혼자 보냈는데 왜 게이지가 안 차지"
         // 를 배울 자리가 없고, 승인 요청이 사람을 보내자마자 떠 버린다. 이미 둘 이상이
         // 있는 방이면 거기에 한 명을 더 — 토끼가 실제로 옮겨 간 기록이 남아야

@@ -205,7 +205,7 @@ public partial class ScheduleStaffView : Control
                 HorizontalAlignment.Center, w, Fs(19), benched ? Dim : Ink);
             // ⑭ 이 화면은 "기분"을 맡는다 — 배치 상태는 왼쪽 지도의 대기 인원 카드가 보여 준다.
             string mood = sim.GetDailyMood(roster[i]);
-            string where = st.Incapacitated ? "기절 · 근무 불가"
+            string where = st.Incapacitated ? "기절 · 의무실에서 회복 필요"
                 : st.Isolated ? "[격리] · 근무 불가"
                 : "기분: " + (string.IsNullOrEmpty(mood) ? "—" : mood);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 138f), where,
@@ -258,7 +258,7 @@ public partial class ScheduleStaffView : Control
         DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, Fs(14), label);
         y += 30f;
         DrawString(_font, new Vector2(x, y),
-            st.Isolated ? "격리실 · 근무 불가" : string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
+            st.Isolated ? "격리실 · 근무 불가" : st.Incapacitated ? "기절 · 의무실에서 회복 필요" : string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
             HorizontalAlignment.Left, 440f, Fs(22),
             st.Isolated ? Err : string.IsNullOrEmpty(room) ? Amber : Mint);
         y += 52f;

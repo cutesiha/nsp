@@ -28,7 +28,10 @@ public static class DialogueContextBuilder
         public int Day;
         public int EntryCount;
         public int ShiftVersion;
+        // 진술용 동선 — 지나가기만 한 방은 뺀다(플레이어가 보는 시설 로그와 같은 기준).
         public readonly Dictionary<string, List<(float Time, string Room)>> Moves = new();
+        // 시스템이 아는 전부 — 경유까지 포함한다. 조사 자료로는 나가지 않는다.
+        public readonly Dictionary<string, List<(float Time, string Room)>> Raw = new();
         // 근무 중인 구간. 격리 · 사망 · 기절 · 배치 해제로 끊기고, 재배치 · 회복으로 다시 이어진다.
         public readonly Dictionary<string, List<(float Time, bool OnDuty)>> Duty = new();
     }
@@ -59,15 +62,29 @@ public static class DialogueContextBuilder
                 // 시작 배치가 없어도 근무 중에 배치됐으면(재배치 · 업무 시작) 그때부터 근무자다.
                 bool worked = seed.Length > 0 || today.Any(e => e.ActorEmployeeId == id && StartsDuty(e));
                 if (!worked) continue;
-                t.Moves[id] = new List<(float, string)> { (0f, seed) };
+
+                // 배치표에 적힌 방이 곧 "그 방에 있었다"는 아니다 — 출근길에 재배치되면
+                // 끝내 발을 들이지 않은 방이 된다. 실제로 도착한 기록(통과가 아닌 입장)이
+                // 있을 때만 0초 위치로 인정하고, 없으면 "이동 중"(빈 값)으로 둔다.
+                bool everArrived = seed.Length > 0 && today.Any(e => e.ActorEmployeeId == id
+                    && e.EventType == LogEventType.RoomEnter && !e.PassingThrough && e.RoomId == seed);
+                bool noMoveRecords = !today.Any(e => e.ActorEmployeeId == id
+                    && e.EventType == LogEventType.RoomEnter && !e.PassingThrough);
+                string seedPos = everArrived || noMoveRecords ? seed : "";
+
+                t.Moves[id] = new List<(float, string)> { (0f, seedPos) };
+                t.Raw[id] = new List<(float, string)> { (0f, seedPos) };
                 t.Duty[id] = new List<(float, bool)> { (0f, seed.Length > 0) };
             }
         }
 
+        // 지금 "지나가는 중" 인 방(경유 입장 뒤, 실제 도착 전). TaskStart 를 거르는 데 쓴다.
+        var passingRoom = new Dictionary<string, string>();
         foreach (var e in today)
         {
             if (string.IsNullOrEmpty(e.ActorEmployeeId)) continue;
             if (!t.Moves.TryGetValue(e.ActorEmployeeId, out var list)) continue;
+            var raw = t.Raw[e.ActorEmployeeId];
             var duty = t.Duty[e.ActorEmployeeId];
 
             switch (e.EventType)
@@ -77,18 +94,46 @@ public static class DialogueContextBuilder
                 case LogEventType.Relocation:
                     if (!string.IsNullOrEmpty(e.RoomId)) duty.Add((e.GameTimeSeconds, true));
                     break;
+                // 목적지로 가는 길에 잠시 지나친 방은 "있었던 방"이 아니다.
+                //
+                // 플레이어가 보는 시설 로그는 이 줄을 이미 빼고 그린다(FacilityLogFormatter).
+                // 여기서 같이 빼지 않으면 **같은 사실을 두 자료가 다르게 말한다** —
+                // 환기실 → (경비실 통과) → 발전실 로 간 직원이 "경비실에 있다가 발전실로
+                // 갔다"고 진술하게 된다. 추리의 바탕이 무너지므로 규칙을 하나로 맞춘다.
                 case LogEventType.RoomEnter:
-                case LogEventType.TaskStart:
                     if (!string.IsNullOrEmpty(e.RoomId) && e.RoomId != PlayerOnlyRoomId)
-                        list.Add((e.GameTimeSeconds, e.RoomId));
-                    if (e.EventType == LogEventType.TaskStart) duty.Add((e.GameTimeSeconds, true));
+                    {
+                        raw.Add((e.GameTimeSeconds, e.RoomId));
+                        if (e.PassingThrough) passingRoom[e.ActorEmployeeId] = e.RoomId;
+                        else
+                        {
+                            passingRoom.Remove(e.ActorEmployeeId);
+                            list.Add((e.GameTimeSeconds, e.RoomId));
+                        }
+                    }
+                    break;
+
+                // TaskStart 는 위치 근거로 쓰되, **지나가던 방의 것은 버린다.**
+                //
+                // 경유 중에도 그 방 인원으로 한 틱 세어져 업무 시작이 남는다. 그 한 줄 때문에
+                // "코어실 → (발전실 통과) → 환기실" 이 "발전실에 있다가 환기실로 갔다" 가 되었다
+                // — 플레이어가 보는 시설 로그에는 없는 방이 직원 입에서 나왔다.
+                case LogEventType.TaskStart:
+                    duty.Add((e.GameTimeSeconds, true));
+                    if (string.IsNullOrEmpty(e.RoomId) || e.RoomId == PlayerOnlyRoomId) break;
+                    if (passingRoom.GetValueOrDefault(e.ActorEmployeeId, "") == e.RoomId) break;
+                    list.Add((e.GameTimeSeconds, e.RoomId));
+                    raw.Add((e.GameTimeSeconds, e.RoomId));
                     break;
                 case LogEventType.RoomExit:
-                    list.Add((e.GameTimeSeconds, ""));
+                    raw.Add((e.GameTimeSeconds, ""));
+                    // 통과한 방에서 나온 기록은 진술에 쓰지 않는다 — 들어간 적이 없으므로 나온 적도 없다.
+                    if (!e.PassingThrough) { list.Add((e.GameTimeSeconds, "")); passingRoom.Remove(e.ActorEmployeeId); }
                     break;
                 case LogEventType.Isolation:
                 case LogEventType.Death:
                     list.Add((e.GameTimeSeconds, e.RoomId ?? ""));
+                    raw.Add((e.GameTimeSeconds, e.RoomId ?? ""));
                     duty.Add((e.GameTimeSeconds, false));
                     break;            }
 
@@ -150,6 +195,42 @@ public static class DialogueContextBuilder
         {
             if (time > timeSeconds) break;
             room = r;
+        }
+        return room;
+    }
+
+    // 시스템이 아는 그대로의 위치 — 지나가기만 한 방도 포함한다.
+    //
+    // 이 값은 **진술에 쓰지 않는다.** 플레이어가 보는 시설 로그가 경유를 빼고 그리므로,
+    // 직원 입에서 경유지가 나오면 두 자료가 어긋난다(그게 이번에 고친 버그다).
+    // 내부 판정 · 검사에서 "시뮬레이션은 알고 있었다"를 확인할 때만 쓴다.
+    public static string RoomAtRaw(string employeeId, int day, float timeSeconds)
+    {
+        var t = GetTimeline(day);
+        if (!t.Raw.TryGetValue(employeeId, out var list) || list.Count == 0) return "";
+        string room = list[0].Room;
+        foreach (var (time, r) in list)
+        {
+            if (time > timeSeconds) break;
+            room = r;
+        }
+        return room;
+    }
+
+    // 그 시각에 있던 방. 통로를 걷는 중이었으면 **직전에 실제로 있던 방**을 돌려준다.
+    //
+    // 예전에는 이 자리에서 "지금 배치된 방"(AssignedRoomId)으로 떨어졌다. 그러면 근무 중에
+    // 재배치된 직원이 "그 시각에 (아직 가지도 않은) 새 방에 있었다"고 진술한다 —
+    // 실제로 가 본 적 없는 방이 진술에 들어가는 경로였다. 추정값은 쓰지 않는다.
+    public static string RoomAtOrLast(string employeeId, int day, float timeSeconds)
+    {
+        var t = GetTimeline(day);
+        if (!t.Moves.TryGetValue(employeeId, out var list) || list.Count == 0) return "";
+        string room = "";
+        foreach (var (time, r) in list)
+        {
+            if (time > timeSeconds) break;
+            if (!string.IsNullOrEmpty(r)) room = r;
         }
         return room;
     }
@@ -387,7 +468,7 @@ public static class DialogueContextBuilder
             if (subject == null)
             {
                 string at = RoomAt(employeeId, ctx.CurrentDay, anchorTime);
-                ctx.RoomAtSubject = string.IsNullOrEmpty(at) ? ctx.AssignedRoomId : at;
+                ctx.RoomAtSubject = string.IsNullOrEmpty(at) ? RoomAtOrLast(employeeId, ctx.CurrentDay, anchorTime) : at;
             }
         }
         if (!string.IsNullOrEmpty(claimKey)) ctx.ClaimKey = claimKey;
@@ -434,8 +515,10 @@ public static class DialogueContextBuilder
             ctx.HasSubjectTime = true;
             ctx.ClaimKey = ctx.Subject.Key;
         }
-        if (string.IsNullOrEmpty(ctx.RoomAtSubject))
-            ctx.RoomAtSubject = ctx.AssignedRoomId;
+        // 통로를 걷던 중이면 직전에 실제로 있던 방으로 답한다. 지금 배치된 방으로 떨어뜨리지
+        // 않는다 — 재배치된 직원이 "가 본 적도 없는 방에 있었다"고 말하게 되기 때문이다.
+        if (string.IsNullOrEmpty(ctx.RoomAtSubject) && ctx.HasSubjectTime)
+            ctx.RoomAtSubject = RoomAtOrLast(employeeId, day, ctx.SubjectTime);
 
         var suspicious = FindKnownSuspicious(employeeId, day);
         if (suspicious != null)

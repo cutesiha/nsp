@@ -310,7 +310,7 @@ public partial class RestEvidenceTest : Node
         Check(!wolf.Any(e => e.Kind == EvidenceKind.Movement), "통과만 한 이동은 자료가 되지 않는다");
         Check(!fox.Any(e => e.Kind == EvidenceKind.Movement), "결번의 숨은 이동도 자료가 되지 않는다");
         // 내부 진실은 여전히 알고 있지만, 그것이 자료로 새어 나오지 않아야 한다.
-        Check(DialogueContextBuilder.RoomAt("fox", 1, At(25)) == Power,
+        Check(DialogueContextBuilder.RoomAtRaw("fox", 1, At(25)) == Power,
             "내부 기록(SystemTruth)에는 그대로 남아 있다");
         Check(fox.All(e => e.PlayerObserved), "조사 자료에 들어온 것은 전부 플레이어가 본 것이다");
     }

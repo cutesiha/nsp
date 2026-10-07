@@ -416,6 +416,9 @@ public partial class ShiftFlowController : Node
         TabooRuleSystem.Instance?.ActivateDailyTaboos(ControlRoom3DController.TodayTabooIds());
         // 오늘의 기분상태는 근무 배치 화면에 들어오는 순간 하루에 한 번만 새로 정해진다.
         FacilitySimulation.Instance?.RollDailyMoods();
+        // 어제 기절한 채로 날이 바뀐 직원은 배치표가 열리는 순간 의무실 자리를 차지한다.
+        // (예전에는 일반 작업실에도 못 들어가고 의무실에도 없어서 진행이 막혔다.)
+        FacilitySimulation.Instance?.PlaceFaintedInMedical();
         GameState.Instance?.SetPhase(GamePhase.Schedule);
         // 시작 화면부터 같은 곡을 이어 재생한다. 다음 날 배치 진입 때는 앞 단계에서 곡을
         // 페이드아웃했으므로 여기서 다시 루프로 시작한다.
@@ -744,9 +747,19 @@ public partial class ShiftFlowController : Node
         NSP.Prologue.GuideCornerFace.ShowAll(true);
         if (guide != null)
         {
-            await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report");
-            // 결번 개체가 이미 죽어 그 카드를 고를 수 없는 판 — 그 사실만 한 줄 덧붙인다.
-            if (SaboteurAlreadyGone()) await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report_gone");
+            // 자막 띠는 **스스로 글자를 가져오지 않는다** — 홀로그램 창이 한 줄씩 띄울 때마다
+            // LineShown 으로 받아 그린다(DAY0 교육이 쓰는 것과 같은 연결).
+            // 이 구독이 없으면 띠를 켜 두어도 끝까지 비어 있고, GUIDE-0 의 마지막 안내가
+            // 한 글자도 보이지 않은 채 지목 화면으로 넘어간다. 여기가 그 버그였다.
+            void OnLine(string text) => NSP.Prologue.GuideSubtitleHud.Instance?.SetLine(text);
+            guide.LineShown += OnLine;
+            try
+            {
+                await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report");
+                // 결번 개체가 이미 죽어 그 카드를 고를 수 없는 판 — 그 사실만 한 줄 덧붙인다.
+                if (SaboteurAlreadyGone()) await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report_gone");
+            }
+            finally { guide.LineShown -= OnLine; }
         }
         NSP.Prologue.GuideCornerFace.ShowAll(false);
         NSP.Prologue.GuideSubtitleHud.Instance?.SetActive(false);

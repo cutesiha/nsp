@@ -80,9 +80,17 @@ public partial class StoryCutinDirector : Node
     // 새 카메라 시스템을 만들지 않는다(§7).
     // 모니터2 로 들어간다. 한 DAY 의 비트 여러 개를 이어 재생하는 동안 **한 번만** 부른다 —
     // 비트마다 확대했다 풀면 카메라가 사이사이 튄다. 돌려놓는 것은 ExitMonitor 다.
-    public bool EnterMonitor()
+    //
+    // focusNow=false 면 화면만 휴게실로 바꾸고 **카메라는 아직 그대로 둔다.**
+    // 전환 연출(StoryTransition)이 그 순서를 쓴다 — 눈을 뜨는 순간 모니터2 에 이미
+    // 휴게실이 떠 있어야 하고, 확대는 그 다음이다(지시서 §1).
+    public bool EnterMonitor(bool focusNow = true)
     {
-        if (_onMonitor) return true;
+        if (_onMonitor)
+        {
+            if (focusNow) FocusStoryMonitor();
+            return true;
+        }
         var ctl = ControlRoom3DController.Instance;
         var view = StoryMonitorView.Instance;
         if (ctl == null || view == null || !IsInstanceValid(view))
@@ -94,9 +102,17 @@ public partial class StoryCutinDirector : Node
         _onMonitor = true;
         _prevRightScreen = ctl.RightScreenViewport;
         ctl.SetRightScreen(ctl.StoryViewport);
-        ctl.FocusMonitor(2, MonitorFocusSeconds);
+        if (focusNow) ctl.FocusMonitor(2, MonitorFocusSeconds);
         StoryCutinHud.Instance?.SetRenderTarget(view.StoryLayer);
         return true;
+    }
+
+    // 카메라만 모니터2 로 들여보낸다. EnterMonitor(focusNow: false) 뒤에 부른다.
+    // 모니터에 들어가 있지 않으면 아무 일도 하지 않는다 — 스토리 밖에서 화면을 확대하지 않는다.
+    public void FocusStoryMonitor()
+    {
+        if (!_onMonitor) return;
+        ControlRoom3DController.Instance?.FocusMonitor(2, MonitorFocusSeconds);
     }
 
     public void ExitMonitor() => LeaveMonitor(null);
@@ -127,7 +143,10 @@ public partial class StoryCutinDirector : Node
     }
 
     // 묶음을 끝까지 돌린다. 띄울 수 없는 상황이면 아무것도 하지 않고 false.
-    public async Task<bool> Play(StoryBeat beat)
+    //
+    // closingSilenceSeconds — 마지막 대사가 끝난 뒤 스탠딩이 사라지기 전까지의 침묵(지시서 §8).
+    // 그 DAY 스토리의 **마지막 비트에만** 넣는다. 비트마다 넣으면 대화 중간에 끊긴다.
+    public async Task<bool> Play(StoryBeat beat, double closingSilenceSeconds = 0.0)
     {
         if (beat == null || beat.Steps.Count == 0) return false;
 
@@ -164,6 +183,13 @@ public partial class StoryCutinDirector : Node
                 else if (Speaks(step.Line)) await PlayLine(step.Line);
             }
 
+            // 마지막 직원의 입이 닫히고 나서 잠깐 아무 소리도 없다 — 그 뒤에 스탠딩이 빠진다.
+            if (IsPlaying && IsInstanceValid(_hud) && closingSilenceSeconds > 0.0)
+            {
+                NSP.View.EmployeeMouthAnimator.Reset();
+                double left = closingSilenceSeconds;
+                while (left > 0.0 && IsPlaying) { await NextFrame(); left -= GetProcessDeltaTime(); }
+            }
             if (IsPlaying && IsInstanceValid(_hud)) await _hud.EndBeat();
             return true;
         }
