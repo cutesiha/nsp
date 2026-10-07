@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="RecoveryProfileDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 3차 이후 — 기존의 빡센 밸런스가 여기로 왔다. 보정 없음.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/RecoveryProfileDef.cs" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+ProfileId = "hard3"
+DisplayName = "3차 복구 · 고난도"
+; 1명 62% / 2명 100% / 3명 130%  (기존 ops 곡선과 같은 자리)
+CoreStaffCurve = PackedFloat32Array(0, 0.62, 1.0, 1.30, 1.36)
+CoreRateMultiplier = 1.15
+CoreYieldMultiplier = 1.7
+CoreMaterialCostMultiplier = 1.0
+SabotageCoreDamageMultiplier = 1.25
+CoreInstabilityLossMultiplier = 1.25
+CatchupEnabled = false
+RecommendedByDay = PackedFloat32Array(20, 42, 64, 85, 100)

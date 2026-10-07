@@ -29,7 +29,11 @@ public static class StoryBeatSelector
     private static readonly HashSet<string> _played = new();
     private static readonly Random _rng = new();
 
-    public static void ResetRun() => _played.Clear();
+    public static void ResetRun()
+    {
+        _played.Clear();
+        IsRunning = false;
+    }
 
     // 이미 재생한 비트. 같은 판에서 다시 뽑히지 않는다.
     public static IReadOnlyCollection<string> PlayedIds => _played;
@@ -63,12 +67,26 @@ public static class StoryBeatSelector
         return queue;
     }
 
+    // 지금 DAY 시작(전환 + 스토리 전체)이 돌고 있는가.
+    //
+    // StoryTransition.Active 는 앞뒤 **전환 구간에만** 켜진다 — 대사가 도는 사이에는
+    // 꺼져 있다. 그 틈에 배치 화면에 다시 들어오면(개발 허브) 두 번째 DAY 시작이
+    // 전환을 가져가 버리고, 앞의 스토리가 대사 도중에 끝난다. 그래서 전 구간을 덮는
+    // 깃발이 따로 필요하다.
+    public static bool IsRunning { get; private set; }
+
     // DAY 시작에 한 번. 재생할 것이 없으면 아무 일도 하지 않고 곧바로 돌아온다(에러 아님).
     //
     // 스토리 앞뒤에 전환 연출이 붙는다(StoryTransition · 지시서 PART A). 재생할 비트가
     // 하나도 없으면 전환도 하지 않는다 — 눈을 감았다 떴는데 아무 일도 없으면 버그로 보인다.
     public static async Task PlayDayStart(Node ctx)
     {
+        if (IsRunning)
+        {
+            GD.Print("StoryBeatSelector: 이미 DAY 시작이 돌고 있어 이번 요청은 접습니다.");
+            return;
+        }
+        IsRunning = true;
         bool entered = false;
         try
         {
@@ -80,8 +98,16 @@ public static class StoryBeatSelector
 
             // ① 이전 BGM 페이드아웃 → 날숨 → 암전 → 생활음 → 모니터2 → 확대 → 짧은 침묵.
             //    EnterMonitor 는 이 안에서 불린다(화면과 카메라를 따로 켜야 하므로).
-            entered = true;
-            await StoryTransition.Enter(ctx);
+            //
+            //    전환을 맡지 못했다면(= 이미 다른 DAY 시작이 돌고 있다) 여기서 접는다.
+            //    그대로 밀고 나가면 앞의 스토리를 중간에 끝내 버린다 — 개발 허브에서
+            //    배치 화면에 다시 들어갈 때 실제로 그렇게 됐다.
+            entered = await StoryTransition.Enter(ctx);
+            if (!entered)
+            {
+                GD.Print("StoryBeatSelector: 이미 DAY 시작이 돌고 있어 이번 요청은 접습니다.");
+                return;
+            }
             if (!GodotObject.IsInstanceValid(ctx)) return;
 
             // ② 그 DAY 의 스토리 전체가 **모니터2 안**에서 돈다(연출 규칙 §1 · §19).
@@ -119,6 +145,7 @@ public static class StoryBeatSelector
                 }
             }
             else StoryCutinDirector.Instance?.ExitMonitor();
+            IsRunning = false;
         }
     }
 

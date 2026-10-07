@@ -20,6 +20,13 @@ public partial class FacilitySimulation : Node
     private const string GuardRoomId = "guard_room";
     public static string GuardRoomIdPublic => GuardRoomId;
     public static string CoreRoomIdPublic => CoreRoomId;
+
+    // 검사 전용 — 코어 복구가 **막혀서 날아간 양**을 사유별로 흘려보낸다.
+    // 평소에는 null 이라 아무 일도 하지 않는다(판정에는 전혀 관여하지 않는다).
+    public static System.Action<float, string> CoreGainProbe;
+
+    // 검사 전용 — 자재 생산 · 소비 · 한도 초과 폐기를 흘려보낸다.
+    public static System.Action<int, string> MaterialProbe;
     private const string MedicalRoomId = "medical_room";
     private const string VentRoomId = "vent_room";
     private const string MaintenanceRoomId = "maintenance_room";
@@ -331,7 +338,9 @@ public partial class FacilitySimulation : Node
         if (st == null || !st.Alive) return;
         var cfg = Config.Instance.Data;
 
-        if (amount > 0f) amount *= CourageStressMultiplier(employeeId);
+        // 난이도 표의 스트레스 배율은 **올라갈 때만** 건다. 치료(음수)는 의무실 쪽에서
+        // 따로 조절한다 — 두 곳에 같은 배율을 걸면 서로 상쇄된다.
+        if (amount > 0f) amount *= CourageStressMultiplier(employeeId) * RecoveryProfile.StressGainMultiplier;
         string bandBefore = StressBandName(st);
         bool imminentBefore = IsFaintImminent(st);
         st.Stress = Mathf.Clamp(st.Stress + amount, cfg.StressMin, cfg.StressMax);
@@ -1498,7 +1507,10 @@ public partial class FacilitySimulation : Node
         // ── ①② 복구 작업 방해 : 코어 복구율 감소. 혼란 상태면 더 크게 깎는다 ──
         if (here == CoreRoomId || blackoutChaos)
         {
-            float loss = blackoutChaos ? cfg.SabotageCoreLossBlackout : cfg.SabotageCoreLoss;
+            // 난이도 표의 배율이 걸린다 — 1차 캠페인에서는 결번을 늦게 찾았다고 복구율이
+            // 한 번에 무너지지 않는다(상대값은 그대로 두고 배율로만 조절한다).
+            float loss = (blackoutChaos ? cfg.SabotageCoreLossBlackout : cfg.SabotageCoreLoss)
+                         * RecoveryProfile.SabotageDamageMultiplier;
             // 사유를 둘로 나눈다 — 평소의 방해와 "관리자가 조명·CCTV 를 꺼 둔 틈" 은
             // 원인도 대책도 다르다. 화면에 뜨는 문구는 그대로다(로그는 LogSabotage 가 쓴다).
             GameState.Instance.AddCoreProgress(-loss, blackoutChaos ? "정전 혼란" : "복구 작업 방해");
@@ -1868,7 +1880,8 @@ public partial class FacilitySimulation : Node
         while (_coreUnstableTimer >= cfg.CoreUnstableIntervalSeconds)
         {
             _coreUnstableTimer -= cfg.CoreUnstableIntervalSeconds;
-            GameState.Instance.AddCoreProgress(-cfg.CoreUnstableCoreLoss, "코어 출력 불안정");
+            GameState.Instance.AddCoreProgress(
+                -cfg.CoreUnstableCoreLoss * RecoveryProfile.InstabilityLossMultiplier, "코어 출력 불안정");
             EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", CoreRoomId,
                 $"🚨 봉쇄 코어 출력 불안정 — 복구율 -{cfg.CoreUnstableCoreLoss:0}%");
         }
@@ -2706,6 +2719,10 @@ public partial class FacilitySimulation : Node
                     // DAY0 교육만 배속으로 돈다(DayFeatures.WorkRateMultiplier = 1 in DAY1~5).
                     float rate = baseRate * RoomStaffing.Efficiency(st.RoomId) * crew * facility * tabooPenalty
                                  * DayFeatures.WorkRateMultiplier;
+                    // 뒤처짐 보정은 **코어 복구 속도에만** 걸린다. 다른 업무 · 능력 · 스트레스 ·
+                    // 사고 확률 · 괴물 · 방해공작 발생률에는 손대지 않는다.
+                    if (taskDef.EffectType == TaskEffectType.AddCoreProgress)
+                        rate *= RecoveryProfile.RateMultiplier * RecoveryProfile.CatchupMultiplier();
                     st.Gauge += rate * delta;
                     st.LastRate = rate;   // 표시 전용
                 }
@@ -2798,26 +2815,37 @@ public partial class FacilitySimulation : Node
                     badge += " · ⚠ 설비 고장 — 생산 정지";
                     break;
                 }
-                GameState.Instance.AddMaterials((int)task.EffectAmount);
-                badge += $" · 📦 자재 +{task.EffectAmount:0}";
+                // 난이도 표의 생산 배율. 소수점이 버려지지 않게 올림으로 센다
+                // (생산 1개에 ×1.5 가 걸리면 1개가 아니라 2개다).
+                int made = Mathf.Max(1, Mathf.RoundToInt(
+                    task.EffectAmount * RecoveryProfile.MaterialProductionMultiplier));
+                GameState.Instance.AddMaterials(made);
+                MaterialProbe?.Invoke(made, "produced");
+                badge += $" · 📦 자재 +{made}";
                 // 표시: HUD 자재 숫자가 한 번 튀고 · 미니맵 정비실이 밝아지고 · 로그에 한 줄.
-                RoomEffectStats.MaterialsToday += (int)task.EffectAmount;
+                RoomEffectStats.MaterialsToday += made;
                 RoomEffectStats.Pulse(roomId);
                 RoomEffectStats.MaterialsGained?.Invoke();
-                RoomEffectLog.NoteMaterials(roomId, (int)task.EffectAmount);
+                RoomEffectLog.NoteMaterials(roomId, made);
                 break;
             case TaskEffectType.AddCoreProgress:
                 // 코어 출력 불안정(사고) 중에는 복구가 아예 진행되지 않는다.
                 if (GameState.Instance.CoreOutputUnstable)
                 {
+                    CoreGainProbe?.Invoke(task.EffectAmount * RecoveryProfile.YieldMultiplier, "CoreBreakdown");
                     badge += " · ⚠ 코어 출력 불안정 — 복구 정지";
                     break;
                 }
                 // 저장고 인원이 자재 소모량을 바꾼다(비워 두면 낭비가 늘어난다).
                 int consumed = RoomStaffing.CoreMaterialCost();
                 GameState.Instance.AddMaterials(-consumed);
-                GameState.Instance.AddCoreProgress(task.EffectAmount, task.DisplayName);
-                badge += $" · 코어 +{task.EffectAmount:0}% · 📦 자재 -{consumed}";
+                MaterialProbe?.Invoke(consumed, "consumed");
+                // 자재 1개가 사 오는 복구량. 자재 소모는 정수라 1개 밑으로 내려갈 수 없어서
+                // (MaterialsPerCoreGauge=1 · Max(1,…)) 자재 부담은 **이 수율**로 조절한다.
+                // 난이도 표의 CoreYieldMultiplier 가 그 값이다.
+                float got = task.EffectAmount * RecoveryProfile.YieldMultiplier;
+                GameState.Instance.AddCoreProgress(got, task.DisplayName);
+                badge += $" · 코어 +{got:0.#}% · 📦 자재 -{consumed}";
                 // 표시: 코어 게이지 옆 "+1%" · 미니맵 코어실 점멸 · 오늘 복구량 집계.
                 RoomEffectStats.CoreUpToday += task.EffectAmount;
                 RoomEffectStats.Pulse(roomId);
@@ -2841,9 +2869,10 @@ public partial class FacilitySimulation : Node
                     break;
                 }
                 // 치료 대상 = 이 방(의무실)에 있는 직원. 감소에는 담력 배율을 걸지 않는다.
+                float heal = task.EffectAmount * RecoveryProfile.MedicalRecoveryMultiplier;
                 foreach (var occId in (_roomStates.GetValueOrDefault(roomId)?.OccupantEmployeeIds ?? new List<string>()).ToList())
-                    AddStress(occId, -task.EffectAmount);
-                badge += $" · 스트레스 -{task.EffectAmount:0}";
+                    AddStress(occId, -heal);
+                badge += $" · 스트레스 -{heal:0.#}";
                 break;
             case TaskEffectType.BoostPowerCapacity:
                 GameState.Instance.RepairPowerAccident();

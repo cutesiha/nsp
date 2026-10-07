@@ -18,16 +18,35 @@ public partial class BlinkOverlay : CanvasLayer
 {
     public static BlinkOverlay Instance { get; private set; }
 
-    // 지금 눈이 감겨 있는가(검사 · fail-safe 판정용).
+    // 지금 눈이 감겨 있는가(검사 · fail-safe 판정용). 뜨는 동작이 끝나야 false 가 된다.
     public bool IsClosed { get; private set; }
 
-    // 고리가 화면 밖에 있어 아무것도 가리지 않는 배율. 2.6 이면 1920 폭에서도 안 보인다.
-    private const float OpenScale = 2.6f;
-    // 고리가 중앙까지 조여든 배율. 이보다 더 줄이면 텍스처 보간이 지저분해진다.
-    private const float ShutScale = 0.22f;
+    // 지금 뜨는 중인가. 감는 중과 뜨는 중은 ClosedAmount 만으로는 구분되지 않는다.
+    public bool IsOpening { get; private set; }
+    // 셰이더 한 장. 화면 가운데에서의 거리가 cutoff 를 넘는 픽셀부터 검게 칠한다.
+    //
+    // 예전에는 비네트 텍스처를 축소해서 조이려 했는데, TextureRect 는 **자기 사각형 안만**
+    // 칠한다 — 줄이면 바깥이 아예 안 칠해져서 화면 가장자리가 오히려 멀쩡히 보였다.
+    // 전체 화면을 덮는 사각형 하나에 셰이더를 걸어야 "바깥부터 안으로" 가 된다.
+    private const string ShaderCode = @"
+shader_type canvas_item;
+// 2.1 = 완전히 열림(모서리까지 투명) · 0.0 = 완전히 닫힘(전부 검정)
+uniform float cutoff : hint_range(0.0, 2.2) = 2.1;
+uniform float softness : hint_range(0.05, 1.0) = 0.45;
+void fragment() {
+    vec2 p = (UV - vec2(0.5)) * 2.0;
+    float d = length(p);
+    float a = smoothstep(cutoff - softness, cutoff, d);
+    COLOR = vec4(0.0, 0.0, 0.0, a);
+}
+";
 
-    private TextureRect _ring;
-    private ColorRect _black;
+    // 모서리까지 완전히 투명해지는 값(정규화 좌표에서 모서리 거리는 √2 ≈ 1.414).
+    private const float OpenCutoff = 2.1f;
+    private const float ShutCutoff = 0.0f;
+
+    private ColorRect _veil;
+    private ShaderMaterial _mat;
     private Tween _tween;
 
     public override void _EnterTree() => Instance = this;
@@ -37,74 +56,53 @@ public partial class BlinkOverlay : CanvasLayer
         // 공포 연출 오버레이(HorrorDirector = 128)보다 위. 눈을 감으면 그 위의 노이즈도 덮인다.
         Layer = 160;
 
-        _ring = new TextureRect
-        {
-            Texture = BuildRing(),
-            StretchMode = TextureRect.StretchModeEnum.Scale,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            Scale = Vector2.One * OpenScale,
-        };
-        _ring.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(_ring);
+        _mat = new ShaderMaterial { Shader = new Shader { Code = ShaderCode } };
+        _mat.SetShaderParameter("cutoff", OpenCutoff);
+        _mat.SetShaderParameter("softness", 0.45f);
 
-        _black = new ColorRect
+        _veil = new ColorRect
         {
-            Color = new Color(0f, 0f, 0f, 0f),
+            Color = Colors.White,            // 색은 셰이더가 정한다
+            Material = _mat,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        _black.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        AddChild(_black);
-
-        Recenter();
-        GetViewport().SizeChanged += Recenter;
+        _veil.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_veil);
     }
 
     public override void _ExitTree()
     {
-        var vp = GetViewport();
-        if (vp != null) vp.SizeChanged -= Recenter;
         if (Instance == this) Instance = null;
     }
 
-    // scale 은 PivotOffset 을 기준으로 돈다. 가운데를 기준으로 조여야 하므로 매번 맞춘다.
-    private void Recenter()
-    {
-        if (_ring == null || !IsInstanceValid(_ring)) return;
-        var size = GetViewport()?.GetVisibleRect().Size ?? Vector2.Zero;
-        if (size == Vector2.Zero) return;
-        _ring.Size = size;
-        _ring.Position = Vector2.Zero;
-        _ring.PivotOffset = size * 0.5f;
-    }
+    // 지금 눈꺼풀이 얼마나 닫혔는가(0 = 열림, 1 = 완전 암전). 검사가 읽는다.
+    public float ClosedAmount =>
+        _mat == null ? 0f
+        : Mathf.Clamp(1f - (float)_mat.GetShaderParameter("cutoff") / OpenCutoff, 0f, 1f);
 
     // 눈을 감는다. 끝나면 화면은 완전한 검정이다.
     public async Task Close(double seconds = 0.45)
     {
-        Recenter();
         IsClosed = true;
+        IsOpening = false;
         _tween?.Kill();
-        _tween = CreateTween().SetParallel(true);
-        // 고리가 중앙으로 조여든다 — 가장자리부터 어두워지는 것이 이 트윈이다.
-        _tween.TweenProperty(_ring, "scale", Vector2.One * ShutScale, seconds)
+        _tween = CreateTween();
+        _tween.TweenMethod(Callable.From<float>(SetCutoff), Cutoff, ShutCutoff, seconds)
             .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.In);
-        // 검은 판은 뒤쪽 60% 구간에서만 올라온다. 처음부터 올리면 가장자리 연출이 묻힌다.
-        _tween.TweenProperty(_black, "color:a", 1f, seconds * 0.62)
-            .SetDelay(seconds * 0.38).SetTrans(Tween.TransitionType.Sine);
         await ToSignal(_tween, Tween.SignalName.Finished);
     }
 
     // 눈을 뜬다.
     public async Task Open(double seconds = 0.45)
     {
-        Recenter();
+        IsOpening = true;
         _tween?.Kill();
-        _tween = CreateTween().SetParallel(true);
-        _tween.TweenProperty(_ring, "scale", Vector2.One * OpenScale, seconds)
+        _tween = CreateTween();
+        _tween.TweenMethod(Callable.From<float>(SetCutoff), Cutoff, OpenCutoff, seconds)
             .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
-        _tween.TweenProperty(_black, "color:a", 0f, seconds * 0.55)
-            .SetTrans(Tween.TransitionType.Sine);
         await ToSignal(_tween, Tween.SignalName.Finished);
         IsClosed = false;
+        IsOpening = false;
     }
 
     // 트윈을 기다리지 않고 즉시 전부 걷는다. fail-safe 전용 — 연출이 아니다.
@@ -113,28 +111,11 @@ public partial class BlinkOverlay : CanvasLayer
         _tween?.Kill();
         _tween = null;
         IsClosed = false;
-        if (_ring != null && IsInstanceValid(_ring)) _ring.Scale = Vector2.One * OpenScale;
-        if (_black != null && IsInstanceValid(_black)) _black.Color = new Color(0f, 0f, 0f, 0f);
+        IsOpening = false;
+        SetCutoff(OpenCutoff);
     }
 
-    // 중앙이 비고 바깥이 검은 고리. AmbientOverlay 의 비네트보다 훨씬 급하게 짙어진다 —
-    // 이쪽은 분위기가 아니라 시야를 **닫는** 용도다.
-    private static ImageTexture BuildRing()
-    {
-        const int w = 512, h = 512;
-        var img = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);
-        float c = w / 2f;
-        for (int y = 0; y < h; y++)
-        for (int x = 0; x < w; x++)
-        {
-            float dx = (x - c) / c;
-            float dy = (y - c) / c;
-            float d = Mathf.Sqrt(dx * dx + dy * dy);
-            // 0.30 안쪽은 완전 투명, 0.78 바깥은 완전 검정. 사이는 부드럽게.
-            float a = Mathf.Clamp((d - 0.30f) / 0.48f, 0f, 1f);
-            a = a * a * (3f - 2f * a);
-            img.SetPixel(x, y, new Color(0f, 0f, 0f, a));
-        }
-        return ImageTexture.CreateFromImage(img);
-    }
+    private float Cutoff => _mat == null ? OpenCutoff : (float)_mat.GetShaderParameter("cutoff");
+
+    private void SetCutoff(float v) => _mat?.SetShaderParameter("cutoff", v);
 }

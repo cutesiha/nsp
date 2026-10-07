@@ -17,10 +17,16 @@ public static class RoomStaffing
     // 같은 방에 불편(Uneasy) 관계 쌍이 있으면 쌍마다 config UneasyEfficiencyMultiplier 가 곱해진다.
     public static float Efficiency(string roomId)
     {
+        int here = Count(roomId);
+        // 코어실만은 그 날의 ops 표가 아니라 **복구 난이도 표**(data/recovery)를 따른다.
+        // 1차 · 2차 · 3차가 같은 ops 파일을 공유하면서도 코어 효율만 달라져야 하기 때문이다.
+        if (roomId == FacilitySimulation.CoreRoomIdPublic)
+            return RecoveryProfile.CoreStaffMultiplier(here) * RelationEfficiency(roomId);
+
         var ops = OpsProfile.Room(roomId);
         float baseRate = ops == null
-            ? Mathf.Max(0, Count(roomId))                        // 표가 없으면 옛 방식(머릿수 합)
-            : OpsProfile.Curve(ops.Efficiency, Count(roomId), 0f);
+            ? Mathf.Max(0, here)                                 // 표가 없으면 옛 방식(머릿수 합)
+            : OpsProfile.Curve(ops.Efficiency, here, 0f);
         return baseRate * RelationEfficiency(roomId);
     }
 
@@ -86,7 +92,9 @@ public static class RoomStaffing
     public static int CoreMaterialCost()
     {
         int baseCost = Config.Instance?.Data?.MaterialsPerCoreGauge ?? 2;
-        return Mathf.Max(1, Mathf.RoundToInt(baseCost * MaterialCostMultiplier()));
+        // 난이도 표의 자재 배율(1차 0.7 · 2차 1.0 · 3차 1.2)이 배치에서 오는 배율 위에 곱해진다.
+        return Mathf.Max(1, Mathf.RoundToInt(
+            baseCost * MaterialCostMultiplier() * RecoveryProfile.MaterialCostMultiplier));
     }
 
     // 자재 소모에 걸리는 배율 자체(반올림 전). 화면이 "지금 배치가 소모를 얼마나

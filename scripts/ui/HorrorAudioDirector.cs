@@ -269,6 +269,23 @@ public partial class HorrorAudioDirector : Node
     public void DebugPlay(string key, float pan, float db = -20f)
         => Sfx.Instance?.PlayHorror(key, db, pan);
 
+    // 그 상황에서 **뽑힐 수 있는** 소리들. (키, 가까운 소리인가)
+    //
+    // 같은 키가 먼 소리와 가까운 소리 양쪽에 등록돼 있다(whisper_short 는 오른쪽 멀리서도
+    // 쓰고, DAY4 부터 왼쪽 귀 바로 옆에서도 쓴다). 그래서 "가까운 소리가 안 나오는가" 는
+    // 키로 판정할 수 없고 **cue 단위**로 봐야 한다 — 검사가 이것을 본다.
+    public static List<(string Key, bool Close)> PickablesForDay(int day, bool rest)
+    {
+        var list = new List<(string, bool)>();
+        foreach (var c in Cues)
+        {
+            if (c.FromDay > day) continue;
+            if (rest && c.Close) continue;
+            list.Add((c.Key, c.Close));
+        }
+        return list;
+    }
+
     // 오늘 그 DAY 에 쓸 수 있는 소리 키 목록(검사용).
     public static List<string> KeysForDay(int day, bool rest)
     {

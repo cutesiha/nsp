@@ -25,7 +25,11 @@ public partial class StoryCutinDirector : Node
 
     // 지금 모니터2 안에서 도는 스토리인가(DAY1~5 메인 스토리).
     // FacilityCctvWorld 가 이 값을 보고 근무 중에도 휴게실을 비춘다.
-    public static bool ShowsRestRoom => Instance is { IsPlaying: true, _onMonitor: true };
+    //
+    // 대사가 도는 중(IsPlaying)인지는 보지 않는다. 전환 연출이 **첫 대사보다 먼저**
+    // 모니터2 를 휴게실로 바꿔 두기 때문이다 — 관리자가 눈을 뜨는 순간 화면에 이미
+    // 휴게실이 떠 있어야 한다(지시서 §1). IsPlaying 까지 보면 그 구간이 빈 화면이 된다.
+    public static bool ShowsRestRoom => Instance is { _onMonitor: true };
 
     private bool _onMonitor;
     private SubViewport _prevRightScreen;

@@ -43,11 +43,19 @@ public static class StoryTransition
 
     // 스토리 앞 전환. 돌아올 때 화면은 이미 모니터2 확대 상태이고 첫 대사만 기다린다.
     //
-    // monitorReady 가 false 로 돌아오면 모니터 연출 없이 스토리만 흐른다 — 그래도
-    // 암전과 소리는 제자리로 돌려놓고 나간다.
-    public static async Task Enter(Node ctx)
+    // 돌려주는 값 = **이 호출이 전환을 맡았는가**. false 면 이미 다른 전환이 돌고 있다는
+    // 뜻이고, 그때는 Exit 도 부르면 안 된다 — 남의 스토리를 대신 끝내 버리게 된다.
+    public static async Task<bool> Enter(Node ctx)
     {
-        if (ctx == null || !GodotObject.IsInstanceValid(ctx)) return;
+        if (ctx == null || !GodotObject.IsInstanceValid(ctx)) return false;
+        // 전환이 이미 돌고 있으면 두 번째는 들어오지 않는다.
+        // 개발 허브처럼 배치 화면에 다시 들어가는 길이 있으면 두 개가 겹쳐서,
+        // 눈이 감겼다 떴다를 반복하고 두 BGM 이 서로를 밀어낸다.
+        if (Active)
+        {
+            GD.PushWarning("StoryTransition: 이미 전환이 돌고 있어 두 번째 요청을 건너뜁니다.");
+            return false;
+        }
         Active = true;
         try
         {
@@ -101,6 +109,7 @@ public static class StoryTransition
         {
             Active = false;
         }
+        return true;
     }
 
     // ── 종료 ──────────────────────────────────────────────────────────

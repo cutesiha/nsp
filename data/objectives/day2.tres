@@ -18,7 +18,7 @@
 [sub_resource type="Resource" id="obj_core"]
 script = ExtResource("2_obj")
 ObjectiveId = "core"
-DisplayText = "봉쇄 코어 누적 복구율 38% 달성"
+DisplayText = "권장 복구율 38%"
 Type = 0
 TargetValue = 38.0
 Required = true

@@ -11,6 +11,12 @@ public partial class GameState : Node
     public static GameState Instance { get; private set; }
 
     public int CurrentDay { get; private set; } = 1;
+
+    // 몇 번째 5일인가. 1 = 첫 5일(스토리 캠페인) · 2 = 표준 · 3 이상 = 고난도.
+    // 복구 난이도 표(RecoveryProfile)를 고르는 데만 쓴다 — 스토리 재생 여부와는 무관하다.
+    public int RecoveryCycle { get; private set; } = 1;
+
+    public void SetRecoveryCycle(int cycle) => RecoveryCycle = Math.Max(1, cycle);
     public GamePhase CurrentPhase { get; private set; } = GamePhase.Prep;
     public float DayTimeSeconds { get; private set; } = 0f;
 
@@ -196,10 +202,17 @@ public partial class GameState : Node
     // 사고(보관 선반 붕괴)로 다시 내려갈 수 있으며, 그때 한도를 넘은 자재는 즉시 사라진다.
     public int MaterialsCap { get; private set; } = 30;
 
+    // 검사 전용 — 자재가 실제로 얼마나 들어오고 나갔는지, 한도에 걸려 얼마가 버려졌는지.
+    public static System.Action<int, string> MaterialFlowProbe;
+
     public void AddMaterials(int delta)
     {
         // 한도가 꽉 찬 상태에서 생산된 초과 자재는 그냥 사라진다(넘치는 만큼 버려짐).
+        int before = Materials;
         Materials = Mathf.Clamp(Materials + delta, 0, MaterialsCap);
+        int real = Materials - before;
+        if (MaterialFlowProbe != null && delta != real)
+            MaterialFlowProbe(delta - real, delta > 0 ? "cap_discard" : "underflow");
     }
 
     // 저장고 작업 = 한도 상승(최대 MaterialsCapMax). 사고 = 한도 하락(음수 delta).
@@ -207,7 +220,10 @@ public partial class GameState : Node
     public void AddMaterialsCap(int delta)
     {
         var cfg = Config.Instance.Data;
-        MaterialsCap = Mathf.Clamp(MaterialsCap + delta, 0, cfg.MaterialsCapMax);
+        // 난이도 표가 정한 하한 아래로는 내려가지 않는다. 한도가 0 이 되면 생산한 자재가
+        // 전부 즉시 폐기되어 코어 복구가 영영 불가능해진다 — 되돌릴 수 없는 판이 된다.
+        int floor = Mathf.Clamp(RecoveryProfile.MaterialsCapFloor, 0, cfg.MaterialsCapMax);
+        MaterialsCap = Mathf.Clamp(MaterialsCap + delta, floor, cfg.MaterialsCapMax);
         if (Materials > MaterialsCap) Materials = MaterialsCap;
     }
 
