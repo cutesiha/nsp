@@ -161,7 +161,7 @@ public partial class PadRepairOverlay : Control
         // 미로 — 화면 가운데 정사각형.
         float side = Mathf.Min(_canvas.X * 0.60f, _canvas.Y * 0.60f);
         float cell = side / m.Size;
-        var origin = new Vector2((w - side) * 0.5f, _canvas.Y * 0.265f);
+        var origin = new Vector2((w - side) * 0.5f, _canvas.Y * 0.265f) + ShakeOffset();
 
         for (int y = 0; y < m.Size; y++)
         for (int x = 0; x < m.Size; x++)
@@ -178,15 +178,17 @@ public partial class PadRepairOverlay : Control
             DrawRect(box, fill);
 
             // 벽 — 열려 있지 않은 면만 선을 긋는다.
-            var wall = new Color(0.45f, 0.62f, 0.68f);
+            // 선이 얇으면 칸 경계인지 벽인지 구분이 안 돼 길을 잘못 읽는다. 두껍게 · 밝게.
+            var wall = new Color(0.68f, 0.84f, 0.90f);
+            const float W = 6f;
             if (!m.IsOpen(at, RepairMaze.Dir.Up))
-                DrawLine(box.Position, box.Position + new Vector2(cell, 0), wall, 2f);
+                DrawLine(box.Position, box.Position + new Vector2(cell, 0), wall, W);
             if (!m.IsOpen(at, RepairMaze.Dir.Left))
-                DrawLine(box.Position, box.Position + new Vector2(0, cell), wall, 2f);
+                DrawLine(box.Position, box.Position + new Vector2(0, cell), wall, W);
             if (x == m.Size - 1 && !m.IsOpen(at, RepairMaze.Dir.Right))
-                DrawLine(box.Position + new Vector2(cell, 0), box.Position + new Vector2(cell, cell), wall, 2f);
+                DrawLine(box.Position + new Vector2(cell, 0), box.Position + new Vector2(cell, cell), wall, W);
             if (y == m.Size - 1 && !m.IsOpen(at, RepairMaze.Dir.Down))
-                DrawLine(box.Position + new Vector2(0, cell), box.Position + new Vector2(cell, cell), wall, 2f);
+                DrawLine(box.Position + new Vector2(0, cell), box.Position + new Vector2(cell, cell), wall, W);
         }
 
         Label(origin, cell, m.Start, "S", Amber);
@@ -222,6 +224,40 @@ public partial class PadRepairOverlay : Control
         DrawRect(band, new Color(0.02f, 0.05f, 0.06f, 0.95f));
         DrawString(_font, new Vector2(0, band.Position.Y + 54f), why,
             HorizontalAlignment.Center, _canvas.X, ViewFont.S(32), ok ? Good : Red);
+        DrawFailFlash();
+    }
+
+    // ── 미로 실패 깜짝 연출 ──────────────────────────────────────────────
+    //
+    // 승인해 놓고 미로에서 틀린 것은 관리자가 직접 망친 결과다. 글자 한 줄로 넘기면
+    // 손에 남지 않아서, 화면을 한 번 붉게 터뜨리고 흔든다(소리는 RepairApprovalSystem).
+    // 진행도는 결과 표시 시간이 줄어드는 비율 그대로 쓴다 — 따로 시계를 두지 않는다.
+    private static float FailT()
+    {
+        if (!RepairApprovalSystem.MazeFailed) return 0f;
+        if (RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Result) return 0f;
+        float total = RepairApprovalSystem.ResultTotal;
+        if (total <= 0f) return 0f;
+        return Mathf.Clamp(RepairApprovalSystem.ResultSeconds / total, 0f, 1f);
+    }
+
+    private static Vector2 ShakeOffset()
+    {
+        float t = FailT();
+        if (t <= 0f) return Vector2.Zero;
+        // 처음이 가장 세고 빠르게 잦아든다.
+        float amp = 26f * t * t;
+        return new Vector2(
+            Mathf.Sin(Time.GetTicksMsec() / 11f) * amp,
+            Mathf.Cos(Time.GetTicksMsec() / 8f) * amp * 0.7f);
+    }
+
+    private void DrawFailFlash()
+    {
+        float t = FailT();
+        if (t <= 0f) return;
+        DrawRect(new Rect2(Vector2.Zero, _canvas), new Color(0.95f, 0.10f, 0.08f, 0.55f * t * t));
+        DrawRect(new Rect2(Vector2.Zero, _canvas), new Color(1f, 0.25f, 0.20f, 0.9f * t), false, 10f + 26f * t);
     }
 
     private void Title(string text, Color col) =>

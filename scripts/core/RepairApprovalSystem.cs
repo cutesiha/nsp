@@ -70,6 +70,12 @@ public static class RepairApprovalSystem
 
     private static readonly Queue<Request> _queue = new();
     private const float ResultHoldSeconds = 0.5f;
+    private const float MazeFailHoldSeconds = 1.5f;
+
+    // 방금 결과가 '미로 실패' 였는가 — 패드 화면의 깜짝 연출이 이것만 보고 돈다.
+    public static bool MazeFailed { get; private set; }
+    // 결과를 보여 주기로 한 전체 시간(남은 시간 ResultSeconds 와 짝). 연출이 진행도를 잰다.
+    public static float ResultTotal { get; private set; }
 
     public static int Pending => _queue.Count;
     public static bool Busy => Current != Phase.Idle;
@@ -82,8 +88,9 @@ public static class RepairApprovalSystem
         Current = Phase.Idle;
         Active = null;
         Maze = null;
-        SecondsLeft = SecondsTotal = ResultSeconds = 0f;
+        SecondsLeft = SecondsTotal = ResultSeconds = ResultTotal = 0f;
         MazeStarted = false;
+        MazeFailed = false;
     }
 
     // 수리가 걸렸다 — 승인 요청을 줄에 세운다. 결번 개체가 수리 중이어도 똑같이 뜬다.
@@ -194,10 +201,22 @@ public static class RepairApprovalSystem
         // 풀었는지 틀렸는지 글자를 읽어야만 안다.
         if (succeeded) Sfx.Instance?.Play("task_done", -5f);
         else if (!approved) Sfx.Instance?.Play("switch_fail", -6f);          // [아니오] · 무응답
-        else Sfx.Instance?.Play("power_down", -7f, 1.15f);                   // 승인했지만 미로 실패
+        else
+        {
+            // 승인했는데 미로에서 틀렸다 — 이건 관리자가 **직접** 망친 것이라, 다른
+            // 실패와 같은 소리로 넘기면 손에 남지 않는다. 끊기는 소리 · 충격음 ·
+            // 이명을 겹쳐 한 번 세게 때리고, 패드 화면도 같이 붉게 터진다(PadRepairOverlay).
+            Sfx.Instance?.Play("switch_fail", -2f, 0.85f);
+            Sfx.Instance?.Play("impact_blunt", -1f, 0.9f);
+            Sfx.Instance?.Play("tinnitus", -11f);
+        }
 
         Current = Phase.Result;
-        ResultSeconds = ResultHoldSeconds;
+        // 미로 실패만 결과를 조금 더 붙잡아 둔다 — 깜짝 연출이 끝나기 전에 창이 닫히면
+        // 무엇이 터진 건지 보이지도 않는다.
+        MazeFailed = approved && !succeeded && Maze != null;
+        ResultSeconds = MazeFailed ? MazeFailHoldSeconds : ResultHoldSeconds;
+        ResultTotal = ResultSeconds;
         Resolved?.Invoke(succeeded, room);
     }
 
@@ -213,7 +232,8 @@ public static class RepairApprovalSystem
         Current = Phase.Idle;
         Active = null;
         Maze = null;
-        SecondsLeft = SecondsTotal = ResultSeconds = 0f;
+        SecondsLeft = SecondsTotal = ResultSeconds = ResultTotal = 0f;
         MazeStarted = false;
+        MazeFailed = false;
     }
 }

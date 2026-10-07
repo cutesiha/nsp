@@ -556,6 +556,12 @@ line: 봉쇄 코어 복구에는 /3자재/0가 필요합니다. 지금 보유량
 portrait: normal
 line: /5정비실/0을 열었습니다. 직원을 배치하면 자재를 생산할 수 있습니다.
 
+# 작업실을 연 직후 — 배치가 드래그라는 것을 모른 채 멈춰 서 있던 자리다.
+# 정비실 · 저장고가 열릴 때 같은 줄을 쓴다(TutorialDirector).
+@guide tut_room_assign
+portrait: normal
+line: 직원을 끌어서 배치해 보십시오.
+
 @guide tut_materials_done
 portrait: smile
 line: 자재가 들어왔습니다. 코어 복구가 다시 진행됩니다.

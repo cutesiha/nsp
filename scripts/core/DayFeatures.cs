@@ -19,6 +19,16 @@ public static class DayFeatures
 
     // DAY0 = GUIDE-0 가 진행하는 가상 교육 시뮬레이션. 방해자도, 자동 사고도, 자동 전화도 없다.
     public static bool IsTutorialDay => Day <= 0;
+
+    // 가상 시뮬레이션의 업무 속도 배율.
+    //
+    // 교육은 "상황이 먼저, 설명은 그 다음" 순서로 돈다 — 자재가 **떨어져야** 정비실 이야기가
+    // 나오고, 자재가 **들어와야** 다음 줄로 넘어간다. 실제 근무 속도로는 그 사이가 수십 초
+    // 비어 있어서, 안내와 안내 사이에 아무 일도 없는 구간이 생긴다. 교육에서만 빠르게 돌린다.
+    // (밸런스가 아니라 템포 값이다 — 실제 근무 DAY1~5 는 1 그대로다.)
+    public const float TutorialWorkRate = 2.4f;
+
+    public static float WorkRateMultiplier => IsTutorialDay ? TutorialWorkRate : 1f;
     // 방해자 배정/행동. 교육용 DAY0 에는 방해자가 존재하지 않는다.
     public static bool SaboteurActive => Day >= 1;
     // 무인 방치 사고 등 시뮬레이션이 스스로 일으키는 사고. DAY0 는 튜토리얼이 직접 일으킨다.

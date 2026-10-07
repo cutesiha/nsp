@@ -139,8 +139,90 @@ public partial class FacilityMonitorView : Control
         // 오른쪽 끝을 축으로 커졌다 돌아온다 — 숫자가 제자리에서 튀어 보인다.
         _protocol.PivotOffset = new Vector2(394f, 12f);
         AddChild(_protocol);
+        // 그 숫자를 가리키는 하늘색 네모. 평소에는 꺼져 있고 교육이 켠다.
+        BuildMaterialsMark();
         RoomEffectStats.MaterialsGained += PopMaterials;
     }
+
+    // ── 자재 표시 강조 ───────────────────────────────────────────────────
+    //
+    // DAY0 교육이 "자재가 필요합니다" 를 말하는 동안, 화면 어디를 봐야 하는지 가리킨다.
+    // 다른 UI 칸과 같은 하늘색 테두리를 그 숫자 둘레에만 둘러 주는 것이 전부다 —
+    // 새 안내창을 띄우지 않는다.
+    // 네 변을 각각 얇은 ColorRect 로 긋고 가운데를 아주 옅게 채운다.
+    private readonly System.Collections.Generic.List<ColorRect> _materialsMark = new();
+    private bool _materialsMarkOn;
+    private float _materialsMarkT;
+
+    private static readonly Color MarkCyan = new(0.45f, 0.88f, 0.95f);
+
+    private void BuildMaterialsMark()
+    {
+        // [0] = 안쪽 바탕, [1~4] = 위 · 아래 · 왼 · 오른 변.
+        for (int i = 0; i < 5; i++)
+        {
+            // **Visible 과 Modulate 는 건드리지 않는다.** 이 화면에서는 그 둘로 여닫은
+            // ColorRect 가 그려지지 않았다 — 켜고 끄는 것도, 숨 쉬는 것도 Color 의
+            // 알파 하나로만 한다(그 경로는 확인됐다).
+            var r = new ColorRect
+            {
+                Color = MarkCyan with { A = 0f },
+                MouseFilter = MouseFilterEnum.Ignore,
+            };
+            AddChild(r);
+            _materialsMark.Add(r);
+
+        }
+    }
+
+    // 매 프레임 그 숫자 자리에 맞춰 둔다(줄이 오른쪽 정렬이라 자리가 움직인다).
+    private void UpdateMaterialsMark(double delta)
+    {
+        if (_materialsMark.Count < 5) return;
+        if (!_materialsMarkOn)
+        {
+            foreach (var r in _materialsMark)
+                if (r.Color.A > 0f) r.Color = MarkCyan with { A = 0f };
+            return;
+        }
+
+        var box = _materialsRect.Grow(5f);
+        if (box.Size.X <= 0f) return;
+        _materialsMarkT += (float)delta;
+
+        const float T = 2f;   // 테두리 두께
+        Rect2[] rects =
+        {
+            box,
+            new(box.Position, new Vector2(box.Size.X, T)),
+            new(box.Position + new Vector2(0, box.Size.Y - T), new Vector2(box.Size.X, T)),
+            new(box.Position, new Vector2(T, box.Size.Y)),
+            new(box.Position + new Vector2(box.Size.X - T, 0), new Vector2(T, box.Size.Y)),
+        };
+        // 숨 쉬듯 밝아졌다 어두워진다 — 가만히 떠 있으면 UI 의 일부로 읽힌다.
+        float a = 0.55f + 0.45f * Mathf.Sin(_materialsMarkT * 4.2f);
+        for (int i = 0; i < 5; i++)
+        {
+            // 자리는 **바뀌었을 때만** 쓴다. 매 프레임 Size 를 덮어쓰면 이 화면에서는
+            // 사각형이 아예 그려지지 않았다(원인은 못 찾았고, 바뀔 때만 쓰면 멀쩡하다).
+            if (_materialsMark[i].Position != rects[i].Position) _materialsMark[i].Position = rects[i].Position;
+            if (_materialsMark[i].Size != rects[i].Size) _materialsMark[i].Size = rects[i].Size;
+            // [0] 은 안쪽 바탕이라 아주 옅게, 나머지 네 변은 또렷하게.
+            _materialsMark[i].Color = MarkCyan with { A = i == 0 ? a * 0.18f : a };
+        }
+    }
+
+    // 지금 「자재 N / M」 부분이 화면에서 차지하는 자리(UpdateProtocol 이 매번 다시 잰다).
+    // 줄 전체가 오른쪽 정렬이라 글자 수가 바뀌면 이 자리도 같이 움직인다.
+    private Rect2 _materialsRect;
+
+    public static void HighlightMaterials(bool on)
+    {
+        if (Instance == null || Instance._materialsMarkOn == on) return;
+        Instance._materialsMarkOn = on;
+        Instance._materialsMarkT = 0f;
+    }
+
 
     private void BuildBody()
     {
@@ -354,6 +436,7 @@ public partial class FacilityMonitorView : Control
 
     public override void _Process(double delta)
     {
+        UpdateMaterialsMark(delta);
         string clock = ShiftClock(GameState.Instance?.DayTimeSeconds ?? 0f);
         if (_clock.Text != clock) _clock.Text = clock;
 
@@ -437,7 +520,8 @@ public partial class FacilityMonitorView : Control
     {
         var gs = NSP.Core.GameState.Instance;
         var sb = new StringBuilder();
-        sb.Append($"자재  {gs?.Materials ?? 0} / {gs?.MaterialsCap ?? 0}");
+        string materials = $"자재  {gs?.Materials ?? 0} / {gs?.MaterialsCap ?? 0}";
+        sb.Append(materials);
         // 소모량은 "코어 1% 당" 으로 환산해 쓴다 — 관리자가 실제로 세는 단위가 %다.
         // (코어 복구 업무 한 번이 몇 % 를 올리는지는 데이터가 정한다.)
         sb.Append($"    코어 복구 1%당 {NSP.Facility.RoomStaffing.CoreMaterialCostPerPercent()} 소모");
@@ -446,6 +530,14 @@ public partial class FacilityMonitorView : Control
             sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
         string protocol = sb.ToString();
         if (_protocol.Text != protocol) _protocol.Text = protocol;
+
+        // 「자재 N / M」 이 실제로 놓인 자리를 잰다. 줄 전체가 오른쪽 정렬이므로
+        // 오른쪽 끝에서 전체 너비를 빼면 줄의 왼쪽 끝이고, 자재 부분은 그 앞머리다.
+        int size = ViewFont.S(16);
+        float all = _font.GetStringSize(protocol, HorizontalAlignment.Left, -1, size).X;
+        float head = _font.GetStringSize(materials, HorizontalAlignment.Left, -1, size).X;
+        float right = _protocol.Position.X + _protocol.Size.X;
+        _materialsRect = new Rect2(right - all, _protocol.Position.Y + 2f, head, _protocol.Size.Y - 4f);
     }
 
     private void UpdateInspector()

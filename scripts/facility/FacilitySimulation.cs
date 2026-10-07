@@ -2657,7 +2657,9 @@ public partial class FacilitySimulation : Node
                     // 발전이 불안정하면 시설 전체가 느려진다. 다만 수리에는 걸지 않는다 —
                     // 고장 난 방을 고치는 일까지 느려지면 회복 자체가 불가능해진다.
                     float facility = st.IsRepair ? 1f : RoomStaffing.FacilityOutput();
-                    float rate = baseRate * RoomStaffing.Efficiency(st.RoomId) * crew * facility * tabooPenalty;
+                    // DAY0 교육만 배속으로 돈다(DayFeatures.WorkRateMultiplier = 1 in DAY1~5).
+                    float rate = baseRate * RoomStaffing.Efficiency(st.RoomId) * crew * facility * tabooPenalty
+                                 * DayFeatures.WorkRateMultiplier;
                     st.Gauge += rate * delta;
                     st.LastRate = rate;   // 표시 전용
                 }

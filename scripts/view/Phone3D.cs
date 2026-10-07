@@ -239,8 +239,15 @@ public partial class Phone3D : Node3D
         _state = PhoneState.Ringing;
         _autoPickupAt = -1;
 
-        float patience = FacilitySimulation.Instance?.GetEmployeeDef(employeeId)?.IncomingCallPatienceSeconds ?? 5f;
-        _patienceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(1f, patience);
+        // 가상 시뮬레이션(DAY0)에서는 직원이 포기하지 않는다 — 받을 때까지 계속 울린다.
+        // 교육은 전화를 받아야 다음 단계로 넘어가는데, 직원이 먼저 끊어 버리면 안내가
+        // 멈춘 채로 "다시 걸고 기다리는" 공백만 반복된다(TutorialDirector 가 재발신한다).
+        if (NSP.Core.DayFeatures.IsTutorialDay) _patienceUntil = -1;
+        else
+        {
+            float patience = FacilitySimulation.Instance?.GetEmployeeDef(employeeId)?.IncomingCallPatienceSeconds ?? 5f;
+            _patienceUntil = Time.GetTicksMsec() / 1000.0 + Mathf.Max(1f, patience);
+        }
 
         _ring?.Play();
         LastCallRejectedByPlayer = false;

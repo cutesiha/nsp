@@ -49,12 +49,10 @@ public partial class PhoneCallHud : CanvasLayer
     // 세계관에서 전화는 어디까지나 음성 통화다. 이 스탠딩은 영상통화 화면이 아니라,
     // 상대 직원의 감정과 모습을 플레이어에게 보여 주는 연출이다 — 그래서 "연결됨"
     // 같은 표시도, CCTV · COMM 틀도 붙이지 않는다(문서 §3.3).
-    private EmployeeStandingPortrait _standing;
     private Label _speaker;
     private Label _playerLine;
     private RichTextLabel _message;
     private VBoxContainer _choices;
-    private Label _incoming;
     private Button _rejectBtn;
     // 울리는 전화를 받지 않고 끊었다. Phone3D 가 받아 벨을 멈춘다.
     public event System.Action RejectRequested;
@@ -132,7 +130,6 @@ public partial class PhoneCallHud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Stop,
             Visible = false,
         };
-        BuildStanding();
 
         _panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
@@ -211,20 +208,9 @@ public partial class PhoneCallHud : CanvasLayer
 
         BuildDragBar();
 
-        _incoming = new Label
-        {
-            Text = "● INCOMING CALL",
-            HorizontalAlignment = HorizontalAlignment.Center,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            Visible = false,
-            AnchorLeft = 0.5f, AnchorRight = 0.5f, AnchorTop = 0.9f, AnchorBottom = 0.9f,
-            OffsetLeft = -150, OffsetRight = 150, OffsetTop = 0, OffsetBottom = 34,
-        };
-        _incoming.AddThemeFontOverride("font", _font);
-        _incoming.AddThemeFontSizeOverride("font_size", ViewFont.FS(15));
-        _incoming.AddThemeColorOverride("font_outline_color", Colors.Black);
-        _incoming.AddThemeConstantOverride("outline_size", 4);
-        AddChild(_incoming);
+        // 화면 한가운데 뜨던 「● INCOMING CALL」 띠는 없앴다. 벨소리 · 3D 전화기의
+        // 불빛 · 수화기가 이미 "지금 전화가 왔다" 를 말하고 있어서, 글자 띠까지 뜨면
+        // 화면만 가린다.
 
         // 받지 않고 끊는다. 전화를 받을지 말지도 관리자의 판단이다 —
         // 지금 다른 작업실을 보고 있어야 할 때 울리는 벨을 무시할 수단이 있어야 한다.
@@ -247,34 +233,10 @@ public partial class PhoneCallHud : CanvasLayer
     // 심문 창은 화면을 크게 차지하므로 가리는 곳을 플레이어가 직접 치울 수 있어야 한다.
     // --- 통화 상대 스탠딩 --------------------------------------------------
     //
-    // 통화창보다 **먼저** 붙인다 — 스탠딩이 대사 뒤로 가야 글자가 가려지지 않는다.
-    // 자리는 화면 왼쪽. 통화창(가로 0.24~0.76)을 피해 바깥쪽에 세운다.
-    private void BuildStanding()
-    {
-        _standing = new EmployeeStandingPortrait
-        {
-            // 혼자 뜨는 화면이라 화자/청자 명암을 나누지 않는다.
-            AlwaysLit = true,
-            // 표정은 대사마다 EmployeeMouthAnimator 가 정한 것을 따라간다(smile ↔ bad).
-            FollowSpeakerExpression = true,
-            Zoom = 1.15f,
-            AnchorLeft = 0f, AnchorRight = 0.30f, AnchorTop = 0.17f, AnchorBottom = 1f,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-        };
-        AddChild(_standing);
-    }
-
-    private const float StandingFadeSeconds = 0.3f;
-
-    // 심문(휴게시간)에서는 띄우지 않는다 — 그 화면은 오른쪽 CRT(InterviewCCTVView)가
-    // 이미 같은 직원의 스탠딩을 더 크게 보여 주고 있다. 두 번 띄우지 않는다.
-    private void ShowStanding(string employeeId, bool show)
-    {
-        if (_standing == null) return;
-        if (!show) { _standing.FadeOut(StandingFadeSeconds); return; }
-        _standing.SetEmployee(employeeId, "");
-        _standing.FadeIn(StandingFadeSeconds);
-    }
+    // 띄우지 않는다. 통화는 **목소리만** 오는 것이고, 관리자는 상대를 보지 못한다 —
+    // 그게 이 게임에서 전화와 CCTV 가 다른 이유다. 얼굴을 띄우면 진술을 의심할 재료가
+    // 화면에 생겨 버린다. (휴게시간 심문은 예외였는데, 거기는 원래도 띄우지 않았다 —
+    // 오른쪽 CRT 가 같은 직원을 이미 더 크게 보여 준다.)
 
     private void BuildDragBar()
     {
@@ -842,18 +804,17 @@ public partial class PhoneCallHud : CanvasLayer
         return lum >= min ? c : c.Lerp(Colors.White, (min - lum) / Mathf.Max(0.001f, 1f - lum));
     }
 
-    // 벨이 울리는 동안(통화 연결 전) Phone3D 가 호출 — 아주 작은 보조 표시만.
+    // 벨이 울리는 동안(통화 연결 전) Phone3D 가 호출 — 「받지 않고 끊기」 버튼 하나뿐이다.
+    //
+    // 가상 시뮬레이션(DAY0)에서는 그 버튼도 띄우지 않는다. 교육은 전화를 **받아야**
+    // 다음으로 넘어가므로, 끊는 길을 열어 두면 안내만 멈춘 채로 벨이 계속 울린다.
     public void ShowIncoming(Color accent)
     {
-        if (_incoming == null) return;
-        _incoming.AddThemeColorOverride("font_color", accent.Lerp(Colors.White, 0.2f));
-        _incoming.Visible = true;
-        if (_rejectBtn != null) _rejectBtn.Visible = true;
+        if (_rejectBtn != null) _rejectBtn.Visible = !NSP.Core.DayFeatures.IsTutorialDay;
     }
 
     public void HideIncoming()
     {
-        if (_incoming != null) _incoming.Visible = false;
         if (_rejectBtn != null) _rejectBtn.Visible = false;
     }
 
@@ -882,7 +843,6 @@ public partial class PhoneCallHud : CanvasLayer
         bool interview = _dialogueEvent == LocalInterviewDialogue.EventDay1Interview;
         SetInterviewLayout(interview);
         // 통화 상대의 모습 — 심문 화면에서는 오른쪽 CRT 가 이미 맡고 있으므로 띄우지 않는다.
-        ShowStanding(employeeId, !interview);
 
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
         _speaker.Text = "▶ " + (def?.Codename ?? employeeId);
@@ -984,9 +944,6 @@ public partial class PhoneCallHud : CanvasLayer
     public override void _Process(double delta)
     {
         _blink += (float)delta;
-        if (_incoming != null && _incoming.Visible)
-            _incoming.Modulate = new Color(1, 1, 1, 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(_blink * 4f)));
-
         EmployeeMouthAnimator.Tick(delta);
         if (!_typing) return;
         _typeTimer += delta;
@@ -1547,7 +1504,6 @@ public partial class PhoneCallHud : CanvasLayer
         _typing = false;
         Sfx.Instance?.StopVoiceBlip();
         // 통화가 끝나면 스탠딩도 자연스럽게 사라진다(연출만 — 판정에는 관여하지 않는다).
-        ShowStanding("", false);
         EmployeeMouthAnimator.Reset();
         ClearChoices();
         _session = null;

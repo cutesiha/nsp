@@ -174,6 +174,8 @@ public sealed class RestRoomVisual
         {
             var vr = node.GetNodeOrNull<Node3D>("VisualRoot");
             if (vr != null && !Mathf.IsZeroApprox(vr.Position.Y)) vr.Position = Vector3.Zero;
+            var rig = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot");
+            if (rig != null && rig.Rotation != Vector3.Zero) rig.Rotation = Vector3.Zero;
         }
         _chats.Clear();
         _posture.Clear();
@@ -181,14 +183,19 @@ public sealed class RestRoomVisual
         _rosterKey = "";   // 다음 휴게시간에는 자리를 다시 뽑는다
     }
 
-    // 휴게실에 앉아 있을 직원. 죽었거나 격리된 사람은 이 방에 없다.
+    // 휴게실에 앉아 있을 직원.
+    //
+    // **오늘 근무에 나온 사람만** 센다(GetActiveEmployeeIds). 예전에는 전체 명단을 읽어서,
+    // 아직 합류하지 않은 직원까지 DAY0 가상 시뮬레이션의 휴게실에 앉아 있었다 —
+    // 세 사람이 배운 하루인데 여섯이 앉아 있는 그림이 나왔다.
+    // 죽었거나 격리된 사람, 그리고 의무실에 누워 있는(기절) 사람도 이 방에 없다.
     private static List<string> PresentEmployees(FacilitySimulation sim)
     {
         var list = new List<string>();
-        foreach (string id in sim.GetEmployeeIds())
+        foreach (string id in sim.GetActiveEmployeeIds())
         {
             var st = sim.GetEmployeeState(id);
-            if (st is { Alive: true, Isolated: false }) list.Add(id);
+            if (st is { Alive: true, Isolated: false, Incapacitated: false }) list.Add(id);
         }
         return list;
     }
@@ -204,6 +211,14 @@ public sealed class RestRoomVisual
 
         var vr = node.GetNodeOrNull<Node3D>("VisualRoot");
         if (vr == null) return;
+
+        // 몸을 반드시 **세워** 둔다. 의무실 병상 · 격리 침대의 눕는 자리는 RigRoot 를
+        // 90° 눕혀 두는데(RoomWorkVisualController), 아래에서 SetProceduralRoot(true) 를
+        // 켜는 순간 애니메이션이 그 회전을 더 이상 건드리지 않는다 — 그래서 직전에
+        // 기절해 누워 있던 직원이 휴게실 의자 위에 누운 채로 앉아 있었다.
+        var rig = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot");
+        if (rig != null && rig.Rotation != Vector3.Zero) rig.Rotation = Vector3.Zero;
+
         float hip = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips")?.Position.Y ?? 0.9f;
         vr.Position = new Vector3(0f, (SeatHeight - hip) * Mathf.Clamp(seated, 0f, 1f), 0f);
         anim?.SetProceduralRoot(true);

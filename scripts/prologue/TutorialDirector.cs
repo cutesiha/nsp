@@ -37,7 +37,7 @@ public partial class TutorialDirector : Node
     // 코어가 자재를 다 쓰고 멈추는 상황과, 보관함이 차는 상황이 근무 안에서 일어난다.
     [Export] public int TutorialMaterialsCap = 6;
     // 상황이 저절로 오지 않을 때 기다려 주는 시간. 넘기면 교육이 직접 그 상황을 만든다.
-    [Export] public float SituationWaitSeconds = 25f;
+    [Export] public float SituationWaitSeconds = 12f;
     // 교육용 사고가 나는 작업실. 배치한 방과 달라야 토끼가 실제로 옮겨 간 기록이 남고,
     // 그 기록이 STEP 6 의 모순 추리 재료가 된다.
     // 발전실은 수리에 두 명이 필요한 방이라 "한 명을 더 보내야 고쳐진다"가 자연스럽다.
@@ -176,7 +176,11 @@ public partial class TutorialDirector : Node
         // STEP 9 의 모순을 만들려면 토끼가 실제로 방을 옮긴 기록이 남아야 한다. 그래서 수리
         // 최소 인원을 "지금 그 방에 있는 인원 + 1" 로 잡아, 한 명을 더 보내야만 고쳐지게 한다.
         string originRoomId = sim?.GetEmployeeState(TutorialEmployeeId)?.AssignedRoomId ?? "";
-        int need = (sim?.OnDutyCount(AccidentRoomId) ?? 0) + 1;
+        // **최소 두 명**이어야 한다. 한 명으로 고쳐지면 "혼자 보냈는데 왜 게이지가 안 차지"
+        // 를 배울 자리가 없고, 승인 요청이 사람을 보내자마자 떠 버린다. 이미 둘 이상이
+        // 있는 방이면 거기에 한 명을 더 — 토끼가 실제로 옮겨 간 기록이 남아야
+        // STEP 9 의 모순 추리 재료가 된다.
+        int need = Mathf.Max(2, (sim?.OnDutyCount(AccidentRoomId) ?? 0) + 1);
         // 사고와 함께 승인 요청이 줄에 선다. 다만 **띄우지는 않는다** —
         // 아직 아무도 보내지 않았는데 "수리를 승인하시겠습니까" 부터 뜨면 순서가 거꾸로다.
         // 토끼가 그 방에 도착한 뒤에 풀어 준다(RunApprovalLesson).
@@ -393,6 +397,9 @@ public partial class TutorialDirector : Node
     // 교육에서 토끼가 실제로 기절한 동료를 의무실로 옮겼는가(심문 답변이 이 사실을 쓴다).
     private bool _carriedToMedical;
 
+    // 이상 개체가 나타난 방에 혼자 있던 직원 — 바로 다음 단계에서 이 사람이 쓰러진다.
+    private string _anomalyVictim = "";
+
     // ── 수리 승인 · 미로 교육 ─────────────────────────────────────────
     //
     // 승인 요청은 사고와 함께 이미 떠 있다(제한 시간은 Paused 로 멈춰 있다).
@@ -483,7 +490,14 @@ public partial class TutorialDirector : Node
         // 이제야 설명한다. 그리고 그 방을 **지금** 연다 — 말과 화면이 같은 순간에 바뀐다.
         sim.OpenRoomMidShift(MaterialsRoomId);
         NSP.View.FacilityMonitorView.HighlightRoomNumber(MaterialsRoomId);
+        // "자재가 필요합니다" 를 말하는 동안 화면 위 자재 숫자를 하늘색 테두리로 가리킨다.
+        // 둘째 줄("정비실을 열었습니다")이 뜨면 꺼진다 — 그때부터 봐야 할 곳은 작업실이다.
+        HintMaterialsFor(2);
         await Say("tut_materials");
+
+        // 열어 줬다고 끝이 아니다 — **어떻게** 배치하는지를 말해 준다.
+        // 드래그로 옮기는 조작이라는 것을 모른 채 멈춰 서 있던 자리다.
+        await SayThen("tut_room_assign", () => AnyoneAssignedTo(sim, MaterialsRoomId));
 
         // 사람이 들어가 자재가 실제로 들어올 때까지. 플레이어가 다른 방법으로
         // 자재를 채웠더라도(그럴 일은 없지만) 숫자가 오르면 통과시킨다.
@@ -515,6 +529,7 @@ public partial class TutorialDirector : Node
         sim.OpenRoomMidShift(StorageRoomId);
         NSP.View.FacilityMonitorView.HighlightRoomNumber(StorageRoomId);
         await Say("tut_storage");
+        await SayThen("tut_room_assign", () => AnyoneAssignedTo(sim, StorageRoomId));
 
         // 재고 정리는 한 바퀴가 길다(inventory_sorting). 한도가 실제로 오를 때까지
         // 기다리면 교육이 1분 가까이 멈춰 선다 — 사람을 넣은 것까지만 확인한다.
@@ -538,7 +553,9 @@ public partial class TutorialDirector : Node
     {
         if (sim == null) return;
 
-        string victim = PickFaintVictim(sim);
+        // 방금 개체가 나타난 방에 혼자 있던 그 직원이 쓰러진다(RunAnomalyLesson 이 골라 둔다).
+        // 그 사이에 플레이어가 그 사람을 옮겼으면 조건이 깨지므로 다시 고른다.
+        string victim = Eligible(sim, _anomalyVictim) ? _anomalyVictim : PickFaintVictim(sim);
         if (string.IsNullOrEmpty(victim)) return;
 
         DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, true);
@@ -601,6 +618,8 @@ public partial class TutorialDirector : Node
         // 블라인드 테스트 기록은 교육이 어떻게 끝났든 한 번만 남는다(중단 포함).
         TutorialTelemetry.End(_reachedEnd);
         IsRunning = false;
+        _materialsHintLines = 0;
+        NSP.View.FacilityMonitorView.HighlightMaterials(false);
         RepairApprovalSystem.Paused = false;
         RepairApprovalSystem.Held = false;
         DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, false);
@@ -627,7 +646,32 @@ public partial class TutorialDirector : Node
         RestRosterView.Instance?.SetNextEnabled(true);
     }
 
-    private void OnGuideLine(string text) => GuideSubtitleHud.Instance?.SetLine(text);
+    // 자재 강조를 끌 때까지 남은 안내 줄 수. 0 이 되는 순간 테두리가 꺼진다.
+    // (GUIDE-0 의 한 안내가 여러 줄이라 "몇 번째 줄에서" 를 이 수로 센다.)
+    private int _materialsHintLines;
+
+    private void HintMaterialsFor(int lines)
+    {
+        _materialsHintLines = Mathf.Max(1, lines);
+        NSP.View.FacilityMonitorView.HighlightMaterials(true);
+    }
+
+    private void OnGuideLine(string text)
+    {
+        GuideSubtitleHud.Instance?.SetLine(text);
+        if (_materialsHintLines > 0 && --_materialsHintLines == 0)
+            NSP.View.FacilityMonitorView.HighlightMaterials(false);
+    }
+
+    // 그 작업실에 **배치된** 직원이 하나라도 있는가. 도착(OnDutyCount)이 아니라 배치로 본다 —
+    // 끌어다 놓은 그 순간에 "했다"고 읽혀야 안내가 멈추지 않는다.
+    private static bool AnyoneAssignedTo(FacilitySimulation sim, string roomId)
+    {
+        if (sim == null || string.IsNullOrEmpty(roomId)) return false;
+        foreach (string id in sim.GetActiveEmployeeIds())
+            if (sim.GetEmployeeState(id)?.AssignedRoomId == roomId) return true;
+        return false;
+    }
 
     private static string RoomName(string roomId) =>
         FacilitySimulation.Instance?.GetRoomDef(roomId)?.DisplayName ?? roomId ?? "";
@@ -644,10 +688,17 @@ public partial class TutorialDirector : Node
     {
         if (sim?.Ghost == null) return;
 
+        // 개체는 **혼자 근무 중인 직원의 방**에 나타난다. 그래야 바로 다음 단계에서
+        // 그 사람이 쓰러지는 것이 "개체를 혼자 마주한 결과" 로 읽힌다 — 두 사건을
+        // 따로 보여 주면 CCTV 를 지켜볼 이유가 설명으로만 남는다.
+        _anomalyVictim = PickFaintVictim(sim);
+        string room = string.IsNullOrEmpty(_anomalyVictim) ? AnomalyRoomId
+            : sim.GetEmployeeState(_anomalyVictim)?.CurrentRoomId ?? AnomalyRoomId;
+
         await Say("tut_anomaly_intro");
-        if (!sim.Ghost.ForceAppear(AnomalyRoomId, sim, 9999f)) return;
+        if (!sim.Ghost.ForceAppear(room, sim, 9999f)) return;
         // 찾을 때까지 — 그 방을 CCTV 로 띄우는 순간이 "찾았다" 다.
-        await SayThen("tut_anomaly_find", () => sim.SurveillanceTargetRoomId == AnomalyRoomId
+        await SayThen("tut_anomaly_find", () => sim.SurveillanceTargetRoomId == room
                                                 || !sim.Ghost.Active);
         if (!sim.Ghost.Active) return;
 
