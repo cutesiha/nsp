@@ -26,12 +26,19 @@ public partial class FacilityCctvWorld : Node3D
     [Export] public Vector3 CameraLookAt = new(-0.4f, 0.5f, -0.5f);
     [Export] public float CameraFov = 58f;
 
-    // 휴게시간 인터뷰용 사이드뷰. 근무 CCTV 가 코너에서 내려다보는 부감이라면, 이쪽은
-    // 사람 눈높이에서 옆으로 비스듬히 보는 구도다 — 같은 3D 방을 카메라만 바꿔 재사용한다.
-    [Export] public string InterviewRoomId = "medical_room";
-    [Export] public Vector3 InterviewCameraPosition = new(4.3f, 1.62f, 1.15f);
-    [Export] public Vector3 InterviewCameraLookAt = new(-0.3f, 1.15f, -0.55f);
-    [Export] public float InterviewCameraFov = 46f;
+    // 휴게시간에는 작업실이 아니라 **직원 휴게실**을 비춘다. 예전에는 의무실을 빌려 썼는데,
+    // 침대만 있는 방에 아무도 없으니 "쉬고 있는 직원을 불러낸다"는 그림이 되지 않았다.
+    //
+    // 카메라는 긴 테이블을 비스듬히 내려다보는 고정 구도다. 앞줄 셋과 뒷줄 셋이 한 화면에
+    // 들어오되, 부감이 되지 않게 눈높이보다 조금만 높다.
+    [Export] public string InterviewRoomId = "rest_room";
+    [Export] public Vector3 InterviewCameraPosition = new(3.25f, 2.6f, 3.35f);
+    [Export] public Vector3 InterviewCameraLookAt = new(-0.1f, 0.95f, -0.1f);
+    [Export] public float InterviewCameraFov = 50f;
+
+    // 휴게실 안 직원 여섯 명(자리 · 대화 연출). 표현 전용이다.
+    private readonly RestRoomVisual _restRoom = new();
+    public RestRoomVisual RestRoom => _restRoom;
 
     private bool _interviewMode;
 
@@ -46,6 +53,8 @@ public partial class FacilityCctvWorld : Node3D
         ["core_room"] = "res://scenes/rooms/room_core.tscn",
         ["storage_room"] = "res://scenes/rooms/room_storage.tscn",
         ["isolation_room"] = "res://scenes/rooms/nsp_isolation_room.tscn",
+        // 작업실이 아니다 — 휴게시간에만 비추는 방이라 시뮬레이션에는 이런 id 가 없다.
+        ["rest_room"] = "res://scenes/rooms/room_rest.tscn",
     };
 
     // 방 바닥(원점 기준) 위 직원 배치 슬롯. 카메라가 +X/+Z 코너에 있으므로 안쪽으로 몰아둔다.
@@ -131,6 +140,9 @@ public partial class FacilityCctvWorld : Node3D
         }
 
         BuildEntity();
+        // 휴게실 자리 마커는 지금 읽어 둔다 — 왼쪽 모니터(RestRosterView)가 휴게시간
+        // 첫 프레임에 자리를 물어볼 수 있어야 두 화면의 배치가 어긋나지 않는다.
+        _restRoom.Bind(_rooms.GetValueOrDefault(InterviewRoomId));
     }
 
     public override void _ExitTree()
@@ -218,7 +230,10 @@ public partial class FacilityCctvWorld : Node3D
 
         // 휴게시간에는 같은 월드를 '인터뷰 사이드뷰'로 쓴다(오른쪽 CRT = InterviewCCTVView).
         // 방 선택과 카메라만 바뀌며 시뮬레이션 상태는 건드리지 않는다.
-        bool interview = GameState.Instance?.CurrentPhase == GamePhase.Rest;
+        // 휴게실을 비추는 두 경우 — 휴게시간 인터뷰, 그리고 DAY 시작 메인 스토리.
+        // 메인 스토리는 배치 단계에 모니터2 안에서 돌기 때문에 단계만 봐서는 알 수 없다.
+        bool interview = GameState.Instance?.CurrentPhase == GamePhase.Rest
+                         || StoryCutinDirector.ShowsRestRoom;
         if (interview != _interviewMode) ApplyCameraMode(interview);
 
         // 시뮬레이션이 없으면(F6 단독 프리뷰) 방 하나는 보여준다.
@@ -232,8 +247,18 @@ public partial class FacilityCctvWorld : Node3D
                 node.Visible = roomId == target;
         }
 
-        // 인터뷰 화면에서는 직원을 2D 스탠딩 원화로 보여주므로 3D 플레이스홀더는 감춘다.
-        if (interview) HideAllActors();
+        // 휴게시간 — 직원들은 휴게실에 앉아 있다. 왼쪽 모니터에서 고른 한 명만 자리에서 빠진다
+        // (오른쪽 화면이 그 사람의 2D 인터뷰로 바뀌므로, 3D 에 남아 있으면 둘이 되어 버린다).
+        if (interview)
+        {
+            _restRoom.TickTurns();
+            // 인터뷰는 고른 직원을 자리에서 빼지만(불려 나간 것처럼), 메인 스토리는 빼지 않는다.
+            // 말하는 사람의 2D 스탠딩은 강조일 뿐이고, 여섯은 테이블에 그대로 앉아 있어야 한다.
+            string calledOut = StoryCutinDirector.ShowsRestRoom
+                ? "" : NSP.View.RestRosterView.Instance?.SelectedEmployeeId ?? "";
+            _restRoom.Tick(sim, _employees, _animators, calledOut, (float)delta);
+            if (_entity != null && _entity.Visible && !_hauntActive) _entity.Visible = false;
+        }
         else
         {
             // 괴물을 먼저 세운다 — 직원들이 그 위치를 보고 숨을 곳·맞설 쪽을 고른다.
@@ -264,6 +289,8 @@ public partial class FacilityCctvWorld : Node3D
     // 근무 CCTV 부감 ↔ 휴게시간 인터뷰 사이드뷰 전환. 카메라만 옮긴다.
     private void ApplyCameraMode(bool interview)
     {
+        // 휴게시간에서 나가는 길 — 앉은 자세로 내려 둔 골반을 먼저 되돌린다.
+        if (_interviewMode && !interview) _restRoom.Release(_employees);
         _interviewMode = interview;
         if (_camera == null) return;
 

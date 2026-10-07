@@ -23,6 +23,13 @@ public partial class StoryCutinDirector : Node
     public bool IsPlaying { get; private set; }
     public string CurrentBeatId { get; private set; } = "";
 
+    // 지금 모니터2 안에서 도는 스토리인가(DAY1~5 메인 스토리).
+    // FacilityCctvWorld 가 이 값을 보고 근무 중에도 휴게실을 비춘다.
+    public static bool ShowsRestRoom => Instance is { IsPlaying: true, _onMonitor: true };
+
+    private bool _onMonitor;
+    private SubViewport _prevRightScreen;
+
     // 컷인 때문에 지금 근무 시간이 멈춰 있는가.
     public static bool PausesGameplay => Instance is { IsPlaying: true, _pauseGameplay: true };
     // 컷인 때문에 지금 엿들은 대화 자막이 멈춰 있는가.
@@ -38,8 +45,9 @@ public partial class StoryCutinDirector : Node
 
     public override void _ExitTree()
     {
-        // 씬이 내려가도 정지 · 잠금이 다음 씬으로 넘어가지 않게 한다.
+        // 씬이 내려가도 정지 · 잠금 · 모니터 확대가 다음 씬으로 넘어가지 않게 한다.
         Release();
+        LeaveMonitor(null);
         IsPlaying = false;
         if (Instance == this) Instance = null;
     }
@@ -63,10 +71,65 @@ public partial class StoryCutinDirector : Node
 
     public bool CanPlay => BlockedReason().Length == 0;
 
+    // DAY1~5 메인 스토리 — **모니터2 영상 안**에서 돌린다(연출 규칙 §1 · §3).
+    //
+    //   중앙제어실 기본 화면 → 모니터2 를 확대 → 그 화면에 휴게실 CCTV →
+    //   대화 → 끝나면 확대를 풀고 제자리로.
+    //
+    // 카메라는 기존 ControlRoom3DController.FocusMonitor / ClearFocus 를 그대로 쓴다.
+    // 새 카메라 시스템을 만들지 않는다(§7).
+    // 모니터2 로 들어간다. 한 DAY 의 비트 여러 개를 이어 재생하는 동안 **한 번만** 부른다 —
+    // 비트마다 확대했다 풀면 카메라가 사이사이 튄다. 돌려놓는 것은 ExitMonitor 다.
+    public bool EnterMonitor()
+    {
+        if (_onMonitor) return true;
+        var ctl = ControlRoom3DController.Instance;
+        var view = StoryMonitorView.Instance;
+        if (ctl == null || view == null || !IsInstanceValid(view))
+        {
+            // 모니터 화면을 찾지 못하면 연출만 포기한다 — 스토리는 그래도 흘러야 한다.
+            GD.PushWarning("StoryCutinDirector: 모니터2 스토리 화면을 찾지 못해 기본 화면으로 띄웁니다.");
+            return false;
+        }
+        _onMonitor = true;
+        _prevRightScreen = ctl.RightScreenViewport;
+        ctl.SetRightScreen(ctl.StoryViewport);
+        ctl.FocusMonitor(2, MonitorFocusSeconds);
+        StoryCutinHud.Instance?.SetRenderTarget(view.StoryLayer);
+        return true;
+    }
+
+    public void ExitMonitor() => LeaveMonitor(null);
+
+    // 한 묶음만 모니터2 에서 돌린다(검사 · 단발 연출용).
+    public async Task<bool> PlayOnMonitor(StoryBeat beat)
+    {
+        EnterMonitor();
+        try { return await Play(beat); }
+        finally { ExitMonitor(); }
+    }
+
+    // 확대 · 복귀에 쓰는 시간. 느리면 매 DAY 시작이 답답해진다(§7 — 0.2~0.5초).
+    private const float MonitorFocusSeconds = 0.35f;
+
+    // 모니터 연출을 전부 제자리로. 몇 번 불러도 안전하다 — 스토리가 어떻게 끝나든
+    // 확대가 남아 있으면 그 뒤로 아무것도 조작할 수 없다(§17 · §18).
+    private void LeaveMonitor(ControlRoom3DController ctl)
+    {
+        if (!_onMonitor) return;
+        _onMonitor = false;
+        StoryCutinHud.Instance?.SetRenderTarget(null);
+        ctl ??= ControlRoom3DController.Instance;
+        if (ctl == null) return;
+        if (_prevRightScreen != null && IsInstanceValid(_prevRightScreen)) ctl.SetRightScreen(_prevRightScreen);
+        _prevRightScreen = null;
+        ctl.ClearFocus(MonitorFocusSeconds);
+    }
+
     // 묶음을 끝까지 돌린다. 띄울 수 없는 상황이면 아무것도 하지 않고 false.
     public async Task<bool> Play(StoryBeat beat)
     {
-        if (beat == null || beat.Lines.Count == 0) return false;
+        if (beat == null || beat.Steps.Count == 0) return false;
 
         string blocked = BlockedReason();
         if (blocked.Length > 0)
@@ -85,17 +148,20 @@ public partial class StoryCutinDirector : Node
         {
             // 컷인이 떠 있는 동안 책상 위 기기를 잠근다 — 대사를 넘기는 클릭이 전화기나
             // 모니터까지 눌러 버리지 않게.
-            if (ControlRoom3DController.Instance != null)
+            // 모니터 안에서 도는 스토리는 책상을 잠그지 않는다 — 확대 상태라 기기를 누를 일이
+            // 없고, 잠그면 메인 UI 의 선택지 클릭까지 같이 막힌다.
+            if (!_onMonitor && ControlRoom3DController.Instance != null)
             {
                 ControlRoom3DController.Instance.SetInputLocked(true);
                 _lockedInput = true;
             }
 
             _hud.BeginBeat();
-            foreach (var line in beat.Lines)
+            foreach (var step in beat.Steps)
             {
                 if (!IsPlaying) break;
-                await PlayLine(line);
+                if (step.IsChoice) await PlayChoice(step.Choice);
+                else if (Speaks(step.Line)) await PlayLine(step.Line);
             }
 
             if (IsPlaying && IsInstanceValid(_hud)) await _hud.EndBeat();
@@ -113,6 +179,56 @@ public partial class StoryCutinDirector : Node
             CurrentBeatId = "";
         }
     }
+
+    // 그 줄을 지금 읽을 수 있는가. say? 로 적힌 줄은 말할 사람이 자리에 없으면 건너뛴다
+    // (죽은 직원이 말하거나, 격리된 직원이 휴게실에 앉아 있는 일이 없어야 한다).
+    // say 로 적은 줄은 건너뛰지 않는다 — 그런 줄까지 빠지면 대화가 허공에 대답하게 된다.
+    public static bool Speaks(StoryLine line)
+    {
+        if (line == null) return false;
+        if (!line.Optional || line.SpeakerEmployeeId.Length == 0) return true;
+        return IsPresent(line.SpeakerEmployeeId);
+    }
+
+    // 휴게실 자리에 실제로 앉아 있는가(사망 · 기절 · 격리면 아니다).
+    public static bool IsPresent(string employeeId)
+    {
+        var st = NSP.Facility.FacilitySimulation.Instance?.GetEmployeeState(employeeId);
+        return st is { Alive: true, Incapacitated: false, Isolated: false };
+    }
+
+    // ── 관리자 선택 ──────────────────────────────────────────────────
+    //
+    //   ① 선택지 셋을 한 번에 띄우고 고를 때까지 기다린다(근무는 멈춘 채)
+    //   ② 고른 문장을 관리자가 한 말로 잠깐 띄운다
+    //   ③ 그 선택지의 직원 반응을 이어 재생한다
+    //
+    // 고른 결과는 기록만 남는다 — 어떤 수치도 바꾸지 않는다.
+    private async Task PlayChoice(StoryChoice choice)
+    {
+        if (choice == null || choice.Options.Count == 0) return;
+
+        _hud.ShowChoice(choice);
+        await Until(() => _hud.ChosenIndex >= 0);
+        int pick = Mathf.Clamp(_hud.ChosenIndex, 0, choice.Options.Count - 1);
+        _hud.HideChoice();
+
+        var option = choice.Options[pick];
+        StoryChoiceHistory.Record(NSP.Core.GameState.Instance?.CurrentDay ?? 0,
+            choice.ChoiceId, pick, option.Text);
+
+        // 관리자가 한 말. 세계관상 휴게실 전화 너머의 목소리라 스탠딩 없이 자막만 띄운다.
+        await PlayLine(new StoryLine { SpeakerEmployeeId = "", Text = option.Text, HoldSeconds = ManagerLineSeconds });
+
+        foreach (var line in option.Branch)
+        {
+            if (!IsPlaying) break;
+            if (Speaks(line)) await PlayLine(line);
+        }
+    }
+
+    // 고른 답을 읽을 시간. 넘기기를 기다리지 않고 지나간다 — 관리자 자신이 한 말이다.
+    private const double ManagerLineSeconds = 1.6;
 
     private async Task PlayLine(StoryLine line)
     {
@@ -144,8 +260,9 @@ public partial class StoryCutinDirector : Node
     {
         if (!IsPlaying) return;
         IsPlaying = false;
-        if (IsInstanceValid(_hud)) _hud.HideNow();
+        if (IsInstanceValid(_hud)) { _hud.HideChoice(); _hud.HideNow(); }
         Release();
+        LeaveMonitor(null);
         CurrentBeatId = "";
     }
 
@@ -159,6 +276,7 @@ public partial class StoryCutinDirector : Node
             ControlRoom3DController.Instance?.SetInputLocked(false);
             _lockedInput = false;
         }
+        if (IsInstanceValid(_hud)) _hud.HideChoice();
         if (IsInstanceValid(_hud) && _hud.IsShown) _hud.HideNow();
     }
 

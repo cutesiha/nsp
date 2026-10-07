@@ -310,18 +310,33 @@ public partial class RestRosterView : Control
             _icons.Clear();
             if (sim == null) return;
 
-            int seat = 0;
+            // 이 지도는 휴게실을 위에서 본 그림이다 — 오른쪽 CRT 의 3D 휴게실과 자리가
+            // 어긋나면 "같은 방"으로 읽히지 않는다. 그래서 3D 쪽이 관계도로 정한 자리를
+            // 그대로 가져온다(자리 번호 0~2 = 뒷줄, 3~5 = 앞줄 · 왼쪽부터).
+            // 3D 월드가 아직 없으면(단독 프리뷰) 예전처럼 명단 순서대로 앉힌다.
+            var rest = FacilityCctvWorld.Instance?.RestRoom;
+            rest?.EnsureSeating(sim);
+            var taken = new System.Collections.Generic.HashSet<int>();
+            int next = 0;
             foreach (string id in sim.GetActiveEmployeeIds())
             {
-                if (seat >= Seats.Length) break;
                 var def = sim.GetEmployeeDef(id);
                 if (def == null) continue;
+
+                int seat = rest?.SeatOf(id) ?? -1;
+                if (seat < 0 || seat >= Seats.Length || !taken.Add(seat))
+                {
+                    while (next < Seats.Length && taken.Contains(next)) next++;
+                    if (next >= Seats.Length) break;
+                    seat = next;
+                    taken.Add(seat);
+                }
 
                 var icon = new EmployeeIcon
                 {
                     EmployeeId = id,
                     Size = new Vector2(IconSize, IconSize + 18f),
-                    HomeSeat = Seats[seat++],
+                    HomeSeat = Seats[seat],
                 };
                 icon.Position = icon.HomeSeat - icon.Size * 0.5f;
                 icon.Clicked += id2 => EmployeeSelected?.Invoke(id2);

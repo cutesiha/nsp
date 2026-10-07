@@ -49,22 +49,17 @@ public static class StoryBeatSelector
             !_played.Contains(e.Id) && (e.Day == 0 || e.Day == day)
             && IsPlayable(e) && Matches(e.When, day);
 
-        // ① 어제 일에 대한 반응 — 맨 앞에 하나만.
+        // ① 어제 일에 대한 반응 — 맨 앞에 하나만(문서 §16).
         var reacts = StoryScript.Entries.Where(e => e.Kind == StoryBeatKind.React && Usable(e)).ToList();
         if (reacts.Count > 0) queue.Add(reacts[_rng.Next(reacts.Count)]);
 
-        // ② 그 DAY 의 핵심 — 문서에 적힌 순서대로 전부.
+        // ② 그 DAY 의 집단 대화 — 문서에 적힌 순서대로 전부. 관리자 선택(@choice)은
+        //    바로 앞 비트 안에 한 걸음으로 들어가 있으므로 여기서 따로 뽑지 않는다.
         queue.AddRange(StoryScript.Entries.Where(e => e.Kind == StoryBeatKind.Core && Usable(e)));
 
-        // ③ 후보 중 무작위 두셋. 마지막 날은 넷까지(문서 §9 DAY5).
-        var pool = StoryScript.Entries.Where(e => e.Kind == StoryBeatKind.Pool && Usable(e)).ToList();
-        int want = day >= 5 ? 4 : _rng.Next(2, 4);
-        for (int i = 0; i < want && pool.Count > 0; i++)
-        {
-            int k = _rng.Next(pool.Count);
-            queue.Add(pool[k]);
-            pool.RemoveAt(k);
-        }
+        // 예전에는 여기서 2인 대화(pool) 비트를 두셋 더 무작위로 끼워 넣었다.
+        // 그러면 "A·B 네 줄 → C·D 네 줄" 이 이어 붙어 한 테이블의 대화로 읽히지 않고,
+        // DAY 시작이 매번 길어진다(문서 §16 · §25). 그래서 뽑지 않는다.
         return queue;
     }
 
@@ -79,6 +74,9 @@ public static class StoryBeatSelector
             var queue = BuildQueue(day);
             if (queue.Count == 0) return;
 
+            // 그 DAY 의 스토리 전체가 **모니터2 안**에서 돈다(연출 규칙 §1 · §19).
+            // 비트마다 확대를 넣었다 풀지 않는다 — 한 번 들어가서 끝까지 보고 나온다.
+            StoryCutinDirector.Instance?.EnterMonitor();
             foreach (var entry in queue)
             {
                 var dir = StoryCutinDirector.Instance;
@@ -86,6 +84,8 @@ public static class StoryBeatSelector
                 if (!dir.CanPlay) return;   // 통화 중 등 — 남은 비트는 다음 날로 넘기지 않고 접는다
 
                 MarkPlayed(entry.Id);
+                // 메인 스토리는 **모니터2 영상 안**에서 돈다 — 제어실 화면 위에 스탠딩이
+                // 직접 뜨지 않는다(연출 규칙 §3). 카메라 확대 · 복귀는 디렉터가 맡는다.
                 if (!await PlayWithTimeout(ctx, dir, entry.Beat)) return;
                 if (!GodotObject.IsInstanceValid(ctx)) return;
             }
@@ -94,6 +94,12 @@ public static class StoryBeatSelector
         {
             GD.PushWarning($"StoryBeatSelector: 스토리를 건너뜁니다 — {e.Message}");
             StoryCutinDirector.Instance?.Abort();
+        }
+        finally
+        {
+            // 어떻게 끝났든 모니터 확대는 반드시 풀린다 — 남아 있으면 그 뒤로
+            // 배치도 근무도 할 수 없다(§17 · §18).
+            StoryCutinDirector.Instance?.ExitMonitor();
         }
     }
 
@@ -124,16 +130,44 @@ public static class StoryBeatSelector
         if (sim == null) return false;
 
         // 대본에 없는 직원이 적혀 있으면 그 비트만 버린다(§10.5).
-        foreach (var line in entry.Beat.Lines)
+        foreach (var line in AllLines(entry.Beat))
             if (line.SpeakerEmployeeId.Length > 0 && sim.GetEmployeeDef(line.SpeakerEmployeeId) == null)
                 return false;
 
         foreach (string id in entry.Need)
+            if (!StoryCutinDirector.IsPresent(id)) return false;
+
+        // ── 집단 대화(group: true) ────────────────────────────────────
+        //
+        // 한 테이블에 둘러앉아 같은 주제로 나누는 대화라, 한 명이 빠졌다고 통째로 버리지
+        // 않는다. 대신 두 가지를 본다.
+        //   · say  로 적힌 사람은 그 대화의 기둥이다 — 자리에 없으면 비트를 접는다
+        //     (그 줄만 빼면 남은 줄이 허공에 대답하게 되고, 그렇다고 읽히면 죽은 사람이 말한다)
+        //   · say? 로 적힌 사람은 빠져도 된다 — 그 줄만 건너뛴다(StoryCutinDirector.Speaks)
+        // 그렇게 추리고 남은 사람이 min 보다 적으면 대화 자체가 성립하지 않는다.
+        if (!entry.Beat.Group) return true;
+
+        var present = new HashSet<string>();
+        foreach (var line in AllLines(entry.Beat))
         {
-            var st = sim.GetEmployeeState(id);
-            if (st is not { Alive: true, Incapacitated: false, Isolated: false }) return false;
+            string who = line.SpeakerEmployeeId;
+            if (who.Length == 0) continue;
+            if (StoryCutinDirector.IsPresent(who)) present.Add(who);
+            else if (!line.Optional) return false;
         }
-        return true;
+        return present.Count >= entry.Beat.MinParticipants;
+    }
+
+    // 본 대화 + 선택지 분기에 든 모든 대사 줄.
+    private static IEnumerable<StoryLine> AllLines(StoryBeat beat)
+    {
+        foreach (var step in beat.Steps)
+        {
+            if (step.Line != null) yield return step.Line;
+            if (step.Choice == null) continue;
+            foreach (var opt in step.Choice.Options)
+            foreach (var l in opt.Branch) yield return l;
+        }
     }
 
     // ── when 조건 ────────────────────────────────────────────────────

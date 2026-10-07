@@ -148,8 +148,6 @@ public partial class TutorialDirector : Node
         TutorialTelemetry.Step("1 직원 확인");
         await Say("tut_intro");
         await Say("tut_mood");
-        // 직원 소개를 GUIDE-0 가 읊지 않는다 — 세 사람이 각자 한 줄씩 보이면 그걸로 끝이다.
-        await PlayBeat("day0_start");
 
         // ── STEP 2 : 배치 ────────────────────────────────────────────
         TutorialTelemetry.Step("2 첫 배치");
@@ -209,9 +207,6 @@ public partial class TutorialDirector : Node
 
         await Until(() => sim?.HasRepairPending(AccidentRoomId) == false);
         await Say("tut_repair_done");
-        // 수습이 끝난 자리에서 직원들이 먼저 반응한다. 사고가 관리자에게만 일어난 일이
-        // 아니었다는 것을 여기서 한 번 보여 준다(문서 §29 Beat B).
-        await PlayBeat("day0_incident_done");
         // 실제 근무의 방해공작을 설명만 한다 — DAY0 에는 방해자를 만들지 않는다.
         await Say("tut_sabotage_intro");
 
@@ -243,8 +238,6 @@ public partial class TutorialDirector : Node
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Rest);
         // 교육이 끝나기 전에는 다음 날로 넘어갈 수 없다.
         RestRosterView.Instance?.SetNextEnabled(false, "교육 진행 중...");
-        // 심문을 가르치기 전에 휴게실의 공기를 한 번 보여 준다(문서 §29 Beat C).
-        await PlayBeat("day0_rest");
         await Say("tut_rest");
         await Until(() => PhoneCallHud.Instance?.IsOpen == true
                           && PhoneCallHud.Instance.CurrentEmployeeId == TutorialEmployeeId);
@@ -274,13 +267,8 @@ public partial class TutorialDirector : Node
         // 화면 하나만 꽉 찬 상태에서 교육이 닫혀, 이어지는 전환이 보이지 않는다.
         ControlRoom3DController.Instance?.ClearFocus(0.45f);
         await Wait(0.5);
-        // 교육이 끝났다는 것을 GUIDE-0 가 말하기 전에, 직원들이 먼저 한마디씩 남긴다.
-        await PlayBeat("day0_end");
         // 여기서부터 DAY1 배치 화면이 켜질 때까지 책상 위 기기를 잠근다 — 마무리 안내가 흐르는 동안
         // 전화기가 눌려 통화가 열린 채로 DAY1 에 들어가는 일이 있었다. 배치 단계(EnterSchedule)가 푼다.
-        //
-        // **컷인보다 뒤에** 잠가야 한다. 컷인 디렉터도 끝나면서 잠금을 푸는데(Release),
-        // 먼저 잠가 두면 그 해제가 이 잠금까지 같이 걷어 간다.
         ControlRoom3DController.Instance?.SetInputLocked(true);
         await Say("tut_complete");
         await Wait(0.6);
@@ -670,26 +658,9 @@ public partial class TutorialDirector : Node
 
     // --- await 헬퍼 -------------------------------------------------------
 
-    // 스토리 컷인 한 묶음. 대본(@beat)이 없거나 지금 띄울 수 없는 상황이면 조용히 건너뛴다 —
-    // 연출이 빠진다고 교육이 멈춰 서면 안 된다(문서 §38 fail-safe).
-    //
-    // 컷인이 도는 동안 GUIDE-0 의 자막 띠와 얼굴창은 내린다. 두 창이 같이 떠 있으면
-    // 누가 말하는 중인지 읽히지 않는다.
-    private async Task PlayBeat(string beatId)
-    {
-        ThrowIfAborted();
-        var beat = PrologueScript.GetBeat(beatId);
-        var dir = NSP.View.StoryCutinDirector.Instance;
-        if (beat == null || dir == null) return;
-
-        GuideCornerFace.ShowAll(false);
-        GuideSubtitleHud.Instance?.Clear();
-        // Play() 는 취소를 스스로 삼키고 false 를 돌려준다(그리고 finally 에서 전부 되돌린다).
-        // 그러니 여기서는 그냥 기다렸다가, 그 사이에 교육이 끊겼는지만 본다.
-        await dir.Play(beat);
-        ThrowIfAborted();
-    }
-
+    // DAY0 교육에는 직원 스탠딩 컷인이 없다. 가르치는 자리에 직원들 대화가 끼면
+    // 지금 무엇을 해야 하는지가 묻힌다 — 안내는 GUIDE-0 의 자막 띠 하나로만 간다.
+    // (대본 @beat day0_* 는 NSP_PROLOGUE_RUNTIME.md 에 그대로 남아 있고, 부르지 않을 뿐이다.)
     private Task Say(string guideId, System.Collections.Generic.Dictionary<string, string> replacements = null)
     {
         ThrowIfAborted();

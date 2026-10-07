@@ -211,6 +211,8 @@ public partial class ControlRoom3DController : Node3D
     // 지금 입력을 받고 있는 책상 위 표면(배치표 · 관리자 패드). 없으면 null.
     public IProjectionSurface ModalSurface => _modal;
 
+    private SubViewport _storyVp;
+
     public SubViewport FacilityViewport => _facilityVp;
     public SubViewport CctvViewport => _cctvVp;
     public SubViewport ReportViewport => _reportVp;
@@ -224,6 +226,7 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport TitleTerminalViewport => _titleTerminalVp;
     public SubViewport ScheduleMapViewport => _scheduleMapVp;
     public SubViewport ScheduleStaffViewport => _scheduleStaffVp;
+    public SubViewport StoryViewport => _storyVp;
     // 엔딩 연출(FINAL RECOVERY SEQUENCE) 전용 두 화면.
     public SubViewport EndingLeftViewport => _endingLeftVp;
     // DAY5 최종 격리 보고서 · LOOSE 엔딩의 신원 명단(둘 다 왼쪽 CRT).
@@ -293,6 +296,10 @@ public partial class ControlRoom3DController : Node3D
         _scheduleMap = new ScheduleMapView();
         AddScaledView(_scheduleMapVp, _scheduleMap, MonitorCanvasSize);
 
+        // DAY1~5 메인 스토리 — 모니터2 안에서 휴게실 3D + 스탠딩 + 대사를 합성한다.
+        _storyVp = MakeViewport();
+        AddScaledView(_storyVp, new StoryMonitorView(), MonitorCanvasSize);
+
         _scheduleStaffVp = MakeViewport();
         AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);
         // DAY0 교육은 배치 화면에서 시작한다 — 그때 오른쪽 CRT 에 떠 있는 것은 이 화면이다.
@@ -345,8 +352,13 @@ public partial class ControlRoom3DController : Node3D
 
     private readonly System.Collections.Generic.Dictionary<Node3D, Tween> _monitorShakes = new();
 
-    public void SetLeftScreen(SubViewport vp) => ConfigureNamed("01", vp);
-    public void SetRightScreen(SubViewport vp) => ConfigureNamed("02", vp);
+    public void SetLeftScreen(SubViewport vp) { LeftScreenViewport = vp ?? LeftScreenViewport; ConfigureNamed("01", vp); }
+    public void SetRightScreen(SubViewport vp) { RightScreenViewport = vp ?? RightScreenViewport; ConfigureNamed("02", vp); }
+
+    // 지금 각 모니터에 붙어 있는 화면. 잠깐 다른 화면을 띄웠다가 되돌릴 때 쓴다
+    // (메인 스토리가 모니터2 를 빌려 쓰고 돌려준다 — StoryCutinDirector).
+    public SubViewport LeftScreenViewport { get; private set; }
+    public SubViewport RightScreenViewport { get; private set; }
 
     private void ConfigureNamed(string token, SubViewport vp)
     {
@@ -364,8 +376,8 @@ public partial class ControlRoom3DController : Node3D
     // (Disabled 여도 안의 Control 은 _Process/_Input 을 그대로 받으므로 로직은 동일하다.)
     private void UpdateActiveViewports()
     {
-        bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _endingLeftVp, _endingRightVp, _verdictVp, _endingStaffVp })
+        bool cctvOnScreen = false, interviewOnScreen = false, storyOnScreen = false;
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _storyVp, _endingLeftVp, _endingRightVp, _verdictVp, _endingStaffVp })
         {
             if (vp == null) continue;
             bool bound = false;
@@ -381,15 +393,19 @@ public partial class ControlRoom3DController : Node3D
 
             if (bound && vp == _cctvVp) cctvOnScreen = true;
             if (bound && vp == _interviewVp) interviewOnScreen = true;
+            if (bound && vp == _storyVp) storyOnScreen = true;
         }
 
         _cctvOnScreen = cctvOnScreen;
         _interviewOnScreen = interviewOnScreen;
+        _storyOnScreen = storyOnScreen;
         UpdateCctvWorldViewport();
     }
 
     private bool _cctvOnScreen;
     private bool _interviewOnScreen;
+    // 메인 스토리 화면(모니터2)도 같은 3D 월드를 배경으로 쓴다.
+    private bool _storyOnScreen;
 
     // 오른쪽 CRT 가 지금 CCTV 를 띄우고 있고 화면이 켜져 있는가(CctvSnapshotRecorder).
     public bool CctvOnScreen => _cctvOnScreen && _brightness > 0.1f;
@@ -404,7 +420,8 @@ public partial class ControlRoom3DController : Node3D
         // (NO SIGNAL / CCTV 전력 OFF 동안에는 어차피 노이즈만 보이므로 3D 를 멈춘다.)
         // 휴게시간 인터뷰 : 같은 월드를 사이드뷰로 쓰므로 인터뷰 화면이 떠 있으면 켠다.
         bool feedLive = CCTVMonitorView.Instance?.FeedVisible ?? true;
-        bool needed = (_cctvOnScreen && feedLive) || _interviewOnScreen;
+        // 메인 스토리 : 휴게실 3D 를 모니터2 영상의 배경으로 쓴다 — 그 화면이 떠 있으면 켠다.
+        bool needed = (_cctvOnScreen && feedLive) || _interviewOnScreen || _storyOnScreen;
         var want = needed && _brightness > 0.1f
             ? SubViewport.UpdateMode.Always
             : SubViewport.UpdateMode.Disabled;

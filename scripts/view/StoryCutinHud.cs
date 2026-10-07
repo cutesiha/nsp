@@ -1,5 +1,6 @@
 using Godot;
 using NSP.Core;
+using NSP.Data;
 using NSP.Facility;
 using NSP.Prologue;
 
@@ -32,11 +33,23 @@ public partial class StoryCutinHud : CanvasLayer
     private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
     private static readonly Color Amber = new(1f, 0.78f, 0.35f);
 
+    // 이름은 그 직원의 고유색으로 쓴다 — 배치표 · 지도 · CCTV 목록이 쓰는
+    // EmployeeDef.IconColor 와 같은 색이다(색을 새로 정의하지 않는다).
+    // 다만 그 색을 그대로 쓰면 고양이(진한 파랑)처럼 어두운 창 위에서 읽히지 않는다.
+    // 색조만 가져오고 밝기는 글자용으로 올린다. 화자가 없는 줄은 기존 호박색 그대로.
+    private static Color NameColorOf(EmployeeDef def)
+    {
+        if (def == null) return Amber;
+        Color c = def.IconColor;
+        return Color.FromHsv(c.H, Mathf.Min(c.S, 0.62f), Mathf.Max(c.V, 0.95f));
+    }
+
     private Control _root;
     private TextureRect _floorShade;
     private EmployeeStandingPortrait _left, _right;
     private Panel _panel;
     private HologramFrame _frame;
+    private VBoxContainer _col;
     private Label _speaker;
     private RichTextLabel _message;
     private Label _arrow;
@@ -56,6 +69,96 @@ public partial class StoryCutinHud : CanvasLayer
     public string CurrentSpeakerName => _speaker?.Text ?? "";
     public EmployeeStandingPortrait LeftPortrait => _left;
     public EmployeeStandingPortrait RightPortrait => _right;
+
+    // ── 어디에 그리는가 ──────────────────────────────────────────────
+    //
+    // 기본은 이 CanvasLayer(화면 전체) — 프롤로그 · DAY0 교육이 쓰는 자리다.
+    // DAY1~5 메인 스토리는 **모니터2 영상 안**에서 돌아야 하므로(연출 규칙 §3),
+    // 스탠딩과 대사창이 든 _root 를 그 화면(StoryMonitorView.StoryLayer)으로 옮겨 붙인다.
+    //
+    // 옮기는 것은 _root 뿐이다. 관리자 선택지(_choiceBox)는 모니터 안에 넣지 않는다 —
+    // 그건 직원들의 대화가 아니라 플레이어가 하는 조작이라, 늘 메인 UI 자리에 뜬다(§8).
+    private Control _target;
+
+    public bool IsOnMonitor => _target != null;
+
+    public void SetRenderTarget(Control target)
+    {
+        if (_target == target) return;
+        var parent = _root.GetParent();
+        parent?.RemoveChild(_root);
+
+        _target = target;
+        if (target != null && IsInstanceValid(target))
+        {
+            target.AddChild(_root);
+            _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            _root.Position = Vector2.Zero;
+            _root.Size = target.Size;
+        }
+        else
+        {
+            AddChild(_root);
+            _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            _root.Position = Vector2.Zero;
+        }
+        ApplyScale(_target != null);
+        LayoutPortraits(animate: false);
+    }
+
+    // 화면 전체(CanvasLayer)와 모니터2 영상(744×460)은 크기가 다섯 배 가까이 차이 난다.
+    // 글자 크기와 대사창 자리를 그대로 두면 모니터 안에서 글이 칸을 넘치고 스탠딩이
+    // 화면을 통째로 가린다(연출 규칙 §15 — 휴게실 3D 가 일부는 보여야 한다).
+    private void ApplyScale(bool onMonitor)
+    {
+        int nameSize = onMonitor ? ViewFont.S(15) : ViewFont.FS(19);
+        int bodySize = onMonitor ? ViewFont.S(14) : ViewFont.FS(18);
+        _speaker.AddThemeFontSizeOverride("font_size", nameSize);
+        _message.AddThemeFontSizeOverride("normal_font_size", bodySize);
+        _arrow.AddThemeFontSizeOverride("font_size", onMonitor ? ViewFont.S(12) : ViewFont.FS(17));
+
+        // 대사창 — 모니터 안에서는 좌우를 거의 다 쓰고 영상 **맨 아래**에 붙인다.
+        // 띄워 두면 자막과 CCTV 화면 사이에 검은 띠가 남아 따로 떠 있는 것처럼 보인다.
+        _panel.AnchorLeft = onMonitor ? 0.03f : 0.20f;
+        _panel.AnchorRight = onMonitor ? 0.97f : 0.80f;
+        _panel.AnchorTop = onMonitor ? 0.757f : 0.715f;
+        _panel.AnchorBottom = onMonitor ? 0.997f : 0.865f;
+        _panel.OffsetLeft = _panel.OffsetRight = _panel.OffsetTop = _panel.OffsetBottom = 0f;
+
+        // 글이 들어가는 칸. 전체화면 값은 예전 그대로다 — 손대면 프롤로그 · DAY0 교육
+        // 화면의 글 자리가 같이 움직인다.
+        float topGap = onMonitor ? 3f : 16f;
+        float side = onMonitor ? 16f : 26f;
+        _col.OffsetLeft = side; _col.OffsetRight = -side;
+        _col.OffsetTop = topGap; _col.OffsetBottom = onMonitor ? -8f : -14f;
+        _col.AddThemeConstantOverride("separation", onMonitor ? 5 : 10);
+
+        // 이름 띠 — 높이를 **이름 글자에서 거꾸로** 잡는다. 30px 로 고정해 두면 글자가
+        // 커질수록 이름이 띠 아래로 삐져나온다(실제로 두 화면 다 그랬다).
+        // 이름이 선 자리를 옮기는 게 아니라, 그 자리를 덮을 만큼만 띠를 잡는다.
+        _frame.BandHeight = Mathf.Round(
+            topGap + ViewFont.Default.GetHeight(nameSize) + (onMonitor ? 3f : 5f));
+        // 폭은 모니터 안에서만 아주 살짝 줄인다(전체화면은 예전처럼 창 폭을 다 쓴다).
+        _frame.BandInset = onMonitor ? 8f : 0f;
+
+        var box = (StyleBoxFlat)_panel.GetThemeStylebox("panel");
+        float m = onMonitor ? 10f : 26f;
+        box.ContentMarginLeft = box.ContentMarginRight = m;
+        box.ContentMarginTop = onMonitor ? 6f : 18f;
+        box.ContentMarginBottom = onMonitor ? 6f : 18f;
+
+        // 스탠딩 — 모니터 안에서는 작게. 화자 강조가 목적이지 화면을 채우는 게 아니다.
+        _left.Zoom = _right.Zoom = onMonitor ? MonitorPortraitZoom : PortraitZoom;
+    }
+
+    // 모니터2 안에서 쓰는 스탠딩 배율.
+    //
+    // **1 보다 작으면 안 된다.** StandingPortraitLayout 은 발끝을 자리 아래에 붙인 뒤
+    // avail*(zoom-1) 만큼 더 내리므로, 1 보다 작으면 그만큼 위로 떠서 원화가 허공에
+    // 뜬 것처럼 보인다(실제로 0.62 를 써서 그랬다).
+    // 1 이면 끝다리가 자리 아래선에 딱 닿고, 1 보다 크면 그만큼 더 내려가 잘린다 —
+    // 1.18 은 허벅지 끝이 CCTV 영상 아래로 조금 넘어가 살짝만 보이는 값이다.
+    private const float MonitorPortraitZoom = 1.28f;
 
     // 한 줄을 다 넘겼다 — 디렉터가 다음 줄로 간다.
     public event System.Action LineAdvanced;
@@ -132,11 +235,11 @@ public partial class StoryCutinHud : CanvasLayer
         _frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _panel.AddChild(_frame);
 
-        var col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        col.OffsetLeft = 26; col.OffsetTop = 16; col.OffsetRight = -26; col.OffsetBottom = -14;
-        col.AddThemeConstantOverride("separation", 10);
-        _panel.AddChild(col);
+        _col = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _col.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _col.AddThemeConstantOverride("separation", 10);
+        _panel.AddChild(_col);
+        var col = _col;
 
         _speaker = new Label { MouseFilter = Control.MouseFilterEnum.Ignore };
         _speaker.AddThemeFontOverride("font", font);
@@ -170,6 +273,134 @@ public partial class StoryCutinHud : CanvasLayer
         _arrow.SetAnchorsPreset(Control.LayoutPreset.BottomRight);
         _arrow.OffsetLeft = -64; _arrow.OffsetTop = -36; _arrow.OffsetRight = -18; _arrow.OffsetBottom = -10;
         _panel.AddChild(_arrow);
+
+        BuildChoiceUi(font);
+    }
+
+    // ── 관리자 선택지 ────────────────────────────────────────────────────
+    //
+    // 세계관상 이것은 **전화 응답**이다 — 휴게실 공용 전화가 연결돼 있고 관리자가 답한다.
+    // 새 통신 수단을 만들지 않는다(NSP_STORY_TUTORIAL_REWORK §2.1).
+    //
+    // 선택지 셋이 한 번에 뜬다. 마우스로 눌러도 되고 숫자키 1 · 2 · 3 으로도 고른다
+    // (키 입력은 PrologueAdvanceInput 이 모아 RequestChoice 로 넘긴다).
+    // 고르는 동안 근무는 멈춰 있고, 마지막으로 말한 직원의 스탠딩은 입을 다문 채 그대로 선다.
+
+    private Control _choiceBox;
+    private Label _choicePrompt;
+    private readonly System.Collections.Generic.List<Button> _choiceButtons = new();
+    private int _chosen = -1;
+
+    // 지금 선택지가 떠 있는가 — 떠 있는 동안에는 대사 넘기기가 먹지 않는다.
+    public bool IsChoosing => _choiceBox?.Visible ?? false;
+    public int ChosenIndex => _chosen;
+    public int ChoiceCount { get; private set; }
+
+    private void BuildChoiceUi(Font font)
+    {
+        // **_root 가 아니라 이 CanvasLayer 에 직접 붙인다.**
+        // _root 는 메인 스토리 동안 모니터2 영상 안으로 들어가는데(SetRenderTarget),
+        // 선택지까지 따라 들어가면 모니터 테두리에 잘려 세 개가 다 보이지 않는다.
+        // 선택지는 직원들의 대화가 아니라 플레이어의 조작이므로 늘 메인 UI 자리에 뜬다(§8).
+        _choiceBox = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        _choiceBox.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_choiceBox);
+
+        var col = new VBoxContainer
+        {
+            AnchorLeft = 0.20f, AnchorRight = 0.80f, AnchorTop = 0.715f, AnchorBottom = 0.94f,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        col.AddThemeConstantOverride("separation", 8);
+        _choiceBox.AddChild(col);
+
+        _choicePrompt = new Label { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _choicePrompt.AddThemeFontOverride("font", font);
+        _choicePrompt.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
+        _choicePrompt.AddThemeColorOverride("font_color", Amber);
+        // 물음은 스탠딩 위에 겹쳐 뜬다 — 바탕이 없으므로 검은 테두리를 둘러야 읽힌다.
+        _choicePrompt.AddThemeColorOverride("font_outline_color", Colors.Black);
+        _choicePrompt.AddThemeConstantOverride("outline_size", 5);
+        col.AddChild(_choicePrompt);
+
+        for (int i = 0; i < MaxOptions; i++)
+        {
+            int idx = i;
+            var b = new Button
+            {
+                Text = "", Alignment = HorizontalAlignment.Left,
+                FocusMode = Control.FocusModeEnum.None,
+                CustomMinimumSize = new Vector2(0, 46),
+            };
+            b.AddThemeFontOverride("font", font);
+            b.AddThemeFontSizeOverride("font_size", ViewFont.FS(17));
+            b.AddThemeColorOverride("font_color", new Color(0.82f, 0.96f, 0.98f));
+            b.AddThemeColorOverride("font_hover_color", Cyan);
+            b.AddThemeColorOverride("font_pressed_color", Cyan);
+            b.AddThemeStyleboxOverride("normal", OptionBox(Cyan with { A = 0.45f }));
+            b.AddThemeStyleboxOverride("hover", OptionBox(Cyan));
+            b.AddThemeStyleboxOverride("pressed", OptionBox(Cyan));
+            b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+            b.Pressed += () => Choose(idx);
+            col.AddChild(b);
+            _choiceButtons.Add(b);
+        }
+    }
+
+    // 한 화면에 같이 띄우는 선택지 수.
+    public const int MaxOptions = 3;
+
+    private static StyleBoxFlat OptionBox(Color border) => new()
+    {
+        BgColor = new Color(0.03f, 0.09f, 0.11f, 0.88f),
+        BorderColor = border,
+        BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+        ContentMarginLeft = 18, ContentMarginRight = 18, ContentMarginTop = 8, ContentMarginBottom = 8,
+    };
+
+    // 선택지를 띄운다. 고를 때까지 _chosen 은 -1 이다.
+    public void ShowChoice(StoryChoice choice)
+    {
+        if (choice == null) return;
+        _chosen = -1;
+        ChoiceCount = Mathf.Min(choice.Options.Count, MaxOptions);
+        _choicePrompt.Text = choice.Prompt ?? "";
+        _choicePrompt.Visible = !string.IsNullOrEmpty(choice.Prompt);
+
+        for (int i = 0; i < _choiceButtons.Count; i++)
+        {
+            bool on = i < ChoiceCount;
+            _choiceButtons[i].Visible = on;
+            _choiceButtons[i].MouseFilter = on ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
+            if (on) _choiceButtons[i].Text = $"{i + 1}.  {choice.Options[i].Text}";
+        }
+        _choiceBox.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _choiceBox.Visible = true;
+        // 대사창은 내린다 — 같은 자리를 쓰므로 그대로 두면 물음과 지난 대사가 겹쳐 읽힌다.
+        // 스탠딩은 그대로 서 있는다(마지막으로 말한 직원이 답을 기다리는 그림).
+        _panel.Visible = false;
+        // 고르는 동안에는 대사 넘기기 화살표를 내린다 — 클릭이 둘 다로 가면 안 된다.
+        _arrow.Visible = false;
+        IsWaitingForInput = false;
+        // 마지막으로 말한 직원은 그대로 서 있되 입은 다문다.
+        EmployeeMouthAnimator.StopTalking();
+    }
+
+    // 숫자키 · 마우스 양쪽이 들어오는 입구.
+    public void Choose(int index)
+    {
+        if (!IsChoosing || index < 0 || index >= ChoiceCount || _chosen >= 0) return;
+        _chosen = index;
+        Sfx.Instance?.Play("tick", -10f);
+        HideChoice();
+    }
+
+    public void HideChoice()
+    {
+        if (_choiceBox == null) return;
+        _choiceBox.Visible = false;
+        if (_panel != null) _panel.Visible = true;
+        foreach (var b in _choiceButtons) b.MouseFilter = Control.MouseFilterEnum.Ignore;
     }
 
     // --- 스탠딩 자리 ------------------------------------------------------
@@ -180,6 +411,17 @@ public partial class StoryCutinHud : CanvasLayer
 
     private const float BoxWidthFrac = 0.42f;   // 자리 하나의 가로 폭(화면 비율)
     private const float BoxTopFrac = 0.14f;     // 자리 위선
+    // 모니터2 안에서 쓰는 자리.
+    //
+    // 위선(TopFrac)이 곧 스탠딩의 키다 — StandingPortraitLayout 은 자리의 **아래**에
+    // 발끝을 붙이고 위로 쌓아 올리기 때문이다. 0.175 면 제일 큰 원화가 영상 높이의
+    // 약 80% 를 차지하고 끝다리가 CCTV 영상 아래 끝에 닿는다.
+    // 가로 폭은 원화가 잘리지 않을 만큼 넉넉히 둔다(폭은 크기에 영향을 주지 않고
+    // ClipContents 로 잘라내기만 한다).
+    private const float MonitorBoxWidthFrac = 0.44f;
+    private const float MonitorBoxTopFrac = 0.16f;
+    private const float MonitorPairLeftFrac = 0.33f;
+    private const float MonitorPairRightFrac = 0.67f;
     private const float SingleCenterFrac = 0.5f;
     private const float PairLeftFrac = 0.30f;
     private const float PairRightFrac = 0.70f;
@@ -204,7 +446,10 @@ public partial class StoryCutinHud : CanvasLayer
     private float CenterFracOf(EmployeeStandingPortrait p)
     {
         if (ActiveCount < 2) return SingleCenterFrac;
-        return p == _left ? PairLeftFrac : PairRightFrac;
+        bool onMon = _target != null;
+        return p == _left
+            ? (onMon ? MonitorPairLeftFrac : PairLeftFrac)
+            : (onMon ? MonitorPairRightFrac : PairRightFrac);
     }
 
     private Vector2 TargetPosOf(EmployeeStandingPortrait p, Vector2 vp, float boxW, float top) =>
@@ -215,8 +460,9 @@ public partial class StoryCutinHud : CanvasLayer
         Vector2 vp = _root.Size;
         if (vp.X <= 0f || vp.Y <= 0f) return;
 
-        float boxW = vp.X * BoxWidthFrac;
-        float top = vp.Y * BoxTopFrac;
+        bool onMon = _target != null;
+        float boxW = vp.X * (onMon ? MonitorBoxWidthFrac : BoxWidthFrac);
+        float top = vp.Y * (onMon ? MonitorBoxTopFrac : BoxTopFrac);
         var boxSize = new Vector2(boxW, vp.Y - top);
         _lastViewport = vp;
 
@@ -288,6 +534,12 @@ public partial class StoryCutinHud : CanvasLayer
     // 예외 · 중단 — 연출 없이 즉시 걷는다(페일세이프 경로).
     public void HideNow()
     {
+        HideChoice();
+        HideNowInner();
+    }
+
+    private void HideNowInner()
+    {
         IsWaitingForInput = false;
         _typing = false;
         if (_root != null) { _root.Visible = false; _root.Modulate = new Color(1, 1, 1, 0); }
@@ -350,6 +602,7 @@ public partial class StoryCutinHud : CanvasLayer
 
             var def = FacilitySimulation.Instance?.GetEmployeeDef(speakerId);
             _speaker.Text = def?.Codename ?? speakerId;
+            _speaker.AddThemeColorOverride("font_color", NameColorOf(def));
         }
         else
         {

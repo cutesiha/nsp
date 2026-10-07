@@ -18,6 +18,28 @@ public partial class PrologueAdvanceInput : Node
 
     public override void _Input(InputEvent e)
     {
+        // 관리자 선택지가 떠 있으면 숫자키 1 · 2 · 3 이 그 선택을 가져간다.
+        // (마우스 클릭은 선택지 버튼이 직접 받는다 — 여기서는 대사 넘기기로 먹지 않게 막기만 한다.)
+        if (StoryCutinHud.Instance is { IsChoosing: true } choosing)
+        {
+            if (e is InputEventKey { Pressed: true, Echo: false } ck)
+            {
+                int pick = ck.Keycode switch
+                {
+                    Key.Key1 or Key.Kp1 => 0,
+                    Key.Key2 or Key.Kp2 => 1,
+                    Key.Key3 or Key.Kp3 => 2,
+                    _ => -1,
+                };
+                if (pick >= 0)
+                {
+                    choosing.Choose(pick);
+                    GetViewport().SetInputAsHandled();
+                }
+            }
+            return;
+        }
+
         bool byKey = e is InputEventKey { Pressed: true, Echo: false } k
                      && k.Keycode is Key.Space or Key.Enter or Key.KpEnter;
         bool byClick = e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left };

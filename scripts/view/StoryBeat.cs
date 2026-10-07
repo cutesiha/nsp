@@ -31,6 +31,10 @@ public sealed class StoryLine
     // 이 줄을 띄우기 전에 퇴장시킬 자리. 그 쪽 스탠딩이 페이드로 사라지고,
     // 남은 한 명은 화면 가운데로 부드럽게 돌아온다.
     public CutinSide? ExitSide = null;
+
+    // 대본에 say? 로 적은 줄 — 말할 사람이 자리에 없으면(사망 · 기절 · 격리)
+    // **그 줄만** 빠지고 대화는 그대로 이어진다. say 로 적은 줄은 빠지지 않는다.
+    public bool Optional;
 }
 
 public sealed class StoryBeat
@@ -41,20 +45,53 @@ public sealed class StoryBeat
     public bool PauseGameplay = true;
     // 컷인이 말하는 동안 CCTV 엿들은 대화 자막을 멈춘다(문서 §28).
     public bool SuppressAmbientDialogue = true;
-    public readonly List<StoryLine> Lines = new();
+
+    // 휴게실 긴 테이블에 둘러앉아 **다 같이 한 주제로** 나누는 대화인가.
+    // 둘씩 따로 떨어져 이야기하는 느낌이 나면 안 된다 — 끼어들고 · 동의하고 · 반박하는
+    // 한 덩어리의 대화다. 그래서 한 사람이 빠져도 비트를 버리지 않고 그 줄만 건너뛴다.
+    public bool Group;
+    // 이 인원보다 적게 남으면 대화 자체가 성립하지 않는다 — 그때는 비트를 통째로 생략한다.
+    public int MinParticipants = 2;
+
+    // 대사와 선택이 섞인 차례. 대본에 적힌 순서 그대로다.
+    public readonly List<StoryStep> Steps = new();
+
+    // 대사 줄만 모아 보는 창구(기존 호출부 · 검사가 쓰던 Lines 를 그대로 둔다).
+    public List<StoryLine> Lines
+    {
+        get
+        {
+            var list = new List<StoryLine>();
+            foreach (var st in Steps)
+                if (st.Line != null) list.Add(st.Line);
+            return list;
+        }
+    }
 
     public StoryBeat Add(string speaker, string text, CutinSide side = CutinSide.Left,
-        string expression = "", double holdSeconds = 0, CutinSide? exitSide = null)
+        string expression = "", double holdSeconds = 0, CutinSide? exitSide = null,
+        bool optional = false)
     {
-        Lines.Add(new StoryLine
+        Steps.Add(new StoryStep
         {
-            SpeakerEmployeeId = speaker ?? "",
-            Text = text ?? "",
-            Side = side,
-            Expression = expression ?? "",
-            HoldSeconds = holdSeconds,
-            ExitSide = exitSide,
+            Line = new StoryLine
+            {
+                SpeakerEmployeeId = speaker ?? "",
+                Text = text ?? "",
+                Side = side,
+                Expression = expression ?? "",
+                HoldSeconds = holdSeconds,
+                ExitSide = exitSide,
+                Optional = optional,
+            },
         });
         return this;
+    }
+
+    public StoryChoice AddChoice(string choiceId)
+    {
+        var c = new StoryChoice { ChoiceId = choiceId ?? "" };
+        Steps.Add(new StoryStep { Choice = c });
+        return c;
     }
 }
