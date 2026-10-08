@@ -2,13 +2,13 @@
 
 importer="wav"
 type="AudioStreamWAV"
-uid="uid://bpau00hc2lvij"
-path="res://.godot/imported/siren.wav-42dc2f2d6db3aaca25508172452b3fcf.sample"
+uid="uid://c7f7li6l8hk7"
+path="res://.godot/imported/siren_old.wav-80d220c30e02a9e519f9c078f75ea4e0.sample"
 
 [deps]
 
-source_file="res://assets/audio/sfx/siren.wav"
-dest_files=["res://.godot/imported/siren.wav-42dc2f2d6db3aaca25508172452b3fcf.sample"]
+source_file="res://assets/audio/sfx/siren_old.wav"
+dest_files=["res://.godot/imported/siren_old.wav-80d220c30e02a9e519f9c078f75ea4e0.sample"]
 
 [params]
 
