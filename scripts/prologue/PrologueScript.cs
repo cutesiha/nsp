@@ -53,6 +53,9 @@ public static class PrologueScript
         public string SfxLoopStart = "";
         public string SfxLoopStop = "";
         public float Hold = 2.5f;
+        // 이 시간(초) 동안은 클릭해도 넘어가지 않는다. 다 지나면 입력을 기다린다.
+        // 프롤로그에서 제일 중요한 컷(코어 폭발)이 한 번의 클릭에 통째로 날아가지 않게.
+        public float NoSkip;
         // 화면이 계속 미세하게 흔들리는 세기(px). 다음 슬라이드로 이어진다(title 과 같은 상속 규칙).
         public float Shake;
         // 슬라이드가 뜨는 순간 좌우로 짧게 흔들리는 시간(초). 0 이면 흔들지 않는다.
@@ -453,6 +456,7 @@ public static class PrologueScript
             case "sfxafter": s.SfxAfter = value; return true;
             case "sfx": s.Sfx = value; return true;
             case "hold": s.Hold = ParseFloat(value, s.Hold); return true;
+            case "noskip": s.NoSkip = ParseFloat(value, 0f); return true;
             case "fx": s.Fx = ParseFx(value); return true;
             default: return false;
         }

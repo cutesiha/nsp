@@ -38,6 +38,7 @@
 #                               0 이면 그 컷도 입력을 기다린다.
 #       sfx:       <키>         assets/audio/sfx/<키>.wav 를 슬라이드 시작에 1회 재생
 #       sfxafter:  <키>         자막/문구가 다 찍힌 직후에 1회 재생(스위치 조작음 등)
+#       noskip:    <초>         그 시간 동안은 클릭해도 안 넘어간다. 끝나면 입력을 기다린다.
 #       sfxloop:   <키>         그 효과음을 반복 재생 시작(사이렌 등). 컷씬이 끝나면 자동 중단.
 #       sfxloopstop:<키>        반복 재생 중단
 #       shake:     <px>         화면이 계속 미세하게 떨리는 세기. 다음 슬라이드로 이어진다(0 이면 해제)
@@ -359,6 +360,9 @@ fx: alert
 image: res://assets/cutscene/prologue/disaster_10_core_breach.png
 scene3d: core_explode
 imagenote: 봉쇄 코어 폭발
+# 프롤로그에서 가장 중요한 컷이다. 4.6초 동안은 클릭해도 넘어가지 않고,
+# 폭발을 다 본 뒤에 한 번 더 눌러야 넘어간다.
+noskip: 4.6
 gauge: 봉쇄 코어 출력
 gaugesteps: 3, 0
 gaugesub: CORE OUTPUT LOST

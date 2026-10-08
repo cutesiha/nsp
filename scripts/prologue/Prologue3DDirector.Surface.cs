@@ -29,7 +29,7 @@ public partial class Prologue3DDirector
         Sfx.Instance?.Loop("vent_loop", -9f);              // 거센 바람
         Sfx.Instance?.Loop("drone_loop", -15f);            // 먼 곳의 낮은 울림
         Sfx.Instance?.Loop("electric_crackle_loop", -22f); // 불타는 소리
-        Sfx.Instance?.Loop("siren", -26f);                 // 사이렌의 잔향 — 아주 멀리
+        Sfx.Instance?.Loop("siren", -15f);                 // 사이렌의 잔향 — 멀리
     }
 
     public void SurfaceAmbienceStop()
@@ -45,8 +45,8 @@ public partial class Prologue3DDirector
         _stage.SurfaceCollapse(0f);
         SurfaceAmbience();
 
-        // 화면이 열리기 전에 소리가 먼저 온다 — 재난의 크기를 귀로 먼저 느끼게 한다.
-        Fade?.Invoke(1f, 0.01f);
+        // 소리가 먼저 오되 **화면을 끄지는 않는다.** 앞서 잠깐 암전되면 재생이 끊긴
+        // 것처럼 보인다 — 기록영상은 끊기지 않고 계속 돌아가야 한다.
         Sfx.Instance?.Play("rubble_collapse", -3f, 0.72f);
         Sfx.Instance?.Play("metal_clang", -7f, 0.55f);
         _stage.SetCam(new Vector3(-16f, 7.5f, 26f), new Vector3(6f, 9f, -40f), 62f);
@@ -55,7 +55,6 @@ public partial class Prologue3DDirector
 
         Sfx.Instance?.Play("boom", -9f, 0.48f);            // 먼 폭발
         Shake(0.9f, 0.7f);
-        Fade?.Invoke(0f, 1.1f);                            // 재 속에서 풍경이 드러난다
 
         // 부유하듯 아주 천천히 훑는다 — 고정하면 정지 그림처럼 보인다.
         _ = _stage.MoveCamCut(new Vector3(14f, 9.2f, 22f), new Vector3(-10f, 7f, -52f), 6.2, 58f);
@@ -131,9 +130,10 @@ public partial class Prologue3DDirector
         await Wait(0.9);
         if (!Alive(gen)) return;
 
-        // 신호가 끊기듯 잡음과 함께 어두워진다 — 이것도 기록영상이다.
-        Sfx.Instance?.Play("noise", -8f, 0.9f);
-        Fade?.Invoke(1f, 1.0f);
+        // 신호가 끊긴다 — 단, 화면을 끄지는 않는다. 암전하면 영상이 멈춘 것처럼 보인다.
+        // 대신 기록영상의 잡음 · 흔들림을 확 키워 "회선이 죽는 중" 으로 보이게 한다.
+        Sfx.Instance?.Play("noise", -6f, 0.9f);
+        CutscenePlayer.Instance?.FilmSurge(0.95f);
         await Wait(0.9);
         if (!Alive(gen)) return;
         SurfaceAmbienceStop();

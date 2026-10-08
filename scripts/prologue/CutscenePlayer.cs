@@ -47,7 +47,8 @@ public partial class CutscenePlayer : Control
     // 무전 수신 상태 HUD — 자막 띠 바로 위 왼쪽.
     private static readonly Rect2 RadioBox = new(26f, 286f, 316f, 88f);
     // 코어 출력 게이지 — 영상 한가운데 아래쪽.
-    private static readonly Rect2 GaugeBox = new(70f, 232f, 660f, 168f);
+    // 영상 한가운데 두면 그 뒤의 코어가 통째로 가린다. 조금 줄여서 아래로 내린다.
+    private static readonly Rect2 GaugeBox = new(124f, 322f, 552f, 150f);
     // 전체 화면에서는 같은 자리에 두면 코어를 통째로 가린다 — 아래 3분의 1로 내린다(§J).
     private static readonly Rect2 GaugeBoxFull = new(118f, 392f, 564f, 132f);
     // 비상 경보창 — 실제 시설 경보 패널처럼 영상 한가운데 크게 뜬다.
@@ -69,6 +70,9 @@ public partial class CutscenePlayer : Control
     // 이 화면(CutscenePlayer)은 그대로 두고 **배경과 CRT 테두리만 지운다.** 그러면 같은
     // 뷰포트가 투명해지고, 그 뒤에 깔린 3D 컷씬 위로 경보 · 게이지 · 무전 HUD 만 떠오른다 —
     // 기존 시설 UI 를 하나도 버리지 않으면서 화면 구조만 바뀐다(§E).
+    // 한순간 화면 신호가 무너지게 한다(지상 회선이 끊기는 순간 등).
+    public void FilmSurge(float amount) => _film?.Surge(amount);
+
     public void SetFullscreenMode(bool on)
     {
         _fullscreenMode = on;
@@ -120,6 +124,7 @@ public partial class CutscenePlayer : Control
     private double _slideElapsed;
     private double _slideHold;
     private double _typeSeconds;
+    private double _noSkipUntil;
     private PrologueScript.SlideFx _fx;
     private double _fxTime;
     private double _joltUntil;
@@ -234,6 +239,8 @@ public partial class CutscenePlayer : Control
     public void RequestAdvance()
     {
         if (_cutscene == null) return;
+        // 끝까지 보여 줘야 하는 컷은 아직 못 넘긴다.
+        if (_slideElapsed < _noSkipUntil) return;
         if (IsTyping()) { FinishTyping(); return; }
         Advance();
     }
@@ -365,7 +372,9 @@ public partial class CutscenePlayer : Control
         // 대사가 있는 슬라이드는 절대 저절로 넘어가지 않는다(hold: 값은 무시된다).
         // 대사가 없는 컷(몽타주·경고 문구)은 타이핑이 끝난 뒤 hold: 만큼 더 보여주고 넘어가되,
         // hold: 0 으로 적으면 그 컷도 입력을 기다린다.
-        IsWaitingForInput = hasText || s.Hold <= 0f;
+        // noskip: 이 붙은 컷은 그 시간 동안 입력을 막고, 끝나면 입력을 기다린다.
+        _noSkipUntil = s.NoSkip;
+        IsWaitingForInput = hasText || s.Hold <= 0f || s.NoSkip > 0f;
         _clickHint.Visible = false;
 
         _tint.Color = TintFor(_fx) with { A = 0f };
@@ -381,7 +390,7 @@ public partial class CutscenePlayer : Control
         }
         if (!string.IsNullOrEmpty(s.SfxLoopStart))
         {
-            Sfx.Instance?.Loop(s.SfxLoopStart, -9f);
+            Sfx.Instance?.Loop(s.SfxLoopStart, -2f);
             _activeLoop = s.SfxLoopStart;
         }
         if (!string.IsNullOrEmpty(s.Sfx)) Sfx.Instance?.Play(s.Sfx, -5f);
@@ -597,7 +606,7 @@ public partial class CutscenePlayer : Control
         // 입력 대기 슬라이드는 타이핑이 끝난 뒤 안내를 띄우고 계속 기다린다.
         if (IsWaitingForInput)
         {
-            _clickHint.Visible = !IsTyping();
+            _clickHint.Visible = !IsTyping() && _slideElapsed >= _noSkipUntil;
             return;
         }
         // 경고 문구가 다 찍힌 뒤부터 hold 를 센다 — 다 읽기 전에 넘어가지 않게.

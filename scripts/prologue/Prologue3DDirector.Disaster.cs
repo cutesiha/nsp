@@ -198,7 +198,7 @@ public partial class Prologue3DDirector
         c.MoveTo(new Vector3(-0.7f, 0f, -16f), 5.1f, CutsceneActor.Gait.Run);
 
         Sfx.Instance?.Play("footsteps_run", -7f);
-        Sfx.Instance?.Loop("siren", -13f);
+        Sfx.Instance?.Loop("siren", -4f);
         _ = _stage.MoveCamCut(new Vector3(2.05f, 1.8f, 6f), new Vector3(-0.4f, 1.35f, -12f), 4.2);
 
         // 직원 B — 뒤를 한 번 돌아보고 다시 달린다.
@@ -325,7 +325,7 @@ public partial class Prologue3DDirector
         // 코어만 꽉 채우면 '거대한 홀' 이 읽히지 않는다 — 바닥 · 난간까지 들어오게 물러난다.
         _stage.SetCam(new Vector3(0.6f, 3.1f, 15.8f), new Vector3(0f, 6.6f, -3f), 62f);
         Sfx.Instance?.Loop("machinery_loop", -8f);
-        Sfx.Instance?.Loop("siren", -17f);
+        Sfx.Instance?.Loop("siren", -7f);
 
         // 천천히 밀고 들어가면서 출력이 떨어진다.
         _ = _stage.MoveCamCut(new Vector3(0.1f, 3.0f, 8.0f), new Vector3(0f, 8.0f, -3f), 9.0);
@@ -435,7 +435,7 @@ public partial class Prologue3DDirector
         _stage.PrologueCoreBreach();
         _stage.SetCam(new Vector3(-2.6f, 2.2f, 8.0f), new Vector3(0.6f, 6.6f, -3f), 56f);
         _stage.CoreHallFill(0.7f, new Color(1f, 0.55f, 0.35f));
-        Sfx.Instance?.Loop("siren", -22f);
+        Sfx.Instance?.Loop("siren", -12f);
         Sfx.Instance?.Loop("electric_crackle_loop", -20f);
         Shake(0.35f, 0.25f);
         // 아주 느리게 — 무전 내용이 읽혀야 하므로 화면이 바쁘면 안 된다(§33 · §50).
