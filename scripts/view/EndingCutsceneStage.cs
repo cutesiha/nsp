@@ -489,16 +489,18 @@ public partial class EndingCutsceneStage : Node
         };
         _setCorridor.AddChild(_machineLight);
 
-        // 복도 기본광 — 아주 약하게(아직 복구 전이다).
-        _setCorridor.AddChild(new OmniLight3D
-        {
-            Name = "CorridorFill",
-            Position = new Vector3(0f, 3.4f, 2f),
-            LightColor = new Color(0.5f, 0.56f, 0.66f),
-            LightEnergy = 0.55f,
-            OmniRange = 26f,
-            ShadowEnabled = false,
-        });
+        // 복도 기본광 — 아주 약하게(아직 복구 전이다). 복도가 24m 라 하나로는 끝까지
+        // 닿지 않는다. 격벽 쪽에 하나 더 둔다 — 안 그러면 닫히는 문이 보이지도 않는다.
+        foreach (var (z, e) in new[] { (2f, 0.55f), (-12f, 0.6f), (-20.5f, 1.6f) })
+            _setCorridor.AddChild(new OmniLight3D
+            {
+                Name = $"CorridorFill{z:0}",
+                Position = new Vector3(0f, 3.4f, z),
+                LightColor = new Color(0.5f, 0.56f, 0.66f),
+                LightEnergy = e,
+                OmniRange = 16f,
+                ShadowEnabled = false,
+            });
     }
 
     private MeshInstance3D _bulkhead, _panelScreen, _panelFace, _machineArm;

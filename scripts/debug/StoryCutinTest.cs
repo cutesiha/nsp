@@ -428,13 +428,14 @@ public partial class StoryCutinTest : Node
         Check(EmployeeMouthAnimator.Speaker == "", "Abort 후 전역 입 모양이 비었다");
     }
 
-    // ── ⑨ 전화 스탠딩 (Phase 2) ──────────────────────────────────────
+    // ── ⑨ 통화 중 입 모양 ───────────────────────────────────────────
     //
-    // 통화 상대의 2D 스탠딩이 컷인과 **같은 공용 컴포넌트**로 뜨는가.
-    // 전화는 음성 통화다 — 스탠딩은 영상통화 화면이 아니라 감정을 보여 주는 연출이다.
+    // 통화창의 2D 스탠딩은 **없앴다.** 전화는 목소리만 오는 수단이고, 관리자는 상대를
+    // 보지 못한다 — 그게 이 게임에서 전화와 CCTV 가 다른 이유다. 그래서 여기서 보는 것은
+    // "스탠딩이 뜨는가"가 아니라 "스탠딩 없이도 입 모양 · 화자 · 컷인 차단이 그대로인가"다.
     private async Task PhoneStanding()
     {
-        GD.Print("\n── ⑨ 전화 스탠딩(Phase 2) ──");
+        GD.Print("\n── ⑨ 통화 중 입 모양(Phase 2) ──");
         var phone = PhoneCallHud.Instance;
         if (phone == null || !IsInstanceValid(phone))
         {
@@ -444,63 +445,27 @@ public partial class StoryCutinTest : Node
 
         var field = typeof(PhoneCallHud).GetField("_standing",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        Check(field != null, "PhoneCallHud 가 스탠딩 자리를 들고 있다");
-        if (field == null) return;
-
-        var portrait = (EmployeeStandingPortrait)field.GetValue(phone);
-        Check(portrait != null, "그 자리가 공용 컴포넌트(EmployeeStandingPortrait)다");
-        if (portrait == null) return;
-
-        // 6명 전부 — 전화를 걸면 그 직원의 원화가 뜨는가.
-        int ok = 0;
-        string[] ids = { "rabbit", "cat", "dog", "fox", "sheep", "wolf" };
-        foreach (string id in ids)
-        {
-            phone.Open(id);
-            await Frames(4);
-            bool good = portrait.EmployeeId == id && portrait.CurrentTexture != null;
-            if (good) ok++;
-            else GD.Print($"   ! {id}: employee={portrait.EmployeeId} tex={(portrait.CurrentTexture != null)}");
-            phone.RequestClose();
-            await Frames(3);
-        }
-        Check(ok == ids.Length, $"6명 모두 스탠딩이 정상으로 뜬다 ({ok}/{ids.Length})");
+        Check(field == null, "통화창에는 스탠딩 자리가 없다");
 
         // 말하는 동안 입 애니메이션 → 문장이 끝나면 닫은 입.
         phone.Open("rabbit");
         await Frames(4);
-        Check(portrait.EmployeeId == "rabbit", "토끼 통화 — 스탠딩이 토끼다");
         Check(EmployeeMouthAnimator.Speaker == "rabbit", "입 모양의 화자가 토끼다");
 
         var frames = new System.Collections.Generic.HashSet<GuideMouthFrame>();
         for (int i = 0; i < 40; i++) { frames.Add(EmployeeMouthAnimator.Frame); await Frames(1); }
         Check(frames.Count >= 2, $"말하는 동안 입 모양이 바뀐다 ({frames.Count}종)");
 
-        // 문장이 다 찍힐 때까지 기다린다 — 끝나면 닫은 입.
         for (int i = 0; i < 400 && EmployeeMouthAnimator.Talking; i++) await Frames(1);
         await Frames(3);
         Check(!EmployeeMouthAnimator.Talking, "문장이 끝나면 입이 멈춘다");
         Check(EmployeeMouthAnimator.Frame == GuideMouthFrame.Closed, "문장 종료 시 닫은 입이다");
-        var closed = EmployeeArt.Get("rabbit", portrait.Expression, GuideMouthFrame.Closed);
-        Check(portrait.CurrentTexture == closed, "원화도 닫은 입으로 바뀌었다");
-
-        // 선택지가 떠 있는 동안에도 스탠딩은 그대로 남는다.
-        Check(portrait.EmployeeId == "rabbit" && portrait.Modulate.A > 0.9f,
-            "선택지 표시 중에도 스탠딩이 유지된다");
-
-        // 표정은 대사 분위기를 따라간다 — 지정하지 않아도 smile/bad 중 하나로 선다.
-        Check(portrait.Expression is "smile" or "bad", $"표정이 smile/bad 중 하나다 ({portrait.Expression})");
 
         // 통화 중에는 컷인이 막힌다(Phase 1 규칙 유지).
         Check(!_dir.CanPlay, "통화 중에는 Story Cut-in 이 열리지 않는다");
 
-        // 통화 종료 — 스탠딩이 페이드로 사라진다.
         phone.RequestClose();
-        await Frames(2);
-        Check(portrait.Modulate.A < 1f, "통화를 끊으면 스탠딩이 페이드로 사라지기 시작한다");
-        await Settle(() => portrait.Modulate.A < 0.02f && portrait.EmployeeId == "");
-        Check(portrait.Modulate.A < 0.02f, "스탠딩이 완전히 사라졌다");
-        Check(portrait.EmployeeId == "", "스탠딩 자리가 비었다");
+        await Settle(() => EmployeeMouthAnimator.Speaker == "");
         Check(EmployeeMouthAnimator.Speaker == "", "통화 종료 후 전역 입 모양이 비었다");
 
         // 전화가 끝나면 컷인을 다시 쓸 수 있다.
@@ -510,13 +475,6 @@ public partial class StoryCutinTest : Node
         Check(played, "통화 뒤 컷인이 정상 재생됐다");
         await Settle(() => !_dir.IsPlaying);
         Check(!_dir.IsPlaying, "그 컷인도 정상 종료됐다");
-
-        // 심문 화면에서는 띄우지 않는다(오른쪽 CRT 가 이미 맡고 있다).
-        phone.Open("cat", NSP.Dialogue.LocalInterviewDialogue.EventDay1Interview);
-        await Frames(5);
-        Check(portrait.Modulate.A < 0.5f, "휴게 심문에서는 통화창 스탠딩을 띄우지 않는다");
-        phone.RequestClose();
-        await Frames(5);
     }
 
     // --- 헬퍼 -------------------------------------------------------------

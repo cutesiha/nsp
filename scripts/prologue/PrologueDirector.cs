@@ -42,9 +42,14 @@ public partial class PrologueDirector : Node
         // 기절에서 깨어날 때 화면 전체를 덮는 어지러움 오버레이.
         _dizzy = new DizzyOverlay();
         AddChild(_dizzy);
+        // 프롤로그의 3D 컷씬 연출기 — 슬라이드의 scene3d: 를 실제 장면으로 돌린다.
+        // 무대는 처음 쓸 때 세워지므로 여기서는 노드만 달아 둔다.
+        _scene3d = new Prologue3DDirector();
+        AddChild(_scene3d);
     }
 
     private DizzyOverlay _dizzy;
+    private Prologue3DDirector _scene3d;
 
     public override void _ExitTree()
     {
@@ -102,6 +107,9 @@ public partial class PrologueDirector : Node
 
         // ── #2 : 대재난 ────────────────────────────────────────────────
         await PlayCutscene(cutscene, "prologue_disaster");
+
+        // 3D 컷씬 무대를 내린다 — 여기서부터는 현재 제어실만 남는다.
+        _scene3d?.End();
 
         // ── 충격 → 완전 암전 → 이명 → 의식 회복 ─────────────────────────
         // 곧바로 콘솔로 넘어가면 '게임 시스템으로 순간이동' 한 느낌이 난다. 한 박자 둔다.

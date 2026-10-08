@@ -15,6 +15,8 @@ public static class PrologueScript
     private const string RuntimePath = "res://docs/NSP_PROLOGUE_RUNTIME.md";
 
     // --- 컷씬 -----------------------------------------------------------
+    public enum SlideView { Monitor, Full, Room }
+
     public enum SlideFx { None, Glitch, Cut, Siren, Shake, Blackout, Typing, Impact, Alert, Flicker, Crt, Warp, WarpHold }
 
     public sealed class Slide
@@ -22,6 +24,15 @@ public static class PrologueScript
         public string Title = "";
         public string ImagePath = "";
         public string ImageNote = "";
+        // 이 슬라이드를 정지 이미지가 아니라 **실제 3D 컷씬**으로 보여 준다.
+        // Prologue3DDirector 가 아는 id 면 그 장면이 재생되고, 모르면 조용히 image 로 돌아간다.
+        public string Scene3D = "";
+        // 화면 구조(지시서 §J). 한 번 적으면 다음 슬라이드가 물려받는다.
+        //   monitor : 중앙제어실 모니터1 안의 기록 영상(기본)
+        //   full    : 모니터 틀을 깨고 화면 전체를 쓰는 재난 컷씬
+        //   room    : 3D 컷씬은 내리고, 경보 · 섬광 같은 UI 만 **현재 제어실 위에** 전체 화면으로
+        //             남긴다 — 플레이어가 그 자리에 있었다는 것이 드러나는 마지막 단계
+        public SlideView View = SlideView.Monitor;
         // 배경 앞에 서는 인물 일러스트(없으면 임시 [ FIGURE ] 칸).
         public string FigurePath = "";
         public string FigureNote = "";
@@ -236,6 +247,7 @@ public static class PrologueScript
         Slide slide = null;
         string inheritedTitle = "";
         float inheritedShake = 0f;
+        SlideView inheritedFull = SlideView.Monitor;
         ConsoleBlock console = null;
         WindowBlock window = null;
         GuideBlock guide = null;
@@ -258,12 +270,12 @@ public static class PrologueScript
                     case "@cutscene":
                         cutscene = new Cutscene { Id = id };
                         _cutscenes[id] = cutscene;
-                        slide = null; inheritedTitle = ""; inheritedShake = 0f;
+                        slide = null; inheritedTitle = ""; inheritedShake = 0f; inheritedFull = SlideView.Monitor;
                         console = null; window = null; guide = null; menu = null; scriptedId = null; beat = null;
                         continue;
                     case "@slide":
                         if (cutscene == null) continue;
-                        slide = new Slide { Title = inheritedTitle, Shake = inheritedShake };
+                        slide = new Slide { Title = inheritedTitle, Shake = inheritedShake, View = inheritedFull };
                         cutscene.Slides.Add(slide);
                         continue;
                     case "@console":
@@ -306,7 +318,7 @@ public static class PrologueScript
             var (key, value) = SplitKeyValue(line);
             if (key == null) continue;
 
-            if (slide != null && ApplySlideField(slide, key, value, ref inheritedTitle, ref inheritedShake)) continue;
+            if (slide != null && ApplySlideField(slide, key, value, ref inheritedTitle, ref inheritedShake, ref inheritedFull)) continue;
             if (console != null && ApplyConsoleField(console, key, value)) continue;
             if (window != null && ApplyWindowField(window, key, value)) continue;
             if (guide != null && ApplyGuideField(guide, key, value)) continue;
@@ -378,12 +390,22 @@ public static class PrologueScript
         return (key, value);
     }
 
-    private static bool ApplySlideField(Slide s, string key, string value, ref string inheritedTitle, ref float inheritedShake)
+    private static bool ApplySlideField(Slide s, string key, string value, ref string inheritedTitle, ref float inheritedShake, ref SlideView inheritedFull)
     {
         switch (key)
         {
             case "title": s.Title = value; inheritedTitle = value; return true;
             case "image": s.ImagePath = value; return true;
+            case "scene3d": s.Scene3D = value; return true;
+            case "view":
+                inheritedFull = value.Trim().ToLowerInvariant() switch
+                {
+                    "full" => SlideView.Full,
+                    "room" => SlideView.Room,
+                    _ => SlideView.Monitor,
+                };
+                s.View = inheritedFull;
+                return true;
             case "imagenote": s.ImageNote = value; return true;
             case "voice": s.VoiceId = value; return true;
             case "radio": s.Radio = ParseBool(value); return true;

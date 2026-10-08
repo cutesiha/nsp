@@ -140,11 +140,13 @@ public partial class EndingDirector
         _stage = new EndingCutsceneStage();
         AddChild(_stage);
         _stage.Attach(_layer);
+        // 엔딩 컷씬도 깨끗한 실시간 화면이 아니라 낡은 시설 기록물로 보이게 한다.
+        _stage.EnableFilm(ArchiveFilm.Look.Cinema);
         _stage.ShowSet(EndingCutsceneStage.Set.Restraint);
         _stage.Offender?.Spawn(GameState.Instance?.FinalAccusedId ?? "");
         _stage.Offender?.Slump();
         // 멀리서 시작한다 — 처음에는 그것이 무엇인지 잘 보이지 않는다.
-        _stage.SetCam(new Vector3(0f, 1.32f, 2.95f), new Vector3(0f, 0.80f, 0f), 52f);
+        _stage.SetCam(new Vector3(0f, 1.30f, 2.95f), new Vector3(0f, 0.86f, 0.05f), 52f);
         _stage.Screen.Modulate = Colors.White;
         await Wait(0.3);
 
@@ -156,7 +158,7 @@ public partial class EndingDirector
         // 숨소리 — 이 방에 들리는 유일한 소리다.
         Sfx.Instance?.Play("breath_faint", -9f);
         // 천천히 다가간다.
-        await _stage.MoveCam(new Vector3(0f, 1.12f, 1.85f), new Vector3(0f, 0.80f, 0f), 3.2);
+        await _stage.MoveCam(new Vector3(0f, 1.10f, 1.80f), new Vector3(0f, 0.86f, 0.05f), 3.2);
         await Wait(0.6);
 
         // 몸부림 — 짧은 컷씬처럼 한 번(§6). 사슬 금속음은 결번자 쪽에서 같이 난다.
@@ -166,7 +168,7 @@ public partial class EndingDirector
 
         // 고개를 든다. 그 얼굴은 사람을 흉내 내고 있던 무언가다(§7).
         _stage.Offender.RevealFace();
-        await _stage.MoveCam(new Vector3(0f, 1.24f, 1.06f), new Vector3(0f, 1.16f, 0f), 1.9, 45f);
+        await _stage.MoveCam(new Vector3(0f, 1.26f, 1.02f), new Vector3(0f, 1.12f, 0.02f), 1.9, 45f);
         await _stage.Offender.LiftHead(1.7);
         Sfx.Instance?.Play("tinnitus", -17f);
         await Wait(1.6);
@@ -250,7 +252,9 @@ public partial class EndingDirector
 
         // B — 복도 문 조명이 **하나씩** 켜진다(§14). 한꺼번에 켜지면 안 된다.
         await Cut(0.3);
-        _stage.SetCam(new Vector3(0.3f, 1.72f, 7.5f), new Vector3(-0.4f, 1.9f, -20f), 56f);
+        // 복도 끝에서 찍으면 조명이 점 네 개로만 보인다 — 첫 문 바로 앞까지 들어가
+        // 비스듬히 본다. 그래야 하나씩 켜지는 것이 눈에 들어온다.
+        _stage.SetCam(new Vector3(0.95f, 1.62f, 1.4f), new Vector3(-1.9f, 1.95f, -9.5f), 62f);
         await Wait(0.45);
         for (int i = 0; i < 4; i++)
         {

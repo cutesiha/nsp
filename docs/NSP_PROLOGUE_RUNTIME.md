@@ -145,10 +145,13 @@ sub: ARCHIVE 01
 hold: 2.2
 fx: typing
 
-# CRT 가 켜지고 노이즈가 걷히며 흑백 기록 영상이 시작된다.
+# CRT 가 켜지고 노이즈가 걷히며 기록 영상이 시작된다.
+# scene3d: 가 붙은 슬라이드는 정지 그림 대신 **실제 3D 컷씬**이 돈다.
+# image: 는 그대로 남겨 둔다 — 3D 장면을 못 찾으면 그 그림으로 돌아간다(fallback).
 @slide
 title: 국가특수에너지연구원 제7지하시설 / ARCHIVE 01
 image: res://assets/cutscene/prologue/archive_02_director.png
+scene3d: archive_director
 imagenote: 연구소 총괄 관리자 클로즈업
 sfx: crt_on
 hold: 1.6
@@ -156,6 +159,7 @@ fx: crt
 
 @slide
 image: res://assets/cutscene/prologue/archive_02_director.png
+scene3d: archive_director
 imagenote: 연구소 총괄 관리자 클로즈업
 speaker: 총괄 관리자
 voice: director
@@ -164,6 +168,7 @@ hold: 3.0
 
 @slide
 image: res://assets/cutscene/prologue/archive_02_director.png
+scene3d: archive_director
 imagenote: 연구소 총괄 관리자 클로즈업
 speaker: 총괄 관리자
 voice: director
@@ -172,6 +177,7 @@ hold: 4.2
 
 @slide
 image: res://assets/cutscene/prologue/archive_01_facility.png
+scene3d: archive_facility
 imagenote: 밝고 멀쩡한 시설 전경 · 연구원들 · 정상 가동 중인 코어
 speaker: 총괄 관리자
 voice: director
@@ -180,6 +186,7 @@ hold: 4.6
 
 @slide
 image: res://assets/cutscene/prologue/archive_03_habitat.png
+scene3d: archive_habitat
 imagenote: 연구동 내부 · 안정적으로 유지되는 생활 구역
 speaker: 총괄 관리자
 voice: director
@@ -188,6 +195,7 @@ hold: 5.0
 
 @slide
 image: res://assets/cutscene/prologue/archive_04_core.png
+scene3d: archive_core
 imagenote: 봉쇄 코어 클로즈업 · 푸른 빛으로 안정 가동
 speaker: 총괄 관리자
 voice: director
@@ -206,7 +214,8 @@ title: 국가특수에너지연구원 제7지하시설 / ARCHIVE 01
 # sfxloop: siren 도 sfxloopstop 을 만날 때까지 계속 울린다.
 @slide
 image: res://assets/cutscene/prologue/archive_04_core.png
-imagenote: 직전 컷 그대로 — 화면이 찢어지며 뒤틀린다
+scene3d: core_warning
+imagenote: 직전 컷 그대로 — 코어가 흔들리고 영상이 찢어진다
 ken: off
 sfx: noise
 sfxloop: siren
@@ -220,6 +229,7 @@ fx: warp
 @slide
 title: SIGNAL LOST
 image: res://assets/cutscene/prologue/archive_04_core.png
+scene3d: core_warning
 imagenote:
 ken: off
 overlay: SIGNAL LOST
@@ -228,8 +238,12 @@ hold: 1.6
 fx: warphold
 
 # ── 비상 경보창 : 실제 시설 경보 패널처럼 뜬다 ──
+# 프롤로그는 처음부터 끝까지 **모니터1 안에서 돌아가는 기록영상**이다. 재난 구간에서
+# 틀을 깨고 전체 화면으로 나가면 그 순간 '영상' 이 아니게 되어 버린다 — 그래서 끝까지
+# 영상으로 둔다. 경보창 · 게이지 · 무전 HUD 는 그 영상 위에 겹쳐 뜬다.
 @slide
 title: EMERGENCY BROADCAST
+scene3d: core_warning
 image:
 imagenote:
 alert: 대재난 경보 | FACILITY EMERGENCY
@@ -253,74 +267,111 @@ sfx: alert_beep3
 hold: 3.0
 fx: alert
 
+# ── 지상 : 밖은 이미 끝났다 ──
+# 사이렌 → 시설 내부 긴장 → **여기서 한 번 밖을 본다** → 다시 지하.
+# 지하 안만 보여 주면 "이 시설만의 사고" 로 읽힌다. 세 컷, 전부 합쳐 11초쯤.
+# 소리가 먼저 오고(거의 암전), 붉은 하늘 아래 폐허가 드러나고, 먼지 속에서 끊긴다.
+@slide
+title: SURFACE RELAY / LAST SIGNAL
+image: res://assets/cutscene/prologue/disaster_03_surface_red.png
+scene3d: surface_wide
+imagenote: 지상 중계 — 붉은 하늘 아래 무너진 지상, 건물 한 동이 실제로 무너진다
+overlay: 지상 중계 회선 — 최종 수신
+sfx: alarm
+hold: 5.0
+
+@slide
+image: res://assets/cutscene/prologue/disaster_03_surface_red.png
+scene3d: surface_road
+imagenote: 잔해가 쌓인 도로 · 철골 틈에서 스파크가 튄다
+hold: 3.2
+fx: cut
+
+@slide
+image: res://assets/cutscene/prologue/disaster_03_surface_red.png
+scene3d: surface_last
+imagenote: 먼지가 시야를 덮고 회선이 끊긴다
+hold: 3.4
+
 # ── 빠르게 지나가는 몽타주 ──
 # fx: cut 은 컷마다 무작위로 효과 하나를 고른다(펀치 줌 / 흔들림 / 붉은 섬광 / 팬 / 글리치).
 @slide
 title: ARCHIVE 02 / EMERGENCY RECORD
 image: res://assets/cutscene/prologue/disaster_03_surface_red.png
-imagenote: 지상 관측 카메라가 붉게 물듦
+scene3d: core_warning
+imagenote: 경보가 울리는 코어실 — 아직 터지기 전이다
 sfx: alarm
 hold: 0.7
 fx: cut
 
 @slide
 image: res://assets/cutscene/prologue/disaster_04_lab_wreck.png
+scene3d: disaster_lab
 imagenote: 연구실 파손 · 집기가 쏟아짐
-sfx: glass_shatter
-hold: 0.7
-fx: cut
+hold: 3.4
 
 @slide
 image: res://assets/cutscene/prologue/disaster_05_staff_running.png
-imagenote: 직원이 허겁지겁 복도를 뛰어감
-sfx: footsteps_run
-hold: 0.8
-fx: cut
+scene3d: disaster_run
+imagenote: 직원들이 복도를 실제로 달려 지나간다
+hold: 4.2
 
 @slide
 image: res://assets/cutscene/prologue/disaster_06_door_closing.png
-imagenote: 차폐문이 닫힘
-sfx: metal_clang
-hold: 0.7
-fx: cut
+scene3d: disaster_bulkhead
+imagenote: 차폐문이 실제로 내려와 닫힌다
+hold: 3.6
 
 @slide
 image: res://assets/cutscene/prologue/disaster_07_cctv_shadow.png
-imagenote: CCTV 화면 가장자리를 무언가가 스쳐 지나감
-sfx: cctv_cut
-hold: 0.8
-fx: cut
+scene3d: disaster_cctv
+imagenote: 고정 CCTV — 화면 바로 앞을 검은 형체가 가로지른다
+hold: 1.8
 
 # ── 봉쇄 코어 출력 저하 : 숫자와 막대가 실제로 내려간다 ──
 # 영문은 보조 문구일 뿐이고, 플레이어가 읽어야 하는 주 정보는 전부 한글이다.
 @slide
 title: CORE CHAMBER / LIVE
 image: res://assets/cutscene/prologue/disaster_08_core_drop.png
-imagenote: 코어실 · 출력 게이지가 급락하기 시작
+scene3d: core_drop
+imagenote: 거대 봉쇄 코어실 · 코어 자체가 꺼져 간다
 gauge: 봉쇄 코어 출력
 gaugesteps: 100, 74, 41
 gaugesub: CORE OUTPUT DROPPING
-sfx: power_down
-shake: 3.4
-hold: 3.0
+shake: 2.0
+hold: 4.4
 fx: flicker
 
 @slide
 image: res://assets/cutscene/prologue/disaster_10_core_breach.png
-imagenote: 코어실 · 차폐막이 깨지는 순간
+scene3d: core_drop
+imagenote: 코어실 · 출력이 한 자리까지 떨어진다
 gauge: 봉쇄 코어 출력
 gaugesteps: 41, 16, 3
 gaugesub: CORE OUTPUT CRITICAL
 gaugealert: ⚠ 치명적 출력 저하
-sfx: rubble_collapse
-hold: 3.4
+hold: 4.0
 fx: alert
+
+# 0% → **정적 한 박자** → 대폭발. 이 컷이 프롤로그에서 가장 강한 장면이다.
+# 폭발 · 섬광 · 파편 · 이명은 전부 3D 장면(core_explode)이 낸다 — 여기서는 길이만 준다.
+@slide
+image: res://assets/cutscene/prologue/disaster_10_core_breach.png
+scene3d: core_explode
+imagenote: 봉쇄 코어 폭발
+gauge: 봉쇄 코어 출력
+gaugesteps: 3, 0
+gaugesub: CORE OUTPUT LOST
+gaugealert: ⚠ 봉쇄 실패
+shake: 0
+hold: 6.0
 
 # ── 직원 무전 : 신호가 점점 죽는다 ──
 @slide
 title: INCOMING RADIO
 image: res://assets/cutscene/prologue/disaster_12_radio.png
-imagenote: 노이즈가 낀 무전 화면
+scene3d: disaster_after
+imagenote: 부서진 코어실을 배경으로 무전이 들어온다
 speaker: 직원 무전
 voice: rabbit
 radio: true
@@ -332,7 +383,8 @@ hold: 3.0
 
 @slide
 image: res://assets/cutscene/prologue/disaster_12_radio.png
-imagenote: 노이즈가 낀 무전 화면
+scene3d: disaster_after
+imagenote: 부서진 코어실을 배경으로 무전이 들어온다
 speaker: 직원 무전
 voice: wolf
 radio: true
@@ -345,7 +397,8 @@ fx: glitch
 
 @slide
 image: res://assets/cutscene/prologue/disaster_12_radio.png
-imagenote: 노이즈가 낀 무전 화면
+scene3d: disaster_after
+imagenote: 부서진 코어실을 배경으로 무전이 들어온다
 speaker: 직원 무전
 voice: cat
 radio: true
@@ -359,13 +412,13 @@ fx: glitch
 
 @slide
 title: ARCHIVE 02 / EMERGENCY RECORD
-image: res://assets/cutscene/prologue/disaster_12_radio.png
-imagenote: 총괄 관리자 · 마지막 지시
+image: res://assets/cutscene/prologue/disaster_13_director_last.png
+scene3d: director_last
+imagenote: 총괄 관리자가 비상 차폐 레버로 걸어가 직접 내린다
 speaker: 총괄 관리자
 voice: director
 text: 큰일이군. 비상 차폐를 가동해!
-sfxafter: switch
-hold: 3.2
+hold: 7.0
 
 # 암전 + EMERGENCY SEAL — 여기서 사이렌과 지속 흔들림이 멈춘다.
 @slide
@@ -379,6 +432,14 @@ sfx: boom
 sfxloopstop: siren
 shake: 0
 hold: 2.8
+
+# 영상이 끊기고 한 박자 쉰다. 화면 구조는 그대로 — 틀을 깨지 않는다.
+@slide
+title:
+image:
+imagenote:
+hold: 1.6
+sfx: cloth_rustle
 
 # 플레이어가 머리를 세게 얻어맞고 책상에 엎어진다.
 # fx: impact 가 충격음(impact_blunt) → 강한 흔들림 → 쓰러지는 소리(body_fall) → 암전까지 한 번에 처리한다.

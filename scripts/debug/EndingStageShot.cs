@@ -31,6 +31,10 @@ public partial class EndingStageShot : Node
             await Seconds(0.6);
             stage.SetCam(new Vector3(0f, 1.05f, 1.75f), new Vector3(0f, 0.78f, 0f), 50f);
             await Seconds(0.6); Shot(dir, "r1_close");
+            stage.SetCam(new Vector3(3.1f, 1.55f, 1.15f), new Vector3(0f, 0.85f, 0.05f), 44f);
+            await Seconds(0.4); Shot(dir, "r0_profile");
+            stage.SetCam(new Vector3(0f, 1.05f, 1.75f), new Vector3(0f, 0.78f, 0f), 50f);
+            await Seconds(0.3);
             Report(stage.Offender);
             _ = stage.Offender.StruggleSequence();
             await Seconds(1.0); Shot(dir, "r2_struggle");
@@ -61,7 +65,7 @@ public partial class EndingStageShot : Node
         {
             stage.ShowSet(EndingCutsceneStage.Set.Corridor);
             stage.CorridorReset();
-            stage.SetCam(new Vector3(0f, 1.7f, 8f), new Vector3(0f, 1.8f, -20f), 55f);
+            stage.SetCam(new Vector3(0.95f, 1.62f, 1.4f), new Vector3(-1.9f, 1.95f, -9.5f), 62f);
             await Seconds(0.5); Shot(dir, "m1_corridor_off");
             for (int i = 0; i < 4; i++) stage.DoorLamp(i);
             await Seconds(0.4); Shot(dir, "m2_corridor_on");

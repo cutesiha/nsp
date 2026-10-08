@@ -230,15 +230,17 @@ public partial class EndingOffender : Node3D
         // 떨림은 빠르고 작다.
         float shake = _tremble * Mathf.Sin(_t * 26f) * 3.2f;
 
-        _hips.RotationDegrees = new Vector3(8f + _twist * 2f, _twist * 10f, _twist * 5f);
+        // 상체는 **앞으로** 숙인다. 이 뼈대에서 허리·가슴의 +X 는 뒤로 젖히는 쪽이라
+        // 부호가 음수다(고개는 반대로 +X 가 숙이는 쪽이다 — 아래 _head 참고).
+        _hips.RotationDegrees = new Vector3(-9f - _twist * 2f, _twist * 10f, _twist * 5f);
         if (_torso != null)
-            _torso.RotationDegrees = new Vector3(13f + breath * 0.4f - _pullR * 3f, _twist * 13f, -_twist * 6f);
+            _torso.RotationDegrees = new Vector3(-15f - breath * 0.4f + _pullR * 3f, _twist * 13f, -_twist * 6f);
         if (_chest != null)
-            _chest.RotationDegrees = new Vector3(7f + breath, _twist * 8f, shake * 0.4f);
+            _chest.RotationDegrees = new Vector3(-8f - breath, _twist * 8f, shake * 0.4f);
 
-        // 고개 — 숙였다가 아주 천천히 든다.
+        // 고개 — 푹 숙였다가 아주 천천히 든다. 목도 +X 가 뒤로 젖히는 쪽이라 음수다.
         if (_head != null)
-            _head.RotationDegrees = new Vector3(Mathf.Lerp(2f, 42f, _headDown), _twist * -6f, shake * 0.5f);
+            _head.RotationDegrees = new Vector3(Mathf.Lerp(-3f, -34f, _headDown), _twist * -6f, shake * 0.5f);
 
         // 양팔은 사슬에 끌려 좌우로 벌어져 있다. 당기면 그만큼 더 벌어지고 위로 들린다.
         Arm(_shL, _upL, _loL, +1f, _pullL, shake);

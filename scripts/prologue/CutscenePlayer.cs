@@ -48,6 +48,8 @@ public partial class CutscenePlayer : Control
     private static readonly Rect2 RadioBox = new(26f, 286f, 316f, 88f);
     // 코어 출력 게이지 — 영상 한가운데 아래쪽.
     private static readonly Rect2 GaugeBox = new(70f, 232f, 660f, 168f);
+    // 전체 화면에서는 같은 자리에 두면 코어를 통째로 가린다 — 아래 3분의 1로 내린다(§J).
+    private static readonly Rect2 GaugeBoxFull = new(118f, 392f, 564f, 132f);
     // 비상 경보창 — 실제 시설 경보 패널처럼 영상 한가운데 크게 뜬다.
     // 시설 시스템 창(비상 차폐 등) 자리 — 영상 한가운데.
     private static readonly Rect2 SealBox = new(228f, 176f, 344f, 168f);
@@ -57,6 +59,39 @@ public partial class CutscenePlayer : Control
     private Control _frame;          // 흔들림이 걸리는 영상 내용물
     private Control _videoClip;      // 줌/팬이 영상 영역 밖으로 새지 않게 가두는 틀
     private TextureRect _image;
+    // 지금 슬라이드가 3D 컷씬인가(켄 번스 · 플레이스홀더를 끈다).
+    private bool _use3d;
+    private ColorRect _bg;
+    private bool _fullscreenMode;
+
+    // 재난 구간 — 모니터1 틀을 깨고 화면 전체를 쓴다(지시서 §C · §D).
+    //
+    // 이 화면(CutscenePlayer)은 그대로 두고 **배경과 CRT 테두리만 지운다.** 그러면 같은
+    // 뷰포트가 투명해지고, 그 뒤에 깔린 3D 컷씬 위로 경보 · 게이지 · 무전 HUD 만 떠오른다 —
+    // 기존 시설 UI 를 하나도 버리지 않으면서 화면 구조만 바뀐다(§E).
+    public void SetFullscreenMode(bool on)
+    {
+        _fullscreenMode = on;
+        if (_bg != null) _bg.Visible = !on;
+        if (_chrome != null) _chrome.Visible = !on;
+        if (_videoClip != null) _videoClip.Visible = !on;
+        if (_recDot != null) _recDot.Visible = !on;
+        if (_title != null) _title.Visible = !on;
+        if (_clickHint != null) _clickHint.Visible = !on;
+        if (_film != null)
+        {
+            _film.Position = on ? Vector2.Zero : VideoArea.Position;
+            _film.Size = on ? new Vector2(800f, 580f) : VideoArea.Size;
+        }
+        // 게이지는 전체 화면에서 3D 를 가리지 않도록 자리를 옮긴다.
+        if (_gauge != null)
+        {
+            var box = on ? GaugeBoxFull : GaugeBox;
+            _gauge.Position = box.Position;
+            _gauge.Size = box.Size;
+            _gauge.QueueRedraw();
+        }
+    }
     private PlaceholderPanel _placeholder;
     private TextureRect _figure;
     private PlaceholderPanel _figurePlaceholder;
@@ -74,6 +109,7 @@ public partial class CutscenePlayer : Control
     private PlayerChrome _chrome;
     private RadioHud _radioHud;
     private GaugePanel _gauge;
+    private ArchiveFilm _film;
     private AlertBoard _alertBoard;
     private SealWindow _sealWindow;
     private WarpOverlay _warp;
@@ -202,6 +238,9 @@ public partial class CutscenePlayer : Control
         Advance();
     }
 
+    // 디버그 촬영기가 '다 읽었는지' 알 수 있도록 노출한다(지시서 §53).
+    public bool IsTypingNow => IsTyping();
+
     private bool IsTyping() =>
         (_subtitleBox.Visible && _text.VisibleRatio < 1f) || (_overlay.Text.Length > 0 && _overlay.VisibleRatio < 1f);
 
@@ -251,13 +290,32 @@ public partial class CutscenePlayer : Control
         // 배경 이미지: 최종 파일이 있으면 그걸, 없으면 같은 자리에 임시 패널.
         // 일그러짐 연출 중에는 원본 대신 WarpOverlay 가 같은 그림을 조각내어 그린다.
         bool warping = _fx is PrologueScript.SlideFx.Warp or PrologueScript.SlideFx.WarpHold;
-        var tex = LoadImage(s.ImagePath);
+
+        // scene3d: 가 붙은 슬라이드는 정지 그림 대신 **실제 3D 컷씬**을 이 자리에 깐다.
+        // 모르는 장면 id 면 조용히 기존 image 로 돌아간다(§42 fallback).
+        var scene3d = Prologue3DDirector.Instance;
+        bool use3d = !string.IsNullOrEmpty(s.Scene3D) && Prologue3DDirector.Has(s.Scene3D) && scene3d != null;
+        if (use3d)
+        {
+            scene3d.EnsureStage();
+            scene3d.Begin(s.Scene3D);
+        }
+        // 화면 구조 전환은 슬라이드가 지시한다(view: full / room / monitor).
+        scene3d?.RequestView(s.View);
+        // 안전교육 기록은 안정적이고, 재난 기록은 노이즈 · 흔들림이 심해진다(§2 A · B).
+        _film?.SetLook(string.IsNullOrEmpty(s.Scene3D) || s.Scene3D.StartsWith("archive")
+            ? ArchiveFilm.Look.Archive
+            : ArchiveFilm.Look.Disaster);
+
+        var tex = use3d ? scene3d.Texture : LoadImage(s.ImagePath);
         _image.Texture = tex;
         _image.Visible = tex != null && !warping;
+        _use3d = use3d;
         _warp.Texture = tex;
         _warp.Visible = warping && tex != null;
         _warp.Amount = _fx == PrologueScript.SlideFx.WarpHold ? 0.9f : 0f;
-        _placeholder.Visible = tex == null && (!string.IsNullOrEmpty(s.ImageNote) || !string.IsNullOrEmpty(s.ImagePath));
+        _placeholder.Visible = !use3d && tex == null
+            && (!string.IsNullOrEmpty(s.ImageNote) || !string.IsNullOrEmpty(s.ImagePath));
         _placeholder.Note = s.ImageNote;
         _placeholder.QueueRedraw();
 
@@ -271,7 +329,8 @@ public partial class CutscenePlayer : Control
         _figurePlaceholder.QueueRedraw();
 
         _title.Text = s.Title ?? "";
-        _recDot.Visible = !string.IsNullOrEmpty(s.Title);
+        _recDot.Visible = !_fullscreenMode && !string.IsNullOrEmpty(s.Title);
+        _title.Visible = !_fullscreenMode;
 
         // 경고 문구도 자막과 같은 속도로 타이핑된다. 경보 카드는 붉게 띄운다.
         _overlay.Text = s.Overlay ?? "";
@@ -364,7 +423,7 @@ public partial class CutscenePlayer : Control
     private void SetupKenBurns(PrologueScript.Slide s)
     {
         _kenSeconds = Math.Max(1.2, NominalSeconds(s) + 1.2);
-        if (!s.KenBurns || _image.Texture == null)
+        if (!s.KenBurns || _use3d || _image.Texture == null)
         {
             _kenFrom = _kenTo = 1f;
             _panFrom = _panTo = Vector2.Zero;
@@ -793,7 +852,8 @@ public partial class CutscenePlayer : Control
 
     private void BuildUi()
     {
-        var bg = new ColorRect { Color = new Color(0.02f, 0.022f, 0.026f), MouseFilter = MouseFilterEnum.Ignore };
+        _bg = new ColorRect { Color = new Color(0.02f, 0.022f, 0.026f), MouseFilter = MouseFilterEnum.Ignore };
+        var bg = _bg;
         bg.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(bg);
 
@@ -899,6 +959,15 @@ public partial class CutscenePlayer : Control
             Visible = false,
         };
         _frame.AddChild(_gauge);
+
+        // 영상 위에 낡은 기록물 질감을 한 겹 덮는다. 자막 · 경보창 · 게이지는 이보다
+        // 뒤에 추가되므로 그 위에 또렷하게 남는다 — 거칠어지는 것은 영상뿐이다.
+        _film = new ArchiveFilm
+        {
+            Position = VideoArea.Position,
+            Size = VideoArea.Size,
+        };
+        _frame.AddChild(_film);
 
         _sealWindow = new SealWindow
         {
