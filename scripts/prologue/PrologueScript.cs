@@ -351,6 +351,13 @@ public static class PrologueScript
                 b.Add(c.Speaker, Unescape(value), c.Side, c.Expression, c.Hold, c.ExitSide);
                 c.ExitSide = null;   // 퇴장은 한 줄에만 걸린다
                 return true;
+            // line? — 그 직원이 그 자리에 없으면(사망 · 기절 · 격리) 조용히 건너뛴다.
+            // 엔딩처럼 '누가 남아 있는지 판마다 다른' 장면에 쓴다(메인 스토리의 say? 와 같은 규약).
+            case "line?":
+                b.Add(c.Speaker, Unescape(value), c.Side, c.Expression, c.Hold, c.ExitSide);
+                if (b.Steps.Count > 0 && b.Steps[^1].Line is { } opt) opt.Optional = true;
+                c.ExitSide = null;
+                return true;
         }
         return false;
     }

@@ -114,12 +114,12 @@ public partial class EndingShot : Node
             "loose" => new[] { (9.0, "1_pad"), (20.0, "2_recovered"), (30.0, "3_guide"), (38.0, "4_cards"), (44.0, "5_broken"), (52.0, "6_white"), (62.0, "7_record") },
             "late" => new[] { (10.0, "1_pad"), (22.0, "2_countdown"), (34.0, "3_guide"), (46.0, "4_switch"), (52.0, "5_seal"), (62.0, "6_dark"), (74.0, "7_record") },
             "bad" => new[] { (3.0, "0_intro"), (8.0, "1_pad"), (13.0, "2_warning"), (18.0, "3_guide"), (22.0, "4_bulkhead"), (28.0, "5_door"), (38.0, "6_banner") },
-            _ => new[] { (10.0, "1_pad"), (16.6, "2_flashback"), (24.0, "3_record"), (31.0, "4_call"), (42.0, "5_recovered"), (47.0, "6_guide"), (60.0, "7_banner") },
+            _ => new[] { (12.0, "1_core100"), (26.0, "2_verdict"), (44.0, "3_restraint"), (56.0, "4_bars"), (68.0, "5_corehall"), (80.0, "6_montage"), (94.0, "7_lights"), (106.0, "8_rest"), (118.0, "9_rest2"), (132.0, "10_guide"), (148.0, "11_banner") },
         };
         // 인자에 sweep 을 더하면 4초마다 통째로 찍는다(연출 길이를 맞출 때 쓴다).
         if (args.Length > 2 && args[2] == "sweep")
         {
-            for (double at = 6.0; at <= 96.0; at += 4.0)
+            for (double at = 6.0; at <= 176.0; at += 8.0)
             {
                 await Until(at);
                 Save(dir, $"{mode}_t{at:00}.png");

@@ -889,6 +889,46 @@ side: left
 expression:
 line: 그렇죠. 숨길 게 있는 사람이나.
 
+# ── 트루엔딩 — 마지막 휴게실 (모니터2) ──────────────────────────────────
+# 코어 복구와 지목이 둘 다 끝난 뒤, 시설이 다시 돌기 시작한 그 밤의 휴게실.
+# DAY1 의 공기와 정반대다 — 긴장이 풀렸고, 피곤하고, 살아남았다는 안도와 약간의 허무함.
+#
+# 누가 남아 있는지는 판마다 다르다(지목된 직원은 이 자리에 없다). 그래서 전부 line? 로
+# 적는다 — 자리에 없는 직원의 줄은 조용히 건너뛴다. 마지막 한 줄만은 반드시 나와야 하므로
+# 남아 있을 확률이 가장 높은 쪽에 두지 않고, 앞의 누군가가 받도록 두 번 적어 둔다.
+@beat ending_true_rest
+pause: true
+# 엔딩에는 플레이어 입력이 없다(책상이 잠겨 있다) — 한 줄씩 저절로 넘어가게 hold 를 건다.
+hold: 2.6
+speaker: dog
+side: left
+line?: 끝났네요. 진짜로.
+speaker: sheep
+side: right
+expression: bad
+line?: 아직도 손이 떨려요. 다 끝났다는 게 실감이 안 나서...
+speaker: cat
+side: left
+line?: 실감은 자고 일어나면 날 거예요. 지금은 그냥 앉아 있어도 돼요.
+speaker: fox
+side: right
+expression: smile
+line?: 이 방이 이렇게 조용한 건 처음이네요~ 기계 소리도 안 나고.
+speaker: rabbit
+side: left
+line?: 저, 솔직히 어제까진 못 버틸 줄 알았어요.
+speaker: wolf
+side: right
+line?: 버텼습니다. 그거면 됩니다.
+# 마지막 한마디 — 5일간의 관리를 직원들이 인정하는 자리다(연출 문서 §23).
+speaker: dog
+side: left
+expression: smile
+line?: 관리자님. 정말 고생 많으셨어요.
+speaker: cat
+side: left
+line?: 관리자님도 이제 좀 쉬세요.
+
 # ── Beat D — 교육 종료 직전 ─────────────────────────────────────────────
 # 짧은 불안 하나만 남기고 끝낸다. 설명하지 않는다.
 @beat day0_end
