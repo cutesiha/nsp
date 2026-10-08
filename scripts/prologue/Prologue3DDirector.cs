@@ -335,8 +335,11 @@ public partial class Prologue3DDirector : Node
         var d = Spawn(root, "sheep", new Vector3(6.6f, 0f, -4f), -90f);
         var e = Spawn(root, "rabbit", new Vector3(0.6f, 0f, -9f));
 
-        a.MoveTo(new Vector3(-1.9f, 0f, -16f), 1.25f, CutsceneActor.Gait.Walk);
-        b.MoveTo(new Vector3(2.4f, 0f, 18f), 1.1f, CutsceneActor.Gait.Walk);
+        // 걷는 둘도 걸음 위상 · 보폭이 다르다 — 같은 프레임에 같은 발이 나가면 눈에 띈다.
+        a.SetRunStyle(CutsceneActor.RunStyle.Loping, 0.21f);
+        b.SetRunStyle(CutsceneActor.RunStyle.Tired, 0.74f);
+        a.MoveTo(new Vector3(-1.9f, 0f, -16f), 1.32f, CutsceneActor.Gait.Walk);
+        b.MoveTo(new Vector3(2.4f, 0f, 18f), 1.05f, CutsceneActor.Gait.Walk);
         c.PlayClip("panel_press_m");
         d.PlayClip("console_operate_f");
         e.PlayClip("clipboard_check_m");
@@ -376,6 +379,7 @@ public partial class Prologue3DDirector : Node
         var a = Spawn(root, "rabbit", new Vector3(-3.2f, 0f, -0.4f), 180f);
         var b = Spawn(root, "sheep", new Vector3(4.5f, 0f, 2.5f), -40f);
         a.PlayClip("sit_typing");
+        b.SetRunStyle(CutsceneActor.RunStyle.Normal, 0.58f);
         b.MoveTo(new Vector3(-1.5f, 0f, -5.5f), 1.0f, CutsceneActor.Gait.Walk);
 
         await _stage.MoveCamCut(new Vector3(1.6f, 1.75f, 4.4f), new Vector3(-0.8f, 1.2f, -4f), 6.0);
@@ -408,11 +412,12 @@ public partial class Prologue3DDirector : Node
         _stage.CoreClamp(0.01);
         _stage.PrologueCoreRestoreIntact();
         // 2.6 은 화면이 타 버린다 — 구(球)의 형태가 보이는 선까지만 올린다.
-        _stage.CoreCharge(1.35f, 0.01);
+        // 밝기는 코어 자체가 아니라 둘레 설비(헤일로 · 인레이 · 입자)가 만든다.
+        _stage.CoreCharge(1.0f, 0.01);
         for (int i = 0; i < 10; i++) _stage.CoreFloorLamp(i, 2.0f);
         // 정상 가동 중이므로 홀 자체도 켜져 있다 — 그래야 크기가 읽힌다.
-        _stage.CoreHallFill(3.0f, new Color(0.62f, 0.70f, 0.85f));
-        _stage.CoreFloorFill(2.6f, new Color(0.66f, 0.74f, 0.88f));
+        _stage.CoreHallFill(3.6f, new Color(0.62f, 0.70f, 0.85f));
+        _stage.CoreFloorFill(3.0f, new Color(0.66f, 0.74f, 0.88f));
         _coreOutput = 100f;
     }
 

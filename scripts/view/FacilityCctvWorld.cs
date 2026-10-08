@@ -136,6 +136,9 @@ public partial class FacilityCctvWorld : Node3D
             var inst = ps.Instantiate<Node3D>();
             inst.Visible = false;
             AddChild(inst);
+            // 방 씬은 room_base 한 벌을 공유해서 그대로 띄우면 아홉 방이 같은 상자로 보인다.
+            // 마감(재질 · 구조 · 소품 · 조명)은 씬이 아니라 여기서 얹는다(RoomDressing).
+            RoomDressing.Apply(roomId, inst);
             _rooms[roomId] = inst;
         }
 

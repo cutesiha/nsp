@@ -10,6 +10,7 @@
 ; 캐릭터는 자기 -Z 를 보므로, 뒷줄은 yaw 180° 로 돌려 앞줄을 마주 보게 둔다.
 
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://cr2tsdnyrlnem" path="res://scripts/view/RoomDresserNode.cs" id="dress_RoomDresserNode"]
 
 [sub_resource type="BoxMesh" id="BM_TableTop"]
 size = Vector3(3.2, 0.08, 1.15)
@@ -295,3 +296,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.86)
 
 [node name="Seat6" type="Marker3D" parent="Seats"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0.86)
+
+; 방 마감(재질 · 구조 · 소품 · 조명). 실제 노드는 RoomDressing 이 만들고 owner 를
+; 주지 않으므로 이 씬에는 저장되지 않는다 — 여기 남는 것은 이 세 줄뿐이다.
+[node name="Dressing" type="Node3D" parent="."]
+script = ExtResource("dress_RoomDresserNode")
+RoomId = "rest_room"

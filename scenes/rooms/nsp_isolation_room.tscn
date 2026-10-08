@@ -3,6 +3,7 @@
 [ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
 [ext_resource type="Script" uid="uid://bkv4k7wqd3lf8" path="res://scripts/view/RoomWorkSpot.cs" id="1_spot"]
 [ext_resource type="PackedScene" uid="uid://cuj80gufgiajr" path="res://assets/models/NSP_Quarantine_room.glb" id="2_glb"]
+[ext_resource type="Script" uid="uid://cr2tsdnyrlnem" path="res://scripts/view/RoomDresserNode.cs" id="dress_RoomDresserNode"]
 
 [sub_resource type="BoxMesh" id="BM_Bunk"]
 size = Vector3(2, 0.12, 0.85)
@@ -513,3 +514,9 @@ surface_material_override/0 = SubResource("MAT_glass")
 
 [editable path="RoomBase"]
 [editable path="Quarantine"]
+
+; 방 마감(재질 · 구조 · 소품 · 조명). 실제 노드는 RoomDressing 이 만들고 owner 를
+; 주지 않으므로 이 씬에는 저장되지 않는다 — 여기 남는 것은 이 세 줄뿐이다.
+[node name="Dressing" type="Node3D" parent="."]
+script = ExtResource("dress_RoomDresserNode")
+RoomId = "isolation_room"

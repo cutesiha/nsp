@@ -361,6 +361,9 @@ public partial class EndingCutsceneStage : Node
             OmniRange = 40f,
             ShadowEnabled = false,
         });
+
+        // 구(球)를 붙잡고 있는 설비 — 받침 · 구속 프레임 · 냉각 · 배선 · 입자.
+        BuildCoreRig();
     }
 
     private MeshInstance3D _core, _clampTop, _clampBottom;
@@ -514,6 +517,7 @@ public partial class EndingCutsceneStage : Node
 
     public void CoreReset()
     {
+        CoreAura(0f);
         _coreMat.EmissionEnergyMultiplier = 0.08f;
         _ringMat.EmissionEnergyMultiplier = 0f;
         if (_coreLight != null) _coreLight.LightEnergy = 0.2f;
@@ -562,6 +566,8 @@ public partial class EndingCutsceneStage : Node
     public void CoreCharge(float to, double seconds)
     {
         var t = CreateTween().SetParallel(true);
+        // 설비도 같이 살아난다 — 구만 밝아지면 "흰 구체" 로 돌아간다.
+        t.TweenMethod(Callable.From<float>(CoreAura), _coreAura, Mathf.Clamp(to / 1.6f, 0f, 1.35f), seconds);
         t.TweenProperty(_coreMat, "emission_energy_multiplier", to, seconds);
         t.TweenProperty(_ringMat, "emission_energy_multiplier", to * 0.35f, seconds);
         if (_coreLight != null) t.TweenProperty(_coreLight, "light_energy", to * 1.6f, seconds);
@@ -631,6 +637,7 @@ public partial class EndingCutsceneStage : Node
 
     public override void _Process(double delta)
     {
+        TickCoreRig((float)delta);
         if (!_machineRunning || _machine == null) return;
         _machineT += (float)delta;
         // 기계가 아주 미세하게 떤다. 모델 전체가 미친 듯이 흔들리면 안 된다(§16).

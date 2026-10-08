@@ -62,8 +62,8 @@ public partial class EndingCutsceneStage
                 },
             };
             e.BackgroundColor = SkyRed;
-            e.AmbientLightColor = new Color(0.34f, 0.13f, 0.09f);
-            e.AmbientLightEnergy = 0.75f;
+            e.AmbientLightColor = new Color(0.36f, 0.16f, 0.12f);
+            e.AmbientLightEnergy = 0.95f;
             e.FogEnabled = true;
             e.FogLightColor = DustRed;
             e.FogLightEnergy = 0.9f;
@@ -209,6 +209,9 @@ public partial class EndingCutsceneStage
                 Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
                 ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
                 BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
+                // **이게 없으면 scale_min/max 가 통째로 무시된다** — 빌보드가 메시 원본
+                // 크기(1 m)로 그려져서, 잘게 날려야 할 재가 전부 1 m 짜리 덩어리가 된다.
+                BillboardKeepScale = true,
                 DisableReceiveShadows = true,
                 NoDepthTest = false,
             },
@@ -259,6 +262,17 @@ public partial class EndingCutsceneStage
             LightEnergy = 1.55f,
             ShadowEnabled = false,
         });
+        // 반대쪽에서 들어오는 약한 보조광. 태양만 두면 카메라를 향한 면이 전부 역광이라
+        // 잔해가 **종류 구분 없는 검은 실루엣**으로 뭉친다 — 콘크리트와 금속이 달라 보이려면
+        // 앞쪽에도 빛이 조금 있어야 한다.
+        _pSurface.AddChild(new DirectionalLight3D
+        {
+            Name = "RuinFill",
+            RotationDegrees = new Vector3(-34f, 22f, 0f),
+            LightColor = new Color(0.78f, 0.52f, 0.42f),
+            LightEnergy = 0.62f,
+            ShadowEnabled = false,
+        });
 
         // ── 스카이라인 : 무너진 고층 구조물 ──────────────────────────────
         var dark = Mat(new Color(0.055f, 0.042f, 0.042f), 0.95f);
@@ -291,15 +305,17 @@ public partial class EndingCutsceneStage
         Box(_collapseTower, new Vector3(9f, 38f, 8f), new Vector3(0f, 19f, 0f), dark2, "Collapsing");
 
         // ── 가까운 잔해 ──────────────────────────────────────────────────
+        // 먼 거리의 채움만 여기서 한다 — 카메라가 닿는 가까운 범위의 잔해는
+        // BuildSurfaceRuins() 가 종류별로(덩어리 · 벽체 · 철골 · 집기 · 유리) 따로 깐다.
         var slab = Mat(new Color(0.13f, 0.105f, 0.095f), 0.95f);
         var slab2 = Mat(new Color(0.10f, 0.08f, 0.072f), 0.98f);
-        for (int i = 0; i < 54; i++)
+        for (int i = 0; i < 34; i++)
         {
-            float ang = Mathf.DegToRad(rng.RandfRange(-130f, 130f));
-            float dist = rng.RandfRange(4f, 38f);
+            float ang = Mathf.DegToRad(rng.RandfRange(-150f, 150f));
+            float dist = rng.RandfRange(30f, 64f);        // 가까운 쪽은 Ruins 가 맡는다
             var at = new Vector3(Mathf.Sin(ang) * dist, 0f, -Mathf.Cos(ang) * dist);
-            var sz = new Vector3(rng.RandfRange(0.6f, 3.4f), rng.RandfRange(0.25f, 1.5f),
-                                 rng.RandfRange(0.6f, 3.0f));
+            var sz = new Vector3(rng.RandfRange(0.9f, 4.2f), rng.RandfRange(0.3f, 1.8f),
+                                 rng.RandfRange(0.9f, 3.6f));
             var b = Box(_pSurface, sz, at with { Y = sz.Y * 0.4f }, i % 3 == 0 ? slab2 : slab, "Rubble");
             b.RotationDegrees = new Vector3(rng.RandfRange(-22f, 22f), rng.RandfRange(0f, 180f),
                                             rng.RandfRange(-22f, 22f));
@@ -307,10 +323,10 @@ public partial class EndingCutsceneStage
 
         // 휘어진 철골 — 폐허의 실루엣을 만드는 건 결국 이 선들이다.
         var steel = Mat(new Color(0.09f, 0.072f, 0.07f), 0.6f, 0.75f);
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 16; i++)
         {
-            float ang = Mathf.DegToRad(rng.RandfRange(-130f, 130f));
-            float dist = rng.RandfRange(5f, 34f);
+            float ang = Mathf.DegToRad(rng.RandfRange(-140f, 140f));
+            float dist = rng.RandfRange(26f, 58f);
             var at = new Vector3(Mathf.Sin(ang) * dist, 0f, -Mathf.Cos(ang) * dist);
             var g = new Node3D { Position = at };
             g.RotationDegrees = new Vector3(rng.RandfRange(-70f, -20f), rng.RandfRange(0f, 180f),
@@ -396,9 +412,9 @@ public partial class EndingCutsceneStage
             Box(f, new Vector3(0.46f, 1.25f, 0.3f), new Vector3(0f, 0.82f, 0f), figure, "Figure");
             Cyl(f, 0.17f, 0.34f, new Vector3(0f, 1.6f, 0f), figure, "FigureHead");
         }
-        // 바닥에 쓰러진 흔적 하나 — 형태만 남긴다.
-        var fallen = Box(_pSurface, new Vector3(1.5f, 0.26f, 0.48f), new Vector3(-3.4f, 0.13f, -8.5f),
-            figure, "Fallen");
-        fallen.RotationDegrees = new Vector3(0f, 61f, 0f);
+        // 가까이 있는 사람은 Ruins 쪽에서 제대로 된 자세로 눕힌다 — 여기서는 멀리 선 형체만.
+
+        // 부서진 지면 · 잔해 · 집기 · 쓰러진 사람 — 카메라가 닿는 범위의 본편.
+        BuildSurfaceRuins();
     }
 }

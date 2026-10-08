@@ -103,7 +103,8 @@ public partial class Prologue3DDirector
         var root = _stage.PrologueSetRoot(EndingCutsceneStage.PSet.Lab);
         _stage.SetCam(new Vector3(-1.9f, 1.8f, 5.6f), new Vector3(0.9f, 1.35f, -1.6f), 60f);
 
-        var worker = Spawn(root, "cat", new Vector3(-2.2f, 0f, 0.9f), 155f);
+        // 실험대 **앞**에 세운다. 상판 위에 세우면 하부 수납장을 뚫고 서 있게 된다.
+        var worker = Spawn(root, "cat", new Vector3(-2.4f, 0f, 2.45f), 18f);
         worker.PlayClip("console_operate_f");
 
         // ① 조명이 한 번 흔들린다.
@@ -173,8 +174,19 @@ public partial class Prologue3DDirector
 
     // ── ⑦ 직원 도주 (disaster_05_staff_running) ──────────────────────────
     //
-    // 셋이 **실제로 달린다.** 다리 위상이 이동 거리에서 나오므로 발이 미끄러지지 않는다.
-    // 타이밍은 전부 다르다(§17).
+    // 다섯이 **실제로 달린다.** 다리 위상이 이동 거리에서 나오므로 발이 미끄러지지 않는다.
+    //
+    // 여기서 가장 중요한 것은 "같은 러닝의 복붙처럼 보이지 않는 것" 이다(§17).
+    // 그래서 다섯 명이 **전부 다른 축**으로 어긋나 있다 :
+    //
+    //   dog    BigArms  — 팔을 크게 휘두르며 직선으로 가장 빠르게
+    //   fox    HeadDown — 상체를 많이 숙인 전력질주. 보폭이 길다
+    //   rabbit Panicked — 출발 직후 휘청였다가 급히 균형을 잡고, 보폭이 고르지 않다
+    //   sheep  Tired    — 제일 느리고 처진다. 달리면서 뒤를 한 번 돌아본다
+    //   cat    Loping   — 성큼성큼. 앞사람을 피해 진로를 한 번 튼다
+    //
+    // 걸음 위상(phase)도 전부 다르게 준다 — 같은 프레임에 같은 발이 나가면 군무가 된다.
+    // 출발 시점도 어긋나 있다.
     private async Task DisasterRun(int gen)
     {
         _stage.ShowPrologueSet(EndingCutsceneStage.PSet.Corridor);
@@ -188,36 +200,68 @@ public partial class Prologue3DDirector
         _stage.SetCam(new Vector3(2.05f, 1.85f, 13f), new Vector3(-0.6f, 1.35f, -6f), 64f);
 
         // 카메라는 오른쪽 벽(x=2.05)에 붙어 있어 바로 옆을 지나는 동안은 화면 밖이다.
-        // 그래서 한 명은 **이미 앞서 달리고 있는 상태**로 두고, 나머지 둘이 뒤에서 스쳐 지나간다.
-        // 셋 다 뒤에서 출발시키면 컷의 첫 박자가 통째로 빈 복도가 된다.
-        var a = Spawn(root, "dog", new Vector3(-1.3f, 0f, 9.0f));
-        var b = Spawn(root, "fox", new Vector3(0.2f, 0f, 15.0f));
-        var c = Spawn(root, "rabbit", new Vector3(-0.6f, 0f, 18.0f));
-        a.MoveTo(new Vector3(-1.2f, 0f, -16f), 5.4f, CutsceneActor.Gait.Run);
-        b.MoveTo(new Vector3(0.2f, 0f, -16f), 4.8f, CutsceneActor.Gait.Run);
-        c.MoveTo(new Vector3(-0.7f, 0f, -16f), 5.1f, CutsceneActor.Gait.Run);
+        // 그래서 한 명은 **이미 앞서 달리고 있는 상태**로 두고, 나머지가 뒤에서 스쳐 지나간다.
+        // 배치 : 카메라(z=13)보다 **조금 앞에 둘**, 뒤에 셋. 뒤의 셋이 첫 1초 동안 옆을
+        // 스쳐 지나가고, 그 뒤로는 다섯이 깊이 방향으로 길게 늘어선 채 같이 달린다.
+        // 전부 뒤에 두면 컷의 첫 박자가 빈 복도가 되고, 전부 앞에 두면 '스쳐 감' 이 없어진다.
+        var rab = Spawn(root, "rabbit", new Vector3(-0.75f, 0f, 7.0f));
+        var dog = Spawn(root, "dog", new Vector3(-1.45f, 0f, 11.0f));
+        var fox = Spawn(root, "fox", new Vector3(0.35f, 0f, 13.6f));
+        var cat = Spawn(root, "cat", new Vector3(-1.95f, 0f, 15.0f));
+        var shp = Spawn(root, "sheep", new Vector3(1.15f, 0f, 16.0f));
+
+        dog.SetRunStyle(CutsceneActor.RunStyle.BigArms, 0.12f);
+        fox.SetRunStyle(CutsceneActor.RunStyle.HeadDown, 0.63f);
+        rab.SetRunStyle(CutsceneActor.RunStyle.Panicked, 0.37f);
+        shp.SetRunStyle(CutsceneActor.RunStyle.Tired, 0.81f);
+        cat.SetRunStyle(CutsceneActor.RunStyle.Loping, 0.50f);
+        rab.Panic = 1.0f;
+        shp.Panic = 0.65f;
+        cat.Panic = 0.3f;
+
+        // 속도도 전부 다르다. 뒤처지는 사람이 하나 있어야 '무리' 가 된다.
+        dog.MoveTo(new Vector3(-1.20f, 0f, -16f), 5.60f, CutsceneActor.Gait.Run);
+        fox.MoveTo(new Vector3(0.15f, 0f, -16f), 6.00f, CutsceneActor.Gait.Run);
+        rab.MoveTo(new Vector3(-0.85f, 0f, -16f), 4.85f, CutsceneActor.Gait.Run);
+        // 토끼 — 출발하자마자 휘청였다가 급히 되잡는다.
+        rab.StumbleIn(0.28f, 1.0f);
 
         Sfx.Instance?.Play("footsteps_run", -7f);
         Sfx.Instance?.Loop("siren", -4f);
         _ = _stage.MoveCamCut(new Vector3(2.05f, 1.8f, 6f), new Vector3(-0.4f, 1.35f, -12f), 4.2);
 
-        // 직원 B — 뒤를 한 번 돌아보고 다시 달린다.
-        await Wait(0.9);
+        // 출발이 완전히 동시가 아니다 — 뒤의 둘은 반 박자 늦는다.
+        await Wait(0.18);
         if (!Alive(gen)) return;
-        b.LookOverShoulder(150f);
-        await Wait(0.45);
-        if (!Alive(gen)) return;
-        b.LookOverShoulder(0f);
+        // 고양이 — 앞사람(양)을 피해 진로를 한 번 튼다. 경유점 하나면 충분하다.
+        cat.MoveVia(new Vector3(-0.30f, 0f, 3.0f),
+            new[] { new Vector3(-1.45f, 0f, -16f) }, 5.35f, CutsceneActor.Gait.Run);
 
-        // 직원 C — 충격에 균형을 잃었다가 다시 달린다.
-        await Wait(0.35);
+        await Wait(0.22);
+        if (!Alive(gen)) return;
+        // 양 — 가장 느리다. 달리면서 뒤를 한 번 돌아본다.
+        shp.MoveTo(new Vector3(0.95f, 0f, -16f), 4.30f, CutsceneActor.Gait.Run);
+        shp.GlanceBack(1.15f, 0.55f, 152f);
+        Sfx.Instance?.Play("footsteps_run", -12f, 1.12f);
+
+        // 여우 — 뒤를 짧게 흘끗. 양과 타이밍이 겹치지 않게 어긋나 있다.
+        await Wait(0.55);
+        if (!Alive(gen)) return;
+        fox.GlanceBack(0.0f, 0.34f, 138f);
+
+        // 충격 — 전원이 한 번 균형을 잃는다. 다만 **되잡는 속도가 서로 다르다**.
+        await Wait(0.75);
         if (!Alive(gen)) return;
         Sfx.Instance?.Play("boom", -10f, 0.75f);
         Shake(1.4f, 2.0f);
-        c.Stumble = 1f;
-        await Wait(1.6);
+        rab.Stumble = 1f;
+        shp.StumbleIn(0.12f, 0.8f);
+        cat.StumbleIn(0.07f, 0.45f);
+        dog.StumbleIn(0.21f, 0.3f);
+
+        await Wait(1.5);
         if (!Alive(gen)) return;
-        Sfx.Instance?.Play("footsteps_run", -11f);
+        Sfx.Instance?.Play("footsteps_run", -11f, 0.94f);
     }
 
     // ── ⑧ 차폐문 폐쇄 (disaster_06_door_closing) ────────────────────────
@@ -232,8 +276,12 @@ public partial class Prologue3DDirector
         // 문 앞쪽에서 문을 바라본다 — 닫히는 틈이 보여야 한다.
         _stage.SetCam(new Vector3(-1.5f, 1.8f, -9.5f), new Vector3(0f, 2.0f, -20f), 58f);
 
+        // 닫히는 문으로 **전력질주** — 상체를 깊게 숙이고, 중간에 한 번 휘청인다.
         var runner = Spawn(root, "sheep", new Vector3(0.3f, 0f, -7f));
-        runner.MoveTo(new Vector3(0.3f, 0f, -22f), 5.6f, CutsceneActor.Gait.Run);
+        runner.SetRunStyle(CutsceneActor.RunStyle.HeadDown, 0.29f);
+        runner.Panic = 0.9f;
+        runner.MoveTo(new Vector3(0.3f, 0f, -22f), 5.9f, CutsceneActor.Gait.Run);
+        runner.StumbleIn(0.9f, 0.7f);
         Sfx.Instance?.Play("footsteps_run", -8f);
 
         // 경고등 점멸 → 문이 내려온다.
@@ -468,8 +516,9 @@ public partial class Prologue3DDirector
         // 레버 손잡이는 월드 (-2.1, 1.05, -2.4) 에 있다. lever_operate 의 팔 길이가 0.39m 라
         // 그만큼 떨어진 자리에 서야 손이 허공을 짚지 않는다(§35).
         dir.MoveTo(new Vector3(-1.72f, 0f, -2.42f), 1.3f, CutsceneActor.Gait.Walk);
-        // 관리자의 옆 · 앞쪽으로 돌아 들어간다 — 뻗는 팔과 레버가 같이 보여야 한다.
-        _ = _stage.MoveCamCut(new Vector3(0.75f, 1.55f, -1.9f), new Vector3(-2.1f, 1.2f, -2.3f), 2.2, 48f);
+        // 관리자의 **오른쪽 앞**으로 돌아 들어간다. 뒤에서 잡으면 등으로 레버가 통째로 가려진다
+        // — 뻗는 팔과 레버가 한 프레임에 같이 보여야 한다.
+        _ = _stage.MoveCamCut(new Vector3(-0.60f, 1.60f, -0.10f), new Vector3(-2.25f, 1.12f, -2.45f), 2.2, 52f);
         await Wait(1.5);
         if (!Alive(gen)) return;
         dir.Stop();
@@ -522,6 +571,45 @@ public partial class Prologue3DDirector
             Position = new Vector3(0f, 1.2f, 0f),
             MaterialOverride = steel,
         });
+        // 면판 · 볼트 · 경고 띠 · 명판 — 레버 하나만 박혀 있으면 소품처럼 보인다.
+        var face = new StandardMaterial3D { AlbedoColor = new Color(0.14f, 0.145f, 0.16f), Roughness = 0.6f, Metallic = 0.5f };
+        var trim = new StandardMaterial3D { AlbedoColor = new Color(0.34f, 0.35f, 0.38f), Roughness = 0.3f, Metallic = 0.9f };
+        panel.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(1.16f, 0.86f, 0.04f) },
+            Position = new Vector3(0f, 1.2f, 0.13f), MaterialOverride = face,
+        });
+        foreach (var (bx, by) in new[] { (-0.54f, 0.34f), (0.54f, 0.34f), (-0.54f, -0.34f), (0.54f, -0.34f) })
+            panel.AddChild(new MeshInstance3D
+            {
+                Mesh = new CylinderMesh { TopRadius = 0.028f, BottomRadius = 0.032f, Height = 0.03f, RadialSegments = 6 },
+                Position = new Vector3(bx, 1.2f + by, 0.145f),
+                RotationDegrees = new Vector3(90f, 0f, 0f), MaterialOverride = trim,
+            });
+        // 노랑/검정 빗금 — 레버 둘레.
+        for (int i = 0; i < 10; i++)
+            panel.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(0.062f, 0.1f, 0.015f) },
+                Position = new Vector3(-0.3f + i * 0.064f, 0.78f, 0.15f),
+                RotationDegrees = new Vector3(0f, 0f, 14f),
+                MaterialOverride = i % 2 == 0
+                    ? new StandardMaterial3D { AlbedoColor = new Color(0.60f, 0.46f, 0.07f), Roughness = 0.76f }
+                    : new StandardMaterial3D { AlbedoColor = new Color(0.07f, 0.068f, 0.062f), Roughness = 0.86f },
+            });
+        // 명판 · 레버 보호 가드.
+        panel.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(0.52f, 0.11f, 0.012f) },
+            Position = new Vector3(-0.3f, 1.38f, 0.152f),
+            MaterialOverride = new StandardMaterial3D { AlbedoColor = new Color(0.46f, 0.47f, 0.46f), Roughness = 0.8f },
+        });
+        foreach (float gx in new[] { -0.17f, 0.17f })
+            panel.AddChild(new MeshInstance3D
+            {
+                Mesh = new BoxMesh { Size = new Vector3(0.035f, 0.2f, 0.26f) },
+                Position = new Vector3(gx, 1.05f, 0.26f), MaterialOverride = trim,
+            });
         _sealLampMat = new StandardMaterial3D
         {
             AlbedoColor = new Color(0.2f, 0.05f, 0.03f),
