@@ -1098,7 +1098,6 @@ public partial class FacilitySimulation : Node
         _isolation.Reset();
         // 표시용 집계는 근무 단위다 — 새 근무가 시작되면 0 부터 다시 센다.
         RoomEffectStats.ResetDay();
-        RoomEffectLog.ResetDay();
         _fxPowerOutputOk = true;
         _fxMaterialCostX100 = -1;
         _fxVentStressing = false;
@@ -1249,7 +1248,6 @@ public partial class FacilitySimulation : Node
         TickCctvObservation(d);
         // 표시 전용 — 작업실 효과를 화면에 드러내는 신호(판정은 하지 않는다).
         TickRoomEffectSignals(d);
-        RoomEffectLog.Tick(d);
     }
 
     // 이미 일어나고 있는 효과가 "바뀌는 순간"을 잡아 화면에 알린다.
@@ -2391,14 +2389,16 @@ public partial class FacilitySimulation : Node
     // 수리 · 시설 손실 · 미니맵 표시는 무인 방치 사고와 **같은 경로**를 쓴다(고장은 고장이다).
     // 다른 것은 로그 종류와 원인뿐이다 — 관리자가 나중에 "사람 탓이었나 그것 탓이었나"를
     // 구분할 수 있어야 하기 때문이다.
-    public void TriggerGhostAccident(string roomId)
+    // witnesses — 그 개체를 눈으로 본 직원(GhostHauntSystem 이 모아 둔 명단).
+    // 기록에 같이 남아야 다음 날 대화가 "본 사람" 과 "소리만 들은 사람" 을 가릴 수 있다.
+    public void TriggerGhostAccident(string roomId, System.Collections.Generic.IEnumerable<string> witnesses = null)
     {
         var def = _roomDefs.GetValueOrDefault(roomId);
         if (def == null || def.AccidentConsequence == RoomAccidentNone) return;
         if (HasActiveRepair(roomId)) return;
 
         EventLog.Instance?.LogEvent(LogEventType.AnomalyIncident, "", roomId,
-            $"🚨 {RoomName(roomId)} — {def.AccidentName} (이상 개체 접촉)");
+            $"🚨 {RoomName(roomId)} — {def.AccidentName} (이상 개체 접촉)", witnesses: witnesses);
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"⚠ {RoomName(roomId)}에서 원인 불명의 손상이 발생했습니다.", NSP.Ui.NoticeLevel.Critical);
         IncidentTracker.Open(roomId, def.AccidentName, "이상 개체 접촉",
@@ -2822,11 +2822,10 @@ public partial class FacilitySimulation : Node
                 GameState.Instance.AddMaterials(made);
                 MaterialProbe?.Invoke(made, "produced");
                 badge += $" · 📦 자재 +{made}";
-                // 표시: HUD 자재 숫자가 한 번 튀고 · 미니맵 정비실이 밝아지고 · 로그에 한 줄.
+                // 표시: HUD 자재 숫자가 한 번 튀고 · 미니맵 정비실이 밝아진다(로그에는 남기지 않는다).
                 RoomEffectStats.MaterialsToday += made;
                 RoomEffectStats.Pulse(roomId);
                 RoomEffectStats.MaterialsGained?.Invoke();
-                RoomEffectLog.NoteMaterials(roomId, made);
                 break;
             case TaskEffectType.AddCoreProgress:
                 // 코어 출력 불안정(사고) 중에는 복구가 아예 진행되지 않는다.
@@ -2849,7 +2848,6 @@ public partial class FacilitySimulation : Node
                 // 표시: 코어 게이지 옆 "+1%" · 미니맵 코어실 점멸 · 오늘 복구량 집계.
                 RoomEffectStats.CoreUpToday += task.EffectAmount;
                 RoomEffectStats.Pulse(roomId);
-                RoomEffectLog.NoteCore(roomId, task.EffectAmount);
                 NSP.Ui.FacilityAlertHud.Instance?.ShowCoreGain(task.EffectAmount);
                 break;
             case TaskEffectType.RaiseMaterialsCap:

@@ -51,6 +51,34 @@ public partial class EmployeeCctvPreview : Node3D
 
         BuildUi();
         Play(0);
+
+        // 캡처 — `-- <저장 폴더>` 를 주면 6명 전신을 한 장 찍고 끝난다.
+        // 창 모드로만 그려진다(헤드리스는 그림을 그리지 않는다).
+        var args = OS.GetCmdlineUserArgs();
+        if (args.Length > 0) _ = Shot(args[0]);
+    }
+
+    private async System.Threading.Tasks.Task Shot(string dir)
+    {
+        // 애니메이션 첫 프레임이 자리를 잡을 때까지 기다린 뒤 찍는다.
+        for (int i = 0; i < 90; i++)
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        GetViewport().GetTexture().GetImage()?.SavePng($"{dir}/employees_full.png");
+        // 머리 정면 — 가면이 머리에 똑바로 붙었는지(기울지 않았는지) 보는 자리.
+        // 비스듬히 보면 앞에 달린 가면이 시차로 밀려 보여 판단할 수 없다.
+        _full.Current = false;
+        var head = new Camera3D { Fov = 20, Current = true };
+        AddChild(head);
+        foreach (var (name, x) in new[] { ("rabbit", -1.275f), ("cat", 0.425f) })
+        {
+            head.Position = new Vector3(x, 1.62f, -3.0f);
+            head.Rotation = new Vector3(0f, Mathf.Pi, 0f);
+            for (int i = 0; i < 20; i++)
+                await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            GetViewport().GetTexture().GetImage()?.SavePng($"{dir}/head_{name}.png");
+        }
+        GD.Print("saved → " + dir);
+        GetTree().Quit();
     }
 
     private void Collect(Node n)

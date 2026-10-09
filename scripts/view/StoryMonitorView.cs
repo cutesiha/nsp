@@ -65,7 +65,9 @@ public partial class StoryMonitorView : Control
         AddChild(_title);
 
         _rec = Lbl("● REC", 16, new Color(0.95f, 0.35f, 0.28f));
-        _rec.Position = new Vector2(Frame.Position.X + 152f, 25f);
+        // 자리를 숫자로 박아 두면 폰트에 따라 "BREAK ROOM" 뒤를 밟는다(실제로 그랬다).
+        // 제목 글자 폭을 재서 그 뒤에 붙인다.
+        _rec.Position = new Vector2(_title.Position.X + TitleWidth() + 20f, 25f);
         AddChild(_rec);
 
         _clock = Lbl("--:--", 16, new Color(0.75f, 0.85f, 0.8f));
@@ -109,6 +111,10 @@ public partial class StoryMonitorView : Control
         _roomFallback.Visible = false;
         _feedBound = true;
     }
+
+    // 제목("BREAK ROOM")이 실제로 차지하는 폭.
+    private float TitleWidth() =>
+        _font.GetStringSize(_title.Text, HorizontalAlignment.Left, -1f, ViewFont.S(17)).X;
 
     private Label Lbl(string t, int size, Color c)
     {

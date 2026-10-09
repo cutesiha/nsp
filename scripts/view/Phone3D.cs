@@ -249,12 +249,60 @@ public partial class Phone3D : Node3D
         if (_clickBox == null || _clickShape == null) return;
         bool wide = !NSP.Core.DayFeatures.IsTutorialDay;
         if (_wideNow == wide) return;
+        // 수화기를 들고 있는 동안에는 재지 않는다 — 수화기가 손에 가 있으면 부피가
+        // 책상 절반으로 번진다. 내려놓은 다음 프레임에 다시 잰다.
+        if (wide && _handsetFollowsHand) return;
         _wideNow = wide;
-        _clickBox.Size = wide ? WideClickSize : _clickSizeNarrow;
-        _clickShape.Position = wide
-            ? _clickPosNarrow - new Vector3(0f, WideClickDrop, 0f)
-            : _clickPosNarrow;
+        if (!wide)
+        {
+            _clickBox.Size = _clickSizeNarrow;
+            _clickShape.Position = _clickPosNarrow;
+            return;
+        }
+        // 넓은 범위는 **실제 전화기 메시가 차지하는 부피**와 예전 고정 상자를 **둘 다 덮는다.**
+        // 고정값만 쓰면 모델이 바뀔 때 받침 한쪽이 판정 밖으로 빠지고(헛클릭),
+        // 메시만 쓰면 예전보다 좁아지는 자리가 생긴다. 좁아지는 쪽은 없어야 한다.
+        var box = new Aabb(_clickPosNarrow - new Vector3(0f, WideClickDrop, 0f) - WideClickSize * 0.5f,
+            WideClickSize);
+        if (ModelBounds(out Aabb model)) box = box.Merge(model);
+
+        // 옆에 놓인 관리자 패드까지 먹지 않도록 좌우 폭만 묶는다 —
+        // 패드와 전화기는 책상 위에서 0.39 쯤 떨어져 있다.
+        float halfX = Mathf.Min(box.Size.X * 0.5f, ClickHalfWidthMax);
+        var center = box.Position + box.Size * 0.5f;
+        _clickBox.Size = new Vector3(halfX * 2f, box.Size.Y, box.Size.Z);
+        _clickShape.Position = center;
     }
+
+    // 전화기 메시(본체 + 수화기) 전부를 감싸는 상자. 전화기 자신의 좌표로 돌려준다.
+    private bool ModelBounds(out Aabb bounds)
+    {
+        bounds = default;
+        Aabb? box = null;
+        var toLocal = GlobalTransform.AffineInverse();
+        foreach (var mesh in Meshes(this))
+        {
+            var here = toLocal * mesh.GlobalTransform * mesh.GetAabb();
+            box = box.HasValue ? box.Value.Merge(here) : here;
+        }
+        if (!box.HasValue || box.Value.Size.Length() < 0.01f) return false;
+        bounds = box.Value.Grow(ClickMargin);
+        return true;
+    }
+
+    private static System.Collections.Generic.IEnumerable<MeshInstance3D> Meshes(Node node)
+    {
+        foreach (var child in node.GetChildren())
+        {
+            if (child is MeshInstance3D mi && mi.Mesh != null) yield return mi;
+            foreach (var deeper in Meshes(child)) yield return deeper;
+        }
+    }
+
+    // 메시 바깥으로 더 두는 여유. 모서리를 눌러도 집히게 한다.
+    private const float ClickMargin = 0.03f;
+    // 좌우로 이만큼까지만 넓힌다(관리자 패드 침범 방지).
+    private const float ClickHalfWidthMax = 0.23f;
 
     // 지금 클릭 상자 크기(검사용).
     public Vector3 ClickBoxSize => _clickBox?.Size ?? Vector3.Zero;

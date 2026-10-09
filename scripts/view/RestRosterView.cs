@@ -72,6 +72,9 @@ public partial class RestRosterView : Control
     private static readonly Color Bg = new(0.035f, 0.045f, 0.05f);
     private static readonly Color Ink = new(0.75f, 0.82f, 0.9f);
     private static readonly Color Dim = new(0.5f, 0.56f, 0.62f);
+    // 단말기 버튼 색 — 다른 모니터 화면(통화 · 패드)과 같은 청록, 격리만 붉은색.
+    private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+    private static readonly Color Red = new(1f, 0.46f, 0.42f);
 
     private Font _font;
     private BreakRoomTopView _map;
@@ -132,17 +135,19 @@ public partial class RestRosterView : Control
         _instruction.HorizontalAlignment = HorizontalAlignment.Center;
         infoPanel.AddChild(_instruction);
 
-        _isolateBtn = new Button { Position = new Vector2(532, 476), Size = new Vector2(244, 38), Text = "격리" };
-        _isolateBtn.AddThemeFontOverride("font", _font);
-        _isolateBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(15));
-        _isolateBtn.Pressed += OnIsolatePressed;
+        // 두 버튼은 다른 모니터 UI 와 같은 단말기 버튼이다(MonitorUi) — 엔진 기본 버튼을
+        // 쓰면 어두운 CRT 화면 위에 흰 덩어리 두 개가 떠 있다.
+        // 격리는 되돌리기 어려운 조작이라 붉은색, 다음 날 진행은 다른 화면과 같은 청록색.
+        _isolateBtn = MonitorUi.Button("격리", Red, _font, OnIsolatePressed, ViewFont.S(15));
+        _isolateBtn.Position = new Vector2(532, 476);
+        _isolateBtn.Size = new Vector2(244, 38);
         _isolateBtn.Disabled = true;
         AddChild(_isolateBtn);
 
-        _nextBtn = new Button { Position = new Vector2(532, 534), Size = new Vector2(244, 44), Text = "다음 날 근무 배치 ▶" };
-        _nextBtn.AddThemeFontOverride("font", _font);
-        _nextBtn.AddThemeFontSizeOverride("font_size", ViewFont.S(16));
-        _nextBtn.Pressed += () => NextRequested?.Invoke();
+        _nextBtn = MonitorUi.Button("다음 날 근무 배치 ▶", Cyan, _font,
+            () => NextRequested?.Invoke(), ViewFont.S(16));
+        _nextBtn.Position = new Vector2(532, 534);
+        _nextBtn.Size = new Vector2(244, 44);
         AddChild(_nextBtn);
 
         // 심문 중에는 이 화면 위에 심문 콘솔(진술 · 조사 노트)이 덮인다. 통화를 끊으면 다시 휴게실.

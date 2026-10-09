@@ -51,7 +51,7 @@ public static class StoryBeatSelector
 
         bool Usable(StoryBeatEntry e) =>
             !_played.Contains(e.Id) && (e.Day == 0 || e.Day == day)
-            && IsPlayable(e) && Matches(e.When, day);
+            && IsPlayable(e, day) && Matches(e.When, day);
 
         // ① 어제 일에 대한 반응 — 맨 앞에 하나만(문서 §16).
         var reacts = StoryScript.Entries.Where(e => e.Kind == StoryBeatKind.React && Usable(e)).ToList();
@@ -174,15 +174,30 @@ public static class StoryBeatSelector
     //
     // need 에 적힌 직원이 전부 살아 있고, 기절도 격리도 아니어야 한다.
     // 대사를 한 줄씩 빼지 않고 비트를 통째로 건너뛴다 — 남은 줄이 허공에 대답하게 된다(§3).
-    public static bool IsPlayable(StoryBeatEntry entry)
+    //
+    // day — 배역(@witness · @heard1 …)을 실제 인물로 바꿔 보기 위한 날짜. 0 이면 오늘로 본다.
+    public static bool IsPlayable(StoryBeatEntry entry, int day = 0)
     {
         var sim = FacilitySimulation.Instance;
         if (sim == null) return false;
 
+        // 대본의 배역을 실제 인물로 바꿔 놓고 판정한다 — 바꾸지 않으면 "@witness" 가
+        // 없는 직원으로 읽혀 비트가 통째로 버려진다.
+        var cast = StoryRoleCast.ForDay(day > 0 ? day : GameState.Instance?.CurrentDay ?? 0);
+
         // 대본에 없는 직원이 적혀 있으면 그 비트만 버린다(§10.5).
         foreach (var line in AllLines(entry.Beat))
-            if (line.SpeakerEmployeeId.Length > 0 && sim.GetEmployeeDef(line.SpeakerEmployeeId) == null)
-                return false;
+        {
+            string who = cast.Resolve(line.SpeakerEmployeeId);
+            if (who.Length == 0)
+            {
+                // 맡을 사람이 없는 배역 — say? 면 그 줄만 빠지고, say(필수)면 비트가 성립하지
+                // 않는다. "본 사람" 이 아무도 없는데 목격담을 시작할 수는 없다.
+                if (StoryRoleCast.IsRole(line.SpeakerEmployeeId) && !line.Optional) return false;
+                continue;
+            }
+            if (sim.GetEmployeeDef(who) == null) return false;
+        }
 
         foreach (string id in entry.Need)
             if (!StoryCutinDirector.IsPresent(id)) return false;
@@ -200,7 +215,7 @@ public static class StoryBeatSelector
         var present = new HashSet<string>();
         foreach (var line in AllLines(entry.Beat))
         {
-            string who = line.SpeakerEmployeeId;
+            string who = cast.Resolve(line.SpeakerEmployeeId);
             if (who.Length == 0) continue;
             if (StoryCutinDirector.IsPresent(who)) present.Add(who);
             else if (!line.Optional) return false;

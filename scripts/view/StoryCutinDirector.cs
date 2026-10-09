@@ -44,6 +44,8 @@ public partial class StoryCutinDirector : Node
     private bool _suppressAmbient;
     private bool _lockedInput;
     private StoryCutinHud _hud;
+    // 지금 도는 비트의 배역표(@witness · @heard1 …). 비트마다 새로 만든다.
+    private StoryRoleCast _cast;
 
     public override void _Ready() => Instance = this;
 
@@ -179,12 +181,17 @@ public partial class StoryCutinDirector : Node
                 _lockedInput = true;
             }
 
+            // 배역(@witness · @heard1 …)을 오늘의 실제 인물로 바꾼다. 비트 한 번에 한 번만
+            // 만든다 — 줄마다 다시 만들면 같은 배역이 줄마다 다른 사람이 된다.
+            _cast = StoryRoleCast.ForDay(NSP.Core.GameState.Instance?.CurrentDay ?? 0);
+
             _hud.BeginBeat();
             foreach (var step in beat.Steps)
             {
                 if (!IsPlaying) break;
-                if (step.IsChoice) await PlayChoice(step.Choice);
-                else if (Speaks(step.Line)) await PlayLine(step.Line);
+                if (step.IsChoice) { await PlayChoice(step.Choice); continue; }
+                var line = _cast.Apply(step.Line);
+                if (Speaks(line)) await PlayLine(line);
             }
 
             // 마지막 직원의 입이 닫히고 나서 잠깐 아무 소리도 없다 — 그 뒤에 스탠딩이 빠진다.
@@ -250,9 +257,10 @@ public partial class StoryCutinDirector : Node
         // 관리자가 한 말. 세계관상 휴게실 전화 너머의 목소리라 스탠딩 없이 자막만 띄운다.
         await PlayLine(new StoryLine { SpeakerEmployeeId = "", Text = option.Text, HoldSeconds = ManagerLineSeconds });
 
-        foreach (var line in option.Branch)
+        foreach (var raw in option.Branch)
         {
             if (!IsPlaying) break;
+            var line = _cast?.Apply(raw) ?? raw;
             if (Speaks(line)) await PlayLine(line);
         }
     }

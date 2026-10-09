@@ -111,17 +111,21 @@ public partial class StoryCutinHud : CanvasLayer
     // 화면을 통째로 가린다(연출 규칙 §15 — 휴게실 3D 가 일부는 보여야 한다).
     private void ApplyScale(bool onMonitor)
     {
-        int nameSize = onMonitor ? ViewFont.S(15) : ViewFont.FS(19);
-        int bodySize = onMonitor ? ViewFont.S(14) : ViewFont.FS(18);
+        // 모니터2 안의 대사도 영상(744×460) 안에 들어가지만, 그래도 **읽히는 것이 먼저다.**
+        // 작게 잡아 두면 모니터를 확대해 놓고도 글자가 작아 눈을 찡그리게 된다.
+        int nameSize = onMonitor ? ViewFont.S(19) : ViewFont.FS(19);
+        int bodySize = onMonitor ? ViewFont.S(18) : ViewFont.FS(18);
         _speaker.AddThemeFontSizeOverride("font_size", nameSize);
         _message.AddThemeFontSizeOverride("normal_font_size", bodySize);
-        _arrow.AddThemeFontSizeOverride("font_size", onMonitor ? ViewFont.S(12) : ViewFont.FS(17));
+        _arrow.AddThemeFontSizeOverride("font_size", onMonitor ? ViewFont.S(15) : ViewFont.FS(17));
 
         // 대사창 — 모니터 안에서는 좌우를 거의 다 쓰고 영상 **맨 아래**에 붙인다.
         // 띄워 두면 자막과 CCTV 화면 사이에 검은 띠가 남아 따로 떠 있는 것처럼 보인다.
         _panel.AnchorLeft = onMonitor ? 0.03f : 0.20f;
         _panel.AnchorRight = onMonitor ? 0.97f : 0.80f;
-        _panel.AnchorTop = onMonitor ? 0.757f : 0.715f;
+        // 글자를 키운 만큼 창도 위로 조금 더 열어 둔다 — 아래선(0.997)은 그대로라
+        // 대사창이 영상 맨 아래에 붙어 있는 모양은 바뀌지 않는다.
+        _panel.AnchorTop = 0.715f;
         _panel.AnchorBottom = onMonitor ? 0.997f : 0.865f;
         _panel.OffsetLeft = _panel.OffsetRight = _panel.OffsetTop = _panel.OffsetBottom = 0f;
 
@@ -628,6 +632,7 @@ public partial class StoryCutinHud : CanvasLayer
             _speaker.Text = "";
         }
 
+        _managerLine = speakerId.Length == 0;
         _fullText = line.Text ?? "";
         _message.Text = DialogueHighlight.Colorize(_fullText);
         _message.VisibleCharacters = 0;
@@ -705,7 +710,10 @@ public partial class StoryCutinHud : CanvasLayer
             {
                 for (int i = _shownChars; i < shown; i++)
                 {
-                    Sfx.Instance?.PlayVoiceBlip(_speakerVoiceId, _fullText[i]);
+                    if (_managerLine)
+                        Sfx.Instance?.PlayVoiceBlip(ManagerVoiceId, _fullText[i],
+                            pitchMul: ManagerVoicePitch);
+                    else Sfx.Instance?.PlayVoiceBlip(_speakerVoiceId, _fullText[i]);
                     EmployeeMouthAnimator.NoticeCharacter(_fullText[i]);
                 }
                 _shownChars = shown;
@@ -726,4 +734,16 @@ public partial class StoryCutinHud : CanvasLayer
 
     // 보이스는 지금 말하는 직원의 것으로 울린다(기존 통화와 같은 재생 경로).
     private string _speakerVoiceId => EmployeeMouthAnimator.Speaker;
+
+    // ── 관리자(플레이어)가 한 말 ──────────────────────────────────────
+    //
+    // 화자가 없는 줄은 관리자가 전화 너머로 한 말이다(StoryCutinDirector.PlayChoice).
+    // EmployeeMouthAnimator.Speaker 는 직전 화자를 그대로 쥐고 있어서, 그냥 두면
+    // 관리자가 **방금 말한 직원과 똑같은 목소리**로 말한다(토끼 목소리로 들렸다).
+    // 그래서 관리자 전용 보이스를 따로 쓰고, 한참 낮게 깔아 굵은 목소리로 만든다.
+    private bool _managerLine;
+    // 프롤로그 총괄 관리자와 같은 보이스 소스. 직원 여섯 명과 겹치지 않는다.
+    private const string ManagerVoiceId = "director";
+    // 1 보다 작을수록 낮고 굵다. 0.6 ≈ 9 반음 아래.
+    private const float ManagerVoicePitch = 0.6f;
 }

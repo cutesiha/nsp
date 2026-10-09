@@ -152,6 +152,40 @@ public partial class StoryCutinShot : Node
         for (int i = 0; i < 60; i++) await Frames(1);
         Save(dir, "ingame_4_after.png");
 
+        // ── 모니터2 안의 스토리(DAY1~5 메인) ────────────────────────────
+        // 같은 컷인이 모니터 영상 안으로 들어간다. 여기서 보는 것은 글자 크기와
+        // 제목 줄("BREAK ROOM" · ● REC)이 서로 밟지 않는가다.
+        var dir2 = StoryCutinDirector.Instance;
+        if (dir2 != null && dir2.EnterMonitor())
+        {
+            for (int i = 0; i < 60; i++) await Frames(1);
+            hud.BeginBeat();
+            hud.ShowLine(new StoryLine
+            {
+                SpeakerEmployeeId = "rabbit", Side = CutinSide.Left, Expression = "smile",
+                Text = "어제 그거... 저 혼자 본 거 아니죠? 사람처럼 생겼는데, 사람은 아니었어요.",
+            });
+            for (int i = 0; i < 150; i++) await Frames(1);
+            Save(dir, "ingame_8_monitor_single.png");
+            // 모니터 화면 자체도 따로 찍는다 — 3D 너머로 보면 글자 크기를 가늠할 수 없다.
+            ControlRoom3DController.Instance?.StoryViewport?.GetTexture()?.GetImage()
+                ?.SavePng(dir + "/ingame_8b_story_screen.png");
+
+            hud.ShowLine(new StoryLine
+            {
+                SpeakerEmployeeId = "cat", Side = CutinSide.Right, Expression = "",
+                Text = "저는 소리만 들었어요. 그쪽 방에서 뭔가... 사람 소리 같은 게 났거든요.",
+            });
+            for (int i = 0; i < 150; i++) await Frames(1);
+            Save(dir, "ingame_9_monitor_pair.png");
+            ControlRoom3DController.Instance?.StoryViewport?.GetTexture()?.GetImage()
+                ?.SavePng(dir + "/ingame_9b_story_screen.png");
+
+            hud.HideNow();
+            dir2.ExitMonitor();
+            for (int i = 0; i < 90; i++) await Frames(1);
+        }
+
         // ── Phase 2 : 전화 통화 중 스탠딩 ───────────────────────────────
         // 같은 공용 컴포넌트가 통화창에서도 쓰인다. 영상통화처럼 보이게 하지 않는다 —
         // 전화창은 그대로이고 상대의 모습만 옆에 선다.

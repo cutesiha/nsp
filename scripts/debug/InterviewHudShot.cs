@@ -40,6 +40,9 @@ public partial class InterviewHudShot : Node
         var hud = new PhoneCallHud();
         AddChild(hud);
         await Frames(3);
+        // 심문 콘솔이 덮기 전의 휴게실 화면 — 격리 · 다음 날 버튼을 보는 자리.
+        await Seconds(0.6f);
+        _mon1.GetTexture().GetImage().SavePng(dir + "/mon1_interview_0_roster.png");
         hud.Open("fox", LocalInterviewDialogue.EventDay1Interview);
         await Seconds(2.5f);
         Save(dir, "interview_1_open.png");

@@ -407,17 +407,17 @@ public partial class EndingDirector
         await AwaitTyping(left, 0.6);
 
         Sfx.Instance?.Play("window_open", -11f);
-        ShowGuide("smile", onRight: true);
+        // 얼굴창은 **왼쪽(모니터1)** 에 띄운다. 말은 오른쪽에서 찍히므로, 같은 화면에
+        // 올리면 얼굴이 자기 대사를 가린다(실제로 네 줄이 전부 얼굴 뒤로 들어갔다).
+        ShowGuide("smile");
         _ctl?.SetScreenNoise(0.012f);
         await Wait(0.9);
 
-        bool proven = GameState.Instance?.WasProven ?? false;
+        // 세 줄로 끝낸다. 오른쪽 화면에 네 줄을 찍으면 마지막 줄이 창 밖으로 밀린다.
         await GuideSpeak(right,
             "봉쇄 코어 복구가 완료되었습니다.",
             "제7지하시설의 봉쇄 상태가 정상화되었습니다.",
-            "관리자님. 5일간의 야간 근무, 수고하셨습니다.",
-            proven ? "제출하신 근거는 전부 기록과 일치했습니다."
-                   : "근거 자료는 부족했습니다. 다만 결과는 옳았습니다.");
+            "관리자님. 5일간의 야간 근무, 수고하셨습니다.");
         await Wait(2.0);
         HideGuide();
 

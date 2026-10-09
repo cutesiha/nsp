@@ -194,16 +194,19 @@ public partial class StaffTimelineView : Control
         DrawPins();
     }
 
-    // 22:00 · 01:00 · 04:00 — 한 시간마다 옅은 세로선, 세 곳에만 숫자.
+    // 한 시간마다 옅은 세로선 + 그 위에 시각(22:00 · 23:00 · 00:00 …).
+    // 칸이 좁아 숫자가 겹칠 때만 두 시간 · 세 시간 간격으로 띄엄띄엄 적는다 —
+    // 겹쳐 쓰면 숫자를 하나도 읽을 수 없다.
     private void DrawAxis()
     {
         float bottom = BandTop + _employees.Count * RowH;
         var faint = new Color(1f, 1f, 1f, 0.07f);
+        int step = LabelStep();
         for (int h = 0; h <= 6; h++)
         {
             float x = TrackX + TrackW * (h / 6f);
             DrawLine(new Vector2(x, AxisH - 2f), new Vector2(x, bottom), faint, 1f);
-            if (h % 3 != 0) continue;
+            if (h % step != 0) continue;
             string text = $"{(22 + h) % 24:00}:00";
             int fs = Mathf.RoundToInt(9f * K);
             var w = _font.GetStringSize(text, HorizontalAlignment.Left, -1f, fs);
@@ -211,6 +214,17 @@ public partial class StaffTimelineView : Control
             DrawString(_font, new Vector2(tx, AxisH - 3f * K), text, HorizontalAlignment.Left, -1f, fs,
                 new Color(0.62f, 0.66f, 0.70f, 0.85f));
         }
+    }
+
+    // 몇 시간마다 숫자를 적을지. 한 시간 간격이 기본이고, 들어가지 않으면 늘린다.
+    private int LabelStep()
+    {
+        int fs = Mathf.RoundToInt(9f * K);
+        float w = _font.GetStringSize("00:00", HorizontalAlignment.Left, -1f, fs).X;
+        float slot = TrackW / 6f;
+        foreach (int step in new[] { 1, 2, 3 })
+            if (slot * step >= w + 6f) return step;
+        return 6;
     }
 
     private void DrawBands()

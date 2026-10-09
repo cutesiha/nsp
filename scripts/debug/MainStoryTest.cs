@@ -34,6 +34,7 @@ public partial class MainStoryTest : Node
         Choices();
         GroupFeel();
         MissingStaff();
+        GhostWitness();
         DesignRules();
         NoGameplayEffect();
 
@@ -65,8 +66,11 @@ public partial class MainStoryTest : Node
             all.Where(e => e.Day == 1).All(e => e.Beat.MinParticipants == 6));
         Check("A DAY2~5 · 반응 비트는 min 2 다",
             all.Where(e => e.Day != 1).All(e => e.Beat.MinParticipants == 2));
-        Check("A 모든 대사가 say? 다(결원이면 그 줄만 빠진다)",
-            all.SelectMany(e => AllLines(e.Beat)).All(l => l.Optional));
+        // 배역(@witness 등)으로 적은 줄은 say(필수)로 둘 수 있다 — 맡을 사람이 없으면
+        // 비트 자체가 성립하지 않는다("본 사람" 없이 목격담을 시작할 수는 없다).
+        Check("A 직원 이름으로 적은 대사는 전부 say? 다(결원이면 그 줄만 빠진다)",
+            all.SelectMany(e => AllLines(e.Beat))
+               .All(l => l.Optional || StoryRoleCast.IsRole(l.SpeakerEmployeeId)));
     }
 
     // ── §24-1 · 2 · 3 · 6 : DAY1 의 시작 ─────────────────────────────
@@ -208,6 +212,47 @@ public partial class MainStoryTest : Node
         ResetWorld();
     }
 
+    // ── 이상 개체 목격담 : 본 사람만 봤다고 말한다 ───────────────────
+    //
+    // 괴물은 그 작업실에 있던 사람만 본다. 어제 기록(목격자 명단)이 그대로 배역이 되어야
+    // 하고, 보지 못한 사람은 "소리만 들었다" 쪽 줄을 맡아야 한다.
+    private void GhostWitness()
+    {
+        GD.Print("");
+        // DAY1 에 기록을 남기고 DAY2 로 넘어간다 — 비트가 보는 것은 **어제** 기록이다.
+        ResetWorld();
+        var log = EventLog.Instance;
+        log.LogEvent(NSP.Data.LogEventType.AnomalyDispelled, "", "power_room",
+            "👁 발전실 — 관측으로 이상 개체 소멸", witnesses: new[] { "cat" });   // 고양이만 그 방에 있었다
+        SetDay(2);
+
+        var cast = StoryRoleCast.ForDay(2);
+        Check("H 본 사람이 @witness 가 된다", cast.Resolve("@witness") == "cat");
+        var heard = new[] { "@heard1", "@heard2", "@heard3", "@heard4", "@heard5" }
+            .Select(cast.Resolve).Where(s => s.Length > 0).ToList();
+        Check("H 못 본 사람만 @heard 가 된다", heard.Count == 5 && !heard.Contains("cat"));
+        Check("H @heard 는 서로 다른 사람이다", heard.Distinct().Count() == heard.Count);
+
+        var beat = StoryScript.Entries.First(e => e.Id == "d2_ghost_group");
+        Check("H 목격자가 있으면 목격담 비트가 재생된다", StoryBeatSelector.IsPlayable(beat, 2));
+        var spoken = AllLines(beat.Beat).Select(l => cast.Apply(l))
+            .Where(l => l != null && StoryCutinDirector.Speaks(l)).ToList();
+        Check("H 봤다고 말하는 줄은 전부 그 사람 것이다",
+            spoken.Where(l => l.Text.Contains("봤") || l.Text.Contains("눈앞"))
+                  .All(l => l.SpeakerEmployeeId == "cat"));
+        Check("H 소리만 들었다는 줄은 본 사람이 말하지 않는다",
+            spoken.Where(l => l.Text.Contains("들었"))
+                  .All(l => l.SpeakerEmployeeId != "cat"));
+
+        // 본 사람이 아무도 없으면(기록에 목격자가 없으면) 목격담은 뜨지 않는다.
+        ResetWorld();
+        EventLog.Instance.LogEvent(NSP.Data.LogEventType.AnomalyDispelled, "", "power_room",
+            "👁 발전실 — 관측으로 이상 개체 소멸");
+        SetDay(2);
+        Check("H 본 사람이 없으면 목격담 비트가 생략된다", !StoryBeatSelector.IsPlayable(beat, 2));
+        ResetWorld();
+    }
+
     // ── §24-14 : 결번 분기 없음 ──────────────────────────────────────
     private void DesignRules()
     {
@@ -218,8 +263,9 @@ public partial class MainStoryTest : Node
         Check("F 대사가 결번을 입에 올리지 않는다",
             all.SelectMany(e => AllLines(e.Beat)).All(l => !l.Text.Contains("결번")));
         var roster = new HashSet<string>(_sim.GetEmployeeIds());
+        // 배역(@witness · @heard1 …)은 재생할 때 실제 직원으로 바뀐다 — 명부에 없는 것이 맞다.
         var strangers = all.SelectMany(e => AllLines(e.Beat)).Select(l => l.SpeakerEmployeeId)
-            .Where(id => !roster.Contains(id)).Distinct().ToList();
+            .Where(id => !roster.Contains(id) && !StoryRoleCast.IsRole(id)).Distinct().ToList();
         Check($"F 현 직원 6인만 말한다{(strangers.Count == 0 ? "" : " — " + string.Join(",", strangers))}",
             strangers.Count == 0);
         Check("F 모든 비트가 근무를 멈춘다", all.All(e => e.Beat.PauseGameplay));

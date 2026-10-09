@@ -369,7 +369,8 @@ public partial class Sfx : Node
     // 반복되지 않게 한다(variant가 없는 캐릭터는 voice_{employeeId}.wav 단일 파일로 폴백).
     // radio: true 면 같은 보이스를 무전 버스로 흘린다(프롤로그 대재난 무전 전용).
     // 기본값이 false 라 기존 호출부(전화/인터뷰)의 동작은 한 글자도 바뀌지 않는다.
-    public void PlayVoiceBlip(string employeeId, char c, bool radio = false)
+    // pitchMul: 1 보다 작으면 그만큼 낮고 굵은 목소리가 된다(관리자 = 0.6 — ManagerVoicePitch).
+    public void PlayVoiceBlip(string employeeId, char c, bool radio = false, float pitchMul = 1f)
     {
         if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
 
@@ -385,7 +386,7 @@ public partial class Sfx : Node
         _lastVoiceBlipMsec = now;
         player.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
         float semitones = _voiceRng.RandfRange(-VoicePitchVariationSemitones, VoicePitchVariationSemitones);
-        player.PitchScale = Mathf.Pow(2f, semitones / 12f);
+        player.PitchScale = Mathf.Clamp(Mathf.Pow(2f, semitones / 12f) * pitchMul, 0.1f, 4f);
         player.Play();
     }
 

@@ -154,10 +154,16 @@ public sealed class GhostHauntSystem
     // 0 보다 크면 이번 등장에 한해 GhostGraceSeconds 대신 이 값을 쓴다.
     private float _graceOverride = -1f;
 
+    // 이번 등장을 **직접 본** 직원. 개체가 있는 동안 그 방에 서 있던 사람 전부다.
+    // 이것이 기록에 남아야 다음 날 대화에서 "본 사람" 과 "소리만 들은 사람" 이 갈린다
+    // (StoryRoleCast). 방 이름만 남기면 전원이 봤다는 말이 된다.
+    private readonly HashSet<string> _witnesses = new();
+
     private void Appear(string roomId, FacilitySimulation sim)
     {
         ActiveRoomId = roomId;
         _lastRoomId = roomId;
+        _witnesses.Clear();
         AliveSeconds = WatchedSeconds = 0f;
         AppearedToday++;
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
@@ -201,7 +207,10 @@ public sealed class GhostHauntSystem
         // ── 같은 방 직원 ───────────────────────────────────────────────
         // 눈앞에 있는 것을 보고 있으니 가만히 있어도 깎인다. 성격에 따라 폭이 다르다.
         foreach (string id in sim.OnDutyEmployeeIds(room))
+        {
             sim.AddStress(id, cfg.GhostPresenceStressPerSecond * delta * FearScale(id), "괴물 목격");
+            _witnesses.Add(id);   // 이 사람은 눈으로 봤다
+        }
 
         // ── 소멸 / 사고 ────────────────────────────────────────────────
         if (WatchedSeconds >= cfg.GhostDispelSeconds) { Dispel(sim, cfg, now); return; }
@@ -215,7 +224,8 @@ public sealed class GhostHauntSystem
         string room = ActiveRoomId;
         DispelledToday++;
         EventLog.Instance?.LogEvent(LogEventType.AnomalyDispelled, "", room,
-            $"👁 {sim.RoomDisplayName(room)} — 관측으로 이상 개체 소멸");
+            $"👁 {sim.RoomDisplayName(room)} — 관측으로 이상 개체 소멸",
+            witnesses: _witnesses.ToList());
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"{sim.RoomDisplayName(room)}의 이상 개체가 소멸했습니다.", NSP.Ui.NoticeLevel.Info);
         // 비명은 **소멸하는 순간** 에만 터진다. 그 전까지는 위의 기척뿐이다 —
@@ -234,7 +244,8 @@ public sealed class GhostHauntSystem
         StruckToday++;
 
         var here = sim.OnDutyEmployeeIds(room).ToList();
-        sim.TriggerGhostAccident(room);
+        foreach (string id in here) _witnesses.Add(id);
+        sim.TriggerGhostAccident(room, _witnesses.ToList());
 
         // 그 방에 있던 직원이 한 번에 크게 무너진다. 겁이 많을수록 더 크게 —
         // 양은 이 한 번으로 기절선을 넘도록 배율이 잡혀 있다(FearScale).

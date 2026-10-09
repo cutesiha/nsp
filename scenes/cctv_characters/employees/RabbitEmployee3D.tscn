@@ -56,13 +56,13 @@ size = Vector3(0.11, 0.006, 0.006)
 
 [sub_resource type="CapsuleMesh" id="M13"]
 radius = 0.034
-height = 0.3816211
+height = 0.38436036
 radial_segments = 10
 rings = 4
 
 [sub_resource type="CapsuleMesh" id="M15"]
 radius = 0.034
-height = 0.38709962
+height = 0.38436036
 radial_segments = 10
 rings = 4
 
@@ -157,12 +157,12 @@ material_override = ExtResource("8_rabbithair")
 mesh = SubResource("M19")
 
 [node name="HairSideL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="3" unique_id=347587699]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.08660045, -0.33000004, -0.008)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09328821, -0.33000004, -0.008)
 material_override = ExtResource("8_rabbithair")
 mesh = SubResource("M20")
 
 [node name="HairSideR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="4" unique_id=386432436]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09997597, -0.33000004, -0.008)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09328821, -0.33000004, -0.008)
 material_override = ExtResource("8_rabbithair")
 mesh = SubResource("M22")
 
@@ -200,12 +200,12 @@ material_override = ExtResource("6_whiskerwhite")
 mesh = SubResource("M12")
 
 [node name="EarL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="6" unique_id=754987585]
-transform = Transform3D(1.1795133, -0.14417134, 0, 0.17826585, 0.95392376, 0, 0, 0, 1, -0.053857505, 0.20619464, 0.02)
+transform = Transform3D(1.1606335, -0.1491589, 0, 0.17541245, 0.98692438, 0, 0, 0, 1, -0.05383794, 0.1995503, 0.02)
 material_override = ExtResource("3_rabbitmask")
 mesh = SubResource("M13")
 
 [node name="EarR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="7" unique_id=1126086382]
-transform = Transform3D(1.1417537, 0.15414646, 0, -0.17255904, 1.019925, 0, 0, 0, 1, 0.053818375, 0.1929059, 0.02)
+transform = Transform3D(1.1606335, 0.1491589, 0, -0.17541245, 0.98692438, 0, 0, 0, 1, 0.05383794, 0.1995503, 0.02)
 material_override = ExtResource("3_rabbitmask")
 mesh = SubResource("M15")
 
