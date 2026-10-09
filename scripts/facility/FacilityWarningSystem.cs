@@ -48,6 +48,10 @@ public sealed class FacilityWarningSystem
     public bool HasActive(string roomId) => _active.Any(w => w.RoomId == roomId);
     public FacilityWarning ForRoom(string roomId) => _active.FirstOrDefault(w => w.RoomId == roomId);
 
+    // 경고를 끝내 방치해 실제 고장으로 넘어간 순간. (방 id, 경고 제목)
+    // 집계값 Failed 는 "몇 건이었나"만 말한다 — 그 순간을 듣고 싶은 쪽을 위해 따로 알린다.
+    public event Action<string, string> Neglected;
+
     // 이번 근무에서 실제로 뜬 / 막은 / 놓친 경고 수 — 정산 표시와 테스트에 쓴다.
     public int Raised { get; private set; }
     public int Prevented { get; private set; }
@@ -127,6 +131,7 @@ public sealed class FacilityWarningSystem
             Failed++;
             Close(w, now, sim);
             sim.TriggerWarningFailure(w.RoomId, w.Title);
+            Neglected?.Invoke(w.RoomId, w.Title);
         }
     }
 

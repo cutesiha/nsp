@@ -2754,6 +2754,7 @@ public partial class FacilitySimulation : Node
             var consequence = rdef != null && (int)rdef.AccidentConsequence >= 0
                 ? rdef.AccidentConsequence
                 : taskDef.NeglectConsequenceType;
+            bool hadPowerLoss = GameState.Instance.IsPowerAccidentActive();
             TabooRuleSystem.Instance?.RepairRoomConsequence(consequence, st.RoomId);
             IncidentTracker.Resolve(st.RoomId);
             EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", st.RoomId,
@@ -2762,6 +2763,12 @@ public partial class FacilitySimulation : Node
                 $"✓ {RoomName(st.RoomId)} 기능이 복구되었습니다.", NSP.Ui.NoticeLevel.Info);
             // 수리가 끝났다는 건 지도에서 눈으로 찾기 어렵다 — 소리로 알린다.
             Sfx.Instance?.Play("ding", -5f);
+            // 「고쳐 쓰면 그만」 — 미로를 푼 것이 아니라 **설비가 실제로 복구된** 지점이다.
+            AchievementManager.Instance?.NoteFacilityRepaired();
+            // 「다시 켜진 불빛」 — 발전실 사고의 수리는 여기서 전력 용량을 되돌린다
+            // (발전실 상시 점검으로 되돌리는 경로는 ApplyTaskEffect 쪽에 따로 붙어 있다).
+            if (hadPowerLoss && !GameState.Instance.IsPowerAccidentActive())
+                AchievementManager.Instance?.NotePowerRestored();
             st.Status = SpawnedTaskStatus.Completed;
         }
         else if (completed)
@@ -2873,7 +2880,11 @@ public partial class FacilitySimulation : Node
                 badge += $" · 스트레스 -{heal:0.#}";
                 break;
             case TaskEffectType.BoostPowerCapacity:
+                // 「다시 켜진 불빛」 — 사고로 **실제로 깎여 있던** 용량을 되돌린 경우만이다.
+                // 멀쩡한 발전실을 점검했다고 뜨지 않는다(스위치 조작은 용량을 바꾸지 않는다).
+                bool hadAccident = GameState.Instance.IsPowerAccidentActive();
                 GameState.Instance.RepairPowerAccident();
+                if (hadAccident) AchievementManager.Instance?.NotePowerRestored();
                 // 발전실 사고(금기 이상현상 포함)는 전력이 정상으로 돌아온 시점에 해결된다.
                 IncidentTracker.Resolve(roomId);
                 badge += " · ⚡ 전력 정상 복구";

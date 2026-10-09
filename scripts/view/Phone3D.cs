@@ -388,6 +388,9 @@ public partial class Phone3D : Node3D
         string who = _caller;
         string ev = _dialogueEvent;
         _caller = "";
+        // 「무심한 관리자」·「차가운 관리자」 — 한 통당 한 번만 센다. 거절과 무응답은
+        // 결과가 같으므로 구분하지 않는다(어느 쪽이든 직원은 혼자 남는다).
+        NSP.Core.AchievementManager.Instance?.NoteCallMissed();
         EmitSignal(SignalName.CallMissed, who, ev);
     }
 
@@ -474,6 +477,10 @@ public partial class Phone3D : Node3D
         SetDial(CallerColor(), 2.0f);
         if (_dialogueEvent == DialogueRepository.EventInterviewSuspected)
             RestRosterView.Instance?.DisarmInterrogate();
+        // 통화가 실제로 연결된 지점 — 「상냥한 관리자」(직접 발신)와
+        // 「여섯 명의 이야기」(회차 안에서 만난 사람)를 여기서 센다.
+        // 수화기를 집기만 하고 손이 닿지 않았으면 여기까지 오지 않는다.
+        NSP.Core.AchievementManager.Instance?.NoteCallConnected(_caller, !_isIncoming);
         EmitSignal(SignalName.PickedUp);
         _hud?.Open(_caller, _dialogueEvent, _incidentRoomId);
     }

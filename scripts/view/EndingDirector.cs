@@ -159,6 +159,11 @@ public partial class EndingDirector : Node
             ? (caught ? EndingState.Kind.True : EndingState.Kind.Loose)
             : (caught ? EndingState.Kind.Late : EndingState.Kind.Bad);
 
+        // 엔딩 종류가 **확정된** 지점 — 연출용 문구가 아니라 이 값이 기록에 남는다.
+        // 관리자 평가 등급도 여기서 함께 판정한다(계산은 DayObjectives.Grade 그대로).
+        // 팝업은 AchievementToast 가 연출이 끝날 때까지 붙잡아 둔다.
+        AchievementManager.Instance?.NoteEnding(_kind);
+
         ControlRoom3DHorror.ExternalLightingOverride = true;
         gs?.SetPhase(NSP.Data.GamePhase.Result);
         _ctl?.SetInputLocked(true);

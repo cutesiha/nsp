@@ -291,6 +291,9 @@ public partial class ControlRoom3DController : Node3D
 
         _titleTerminalVp = MakeViewport();
         AddScaledView(_titleTerminalVp, new TitleTerminalView(), MonitorCanvasSize);
+        // 타이틀의 「기록 열람」 = 도전과제 기록실. 같은 CRT · 같은 논리 캔버스 위에
+        // 얹히는 전용 화면으로, 열려 있는 동안만 단말기 위를 덮는다.
+        _titleTerminalVp.GetChild<Control>(0)?.AddChild(new AchievementArchiveView());
 
         _scheduleMapVp = MakeViewport();
         _scheduleMap = new ScheduleMapView();

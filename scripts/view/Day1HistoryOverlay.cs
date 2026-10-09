@@ -217,6 +217,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
         _dialoguePanel.Visible = false;
         // 근무 시작에 저절로 뜬 「오늘의 업무」 창 위에 로그 창이 겹쳐 뜨던 것을 막는다.
         if (_objPanel != null) _objPanel.Visible = false;
+        // 「기록은 남는다」 — 타이틀의 도전과제 기록실이 아니라 **시설 로그**를 연 지점이다.
+        AchievementManager.Instance?.NoteFacilityLogOpened();
         RebuildLog();
     }
 

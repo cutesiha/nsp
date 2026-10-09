@@ -218,6 +218,9 @@ public static class PlayerKnownEvidence
         });
         // 하루치가 계속 쌓이지 않게 상한만 둔다.
         while (_cctv.Count > 200) _cctv.RemoveAt(0);
+        // 「누군가의 흔적」 — 수상한 움직임이 실제로 **유효한 관찰 기록**으로 남은 경우만.
+        // 위에서 걸러진 중복 기록(같은 인원 구성)은 여기까지 오지 않는다.
+        if (suspiciousAction) NSP.Core.AchievementManager.Instance?.NoteSuspiciousObserved();
     }
 
     // 그 시각 언저리에 CCTV로 이 직원을 실제로 본 작업실. 없으면 빈 값.

@@ -89,6 +89,9 @@ public partial class GameState : Node
         WasProven = WasCaught && involvesAccused != null
                     && _finalEvidence.Any(e => involvesAccused(e.Day, e.EvidenceId));
         FinalReportSubmitted = true;
+        // 미뤄 둔 도전과제 팝업(「억울한 격리」)은 지목이 끝난 뒤에야 뜬다 —
+        // 그 전에 뜨면 업적이 추리의 정답을 먼저 알려 주는 셈이 된다.
+        AchievementManager.Instance?.NoteFinalReportSubmitted();
     }
 
     // 개발 허브 · 캡처용 — 보고서 화면을 거치지 않고 판정만 세운다.
@@ -195,7 +198,11 @@ public partial class GameState : Node
     public void AddCoreProgress(float delta, string reason)
     {
         CoreLedger?.Invoke(delta, reason);
+        float before = CoreProgress;
         CoreProgress = Mathf.Clamp(CoreProgress + delta, 0f, 100f);
+        // 「이게 연습이라고?」 — 가상 시뮬레이션에서 100% 에 닿은 **그 순간**을 잡는다.
+        // DAY1 로 넘어가며 진행도는 0% 로 돌아가지만(GoToNextDay) 기록은 이미 남아 있다.
+        AchievementManager.Instance?.NoteCoreProgress(before, CoreProgress);
     }
 
     // 자재 보유 한도. 기본 30이고 저장고 상시 업무로 최대 60까지 올릴 수 있다.
@@ -324,6 +331,9 @@ public partial class GameState : Node
         ResetFacilityFaults();
         // 관리자 패드의 단서는 한 판 동안만 남는다.
         ClueBoard.ResetAll();
+        // 도전과제도 회차용 집계(이번 판에 대화한 직원 등)만 비운다 —
+        // **영구 해금 기록은 절대 초기화하지 않는다.**
+        AchievementManager.Instance?.OnRunReset();
     }
 
     // CCTV를 실제로 볼 수 있는가 = 전력이 있고 + 설비 고장(FAIL-04)이 아니어야 한다.

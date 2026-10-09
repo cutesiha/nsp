@@ -30,6 +30,8 @@ AlertSystem="*res://scripts/core/AlertSystem.cs"
 BlinkOverlay="*res://scripts/ui/BlinkOverlay.cs"
 ShiftCardView="*res://scripts/view/ShiftCardView.cs"
 HorrorAudioDirector="*res://scripts/ui/HorrorAudioDirector.cs"
+AchievementManager="*res://scripts/core/AchievementManager.cs"
+AchievementToast="*res://scripts/ui/AchievementToast.cs"
 
 [display]
 

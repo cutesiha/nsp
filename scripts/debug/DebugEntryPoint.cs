@@ -96,6 +96,10 @@ public static class DebugEntryPoint
     // 필드를 찾지 못하면 허브가 타이틀 위에서 진행을 억지로 밀어붙이게 되므로 크게 알린다.
     public static void SkipTitleOnNextBoot()
     {
+        // 개발 도구로 들어온 실행이다 — 도전과제 기록(user://achievements_v1.cfg)을
+        // 건드리지 않는다. 검사 씬이 근무를 수십 번 돌려도 실제 플레이 기록이 오염되지 않는다.
+        // (EndingState 를 BackupEndingState 로 지키는 것과 같은 이유다.)
+        NSP.Core.AchievementManager.Sandbox = true;
         var f = typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static);
         if (f == null) GD.PushError("DebugEntryPoint: ShiftFlowController._skipToDay1Pending 이 없다 — 타이틀을 건너뛸 수 없다.");
         f?.SetValue(null, true);

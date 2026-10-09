@@ -40,6 +40,10 @@ public partial class TitleRoomDirector : Node
     public event Action StartRequested;
     public bool IsRunning { get; private set; }
 
+    // 메뉴 조작을 실제로 받는 상태인가(전원 투입 연출이 끝났는가).
+    // 캡처 도구가 "지금 키를 눌러도 되는가"를 묻는 데 쓴다 — 연출 중에 누르면 무시된다.
+    public bool AtMenu => _phase == Phase.Menu;
+
     // 결말의 흔적 — 마지막으로 본 엔딩(EndingState)에 따라 시작 화면의 방 분위기가 다르다.
     //   Bad  : 붉은 CRT · 아주 느리게 붉게 점멸하는 비상등 · BGM 대신 낮은 기계음/경고음 · 가끔 혼자 울리는 전화
     //   Late : 영구 봉쇄 뒤. Bad 와 같은 어두운 방이되 경보는 울리지 않는다.
@@ -71,7 +75,7 @@ public partial class TitleRoomDirector : Node
     // 책상 장비 ↔ 명령 연결. 라벨은 화면 아래 힌트 줄에 뜬다.
     private static readonly (string Id, string Hint)[] PropHints =
     {
-        ("archive", "전화기  —  ARCHIVE  ·  통신 기록"),
+        ("archive", "전화기  —  ARCHIVE  ·  도전과제 기록"),
         ("config", "관리자 패드  —  SYSTEM CONFIG  ·  환경 설정"),
         ("quit", "전력 패널  —  SHUT DOWN  ·  시스템 종료"),
     };
@@ -85,8 +89,13 @@ public partial class TitleRoomDirector : Node
 
     private TitleHintHud _hint;
 
-    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Done }
+    // Archive = 도전과제 기록실을 보는 중. 메뉴 입력과 완전히 분리해 두어
+    // 기록을 넘기다가 「근무 개시」가 실수로 실행되지 않게 한다.
+    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, Done }
     private Phase _phase = Phase.Off;
+
+    // 기록실을 보는 동안의 조작 안내.
+    private const string ArchiveHint = "↑ ↓ 이동   ← → 페이지   ESC 뒤로";
 
     private string _hoverProp = "";
     // 마우스 위치 — 실제 커서 폴링과 모션 이벤트 중 최근 것을 쓴다.
@@ -170,6 +179,9 @@ public partial class TitleRoomDirector : Node
         _hint.ShowHud();
 
         _phase = Phase.Standby;
+        // 「업무를 시작합니다」 — 실제 타이틀 화면에 들어선 지점.
+        // 개발 도구로 타이틀을 건너뛰고 들어오면 이 줄을 지나가지 않는다.
+        AchievementManager.Instance?.NoteTitleReached();
         SetProcess(true);
         SetProcessUnhandledInput(true);
     }
@@ -266,20 +278,73 @@ public partial class TitleRoomDirector : Node
         StartRequested?.Invoke();
     }
 
-    // 기록 열람 — 아직 저장/기록 시스템이 없으므로 "기록 없음"만 알린다.
+    // 기록 열람 — 도전과제 기록실. 단말기가 목록을 불러오는 두 줄을 찍고,
+    // 그 위에 기록실 화면이 켜진다. 글자를 읽을 수 있도록 왼쪽 CRT 를 확대해 둔다.
     private async Task ArchiveAsync()
     {
         _phase = Phase.Busy;
         var term = TitleTerminalView.Instance;
+        var view = AchievementArchiveView.Instance;
         Sfx.Instance?.Play("phone_pickup", -16f);   // 전화기 쪽이 살아난다
-        term.BeginReport("ARCHIVE  /  통신 기록", ("back", "뒤로"));
-        term.PushLine("> archive --list", 3);
-        await Wait(0.45);
-        term.PushLine("저장된 근무 기록이 없습니다.");
-        await Wait(0.25);
-        term.PushLine("NO RECORD FOUND", 3);
-        _hint.SetSub("ESC 또는 ‘뒤로’");
+        term.BeginReport("ACHIEVEMENT ARCHIVE");
+        term.PushLine("> archive --achievements", 3);
+        await Wait(0.40);
+        int done = AchievementManager.Instance?.GetUnlockedCount() ?? 0;
+        term.PushLine($"RECORDS  {done:00} / {Achievements.Total:00}", 1);
+        await Wait(0.35);
+        if (view == null)
+        {
+            // 기록실 화면을 못 찾았다 — 숫자만 알리고 메뉴로 돌아간다(게임은 멈추지 않는다).
+            term.PushLine("ARCHIVE VIEW NOT FOUND", 2);
+            _hint.SetSub("ESC 또는 ‘뒤로’");
+            _phase = Phase.Menu;
+            return;
+        }
+        view.Open();
+        Sfx.Instance?.Play("window_open", -8f);
+        _ctl?.FocusMonitor(1, 0.5f);   // 1 = 왼쪽 CRT(단말기) — 글자를 읽을 크기로 당긴다
+        _hint.SetLine("");
+        _hint.SetSub(ArchiveHint);
+        _phase = Phase.Archive;
+    }
+
+    // 기록실을 닫고 타이틀 메뉴로 돌아간다.
+    private void CloseArchive()
+    {
+        AchievementArchiveView.Instance?.Close();
+        Sfx.Instance?.Play("relay_click", -8f);
+        _ctl?.ClearFocus(0.45f);
+        TitleTerminalView.Instance?.ShowMenu();
+        _hint.SetSub(MenuHint);
         _phase = Phase.Menu;
+    }
+
+    // 기록실의 키 입력. 메뉴 입력과 섞이지 않는다.
+    private void ArchiveKey(Key code)
+    {
+        var view = AchievementArchiveView.Instance;
+        if (view == null) { CloseArchive(); return; }
+        switch (code)
+        {
+            case Key.Up or Key.W:
+                if (view.MoveCursor(-1)) Sfx.Instance?.Play("tick", -16f);
+                return;
+            case Key.Down or Key.S:
+                if (view.MoveCursor(1)) Sfx.Instance?.Play("tick", -16f);
+                return;
+            // 페이지는 ← → 와 PageUp/PageDown 으로만 넘긴다.
+            // A · D 를 쓰지 않는 이유: D 는 프로젝트 입력맵의 '대화 기록 열기'(L 은 시설 로그)라
+            // Day1HistoryOverlay 가 _Input 단계에서 먼저 가져간다 — 여기까지 오지 않는다.
+            case Key.Left or Key.Pageup:
+                if (view.MovePage(-1)) Sfx.Instance?.Play("tick", -13f);
+                return;
+            case Key.Right or Key.Pagedown:
+                if (view.MovePage(1)) Sfx.Instance?.Play("tick", -13f);
+                return;
+            case Key.Escape or Key.Backspace:
+                CloseArchive();
+                return;
+        }
     }
 
     private void OpenSettings()
@@ -342,6 +407,7 @@ public partial class TitleRoomDirector : Node
 
     private void Finish()
     {
+        AchievementArchiveView.Instance?.Close();
         _phase = Phase.Done;
         IsRunning = false;
         SetProcess(false);
@@ -363,6 +429,13 @@ public partial class TitleRoomDirector : Node
             if (_phase == Phase.Standby)
             {
                 _ = PowerOnAsync();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            // 기록실을 보는 중 — 이동 · 페이지 · 뒤로만 받는다(ENTER 로 근무가 시작되지 않는다).
+            if (_phase == Phase.Archive)
+            {
+                ArchiveKey(k.Keycode);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -394,12 +467,32 @@ public partial class TitleRoomDirector : Node
             return;
         }
 
+        // 기록실 — 휠로 페이지를 넘긴다.
+        if (_phase == Phase.Archive && e is InputEventMouseButton
+            { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
+        {
+            int step = wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1;
+            if (AchievementArchiveView.Instance?.MoveCursor(step) == true) Sfx.Instance?.Play("tick", -18f);
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
         {
             if (_phase == Phase.Standby)
             {
                 _ = PowerOnAsync();
                 GetViewport().SetInputAsHandled();
+                return;
+            }
+            // 기록실 — 아래쪽 [◀ 이전] · [다음 ▶] · [뒤로] 만 누를 수 있다.
+            if (_phase == Phase.Archive)
+            {
+                string cmd = ArchiveItemUnderMouse();
+                if (cmd == "prev") ArchiveKey(Key.Left);
+                else if (cmd == "next") ArchiveKey(Key.Right);
+                else if (cmd == "back") CloseArchive();
+                if (!string.IsNullOrEmpty(cmd)) GetViewport().SetInputAsHandled();
                 return;
             }
             if (_phase != Phase.Menu) return;
@@ -436,9 +529,25 @@ public partial class TitleRoomDirector : Node
     public override void _Process(double delta)
     {
         TickAmbience(delta);
-        if (_phase != Phase.Menu) return;
+        if (_phase is not (Phase.Menu or Phase.Archive)) return;
         if (_camera == null) _camera = GetViewport().GetCamera3D();
         if (_camera == null) return;
+
+        // 기록실 — 목록 위에 마우스를 올리면 그 줄로 커서가 간다. 책상 장비 호버는 쉰다.
+        if (_phase == Phase.Archive)
+        {
+            Vector2 p = GetViewport().GetMousePosition();
+            if (!p.IsEqualApprox(_lastPolled)) { _lastPolled = p; _mouse = p; }
+            var view = AchievementArchiveView.Instance;
+            if (view != null)
+            {
+                Vector3 ao = _camera.ProjectRayOrigin(_mouse);
+                Vector3 ad = _camera.ProjectRayNormal(_mouse);
+                if (TryCanvasPos("01", ao, ad, out Vector2 lpos) && view.HoverAt(lpos))
+                    Sfx.Instance?.Play("tick", -20f);
+            }
+            return;
+        }
 
         Vector2 polled = GetViewport().GetMousePosition();
         if (!polled.IsEqualApprox(_lastPolled)) { _lastPolled = polled; _mouse = polled; _mouseMoved = true; }
@@ -635,6 +744,16 @@ public partial class TitleRoomDirector : Node
         Vector3 o = _camera.ProjectRayOrigin(_mouse);
         Vector3 d = _camera.ProjectRayNormal(_mouse);
         return TryCanvasPos("01", o, d, out Vector2 p) ? TitleTerminalView.Instance.ItemAt(p) : "";
+    }
+
+    // 기록실도 같은 왼쪽 CRT 캔버스를 쓴다 — 좌표를 넘겨 무엇을 가리켰는지 물어본다.
+    private string ArchiveItemUnderMouse()
+    {
+        var view = AchievementArchiveView.Instance;
+        if (_camera == null || view == null) return "";
+        Vector3 o = _camera.ProjectRayOrigin(_mouse);
+        Vector3 d = _camera.ProjectRayNormal(_mouse);
+        return TryCanvasPos("01", o, d, out Vector2 p) ? view.ItemAt(p) : "";
     }
 
     // CRT 평면을 맞췄으면 그 화면의 '논리 캔버스' 좌표를 돌려준다.

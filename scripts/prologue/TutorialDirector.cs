@@ -285,6 +285,9 @@ public partial class TutorialDirector : Node
         await Wait(0.6);
 
         _reachedEnd = true;
+        // 「초급 관리자」 — 마지막 안내까지 읽고 끝난 경우만이다.
+        // Abort()(개발 허브의 DAY0 직행)는 이 줄을 지나가지 않는다.
+        NSP.Core.AchievementManager.Instance?.NoteTutorialCompleted();
         Finish();
         _flow?.AdvanceFromTutorial();
     }

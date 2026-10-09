@@ -17,6 +17,10 @@ public partial class EndingRecordOverlay : Control
     // 어떤 엔딩으로 끝났는가 — 맨 윗줄의 이름에만 쓴다.
     public EndingState.Kind Kind { get; set; } = EndingState.Kind.None;
 
+    // 이 성적표가 떠 있는가. 엔딩 연출은 여기서 끝난 셈이라, 미뤄 두었던
+    // 도전과제 팝업(AchievementToast)이 이 화면부터 뜬다.
+    public static bool IsShown { get; private set; }
+
     private static string EndingName(EndingState.Kind k) => k switch
     {
         EndingState.Kind.True => "근무 종료",
@@ -31,8 +35,11 @@ public partial class EndingRecordOverlay : Control
     private static readonly Color Dim = new(0.50f, 0.60f, 0.64f);
     private static readonly Color Warn = new(1f, 0.55f, 0.45f);
 
+    public override void _ExitTree() => IsShown = false;
+
     public override void _Ready()
     {
+        IsShown = true;
         SetAnchorsPreset(LayoutPreset.FullRect);
         Position = Vector2.Zero;
         Size = GetViewportRect().Size;

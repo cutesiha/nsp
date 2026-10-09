@@ -573,6 +573,8 @@ public partial class ShiftFlowController : Node
         // 근무는 언제나 코어실에서 시작한다. 그러지 않으면 배치 단계에서 마지막으로 눌러 본
         // 방(격리실 같은)이 그대로 남아, 근무 첫 화면이 아무 상관 없는 방이 된다.
         FacilitySimulation.Instance?.SetSurveillanceTarget(FacilitySimulation.CoreRoomIdPublic);
+        // 「오늘은 무사히」가 보는 하루치 집계(기절 · 사망)를 여기서 0 으로 되돌린다.
+        AchievementManager.Instance?.OnShiftStart();
         _stage = Stage.Shift;
     }
 
@@ -604,6 +606,9 @@ public partial class ShiftFlowController : Node
         // 필수 업무를 못 끝낸 채 시간이 다 됐는가. 게임을 멈추지는 않지만 기록은 남는다.
         GameState.Instance?.RecordShiftObjectives(
             DayObjectives.RequiredTotal - DayObjectives.RequiredDone);
+
+        // 「첫 야근」·「오늘은 무사히」 — 근무가 정상 종료된 이 지점에서 한 번 판정한다.
+        AchievementManager.Instance?.NoteShiftEnded();
 
         // 개발용 — 오늘 결번 개체가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
         FacilitySimulation.Instance?.PrintSaboteurDebug();

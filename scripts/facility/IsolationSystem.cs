@@ -76,6 +76,10 @@ public sealed class IsolationSystem
     // 화면이 듣는 신호 — 명령을 받은 순간(캐릭터별 반응 동작을 여기서 시작한다).
     public event Action<string> Ordered;
 
+    // 격리실에 **실제로 수용된** 순간. 명령만 내리고 중간에 취소했거나(§34) 걸어가다
+    // 쓰러져 격리가 취소된 경우(§35)에는 오지 않는다 — "격리에 성공했다"의 유일한 지점이다.
+    public event Action<string> Accepted;
+
     private FacilitySimulation _sim;
 
     public void Attach(FacilitySimulation sim) => _sim = sim;
@@ -154,6 +158,7 @@ public sealed class IsolationSystem
         st.IsolationPhaseTimer = 0f;
         EventLog.Instance?.LogEvent(NSP.Data.LogEventType.Isolation, st.EmployeeId,
             FacilitySimulation.IsolationRoomIdPublic, $"{Name(st.EmployeeId)} - 격리실 수용");
+        Accepted?.Invoke(st.EmployeeId);
     }
 
     // 격리가 풀렸다 — 단계를 지운다(침대에서 일어나는 표현은 CCTV 가 마저 그린다).
