@@ -64,18 +64,20 @@ public partial class EndingDirector
         SetLights(0.55f, 0.25f);
         await Wait(0.6);
 
+        // 목표치는 모드가 정한다 — 기본 5일은 100%, 대회용 3일은 그 날의 목표(DayObjectives).
+        float goal = DayObjectives.FinalCoreTarget;
         left?.Clear("CONTAINMENT CORE", "FINAL RECOVERY SEQUENCE");
-        left?.SetBar(97.1f);
+        left?.SetBar(goal - 2.9f);
         await Wait(0.5);
         // 마지막 수치가 올라갈수록 게이지 소리가 촘촘해진다.
-        foreach (var (v, gap) in new[] { (97.1f, 0.62), (98.3f, 0.52), (99.2f, 0.44), (99.8f, 0.36), (100f, 0.2) })
+        foreach (var (d, gap) in new[] { (-2.9f, 0.62), (-1.7f, 0.52), (-0.8f, 0.44), (-0.2f, 0.36), (0f, 0.2) })
         {
-            left?.SetBar(v);
+            left?.SetBar(goal + d);
             Sfx.Instance?.Play("gauge_tick", -10f);
             await Wait(gap);
         }
 
-        // 100% — 짧고 묵직한 완료음. 화면이 아주 약하게 흔들린다.
+        // 목표 도달 — 짧고 묵직한 완료음. 화면이 아주 약하게 흔들린다.
         Sfx.Instance?.Play("task_done", -5f);
         Sfx.Instance?.Play("relay_click", -10f, 0.7f);
         _ctl?.ShakeMonitor("01", 0.5f, 0.3f);
@@ -417,7 +419,7 @@ public partial class EndingDirector
         await GuideSpeak(right,
             "봉쇄 코어 복구가 완료되었습니다.",
             "제7지하시설의 봉쇄 상태가 정상화되었습니다.",
-            "관리자님. 5일간의 야간 근무, 수고하셨습니다.");
+            $"관리자님. {GameModes.MaxDays}일간의 야간 근무, 수고하셨습니다.");
         await Wait(2.0);
         HideGuide();
 

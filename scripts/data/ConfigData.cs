@@ -5,7 +5,10 @@ namespace NSP.Data;
 [GlobalClass]
 public partial class ConfigData : Resource
 {
+    // 기본 모드가 도는 근무 일수. 대회용은 아래 CompetitionDays 를 쓴다
+    // (어느 쪽을 쓸지는 GameModes.MaxDays 한 곳에서만 고른다).
     [Export] public int MaxDays = 5;
+    [Export] public int CompetitionDays = 3;
     [Export] public int MaxEmployees = 6;
 
     // --- V3 초반 단순화: 시스템 해금 날짜 (DayFeatures 가 유일하게 읽는다) -------

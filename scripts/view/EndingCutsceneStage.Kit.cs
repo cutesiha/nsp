@@ -97,7 +97,7 @@ public partial class EndingCutsceneStage
         var m = new MeshInstance3D
         {
             Name = name,
-            Mesh = new CylinderMesh { TopRadius = radius, BottomRadius = radius, Height = len, RadialSegments = seg },
+            Mesh = SharedCyl(radius, len, seg),
             Position = (a + b) * 0.5f,
             MaterialOverride = mat,
         };
@@ -123,7 +123,7 @@ public partial class EndingCutsceneStage
             var m = new MeshInstance3D
             {
                 Name = "Bolt",
-                Mesh = new CylinderMesh { TopRadius = r, BottomRadius = r * 1.15f, Height = r * 1.1f, RadialSegments = 6 },
+                Mesh = SharedCyl(r, r * 1.1f, 6, r * 1.15f),
                 Position = from.Lerp(to, k),
                 MaterialOverride = mat,
             };

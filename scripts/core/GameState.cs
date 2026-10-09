@@ -377,6 +377,24 @@ public partial class GameState : Node
         SaboteurEmployeeId = employeeId;
     }
 
+    // 이번 판의 결번을 정한다 — **결번을 뽑는 유일한 입구.**
+    //
+    // 대회용은 강아지 고정, 기본 모드는 예전처럼 무작위다. 뽑는 곳이 세 군데(새 게임 ·
+    // 근무 시작 · 구형 2D 타이틀)라 각자 판단하게 두면 "대회용을 하다 기본 모드로
+    // 갔는데 계속 강아지" 같은 일이 생긴다. 판단은 여기 한 줄에서만 한다.
+    public void AssignSaboteurForMode(IEnumerable<string> employeeIds)
+    {
+        var pool = employeeIds?.ToList() ?? new List<string>();
+        if (GameModes.FixedSaboteur && pool.Contains(GameModes.FixedSaboteurId))
+        {
+            SetSaboteur(GameModes.FixedSaboteurId);
+            return;
+        }
+        // 고정 대상이 이번 근무에 없으면(명단에서 빠졌다면) 무작위로 되돌아간다 —
+        // 결번이 비어 있는 판이 되는 것보다는 낫다.
+        AssignRandomSaboteur(pool);
+    }
+
     public void GoToNextDay()
     {
         CurrentDay += 1;

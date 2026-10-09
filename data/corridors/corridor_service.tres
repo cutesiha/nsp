@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="CorridorDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 중앙제어실 동측 서비스 통로 — 중앙제어실 ↔ 정비실.
+;
+; 설비 반입용 좁은 통로. 북측과 함께 중앙제어실로 들어오는 두 번째 길이다.
+; 동시에 닫아 둘 수 있는 문은 하나뿐이므로(CorridorNet.MaxSealed), 둘 중
+; 어느 쪽으로 오는지 CCTV 로 보고 고르는 것이 이 시스템의 핵심 선택이다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/CorridorDef.cs" id="1_cor"]
+
+[resource]
+script = ExtResource("1_cor")
+SegmentId = "corridor_service"
+DisplayName = "동측 서비스 통로"
+RoomA = "central_office"
+RoomB = "maintenance_room"
+Kind = 2
+IsBlockable = true
+CctvCameraId = "CAM-H02"
+ThreatLane = true
+DriveSeconds = 0.8
+MaxSealSeconds = 9.0
+ReengageCooldownSeconds = 3.0

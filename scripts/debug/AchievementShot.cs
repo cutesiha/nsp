@@ -73,18 +73,21 @@ public partial class AchievementShot : Node
         for (int i = 0; i < 900 && view?.IsOpen != true; i++) await Frame();
         await Seconds(1.6);   // 왼쪽 CRT 확대가 끝나기를 기다린다
         Ok(view?.IsOpen == true, "「기록 열람」 → 도전과제 기록실이 열렸다");
-        GD.Print($"   달성 {m?.GetUnlockedCount()} / {Achievements.Total}   페이지 {view?.Page + 1} / {view?.PageCount}");
-        Shot("02_기록실_1페이지");
-        ShotCrt("02_기록실_1페이지_CRT");
+        GD.Print($"   달성 {m?.GetUnlockedCount()} / {Achievements.Total}   " +
+                 $"스크롤 {view?.Scroll:0} / {AchievementArchiveView.MaxScroll:0}");
+        Shot("02_기록실_맨위");
+        ShotCrt("02_기록실_맨위_CRT");
 
-        // ④ 페이지를 넘겨 본다 — 숨김 미달성(???)이 있는 쪽까지.
-        for (int p = 2; p <= (view?.PageCount ?? 1); p++)
+        // ④ ↓ 로 끝까지 내려가며 몇 장 남긴다 — 숨김 미달성(???)이 있는 쪽까지.
+        for (int step = 1; step <= 6; step++)
         {
-            Press(Key.Right);
-            await Seconds(0.5);
-            ShotCrt($"03_기록실_{p}페이지_CRT");
+            for (int i = 0; i < 5; i++) { Press(Key.S); await Frame(); }
+            await Seconds(0.35);
+            ShotCrt($"03_기록실_스크롤{step}_CRT");
         }
-        Ok(view?.Page == (view?.PageCount ?? 1) - 1, "마지막 페이지까지 넘어갔다");
+        Ok(view?.Cursor == Achievements.Total - 1, $"↓ 만으로 마지막 줄까지 내려갔다 (커서 {view?.Cursor})");
+        Ok(view != null && Mathf.IsEqualApprox(view.Scroll, AchievementArchiveView.MaxScroll),
+            "목록이 끝까지 스크롤됐다");
 
         // ⑤ ESC → 타이틀 메뉴로 복귀.
         Press(Key.Escape);
@@ -97,17 +100,42 @@ public partial class AchievementShot : Node
         // ⑥ 달성 팝업 — 오른쪽 아래.
         m?.Unlock(Achievements.GhostDispelled);
         for (int i = 0; i < 300 && AchievementToast.Instance?.IsShowing != true; i++) await Frame();
-        await Seconds(0.45);
         var toast = AchievementToast.Instance;
-        Ok(toast?.CardVisible == true, $"팝업이 떴다 — “{toast?.ShownTitle}”");
-        Shot("05_달성팝업");
-        await Seconds(0.5);
-        Shot("06_달성팝업_유지");
 
-        // 사라지는지도 본다(3.4초 유지 + 0.3초 페이드).
-        await Seconds(4.0);
+        // 올라오는 동안을 촘촘히 찍는다 — 제자리보다 한 번 더 솟았다가 내려앉는
+        // "뽀잉" 은 정지 화면 한 장으로는 확인할 수 없다.
+        GD.Print($"   제자리 높이 {toast?.CardRestTop:0.0}");
+        for (int i = 0; i < 9; i++)
+        {
+            GD.Print($"   올라옴 {i} — 높이 {toast?.CardTop,7:0.0}");
+            Shot($"05_올라옴_{i}");
+            await Seconds(0.05);
+        }
+        await Seconds(0.3);
+        Ok(toast?.CardVisible == true, $"팝업이 떴다 — “{toast?.ShownTitle}”");
+        Shot("06_달성팝업_제자리");
+
+        // 퇴장 — 위로 살짝 튕긴 뒤 아래로 빠지는지 본다.
+        //
+        // **화면 저장을 섞지 않는다.** 1920×1080 PNG 한 장이 0.2초쯤 걸려서, 0.13초짜리
+        // 튕김이 두 장 사이로 빠져나간다(실제로 그래서 놓쳤다). 매 프레임 높이만 읽어
+        // 그동안의 **가장 높은 지점**을 적는다 — 제자리보다 위로 올라갔으면 튕긴 것이다.
+        float top = toast?.CardTop ?? 0f;
+        float peak = top, bottom = top;
+        for (int i = 0; i < 260 && toast?.IsShowing == true; i++)
+        {
+            await Frame();
+            top = toast?.CardTop ?? top;
+            peak = Mathf.Min(peak, top);     // 값이 작을수록 위
+            bottom = Mathf.Max(bottom, top);
+        }
+        GD.Print($"   퇴장 — 제자리 {toast?.CardRestTop:0.0} · 가장 높이 {peak:0.0} · 가장 아래 {bottom:0.0}");
+        Ok(peak < (toast?.CardRestTop ?? 0f) - 2f, $"내려가기 전에 위로 튕긴다 ({peak:0.0})");
+        Ok(bottom > (toast?.CardRestTop ?? 0f) + 20f, $"그 뒤 아래로 빠진다 ({bottom:0.0})");
+        Shot("07_퇴장후");
+
         Ok(toast?.IsShowing == false, "팝업이 저절로 사라졌다");
-        Shot("07_팝업_사라짐");
+        Shot("08_팝업_사라짐");
 
         GD.Print($"\nsaved → {_dir}");
         DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(ShotStore));

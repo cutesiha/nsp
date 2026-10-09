@@ -24,6 +24,7 @@ public partial class PauseMenu : CanvasLayer
     private Control _confirm;
     private Font _serif, _body;
     private SettingsPanel _settings;
+    private AchievementPanel _achievements;
 
     public bool IsOpen => Visible;
 
@@ -55,6 +56,9 @@ public partial class PauseMenu : CanvasLayer
     {
         if (!Visible) return;
         HideConfirm();
+        // 일시정지를 닫으면 그 위에 떠 있던 창도 같이 걷는다 — 다음에 ESC 를 눌렀을 때
+        // 메뉴 대신 도전과제가 먼저 보이면 안 된다.
+        if (_achievements != null && IsInstanceValid(_achievements)) _achievements.Close();
         Visible = false;
         GetTree().Paused = false;
     }
@@ -70,8 +74,9 @@ public partial class PauseMenu : CanvasLayer
     {
         if (e is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
 
-        // 설정 창이 열려 있으면 그 창이 ESC 를 먼저 처리한다.
+        // 설정 창 · 도전과제 창이 열려 있으면 그 창이 ESC 를 먼저 처리한다.
         if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
+        if (_achievements != null && IsInstanceValid(_achievements) && _achievements.Visible) return;
 
         // 시작 화면(중앙제어실 전체가 타이틀)에서는 ESC 가 그쪽 단말기의 '뒤로'다.
         if (TitleRoomDirector.Instance?.IsRunning == true) return;
@@ -99,7 +104,9 @@ public partial class PauseMenu : CanvasLayer
         scrim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _root.AddChild(scrim);
 
-        var sheet = MakeSheet(-330f, 330f, -282f, 282f);
+        // 카드가 넷(설정 · 도전과제 · 시작화면으로 · 나가기)이라 그 높이에 맞춘다 —
+        // 저장/불러오기를 걷어내고도 창 크기를 그대로 두면 아래가 휑하게 빈다.
+        var sheet = MakeSheet(-330f, 330f, -222f, 222f);
         _root.AddChild(sheet);
 
         // 오른쪽 위 닫기(X).
@@ -143,8 +150,9 @@ public partial class PauseMenu : CanvasLayer
         vb.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 
         vb.AddChild(Card("설  정", true, OpenSettings));
-        vb.AddChild(Card("저장하기", false, null));
-        vb.AddChild(Card("불러오기", false, null));
+        // 저장/불러오기는 애초에 없는 기능이라 비활성 카드로만 자리를 차지하고 있었다.
+        // 그 자리를 도전과제 기록이 받는다 — 타이틀에서 보던 그 화면 그대로.
+        vb.AddChild(Card("도전과제", true, OpenAchievements));
         vb.AddChild(Card("시작화면으로", true,
             () => ShowConfirm("시작화면으로 돌아가시겠습니까?", GoToTitle)));
         vb.AddChild(Card("나가기", true,
@@ -279,6 +287,16 @@ public partial class PauseMenu : CanvasLayer
         _settings.Open();
     }
 
+    private void OpenAchievements()
+    {
+        if (_achievements == null || !IsInstanceValid(_achievements))
+        {
+            _achievements = new AchievementPanel();
+            AddChild(_achievements);
+        }
+        _achievements.Open();
+    }
+
     // 처음부터 다시 시작. autoload(GameState / FacilitySimulation / EventLog / 금기)는
     // 씬을 다시 로드해도 살아남으므로 여기서 명시적으로 초기화해야 DAY 1 로 돌아간다.
     private void GoToTitle()
@@ -297,10 +315,18 @@ public partial class PauseMenu : CanvasLayer
         GetTree().ChangeSceneToFile(TitleScenePath);
     }
 
-    private void QuitGame()
+    // 타이틀의 시스템 종료와 같은 규약 — 창이 그냥 사라져 바탕화면이 번쩍이지 않도록
+    // 화면 전체를 한 번 검게 덮고 끈다.
+    private async void QuitGame()
     {
         GetTree().Paused = false;
+        Visible = false;
         GameSettings.Save();
+        Sfx.Instance?.Play("power_down", -6f);
+        var blink = NSP.Ui.BlinkOverlay.Instance;
+        if (blink != null) await blink.Close(0.45);
+        else await ToSignal(GetTree().CreateTimer(0.45), SceneTreeTimer.SignalName.Timeout);
+        await ToSignal(GetTree().CreateTimer(0.06), SceneTreeTimer.SignalName.Timeout);
         GetTree().Quit();
     }
 

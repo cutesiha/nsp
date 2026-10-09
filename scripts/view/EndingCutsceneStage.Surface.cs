@@ -49,6 +49,12 @@ public partial class EndingCutsceneStage
             e.BackgroundMode = Godot.Environment.BGMode.Sky;
             e.Sky ??= new Sky
             {
+                // 하늘빛은 환경광(AmbientSource.Color)으로 따로 주고 있어서 이 하늘의
+                // 방사 큐브맵을 쓰는 곳이 없다. 그런데 기본값이면 그걸 **매 프레임**
+                // 다시 굽는다 — 지상 컷이 유독 느렸던 이유 중 하나다.
+                // 하늘 색은 고정이므로 한 번만 굽고(Quality), 크기도 최소로 둔다.
+                ProcessMode = Sky.ProcessModeEnum.Quality,
+                RadianceSize = Sky.RadianceSizeEnum.Size32,
                 SkyMaterial = new ProceduralSkyMaterial
                 {
                     SkyTopColor = new Color(0.035f, 0.012f, 0.014f),
@@ -216,6 +222,11 @@ public partial class EndingCutsceneStage
                 NoDepthTest = false,
             },
             CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            // 재는 천천히 떠다닌다 — 초당 60번씩 다시 계산할 이유가 없다.
+            // 24fps 로 시뮬레이션하고 그 사이를 보간하면 보이는 움직임은 그대로이면서
+            // 입자 계산 비용이 절반 아래로 떨어진다(내장 그래픽에서 체감 차이가 크다).
+            FixedFps = 24,
+            Interpolate = true,
         };
         parent.AddChild(p);
         return p;
@@ -364,8 +375,10 @@ public partial class EndingCutsceneStage
             _pSurface.AddChild(l);
             _fireLights.Add((l, 3.4f, i * 0.37f));
             // 불마다 연기 기둥이 올라간다 — 가늘고 길게, 위로.
+            // 큰 반투명 판이 화면을 여러 겹 덮으면 내장 그래픽에서 그대로 프레임이 된다.
+            // 개수를 줄이고 한 장을 조금 더 진하게 — 보이는 연기 농도는 거의 같다.
             var sm = Ash(_pSurface, at with { Y = 2.4f }, new Vector3(0.7f, 1.6f, 0.7f),
-                new Vector3(0.18f, 1f, 0.05f), 2.9f, 22, 0.17f,
+                new Vector3(0.18f, 1f, 0.05f), 2.9f, 12, 0.22f,
                 new Color(0.24f, 0.18f, 0.16f), 7.0);
             sm.Emitting = true;
         }
@@ -374,12 +387,14 @@ public partial class EndingCutsceneStage
         // 화면 전체를 덮어야 "공기가 탁하다" 가 된다. 카메라 앞을 가로질러 흐른다.
         // 잘고 많아야 '재' 가 된다. 크고 적으면 그냥 회색 덩어리다.
         Ash(_pSurface, new Vector3(0f, 7f, -16f), new Vector3(38f, 10f, 26f),
-            new Vector3(1f, 0.1f, 0.25f), 0.21f, 520, 0.13f,
+            new Vector3(1f, 0.1f, 0.25f), 0.21f, 380, 0.15f,
             new Color(0.38f, 0.26f, 0.22f), 9.0).Emitting = true;
 
         // 더 멀리, 더 크고 느린 연무 한 겹 — 깊이를 만든다.
+        // 7.5 m 짜리 반투명 판 예순 장은 화면을 예순 겹으로 덮는다. 와이드 컷이 유독
+        // 느렸던 원인이 이것이었다(측정 217ms). 장수를 줄이고 한 장을 진하게 한다.
         Ash(_pSurface, new Vector3(0f, 12f, -56f), new Vector3(70f, 14f, 34f),
-            new Vector3(1f, 0.16f, 0f), 7.5f, 60, 0.065f,
+            new Vector3(1f, 0.16f, 0f), 8.0f, 20, 0.11f,
             new Color(0.36f, 0.16f, 0.12f), 14.0).Emitting = true;
 
         // 아직도 떨어지는 잔해 조각.

@@ -88,7 +88,7 @@ public partial class ShiftReportView : Control
         var sb = new StringBuilder();
         // 마지막 날 — 제목부터 FINAL SHIFT REPORT. 5일간 쌓은 코어 복구율을 제일 크게 보여 준다
         // (이 숫자 하나로 엔딩이 갈린다).
-        bool final = gs.CurrentDay >= (Config.Instance?.Data?.MaxDays ?? 5);
+        bool final = gs.CurrentDay >= GameModes.MaxDays;
         _title.Text = final ? "FINAL SHIFT REPORT" : "SHIFT REPORT";
         _title.AddThemeColorOverride("font_color", final ? Amber : Ink);
         if (final)

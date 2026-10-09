@@ -175,7 +175,7 @@ public partial class ControlRoom3DController : Node3D
         if (DayFeatures.SaboteurActive && string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
         {
             var sim = FacilitySimulation.Instance;
-            GameState.Instance?.AssignRandomSaboteur(sim?.GetActiveEmployeeIds() ?? new System.Collections.Generic.List<string>());
+            GameState.Instance?.AssignSaboteurForMode(sim?.GetActiveEmployeeIds() ?? new System.Collections.Generic.List<string>());
             string id = GameState.Instance?.SaboteurEmployeeId ?? "";
             if (!string.IsNullOrEmpty(id))
             {
@@ -377,6 +377,11 @@ public partial class ControlRoom3DController : Node3D
     // 붙어 있는 건 최대 2개다. 나머지는 매 프레임 render target 을 새로 그릴 이유가 없다.
     // 지금 어느 화면에도 안 붙은 뷰포트는 Disabled 로 내려 GPU/CPU 를 통째로 아낀다.
     // (Disabled 여도 안의 Control 은 _Process/_Input 을 그대로 받으므로 로직은 동일하다.)
+    // 프롤로그 · 엔딩 컷씬 화면이 창을 통째로 덮고 있는가(EndingCutsceneStage 가 켠다).
+    // 덮여 있는 동안에는 CRT 안의 화면도 보이지 않는다 — 그릴 이유가 없다.
+    // 안의 Control 은 _Process 를 그대로 받으므로 타이핑 · 타이머 같은 로직은 멈추지 않는다.
+    public static bool WorldCovered { get; set; }
+
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false, storyOnScreen = false;
@@ -389,7 +394,7 @@ public partial class ControlRoom3DController : Node3D
 
             // CRT 가 꺼져 있는 단계(시작 화면 / 근무 배치)에서는 화면이 사실상 검게
             // 눌려 있으므로 한 프레임만 그려두고 멈춘다(Once → 엔진이 알아서 Disabled).
-            var want = !bound ? SubViewport.UpdateMode.Disabled
+            var want = WorldCovered || !bound ? SubViewport.UpdateMode.Disabled
                 : _brightness > 0.1f ? SubViewport.UpdateMode.Always
                 : SubViewport.UpdateMode.Once;
             if (vp.RenderTargetUpdateMode != want) vp.RenderTargetUpdateMode = want;

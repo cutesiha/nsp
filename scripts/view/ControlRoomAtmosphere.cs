@@ -103,13 +103,17 @@ public partial class ControlRoomAtmosphere : Node3D
 
     public override void _Ready()
     {
-        _vent = MakeLoop3D("vent_loop", NodeAt(VentPath), -6f, 0f, 3.5f, 14f, offDelay: 1.2f, onDelay: 2.0f);
+        // 아래 음량은 **이제야 의미가 생긴 값**이다. 그동안 이 루프들은 한 바퀴 돌고
+        // 멈춰 있었기 때문에(LoadLoop 주석 참조) 숫자를 아무리 올려도 들리지 않았다.
+        // 지금은 방의 바닥 소음을 새 베드(machine/industrial_fan)가 맡으므로, 이 겹들은
+        // 그 위에 얹는 **자리 표시**다 — 환풍구는 저쪽, CRT 는 눈앞, 기계는 벽 너머.
+        _vent = MakeLoop3D("vent_loop", NodeAt(VentPath), -18f, 0f, 3.5f, 14f, offDelay: 1.2f, onDelay: 2.0f);
         _fluor = MakeLoop3D("fluor_hum", NodeAt(CeilingLightPath), -21f, 0f, 2.2f, 9f, offDelay: 0.5f, onDelay: 0.8f);
         // 천장광 비활성 상태 — 방의 광원은 두 모니터뿐이라 형광등 웅웅 소리도 끈다(레이어는 남겨 둔다).
         _fluor.NormalDb = Silent;
-        _machinery = MakeLoop3D("machinery_loop", NodeAt(WallPath), -20f, 0f, 6f, 22f, offDelay: 0.0f, onDelay: 0.0f);
-        _crt.Add(MakeLoop3D("crt_hum", NodeAt(M01ScreenPath), -19f, 0f, 1.4f, 4.5f, offDelay: 2.0f, onDelay: 1.6f));
-        _crt.Add(MakeLoop3D("crt_hum", NodeAt(M02ScreenPath), -19f, 0f, 1.4f, 4.5f, offDelay: 2.0f, onDelay: 1.6f));
+        _machinery = MakeLoop3D("machinery_loop", NodeAt(WallPath), -24f, 0f, 6f, 22f, offDelay: 0.0f, onDelay: 0.0f);
+        _crt.Add(MakeLoop3D("crt_hum", NodeAt(M01ScreenPath), -22f, 0f, 1.4f, 4.5f, offDelay: 2.0f, onDelay: 1.6f));
+        _crt.Add(MakeLoop3D("crt_hum", NodeAt(M02ScreenPath), -22f, 0f, 1.4f, 4.5f, offDelay: 2.0f, onDelay: 1.6f));
 
         _drone = new Layer { NormalDb = -34f, OffDelay = 2.8f, OnDelay = 2.6f, TgtDb = Silent };
         _drone.P2 = MakeLoop2D("drone_loop", Silent);
@@ -118,7 +122,7 @@ public partial class ControlRoomAtmosphere : Node3D
         _chair = new AudioStreamPlayer3D { VolumeDb = -8f, UnitSize = 2f, MaxDistance = 6f, Bus = NSP.Core.GameSettings.BusSfx };
         (NodeAt(ChairPath) ?? (Node3D)this).AddChild(_chair);
 
-        _alarm = MakeLoop2D("alarm", Silent);
+        _alarm = MakeLoop2D("alarm", Silent, NSP.Core.GameSettings.BusSfx);
 
         _electric = MakeSimpleLoop3D("electric_crackle_loop", NodeAt(ControlPanelPath), 2.4f, 9f);
         _sensorWhir = MakeSimpleLoop3D("crt_hum", NodeAt(AlertTerminalPath), 1.1f, 3.5f);
@@ -132,13 +136,13 @@ public partial class ControlRoomAtmosphere : Node3D
     // Layer 목록(_all)에 넣지 않는 단순 3D 루프 — 상태별 볼륨/피치는 _Process 에서 직접 몬다.
     private AudioStreamPlayer3D MakeSimpleLoop3D(string key, Node3D at, float unit, float maxDist)
     {
-        var stream = Load(key);
-        if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        var stream = LoadLoop(key);
         var p = new AudioStreamPlayer3D
         {
-            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = NSP.Core.GameSettings.BusSfx,
+            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = NSP.Core.GameSettings.BusAmbience,
         };
         (at ?? (Node3D)this).AddChild(p);
+        Sfx.KeepLooping(p);
         if (stream != null) p.Play();
         return p;
     }
@@ -203,25 +207,27 @@ public partial class ControlRoomAtmosphere : Node3D
 
     private Layer MakeLoop3D(string key, Node3D at, float normalDb, float startDb, float unit, float maxDist, float offDelay, float onDelay)
     {
-        var stream = Load(key);
-        if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+        var stream = LoadLoop(key);
         var p = new AudioStreamPlayer3D
         {
-            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = NSP.Core.GameSettings.BusSfx,
+            Stream = stream, VolumeDb = Silent, UnitSize = unit, MaxDistance = maxDist, Bus = NSP.Core.GameSettings.BusAmbience,
         };
         (at ?? (Node3D)this).AddChild(p);
+        Sfx.KeepLooping(p);
         if (stream != null) p.Play();
         var l = new Layer { P3 = p, NormalDb = normalDb, OffDelay = offDelay, OnDelay = onDelay, TgtDb = Silent };
         _all.Add(l);
         return l;
     }
 
-    private AudioStreamPlayer MakeLoop2D(string key, float startDb)
+    // bus 를 따로 받는 이유: 비상 경고음은 환경음이 아니라 **알림**이다. 말소리에
+    // 눌려 사라지면 안 되므로 더킹이 걸리는 Ambience 버스에 두지 않는다.
+    private AudioStreamPlayer MakeLoop2D(string key, float startDb, string bus = null)
     {
-        var stream = Load(key);
-        if (stream is AudioStreamWav wav) wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
-        var p = new AudioStreamPlayer { Stream = stream, VolumeDb = startDb, Bus = NSP.Core.GameSettings.BusSfx };
+        var stream = LoadLoop(key);
+        var p = new AudioStreamPlayer { Stream = stream, VolumeDb = startDb, Bus = bus ?? NSP.Core.GameSettings.BusAmbience };
         AddChild(p);
+        Sfx.KeepLooping(p);
         if (stream != null) p.Play();
         return p;
     }
@@ -230,6 +236,17 @@ public partial class ControlRoomAtmosphere : Node3D
     {
         string path = $"res://assets/audio/sfx/{key}.wav";
         return ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;
+    }
+
+    // 루프로 쓸 사본. **원본을 그대로 고치지 않는다** — 같은 파일을 한 번만 울리는
+    // 일회성 효과음으로 쓰는 곳(Sfx.Play)이 있어서, 원본에 루프를 박으면 그쪽이 안 끝난다.
+    private static AudioStream LoadLoop(string key)
+    {
+        var src = Load(key);
+        if (src == null) return null;
+        var copy = (AudioStream)src.Duplicate();
+        Sfx.MakeLooping(copy);
+        return copy;
     }
 
     public override void _Process(double delta)
@@ -260,9 +277,55 @@ public partial class ControlRoomAtmosphere : Node3D
         _alarm.VolumeDb = Mathf.MoveToward(_alarm.VolumeDb, blackout ? -22f : Silent, d * 20f);
 
         TickNewAmbience(d, blackout);
+        TickFacilityBed();
         TickOneShots(d);
         TickBreathStress(d);
     }
+
+    // ── 시설 환경음 베드(기계 + 환기) ───────────────────────────────────
+    //
+    // 두 겹이 실제 음량을 올리고 내리는 일은 Sfx 가 한다(음악과 분리된 Ambience 버스).
+    // 여기서는 **지금 어느 단계인가** 만 보고 목표 음량을 넘겨 준다.
+    //
+    //   실시간 근무   두 겹이 전면에 나온다 — 이 화면의 사실상 BGM 이다
+    //   배치 · 휴게   아주 작게, 배경으로만
+    //   스토리 진행   작게 — 대사가 주인공이다
+    //   정전          기계가 멎는다. 천천히 내려가 무음이 된다
+    //   환기 고장     송풍 겹만 내려앉는다(설비가 멈춘 것이 소리로 보여야 한다)
+    private void TickFacilityBed()
+    {
+        var sfx = Sfx.Instance;
+        if (sfx == null) return;
+
+        // 프롤로그 · 엔딩 컷씬이 화면을 덮는 동안은 여기가 아닌 다른 장소다.
+        if (ControlRoom3DController.WorldCovered)
+        {
+            sfx.SetFacilityBed(Sfx.AmbienceSilentDb, Sfx.AmbienceSilentDb);
+            return;
+        }
+        if (_amb == Amb.Blackout)
+        {
+            sfx.SetFacilityBed(Sfx.AmbienceSilentDb, Sfx.AmbienceSilentDb);
+            return;
+        }
+
+        bool live = _amb != Amb.Off;
+        bool story = StoryCutinDirector.PausesGameplay || StoryTransition.Active;
+        float machine = !live ? BedIdleMachineDb : story ? BedStoryMachineDb : BedLiveMachineDb;
+        float fan = !live ? BedIdleFanDb : story ? BedStoryFanDb : BedLiveFanDb;
+        if (_ventFaultDown) fan = Mathf.Min(fan, BedVentDownFanDb);
+        sfx.SetFacilityBed(machine, fan);
+    }
+
+    // 기계 쪽을 늘 더 크게 둔다(요청) — 송풍은 그 뒤에 깔린다.
+    private const float BedLiveMachineDb = -10f;
+    private const float BedLiveFanDb = -16f;
+    private const float BedStoryMachineDb = -26f;
+    private const float BedStoryFanDb = -32f;
+    private const float BedIdleMachineDb = -28f;
+    private const float BedIdleFanDb = -34f;
+    // 환기가 죽어 있는 동안의 송풍 겹 상한.
+    private const float BedVentDownFanDb = -42f;
 
     // 배전 치치직 / 패드 구동음 / 숨소리. Layer 시스템(_all) 밖에서 상태별로 직접 몬다.
     private void TickNewAmbience(float d, bool blackout)
@@ -572,10 +635,26 @@ public partial class ControlRoomAtmosphere : Node3D
     }
 
     // --- 랜덤 One-shot / 깜빡임 -----------------------------------------
-    private static readonly (string key, float db)[] OneShots =
+    //
+    // 전부 같은 자리(Atmosphere 노드)에서 울리면 "소리가 어디선가 난다" 가 아니라
+    // "효과음이 재생됐다" 가 된다. 소리마다 **얼마나 멀리서 나는가** 를 정해 두고,
+    // 들을 때마다 관리자 주위의 다른 방향에 놓는다.
+    //
+    //   near   책상 둘레 — 계전기처럼 바로 옆에서 나는 것
+    //   mid    벽 · 천장 배관 — 방 안이지만 손이 닿지 않는 거리
+    //   far    복도 너머 — 금속이 울리는 먼 소리. 작게, 멀리
+    private readonly record struct OneShot(string Key, float Db, float Near, float Far, float HighMin, float HighMax);
+
+    private static readonly OneShot[] OneShots =
     {
-        ("metal_clang", -10f), ("pipe_knock", -13f), ("steam_hiss", -12f),
-        ("relay_click", -14f), ("chair_creak", -9f),
+        // 원거리 금속음 — 복도 끝에서 울린다.
+        new("metal_clang", -14f, 9f, 16f, -0.5f, 1.5f),
+        // 배관 충격 — 천장 쪽 배관을 타고 온다.
+        new("pipe_knock", -13f, 3.5f, 7f, 1.4f, 2.6f),
+        // 증기 — 벽 뒤 설비.
+        new("steam_hiss", -14f, 3f, 6f, 0.2f, 1.6f),
+        // 계전기 — 책상 주변 기기.
+        new("relay_click", -16f, 1.0f, 2.2f, -0.2f, 0.9f),
     };
 
     private void TickOneShots(float d)
@@ -587,17 +666,7 @@ public partial class ControlRoomAtmosphere : Node3D
         {
             bool tense = _amb is Amb.Warning or Amb.TabooPrecursor;
             _nextOneShot = (float)GD.RandRange(tense ? 4.0 : 9.0, tense ? 11.0 : 24.0);
-            var (key, db) = OneShots[GD.Randi() % OneShots.Length];
-            var s = Load(key);
-            if (s == null) return;
-            var p = new AudioStreamPlayer3D
-            {
-                Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 16f, Bus = NSP.Core.GameSettings.BusSfx,
-                PitchScale = (float)GD.RandRange(0.9, 1.1),
-            };
-            AddChild(p);
-            p.Play();
-            p.Finished += () => p.QueueFree();
+            PlayScattered(OneShots[GD.Randi() % OneShots.Length]);
         }
 
         // 금기 전조: 형광등/CRT 불안정 — 주기적 깜빡임 + 순간 볼륨 딥.
@@ -614,11 +683,45 @@ public partial class ControlRoomAtmosphere : Node3D
         }
     }
 
+    // 관리자를 둘러싼 아무 방향에, 그 소리에 맞는 거리로 한 번 울린다.
+    //
+    // 듣는 자리는 카메라다. 카메라를 기준으로 놓아야 고개를 어디로 돌리고 있든
+    // "왼쪽 뒤에서 났다" 가 성립한다. 방 안 고정 노드에 붙이면 확대/회전할 때마다
+    // 같은 소리가 엉뚱한 방향에서 난다.
+    private void PlayScattered(OneShot shot)
+    {
+        var s = Load(shot.Key);
+        if (s == null) return;
+        var cam = GetViewport()?.GetCamera3D();
+        Vector3 ear = cam?.GlobalPosition ?? GlobalPosition;
+
+        float yaw = (float)GD.RandRange(0.0, Mathf.Tau);
+        float dist = (float)GD.RandRange(shot.Near, shot.Far);
+        float height = (float)GD.RandRange(shot.HighMin, shot.HighMax);
+        var at = ear + new Vector3(Mathf.Cos(yaw) * dist, height, Mathf.Sin(yaw) * dist);
+
+        var p = new AudioStreamPlayer3D
+        {
+            Stream = s,
+            VolumeDb = shot.Db,
+            // 멀리서 나는 소리일수록 단위 거리를 크게 잡아야 그 거리에서 들린다.
+            // 그러면서도 최대 거리를 넘지는 않게 둔다.
+            UnitSize = Mathf.Max(1.5f, shot.Near * 0.8f),
+            MaxDistance = shot.Far * 2.2f,
+            Bus = NSP.Core.GameSettings.BusAmbience,
+            PitchScale = (float)GD.RandRange(0.9, 1.1),
+        };
+        AddChild(p);
+        p.GlobalPosition = at;
+        p.Play();
+        p.Finished += () => p.QueueFree();
+    }
+
     private void PlayOn(Node3D at, string key, float db)
     {
         var s = Load(key);
         if (s == null) return;
-        var p = new AudioStreamPlayer3D { Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 14f, Bus = NSP.Core.GameSettings.BusSfx };
+        var p = new AudioStreamPlayer3D { Stream = s, VolumeDb = db, UnitSize = 3f, MaxDistance = 14f, Bus = NSP.Core.GameSettings.BusAmbience };
         (at ?? (Node3D)this).AddChild(p);
         p.Play();
         p.Finished += () => p.QueueFree();

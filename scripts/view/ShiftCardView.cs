@@ -120,7 +120,7 @@ public partial class ShiftCardView : CanvasLayer
     // DAY3 · 전체 5일이면 (5-3)*24 = 48시간 — 지시서 §9 의 예와 같다.
     public static int ShieldHoursLeft(int day)
     {
-        int max = Config.Instance?.Data?.MaxDays ?? 5;
+        int max = GameModes.MaxDays;
         return Mathf.Max(0, max - day) * 24;
     }
 

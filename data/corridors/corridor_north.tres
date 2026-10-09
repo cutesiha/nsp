@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="CorridorDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 중앙제어실 북측 접근 통로 — 코어실 ↔ 중앙제어실.
+;
+; 이 파일은 **새 연결을 만들지 않는다.** 코어실↔중앙제어실 간선은 이미
+; data/rooms/core_room.tres 의 ConnectedRoomIds 에 있고, 여기서는 그 간선 위에
+; 이름 · 차폐문 · 카메라만 얹는다(CorridorNet).
+;
+; 관리자가 있는 방으로 곧장 들어오는 가장 짧은 길이라 괴물 접근 레인으로 쓴다.
+; 직원 입장에서는 근무 시작 배치 때 코어실로 들어가는 길이기도 하다 —
+; 근무 중에 닫아 두면 코어실 재배치가 저장고를 돌아가게 된다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/CorridorDef.cs" id="1_cor"]
+
+[resource]
+script = ExtResource("1_cor")
+SegmentId = "corridor_north"
+DisplayName = "북측 접근 통로"
+RoomA = "core_room"
+RoomB = "central_office"
+Kind = 2
+IsBlockable = true
+CctvCameraId = "CAM-H01"
+ThreatLane = true
+DriveSeconds = 0.8
+MaxSealSeconds = 9.0
+ReengageCooldownSeconds = 3.0

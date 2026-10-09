@@ -12,6 +12,9 @@ public static class GameSettings
     public const string BusMaster = "Master";
     public const string BusBgm = "BGM";
     public const string BusSfx = "SFX";
+    // 시설 환경음(기계 · 환기) 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따르되,
+    // 음악과는 완전히 분리된다 — BGM 을 내려도 시설 소음은 계속 돈다.
+    public const string BusAmbience = "Ambience";
     // 무전/인터컴 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     // 기존 직원 보이스를 그대로 통과시키되 대역만 좁혀 "무전기에서 나오는 소리"로 만든다.
     public const string BusRadio = "Radio";
@@ -110,6 +113,24 @@ public static class GameSettings
         EnsureRadioBus();
         EnsureScreamBus();
         EnsureHorrorBus();
+        EnsureAmbienceBus();
+    }
+
+    // 시설 환경음(기계 · 환기) 전용 버스.
+    //
+    // **음악과 완전히 따로 둔다.** 근무가 시작되면 BGM 은 페이드아웃되지만 시설 소음은
+    // 계속 돌아야 한다 — 같은 버스에 있으면 음악을 줄일 때 시설도 같이 죽는다.
+    // SFX 로 보내므로 플레이어의 효과음 볼륨 설정은 그대로 따른다.
+    //
+    // 대사 · 전화 · 공포음이 울릴 때 이 버스만 잠깐 눌러(Sfx.DuckAmbience) 환경음이
+    // 말을 덮지 않게 한다. 그러려면 환경음이 자기 버스에 혼자 있어야 한다.
+    private static void EnsureAmbienceBus()
+    {
+        if (AudioServer.GetBusIndex(BusAmbience) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusAmbience);
+        AudioServer.SetBusSend(idx, BusSfx);
     }
 
     // 공포 ambience 버스. 패너 하나와 아주 얕은 잔향만 둔다.

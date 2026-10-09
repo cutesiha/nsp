@@ -18,8 +18,13 @@ namespace NSP.Core;
 public static class DayObjectives
 {
     private const string Folder = "res://data/objectives";
+    // 대회용 3일 전용 목표. 기본 5일은 위 폴더를, 대회용은 이 폴더를 읽는다 —
+    // 두 벌을 한 폴더에 섞으면 같은 Day 가 둘이 되어 어느 쪽이 뽑힐지 알 수 없다.
+    // (ResourceDir.ListFiles 는 하위 폴더로 내려가지 않으므로 서로 간섭하지 않는다.)
+    private const string CompetitionFolder = "res://data/objectives/competition";
 
     private static readonly List<DayPlanDef> _plans = new();
+    private static readonly List<DayPlanDef> _compPlans = new();
     private static bool _loaded;
 
     // 업무 한 줄의 현재 상태(화면 표시용).
@@ -41,14 +46,20 @@ public static class DayObjectives
     {
         if (_loaded) return;
         _loaded = true;
-        foreach (string path in ResourceDir.ListFiles(Folder, ".tres"))
-        {
-            var res = GD.Load<DayPlanDef>(path);
-            if (res != null) _plans.Add(res);
-        }
-        _plans.Sort((a, b) => a.Day.CompareTo(b.Day));
+        Load(Folder, _plans);
+        Load(CompetitionFolder, _compPlans);
         if (_plans.Count == 0)
             GD.PushWarning($"DayObjectives: {Folder} 에서 업무 목록을 찾지 못했습니다.");
+    }
+
+    private static void Load(string folder, List<DayPlanDef> into)
+    {
+        foreach (string path in ResourceDir.ListFiles(folder, ".tres"))
+        {
+            var res = GD.Load<DayPlanDef>(path);
+            if (res != null) into.Add(res);
+        }
+        into.Sort((a, b) => a.Day.CompareTo(b.Day));
     }
 
     public static DayPlanDef Today => For(GameState.Instance?.CurrentDay ?? 1);
@@ -56,6 +67,11 @@ public static class DayObjectives
     public static DayPlanDef For(int day)
     {
         EnsureLoaded();
+        // 대회용은 전용 목록을 먼저 본다. 그 날짜가 없으면 기본 목록으로 물러난다 —
+        // 전용 데이터가 빠져도 업무 목록이 통째로 비지는 않게.
+        if (GameModes.Current == GameMode.Competition)
+            foreach (var p in _compPlans)
+                if (p.Day == day) return p;
         foreach (var p in _plans)
             if (p.Day == day) return p;
         return null;
@@ -179,11 +195,35 @@ public static class DayObjectives
     // 이번 근무에서 달성한 선택 업무 수 = 업무평가 점수.
     public static int OptionalCompleted() => Lines().Count(l => !l.Required && l.Done);
 
-    // 5일 근무를 마친 뒤의 관리자 평가 등급.
+    // ── "복구 완료" 의 기준 ────────────────────────────────────────────────
+    //
+    // 이번 모드의 **마지막 날 코어 목표치**다. 기본 5일은 DAY5 의 100%, 대회용 3일은
+    // DAY3 의 58% — 즉 기본 모드에서는 예전과 숫자 하나 다르지 않다.
+    //
+    // 100% 를 상수로 박아 두면 3일짜리 모드에서는 코어 목표 곡선(18/38/58/80/100)상
+    // 도달 자체가 불가능해, 엔딩 네 갈래 중 '복구 성공' 두 갈래가 영영 열리지 않는다.
+    // 밸런스 수치는 그대로 두고 **기준만 그 모드의 마지막 날로** 옮긴다.
+    public static float FinalCoreTarget
+    {
+        get
+        {
+            var plan = For(GameModes.MaxDays);
+            if (plan == null) return 100f;
+            foreach (var def in plan.Objectives)
+                if (def is { Type: DayObjectiveType.CoreProgress, TargetValue: > 0f })
+                    return def.TargetValue;
+            return 100f;
+        }
+    }
+
+    // 엔딩 · 최종 기록 · 평가 등급이 전부 이 하나를 본다.
+    public static bool CoreRecovered(float coreProgress) => coreProgress >= FinalCoreTarget - 0.001f;
+
+    // 근무를 전부 마친 뒤의 관리자 평가 등급.
     // 선택 업무는 성능 보상을 주지 않는다 — 오직 이 등급에만 반영된다.
     public static string Grade(float coreProgress, int evaluationScore)
     {
-        if (coreProgress < 100f) return evaluationScore >= 3 ? "C" : "D";
+        if (!CoreRecovered(coreProgress)) return evaluationScore >= 3 ? "C" : "D";
         if (evaluationScore >= 5) return "S";
         if (evaluationScore >= 3) return "A";
         return evaluationScore >= 1 ? "B" : "C";
@@ -192,6 +232,7 @@ public static class DayObjectives
     public static void Reload()
     {
         _plans.Clear();
+        _compPlans.Clear();
         _loaded = false;
         EnsureLoaded();
     }

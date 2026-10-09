@@ -89,13 +89,17 @@ public partial class TitleRoomDirector : Node
 
     private TitleHintHud _hint;
 
-    // Archive = 도전과제 기록실을 보는 중. 메뉴 입력과 완전히 분리해 두어
-    // 기록을 넘기다가 「근무 개시」가 실수로 실행되지 않게 한다.
-    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, Done }
+    // Archive   = 도전과제 기록실을 보는 중. 메뉴 입력과 완전히 분리해 두어
+    //             기록을 넘기다가 「근무 개시」가 실수로 실행되지 않게 한다.
+    // ModeSelect = 근무 유형(대회용 / 기본 / 하드)을 고르는 중. 마찬가지로 분리한다.
+    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, ModeSelect, Done }
     private Phase _phase = Phase.Off;
 
-    // 기록실을 보는 동안의 조작 안내.
-    private const string ArchiveHint = "↑ ↓ 이동   ← → 페이지   ESC 뒤로";
+    // 기록실 · 근무 유형 선택을 보는 동안의 조작 안내.
+    private const string ArchiveHint = "↑ ↓ 이동   휠 스크롤   ESC 뒤로";
+    private const string ModeHint = "↑ ↓ 이동   ENTER 확정   ESC 취소";
+    // 휠 한 칸에 굴러가는 거리(논리 px). 한 줄(78px)보다 조금 작게 — 줄이 툭툭 끊기지 않는다.
+    private const float ArchiveWheelStep = 62f;
 
     private string _hoverProp = "";
     // 마우스 위치 — 실제 커서 폴링과 모션 이벤트 중 최근 것을 쓴다.
@@ -235,7 +239,7 @@ public partial class TitleRoomDirector : Node
         Sfx.Instance?.Play("relay_click", -6f);
         switch (id)
         {
-            case "start": ShowStartConfirm(); break;
+            case "start": ShowModeSelect(); break;
             case "archive": _ = ArchiveAsync(); break;
             case "config": OpenSettings(); break;
             case "quit": ShowShutdownConfirm(); break;
@@ -332,13 +336,13 @@ public partial class TitleRoomDirector : Node
             case Key.Down or Key.S:
                 if (view.MoveCursor(1)) Sfx.Instance?.Play("tick", -16f);
                 return;
-            // 페이지는 ← → 와 PageUp/PageDown 으로만 넘긴다.
-            // A · D 를 쓰지 않는 이유: D 는 프로젝트 입력맵의 '대화 기록 열기'(L 은 시설 로그)라
-            // Day1HistoryOverlay 가 _Input 단계에서 먼저 가져간다 — 여기까지 오지 않는다.
-            case Key.Left or Key.Pageup:
+            // 한 화면씩 건너뛰기. A · D 를 쓰지 않는 이유는 D 가 프로젝트 입력맵의
+            // '대화 기록 열기'(L 은 시설 로그)라 Day1HistoryOverlay 가 _Input 단계에서
+            // 먼저 가져가기 때문이다 — 여기까지 오지 않는다.
+            case Key.Pageup or Key.Home:
                 if (view.MovePage(-1)) Sfx.Instance?.Play("tick", -13f);
                 return;
-            case Key.Right or Key.Pagedown:
+            case Key.Pagedown or Key.End:
                 if (view.MovePage(1)) Sfx.Instance?.Play("tick", -13f);
                 return;
             case Key.Escape or Key.Backspace:
@@ -357,13 +361,40 @@ public partial class TitleRoomDirector : Node
         _settings.Open();
     }
 
-    // 근무 개시 — 시스템 종료와 같은 확인 창을 한 번 거친다.
-    private void ShowStartConfirm()
+    // 근무 개시 — 예/아니오 확인 대신 **근무 유형을 고른다.** 고르는 행위가 곧 확인이고,
+    // 취소는 ESC 다. 여기서는 아직 아무것도 초기화하지 않는다 — 실제 새 게임은
+    // 유형을 확정한 뒤 StartShiftAsync → StartRequested 에서 시작된다.
+    private void ShowModeSelect()
+    {
+        TitleTerminalView.Instance?.ShowModeSelect();
+        _hint.SetLine("");
+        _hint.SetSub(ModeHint);
+        _phase = Phase.ModeSelect;
+    }
+
+    // 고른 유형으로 확정. 잠긴 유형은 거부음만 내고 아무 일도 일어나지 않는다.
+    private void ConfirmMode()
     {
         var term = TitleTerminalView.Instance;
-        term.BeginReport("BEGIN NIGHT SHIFT?", ("go", "예"), ("no", "아니오"));
-        term.PushLine("근무를 개시하시겠습니까?", 1);
-        _hint.SetSub(ConfirmHint);
+        if (term == null) return;
+        var mode = term.SelectedMode;
+        if (!GameModes.IsPlayable(mode))
+        {
+            Sfx.Instance?.Play("switch_fail", -7f);
+            return;
+        }
+        GameModes.Select(mode);
+        GD.Print($"[근무 유형: {GameModes.DisplayName(mode)} — {GameModes.MaxDays}일]");
+        Sfx.Instance?.Play("relay_click", -5f);
+        _ = StartShiftAsync();
+    }
+
+    private void CancelModeSelect()
+    {
+        Sfx.Instance?.Play("relay_click", -8f);
+        TitleTerminalView.Instance?.ShowMenu();
+        _hint.SetSub(MenuHint);
+        _phase = Phase.Menu;
     }
 
     private void ShowShutdownConfirm()
@@ -393,15 +424,22 @@ public partial class TitleRoomDirector : Node
         if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", 0.02f, 1.0);
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", 0.02f, 1.0);
 
-        await Wait(0.55);
+        // [예] 를 누른 뒤로는 **멈추지 않고 그대로 꺼진다.**
+        // 예전에는 SYSTEM OFFLINE 을 1.1초 띄우고 화면 밝기만 0 으로 내린 뒤 종료했는데,
+        // 3D 방 자체는 어둡기만 할 뿐 검지 않아서 창이 사라지는 순간 뒤의 바탕화면(과
+        // 콘솔 창)이 번쩍 보였다. 지금은 BlinkOverlay 로 **화면 전체를 진짜 검게** 덮고,
+        // 그 암전이 끝난 프레임에 종료한다.
         term.BeginReport("");
         term.PushLine("SYSTEM OFFLINE", 3);
         Sfx.Instance?.Play("power_down", -6f);
 
-        await Wait(1.10);
         var t2 = CreateTween();
-        t2.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 1.0f, 0.0f, 0.7);
-        await Wait(0.9);
+        t2.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightness(v)), 1.0f, 0.0f, 0.45);
+
+        var blink = NSP.Ui.BlinkOverlay.Instance;
+        if (blink != null) await blink.Close(0.55);
+        else await Wait(0.55);
+        await Wait(0.06);   // 완전히 검어진 화면을 한 프레임 이상 보여 주고 끈다
         GetTree().Quit();
     }
 
@@ -432,10 +470,32 @@ public partial class TitleRoomDirector : Node
                 GetViewport().SetInputAsHandled();
                 return;
             }
-            // 기록실을 보는 중 — 이동 · 페이지 · 뒤로만 받는다(ENTER 로 근무가 시작되지 않는다).
+            // 기록실을 보는 중 — 이동 · 스크롤 · 뒤로만 받는다(ENTER 로 근무가 시작되지 않는다).
             if (_phase == Phase.Archive)
             {
                 ArchiveKey(k.Keycode);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+
+            // 근무 유형을 고르는 중.
+            if (_phase == Phase.ModeSelect)
+            {
+                switch (k.Keycode)
+                {
+                    case Key.Up or Key.W or Key.Left or Key.A:
+                        if (TitleTerminalView.Instance.MoveCursor(-1)) Sfx.Instance?.Play("tick", -16f);
+                        break;
+                    case Key.Down or Key.S or Key.Right:
+                        if (TitleTerminalView.Instance.MoveCursor(1)) Sfx.Instance?.Play("tick", -16f);
+                        break;
+                    case Key.Enter or Key.KpEnter or Key.Space:
+                        ConfirmMode();
+                        break;
+                    case Key.Escape or Key.Backspace:
+                        CancelModeSelect();
+                        break;
+                }
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -467,12 +527,12 @@ public partial class TitleRoomDirector : Node
             return;
         }
 
-        // 기록실 — 휠로 페이지를 넘긴다.
+        // 기록실 — 휠로 목록을 굴린다(커서는 그대로, 보는 위치만 움직인다).
         if (_phase == Phase.Archive && e is InputEventMouseButton
             { Pressed: true, ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown } wheel)
         {
-            int step = wheel.ButtonIndex == MouseButton.WheelUp ? -1 : 1;
-            if (AchievementArchiveView.Instance?.MoveCursor(step) == true) Sfx.Instance?.Play("tick", -18f);
+            float step = wheel.ButtonIndex == MouseButton.WheelUp ? -ArchiveWheelStep : ArchiveWheelStep;
+            if (AchievementArchiveView.Instance?.ScrollBy(step) == true) Sfx.Instance?.Play("tick", -22f);
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -485,14 +545,21 @@ public partial class TitleRoomDirector : Node
                 GetViewport().SetInputAsHandled();
                 return;
             }
-            // 기록실 — 아래쪽 [◀ 이전] · [다음 ▶] · [뒤로] 만 누를 수 있다.
+            // 기록실 — 아래쪽 [뒤로] 만 누를 수 있다.
             if (_phase == Phase.Archive)
             {
-                string cmd = ArchiveItemUnderMouse();
-                if (cmd == "prev") ArchiveKey(Key.Left);
-                else if (cmd == "next") ArchiveKey(Key.Right);
-                else if (cmd == "back") CloseArchive();
-                if (!string.IsNullOrEmpty(cmd)) GetViewport().SetInputAsHandled();
+                if (ArchiveItemUnderMouse() == "back") { CloseArchive(); GetViewport().SetInputAsHandled(); }
+                return;
+            }
+
+            // 근무 유형 선택 — 세 칸 중 가리킨 것을 확정한다(책상 장비는 먹지 않는다).
+            if (_phase == Phase.ModeSelect)
+            {
+                if (!string.IsNullOrEmpty(TerminalItemUnderMouse()))
+                {
+                    ConfirmMode();
+                    GetViewport().SetInputAsHandled();
+                }
                 return;
             }
             if (_phase != Phase.Menu) return;
@@ -510,7 +577,6 @@ public partial class TitleRoomDirector : Node
     {
         switch (id)
         {
-            case "go": _ = StartShiftAsync(); return;
             case "yes": _ = ShutdownAsync(); return;
             case "no":
             case "back":
@@ -529,9 +595,21 @@ public partial class TitleRoomDirector : Node
     public override void _Process(double delta)
     {
         TickAmbience(delta);
-        if (_phase is not (Phase.Menu or Phase.Archive)) return;
+        if (_phase is not (Phase.Menu or Phase.Archive or Phase.ModeSelect)) return;
         if (_camera == null) _camera = GetViewport().GetCamera3D();
         if (_camera == null) return;
+
+        // 근무 유형 선택 — 세 칸 위에 마우스를 올리면 커서가 따라간다.
+        // 책상 장비 호버는 쉰다(여기서 전화기를 눌러 기록실이 열리면 안 된다).
+        if (_phase == Phase.ModeSelect)
+        {
+            Vector2 mp = GetViewport().GetMousePosition();
+            if (!mp.IsEqualApprox(_lastPolled)) { _lastPolled = mp; _mouse = mp; }
+            string over = TerminalItemUnderMouse();
+            if (!string.IsNullOrEmpty(over) && TitleTerminalView.Instance.HoverId(over))
+                Sfx.Instance?.Play("tick", -16f);
+            return;
+        }
 
         // 기록실 — 목록 위에 마우스를 올리면 그 줄로 커서가 간다. 책상 장비 호버는 쉰다.
         if (_phase == Phase.Archive)

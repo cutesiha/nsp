@@ -41,7 +41,27 @@ public partial class TitleTerminalView : Control
         ("quit", "시스템 종료"),
     };
 
-    public enum Mode { Standby, Menu, Report }
+    public enum Mode { Standby, Menu, Report, ModeSelect }
+
+    // ── 근무 유형 선택 ──────────────────────────────────────────────────
+    // 「근무 개시」를 고르면 뜨는 화면. 세 줄짜리 단말기 선택지이고, 잠긴 항목은
+    // 흐리게 + LOCKED 로 표시만 하고 고를 수는 있어도 실행되지 않는다(거부음만 난다).
+    private const string ModeHead = "근무 유형을 선택하십시오.";
+    private const string ModeSub = "SELECT SHIFT PROTOCOL";
+    private const string LockedTag = "LOCKED";
+
+    public static (string Id, GameMode Mode, string Label, string Sub)[] ModeItems =>
+        new[]
+        {
+            ("mode_comp", GameMode.Competition, "대회용 VER",
+                $"{GameModes.DaysFor(GameMode.Competition)} DAYS  /  SHORT PROTOCOL"),
+            ("mode_std", GameMode.Standard, "기본 모드",
+                $"{GameModes.DaysFor(GameMode.Standard)} DAYS  /  STANDARD PROTOCOL"),
+            ("mode_hard", GameMode.Hard, "하드 모드", "ACCESS DENIED"),
+        };
+
+    private const float ModeTop = 262f, ModeStep = 96f;
+    private const float ModeLeft = 150f, ModeWidth = 500f, ModeHeight = 82f;
 
     // 메뉴 문구(진엔딩을 본 뒤에는 근무 개시 → 새 근무 시작).
     public static string LabelOf(int i) =>
@@ -128,6 +148,26 @@ public partial class TitleTerminalView : Control
         QueueRedraw();
     }
 
+    // 근무 유형 선택 화면. 커서는 처음 고를 수 있는 항목에 선다.
+    public void ShowModeSelect()
+    {
+        CurrentMode = Mode.ModeSelect;
+        _reveal = -1.0;
+        _report.Clear();
+        _reportItems = Array.Empty<(string, string)>();
+        var items = ModeItems;
+        Cursor = 0;
+        for (int i = 0; i < items.Length; i++)
+            if (GameModes.IsPlayable(items[i].Mode)) { Cursor = i; break; }
+        QueueRedraw();
+    }
+
+    // 지금 커서가 가리키는 근무 유형.
+    public GameMode SelectedMode =>
+        CurrentMode == Mode.ModeSelect && Cursor >= 0 && Cursor < ModeItems.Length
+            ? ModeItems[Cursor].Mode
+            : GameMode.Standard;
+
     // 명령을 실행했을 때의 단말기 출력(인증 / 기록 / 종료 확인)을 여는다.
     public void BeginReport(string title, params (string Id, string Label)[] items)
     {
@@ -158,6 +198,7 @@ public partial class TitleTerminalView : Control
     {
         Mode.Menu => MenuItems.Length,
         Mode.Report => _reportItems.Length,
+        Mode.ModeSelect => ModeItems.Length,
         _ => 0,
     };
 
@@ -167,6 +208,7 @@ public partial class TitleTerminalView : Control
         {
             if (CurrentMode == Mode.Menu && Cursor >= 0 && Cursor < MenuItems.Length) return MenuItems[Cursor].Id;
             if (CurrentMode == Mode.Report && Cursor >= 0 && Cursor < _reportItems.Length) return _reportItems[Cursor].Id;
+            if (CurrentMode == Mode.ModeSelect && Cursor >= 0 && Cursor < ModeItems.Length) return ModeItems[Cursor].Id;
             return "";
         }
     }
@@ -207,10 +249,18 @@ public partial class TitleTerminalView : Control
         return false;
     }
 
-    private string IdOf(int i) => CurrentMode == Mode.Menu ? MenuItems[i].Id : _reportItems[i].Id;
+    private string IdOf(int i) => CurrentMode switch
+    {
+        Mode.Menu => MenuItems[i].Id,
+        Mode.ModeSelect => ModeItems[i].Id,
+        _ => _reportItems[i].Id,
+    };
 
     private Rect2 ItemRect(int i)
     {
+        if (CurrentMode == Mode.ModeSelect)
+            return new Rect2(ModeLeft, ModeTop + i * ModeStep, ModeWidth, ModeHeight);
+
         if (CurrentMode == Mode.Menu)
             return new Rect2(ItemLeft, ItemTop + i * ItemStep - 36f, ItemWidth, 46f);
 
@@ -303,6 +353,7 @@ public partial class TitleTerminalView : Control
         {
             case Mode.Standby: DrawStandby(); break;
             case Mode.Menu: DrawMenu(); break;
+            case Mode.ModeSelect: DrawModeSelect(); break;
             default: DrawReport(); break;
         }
 
@@ -381,6 +432,42 @@ public partial class TitleTerminalView : Control
             }
             DrawString(_font, new Vector2(ItemLeft + 14f, y), LabelOf(i),
                 HorizontalAlignment.Left, ItemWidth - 20f, ViewFont.S(27), on ? Ink : Dim);
+        }
+    }
+
+    // 근무 유형 선택 — 네모난 단말기 선택지 세 줄. 둥근 버튼도, 네온도 쓰지 않는다.
+    private void DrawModeSelect()
+    {
+        DrawString(_font, new Vector2(0f, 150f), ModeHead, HorizontalAlignment.Center,
+            Canvas.X, ViewFont.S(26), Ink);
+        DrawString(_font, new Vector2(0f, 178f), ModeSub, HorizontalAlignment.Center,
+            Canvas.X, ViewFont.S(13), Mint with { A = 0.8f });
+        Rule(206f);
+
+        var items = ModeItems;
+        for (int i = 0; i < items.Length; i++)
+        {
+            var (_, mode, label, sub) = items[i];
+            bool open = GameModes.IsPlayable(mode);
+            bool on = i == Cursor;
+            var r = ItemRect(i);
+
+            if (on) DrawRect(r, (open ? Mint : Err) with { A = 0.10f });
+            DrawRect(r, (open ? Mint : Dim) with { A = on ? 0.85f : 0.35f }, false, on ? 1.8f : 1.1f);
+            if (on)
+                DrawString(_font, new Vector2(r.Position.X - 30f, r.Position.Y + 38f), ">",
+                    HorizontalAlignment.Left, 28f, ViewFont.S(26), open ? Mint : Err);
+
+            var nameCol = open ? (on ? Ink : Dim) : Dim with { A = 0.55f };
+            DrawString(_font, new Vector2(r.Position.X + 26f, r.Position.Y + 38f), label,
+                HorizontalAlignment.Left, r.Size.X - 150f, ViewFont.S(25), nameCol);
+            DrawString(_font, new Vector2(r.Position.X + 28f, r.Position.Y + 64f), sub,
+                HorizontalAlignment.Left, r.Size.X - 60f, ViewFont.S(12),
+                open ? Dim : Dim with { A = 0.45f });
+
+            if (!open)
+                DrawString(_font, new Vector2(r.Position.X + r.Size.X - 130f, r.Position.Y + 36f), LockedTag,
+                    HorizontalAlignment.Right, 118f, ViewFont.S(15), Err with { A = 0.70f });
         }
     }
 

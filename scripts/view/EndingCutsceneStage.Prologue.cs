@@ -28,6 +28,8 @@ public partial class EndingCutsceneStage
         _pSet = set;
         if (set != PSet.None) ShowSet(Set.None);   // 엔딩 세트 끄기 + 렌더 멈춤 해제는 아래에서
 
+        // 세트를 새로 지을 때마다 그림자 광원 예산을 다시 채운다 — 한 세트 안에서만 몇 개다.
+        _shadowBudget = ShadowBudgetPerSet;
         if (set == PSet.ArchiveHall && _pArchive == null) BuildArchiveHall();
         if (set == PSet.Briefing && _pBriefing == null) BuildBriefing();
         if (set == PSet.Habitat && _pHabitat == null) BuildHabitat();
@@ -202,7 +204,11 @@ public partial class EndingCutsceneStage
         Box(parent, new Vector3(0.5f, 0.08f, len), pos, mat, "Strip");
         mats?.Add(mat);
         // 몇 개 건너 하나씩 그림자를 켠다 — 테이블 밑 · 문 옆에 그늘이 생겨야 공간이 선다.
-        bool shadow = (_shadowTurn++ % 3) == 0;
+        //
+        // 전방위 광원의 그림자는 큐브맵 여섯 면을 매 프레임 다시 그린다. 측정에서 한 개당
+        // 2ms 가까이 나갔다(내장 그래픽). 그늘이 지는 등은 **몇 개면 충분하다** —
+        // 그림자가 공간을 세우는 역할은 개수가 아니라 있고 없고에서 나온다.
+        bool shadow = _shadowTurn++ % 3 == 0 && _shadowBudget-- > 0;
         var l = new OmniLight3D
         {
             Position = pos with { Y = pos.Y - 0.3f },
@@ -217,6 +223,9 @@ public partial class EndingCutsceneStage
     }
 
     private int _shadowTurn;
+    // 세트 하나가 켤 수 있는 그림자 광원의 수. 세트를 지을 때마다 다시 채운다.
+    private int _shadowBudget = ShadowBudgetPerSet;
+    private const int ShadowBudgetPerSet = 2;
     private readonly List<StandardMaterial3D> _pLampMats = new();
     private readonly List<Light3D> _pLights = new();
     private readonly List<float> _pLightBase = new();

@@ -519,7 +519,7 @@ public partial class ShiftFlowController : Node
         // DAY0 교육에는 방해자가 없다 — DAY1 근무가 시작될 때 ControlRoom3DController 가 뽑는다.
         if (!DayFeatures.SaboteurActive) return;
 
-        state.AssignRandomSaboteur(sim.GetActiveEmployeeIds());
+        state.AssignSaboteurForMode(sim.GetActiveEmployeeIds());
         string id = state.SaboteurEmployeeId;
         if (string.IsNullOrEmpty(id)) return;
 
@@ -633,8 +633,10 @@ public partial class ShiftFlowController : Node
     private async void RequestRestFromReport()
     {
         if (_stage != Stage.Report) return;
-        // 마지막 날 — FINAL SHIFT REPORT 의 [계속] 은 휴게시간이 아니라 최종 보고서로 간다.
-        if ((GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5))
+        // 마지막 날 — FINAL SHIFT REPORT 의 [계속] 은 휴게시간을 건너뛰고 최종 보고서로 간다.
+        // 다만 대회용 3일은 마지막 날에도 휴게시간을 한 번 더 거친다(GameModes.FinalDayRest).
+        // 그 휴게시간의 [최종 결과 확인 ▶] 이 RequestNextFromRest → EnterVerdict 로 잇는다.
+        if ((GameState.Instance?.CurrentDay ?? 1) >= GameModes.MaxDays && !GameModes.FinalDayRest)
         {
             EnterVerdict();
             return;
@@ -650,7 +652,7 @@ public partial class ShiftFlowController : Node
         if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilBase * 0.55f, 1.0);
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase * 0.7f, 1.0);
 
-        bool finalDay = (GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5);
+        bool finalDay = (GameState.Instance?.CurrentDay ?? 1) >= GameModes.MaxDays;
         RestRosterView.Instance?.Present(finalDay);
 
         await SwapScreensWithFlicker(() =>
@@ -721,7 +723,7 @@ public partial class ShiftFlowController : Node
     {
         if (_stage != Stage.Rest) return;
 
-        bool finalDay = (GameState.Instance?.CurrentDay ?? 1) >= (Config.Instance?.Data?.MaxDays ?? 5);
+        bool finalDay = (GameState.Instance?.CurrentDay ?? 1) >= GameModes.MaxDays;
         if (finalDay)
         {
             EnterVerdict();
@@ -760,7 +762,10 @@ public partial class ShiftFlowController : Node
             guide.LineShown += OnLine;
             try
             {
-                await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report");
+                // "5일간의 근무가 종료되었습니다" 는 모드마다 날수가 다르다 — 대본의 {DAYS} 를 채운다.
+                await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report",
+                    new System.Collections.Generic.Dictionary<string, string>
+                    { ["DAYS"] = GameModes.MaxDays.ToString() });
                 // 결번 개체가 이미 죽어 그 카드를 고를 수 없는 판 — 그 사실만 한 줄 덧붙인다.
                 if (SaboteurAlreadyGone()) await NSP.Prologue.PrologueDirector.ShowGuide(guide, "final_report_gone");
             }

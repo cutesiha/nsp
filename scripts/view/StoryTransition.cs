@@ -26,6 +26,11 @@ public static class StoryTransition
 
     // 스토리 BGM. assets/audio/bgm/breakroom.mp3
     public const string StoryMusic = "breakroom";
+    // 그 BGM 의 음량. 메인 BGM(Sfx.MusicDefaultDb)보다 조금만 낮게 둔다 —
+    // 대사를 덮으면 안 되지만, 너무 깔리면 휴게실로 넘어온 느낌이 나지 않는다.
+    private const float StoryMusicDb = -6.5f;
+    // 멀리서 들리는 사람들의 웅성거림. 말이 들리면 안 되고 "사람이 있다" 만 들려야 한다.
+    private const float MurmurDb = -24f;
 
     // ── 시간 상수(§2 · §5 · §6) ──────────────────────────────────────
     private const double CloseSeconds = 0.42;   // 눈 감기 0.35~0.5
@@ -91,7 +96,7 @@ public static class StoryTransition
             else await Wait(ctx, OpenSeconds);
 
             // ⑦ 스토리 BGM 페이드인. 이전 곡은 이미 빠졌으므로 겹쳐 울리지 않는다(§5).
-            sfx?.CrossfadeMusic(StoryMusic, BgmFadeSeconds, loop: true, 0f, -9f, restartIfSame: true);
+            sfx?.CrossfadeMusic(StoryMusic, BgmFadeSeconds, loop: true, 0f, StoryMusicDb, restartIfSame: true);
 
             // ⑧ 카메라가 모니터2 로 들어간다.
             StoryCutinDirector.Instance?.FocusStoryMonitor();
@@ -194,9 +199,9 @@ public static class StoryTransition
         _murmur = new AudioStreamPlayer { Stream = stream, VolumeDb = -46f, Bus = GameSettings.BusSfx };
         ctx.GetTree().Root.AddChild(_murmur);
         _murmur.Play();
-        // 웅성거림은 끝까지 아주 작다. -27dB 면 "사람이 있다" 만 들리고 말은 들리지 않는다.
+        // 웅성거림은 끝까지 작다 — 말은 들리지 않고 사람 기척만 남는 선(MurmurDb).
         var tw = _murmur.CreateTween();
-        tw.TweenProperty(_murmur, "volume_db", -27f, 0.9).SetTrans(Tween.TransitionType.Sine);
+        tw.TweenProperty(_murmur, "volume_db", MurmurDb, 0.9).SetTrans(Tween.TransitionType.Sine);
     }
 
     private static void StopMurmur(float fade)

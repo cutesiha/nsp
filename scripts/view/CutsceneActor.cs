@@ -34,6 +34,26 @@ public partial class CutsceneActor : Node3D
         ["wolf"] = "res://scenes/cctv_characters/employees/WolfEmployee3D.tscn",
     };
 
+    // 읽어 둔 배우 씬. 컷씬 도중에 처음 읽으면 그 프레임이 통째로 멈춘다 —
+    // 직원 한 명이 수백 개 노드짜리 씬이라 디스크에서 올라오는 데 한참 걸린다
+    // (측정에서 1초짜리 끊김이 여기서 났다). 그래서 무대를 세울 때 미리 올려 둔다.
+    private static readonly Dictionary<string, PackedScene> _loaded = new();
+
+    public static void Preload()
+    {
+        foreach (var path in Scenes.Values)
+        {
+            if (_loaded.ContainsKey(path) || !ResourceLoader.Exists(path)) continue;
+            _loaded[path] = GD.Load<PackedScene>(path);
+        }
+    }
+
+    private static PackedScene SceneAt(string path)
+    {
+        if (_loaded.TryGetValue(path, out var hit) && hit != null) return hit;
+        return _loaded[path] = GD.Load<PackedScene>(path);
+    }
+
     // 성격 차이는 아주 조금만 준다 — 뼈대와 기본 러닝은 여섯 명이 완전히 같아야 한다(§9 · §10).
     //   Cadence : 보폭 배율(작을수록 종종걸음)  Arm : 팔 흔듦  Lean : 상체 기울기 가감  Panic : 흐트러짐
     private readonly record struct Trait(float Cadence, float Arm, float Lean, float Panic);
@@ -186,7 +206,7 @@ public partial class CutsceneActor : Node3D
         if (string.IsNullOrEmpty(path)) return;
         if (Traits.TryGetValue(id, out var t)) _trait = t;
 
-        _actor = GD.Load<PackedScene>(path)?.Instantiate<Node3D>();
+        _actor = SceneAt(path)?.Instantiate<Node3D>();
         if (_actor == null) return;
         AddChild(_actor);
         Position = pos;

@@ -18,16 +18,27 @@ public partial class AchievementToast : CanvasLayer
     public static AchievementToast Instance { get; private set; }
 
     // ── 연출 수치 ───────────────────────────────────────────────────
-    private const float RiseSeconds = 0.25f;   // 아래에서 올라오며 서서히 나타난다
-    private const float HoldSeconds = 3.4f;    // 머무는 시간
-    private const float FadeSeconds = 0.30f;   // 사라지는 시간
-    private const float RiseDistance = 26f;    // 올라오는 거리(논리 px)
-    private const float GapSeconds = 0.22f;    // 다음 알림까지의 틈
+    //
+    // 올라올 때와 내려갈 때 모두 **제자리를 한 번 지나친다**(뽀잉).
+    //   등장 : 아래에서 올라와 제자리보다 조금 더 위로 솟았다가 내려앉는다
+    //   퇴장 : 제자리에서 살짝 위로 튕겼다가 아래로 빠진다
+    // Godot 의 Back 이징이 바로 그 움직임이다 — Out 은 지나쳤다 돌아오고,
+    // In 은 반대쪽으로 먼저 당겼다가 간다. 직접 키프레임을 짜지 않는다.
+    private const float RiseSeconds = 0.20f;      // 아래에서 솟아오르는 시간
+    private const float SettleSeconds = 0.17f;    // 솟은 자리에서 제자리로 내려앉는 시간
+    private const float HoldSeconds = 3.4f;       // 머무는 시간
+    private const float HopSeconds = 0.13f;       // 퇴장 직전 위로 튕기는 시간
+    private const float FallSeconds = 0.30f;      // 아래로 빠지며 사라지는 시간
+    private const float RiseDistance = 34f;       // 올라오기 시작하는 깊이(논리 px)
+    private const float Overshoot = 12f;          // 제자리보다 이만큼 더 솟았다가 내려앉는다
+    private const float ExitHop = 9f;             // 내려가기 전에 이만큼 위로 튕긴다
+    private const float FallDistance = 44f;       // 내려가며 빠지는 깊이(논리 px)
+    private const float GapSeconds = 0.22f;       // 다음 알림까지의 틈
 
     // 아래 수치는 **논리 단위**다. 실제 픽셀은 Scale 배. 글자 크기(ViewFont.FS)도 같은 배율을
     // 쓰므로, 해상도나 UI 배율이 바뀌어도 글자가 칸을 넘지 않는다.
     // (FS 만 TextScale 을 곱하고 칸은 안 곱하던 때, 설명 두 줄이 카드 밖으로 흘러나왔다.)
-    private static float Scale => ControlRoom3DController.UiScale * ViewFont.TextScale;
+    private static float LayoutScale => ControlRoom3DController.UiScale * ViewFont.TextScale;
 
     private const float MarginRight = 22f;
     private const float MarginBottom = 22f;
@@ -47,12 +58,16 @@ public partial class AchievementToast : CanvasLayer
     private static readonly Color IconInk = new(0.88f, 0.84f, 0.66f);
 
     private const string TagText = "ACHIEVEMENT UNLOCKED";
+    // 달성음. assets/audio/sfx/achievement_sfx.mp3
+    private const string UnlockSfx = "achievement_sfx";
 
     private Control _root;
     private Panel _card;
     private Label _tag, _title, _body;
     private Label _icon;
     private Tween _tween;
+    // 투명도는 움직임과 따로 간다(단계 길이가 서로 다르다).
+    private Tween _fade;
 
     private readonly Queue<AchievementDefinition> _queue = new();
     private bool _showing;
@@ -79,7 +94,7 @@ public partial class AchievementToast : CanvasLayer
 
     private void BuildUi()
     {
-        float scale = Scale;
+        float scale = LayoutScale;
 
         _root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore };
         _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -209,7 +224,7 @@ public partial class AchievementToast : CanvasLayer
         _body.Text = def.Condition;
         _card.Visible = true;
 
-        float scale = Scale;
+        float scale = LayoutScale;
         float restTop = -(CardHeight + MarginBottom) * scale;
         float restBottom = -MarginBottom * scale;
 
@@ -217,24 +232,67 @@ public partial class AchievementToast : CanvasLayer
         _card.OffsetBottom = restBottom + RiseDistance * scale;
         _card.Modulate = new Color(1f, 1f, 1f, 0f);
 
-        Sfx.Instance?.Play("achievement", -9f);
+        Sfx.Instance?.Play(UnlockSfx, -9f);
+
+        float fallTop = restTop + FallDistance * scale;
+        float fallBottom = restBottom + FallDistance * scale;
+
+        float overTop = restTop - Overshoot * scale;
+        float overBottom = restBottom - Overshoot * scale;
+        float hopTop = restTop - ExitHop * scale;
+        float hopBottom = restBottom - ExitHop * scale;
+
+        // 움직임은 **순차 트윈 하나**로 짠다. 위치를 offset_top / offset_bottom 두 속성으로
+        // 나눠 tween 하면서 parallel 과 chain 을 섞으면 어느 단계가 어느 단계 뒤에 붙는지가
+        // 흐려진다(실제로 퇴장 튕김 단계가 통째로 건너뛰어졌다).
+        // 높이 하나(카드 윗선)만 tween 하고, 아랫선은 그 값에서 계산한다.
+        _cardHeightPx = CardHeight * scale;
+        float startTop = restTop + RiseDistance * scale;
 
         _tween?.Kill();
         _tween = CreateTween();
-        _tween.SetParallel(true);
-        _tween.TweenProperty(_card, "offset_top", restTop, RiseSeconds)
-            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
-        _tween.TweenProperty(_card, "offset_bottom", restBottom, RiseSeconds)
-            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
-        _tween.TweenProperty(_card, "modulate:a", 1f, RiseSeconds);
-        _tween.Chain().TweenInterval(HoldSeconds);
-        _tween.Chain().TweenProperty(_card, "modulate:a", 0f, FadeSeconds);
-        _tween.Chain().TweenCallback(Callable.From(() =>
+        // ① 솟아오른다 — 제자리를 지나쳐 조금 더 위까지.
+        Hop(startTop, overTop, RiseSeconds, Tween.TransitionType.Sine, Tween.EaseType.Out);
+        // ② 내려앉는다 — 지나친 만큼 제자리로. 여기까지가 등장 "뽀잉".
+        Hop(overTop, restTop, SettleSeconds, Tween.TransitionType.Back, Tween.EaseType.Out);
+        _tween.TweenInterval(HoldSeconds);
+        // ③ 내려가기 전에 위로 한 번 더 튕긴다.
+        Hop(restTop, hopTop, HopSeconds, Tween.TransitionType.Sine, Tween.EaseType.Out);
+        // ④ 그대로 아래로 빠진다.
+        Hop(hopTop, fallTop, FallSeconds, Tween.TransitionType.Cubic, Tween.EaseType.In);
+        _tween.TweenCallback(Callable.From(() =>
         {
             _card.Visible = false;
             _showing = false;
             _gap = GapSeconds;
         }));
+
+        // 투명도는 따로 간다 — 또렷해지는 건 자리를 잡기 전에 끝나고(투명한 채로 튀어오르면
+        // 유령처럼 보인다), 흐려지는 건 퇴장 튕김이 **보인 뒤에** 시작한다.
+        _fade?.Kill();
+        _fade = CreateTween();
+        _fade.TweenProperty(_card, "modulate:a", 1f, RiseSeconds * 0.8f);
+        _fade.TweenInterval(RiseSeconds * 0.2f + SettleSeconds + HoldSeconds + HopSeconds
+                            + FallSeconds * 0.28f);
+        _fade.TweenProperty(_card, "modulate:a", 0f, FallSeconds * 0.72f);
+    }
+
+    // 카드 윗선을 from → to 로 옮기는 한 단계. 아랫선은 그 값에서 따라간다
+    // (둘을 따로 tween 하면 단계가 어긋나며 카드가 늘어난다).
+    private float _cardHeightPx;
+
+    private void Hop(float from, float to, float seconds,
+                     Tween.TransitionType trans, Tween.EaseType ease)
+    {
+        _tween.TweenMethod(Callable.From<float>(SetCardTop), from, to, seconds)
+            .SetTrans(trans).SetEase(ease);
+    }
+
+    private void SetCardTop(float top)
+    {
+        if (_card == null) return;
+        _card.OffsetTop = top;
+        _card.OffsetBottom = top + _cardHeightPx;
     }
 
     // ── 검사용 ──────────────────────────────────────────────────────
@@ -248,11 +306,24 @@ public partial class AchievementToast : CanvasLayer
         _queue.Clear();
         _tween?.Kill();
         _tween = null;
+        _fade?.Kill();
+        _fade = null;
         _showing = false;
         _gap = 0;
         if (_card != null) _card.Visible = false;
     }
     public string ShownTitle => _title?.Text ?? "";
     public bool CardVisible => _card?.Visible ?? false;
+    // 카드가 지금 서 있는 높이(논리 px, 작을수록 위). 뽀잉이 실제로 제자리를 지나치는지
+    // 눈이 아니라 숫자로 확인하는 자리다.
+    public float CardTop
+    {
+        get
+        {
+            float s = LayoutScale;
+            return (_card?.OffsetTop ?? 0f) / Mathf.Max(0.01f, s);
+        }
+    }
+    public float CardRestTop => -(CardHeight + MarginBottom);
     public static bool CanShowNow => SafeToShow();
 }

@@ -31,6 +31,9 @@ public partial class EndingCutsceneStage : Node
 
     public EndingOffender Offender { get; private set; }
 
+    // 성능 조정용 창구(디버그 계측 전용). 게임 코드는 쓰지 않는다.
+    public SubViewport StageViewport => _vp;
+
     // 화면 전체를 덮는 컷씬 그림. 엔딩 연출기가 이 알파를 여닫는다.
     public TextureRect Screen { get; private set; }
 
@@ -47,6 +50,20 @@ public partial class EndingCutsceneStage : Node
             Disable3D = false,
             GuiDisableInput = true,
             TransparentBg = false,
+            // 그림자 아틀라스 — 기본값 2048 은 이 무대에 과하다. 천장등 그림자는 작고
+            // 흐릿하게만 보이면 되는데, 전방위 광원 하나가 큐브맵 여섯 면을 그린다.
+            // 1024 로 줄이면 내장 그래픽에서 체감이 크고, 보이는 그림자는 거의 그대로다.
+            PositionalShadowAtlasSize = 1024,
+            // 3D 는 뷰포트 크기의 80% 로 그리고 늘린다(1280×720 → 1024×576).
+            //
+            // 이 그림은 **어차피** 1280×720 으로 그려 1920×1080 창에 늘려 깔린다. 게다가
+            // 그 위에 필름 그레인 · 주사선이 덮인다. 내부 해상도를 조금 내려도 눈에 거의
+            // 안 보이는 반면, 측정에서는 프레임의 1/4~1/3 이 여기서 빠졌다 —
+            // 드로우 콜이 100개뿐인 장면도 50ms 였다는 건 비용이 '칠하는 면적' 에 있다는 뜻이다.
+            //
+            // 더 선명하게 보고 싶으면 이 값 하나만 1f 로 올리면 된다.
+            Scaling3DMode = Viewport.Scaling3DModeEnum.Bilinear,
+            Scaling3DScale = 0.8f,
         };
         AddChild(_vp);
 
@@ -68,6 +85,16 @@ public partial class EndingCutsceneStage : Node
                 GlowBloom = 0.12f,
             },
         };
+        // 글로우는 단계마다 화면을 한 번씩 흐려 가며 쌓는다. 1 · 2 단계는 거의 원본
+        // 해상도라 가장 비싸면서(측정에서 글로우 전체가 프레임의 1/5 였다) 번짐이 좁아
+        // 눈에 거의 안 보인다. 넓게 퍼지는 3~5 단계만 남긴다 — 발광체가 번지는 느낌은
+        // 그대로이고 비싼 쪽만 빠진다.
+        var glowEnv = env.Environment;
+        glowEnv.SetGlowLevel(1, 0f);
+        glowEnv.SetGlowLevel(2, 0f);
+        glowEnv.SetGlowLevel(3, 1f);
+        glowEnv.SetGlowLevel(4, 1f);
+        glowEnv.SetGlowLevel(5, 0.6f);
         _world.AddChild(env);
 
         _cam = new Camera3D { Fov = 55f, Near = 0.05f, Far = 200f };
@@ -153,12 +180,45 @@ public partial class EndingCutsceneStage : Node
         ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
     };
 
+    // ── 메시 공유 ────────────────────────────────────────────────────────
+    //
+    // 상자마다 BoxMesh 를 새로 만들면 치수가 **똑같은** 이음매 · 걸레받이 · 볼트 수백 개가
+    // 전부 남남이 되어, 엔진이 하나로 묶어 그릴 수 없다(드로우 콜이 그 수만큼 나간다).
+    // 치수를 열쇠로 캐시해 같은 치수는 같은 메시를 쓰게 하면, 같은 재질끼리 자동으로
+    // 묶여 나간다 — 보이는 그림은 한 픽셀도 바뀌지 않는다.
+    //
+    // 크기를 Scale 로 돌리지 않는 이유: 일부 호출부가 결과 노드의 Scale 을 직접 쓴다
+    // (가늘어지는 철탑 등). 치수는 메시에 두고 Scale 은 호출부 몫으로 남긴다.
+    private static readonly System.Collections.Generic.Dictionary<(int, int, int), BoxMesh> _boxCache = new();
+    private static readonly System.Collections.Generic.Dictionary<(int, int, int, int), CylinderMesh> _cylCache = new();
+
+    // 0.1 mm 단위로 끊어 열쇠를 만든다. 사람 눈에 같은 치수면 같은 메시다.
+    private static int Q(float v) => Mathf.RoundToInt(v * 10000f);
+
+    private static BoxMesh SharedBox(Vector3 size)
+    {
+        var key = (Q(size.X), Q(size.Y), Q(size.Z));
+        if (_boxCache.TryGetValue(key, out var hit)) return hit;
+        return _boxCache[key] = new BoxMesh { Size = size };
+    }
+
+    private static CylinderMesh SharedCyl(float radius, float height, int seg, float bottom = -1f)
+    {
+        if (bottom < 0f) bottom = radius;
+        var key = (Q(radius), Q(bottom), Q(height), seg);
+        if (_cylCache.TryGetValue(key, out var hit)) return hit;
+        return _cylCache[key] = new CylinderMesh
+        {
+            TopRadius = radius, BottomRadius = bottom, Height = height, RadialSegments = seg,
+        };
+    }
+
     private static MeshInstance3D Box(Node3D parent, Vector3 size, Vector3 pos, Material mat, string name = "")
     {
         var m = new MeshInstance3D
         {
             Name = string.IsNullOrEmpty(name) ? "Box" : name,
-            Mesh = new BoxMesh { Size = size },
+            Mesh = SharedBox(size),
             Position = pos,
             MaterialOverride = mat,
         };
@@ -172,10 +232,7 @@ public partial class EndingCutsceneStage : Node
         var m = new MeshInstance3D
         {
             Name = string.IsNullOrEmpty(name) ? "Cyl" : name,
-            Mesh = new CylinderMesh
-            {
-                TopRadius = radius, BottomRadius = radius, Height = height, RadialSegments = 12,
-            },
+            Mesh = SharedCyl(radius, height, 12),
             Position = pos,
             MaterialOverride = mat,
         };
@@ -635,8 +692,42 @@ public partial class EndingCutsceneStage : Node
     private bool _machineRunning;
     private float _machineT;
 
+    // ── 가려진 3D 는 그리지 않는다 ───────────────────────────────────────
+    //
+    // 컷씬 화면(Screen)은 창을 **통째로** 덮는 불투명한 그림이다. 그런데 그 뒤의
+    // 중앙제어실 3D 는 그동안에도 계속 그려진다 — 보이지도 않는 방을 한 프레임도 빠짐없이
+    // 두 번째로 렌더링하는 셈이다. 프롤로그·엔딩이 유독 끊겼던 가장 큰 이유가 이것이다
+    // (내장 그래픽에서 장면당 40ms 가까이 여기서 나갔다).
+    //
+    // 노드를 숨기지 않고 **창 뷰포트의 3D 패스만** 끈다. 숨기면 각자 Visible 을 켜고 끄는
+    // 다른 연출과 싸우게 되고, 되돌릴 때 무엇이 켜져 있었는지 복원할 수 없다.
+    // CRT 화면(SubViewport)들은 각자의 뷰포트라 그대로 돈다 — 컷씬이 모니터 안에서
+    // 돌아가는 구간(Monitor 뷰)은 Screen 이 덮지 않으므로 여기 걸리지도 않는다.
+    private bool _mainWorldOff;
+    // 무대는 둘일 수 있다 — 프롤로그가 세운 것이 남아 있는 채로 엔딩이 하나 더 세운다.
+    // 하나라도 덮고 있으면 끈다. 각자 켜고 끄면 두 무대가 매 프레임 서로를 되돌린다.
+    private static int _coverCount;
+
+    private void CoverMainWorld(bool off)
+    {
+        if (_mainWorldOff == off) return;
+        var win = GetViewport();
+        if (win == null) return;
+        _mainWorldOff = off;
+        _coverCount = Mathf.Max(0, _coverCount + (off ? 1 : -1));
+        bool any = _coverCount > 0;
+        win.Disable3D = any;
+        // CRT 화면(SubViewport)들도 같이 멈춘다 — 덮여 있는 동안 보일 리가 없다.
+        ControlRoom3DController.WorldCovered = any;
+    }
+
+    public override void _ExitTree() => CoverMainWorld(false);
+
     public override void _Process(double delta)
     {
+        // 완전히 덮였을 때만 끈다 — 페이드 중에는 뒤가 비쳐야 한다.
+        CoverMainWorld(Screen is { Visible: true } && Screen.Modulate.A >= 0.985f);
+
         TickCoreRig((float)delta);
         if (!_machineRunning || _machine == null) return;
         _machineT += (float)delta;

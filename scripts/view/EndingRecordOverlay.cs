@@ -68,7 +68,7 @@ public partial class EndingRecordOverlay : Control
         col.AddThemeConstantOverride("separation", 12);
         panel.AddChild(col);
 
-        col.AddChild(Lbl("5일간의 근무 기록", 26, Cyan, HorizontalAlignment.Center));
+        col.AddChild(Lbl($"{GameModes.MaxDays}일간의 근무 기록", 26, Cyan, HorizontalAlignment.Center));
         col.AddChild(Lbl("NIGHT SHIFT RECORD  ·  DAY 1 – 5", 13, Dim, HorizontalAlignment.Center));
         col.AddChild(new HSeparator());
 
@@ -86,7 +86,7 @@ public partial class EndingRecordOverlay : Control
             ? "지목 없음"
             : sim?.GetEmployeeDef(accused)?.Codename ?? accused;
 
-        Row(col, "봉쇄 코어", $"{core:0.0}%", core >= 100f ? Cyan : Warn);
+        Row(col, "봉쇄 코어", $"{core:0.0}%", DayObjectives.CoreRecovered(core) ? Cyan : Warn);
         Row(col, "생존 직원", $"{alive} / {roster.Count}", alive < roster.Count ? Warn : Ink);
         Row(col, "금기 위반", $"{gs?.TotalTabooViolations ?? 0}", Ink);
         Row(col, "발생 사고", $"{gs?.TotalIncidents ?? 0}", Ink);

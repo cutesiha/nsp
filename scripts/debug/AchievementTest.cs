@@ -518,22 +518,32 @@ public partial class AchievementTest : Node
         var view = new AchievementArchiveView();
         AddChild(view);
         view.Open();
-        Ok(view.PageCount == 6 && AchievementArchiveView.PerPage == 5,
-            $"30개를 5개씩 {view.PageCount} 페이지로 나눈다");
-        Ok(view.MovePage(1) && view.Page == 1, "다음 페이지로 넘어간다");
-        view.MovePage(99);
-        Ok(view.Page == view.PageCount - 1, "마지막 페이지에서 더 넘어가지 않는다");
-        view.MovePage(-99);
-        Ok(view.Page == 0 && !view.MovePage(-1), "첫 페이지에서 더 돌아가지 않는다");
-        view.MoveCursor(-1);
-        Ok(view.Page == 0 && view.Cursor == 0, "첫 줄에서 위로 더 가지 않는다");
+        float maxScroll = AchievementArchiveView.MaxScroll;
+        Ok(maxScroll > 0f, $"30개가 한 화면에 안 들어가 스크롤이 생긴다 (최대 {maxScroll:0}px)");
+        Ok(Mathf.IsZeroApprox(view.Scroll) && view.Cursor == 0, "열면 맨 위에서 시작한다");
+
+        // 방향키 — 커서가 내려가고 화면이 따라온다.
+        Ok(view.MoveCursor(1) && view.Cursor == 1, "↓ 로 다음 줄");
+        Ok(view.MoveCursor(-1) && view.Cursor == 0, "↑ 로 이전 줄");
+        Ok(!view.MoveCursor(-1) && view.Cursor == 0, "첫 줄에서 위로 더 가지 않는다");
         for (int i = 0; i < 40; i++) view.MoveCursor(1);
-        Ok(view.Page * AchievementArchiveView.PerPage + view.Cursor == 29,
-            "↓ 만으로 30번째 업적까지 닿는다 (페이지가 따라 넘어간다)");
-        Ok(view.ItemAt(new Vector2(70f, 556f)) == "prev"
-           && view.ItemAt(new Vector2(220f, 556f)) == "next"
-           && view.ItemAt(new Vector2(690f, 556f)) == "back",
-            "[◀ 이전] · [다음 ▶] · [뒤로] 를 마우스로 집을 수 있다");
+        Ok(view.Cursor == Achievements.Total - 1, "↓ 만으로 30번째 업적까지 닿는다");
+        Ok(Mathf.IsEqualApprox(view.Scroll, maxScroll), "마지막 줄에서는 끝까지 스크롤돼 있다");
+        Ok(!view.MoveCursor(1), "마지막 줄에서 아래로 더 가지 않는다");
+
+        // 휠 — 보는 위치만 움직이고 커서는 그대로다.
+        int keep = view.Cursor;
+        Ok(view.ScrollBy(-200f) && view.Scroll < maxScroll && view.Cursor == keep,
+            "휠로 굴리면 커서는 그대로 두고 화면만 움직인다");
+        view.ScrollBy(-99999f);
+        Ok(Mathf.IsZeroApprox(view.Scroll) && !view.ScrollBy(-10f), "맨 위에서 더 올라가지 않는다");
+        view.ScrollBy(99999f);
+        Ok(Mathf.IsEqualApprox(view.Scroll, maxScroll) && !view.ScrollBy(10f), "맨 아래에서 더 내려가지 않는다");
+
+        Ok(view.ItemAt(new Vector2(690f, 556f)) == "back", "[뒤로] 를 마우스로 집을 수 있다");
+        view.Embedded = true;
+        Ok(view.ItemAt(new Vector2(690f, 556f)) == "", "창에 끼워 넣은 상태에서는 [뒤로] 가 없다");
+        view.Embedded = false;
         view.Close();
         Ok(!view.IsOpen && !view.Visible, "ESC · [뒤로] 로 닫히면 화면에서 사라진다");
         view.QueueFree();
@@ -549,7 +559,7 @@ public partial class AchievementTest : Node
         Ok(!AchievementToast.CanShowNow, "수리 승인 절차가 떠 있는 동안에도 띄우지 않는다");
         RepairApprovalSystem.Decline();
         Settle();
-        Ok(Sfx.Instance?.Has("achievement") == true, "달성음 achievement.wav 가 등록되어 있다");
+        Ok(Sfx.Instance?.Has("achievement_sfx") == true, "달성음 achievement_sfx 가 등록되어 있다");
     }
 
     // ── 도구 ────────────────────────────────────────────────────────

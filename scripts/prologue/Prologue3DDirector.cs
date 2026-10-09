@@ -24,6 +24,9 @@ public partial class Prologue3DDirector : Node
     public static Prologue3DDirector Instance { get; private set; }
 
     private EndingCutsceneStage _stage;
+
+    // 성능 계측 도구(PrologueStageShot)가 무대 뷰포트를 들여다볼 창구다.
+    public EndingCutsceneStage Stage => _stage;
     private CanvasLayer _layer;
     private readonly List<CutsceneActor> _actors = new();
     private int _gen;
@@ -73,6 +76,8 @@ public partial class Prologue3DDirector : Node
         // 처음에는 화면 전체 그림을 숨겨 둔다 — 기록 구간에서는 모니터1 안에서만 보인다.
         _stage.Screen.Modulate = new Color(1, 1, 1, 0);
         _stage.Screen.Visible = false;
+        // 배우 씬을 미리 읽어 둔다. 컷씬 도중에 처음 읽으면 그 장면이 1초 가까이 멈춘다.
+        NSP.View.CutsceneActor.Preload();
     }
 
     // ── 화면 구조 전환 ───────────────────────────────────────────────────

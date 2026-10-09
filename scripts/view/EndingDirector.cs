@@ -152,8 +152,9 @@ public partial class EndingDirector : Node
         var gs = GameState.Instance;
         _core = Mathf.Min(gs?.CoreProgress ?? 0f, 100f);
 
-        // 엔딩 축 두 개 — 코어를 100% 복구했는가, 최종 보고서의 지목이 맞았는가.
-        bool recovered = _core >= 100f - 0.001f;
+        // 엔딩 축 두 개 — 코어를 복구했는가, 최종 보고서의 지목이 맞았는가.
+        // '복구했는가' 의 기준은 **그 모드의 마지막 날 목표치**다(기본 5일 = 100%).
+        bool recovered = DayObjectives.CoreRecovered(_core);
         bool caught = gs?.WasCaught ?? false;
         _kind = recovered
             ? (caught ? EndingState.Kind.True : EndingState.Kind.Loose)
@@ -301,15 +302,16 @@ public partial class EndingDirector : Node
         SetLights(0.85f, 0.5f);
         await Wait(0.6);
 
-        // ② 왼쪽 — 막대가 100.0% 까지 차오른다.
+        // ② 왼쪽 — 막대가 목표치까지 차오른다.
+        float goal = DayObjectives.FinalCoreTarget;
         left?.Clear("CONTAINMENT CORE", "FINAL RECOVERY SEQUENCE");
-        left?.SetBar(97.4f);
+        left?.SetBar(goal - 2.6f);
         await Wait(0.4);
-        foreach (float v in new[] { 97.4f, 98.8f, 99.6f, 100f })
+        foreach (float d in new[] { -2.6f, -1.2f, -0.4f, 0f })
         {
-            left?.SetBar(v);
+            left?.SetBar(goal + d);
             Sfx.Instance?.Play("gauge_tick", -10f);
-            await Wait(v >= 100f ? 0.2 : 0.75);
+            await Wait(d >= 0f ? 0.2 : 0.75);
         }
 
         // ③ 0.9초 정적 → "복구 완료".

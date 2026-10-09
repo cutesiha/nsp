@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1_cfg")
 MaxDays = 5
+CompetitionDays = 3
 MaxEmployees = 6
 StatsUnlockDay = 99
 StressUnlockDay = 1

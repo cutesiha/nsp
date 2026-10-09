@@ -667,12 +667,24 @@ public static class RoomDressing
         AlbedoColor = c, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
     };
 
+    // ── 메시 공유 ────────────────────────────────────────────────────────
+    //
+    // 걸레받이 · 이음선 · 바닥 구역선처럼 **치수가 똑같은** 조각이 방마다 수십 개씩 붙는다.
+    // 조각마다 메시를 새로 만들면 엔진이 하나로 묶어 그릴 수 없어 드로우 콜이 그 수만큼
+    // 나간다. 치수를 열쇠로 캐시해 같은 치수는 같은 메시를 쓴다 — 그림은 그대로다.
+    private static readonly System.Collections.Generic.Dictionary<(int, int, int), BoxMesh> _boxCache = new();
+    private static readonly System.Collections.Generic.Dictionary<(int, int), CylinderMesh> _cylCache = new();
+
+    private static int Q(float v) => Mathf.RoundToInt(v * 10000f);
+
     private static MeshInstance3D Box(Node3D parent, Vector3 size, Vector3 pos, Material mat, string name = "")
     {
+        var key = (Q(size.X), Q(size.Y), Q(size.Z));
+        if (!_boxCache.TryGetValue(key, out var mesh)) _boxCache[key] = mesh = new BoxMesh { Size = size };
         var m = new MeshInstance3D
         {
             Name = string.IsNullOrEmpty(name) ? "D" : name,
-            Mesh = new BoxMesh { Size = size },
+            Mesh = mesh,
             Position = pos,
             MaterialOverride = mat,
         };
@@ -683,13 +695,16 @@ public static class RoomDressing
     private static MeshInstance3D Cyl(Node3D parent, float radius, float height, Vector3 pos,
         Material mat, string name = "")
     {
+        var key = (Q(radius), Q(height));
+        if (!_cylCache.TryGetValue(key, out var mesh))
+            _cylCache[key] = mesh = new CylinderMesh
+            {
+                TopRadius = radius, BottomRadius = radius, Height = height, RadialSegments = 14,
+            };
         var m = new MeshInstance3D
         {
             Name = string.IsNullOrEmpty(name) ? "C" : name,
-            Mesh = new CylinderMesh
-            {
-                TopRadius = radius, BottomRadius = radius, Height = height, RadialSegments = 14,
-            },
+            Mesh = mesh,
             Position = pos,
             MaterialOverride = mat,
         };

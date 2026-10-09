@@ -27,9 +27,15 @@ public enum StatType
 public enum PowerConsumer
 {
     CctvWatch,
-    VentRepair, // DAY1 신규 전력 패널(LIGHTING/CCTV/SENSOR)에는 없음 — 2D 백업 화면 호환용으로만 남김.
+    VentRepair, // 전력 패널에 없음 — 2D 백업 화면 호환용으로만 남김(항상 켜진 것으로 취급).
     Lighting,
+    // 관리자 패드. 예전에는 전력 패널의 세 번째 레버였지만, 그 자리를 차폐(BARRIER)가
+    // 가져가면서 **시설 상시 전원**으로 옮겼다 — 항상 켜진 것으로 취급한다.
+    // 이름을 바꾸지 않는 이유: 저장 데이터와 기존 참조(AdminPad3D · AlertTerminalView ·
+    // IncidentBoard)가 전부 이 값을 쓰고 있어, 바꾸면 그 전부를 동시에 건드려야 한다.
     Sensor,
+    // 복도 차폐문 계통. 전력 패널의 세 번째 레버가 이것이다.
+    Barrier,
 }
 
 public enum RoomResourceType
