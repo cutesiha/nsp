@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CorridorDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 중앙제어실 북측 접근 복도 — 중앙제어실 ↔ 코어실.
+;
+; 중앙제어실로 들어올 수 있는 길은 북 · 서 · 동 **셋뿐**이고, 그 셋에 차폐문이 하나씩
+; 선다. 차폐문은 작업실 출입문이 아니라 **중앙제어실 바로 앞**에 있다
+; (CorridorVisual 이 중앙제어실 쪽 끝에서 2.4m 떨어진 자리에 세운다).
+;
+; 이 파일은 새 연결을 만들지 않는다 — 중앙제어실↔코어실 간선은 이미
+; data/rooms/central_office.tres 에 있고, 여기서는 그 위에 이름 · 문 · 카메라만 얹는다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/CorridorDef.cs" id="1_cor"]
+
+[resource]
+script = ExtResource("1_cor")
+SegmentId = "corridor_north"
+DisplayName = "북측 접근 복도"
+RoomA = "central_office"
+RoomB = "core_room"
+Kind = 2
+Side = 1
+IsBlockable = true
+PermanentSeal = false
+CctvCameraId = "CAM-N01"
+ThreatLane = true
+DriveSeconds = 0.8
+MaxSealSeconds = 11.0
+ReengageCooldownSeconds = 3.0

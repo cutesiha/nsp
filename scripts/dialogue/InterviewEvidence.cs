@@ -1,0 +1,135 @@
+using NSP.Data;
+
+namespace NSP.Dialogue;
+
+// 휴게시간 심문에서 플레이어가 손에 쥐고 있는 "조사 자료" 한 장.
+//
+// 이 자료는 전부 PlayerKnownEvidence / 시설 로그 화면(FacilityLogFormatter) 에서만 나온다.
+// EventLog 원본(SystemTruth)을 여기로 들여오면 안 된다 — 플레이어가 보지 못한 사실을
+// 질문으로 만들어 주는 순간 추리가 사라진다.
+public enum EvidenceKind
+{
+    Movement,       // 시설 로그: 이 직원이 어디서 어디로 이동했다
+    Incident,       // 시설 로그: 사고가 났다
+    Cctv,           // 관리자가 CCTV 로 직접 본 장면
+    Testimony,      // 다른 직원이 이 직원에 대해 한 진술
+    OwnStatement,   // 이 직원이 관리자에게 스스로 한 진술
+    Mood,           // 근무 전 자가보고 — 오늘의 기분
+    Overheard,      // CCTV 오디오로 엿들은 두 사람의 대화
+    Call,           // 관리자와의 통화 기록(직원이 건 전화 · 못 받은 전화 · 관리자가 건 전화)
+    Anomaly,        // 이상 개체가 나타났을 때 그 방에 있었다(시설 로그의 개체 줄에서)
+}
+
+// 자료 한 장이 "그 직원이 언제 어디 있었는가"를 주장하는가.
+// 모순 판정은 이 세 값(직원 · 시각 · 작업실)만 비교한다. 문자열 비교를 하지 않는다.
+public enum PositionClaim
+{
+    None,       // 위치를 말하지 않는 자료(기분 등)
+    AtRoom,     // 그 시각 그 방에 있었다
+    Arrived,    // 그 시각 그 방에 도착했다(그 전에는 다른 방)
+}
+
+public sealed class InterviewEvidence
+{
+    // 화면/질문/테스트가 자료를 가리키는 고유 키. 같은 자료는 같은 Id 로 다시 만들어진다.
+    public string Id = "";
+    public EvidenceKind Kind;
+    // 이 자료가 **만들어진** 근무일. 기록이면 기록된 날, 진술이면 직원이 말한 날이다.
+    // 조사 자료는 기본적으로 오늘 만들어진 것만 모은다.
+    public int Day = 1;
+
+    // 이 자료의 **내용이 가리키는** 근무일.
+    //
+    // 기록 자료는 Day 와 같다. 하지만 진술은 다르다 — DAY2 에 한 말이 DAY1 의 일을
+    // 가리킬 수 있다. 모순은 "언제 말했는가" 가 아니라 "무엇에 대한 말인가" 로 따져야
+    // 하므로, 판정은 Day 가 아니라 이 값을 맞대어 본다.
+    // 0 이면 Day 와 같다고 본다(기존 자료 전부가 그렇다).
+    private int _subjectDay;
+    public int SubjectDay
+    {
+        get => _subjectDay > 0 ? _subjectDay : Day;
+        set => _subjectDay = value;
+    }
+
+    // 이 자료가 플레이어에게 실제로 보인 적이 있는가.
+    // 조사 자료에 들어오는 순간 항상 true 다 — false 인 자료를 만들지 않는 것이
+    // 이 시스템의 유일한 규칙이고, 값은 그 규칙을 테스트가 확인할 수 있게 남겨 둔다.
+    public bool PlayerObserved = true;
+
+    // 이 자료에 함께 등장하는 직원들(같은 방에 있던 인원, 증언자 등).
+    public System.Collections.Generic.List<string> RelatedEmployeeIds { get; private set; } = new();
+
+    // --- 카드 표시 ---------------------------------------------------
+    public string Header = "";      // "시설 로그" / "CCTV" / "늑대의 증언"
+    public string TimeText = "";    // "22:13" (없으면 빈 값)
+    public string Body = "";        // "저장고 → 정비실"
+
+    // --- 의미 --------------------------------------------------------
+    // 이 자료가 다루는 직원. 인터뷰 대상과 같을 때만 그 사람에게 물을 수 있다.
+    public string SubjectEmployeeId = "";
+    // 증언 자료에서 그 말을 한 사람.
+    public string SpeakerEmployeeId = "";
+
+    // 기준 시각(근무 시작 = 0초). HasTime 이 false 면 시간을 근거로 쓸 수 없다.
+    public float AnchorTime;
+    public bool HasTime;
+
+    public PositionClaim Position = PositionClaim.None;
+    public string FromRoomId = "";
+    public string ToRoomId = "";
+    // 이 자료가 가리키는 작업실(위치 주장의 대상). Movement 면 ToRoomId 와 같다.
+    public string SubjectRoomId = "";
+
+    // 사고 자료일 때만.
+    public string IncidentKey = "";
+    public LogEventType IncidentType;
+
+    // 이동이 관리자의 지시였는가(시설 로그 화면에 그렇게 떴는가).
+    public bool PlayerOrdered;
+
+    // 기분 자료일 때의 문구.
+    public string MoodText = "";
+
+    // 이 자료가 말하는 "행동". 목격 증언(무엇을 하고 있었는지 들은 경우)과
+    // 설비 접근이 보이던 CCTV 에만 붙는다. 행동 추궁(ConfrontKind.Behavior)의 근거다.
+    public string BehaviorDetail = "";
+
+    // 통화 자료일 때만 — 통화 종류(DialogueRepository.Event*) · 누가 걸었나 · 잡담 전화가 말한 작업실 ·
+    // 같은 종류의 통화 중 오늘 몇 번째인가(놀러 가고 싶다는 전화가 잦으면 근무 태만을 물을 수 있다).
+    public string CallEvent = "";
+    public CallRecordKind CallKind;
+    public string CallRoomId = "";
+    public int RepeatIndex;
+
+    // 모순 판정에 쓸 수 있는 자료인가 — 직원과 시각과 위치가 모두 있어야 한다.
+    public bool CanAnchorPosition =>
+        Position != PositionClaim.None && HasTime && !string.IsNullOrEmpty(SubjectRoomId);
+
+    // 카드에 찍히는 한 줄. 종류를 두 글자로 앞에 달아 훑어보기 쉽게 한다.
+    //   기록  22:13  저장고 → 정비실
+    //   증언  22:16  늑대 · 정비실에서 봤다
+    public string Tag => Kind switch
+    {
+        EvidenceKind.Movement => "기록",
+        EvidenceKind.Incident => "사고",
+        EvidenceKind.Cctv => "CCTV",
+        EvidenceKind.Testimony => "증언",
+        EvidenceKind.OwnStatement => "진술",
+        EvidenceKind.Overheard => "대화",
+        EvidenceKind.Call => "통화",
+        EvidenceKind.Anomaly => "개체",
+        _ => "기분",
+    };
+
+    public string OneLine =>
+        $"{Tag}  {(string.IsNullOrEmpty(TimeText) ? "" : TimeText + "  ")}{Body}";
+
+    // 그 순간의 자료를 그대로 떠 둔 사본. 원천(시설 로그 · 진술)은 근무가 바뀌면 비워지므로
+    // 관리자 패드(ClueBoard)가 며칠 뒤에도 같은 내용을 보여 주려면 사본이 필요하다.
+    public InterviewEvidence Clone()
+    {
+        var c = (InterviewEvidence)MemberwiseClone();
+        c.RelatedEmployeeIds = new System.Collections.Generic.List<string>(RelatedEmployeeIds);
+        return c;
+    }
+}

@@ -1,11 +1,15 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Godot;
 
 namespace NSP.Core;
 
-// 현재 프로토타입의 DAY1 전용 대화 기록 저장소. 같은 화자 + 같은 종류 + 같은 문장은
-// 공백과 개행을 정규화한 뒤 한 번만 저장한다.
+// 대화 기록 저장소. 같은 화자 + 같은 종류 + 같은 문장은 공백과 개행을 정규화한 뒤
+// 한 번만 저장한다.
+//
+// 한 판(새 게임) 동안 모든 날의 기록이 쌓인다 — 근무가 바뀌어도 지우지 않는다.
+// 화면은 각자 Day 로 거른다(대화 기록 창 = 오늘 것만, 관리자 패드 = 그 단서의 날).
 public partial class DialogueHistory : Node
 {
     [Signal] public delegate void EntryAddedEventHandler();
@@ -14,7 +18,7 @@ public partial class DialogueHistory : Node
     public static DialogueHistory Instance { get; private set; }
 
     private readonly List<DialogueHistoryEntry> _entries = new();
-    private readonly HashSet<string> _dedupe = new();
+    private int _seq;
 
     public override void _EnterTree() => Instance = this;
 
@@ -24,38 +28,53 @@ public partial class DialogueHistory : Node
     }
 
     public bool AddEntry(string speakerId, string speakerDisplayName, DialogueEntryType entryType,
-        string text, DialogueConversationType conversationType)
+        string text, DialogueConversationType conversationType, string counterpartId = "",
+        IEnumerable<string> evidenceIds = null)
     {
-        // DAY2 이후 저장/탭은 이번 프로토타입 범위가 아니다.
-        if ((GameState.Instance?.CurrentDay ?? 1) != 1) return false;
+        // 그 날의 대화는 그 날 기록한다. 화면(Day1HistoryOverlay)이 오늘 것만 골라 보여 준다.
+        int day = GameState.Instance?.CurrentDay ?? 1;
 
         string normalizedText = Normalize(text);
         if (normalizedText.Length == 0) return false;
 
-        string normalizedSpeaker = Normalize(speakerId).ToLowerInvariant();
-        string key = $"{normalizedSpeaker}\u001f{entryType}\u001f{normalizedText}";
-        if (!_dedupe.Add(key)) return false;
+        // 같은 질문을 다른 직원에게 다시 묻거나, 같은 대답이 두 번 나오는 일은 얼마든지 있다.
+        // 전에는 그걸 전부 '중복'으로 버려서 대화 기록에 구멍이 났다(질문만 사라지고 대답만
+        // 남아 순서가 뒤엉켜 보였다). 이제는 '바로 직전 줄'과만 비교해 같은 호출이 두 번
+        // 들어온 사고만 막는다.
+        var last = _entries.Count > 0 ? _entries[^1] : null;
+        if (last != null && last.Day == day && last.SpeakerId == (speakerId ?? "").Trim()
+            && last.EntryType == entryType && Normalize(last.Text) == normalizedText)
+            return false;
 
         _entries.Add(new DialogueHistoryEntry
         {
-            Day = 1,
+            Day = day,
             Timestamp = GameState.Instance?.DayTimeSeconds ?? 0f,
+            Seq = ++_seq,
             SpeakerId = speakerId?.Trim() ?? "",
+            CounterpartId = (counterpartId ?? "").Trim(),
             SpeakerDisplayName = speakerDisplayName?.Trim() ?? "",
             EntryType = entryType,
             Text = text?.Trim() ?? "",
             ConversationType = conversationType,
+            EvidenceIds = evidenceIds?.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList() ?? new List<string>(),
         });
         EmitSignal(SignalName.EntryAdded);
         return true;
     }
+
+    // 그 직원과 오간 대화만. 관리자의 말도 상대가 그 직원이면 함께 나온다.
+    // 순서는 기록된 차례 그대로다.
+    public static bool Involves(DialogueHistoryEntry e, string employeeId) =>
+        e != null && !string.IsNullOrEmpty(employeeId)
+        && (e.SpeakerId == employeeId || e.CounterpartId == employeeId);
 
     public IReadOnlyList<DialogueHistoryEntry> GetAllEntries() => _entries;
 
     public void ClearAll()
     {
         _entries.Clear();
-        _dedupe.Clear();
+        _seq = 0;
         EmitSignal(SignalName.Cleared);
     }
 

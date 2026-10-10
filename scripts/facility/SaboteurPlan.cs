@@ -1,0 +1,372 @@
+﻿using System.Collections.Generic;
+using System.Linq;
+using Godot;
+using NSP.Core;
+using NSP.Data;
+
+namespace NSP.Facility;
+
+public enum SaboteurPhase
+{
+    Idle,        // 평소처럼 일한다
+    Opportunity, // 배치된 방이 손댈 수 있는 곳이고, 자리를 잡았다
+    Preparing,   // 준비 중 — 이 동안 전조가 나온다. 재배치하면 취소된다.
+    Done,        // 오늘 몫을 끝냈다
+}
+
+// 결번 개체가 "언제" 손을 댈지 정한다.
+//
+// V2 에서 바뀐 것 하나가 전부다 — **결번 개체는 스스로 방을 옮기지 않는다.**
+// 예전에는 범행 장소를 찾아 걸어갔다. 그러면 로그에 남는 그 이동이 곧 "이 사람이 범인"
+// 이라는 표시가 되어 버린다. 이제 방 간 이동 권한은 오직 플레이어에게 있고,
+// 결번 개체는 **플레이어가 배치해 준 자리에서** 정상 직원인 척 일하다가 기회를 잡는다.
+//
+//   Idle → Opportunity → Preparing → (방해공작) → Done
+//
+// 플레이어가 준비 중인 결번을 다른 방으로 옮기면 준비는 그 자리에서 취소되고,
+// 새 방에서 조건을 처음부터 다시 채워야 한다. 배치가 곧 기회이자 방어다.
+public sealed class SaboteurPlan
+{
+    public SaboteurPhase Phase { get; private set; } = SaboteurPhase.Idle;
+    public string SaboteurId { get; private set; } = "";
+    // 지금 기회를 재고 있는 방. 플레이어가 옮기면 이 값이 바뀌고 준비는 초기화된다.
+    public string WatchedRoomId { get; private set; } = "";
+    public float SettledSeconds { get; private set; }
+    public float PrepareSeconds { get; private set; }
+    public float PrepareNeeded { get; private set; }
+    public float PreparingStartedAt { get; private set; } = -1f;
+    public float ActedAtSeconds { get; private set; } = -1f;
+    public string ActedRoomId { get; private set; } = "";
+    public int CancelCount { get; private set; }
+    // 오늘 몇 번 저질렀는가(하루 한도는 OpsProfileDef.MaxSabotageActionsPerDay 가 정한다).
+    public int ActionCount { get; private set; }
+
+    // 디버그 전용 기록(플레이어에게 보여주지 않는다).
+    public readonly List<string> Conditions = new();
+    public readonly List<string> Clues = new();
+    // 이번 준비 구간에서 이미 낸 전조(같은 전조를 반복해 흘리지 않는다).
+    private readonly HashSet<string> _firedPrecursors = new();
+
+    // 목표 구간 안에서 매번 같은 초에 터지면 대본처럼 보인다 — 근무마다 조금씩 흔든다.
+    private float _windowOffset;
+
+    // 오늘 손댈 생각이 있는가(근무 시작 때 한 번만 정한다).
+    // 아직 정하지 않았으면 null — 첫 판정 때 그 날의 SabotageChancePerDay 로 굴린다.
+    private bool? _willActToday;
+
+    // 검사·디버그용. 오늘 결번 개체가 애초에 저지를 생각이었는지.
+    public bool WillActToday => _willActToday ?? true;
+
+    public bool HasActed => ActedAtSeconds >= 0f;
+    public float PrepareRatio => PrepareNeeded <= 0f ? 0f : Mathf.Clamp(PrepareSeconds / PrepareNeeded, 0f, 1f);
+
+    public void Reset()
+    {
+        Phase = SaboteurPhase.Idle;
+        SaboteurId = WatchedRoomId = ActedRoomId = "";
+        SettledSeconds = PrepareSeconds = PrepareNeeded = 0f;
+        PreparingStartedAt = ActedAtSeconds = -1f;
+        CancelCount = 0;
+        ActionCount = 0;
+        _willActToday = null;
+        _windowOffset = GD.Randf() * 6f;
+        TamperCount = 0;
+        TamperedAtSeconds = -1f;
+        TamperOriginRoomId = TamperAffectedRoomId = "";
+        _tamperOffset = GD.Randf() * 8f;
+        Conditions.Clear();
+        Clues.Clear();
+        _firedPrecursors.Clear();
+    }
+
+    // --- 진행 ------------------------------------------------------------
+
+    public void Tick(float delta, FacilitySimulation sim, EmployeeState saboteur, OpsProfileDef ops)
+    {
+        // 대상 작업실이 정해지지 않은 날은 이 기회 판정을 쓰지 않는다(DAY0 교육 등).
+        if (sim == null || saboteur == null || ops == null || ops.SabotageTargetRooms.Count == 0) return;
+        if (Phase == SaboteurPhase.Done) return;
+
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        SaboteurId = saboteur.EmployeeId;
+
+        string room = saboteur.CurrentRoomId;
+
+        // 플레이어가 방을 옮겼다 → 지금까지의 준비는 전부 없던 일이 된다.
+        if (room != WatchedRoomId)
+        {
+            if (Phase == SaboteurPhase.Preparing) CancelCount++;
+            WatchedRoomId = room;
+            SettledSeconds = PrepareSeconds = 0f;
+            PreparingStartedAt = -1f;
+            Phase = SaboteurPhase.Idle;
+            _firedPrecursors.Clear();
+        }
+
+        // 플레이어가 재배치를 지시하는 순간(=걷기 시작) 준비는 그 자리에서 깨진다.
+        // 자리를 뜨는 것은 관리자의 개입이고, 그 개입이 방해공작을 막는 유일한 수단이다.
+        if (saboteur.IsMoving || !ops.SabotageTargetRooms.Contains(room) || !sim.IsRoomActive(room))
+        {
+            SettledSeconds = PrepareSeconds = 0f;
+            if (Phase != SaboteurPhase.Idle)
+            {
+                if (Phase == SaboteurPhase.Preparing) CancelCount++;
+                Phase = SaboteurPhase.Idle;
+                _firedPrecursors.Clear();
+            }
+            return;
+        }
+
+        // 그 방이 지금 시끄럽다(경고가 떠 있거나 수리가 걸려 있다) — 손대지 않고 **기다린다**.
+        //
+        // 예전에는 여기서도 준비를 0으로 지웠다. 그런데 경고는 근무 내내 이 방 저 방에서
+        // 뜨기 때문에, 결번 개체는 준비를 채우는 족족 잃고 5일을 해도 한 번밖에 못 저질렀다.
+        // 자리를 뜨지 않았는데 준비가 사라지는 것도 앞뒤가 맞지 않는다 — 그대로 멈춰 둔다.
+        if (sim.HasRepairPending(room) || sim.Warnings.HasActive(room)) return;
+
+        SettledSeconds += delta;
+
+        // ① 활성 시각 전에는 기회 자체가 열리지 않는다.
+        if (now < ops.SaboteurStartSeconds) return;
+        // ② 지금 **이 방**이 수습 중이면 손대지 않는다 — 사람이 몰려 너무 눈에 띈다.
+        //    (다른 방의 사고까지 보면, 사고가 잦은 날에는 결번 개체가 아무것도 못 한다.)
+        if (sim.HasRepairPending(room)) return;
+        // ③ 배치된 자리에 자리를 잡아야 한다.
+        if (SettledSeconds < ops.SabotageSettleSeconds) return;
+
+        // 작은 교란은 방해공작 준비와 **별개로** 돈다. 오늘 손댈 생각이 없는 날에도,
+        // 준비가 끝나기 한참 전에도 일어난다 — 하루에 한 번은 반드시 무언가가 있어야 한다.
+        TickTamper(sim, saboteur, ops, room, now);
+
+        if (Phase == SaboteurPhase.Idle)
+        {
+            Phase = SaboteurPhase.Opportunity;
+            Note(Conditions, "AfterActivationTime");
+            Note(Conditions, "InTargetRoomByPlayerOrder");
+            Note(Conditions, "SettledInRoom");
+        }
+
+        if (Phase == SaboteurPhase.Opportunity)
+        {
+            Phase = SaboteurPhase.Preparing;
+            PreparingStartedAt = now;
+            PrepareNeeded = PrepareTime(sim, ops, room, saboteur.EmployeeId);
+            PrepareSeconds = 0f;
+        }
+
+        if (Phase != SaboteurPhase.Preparing) return;
+
+        PrepareSeconds += delta;
+        TickPrecursors(sim, saboteur, room, now);
+    }
+
+    // --- 작은 교란(MinorTamper) ------------------------------------------
+    //
+    // 방해공작과 **같은 조건에서 돌지만 같은 줄에 있지 않다.** 방해공작은 "오늘 할지" 를
+    // 굴려 대부분의 날에 아무 일도 없지만, 교란은 굴리지 않는다 — 하루에 한 번은 반드시
+    // 무언가가 일어나야 휴게시간에 되짚을 것이 남는다.
+    //
+    // 큰 피해를 주지 않으므로 방해공작처럼 긴 준비를 요구하지 않는다. 자리를 잡고 있고
+    // 그 방이 조용하면(위 Tick 의 조건들) 창 안에서 한 번 손을 댄다.
+
+    public int TamperCount { get; private set; }
+    public float TamperedAtSeconds { get; private set; } = -1f;
+    // 손댄 방 / 증상이 난 방. 둘이 다를 수 있다는 것이 이 장치의 전부다.
+    public string TamperOriginRoomId { get; private set; } = "";
+    public string TamperAffectedRoomId { get; private set; } = "";
+
+    public bool HasTampered => TamperedAtSeconds >= 0f;
+
+    // 그 구간 안에서 매번 같은 초에 터지지 않게 흔든다.
+    private float _tamperOffset;
+
+    private void TickTamper(FacilitySimulation sim, EmployeeState saboteur, OpsProfileDef ops,
+        string room, float now)
+    {
+        if (ops.TamperAttemptsPerDay <= 0 || TamperCount >= ops.TamperAttemptsPerDay) return;
+        if (now < ops.TamperWindowStartSeconds + _tamperOffset) return;
+        // 창을 넘겼어도 아직 못 했으면 그대로 한다 — 하루 한 번은 보장이다.
+        // 자리를 잡아야 한다는 조건(위 Tick)은 그대로다.
+        if (SettledSeconds < ops.SabotageSettleSeconds) return;
+
+        string affected = PickTamperRoom(sim, ops, room);
+        if (string.IsNullOrEmpty(affected)) return;
+
+        TamperCount++;
+        TamperedAtSeconds = now;
+        TamperOriginRoomId = room;
+        TamperAffectedRoomId = affected;
+        sim.TriggerTamper(room, saboteur.EmployeeId, affected);
+        Note(Clues, $"{sim.RoomDisplayName(affected)} 계통 신호 흔들림"
+                    + (affected == room ? "" : $" (손댄 곳은 {sim.RoomDisplayName(room)})"));
+    }
+
+    // 증상이 나타날 방. 대부분은 **다른 방**이다 — 그래야 이상이 난 곳만 보고
+    // 범인을 좁힐 수 없다. 고장 난 방은 고르지 않는다(이미 시끄럽다).
+    private string PickTamperRoom(FacilitySimulation sim, OpsProfileDef ops, string originRoom)
+    {
+        if (GD.Randf() >= Mathf.Clamp(ops.TamperCrossRoomChance, 0f, 1f)) return originRoom;
+
+        var pool = new List<string>();
+        foreach (string id in ops.SabotageTargetRooms)
+        {
+            if (id == originRoom) continue;
+            if (!sim.IsRoomActive(id) || sim.HasRepairPending(id)) continue;
+            pool.Add(id);
+        }
+        if (pool.Count == 0) return originRoom;
+        return pool[Mathf.Clamp((int)(GD.Randf() * pool.Count), 0, pool.Count - 1)];
+    }
+
+    // 준비에 걸리는 시간. 사람이 많을수록, 경비가 볼수록 오래 걸린다.
+    // 다만 "3명이면 절대 불가" 같은 규칙은 두지 않는다 — 악용되면 추리가 아니라 공식이 된다.
+    private static float PrepareTime(FacilitySimulation sim, OpsProfileDef ops, string roomId, string saboteurId)
+    {
+        float need = Mathf.Lerp(ops.SabotagePrepareMinSeconds, ops.SabotagePrepareMaxSeconds, GD.Randf());
+        int others = Mathf.Max(0, sim.OnDutyCount(roomId) - 1);
+        // 사람이 많으면 오래 걸리지만, 예전 배율(1.45/1.8)은 경비실 배율까지 겹쳐 두 배 가까이
+        // 되면서 근무 안에 준비가 끝나지 않는 날이 많았다. 억제력은 남기고 폭만 줄인다.
+        need *= others switch { 0 => 0.85f, 1 => 1f, 2 => 1.25f, _ => 1.45f };
+        // 경비실에 사람이 있으면 그만큼 눈치를 본다.
+        need *= 1f + 0.13f * sim.OnDutyCount(FacilitySimulation.GuardRoomIdPublic);
+        return Mathf.Max(3f, need);
+    }
+
+    // --- 전조 --------------------------------------------------------------
+
+    // 준비 중에 새어 나오는 미세한 이상. 세 갈래다.
+    //   ① 행동    — CCTV 로 그 방을 보고 있으면 잡힌다
+    //   ② 설비    — 출력/진행도가 잠깐 흔들린다(수치를 보고 있으면 눈에 띈다)
+    //   ③ 목격    — 같은 방의 관찰력 있는 직원이 기억한다(휴게시간 증언)
+    // 어느 것도 "누가 범인이다"를 말하지 않는다.
+    private void TickPrecursors(FacilitySimulation sim, EmployeeState saboteur, string roomId, float now)
+    {
+        float r = PrepareRatio;
+
+        if (r >= 0.35f && _firedPrecursors.Add("action"))
+        {
+            sim.MarkSuspiciousAction(roomId, saboteur.EmployeeId);
+            Note(Clues, $"{Codename(sim, saboteur.EmployeeId)} 설비 접근(CCTV 로 확인 가능)");
+        }
+
+        if (r >= 0.6f && _firedPrecursors.Add("fault"))
+        {
+            sim.TriggerMicroFault(roomId);
+            Note(Clues, $"{sim.RoomDisplayName(roomId)} 수치 미세 이상");
+        }
+
+        if (r >= 0.8f && _firedPrecursors.Add("witness"))
+        {
+            var seen = sim.RecordOddBehaviour(saboteur.EmployeeId, roomId, "설비 쪽에 평소보다 오래 머물렀다");
+            foreach (string id in seen) Note(Clues, $"{Codename(sim, id)} 목격(증언 가능)");
+        }
+    }
+
+    // --- 실행 판정 --------------------------------------------------------
+
+    // FacilitySimulation 이 방해공작을 실행하기 직전에 묻는다.
+    public bool ReadyToAct(FacilitySimulation sim, EmployeeState saboteur, OpsProfileDef ops)
+    {
+        if (ops == null || ops.SabotageTargetRooms.Count == 0) return true;   // 예전 방식
+
+        // 오늘 아예 손대지 않기로 한 날이면 여기서 끝이다.
+        // (준비도 전조도 그대로 흐른다 — 관리자 쪽에서는 구분되지 않는다.)
+        _willActToday ??= GD.Randf() < Mathf.Clamp(ops.SabotageChancePerDay, 0f, 1f);
+        if (_willActToday == false) return false;
+
+        if (Phase != SaboteurPhase.Preparing) return false;
+        // 격리 명령을 받은 순간부터는 손대지 않는다 — 아직 작업실에서 반응하는 중이어도 마찬가지다.
+        if (saboteur.Isolated) return false;
+        if (saboteur.CurrentRoomId != WatchedRoomId) return false;
+
+        // 혼자 있는 방에서는 손대지 않는다. 그 방에 자기밖에 없는데 설비가 망가지면
+        // 시설 로그 한 줄만으로 범인이 확정된다 — 심문도 CCTV 도 볼 이유가 사라진다.
+        // 준비는 그대로 쌓아 두고, 누가 들어올 때까지 기다린다.
+        if (ops.SabotageNeedsCompany && sim.OnDutyCount(saboteur.CurrentRoomId) <= 1) return false;
+
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        // 목표 구간이 끝나 가면 준비가 조금 덜 됐어도 실행한다 — 그날의 핵심 사건이
+        // 근무 막판까지 밀리면 추리할 시간이 없다. 전조는 이미 절반 이상 나온 뒤다.
+        // (DAY1 처럼 방해공작이 거의 없어야 하는 날에는 이 강행을 꺼 둔다.)
+        bool deadline = ops.SabotageDeadlineRush && now >= ops.SabotageWindowEndSeconds;
+        float need = deadline ? PrepareNeeded * 0.55f : PrepareNeeded;
+        if (PrepareSeconds < need) return false;
+        return now >= ops.SabotageWindowStartSeconds + _windowOffset;
+    }
+
+    // 실제로 저질렀다.
+    public void OnActed(FacilitySimulation sim, EmployeeState saboteur, OpsProfileDef ops, string roomId)
+    {
+        ActedAtSeconds = GameState.Instance?.DayTimeSeconds ?? 0f;
+        ActedRoomId = roomId;
+        Note(Conditions, "PreparedLongEnough");
+        Note(Conditions, "InsideSabotageWindow");
+        CollectClues(sim, saboteur, roomId);
+        ActionCount++;
+        Phase = SaboteurPhase.Done;
+    }
+
+    // 오늘 몫이 남았다 — 다음 차례를 연다. 준비는 처음부터 다시 채운다.
+    // (전조도 다시 나오므로, 두 번째 방해공작도 미리 눈치챌 여지가 남는다.)
+    public void ArmNextAction()
+    {
+        Phase = SaboteurPhase.Idle;
+        WatchedRoomId = "";
+        SettledSeconds = PrepareSeconds = PrepareNeeded = 0f;
+        PreparingStartedAt = -1f;
+        _windowOffset = GD.Randf() * 6f;
+        _firedPrecursors.Clear();
+    }
+
+    private void CollectClues(FacilitySimulation sim, EmployeeState saboteur, string roomId)
+    {
+        foreach (string id in sim.GetActiveEmployeeIds())
+        {
+            if (id == saboteur.EmployeeId) continue;
+            var st = sim.GetEmployeeState(id);
+            if (st is not { Alive: true, Isolated: false }) continue;
+            if (st.CurrentRoomId != roomId) continue;
+            bool noticed = EmployeeTraits.Get(id).ObservationalAwareness >= EmployeeTraits.AwarenessForWitness;
+            Note(Clues, noticed
+                ? $"{Codename(sim, id)} 직접 목격"
+                : $"{Codename(sim, id)} 같은 방 있었음(목격은 못함)");
+        }
+        if (NSP.Dialogue.PlayerKnownEvidence.HasRoomRecord(roomId))
+            Note(Clues, "CCTV / 순찰 위치 기록");
+    }
+
+    private static string Codename(FacilitySimulation sim, string id) =>
+        sim.GetEmployeeDef(id)?.Codename ?? id;
+
+    private static void Note(List<string> list, string text)
+    {
+        if (!list.Contains(text)) list.Add(text);
+    }
+
+    // --- 디버그 ------------------------------------------------------------
+
+    public string DebugSummary(FacilitySimulation sim)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("──────── 결번 디버그 (플레이어 비공개) ────────");
+        sb.AppendLine($"Saboteur: {SaboteurId}  ({sim?.GetEmployeeDef(SaboteurId)?.Codename ?? "?"})");
+        sb.AppendLine(HasActed
+            ? $"Sabotage: {Clock(ActedAtSeconds)} {ActedRoomId}  (준비 시작 {Clock(PreparingStartedAt)})"
+            : $"Sabotage: 없음 (phase={Phase}, 준비 {PrepareSeconds:0}/{PrepareNeeded:0}초)");
+        sb.AppendLine($"재배치로 취소된 횟수: {CancelCount}");
+        sb.AppendLine("Preconditions:");
+        foreach (string c in Conditions) sb.AppendLine($"  ✓ {c}");
+        sb.AppendLine("Generated Clues:");
+        foreach (string c in Clues) sb.AppendLine($"  - {c}");
+        sb.AppendLine("False Leads:");
+        foreach (string f in EmployeeBehaviorSystem.DebugFalseLeads) sb.AppendLine($"  - {f}");
+        return sb.ToString();
+    }
+
+    public static string Clock(float seconds)
+    {
+        float length = Config.Instance?.Data?.DayLengthSeconds ?? 120f;
+        int total = 22 * 60 + Mathf.FloorToInt(Mathf.Max(0f, seconds) * (360f / Mathf.Max(1f, length)));
+        return $"{total / 60 % 24:00}:{total % 60:00}";
+    }
+}

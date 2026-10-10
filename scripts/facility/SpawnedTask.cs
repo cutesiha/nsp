@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace NSP.Facility;
 
@@ -30,6 +30,12 @@ public class SpawnedTask
     // (무인 방치 사고의 수리는 RoomDef.RepairMinWorkers 로 결정된다 — 발전실·코어실은 2명.)
     public int MinWorkersOverride;
 
+
+    // 수리 승인 요청(G-2)을 이미 줄에 세웠는가.
+    // 요청은 **수리가 생긴 순간이 아니라 필요한 인원이 현장에 다 도착한 뒤에** 뜬다 —
+    // 아직 아무도 안 간 방의 수리를 승인하라고 묻는 건 말이 안 되고, 관리자가
+    // 사람을 보내는 동안 제한 시간만 흘러가 버린다.
+    public bool ApprovalRequested;
     public SpawnedTaskStatus Status = SpawnedTaskStatus.Active;
     // Completed / Failed 이후 방 카드에 "✓ 완료" · "🚨 실패" 를 잠깐 더 보여주기 위한 잔여 표시 시간.
     public float ResolveDisplayTimer;
@@ -38,6 +44,14 @@ public class SpawnedTask
     public readonly HashSet<string> StartedWorkerIds = new();
     // 자재가 없어 멈춰 있다고 이미 기록했는가. 상태가 바뀔 때만 한 번씩 로그를 남긴다.
     public bool MaterialsBlockedLogged;
+
+    // 이번 틱에 실제로 게이지가 찼는가(최소 인원을 채웠고 자재도 막히지 않음).
+    // 화면 표시 전용 — 시뮬레이션 판정에는 쓰지 않는다.
+    public bool Progressing;
+
+    // 마지막으로 계산된 초당 게이지 증가량. 표시 전용이다 — 방 카드가
+    // "다음 생산까지 몇 초" 를 지금 속도 기준으로 환산하는 데만 쓴다.
+    public float LastRate;
 
     public float Remaining => System.Math.Max(0f, TimeLimitSeconds - Elapsed);
     public float Ratio => GaugeRequired > 0f ? Gauge / GaugeRequired : 0f;

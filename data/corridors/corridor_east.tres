@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CorridorDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 중앙제어실 동측 접근 복도 — 중앙제어실 ↔ 저장고.
+; 설비 배관 통로(MAINTENANCE CABLE PASSAGE)에서 나온 것이 이 복도로 들어온다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/CorridorDef.cs" id="1_cor"]
+
+[resource]
+script = ExtResource("1_cor")
+SegmentId = "corridor_east"
+DisplayName = "동측 접근 복도"
+RoomA = "central_office"
+RoomB = "storage_room"
+Kind = 2
+Side = 3
+IsBlockable = true
+PermanentSeal = false
+CctvCameraId = "CAM-E01"
+ThreatLane = true
+DriveSeconds = 0.8
+MaxSealSeconds = 11.0
+ReengageCooldownSeconds = 3.0

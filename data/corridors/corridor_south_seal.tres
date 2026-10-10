@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="CorridorDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 중앙제어실 남측 — **영구 봉쇄된 옛 통로** (중앙제어실 → 격리실 직통).
+;
+; 이 연결은 data/rooms 에서 **이미 지워졌다.** 즉 길찾기에는 존재하지도 않는다 —
+; 직원도 괴물도 지나갈 수 없는 이유가 "문이 닫혀 있어서" 가 아니라 "길이 없어서" 다.
+; 이 파일은 지도와 3D 에 "여기는 막혔다"는 사실만 남기기 위한 표시용 등록이다.
+;
+;   · 플레이어가 조작할 수 없음 (IsBlockable = false)
+;   · 항상 봉쇄 · 전력 소모 없음 · 전력 사고로도 열리지 않음
+;   · 격리 명령과 무관하게 늘 존재
+;
+; 격리실은 이제 의무실을 거쳐 간다: 중앙제어실 → 저장고 → 정비실 → 의무실 → 격리실.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/CorridorDef.cs" id="1_cor"]
+
+[resource]
+script = ExtResource("1_cor")
+SegmentId = "corridor_south_seal"
+DisplayName = "남측 봉쇄 격벽"
+RoomA = "central_office"
+RoomB = "isolation_room"
+Kind = 2
+Side = 4
+IsBlockable = false
+PermanentSeal = true
+CctvCameraId = "CAM-S00"
+ThreatLane = false
+DriveSeconds = 0.8
+MaxSealSeconds = 0.0
+ReengageCooldownSeconds = 0.0

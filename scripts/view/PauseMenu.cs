@@ -3,7 +3,7 @@ using NSP.Core;
 
 namespace NSP.View;
 
-// ESC / 톱니바퀴로 여는 일시정지 메뉴. 설정 창과 같은 낡은 서류 톤이고,
+// ESC / 톱니바퀴로 여는 일시정지 메뉴. 환경 설정 · 시설 로그 창과 같은 홀로그램 창이고,
 // 카드 다섯 장(설정 / 저장하기 / 불러오기 / 시작화면으로 / 나가기)이 세로로 놓인다.
 // 저장·불러오기는 아직 미구현이라 비활성 카드로만 자리를 잡아둔다.
 // 시작화면 복귀와 종료는 "예 / 아니오" 확인을 한 번 거친다.
@@ -11,10 +11,11 @@ public partial class PauseMenu : CanvasLayer
 {
     public static PauseMenu Instance { get; private set; }
 
-    private static readonly Color Ink = new(0.18f, 0.14f, 0.09f);
-    private static readonly Color InkDim = new(0.42f, 0.35f, 0.24f);
-    private static readonly Color InkRed = new(0.55f, 0.14f, 0.10f);
-    private static readonly Color Paper = new(0.855f, 0.80f, 0.645f);
+    // 환경 설정 창(SettingsPanel) · 기록 창(Day1HistoryOverlay)과 같은 색.
+    private static readonly Color Cyan = new(0.55f, 0.95f, 1f);
+    private static readonly Color Ink = new(0.84f, 0.92f, 0.92f);
+    private static readonly Color InkDim = new(0.50f, 0.66f, 0.68f);
+    private static readonly Color WindowBg = new(0.03f, 0.09f, 0.11f, 0.94f);
 
     // 시작 화면으로 돌아갈 때 쓰는 씬. 메인 씬 자체를 다시 로드해 처음 상태로 되돌린다.
     [Export] public string TitleScenePath = "res://scenes/main/MainScene3D_Test.tscn";
@@ -23,6 +24,7 @@ public partial class PauseMenu : CanvasLayer
     private Control _confirm;
     private Font _serif, _body;
     private SettingsPanel _settings;
+    private AchievementPanel _achievements;
 
     public bool IsOpen => Visible;
 
@@ -32,8 +34,8 @@ public partial class PauseMenu : CanvasLayer
         Layer = 120;                       // 통화 HUD(90) 위. 설정 창(130)은 이 위에 뜬다.
         Visible = false;
         ProcessMode = ProcessModeEnum.Always;   // 일시정지 중에도 입력을 받는다
-        _serif = GD.Load<Font>("res://assets/fonts/KMU80TTFSungkokSerif.ttf") ?? ViewFont.Default;
         _body = ViewFont.Default;
+        _serif = _body;   // 홀로그램 창은 기록 창처럼 본문 글꼴 하나로 통일한다
         BuildUI();
     }
 
@@ -54,6 +56,9 @@ public partial class PauseMenu : CanvasLayer
     {
         if (!Visible) return;
         HideConfirm();
+        // 일시정지를 닫으면 그 위에 떠 있던 창도 같이 걷는다 — 다음에 ESC 를 눌렀을 때
+        // 메뉴 대신 도전과제가 먼저 보이면 안 된다.
+        if (_achievements != null && IsInstanceValid(_achievements)) _achievements.Close();
         Visible = false;
         GetTree().Paused = false;
     }
@@ -69,8 +74,16 @@ public partial class PauseMenu : CanvasLayer
     {
         if (e is not InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }) return;
 
-        // 설정 창이 열려 있으면 그 창이 ESC 를 먼저 처리한다.
+        // 설정 창 · 도전과제 창이 열려 있으면 그 창이 ESC 를 먼저 처리한다.
         if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
+        if (_achievements != null && IsInstanceValid(_achievements) && _achievements.Visible) return;
+
+        // 시작 화면(중앙제어실 전체가 타이틀)에서는 ESC 가 그쪽 단말기의 '뒤로'다.
+        if (TitleRoomDirector.Instance?.IsRunning == true) return;
+        // 엔딩 연출 · 5일간의 근무 기록 동안에는 멈추지 않는다.
+        if (EndingDirector.IsPlaying) return;
+        // 최종 격리 보고서는 제출 전까지 빠져나갈 수 없다.
+        if (FinalReportView.IsOpen) return;
 
         if (_confirm is { Visible: true }) HideConfirm();
         else if (Visible) Close();
@@ -91,7 +104,9 @@ public partial class PauseMenu : CanvasLayer
         scrim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _root.AddChild(scrim);
 
-        var sheet = MakeSheet(-300f, 300f, -282f, 282f);
+        // 카드가 넷(설정 · 도전과제 · 시작화면으로 · 나가기)이라 그 높이에 맞춘다 —
+        // 저장/불러오기를 걷어내고도 창 크기를 그대로 두면 아래가 휑하게 빈다.
+        var sheet = MakeSheet(-330f, 330f, -222f, 222f);
         _root.AddChild(sheet);
 
         // 오른쪽 위 닫기(X).
@@ -102,19 +117,19 @@ public partial class PauseMenu : CanvasLayer
             OffsetLeft = -58f, OffsetRight = -14f, OffsetTop = 14f, OffsetBottom = 58f,
         };
         close.AddThemeFontOverride("font", _body);
-        close.AddThemeFontSizeOverride("font_size", 24);
-        close.AddThemeColorOverride("font_color", InkDim);
-        close.AddThemeColorOverride("font_hover_color", new Color(0.98f, 0.93f, 0.82f));
-        close.AddThemeColorOverride("font_pressed_color", new Color(0.98f, 0.93f, 0.82f));
+        close.AddThemeFontSizeOverride("font_size", ViewFont.FS(24));
+        close.AddThemeColorOverride("font_color", Cyan);
+        close.AddThemeColorOverride("font_hover_color", Colors.White);
+        close.AddThemeColorOverride("font_pressed_color", Colors.White);
         var xNormal = new StyleBoxFlat
         {
-            BgColor = new Color(0.88f, 0.84f, 0.71f, 0f),
-            BorderColor = new Color(0.4f, 0.32f, 0.2f, 0.45f),
+            BgColor = new Color(0f, 0f, 0f, 0.12f),
+            BorderColor = Cyan with { A = 0.5f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         };
         var xHover = (StyleBoxFlat)xNormal.Duplicate();
-        xHover.BgColor = InkRed with { A = 0.85f };
-        xHover.BorderColor = InkRed;
+        xHover.BgColor = Cyan with { A = 0.25f };
+        xHover.BorderColor = Cyan;
         close.AddThemeStyleboxOverride("normal", xNormal);
         close.AddThemeStyleboxOverride("hover", xHover);
         close.AddThemeStyleboxOverride("pressed", xHover);
@@ -124,19 +139,20 @@ public partial class PauseMenu : CanvasLayer
 
         var vb = new VBoxContainer();
         vb.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        vb.OffsetLeft = 40; vb.OffsetRight = -40;
+        // 오른쪽은 닫기(✕) 자리를 비워 둔다 — 제목이 그 위로 올라타면 둘 다 안 읽힌다.
+        vb.OffsetLeft = 36; vb.OffsetRight = -76;
         vb.OffsetTop = 30; vb.OffsetBottom = -30;
         vb.AddThemeConstantOverride("separation", 14);
         sheet.AddChild(vb);
 
-        vb.AddChild(Lbl("DOC NO. NSP-00   FACILITY CONTROL DEPT.", 13, InkDim, _body));
-        vb.AddChild(Lbl("일시 정지", 34, Ink, _serif));
+        vb.AddChild(Lbl("SYSTEM PAUSE  /  일시 정지", 23, Cyan, _body));
         vb.AddChild(Rule());
         vb.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
 
         vb.AddChild(Card("설  정", true, OpenSettings));
-        vb.AddChild(Card("저장하기", false, null));
-        vb.AddChild(Card("불러오기", false, null));
+        // 저장/불러오기는 애초에 없는 기능이라 비활성 카드로만 자리를 차지하고 있었다.
+        // 그 자리를 도전과제 기록이 받는다 — 타이틀에서 보던 그 화면 그대로.
+        vb.AddChild(Card("도전과제", true, OpenAchievements));
         vb.AddChild(Card("시작화면으로", true,
             () => ShowConfirm("시작화면으로 돌아가시겠습니까?", GoToTitle)));
         vb.AddChild(Card("나가기", true,
@@ -154,26 +170,29 @@ public partial class PauseMenu : CanvasLayer
         };
         sheet.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
-            BgColor = Paper,
-            BorderColor = new Color(0.32f, 0.24f, 0.13f),
-            BorderWidthLeft = 3, BorderWidthTop = 3, BorderWidthRight = 3, BorderWidthBottom = 3,
+            BgColor = WindowBg,
+            BorderColor = Cyan with { A = 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         });
-        sheet.AddChild(new PaperGrain { MouseFilter = Control.MouseFilterEnum.Ignore });
+        var frame = new HologramFrame { Accent = Cyan, MouseFilter = Control.MouseFilterEnum.Ignore };
+        frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        sheet.AddChild(frame);
         return sheet;
     }
 
-    // 카드 한 장 = 제목만 든 서류 블록.
+    // 카드 한 장 = 제목만 든 줄.
     private Control Card(string title, bool enabled, System.Action onPressed)
     {
         var b = new Button { Disabled = !enabled, CustomMinimumSize = new Vector2(0, 62) };
         var normal = new StyleBoxFlat
         {
-            BgColor = enabled ? new Color(0.90f, 0.86f, 0.73f) : new Color(0.80f, 0.77f, 0.68f, 0.6f),
-            BorderColor = new Color(0.4f, 0.32f, 0.2f, enabled ? 0.75f : 0.35f),
-            BorderWidthLeft = 2, BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2,
+            BgColor = enabled ? new Color(0.06f, 0.14f, 0.17f, 0.9f) : new Color(0.05f, 0.08f, 0.09f, 0.7f),
+            BorderColor = Cyan with { A = enabled ? 0.45f : 0.18f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         };
         var hover = (StyleBoxFlat)normal.Duplicate();
-        hover.BgColor = new Color(0.72f, 0.60f, 0.30f);
+        hover.BgColor = Cyan with { A = 0.22f };
+        hover.BorderColor = Cyan;
         b.AddThemeStyleboxOverride("normal", normal);
         b.AddThemeStyleboxOverride("hover", hover);
         b.AddThemeStyleboxOverride("pressed", hover);
@@ -182,7 +201,7 @@ public partial class PauseMenu : CanvasLayer
         if (onPressed != null) b.Pressed += () => onPressed();
 
         // 제목은 버튼 위에 직접 얹는다(Button 은 컨테이너가 아니라 자식 배치를 안 해준다).
-        var col = enabled ? Ink : new Color(0.5f, 0.46f, 0.38f);
+        var col = enabled ? Ink : InkDim with { A = 0.55f };
         var t = Lbl(title, 25, col, _serif);
         t.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         t.OffsetLeft = 24;
@@ -192,8 +211,7 @@ public partial class PauseMenu : CanvasLayer
         // 자식 Label 이라 버튼의 font_hover_color 가 안 먹는다 — 직접 바꿔준다.
         if (enabled)
         {
-            var hot = new Color(0.99f, 0.96f, 0.88f);
-            b.MouseEntered += () => t.AddThemeColorOverride("font_color", hot);
+            b.MouseEntered += () => t.AddThemeColorOverride("font_color", Colors.White);
             b.MouseExited += () => t.AddThemeColorOverride("font_color", col);
         }
         return b;
@@ -269,6 +287,16 @@ public partial class PauseMenu : CanvasLayer
         _settings.Open();
     }
 
+    private void OpenAchievements()
+    {
+        if (_achievements == null || !IsInstanceValid(_achievements))
+        {
+            _achievements = new AchievementPanel();
+            AddChild(_achievements);
+        }
+        _achievements.Open();
+    }
+
     // 처음부터 다시 시작. autoload(GameState / FacilitySimulation / EventLog / 금기)는
     // 씬을 다시 로드해도 살아남으므로 여기서 명시적으로 초기화해야 DAY 1 로 돌아간다.
     private void GoToTitle()
@@ -280,15 +308,25 @@ public partial class PauseMenu : CanvasLayer
         GameState.Instance?.ResetRun();
         NSP.Facility.FacilitySimulation.Instance?.ResetRun();
         EventLog.Instance?.ClearAll();
+        // 대화 기록은 한 판 동안 쌓인다 — 타이틀로 나가면 여기서 비운다.
+        DialogueHistory.Instance?.ClearAll();
         NSP.Taboo.TabooRuleSystem.Instance?.ActivateDailyTaboos(System.Array.Empty<string>());
 
         GetTree().ChangeSceneToFile(TitleScenePath);
     }
 
-    private void QuitGame()
+    // 타이틀의 시스템 종료와 같은 규약 — 창이 그냥 사라져 바탕화면이 번쩍이지 않도록
+    // 화면 전체를 한 번 검게 덮고 끈다.
+    private async void QuitGame()
     {
         GetTree().Paused = false;
+        Visible = false;
         GameSettings.Save();
+        Sfx.Instance?.Play("power_down", -6f);
+        var blink = NSP.Ui.BlinkOverlay.Instance;
+        if (blink != null) await blink.Close(0.45);
+        else await ToSignal(GetTree().CreateTimer(0.45), SceneTreeTimer.SignalName.Timeout);
+        await ToSignal(GetTree().CreateTimer(0.06), SceneTreeTimer.SignalName.Timeout);
         GetTree().Quit();
     }
 
@@ -298,30 +336,31 @@ public partial class PauseMenu : CanvasLayer
     {
         var l = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", size);
+        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
         l.AddThemeColorOverride("font_color", col);
         return l;
     }
 
     private Control Rule() =>
-        new ColorRect { Color = new Color(0.3f, 0.24f, 0.14f, 0.45f), CustomMinimumSize = new Vector2(0, 1.5f) };
+        new ColorRect { Color = Cyan with { A = 0.28f }, CustomMinimumSize = new Vector2(0, 1.5f) };
 
     private Button DocButton(string text, float minWidth)
     {
         var b = new Button { Text = text, CustomMinimumSize = new Vector2(minWidth, 42) };
         b.AddThemeFontOverride("font", _body);
-        b.AddThemeFontSizeOverride("font_size", 20);
+        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(20));
         b.AddThemeColorOverride("font_color", Ink);
-        b.AddThemeColorOverride("font_hover_color", new Color(0.99f, 0.96f, 0.88f));
-        b.AddThemeColorOverride("font_pressed_color", new Color(0.99f, 0.96f, 0.88f));
+        b.AddThemeColorOverride("font_hover_color", Colors.White);
+        b.AddThemeColorOverride("font_pressed_color", Colors.White);
         var normal = new StyleBoxFlat
         {
-            BgColor = new Color(0.90f, 0.86f, 0.73f),
-            BorderColor = new Color(0.4f, 0.32f, 0.2f, 0.7f),
+            BgColor = new Color(0.06f, 0.14f, 0.17f, 0.9f),
+            BorderColor = Cyan with { A = 0.5f },
             BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
         };
         var hover = (StyleBoxFlat)normal.Duplicate();
-        hover.BgColor = new Color(0.72f, 0.60f, 0.30f);
+        hover.BgColor = Cyan with { A = 0.25f };
+        hover.BorderColor = Cyan;
         b.AddThemeStyleboxOverride("normal", normal);
         b.AddThemeStyleboxOverride("hover", hover);
         b.AddThemeStyleboxOverride("pressed", hover);
@@ -329,32 +368,4 @@ public partial class PauseMenu : CanvasLayer
         return b;
     }
 
-    // 설정 창과 같은 종이 결.
-    private partial class PaperGrain : Control
-    {
-        public override void _Ready() => SetAnchorsPreset(LayoutPreset.FullRect);
-
-        public override void _Draw()
-        {
-            var rng = new RandomNumberGenerator { Seed = 445512 };
-            for (int i = 0; i < 18; i++)
-            {
-                var p = new Vector2(rng.RandfRange(0, Size.X), rng.RandfRange(0, Size.Y));
-                DrawCircle(p, rng.RandfRange(20f, 72f), new Color(0.42f, 0.33f, 0.18f, rng.RandfRange(0.03f, 0.07f)));
-            }
-            for (int i = 0; i < 300; i++)
-            {
-                var p = new Vector2(rng.RandfRange(0, Size.X), rng.RandfRange(0, Size.Y));
-                bool light = rng.Randf() > 0.5f;
-                DrawRect(new Rect2(p, new Vector2(1.6f, 1.6f)),
-                    light ? new Color(0.96f, 0.92f, 0.79f, 0.07f) : new Color(0.32f, 0.25f, 0.14f, 0.07f));
-            }
-            var edge = new Color(0.28f, 0.21f, 0.11f, 0.2f);
-            const float b = 16f;
-            DrawRect(new Rect2(0, 0, Size.X, b), edge);
-            DrawRect(new Rect2(0, Size.Y - b, Size.X, b), edge);
-            DrawRect(new Rect2(0, 0, b, Size.Y), edge);
-            DrawRect(new Rect2(Size.X - b, 0, b, Size.Y), edge);
-        }
-    }
 }

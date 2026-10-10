@@ -1,0 +1,47 @@
+[gd_resource type="Resource" script_class="MonsterDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 괴물 1 — 결번자 형태 (인간형)
+;
+; 느리게 걸어오는 접근형. 복도 끝에 서 있다가 조금씩 다가온다.
+;
+; ※ 이 모델이 나왔다는 사실이 "강아지가 결번" 이라는 추리 정답을 알려주면 안 된다.
+;   그래서 표시 이름도 직원 코드네임과 무관한 「형체」 로 두고, 로그·단서에 남기지 않는다
+;   (MonsterThreatSystem 은 EventLog 에 아무것도 쓰지 않는다).
+;
+; 애니메이션 이름은 **실제 FBX 에서 읽어 온 그대로**다(MonsterModelProbe 로 확인):
+;   MonsterPSX_Rig|Idle_Watchful / Walk_Nervous / Run_Frantic
+;   MonsterPSX_Rig|Attack_Lunge / Scream_lol / WallSlam_Recover
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/MonsterDef.cs" id="1_m"]
+
+[resource]
+script = ExtResource("1_m")
+MonsterId = "absentee"
+DisplayName = "형체"
+ModelPath = "res://assets/models/ghosts/MonsterPSX.fbx"
+TargetHeight = 1.82
+FloorOffset = 0.0
+; 이 모델만 앞이 반대다 — 0 이면 복도에서도 돌진에서도 뒷모습으로 온다.
+YawOffsetDegrees = 180.0
+AnimIdle = "MonsterPSX_Rig|Idle_Watchful"
+AnimWalk = "MonsterPSX_Rig|Walk_Nervous"
+AnimRun = "MonsterPSX_Rig|Run_Frantic"
+AnimAttackDoor = "MonsterPSX_Rig|Attack_Lunge"
+AnimJumpscare = "MonsterPSX_Rig|Scream_lol"
+AnimRetreat = "MonsterPSX_Rig|WallSlam_Recover"
+ApproachSeconds = 20.0
+BreachDelaySeconds = 4.0
+PoundSeconds = 6.0
+RetreatSeconds = 3.2
+CooldownSeconds = 30.0
+PauseEverySeconds = 6.0
+PauseLengthSeconds = 1.6
+SfxDistant = "duct_crawl"
+SfxStep = "footsteps_run"
+SfxPound = "door_knock_soft"
+SfxScratch = "door_scratch"
+SfxBreach = "door_handle"
+FirstDay = 1
+Weight = 1.0

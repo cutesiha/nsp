@@ -1,0 +1,304 @@
+[gd_scene load_steps=15 format=3]
+
+; 직원 휴게실 — 휴게시간에 오른쪽 CRT(InterviewCCTVView)가 비추는 방.
+;
+; 다른 작업실과 같은 room_base 껍데기를 쓰되, 설비 대신 긴 테이블 하나와 의자 여섯 개만 둔다.
+; 앞줄 셋(+Z) · 뒷줄 셋(-Z)이 테이블을 사이에 두고 마주 본다.
+;
+; 직원을 앉히는 자리는 Seats/Seat1~6 (Marker3D) 다 — 위치와 '바라볼 방향'(yaw)만 담는다.
+; 누가 어느 자리에 앉는지는 매번 관계도로 다시 정하므로(RestRoomVisual) 여기 적지 않는다.
+; 캐릭터는 자기 -Z 를 보므로, 뒷줄은 yaw 180° 로 돌려 앞줄을 마주 보게 둔다.
+
+[ext_resource type="PackedScene" path="res://scenes/rooms/room_base.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://cr2tsdnyrlnem" path="res://scripts/view/RoomDresserNode.cs" id="dress_RoomDresserNode"]
+
+[sub_resource type="BoxMesh" id="BM_TableTop"]
+size = Vector3(3.2, 0.08, 1.15)
+
+[sub_resource type="BoxMesh" id="BM_TableLeg"]
+size = Vector3(0.1, 0.68, 0.1)
+
+[sub_resource type="BoxMesh" id="BM_ChairSeat"]
+size = Vector3(0.46, 0.07, 0.44)
+
+[sub_resource type="BoxMesh" id="BM_ChairBack"]
+size = Vector3(0.44, 0.42, 0.06)
+
+[sub_resource type="BoxMesh" id="BM_ChairPost"]
+size = Vector3(0.07, 0.38, 0.07)
+
+[sub_resource type="BoxMesh" id="BM_ChairFoot"]
+size = Vector3(0.34, 0.03, 0.34)
+
+[sub_resource type="BoxMesh" id="BM_Cabinet"]
+size = Vector3(1.6, 0.9, 0.38)
+
+[sub_resource type="BoxMesh" id="BM_Dispenser"]
+size = Vector3(0.36, 1.25, 0.36)
+
+[sub_resource type="BoxMesh" id="BM_Shelf"]
+size = Vector3(1.1, 0.05, 0.28)
+
+[sub_resource type="CylinderMesh" id="CM_Mug"]
+top_radius = 0.045
+bottom_radius = 0.038
+height = 0.1
+
+; 테이블 — 갈색 목재. 이 방에서 유일하게 따뜻한 색이라 시선이 먼저 간다.
+[sub_resource type="StandardMaterial3D" id="MAT_Wood"]
+albedo_color = Color(0.37, 0.24, 0.15, 1)
+metallic = 0.0
+roughness = 0.68
+
+[sub_resource type="StandardMaterial3D" id="MAT_WoodDark"]
+albedo_color = Color(0.24, 0.16, 0.1, 1)
+metallic = 0.0
+roughness = 0.75
+
+[sub_resource type="StandardMaterial3D" id="MAT_Seat"]
+albedo_color = Color(0.3, 0.33, 0.38, 1)
+metallic = 0.1
+roughness = 0.62
+
+[sub_resource type="StandardMaterial3D" id="MAT_Metal"]
+albedo_color = Color(0.45, 0.47, 0.51, 1)
+metallic = 0.7
+roughness = 0.38
+
+[node name="RoomRest" type="Node3D"]
+
+[node name="RoomBase" parent="." instance=ExtResource("1_base")]
+
+; ── 긴 테이블 ────────────────────────────────────────────────────────────
+[node name="Table" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="TableTop" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.74, 0)
+mesh = SubResource("BM_TableTop")
+surface_material_override/0 = SubResource("MAT_Wood")
+
+[node name="LegA" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.45, 0.36, -0.45)
+mesh = SubResource("BM_TableLeg")
+surface_material_override/0 = SubResource("MAT_WoodDark")
+
+[node name="LegB" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, 0.36, -0.45)
+mesh = SubResource("BM_TableLeg")
+surface_material_override/0 = SubResource("MAT_WoodDark")
+
+[node name="LegC" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.45, 0.36, 0.45)
+mesh = SubResource("BM_TableLeg")
+surface_material_override/0 = SubResource("MAT_WoodDark")
+
+[node name="LegD" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, 0.36, 0.45)
+mesh = SubResource("BM_TableLeg")
+surface_material_override/0 = SubResource("MAT_WoodDark")
+
+[node name="MugA" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.95, 0.83, -0.18)
+mesh = SubResource("CM_Mug")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="MugB" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.42, 0.83, 0.22)
+mesh = SubResource("CM_Mug")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="MugC" type="MeshInstance3D" parent="Table"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.18, 0.83, -0.1)
+mesh = SubResource("CM_Mug")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+; ── 의자 여섯 개 ─────────────────────────────────────────────────────────
+; 뒷줄(-Z) 셋은 +Z 를 보도록 180° 돌아 있다.
+[node name="ChairBack1" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.05, 0, -0.92)
+
+[node name="Seat" type="MeshInstance3D" parent="ChairBack1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("BM_ChairSeat")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Back" type="MeshInstance3D" parent="ChairBack1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.19)
+mesh = SubResource("BM_ChairBack")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Post" type="MeshInstance3D" parent="ChairBack1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BM_ChairPost")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Foot" type="MeshInstance3D" parent="ChairBack1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("BM_ChairFoot")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="ChairBack2" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.92)
+
+[node name="Seat" type="MeshInstance3D" parent="ChairBack2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("BM_ChairSeat")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Back" type="MeshInstance3D" parent="ChairBack2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.19)
+mesh = SubResource("BM_ChairBack")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Post" type="MeshInstance3D" parent="ChairBack2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BM_ChairPost")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Foot" type="MeshInstance3D" parent="ChairBack2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("BM_ChairFoot")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="ChairBack3" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1.05, 0, -0.92)
+
+[node name="Seat" type="MeshInstance3D" parent="ChairBack3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("BM_ChairSeat")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Back" type="MeshInstance3D" parent="ChairBack3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.19)
+mesh = SubResource("BM_ChairBack")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Post" type="MeshInstance3D" parent="ChairBack3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BM_ChairPost")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Foot" type="MeshInstance3D" parent="ChairBack3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("BM_ChairFoot")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="ChairFront1" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.05, 0, 0.92)
+
+[node name="Seat" type="MeshInstance3D" parent="ChairFront1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("BM_ChairSeat")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Back" type="MeshInstance3D" parent="ChairFront1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.19)
+mesh = SubResource("BM_ChairBack")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Post" type="MeshInstance3D" parent="ChairFront1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BM_ChairPost")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Foot" type="MeshInstance3D" parent="ChairFront1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("BM_ChairFoot")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="ChairFront2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.92)
+
+[node name="Seat" type="MeshInstance3D" parent="ChairFront2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("BM_ChairSeat")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Back" type="MeshInstance3D" parent="ChairFront2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.19)
+mesh = SubResource("BM_ChairBack")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Post" type="MeshInstance3D" parent="ChairFront2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BM_ChairPost")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Foot" type="MeshInstance3D" parent="ChairFront2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("BM_ChairFoot")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="ChairFront3" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0.92)
+
+[node name="Seat" type="MeshInstance3D" parent="ChairFront3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.44, 0)
+mesh = SubResource("BM_ChairSeat")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Back" type="MeshInstance3D" parent="ChairFront3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0.19)
+mesh = SubResource("BM_ChairBack")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Post" type="MeshInstance3D" parent="ChairFront3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("BM_ChairPost")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Foot" type="MeshInstance3D" parent="ChairFront3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("BM_ChairFoot")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+; ── 벽면 소품 ────────────────────────────────────────────────────────────
+[node name="Cabinet" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 1.72, -2.74)
+mesh = SubResource("BM_Cabinet")
+surface_material_override/0 = SubResource("MAT_Seat")
+
+[node name="Dispenser" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.35, 0.63, -2.45)
+mesh = SubResource("BM_Dispenser")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+[node name="Shelf" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 1.28, -2.78)
+mesh = SubResource("BM_Shelf")
+surface_material_override/0 = SubResource("MAT_WoodDark")
+
+[node name="ShelfMug" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.26, 1.37, -2.78)
+mesh = SubResource("CM_Mug")
+surface_material_override/0 = SubResource("MAT_Metal")
+
+; ── 앉을 자리 ────────────────────────────────────────────────────────────
+; Marker3D 의 위치 = 직원이 앉을 좌표, yaw = 바라볼 방향(캐릭터는 -Z 를 본다).
+; 의자보다 살짝 앞(좌판 가운데)에 둬서 등이 등받이에 닿아 보이게 한다.
+[node name="Seats" type="Node3D" parent="."]
+
+[node name="Seat1" type="Marker3D" parent="Seats"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.05, 0, -0.86)
+
+[node name="Seat2" type="Marker3D" parent="Seats"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.86)
+
+[node name="Seat3" type="Marker3D" parent="Seats"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 1.05, 0, -0.86)
+
+[node name="Seat4" type="Marker3D" parent="Seats"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.05, 0, 0.86)
+
+[node name="Seat5" type="Marker3D" parent="Seats"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.86)
+
+[node name="Seat6" type="Marker3D" parent="Seats"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.05, 0, 0.86)
+
+; 방 마감(재질 · 구조 · 소품 · 조명). 실제 노드는 RoomDressing 이 만들고 owner 를
+; 주지 않으므로 이 씬에는 저장되지 않는다 — 여기 남는 것은 이 세 줄뿐이다.
+[node name="Dressing" type="Node3D" parent="."]
+script = ExtResource("dress_RoomDresserNode")
+RoomId = "rest_room"

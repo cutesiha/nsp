@@ -15,7 +15,7 @@ public static class DialogueResponsePlanner
     public static DialogueResponsePlan Plan(DialogueContext ctx)
     {
         var profile = DialogueVoiceProfiles.Get(ctx.EmployeeId);
-        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.Subject?.Key ?? "no_incident");
+        var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
 
         var plan = new DialogueResponsePlan
         {
@@ -27,6 +27,7 @@ public static class DialogueResponsePlanner
         var mode = ctx.IsSaboteur ? DecideMode(ctx, claim, profile) : DeceptionMode.None;
         plan.Deception = mode;
         if (ctx.IsSaboteur) EnsureClaimedRoom(ctx, claim, mode);
+        EnsureEquipmentDenial(ctx, claim, mode);
 
         // 꼬리질문은 기본 질문과 같은 사건을 기준으로, 이미 한 주장과 어긋나지 않게 답한다.
         if (ctx.QuestionId.StartsWith(DialogueQuestions.FollowUpPrefix, System.StringComparison.Ordinal))
@@ -43,6 +44,7 @@ public static class DialogueResponsePlanner
             case DialogueQuestions.Suspicious: PlanSuspicious(ctx, plan, profile, claim); break;
             case DialogueQuestions.Opinion: PlanOpinion(ctx, plan, profile); break;
             case DialogueQuestions.Accuse: PlanAccuse(ctx, plan, profile); break;
+            case DialogueQuestions.ShiftReview: PlanShiftReview(ctx, plan, profile); break;
             case DialogueQuestions.GeneralStatus: PlanStatus(ctx, plan, profile); break;
             case DialogueQuestions.GeneralFocus: PlanComply(ctx, plan, profile); break;
             case DialogueQuestions.GeneralAnomaly: PlanAnomaly(ctx, plan, profile, claim); break;
@@ -96,6 +98,13 @@ public static class DialogueResponsePlanner
             plan.Certainty = Certainty.High;
             plan.Emotion = EmotionOf(fact.Type);
         }
+        else if (knowledge == KnowledgeLevel.Later)
+        {
+            // 나중에 가 보고 알았다 — 사고가 있었다는 것까지만 말한다. 장면도 소리도 말할 수 없다.
+            // 놀란 반응(Emotion)도 붙이지 않는다. 그 순간에는 그 자리에 없었다.
+            plan.Core = CoreKind.IncidentLater;
+            plan.Certainty = Certainty.Medium;
+        }
         else
         {
             plan.Core = CoreKind.IncidentIndirect;
@@ -112,8 +121,16 @@ public static class DialogueResponsePlanner
     {
         plan.Core = CoreKind.SelfLocation;
         plan.RoomId = ctx.IsSaboteur ? claim.ClaimedRoomId : ctx.RoomAtSubject;
-        if (string.IsNullOrEmpty(plan.RoomId)) plan.RoomId = ctx.AssignedRoomId;
-        plan.Certainty = Certainty.High;
+        // 정상 직원의 위치는 기록에서만 나온다. 기록이 없으면 지금 배치된 방으로 메우지
+        // 않는다 — 그 순간 "실제로 가 보지 않은 방"이 진술이자 조사 자료가 된다.
+        //
+        // 그 날의 동선에서 읽는다. 오늘로 고정하면 어제 일을 물었을 때 오늘 있던 방이 나온다.
+        if (string.IsNullOrEmpty(plan.RoomId) && ctx.HasSubjectTime)
+            plan.RoomId = DialogueContextBuilder.RoomAtOrLast(
+                ctx.EmployeeId, ctx.SubjectDay > 0 ? ctx.SubjectDay : ctx.CurrentDay, ctx.SubjectTime);
+        // 끝내 기록이 없으면 방을 지어내지 않는다. 모르면 모른다고 답해야 한다.
+        plan.RoomUnknown = string.IsNullOrEmpty(plan.RoomId);
+        plan.Certainty = plan.RoomUnknown ? Certainty.Low : Certainty.High;
 
         if (!ctx.IsSaboteur) return;
 
@@ -138,6 +155,21 @@ public static class DialogueResponsePlanner
         DialogueVoiceProfile profile, DialogueClaim claim)
     {
         bool canPoint = ctx.KnownSuspicious != null && !string.IsNullOrEmpty(ctx.KnownSuspiciousActorId);
+
+        // 소중한 사람을 감싸는 중이면 **먼저 이름을 꺼내지 않는다.**
+        //
+        // 거짓말이 아니다 — "수상한 사람" 을 물었고, 본인은 그 사람이 수상했다고
+        // 생각하지 않는다(기획안 §3-⑥ 고양이 사례). 그래서 사실은 지워지지 않고,
+        // "그곳에 있던 직원을 모두 말해 주십시오"(재석 질문)에는 그대로 나온다.
+        if (canPoint && ConcealmentMotive.ShieldsFrom(ctx.EmployeeId, ctx.KnownSuspiciousActorId)
+            && string.IsNullOrEmpty(claim.MentionedSuspectId))
+        {
+            plan.Core = CoreKind.NoSighting;
+            plan.Certainty = Certainty.Medium;
+            plan.WithheldEmployeeId = ctx.KnownSuspiciousActorId;
+            return;
+        }
+
         if (!canPoint)
         {
             plan.Core = CoreKind.NoSighting;
@@ -172,6 +204,39 @@ public static class DialogueResponsePlanner
     }
 
     // 일반 통화 "작업은 잘 되어가나요?" — 지금 상태를 실제로 읽어 답한다.
+    // 휴게시간 — 끝난 근무를 돌아본다.
+    //
+    // 지금 걷고 있는지, 지금 방에 무슨 업무가 있는지는 여기서 절대 보지 않는다.
+    // 오늘 이 직원이 실제로 겪은 것(자기가 아는 사고 · 자기 방의 고장 · 하루의 피로)만 쓴다.
+    private static void PlanShiftReview(DialogueContext ctx, DialogueResponsePlan plan,
+        DialogueVoiceProfile profile)
+    {
+        plan.Core = CoreKind.StatusReport;
+        plan.RoomId = ctx.AssignedRoomId;
+        plan.AllowSupport = false;
+
+        // 오늘 이 사람이 실제로 알고 있는 사고 중 가장 최근 것.
+        var known = DialogueContextBuilder.MostRecentKnownIncident(ctx.EmployeeId, ctx.CurrentDay);
+        if (known != null)
+        {
+            plan.StatusNote = "busy";
+            plan.IncidentRoomId = known.RoomId;
+            plan.IncidentType = known.EventType;
+            plan.IncidentTimeSeconds = known.GameTimeSeconds;
+            plan.Emotion = EmotionKind.Alarm;
+        }
+        else if (ctx.Stress >= 31f)
+        {
+            plan.StatusNote = "hard";
+            plan.Emotion = EmotionKind.Fear;
+        }
+        else
+        {
+            plan.StatusNote = "quiet";
+        }
+        plan.Certainty = Certainty.High;
+    }
+
     private static void PlanStatus(DialogueContext ctx, DialogueResponsePlan plan, DialogueVoiceProfile profile)
     {
         plan.Core = CoreKind.StatusReport;
@@ -231,7 +296,9 @@ public static class DialogueResponsePlanner
     private static string AnchorRoom(DialogueContext ctx, DialogueClaim claim)
     {
         if (ctx.IsSaboteur && !string.IsNullOrEmpty(claim.ClaimedRoomId)) return claim.ClaimedRoomId;
-        return string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
+        // 기록이 없으면 빈 값이다. 지금 배치된 방으로 메우면 꼬리질문이 통째로 엉뚱한
+        // 방을 전제로 깔린다("거기서 누구와 있었나" → 가 본 적 없는 방의 인원).
+        return ctx.RoomAtSubject;
     }
 
     private static void PlanFollowUp(DialogueContext ctx, DialogueResponsePlan plan,
@@ -388,6 +455,32 @@ public static class DialogueResponsePlanner
 
         if (plan.Emotion != EmotionKind.None && GD.Randf() > profile.EmotionChance)
             plan.Emotion = EmotionKind.None;
+
+        ApplyImitationSlip(ctx, plan, profile);
+    }
+
+    // 결번 개체는 그 직원의 성격을 흉내 내지만 완벽하지는 않다.
+    // 사람을 통째로 바꾸지 않고, 그 사람답지 않은 아주 작은 어긋남 하나만 남긴다.
+    // (주장 자체는 DialogueClaimState 가 쥐고 있으므로 여기서 바뀌지 않는다 — 말투만 흔들린다.)
+    private const float ImitationSlipChance = 0.3f;
+
+    private static void ApplyImitationSlip(DialogueContext ctx, DialogueResponsePlan plan,
+        DialogueVoiceProfile profile)
+    {
+        if (!ctx.IsSaboteur) return;
+        if (plan.Deception is DeceptionMode.None or DeceptionMode.Truth) return;
+        if (GD.Randf() >= ImitationSlipChance) return;
+
+        var traits = NSP.Facility.EmployeeTraits.Get(ctx.EmployeeId);
+        // 평소 본 것과 추측을 구분하던 사람이, 확인하지 않은 내용을 단정해 버린다.
+        if (profile.SeparatesGuess && plan.Certainty != Certainty.High)
+        {
+            plan.Certainty = Certainty.High;
+            return;
+        }
+        // 평소 시각을 정확히 대던 사람이 갑자기 시간을 흐린다.
+        if (traits.StatementPrecision >= 3 && plan.Time != TimeRef.None)
+            plan.Time = TimeRef.Vague;
     }
 
     private static EmotionKind EmotionOf(LogEventType type) => type switch
@@ -435,13 +528,36 @@ public static class DialogueResponsePlanner
     {
         if (!string.IsNullOrEmpty(claim.ClaimedRoomId)) return;
 
-        string real = string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
+        // 실제 위치는 기록에서만 온다. 여기에 배치표를 섞으면 "진실"의 기준 자체가
+        // 틀어져서, 거짓말을 하지 않았는데 ClaimTruthful 이 거짓으로 뒤집힌다.
+        string real = ctx.RoomAtSubject;
         bool hides = mode is DeceptionMode.Omit or DeceptionMode.Vague
             or DeceptionMode.Redirect or DeceptionMode.Deny;
         string cover = string.IsNullOrEmpty(ctx.AssignedRoomId) ? real : ctx.AssignedRoomId;
 
         claim.ClaimedRoomId = hides && cover != real ? cover : real;
         claim.ClaimTruthful = claim.ClaimedRoomId == real;
+    }
+
+    // 결번 개체가 이 사건에 대해 "설비 근처에는 가지 않았다"고 못 박을 것인가(§3-2).
+    //
+    // 이 게임에서 결번 개체가 대는 **유일하게 반박 가능한 거짓말**이다. 위치는 거짓말하지
+    // 않으므로(제자리 범행) 잡을 거리가 없었는데, 이 주장 하나가 동료의 목격 증언과
+    // 정면으로 부딪친다. 그래서 알리바이와 똑같이 한 번만 정하고 끝까지 밀고 간다 —
+    // 물을 때마다 말이 달라지면 맞대어 볼 수가 없다.
+    //
+    // 흐리는 전략(Omit/Vague/Deny)일 때만 나온다. Minimize/Justify 는 "했지만 별일 아니다"
+    // 쪽이라 접촉 자체를 부인하면 앞뒤가 맞지 않는다. 결백한 직원은 아예 이 자리에 오지 않는다.
+    private static void EnsureEquipmentDenial(DialogueContext ctx, DialogueClaim claim, DeceptionMode mode)
+    {
+        if (claim.EquipmentDenialDecided) return;
+        // 아직 사건이 정해지지 않은 대화(일반 통화 등)에서는 결정하지 않는다 —
+        // 사건별로 하나씩 정해지는 주장이기 때문이다.
+        if (string.IsNullOrEmpty(ctx.ClaimKey)) return;
+
+        claim.EquipmentDenialDecided = true;
+        claim.DeniesEquipmentContact = ctx.IsSaboteur && ctx.IsSubjectActor
+            && mode is DeceptionMode.Omit or DeceptionMode.Vague or DeceptionMode.Deny;
     }
 
     // 주장한 위치에서 그 사건을 어디까지 알 수 있는가 — 거짓말도 앞뒤가 맞아야 한다.

@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="MonsterDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 괴물 3 — 거미형
+;
+; FBX 에 **뼈도 애니메이션도 없다**(Huntsman_spider(Unrigged)). 그래서 움직임은 전부
+; 코드가 만든다 — 다리를 접는 대신 몸을 낮게 깔고 좌우로 흔들며 밀고 들어온다.
+; 벽·천장 연출은 안정적으로 되는 범위에서만 쓴다(벽에 바싹 붙어 온다).
+;
+; 리깅된 모델로 교체되면 아래 Anim* 칸만 채우면 그대로 돌아간다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/MonsterDef.cs" id="1_m"]
+
+[resource]
+script = ExtResource("1_m")
+MonsterId = "spider"
+DisplayName = "다리 많은 것"
+ModelPath = "res://assets/models/ghosts/Huntsman_spider(Unrigged).fbx"
+TargetHeight = 0.62
+FloorOffset = 0.0
+; 머리(눈)가 앞으로 오게 — 180 이면 배부터 들어온다.
+YawOffsetDegrees = 0.0
+AnimIdle = ""
+AnimWalk = ""
+AnimRun = ""
+AnimAttackDoor = ""
+AnimJumpscare = ""
+AnimRetreat = ""
+ApproachSeconds = 15.0
+BreachDelaySeconds = 3.2
+PoundSeconds = 5.5
+RetreatSeconds = 2.6
+CooldownSeconds = 27.0
+PauseEverySeconds = 3.4
+PauseLengthSeconds = 0.7
+SfxDistant = "pipe_knock"
+SfxStep = "duct_crawl"
+SfxPound = "metal_clang"
+SfxScratch = "door_scratch"
+SfxBreach = "duct_scrape"
+FirstDay = 3
+Weight = 0.8

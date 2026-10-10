@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+; 얼굴 · 목 · 손. 가면과 머리카락이 붙기 전까지는 이 색이 그대로 보인다.
+[resource]
+resource_name = "SkinOrGlove"
+albedo_color = Color(0.88, 0.8, 0.74, 1)
+roughness = 0.85
+metallic = 0.0

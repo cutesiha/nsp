@@ -18,8 +18,9 @@ public partial class ControlRoom3DController : Node3D
     [Export] public NodePath RigPath = "PlayerSeatRig";
     // CRT 화면 UI를 짜는 논리 캔버스 크기(레이아웃 좌표계). 실제 렌더 해상도는 여기에 UiScale 을 곱한다.
     [Export] public Vector2I MonitorCanvasSize = new(800, 600);
-    [Export] public float FocusDistance = 0.62f;
-    // 책상 위 기기(센서 단말기 / 전력 스위치) 확대용 — 화면보다 더 가까이, 살짝 위에서.
+    [Export] public float FocusDistance = 0.50f;
+    // 책상 위 기기(관리자 패드 거치대 / 전력 스위치) 확대용 — 화면보다 더 가까이, 살짝 위에서.
+    // 예전 경고 단말기(AlertTerminalProp). 책상에서 치워 확대 · 입력 대상이 아니다 — 경로만 남겨 둔다.
     [Export] public NodePath SensorPath = "ControlRoom/AlertTerminal";
     [Export] public NodePath PowerPanelPath = "ControlRoom/PowerSwitchPanel";
     [Export] public float DeskPropFocusDistance = 0.46f;
@@ -52,19 +53,30 @@ public partial class ControlRoom3DController : Node3D
         }
     }
 
+    // 책상 위 문서(배치표)는 화면을 거의 가득 채우며 비스듬히 누워 있어서, CRT 와 같은
+    // 배율로 그리면 글자가 확대되며 뭉개진다. 이 표면만 더 높은 해상도로 렌더한다.
+    // (근무 배치 단계에서만 그려지는 뷰포트라 상시 비용이 아니다.)
+    public const float DocumentSupersample = 1.45f;
+    public const float DocumentMinRenderScale = 0.85f;
+
     // 논리 캔버스 크기 → 실제 SubViewport 렌더 해상도.
-    public static Vector2I ViewportSize(Vector2I logicalSize)
+    // superSample / minRenderScale 은 문서처럼 특별히 선명해야 하는 표면만 쓴다.
+    public static float SurfaceScale(float superSample = 1f, float minRenderScale = 0f) =>
+        UiScale * Mathf.Max(RenderScale, minRenderScale) * superSample;
+
+    public static Vector2I ViewportSize(Vector2I logicalSize, float superSample = 1f, float minRenderScale = 0f)
     {
-        float k = UiScale * RenderScale;
+        float k = SurfaceScale(superSample, minRenderScale);
         return new Vector2I(
             Mathf.Max(1, Mathf.RoundToInt(logicalSize.X * k)),
             Mathf.Max(1, Mathf.RoundToInt(logicalSize.Y * k)));
     }
 
-    public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize)
+    public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize,
+        float superSample = 1f, float minRenderScale = 0f)
     {
         var frame = new Control { Size = logicalSize, MouseFilter = Control.MouseFilterEnum.Ignore };
-        float k = UiScale * RenderScale;
+        float k = SurfaceScale(superSample, minRenderScale);
         frame.Scale = new Vector2(k, k);
         vp.AddChild(frame);
         frame.AddChild(view);
@@ -72,12 +84,34 @@ public partial class ControlRoom3DController : Node3D
 
     [Export] public string[] AutoStaffRooms =
         { "core_room", "power_room", "vent_room", "maintenance_room", "guard_room", "medical_room" };
+    // 운영 데이터에 금기 목록이 없을 때 쓰는 기본값(구조가 비어도 게임이 멈추지 않게).
     public static readonly string[] DailyTabooIds = { "taboo_power_headcount_limit" };
+
+    // 오늘 적용할 금기. 해금되지 않은 날에는 하나도 없다(DayFeatures.TaboosEnabled).
+    // 목록 자체는 그 날의 OpsProfile 이 쥐고 있으므로, DAY3~5 는 .tres 만 추가하면 된다.
+    public static string[] TodayTabooIds()
+    {
+        if (!DayFeatures.TaboosEnabled) return System.Array.Empty<string>();
+        var ops = NSP.Core.OpsProfile.Today;
+        if (ops != null && ops.DailyTabooIds.Count > 0) return ops.DailyTabooIds.ToArray();
+        return DailyTabooIds;
+    }
 
     private Camera3D _camera;
     private SeatedCameraRig _rig;
     private readonly List<MonitorScreen3D> _screens = new();
     private SubViewport _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp;
+    // 프롤로그/튜토리얼 전용 — 왼쪽 CRT 의 '영상'(컷씬)과 오른쪽 CRT 의 GUIDE-0 홀로그램.
+    private SubViewport _cutsceneVp, _guideVp;
+    // 프롤로그에서 왼쪽 CRT 가 맡는 GUIDE-0 얼굴 화면.
+    private SubViewport _guideFaceVp;
+    // 타이틀 화면 2 전용 — 왼쪽 CRT 직원 신원 확인, 오른쪽 CRT 관리자 단말기.
+    private SubViewport _titleStaffVp, _titleTerminalVp;
+    // 근무 배치 단계의 두 CRT 프로그램(왼쪽 = 시설 지도 배치, 오른쪽 = 직원·작업실 정보).
+    private SubViewport _scheduleMapVp, _scheduleStaffVp;
+    private SubViewport _endingLeftVp, _endingRightVp;
+    private SubViewport _verdictVp, _endingStaffVp;
+    private ScheduleMapView _scheduleMap;
     // CCTV CRT 뒤에서 실제 3D 작업실을 렌더하는 격리된 월드. CCTVMonitorView 가 이 텍스처를
     // 배경으로 깔고 그 위에 노이즈/REC/신호상태 오버레이를 그린다.
     private SubViewport _facilityCctvVp;
@@ -85,7 +119,7 @@ public partial class ControlRoom3DController : Node3D
 
     private MonitorScreen3D _dragScreen;
     private MonitorScreen3D _focusedScreen;   // 확대 중인 대상이 모니터일 때만 채워진다
-    private Node3D _focusedNode;              // 확대 중인 대상(모니터/센서/전력 기기)
+    private Node3D _focusedNode;              // 확대 중인 대상(모니터/패드/전력 기기)
     private Vector2 _lastCanvasPos;
 
     // Title/Schedule 단계에서 ShiftFlowController 가 제어실 CRT 입력을 잠그거나(_inputLocked),
@@ -107,7 +141,10 @@ public partial class ControlRoom3DController : Node3D
         GetViewport().PhysicsObjectPicking = true;
         AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
         CollectScreens(this);
+        CollectRims(this);
         BuildViewports();
+        // 씬의 Environment 가 올라온 뒤 그래픽 품질을 한 번 더 반영한다(글로우 on/off).
+        NSP.Core.GameSettings.ApplyEnvironmentQuality(GetViewport()?.World3D?.Environment);
 
         CallDeferred(nameof(AfterReady));
     }
@@ -128,16 +165,18 @@ public partial class ControlRoom3DController : Node3D
     // 배치 확정 시점에 이 메서드가 호출되어 시뮬레이션을 실제로 굴리기 시작한다.
     public void BeginShift()
     {
-        TabooRuleSystem.Instance?.ActivateDailyTaboos(DailyTabooIds);
+        TabooRuleSystem.Instance?.ActivateDailyTaboos(TodayTabooIds());
         GameState.Instance?.SetPhase(GamePhase.Live);
         FacilitySimulation.Instance?.ResetForNewShift();
         EventLog.Instance?.ClearAll();
-        if ((GameState.Instance?.CurrentDay ?? 1) == 1)
-            DialogueHistory.Instance?.ClearAll();
-        if (string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
+        // 대화 기록은 지우지 않는다 — 한 판 동안 모든 날이 쌓이고 화면이 날짜로 거른다.
+        // (관리자 패드의 단서가 며칠 전 심문에서 나온 진술을 다시 보여 줘야 한다.)
+        // 새 게임에서만 비운다(ShiftFlowController.StartNewRun).
+        // DAY0(교육)에는 방해자가 존재하지 않는다 — 배정 자체를 하지 않으면 TickSaboteur 가 통째로 쉰다.
+        if (DayFeatures.SaboteurActive && string.IsNullOrEmpty(GameState.Instance?.SaboteurEmployeeId))
         {
             var sim = FacilitySimulation.Instance;
-            GameState.Instance?.AssignRandomSaboteur(sim?.GetEmployeeIds() ?? System.Array.Empty<string>());
+            GameState.Instance?.AssignSaboteurForMode(sim?.GetActiveEmployeeIds() ?? new System.Collections.Generic.List<string>());
             string id = GameState.Instance?.SaboteurEmployeeId ?? "";
             if (!string.IsNullOrEmpty(id))
             {
@@ -147,6 +186,8 @@ public partial class ControlRoom3DController : Node3D
         }
 
         AutoStaff();
+        // 위에서 EventLog 를 비웠으므로 배치표 로그가 없다 — 근무 시작 배치는 여기서 따로 적어 둔다.
+        FacilitySimulation.Instance?.RecordShiftStart();
         SetScreenBrightness(1f);
         SetScreenNoise(0.020f);
     }
@@ -161,6 +202,17 @@ public partial class ControlRoom3DController : Node3D
     }
 
     public void SetInputLocked(bool locked) => _inputLocked = locked;
+    public bool IsInputLocked => _inputLocked;
+
+    // 화면 안 UI 는 그대로 누를 수 있지만 카메라는 움직이지 않는다 — 확대 키 · 우클릭
+    // 뒤로가기가 먹지 않는다(최종 보고서처럼 "제출 전까지 못 빠져나가는" 화면).
+    public void SetFocusLocked(bool locked) => _focusLocked = locked;
+    public bool IsFocusLocked => _focusLocked;
+    private bool _focusLocked;
+    // 지금 입력을 받고 있는 책상 위 표면(배치표 · 관리자 패드). 없으면 null.
+    public IProjectionSurface ModalSurface => _modal;
+
+    private SubViewport _storyVp;
 
     public SubViewport FacilityViewport => _facilityVp;
     public SubViewport CctvViewport => _cctvVp;
@@ -168,6 +220,21 @@ public partial class ControlRoom3DController : Node3D
     public SubViewport RestRosterViewport => _restRosterVp;
     public SubViewport InterviewViewport => _interviewVp;
     public SubViewport FacilityCctvViewport => _facilityCctvVp;
+    public SubViewport CutsceneViewport => _cutsceneVp;
+    public SubViewport GuideViewport => _guideVp;
+    public SubViewport GuideFaceViewport => _guideFaceVp;
+    public SubViewport TitleStaffViewport => _titleStaffVp;
+    public SubViewport TitleTerminalViewport => _titleTerminalVp;
+    public SubViewport ScheduleMapViewport => _scheduleMapVp;
+    public SubViewport ScheduleStaffViewport => _scheduleStaffVp;
+    public SubViewport StoryViewport => _storyVp;
+    // 엔딩 연출(FINAL RECOVERY SEQUENCE) 전용 두 화면.
+    public SubViewport EndingLeftViewport => _endingLeftVp;
+    // DAY5 최종 격리 보고서 · LOOSE 엔딩의 신원 명단(둘 다 왼쪽 CRT).
+    public SubViewport VerdictViewport => _verdictVp;
+    public SubViewport EndingStaffViewport => _endingStaffVp;
+    public SubViewport EndingRightViewport => _endingRightVp;
+    public ScheduleMapView ScheduleMap => _scheduleMap;
 
     private void BuildViewports()
     {
@@ -194,6 +261,11 @@ public partial class ControlRoom3DController : Node3D
 
         _cctvVp = MakeViewport();
         AddScaledView(_cctvVp, new CCTVMonitorView(), MonitorCanvasSize);
+        // 사고 순간 관리자가 보던 CCTV 화면을 한 장 떠 두는 녹화기(관리자 패드 단서 썸네일).
+        AddChild(new CctvSnapshotRecorder { Name = "CctvSnapshotRecorder", Source = _cctvVp });
+        // DAY0 교육에서 CCTV 화면 구석에 뜨는 작은 GUIDE-0 얼굴창.
+        // CCTV 뷰와 같은 캔버스에 나중에 붙어 그 위에 그려진다.
+        _cctvVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
         _reportVp = MakeViewport();
         AddScaledView(_reportVp, new ShiftReportView(), MonitorCanvasSize);
@@ -203,12 +275,94 @@ public partial class ControlRoom3DController : Node3D
 
         _interviewVp = MakeViewport();
         AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize);
+        // 휴게시간에도 교육이 이어진다 — 여기에도 같은 얼굴창을 얹는다.
+        _interviewVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+
+        _cutsceneVp = MakeViewport();
+        AddScaledView(_cutsceneVp, new NSP.Prologue.CutscenePlayer(), MonitorCanvasSize);
+
+        _guideVp = MakeViewport();
+        AddScaledView(_guideVp, new NSP.Prologue.GuideHologramView(), MonitorCanvasSize);
+
+        _guideFaceVp = MakeViewport();
+        AddScaledView(_guideFaceVp, new NSP.Prologue.GuideFaceView(), MonitorCanvasSize);
+
+        _titleStaffVp = MakeViewport();
+        AddScaledView(_titleStaffVp, new TitleStaffIdView(), MonitorCanvasSize);
+
+        _titleTerminalVp = MakeViewport();
+        AddScaledView(_titleTerminalVp, new TitleTerminalView(), MonitorCanvasSize);
+        // 타이틀의 「기록 열람」 = 도전과제 기록실. 같은 CRT · 같은 논리 캔버스 위에
+        // 얹히는 전용 화면으로, 열려 있는 동안만 단말기 위를 덮는다.
+        _titleTerminalVp.GetChild<Control>(0)?.AddChild(new AchievementArchiveView());
+
+        _scheduleMapVp = MakeViewport();
+        _scheduleMap = new ScheduleMapView();
+        AddScaledView(_scheduleMapVp, _scheduleMap, MonitorCanvasSize);
+
+        // DAY1~5 메인 스토리 — 모니터2 안에서 휴게실 3D + 스탠딩 + 대사를 합성한다.
+        _storyVp = MakeViewport();
+        AddScaledView(_storyVp, new StoryMonitorView(), MonitorCanvasSize);
+
+        _scheduleStaffVp = MakeViewport();
+        AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);
+        // DAY0 교육은 배치 화면에서 시작한다 — 그때 오른쪽 CRT 에 떠 있는 것은 이 화면이다.
+        // 여기에 얼굴창이 없어서 작업실 설명이 시작될 때까지 GUIDE-0 의 얼굴이 보이지 않았다.
+        _scheduleStaffVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+
+        _endingLeftVp = MakeViewport();
+        AddScaledView(_endingLeftVp, new EndingMonitorView(true), MonitorCanvasSize);
+        // 엔딩 마지막에 왼쪽 CRT 가운데로 뜨는 GUIDE-0 얼굴창(교육 때 쓰던 그 창 그대로).
+        _endingLeftVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+        _endingRightVp = MakeViewport();
+        AddScaledView(_endingRightVp, new EndingMonitorView(false), MonitorCanvasSize);
+        // 엔딩은 두 CRT 중 한쪽을 얼굴창으로 쓴다 — 어느 쪽이든 뜰 수 있게 양쪽에 둔다
+        // (실제로 어느 화면에 띄울지는 GuideCornerFace.MuteIn 으로 연출기가 고른다).
+        _endingRightVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+
+        _verdictVp = MakeViewport();
+        AddScaledView(_verdictVp, new FinalReportView(), MonitorCanvasSize);
+        // 보고서 화면 위에서도 GUIDE-0 이 말한다(교육 때 쓰던 그 작은 얼굴창).
+        _verdictVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
+
+        _endingStaffVp = MakeViewport();
+        AddScaledView(_endingStaffVp, new EndingStaffIdView(), MonitorCanvasSize);
+        _endingStaffVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
     }
 
     // ShiftFlowController 가 단계 전환마다 CRT 에 붙는 프로그램을 바꿔 끼운다
     // (왼쪽=시설/배치기록/보고서, 오른쪽=CCTV/인터뷰) — 씬 전환 없이 화면만 바뀐다.
-    public void SetLeftScreen(SubViewport vp) => ConfigureNamed("01", vp);
-    public void SetRightScreen(SubViewport vp) => ConfigureNamed("02", vp);
+    // 모니터 기기 하나를 잠깐 진동시킨다(연출 전용 — 게임 상태를 건드리지 않는다).
+    // token = "01" / "02". 화면 Quad 가 아니라 그 부모(모니터 전체)를 흔든다.
+    public void ShakeMonitor(string token, float degrees = 1.4f, float seconds = 0.55f)
+    {
+        var screen = _screens.FirstOrDefault(s => s.Name.ToString().Contains(token));
+        if (screen?.GetParent() is not Node3D body) return;
+        if (_monitorShakes.TryGetValue(body, out var running) && running is { } t && t.IsValid()) t.Kill();
+
+        Vector3 rest = body.RotationDegrees;
+        var tw = CreateTween();
+        int beats = Mathf.Max(4, Mathf.RoundToInt(seconds / 0.045f));
+        for (int i = 0; i < beats; i++)
+        {
+            // 뒤로 갈수록 약해진다 — 한 번 맞고 잦아드는 느낌.
+            float k = (1f - (float)i / beats) * degrees * (i % 2 == 0 ? 1f : -1f);
+            tw.TweenProperty(body, "rotation_degrees",
+                rest + new Vector3(k * 0.5f, k, k * 0.35f), seconds / beats);
+        }
+        tw.TweenProperty(body, "rotation_degrees", rest, 0.08);
+        _monitorShakes[body] = tw;
+    }
+
+    private readonly System.Collections.Generic.Dictionary<Node3D, Tween> _monitorShakes = new();
+
+    public void SetLeftScreen(SubViewport vp) { LeftScreenViewport = vp ?? LeftScreenViewport; ConfigureNamed("01", vp); }
+    public void SetRightScreen(SubViewport vp) { RightScreenViewport = vp ?? RightScreenViewport; ConfigureNamed("02", vp); }
+
+    // 지금 각 모니터에 붙어 있는 화면. 잠깐 다른 화면을 띄웠다가 되돌릴 때 쓴다
+    // (메인 스토리가 모니터2 를 빌려 쓰고 돌려준다 — StoryCutinDirector).
+    public SubViewport LeftScreenViewport { get; private set; }
+    public SubViewport RightScreenViewport { get; private set; }
 
     private void ConfigureNamed(string token, SubViewport vp)
     {
@@ -224,10 +378,15 @@ public partial class ControlRoom3DController : Node3D
     // 붙어 있는 건 최대 2개다. 나머지는 매 프레임 render target 을 새로 그릴 이유가 없다.
     // 지금 어느 화면에도 안 붙은 뷰포트는 Disabled 로 내려 GPU/CPU 를 통째로 아낀다.
     // (Disabled 여도 안의 Control 은 _Process/_Input 을 그대로 받으므로 로직은 동일하다.)
+    // 프롤로그 · 엔딩 컷씬 화면이 창을 통째로 덮고 있는가(EndingCutsceneStage 가 켠다).
+    // 덮여 있는 동안에는 CRT 안의 화면도 보이지 않는다 — 그릴 이유가 없다.
+    // 안의 Control 은 _Process 를 그대로 받으므로 타이핑 · 타이머 같은 로직은 멈추지 않는다.
+    public static bool WorldCovered { get; set; }
+
     private void UpdateActiveViewports()
     {
-        bool cctvOnScreen = false, interviewOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp })
+        bool cctvOnScreen = false, interviewOnScreen = false, storyOnScreen = false;
+        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _storyVp, _endingLeftVp, _endingRightVp, _verdictVp, _endingStaffVp })
         {
             if (vp == null) continue;
             bool bound = false;
@@ -236,22 +395,29 @@ public partial class ControlRoom3DController : Node3D
 
             // CRT 가 꺼져 있는 단계(시작 화면 / 근무 배치)에서는 화면이 사실상 검게
             // 눌려 있으므로 한 프레임만 그려두고 멈춘다(Once → 엔진이 알아서 Disabled).
-            var want = !bound ? SubViewport.UpdateMode.Disabled
+            var want = WorldCovered || !bound ? SubViewport.UpdateMode.Disabled
                 : _brightness > 0.1f ? SubViewport.UpdateMode.Always
                 : SubViewport.UpdateMode.Once;
             if (vp.RenderTargetUpdateMode != want) vp.RenderTargetUpdateMode = want;
 
             if (bound && vp == _cctvVp) cctvOnScreen = true;
             if (bound && vp == _interviewVp) interviewOnScreen = true;
+            if (bound && vp == _storyVp) storyOnScreen = true;
         }
 
         _cctvOnScreen = cctvOnScreen;
         _interviewOnScreen = interviewOnScreen;
+        _storyOnScreen = storyOnScreen;
         UpdateCctvWorldViewport();
     }
 
     private bool _cctvOnScreen;
     private bool _interviewOnScreen;
+    // 메인 스토리 화면(모니터2)도 같은 3D 월드를 배경으로 쓴다.
+    private bool _storyOnScreen;
+
+    // 오른쪽 CRT 가 지금 CCTV 를 띄우고 있고 화면이 켜져 있는가(CctvSnapshotRecorder).
+    public bool CctvOnScreen => _cctvOnScreen && _brightness > 0.1f;
 
     // 두 번째 3D 렌더 패스(작업실 월드)는 오른쪽 CRT 가 CCTV 를 띄우고 있고, 그 화면이
     // 실제로 켜져 있을 때만 돌린다. 시작 화면/근무 배치처럼 CRT 가 꺼져 있는 동안에는
@@ -263,7 +429,8 @@ public partial class ControlRoom3DController : Node3D
         // (NO SIGNAL / CCTV 전력 OFF 동안에는 어차피 노이즈만 보이므로 3D 를 멈춘다.)
         // 휴게시간 인터뷰 : 같은 월드를 사이드뷰로 쓰므로 인터뷰 화면이 떠 있으면 켠다.
         bool feedLive = CCTVMonitorView.Instance?.FeedVisible ?? true;
-        bool needed = (_cctvOnScreen && feedLive) || _interviewOnScreen;
+        // 메인 스토리 : 휴게실 3D 를 모니터2 영상의 배경으로 쓴다 — 그 화면이 떠 있으면 켠다.
+        bool needed = (_cctvOnScreen && feedLive) || _interviewOnScreen || _storyOnScreen;
         var want = needed && _brightness > 0.1f
             ? SubViewport.UpdateMode.Always
             : SubViewport.UpdateMode.Disabled;
@@ -271,13 +438,65 @@ public partial class ControlRoom3DController : Node3D
             _facilityCctvVp.RenderTargetUpdateMode = want;
     }
 
+    // 시작 화면에서 장비를 한 대씩 켜는 연출용 — CRT 하나의 밝기만 따로 덮어쓴다.
+    // (SetScreenBrightness 로 전체를 다시 칠하면 덮어쓴 값은 사라진다 — 순서에 주의.)
+    public void SetScreenBrightnessFor(string nameToken, float v)
+    {
+        foreach (var s in _screens)
+            if (s.Name.ToString().Contains(nameToken))
+                s.ScreenMaterial?.SetShaderParameter("brightness", v);
+    }
+
+    // 모니터 **기기** 외곽선의 은은한 빛.
+    //
+    // 본체(베젤) 메시를 한 겹 더 깔고 앞면을 잘라(cull_front) 조금 부풀린 것이다(grow) —
+    // 본체 뒤로만 삐져나와 기기의 윤곽선이 된다. 어느 각도에서 봐도 테두리가 같다.
+    //
+    // 밝기는 **화면 전원을 그대로 따라간다** — 정전이나 부팅 연출로 화면이 꺼지는데
+    // 테두리만 혼자 빛나고 있으면 그 장면이 통째로 깨진다.
+    private const float RimEnergy = 1.0f;
+
+    private void ApplyRimGlow()
+    {
+        foreach (var rim in _rims)
+            if (IsInstanceValid(rim))
+                rim.EmissionEnergyMultiplier = RimEnergy * Mathf.Clamp(_brightness, 0f, 1.2f);
+    }
+
+    private readonly List<StandardMaterial3D> _rims = new();
+
+    private void CollectRims(Node n)
+    {
+        if (n is MeshInstance3D { } mi && mi.Name.ToString().Contains("BezelOutline")
+            && mi.GetSurfaceOverrideMaterial(0) is StandardMaterial3D m && !_rims.Contains(m))
+            _rims.Add(m);
+        foreach (var c in n.GetChildren()) CollectRims(c);
+    }
+
     private void ApplyScreenParams()
     {
+        ApplyRimGlow();
         foreach (var s in _screens)
         {
             s.ScreenMaterial?.SetShaderParameter("brightness", _brightness);
             s.ScreenMaterial?.SetShaderParameter("h_distortion", _distortion);
             s.ScreenMaterial?.SetShaderParameter("noise_strength", _noise);
+            s.ScreenMaterial?.SetShaderParameter("tint_r", _tint.R);
+            s.ScreenMaterial?.SetShaderParameter("tint_g", _tint.G);
+            s.ScreenMaterial?.SetShaderParameter("tint_b", _tint.B);
+        }
+    }
+
+    // 두 CRT 전체의 색조(crt_screen 의 tint). 기본 흰색 = 원래 색. 실패한 시작 화면의 붉은 CRT 등.
+    private Color _tint = Colors.White;
+    public void SetScreenTint(Color c)
+    {
+        _tint = c;
+        foreach (var s in _screens)
+        {
+            s.ScreenMaterial?.SetShaderParameter("tint_r", c.R);
+            s.ScreenMaterial?.SetShaderParameter("tint_g", c.G);
+            s.ScreenMaterial?.SetShaderParameter("tint_b", c.B);
         }
     }
 
@@ -316,15 +535,17 @@ public partial class ControlRoom3DController : Node3D
     {
         var sim = FacilitySimulation.Instance;
         if (sim == null) return;
-        var employees = sim.GetEmployeeIds().ToList();
+        var employees = sim.GetActiveEmployeeIds();
 
         // 스케줄 화면을 거쳐 들어온 경우 플레이어 배치를 존중한다.
         // 아무도 배치돼 있지 않을 때(F6 단독 실행)만 자동 배치한다.
         if (employees.Any(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId)))
             return;
 
-        for (int i = 0; i < employees.Count && i < AutoStaffRooms.Length; i++)
-            sim.AssignToRoom(employees[i], AutoStaffRooms[i]);
+        // 오늘 잠긴 작업실(환기실/의무실 등)은 자동 배치 대상에서도 뺀다.
+        var rooms = AutoStaffRooms.Where(sim.IsRoomActive).ToList();
+        for (int i = 0; i < employees.Count && i < rooms.Count; i++)
+            sim.AssignToRoom(employees[i], rooms[i]);
     }
 
     public override void _Process(double delta)
@@ -333,6 +554,11 @@ public partial class ControlRoom3DController : Node3D
         UpdateCctvWorldViewport();
 
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        // 관리자 패드를 들고 있는 동안 근무 시간은 멈춘다(시계 · 시뮬레이션 모두).
+        if (AdminPad3D.PausesGame) return;
+        // 스토리 컷인이 새 규칙을 가르치는 동안도 멈춘다 — 대사를 읽는 사이에 시간이
+        // 흘러 불이익을 받지 않게(문서 §27). 컷인이 끝나면 곧바로 다시 흐른다.
+        if (StoryCutinDirector.PausesGameplay) return;
 
         GameState.Instance.AdvanceDayTime((float)delta);
         FacilitySimulation.Instance?.Tick(delta);
@@ -348,10 +574,17 @@ public partial class ControlRoom3DController : Node3D
         // CanvasLayer 통화 HUD가 마우스 입력을 받는 동안에는 그 입력을 3D CRT로
         // 재투사하지 않는다. 그렇지 않으면 "통화를 종료한다" 클릭이 뒤쪽 휴게화면의
         // 다음 날 배치 버튼까지 동시에 눌릴 수 있다.
-        if (PhoneCallHud.Instance?.IsOpen == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+        // (휴게시간 심문은 MONITOR 01 에서 조작하므로 자막 띠 위를 누를 때만 막는다.)
+        if (PhoneCallHud.Instance?.BlocksCrtInput(@event) == true || Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+        // 스토리 선택지가 떠 있는 동안에도 마찬가지다 — 선택지 버튼(CanvasLayer)이 클릭을
+        // 받아야 하는데, 여기서 모니터 몫으로 먼저 먹으면 숫자키로만 고를 수 있게 된다.
+        if (StoryCutinHud.Instance?.BlocksCrtInput(@event) == true) return;
 
         if (_modal != null)
         {
+            // 관리자 패드를 든 동안에도 오른쪽 아래의 업무 · 로그 · 대화 기록 버튼은 눌려야 한다 —
+            // 게임 밖 UI 다. 그 위의 클릭은 패드 화면으로 넘기지 않고 버튼(GUI)이 받게 둔다.
+            if (@event is InputEventMouseButton over && Day1HistoryOverlay.Instance?.IsOverIcons(over.Position) == true) return;
             switch (@event)
             {
                 case InputEventMouseButton mb: ForwardModal(mb); break;
@@ -369,9 +602,11 @@ public partial class ControlRoom3DController : Node3D
         {
             // ESC 는 PauseMenu 가 먼저 가져간다(확대 중이면 그쪽에서 UnzoomIfFocused 를 부른다).
             var target = GameSettings.TargetForKey(NormalizeNumpad(key.Keycode));
-            if (target.HasValue)
+            if (target.HasValue && !_focusLocked)
             {
-                ToggleFocusTarget(target.Value);
+                // 예전 경고 단말기 자리에는 관리자 패드가 있다 — 그 키는 패드를 꺼낸다(Tab 과 같다).
+                if (target.Value == GameSettings.ZoomTarget.Sensor) AdminPad3D.Instance?.Toggle();
+                else ToggleFocusTarget(target.Value);
                 GetViewport().SetInputAsHandled();
                 return;
             }
@@ -391,6 +626,9 @@ public partial class ControlRoom3DController : Node3D
         bool hit = _modal.TryProjectRay(origin, dir, clamp: !mb.Pressed, out Vector2 cp);
         if (!hit && mb.Pressed) return;
         _lastCanvasPos = cp;
+        // 누른 자리로 손을 뻗는 연출(관리자 패드) — 입력 전달과는 별개다.
+        if (mb.Pressed && mb.ButtonIndex == MouseButton.Left && _modal is ISurfacePressListener listener)
+            listener.OnSurfacePressed(cp);
         _modal.TargetViewport?.PushInput(MakeButton(mb, cp), inLocalCoords: true);
         GetViewport().SetInputAsHandled();
     }
@@ -414,7 +652,7 @@ public partial class ControlRoom3DController : Node3D
         Vector3 origin = _camera.ProjectRayOrigin(mb.Position);
         Vector3 dir = _camera.ProjectRayNormal(mb.Position);
 
-        if (mb.Pressed && mb.ButtonIndex == MouseButton.Right && _focusedNode != null)
+        if (mb.Pressed && mb.ButtonIndex == MouseButton.Right && _focusedNode != null && !_focusLocked)
         {
             Unfocus();
             GetViewport().SetInputAsHandled();
@@ -526,7 +764,8 @@ public partial class ControlRoom3DController : Node3D
     {
         GameSettings.ZoomTarget.Monitor1 => _screens.FirstOrDefault(s => s.Name.ToString().Contains("01")),
         GameSettings.ZoomTarget.Monitor2 => _screens.FirstOrDefault(s => s.Name.ToString().Contains("02")),
-        GameSettings.ZoomTarget.Sensor => GetNodeOrNull<Node3D>(SensorPath),
+        // 경고 단말기는 책상에서 치웠다(관리자 패드 거치대로 교체) — 확대 대상이 아니다.
+        GameSettings.ZoomTarget.Sensor => null,
         GameSettings.ZoomTarget.PowerPanel => GetNodeOrNull<Node3D>(PowerPanelPath),
         _ => null,
     };
@@ -550,20 +789,69 @@ public partial class ControlRoom3DController : Node3D
         _rig?.FocusOnScreen(center, normal, isScreen ? FocusDistance : DeskPropFocusDistance);
     }
 
+    // 프롤로그/튜토리얼 연출용 — 코드에서 모니터를 확대하거나 자리로 돌아온다.
+    // index 1 = 왼쪽(MONITOR 01), 2 = 오른쪽(MONITOR 02).
+    public void FocusMonitor(int index, float seconds = 0.32f)
+    {
+        var t = index == 2 ? GameSettings.ZoomTarget.Monitor2 : GameSettings.ZoomTarget.Monitor1;
+        var node = ResolveTarget(t);
+        if (node == null) return;
+        _focusedNode = node;
+        _focusedScreen = node as MonitorScreen3D;
+        _rig?.FocusOnScreen(node.GlobalPosition, node.GlobalTransform.Basis.Z.Normalized(), FocusDistance, seconds);
+    }
+
+    public void ClearFocus(float seconds = 0.3f) => Unfocus(seconds);
+
+    // 엔딩 연출 — 책상 위 아무 물건이나 카메라를 내린다(관리자 패드 · 수화기 · 전원 스위치).
+    // 확대 대상 목록(ZoomTarget)에 없는 노드도 받는다. distance 가 0 이하면 책상 기기 기본값.
+    //
+    // 물건 자신의 법선(Basis.Z)을 쓰지 않는다 — 패드는 거치대에 눕혀져 있어 그 축이 위를
+    // 가리키고, 그대로 쓰면 카메라가 천장이나 책상 밑으로 들어간다.
+    // **앉은 자리의 눈에서 그 물건을 보는 방향**으로 다가간다(사람이 몸을 숙이는 것과 같다).
+    public void FocusProp(Node3D node, float seconds = 0.9f, float distance = -1f, Vector3? offset = null)
+    {
+        if (node == null || _rig == null) return;
+        _focusedNode = node;
+        _focusedScreen = node as MonitorScreen3D;
+        Vector3 center = node.GlobalPosition + (offset ?? DeskPropFocusOffset);
+        Vector3 eye = _rig.SeatedCameraGlobal().Origin;
+        Vector3 normal = (eye - center);
+        normal = normal.LengthSquared() < 0.0001f ? Vector3.Up : normal.Normalized();
+        _rig.FocusOnScreen(center, normal, distance > 0f ? distance : DeskPropFocusDistance, seconds);
+    }
+
+    // 엔딩 연출 — 시선만 아주 살짝 옮긴다(카메라를 옮기지 않는다).
+    public void GazeAt(Vector3 worldTarget, float seconds = 0.9f) => _rig?.FocusOn(worldTarget, seconds);
+
+    // 엔딩 연출 — 자리는 그대로 두고 고개만 돌려 방 안의 한 점을 본다(문 쪽 등).
+    public void TurnToLookAt(Vector3 worldTarget, float seconds = 1.0f, Vector3 eyeOffset = default) =>
+        _rig?.TurnToLookAt(worldTarget, seconds, eyeOffset);
+    public void ReturnToSeat(float seconds = 1.0f) => _rig?.ReturnToSeat(seconds);
+
+    // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
+    public void ShakeCamera(float strengthDegrees, float seconds) => _rig?.Shake(strengthDegrees, seconds);
+
+    // 프롤로그 — 의식을 잃고 책상에 엎어지는 시점 연출.
+    public void CollapseCameraOntoDesk(float seconds = 0.38f) => _rig?.CollapseOntoDesk(seconds);
+    public void ResetCameraCollapse() => _rig?.ResetCollapse();
+    // 긴장이 풀려 의자에 기대며 눈을 감는 자세(진엔딩).
+    public void LeanBackInChair(float seconds = 3f) => _rig?.LeanBack(seconds);
+
     // 확대 중이면 풀고 true. PauseMenu 가 ESC 를 받았을 때 "메뉴 열기"보다 먼저 시도한다.
     public bool UnzoomIfFocused()
     {
-        if (_focusedNode == null) return false;
+        if (_focusedNode == null || _focusLocked) return false;
         Unfocus();
         return true;
     }
 
-    private void Unfocus()
+    private void Unfocus(float seconds = 0.3f)
     {
         if (_focusedNode == null) return;
         _focusedNode = null;
         _focusedScreen = null;
-        _rig?.ReturnToSeat();
+        _rig?.ReturnToSeat(seconds);
     }
 
     // --- PHASE 6 훅 ---------------------------------------------------

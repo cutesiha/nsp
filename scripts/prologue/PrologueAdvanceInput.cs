@@ -1,0 +1,85 @@
+using Godot;
+using NSP.View;
+
+namespace NSP.Prologue;
+
+// 프롤로그/튜토리얼 대사 넘기기 입력.
+//
+// 대사는 절대 자동으로 넘어가지 않는다. 스페이스 / 엔터 / 마우스 왼쪽 클릭으로만 진행한다.
+// 이 노드는 씬 루트(ControlRoom3DController)보다 먼저 _Input 을 받으므로, 배치표가 모달로
+// 입력을 가져가는 단계에서도 대사를 넘길 수 있다.
+//
+// 대사가 떠 있는 동안에는 화면 아무 곳이나 클릭해도 넘어간다. 대사 묶음이 끝나면
+// IsWaitingForInput 이 false 가 되므로, 플레이어가 지도·배치표·전화기를 클릭하는 데는
+// 전혀 방해가 되지 않는다.
+public partial class PrologueAdvanceInput : Node
+{
+    public override void _Ready() => SetProcessInput(true);
+
+    public override void _Input(InputEvent e)
+    {
+        // 관리자 선택지가 떠 있으면 숫자키 1 · 2 · 3 이 그 선택을 가져간다.
+        // (마우스 클릭은 선택지 버튼이 직접 받는다 — 여기서는 대사 넘기기로 먹지 않게 막기만 한다.)
+        if (StoryCutinHud.Instance is { IsChoosing: true } choosing)
+        {
+            if (e is InputEventKey { Pressed: true, Echo: false } ck)
+            {
+                int pick = ck.Keycode switch
+                {
+                    Key.Key1 or Key.Kp1 => 0,
+                    Key.Key2 or Key.Kp2 => 1,
+                    Key.Key3 or Key.Kp3 => 2,
+                    _ => -1,
+                };
+                if (pick >= 0)
+                {
+                    choosing.Choose(pick);
+                    GetViewport().SetInputAsHandled();
+                }
+            }
+            return;
+        }
+
+        bool byKey = e is InputEventKey { Pressed: true, Echo: false } k
+                     && k.Keycode is Key.Space or Key.Enter or Key.KpEnter;
+        bool byClick = e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left };
+        if (!byKey && !byClick) return;
+
+        // 로그 창이 떠 있으면 그쪽 입력이 우선이다.
+        if (Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+
+        // 통화창이 떠 있어도 대사는 넘길 수 있어야 한다 — 휴게시간 교육은 통화창을 켜 둔 채
+        // 가이드가 계속 말한다. 창 위를 클릭했을 때만 통화창 몫으로 넘긴다.
+        if (PhoneCallHud.Instance?.IsOpen == true)
+        {
+            if (byKey) return;
+            var mouse = (e as InputEventMouseButton)?.GlobalPosition ?? Vector2.Zero;
+            if (PhoneCallHud.Instance.ContainsPoint(mouse)) return;
+        }
+
+        // 벨이 울리는 동안에는 클릭을 먹지 않는다. 그러지 않으면 대사가 아직 흐르는 중에
+        // 수화기를 눌러도 "대사 넘기기"로만 먹혀 전화를 받을 수 없다(키로는 그대로 넘어간다).
+        if (byClick && Phone3D.Instance?.IsRinging == true) return;
+
+        // 스토리 컷인이 떠 있으면 그쪽이 먼저다 — 화면 제일 위에 있는 창이 입력을 받는다.
+        // 1차 = 문장 즉시 완성 / 2차 = 다음 줄 (규칙은 StoryCutinHud.RequestAdvance 안에 있다)
+        if (StoryCutinHud.Instance is { IsWaitingForInput: true } cutin)
+        {
+            cutin.RequestAdvance();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        if (CutscenePlayer.Instance is { IsWaitingForInput: true } cut)
+        {
+            cut.RequestAdvance();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+        if (GuideHologramView.Instance is { IsWaitingForInput: true } guide)
+        {
+            guide.RequestAdvance();
+            GetViewport().SetInputAsHandled();
+        }
+    }
+}

@@ -1,0 +1,412 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Godot;
+using NSP.Core;
+using NSP.Data;
+
+namespace NSP.Facility;
+
+// 괴물 — 작업실 사고와 **완전히 분리된** 두 번째 사고 계통.
+//
+// 규칙은 하나뿐이다.
+//   나타난 것을 게임이 알려주지 않는다. 관리자가 CCTV 를 직접 돌려 보고 찾아내야 하고,
+//   찾아낸 뒤에도 GhostDispelSeconds 동안 **계속 보고 있어야** 사라진다.
+//   끝내 못 찾으면 그 작업실에 사고가 터지고, 그 방에 있던 직원이 크게 무너진다.
+//
+// 이 장치가 있어야 CCTV 가 "가끔 확인하는 화면"에서 "계속 돌려야 하는 화면"이 된다.
+// 경고 단말기도 미니맵도 괴물을 가리키지 않는 이유가 그것이다 — 가리키는 순간
+// 관리자는 그 방만 보면 되고, 감시는 다시 알림 대기가 된다.
+//
+// 이 클래스는 **판정만** 한다. 화면에 어떻게 보이는지(등장·비명·소멸 연출)는
+// 신호를 받은 FacilityCctvWorld 가 맡는다. 반대 방향은 없다.
+public sealed class GhostHauntSystem
+{
+    // 지금 괴물이 있는 작업실. 비어 있으면 어디에도 없다.
+    public string ActiveRoomId { get; private set; } = "";
+    public bool Active => !string.IsNullOrEmpty(ActiveRoomId);
+    // 나타난 뒤 흐른 시간 · 관리자가 **연속해서** 본 시간.
+    public float AliveSeconds { get; private set; }
+    public float WatchedSeconds { get; private set; }
+    public int AppearedToday { get; private set; }
+    public int DispelledToday { get; private set; }
+    public int StruckToday { get; private set; }
+
+    // 소멸까지 얼마나 봤는가(0~1). CCTV 화면의 게이지가 이 값을 읽는다.
+    public float DispelRatio
+    {
+        get
+        {
+            // 대회용에서는 관측으로 사라지지 않는다 — 게이지 자체가 뜨지 않아야 한다.
+            // 0 을 돌려주면 CCTV 쪽 표시가 그대로 숨는다(지시서 §1).
+            if (!GameModes.GhostDispelEnabled) return 0f;
+            float need = Mathf.Max(0.1f, Config.Instance?.Data?.GhostDispelSeconds ?? 5f);
+            return Mathf.Clamp(WatchedSeconds / need, 0f, 1f);
+        }
+    }
+
+    // --- 화면이 듣는 신호(표현 전용) ---------------------------------------
+    public event Action<string> Appeared;
+    public event Action<string> Screamed;
+    public event Action<string> Dispelled;   // 관측으로 사라졌다(기본 모드 전용)
+    public event Action<string> Struck;      // 방치되어 사고가 되었다
+    // 작업실을 떠나 복도로 나갔다(대회용). 받는 쪽(FacilitySimulation)이 그 방에서
+    // 출발하는 복도 위협을 띄운다 — **같은 개체가 이어서 걸어오는 것**이지,
+    // 관계없는 두 번째 이벤트가 아니다(지시서 §3).
+    public event Action<string> Departed;
+
+    private float _nextCheckAt;
+    private float _cooldownUntil;
+    private float _nextScreamAt;
+    private readonly RandomNumberGenerator _rng = new();
+
+    public void Reset()
+    {
+        Sfx.Instance?.StopLoop(PresenceLoopKey);
+        ActiveRoomId = "";
+        AliveSeconds = WatchedSeconds = 0f;
+        AppearedToday = DispelledToday = StruckToday = 0;
+        _nextCheckAt = 0f;
+        _cooldownUntil = 0f;
+        _nextScreamAt = 0f;
+        _rng.Randomize();
+        _lastRoomId = "";
+        _lastStruckAt = -999f;
+        _struckLastAppearance = false;
+        // 오늘 첫 등장을 보장할 시각. 운영 규칙이 구간을 주지 않은 날은 -1(확률에만 맡긴다).
+        var ops = OpsProfile.Today;
+        float from = ops?.GhostFirstAppearFromSeconds ?? -1f;
+        float by = ops?.GhostFirstAppearBySeconds ?? -1f;
+        _forcedFirstAt = from >= 0f && by > from ? _rng.RandfRange(from, by) : -1f;
+    }
+
+    // 오늘 첫 등장을 반드시 띄울 시각(-1 = 보장 없음)과 직전에 나왔던 방.
+    private float _forcedFirstAt = -1f;
+    private string _lastRoomId = "";
+
+    // --- 진행 --------------------------------------------------------------
+
+    public void Tick(float delta, FacilitySimulation sim)
+    {
+        if (sim == null) return;
+        var cfg = Config.Instance?.Data;
+        if (cfg == null) return;
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+
+        if (Active) TickActive(delta, now, sim, cfg);
+        else TickIdle(now, sim, cfg);
+    }
+
+    // 아직 없다 — 나타날 때가 되었는가.
+    private void TickIdle(float now, FacilitySimulation sim, ConfigData cfg)
+    {
+        // 교육일(DAY0)에는 스스로 나오지 않는다. 튜토리얼이 정해진 시점에 직접 부른다.
+        if (!DayFeatures.AutoIncidentsEnabled) return;
+        // 오늘의 운영 규칙이 한도를 정해 두었으면 그것을 쓰고, 없을 때만 전역 기본값을 쓴다.
+        int max = OpsProfile.Today?.GhostMaxPerDay ?? -1;
+        if (max < 0) max = cfg.GhostMaxPerDay;
+        if (AppearedToday >= max) return;
+        if (now < _cooldownUntil) return;
+        // 보장 구간이 열려 있으면 전역 최소 시각(GhostFirstAppearSeconds)보다 먼저 나올 수 있다.
+        if (now < cfg.GhostFirstAppearSeconds && !(AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt))
+            return;
+
+        // 첫 등장 보장 — 그 날 운영 규칙이 구간을 정해 두었으면 그 안에서 반드시 한 번 나온다.
+        // (근무마다 다른 초로 흔들린다 — 같은 초에 나오면 대본으로 읽힌다.)
+        bool forced = AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt;
+        if (!forced)
+        {
+            if (_nextCheckAt <= 0f) _nextCheckAt = now + cfg.GhostCheckSeconds;
+            if (now < _nextCheckAt) return;
+            _nextCheckAt = now + cfg.GhostCheckSeconds;
+            if (_rng.Randf() >= cfg.GhostAppearChance) return;
+        }
+        string room = PickRoom(sim);
+        if (!string.IsNullOrEmpty(room)) Appear(room, sim);
+    }
+
+    // 나타날 방. 이미 고장 난 방은 고른다 해도 사고를 더할 수 없으니 제외한다.
+    private string PickRoom(FacilitySimulation sim)
+    {
+        var pool = new List<string>();
+        foreach (string roomId in sim.GetRoomIds())
+        {
+            if (roomId == FacilitySimulation.DeployOriginRoomId) continue;
+            var def = sim.GetRoomDef(roomId);
+            if (def == null || def.IsRestricted) continue;
+            if (!sim.IsRoomActive(roomId)) continue;
+            if (sim.HasRepairPending(roomId)) continue;
+            pool.Add(roomId);
+        }
+        if (pool.Count == 0) return "";
+        // ① 같은 방에서 연달아 나오지 않는다. ② 사람이 있는 방을 먼저 고른다 —
+        //    아무도 없는 방에 나타나면 직원 반응도, 위험도 보이지 않아 보여 줄 것이 없다.
+        var fresh = pool.Where(r => r != _lastRoomId).ToList();
+        if (fresh.Count > 0) pool = fresh;
+        var staffed = pool.Where(r => sim.OnDutyCount(r) > 0).ToList();
+        if (staffed.Count > 0) pool = staffed;
+        return pool[_rng.RandiRange(0, pool.Count - 1)];
+    }
+
+    // 튜토리얼(DAY0)이 정해진 방에 직접 부를 때. 일반 등장과 완전히 같은 경로를 쓴다.
+    //
+    // graceSeconds 를 주면 그동안은 사고로 번지지 않는다 — 교육에서 헤매다 설비가
+    // 부서지면 배우기도 전에 벌부터 받는 꼴이 된다.
+    public bool ForceAppear(string roomId, FacilitySimulation sim, float graceSeconds = -1f)
+    {
+        if (Active || sim == null || string.IsNullOrEmpty(roomId)) return false;
+        _graceOverride = graceSeconds;
+        Appear(roomId, sim);
+        return true;
+    }
+
+    // 0 보다 크면 이번 등장에 한해 GhostGraceSeconds 대신 이 값을 쓴다.
+    private float _graceOverride = -1f;
+
+    // 교육(DAY0)이 "지금 떠나라" 고 시킬 때. 사고도 확률도 거치지 않고 작업실에서만
+    // 지운다 — 가르치는 자리에서 설비가 부서지면 배우기도 전에 벌부터 받는 꼴이 된다.
+    //
+    // notify 가 false 면 Departed 를 올리지 않는다. 교육은 들어올 복도를 **직접**
+    // 정하므로(서측 고정) 자동 경로 선택을 타지 않는다.
+    public bool ForceDepart(FacilitySimulation sim, bool notify = true)
+    {
+        if (!Active || sim == null) return false;
+        string room = ActiveRoomId;
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        foreach (string id in sim.OnDutyEmployeeIds(room)) _witnesses.Add(id);
+        // 사고가 없어도 목격은 남는다 — 교육 뒤 휴게시간 증언이 비지 않게.
+        EventLog.Instance?.LogEvent(LogEventType.AnomalySighting, "", room,
+            $"👁 {sim.RoomDisplayName(room)} — 이상 개체 목격 (설비 피해 없음)",
+            witnesses: _witnesses.ToList());
+        var cfg = Config.Instance?.Data;
+        if (cfg != null) Clear(cfg, now);
+        else { Sfx.Instance?.StopLoop(PresenceLoopKey); ActiveRoomId = ""; }
+        if (notify) Departed?.Invoke(room);
+        return true;
+    }
+
+    // 이번 등장을 직접 본 직원들(검사 · 교육용). 작업실을 떠난 뒤에도 남는다.
+    public IReadOnlyCollection<string> Witnesses => _witnesses;
+
+    // 이번 등장을 **직접 본** 직원. 개체가 있는 동안 그 방에 서 있던 사람 전부다.
+    // 이것이 기록에 남아야 다음 날 대화에서 "본 사람" 과 "소리만 들은 사람" 이 갈린다
+    // (StoryRoleCast). 방 이름만 남기면 전원이 봤다는 말이 된다.
+    private readonly HashSet<string> _witnesses = new();
+
+    private void Appear(string roomId, FacilitySimulation sim)
+    {
+        ActiveRoomId = roomId;
+        _lastRoomId = roomId;
+        _witnesses.Clear();
+        AliveSeconds = WatchedSeconds = 0f;
+        AppearedToday++;
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        _nextScreamAt = now + (Config.Instance?.Data?.GhostScreamIntervalSeconds ?? 7f) * 0.5f;
+        // 기척 — 개체가 시설 안에 있는 동안 아주 작게 계속 난다.
+        // 로그에도 알림에도 남기지 않으므로, 이 소리가 "뭔가 들어와 있다" 를 알리는 유일한 신호다.
+        // 찾는 것은 여전히 관리자의 몫이다 — 어느 방인지는 소리로 알 수 없다.
+        Sfx.Instance?.Loop(PresenceLoopKey, PresenceLoopDb);
+        // 로그에도 알림에도 남기지 않는다 — 알려주는 순간 찾을 이유가 사라진다.
+        Appeared?.Invoke(roomId);
+    }
+
+    private void TickActive(float delta, float now, FacilitySimulation sim, ConfigData cfg)
+    {
+        string room = ActiveRoomId;
+
+        // 그 방이 없어졌거나(잠김) 이미 수리 중이면 조용히 물러난다.
+        if (!sim.IsRoomActive(room)) { Clear(cfg, now); return; }
+
+        AliveSeconds += delta;
+
+        // ── 관측 ──────────────────────────────────────────────────────
+        // "보고 있다" = 그 방을 CCTV 로 띄워 두었고, 전력이 살아 있고, 화면이 막히지 않았고,
+        // **그 영상이 실제로 화면에 떠 있다**(CctvFeedLive). 마지막 조건이 없으면 꺼진 화면
+        // 앞에서 방만 골라 둬도 개체가 알아서 소멸했다.
+        //
+        // 대회용에서는 이 값이 아예 쌓이지 않는다. 바라보는 것은 **위치를 아는 수단**일
+        // 뿐이고, 개체를 없애지는 못한다(지시서 §1).
+        bool watching = GameModes.GhostDispelEnabled
+                        && sim.SurveillanceTargetRoomId == room
+                        && (GameState.Instance?.IsCctvOperational() ?? false)
+                        && !sim.IsRoomCctvBlocked(room)
+                        && sim.CctvFeedLive;
+        if (watching) WatchedSeconds += delta;
+        // 눈을 떼면 되감긴다 — 여러 방을 번갈아 보며 조금씩 채울 수는 없다.
+        else WatchedSeconds = Mathf.Max(0f, WatchedSeconds - delta * cfg.GhostWatchDecayPerSecond);
+
+        // ── 비명 ──────────────────────────────────────────────────────
+        if (now >= _nextScreamAt)
+        {
+            _nextScreamAt = now + cfg.GhostScreamIntervalSeconds;
+            Screamed?.Invoke(room);
+        }
+
+        // ── 같은 방 직원 ───────────────────────────────────────────────
+        // 눈앞에 있는 것을 보고 있으니 가만히 있어도 깎인다. 성격에 따라 폭이 다르다.
+        foreach (string id in sim.OnDutyEmployeeIds(room))
+        {
+            sim.AddStress(id, cfg.GhostPresenceStressPerSecond * delta * FearScale(id), "괴물 목격");
+            _witnesses.Add(id);   // 이 사람은 눈으로 봤다
+        }
+
+        // ── 소멸 / 사고 ────────────────────────────────────────────────
+        if (GameModes.GhostDispelEnabled && WatchedSeconds >= cfg.GhostDispelSeconds)
+        {
+            Dispel(sim, cfg, now);
+            return;
+        }
+        float grace = _graceOverride > 0f ? _graceOverride
+            // 대회용에서 작업실 체류는 **사건의 전부가 아니라 경고 구간**이다. 기본 모드의
+            // 34초를 그대로 쓰면 복도를 걸어와 문 앞에 설 시간이 근무 안에 남지 않아,
+            // 막을 기회조차 없이 근무가 끝나 버린다.
+            : GameModes.GhostWalksToControlRoom ? CompetitionHauntSeconds
+            : cfg.GhostGraceSeconds;
+        if (AliveSeconds < grace) return;
+
+        // 머무는 시간이 끝났다. 여기서 두 모드가 갈린다.
+        if (GameModes.GhostWalksToControlRoom) Depart(sim, cfg, now);
+        else Strike(sim, cfg, now);
+    }
+
+    // ── 대회용 : 작업실을 떠나 복도로 ───────────────────────────────
+    //
+    // 작업실 체류가 끝나면 **조건이 맞을 때만** 사고를 남기고, 그 다음 복도로 나간다.
+    // 나갈 때마다 사고가 나면 그건 사고가 아니라 통행료다(지시서 §2) — 그래서
+    //   ① 실제로 그 방에 사람이 있었고
+    //   ② 직전 등장이 사고로 끝나지 않았고
+    //   ③ 앞 사고로부터 충분히 지났고
+    //   ④ 확률을 통과했을 때
+    // 에만 사고가 난다. 사고가 나지 않아도 **목격 기록은 반드시 남는다** —
+    // 그래야 휴게시간 증언과 시설 로그가 어긋나지 않는다.
+    // 작업실에 머무는 시간(대회용). 이 뒤에 복도로 나간다.
+    public const float CompetitionHauntSeconds = 20f;
+    private const float CompetitionAccidentChance = 0.45f;
+    private const float CompetitionAccidentGapSeconds = 55f;
+    private float _lastStruckAt = -999f;
+    private bool _struckLastAppearance;
+
+    private void Depart(FacilitySimulation sim, ConfigData cfg, float now)
+    {
+        string room = ActiveRoomId;
+        var here = sim.OnDutyEmployeeIds(room).ToList();
+        foreach (string id in here) _witnesses.Add(id);
+
+        bool accident = here.Count > 0
+                        && !_struckLastAppearance
+                        && now - _lastStruckAt >= CompetitionAccidentGapSeconds
+                        && !sim.HasRepairPending(room)
+                        && _rng.Randf() < CompetitionAccidentChance;
+
+        if (accident)
+        {
+            StruckToday++;
+            _lastStruckAt = now;
+            _struckLastAppearance = true;
+            sim.TriggerGhostAccident(room, _witnesses.ToList());
+            foreach (string id in here)
+                sim.AddStress(id, cfg.GhostIncidentStress * FearScale(id), "괴물 사고");
+            Struck?.Invoke(room);
+        }
+        else
+        {
+            _struckLastAppearance = false;
+            // 설비는 멀쩡하다. 그래도 **본 사람은 봤다** — 이 한 줄이 없으면
+            // 다음 날 "분명히 봤다" 는 진술에 맞는 기록이 하나도 없게 된다.
+            EventLog.Instance?.LogEvent(LogEventType.AnomalySighting, "", room,
+                $"👁 {sim.RoomDisplayName(room)} — 이상 개체 목격 (설비 피해 없음)",
+                witnesses: _witnesses.ToList());
+        }
+
+        BlockWorkAfterGhost(sim, room, now);
+        // 떠난 뒤에는 그 방 CCTV 에 더 이상 보이지 않아야 한다. Clear 가 ActiveRoomId 를
+        // 비우므로 화면 쪽은 저절로 맞는다(지시서 §3 "작업실 CCTV 에 그대로 남으면 안 된다").
+        Clear(cfg, now);
+        Departed?.Invoke(room);
+    }
+
+    // 관리자가 끝까지 보고 있었다 — 괴물이 머리를 감싸 쥐고 가루처럼 흩어진다.
+    private void Dispel(FacilitySimulation sim, ConfigData cfg, float now)
+    {
+        string room = ActiveRoomId;
+        DispelledToday++;
+        EventLog.Instance?.LogEvent(LogEventType.AnomalyDispelled, "", room,
+            $"👁 {sim.RoomDisplayName(room)} — 관측으로 이상 개체 소멸",
+            witnesses: _witnesses.ToList());
+        NSP.Ui.FacilityAlertHud.Instance?.Notify(
+            $"{sim.RoomDisplayName(room)}의 이상 개체가 소멸했습니다.", NSP.Ui.NoticeLevel.Info);
+        // 비명은 **소멸하는 순간** 에만 터진다. 그 전까지는 위의 기척뿐이다 —
+        // 보기도 전에 비명부터 지르면 "다 봤다" 의 신호가 되지 못한다.
+        Sfx.Instance?.PlayGhostScream();
+        Sfx.Instance?.Play("task_done", -4f);
+        BlockWorkAfterGhost(sim, room, now);
+        Dispelled?.Invoke(room);
+        Clear(cfg, now);
+    }
+
+    // 끝내 아무도 보지 않았다 — 그 방의 설비가 부서지고, 그 방에 있던 사람이 무너진다.
+    private void Strike(FacilitySimulation sim, ConfigData cfg, float now)
+    {
+        string room = ActiveRoomId;
+        StruckToday++;
+
+        var here = sim.OnDutyEmployeeIds(room).ToList();
+        foreach (string id in here) _witnesses.Add(id);
+        sim.TriggerGhostAccident(room, _witnesses.ToList());
+
+        // 그 방에 있던 직원이 한 번에 크게 무너진다. 겁이 많을수록 더 크게 —
+        // 양은 이 한 번으로 기절선을 넘도록 배율이 잡혀 있다(FearScale).
+        foreach (string id in here)
+            sim.AddStress(id, cfg.GhostIncidentStress * FearScale(id), "괴물 사고");
+        BlockWorkAfterGhost(sim, room, now);
+
+        Struck?.Invoke(room);
+        Clear(cfg, now);
+    }
+
+    // 괴물이 사라져도 그 방 사람들은 바로 일로 돌아가지 못한다 — 추스르고 자리로 돌아가는 동안은
+    // 업무 게이지에 기여하지 않는다. 사람마다 걸리는 시간은 PostGhostRecovery 표(CCTV 회복 연출과 같다).
+    private static void BlockWorkAfterGhost(FacilitySimulation sim, string room, float now)
+    {
+        foreach (string id in sim.OnDutyEmployeeIds(room))
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st != null) st.WorkBlockedUntil = Mathf.Max(st.WorkBlockedUntil, now + PostGhostRecovery.WorkBlockSeconds(id));
+        }
+    }
+
+    // 개체가 들어와 있는 동안 깔리는 기척. 소리 하나로 "지금 어딘가에 있다" 까지만 알린다.
+    private const string PresenceLoopKey = "breath_faint";
+    private const float PresenceLoopDb = -13f;
+
+    private void Clear(ConfigData cfg, float now)
+    {
+        Sfx.Instance?.StopLoop(PresenceLoopKey);
+        _graceOverride = -1f;
+        ActiveRoomId = "";
+        AliveSeconds = WatchedSeconds = 0f;
+        _cooldownUntil = now + cfg.GhostCooldownSeconds;
+        _nextCheckAt = now + cfg.GhostCheckSeconds;
+    }
+
+    // 이 사람은 괴물 앞에서 얼마나 무너지는가. 성격 축 하나(AvoidsDanger)만 본다 —
+    // 담담한 쪽은 덜 받고, 겁이 많은 쪽은 크게 받는다.
+    //   늑대·고양이(0~1) 담담   ·   강아지·여우(2) 놀람   ·   양·토끼(3~) 공포
+    public static float FearScale(string employeeId) =>
+        EmployeeTraits.Get(employeeId).AvoidsDanger switch
+        {
+            <= 0 => 0.55f,   // 늑대 · 토끼 — 눈도 깜짝 안 한다
+            1 => 0.8f,       // 고양이 · 강아지 · 여우 — 놀라지만 버틴다
+            2 => 1.2f,
+            _ => 1.8f,       // 양 — 이 한 번으로 기절선을 넘는다
+
+        };
+
+    // 이 직원이 지금 괴물을 보고 있는가 — CCTV 표현(겁먹은 동작)이 읽는다.
+    public bool IsFacing(FacilitySimulation sim, string employeeId)
+    {
+        if (!Active || sim == null || string.IsNullOrEmpty(employeeId)) return false;
+        var st = sim.GetEmployeeState(employeeId);
+        return st is { Alive: true, Isolated: false } && st.CurrentRoomId == ActiveRoomId;
+    }
+}

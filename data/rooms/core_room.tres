@@ -6,9 +6,15 @@
 script = ExtResource("1_room")
 RoomId = "core_room"
 DisplayName = "코어실"
-ConnectedRoomIds = Array[String](["central_office", "guard_room", "storage_room"])
-MapPosition = Vector2(160, 320)
+Summary = "봉쇄 코어를 직접 복구한다. 시설의 최종 목표다."
+BriefLines = PackedStringArray("· 코어 복구 — 5일 안에 100%", "· 복구 1%마다 자재를 소모한다")
+ConnectedRoomIds = Array[String](["central_office", "power_room", "storage_room"])
+AdjacentRoomIds = Array[String](["guard_room", "storage_room"])
+MapPosition = Vector2(270, 70)
+; 띠 시간표에서 이 방을 나타내는 색 — 코어실 파랑
+MapColor = Color(0.24, 0.62, 0.86, 1)
 IsCoreRoom = true
+UnlockDay = 0
 ManagedResource = 6
 HasEmergencyLighting = true
 AccidentName = "봉쇄 코어 출력 불안정"
@@ -16,5 +22,5 @@ UnstaffedAccidentSeconds = 30.0
 AccidentConsequence = 10
 AccidentAmount = 0.0
 RepairTaskId = "repair_core"
-RepairSeconds = 20.0
+RepairSeconds = 10.0
 RepairMinWorkers = 2

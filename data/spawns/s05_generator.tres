@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY5 — 발전기 점검(2명 이상). 마지막 날에만 한 번 — 고정 배치 정답이 아니라 근무 중 재배치 압박.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "power_generator_check"
+SpawnAtSeconds = 32.0
+JitterSeconds = 4.0
+Recurring = false
+RoomId = "power_room"
+Day = 5

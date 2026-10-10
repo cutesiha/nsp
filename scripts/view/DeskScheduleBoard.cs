@@ -24,8 +24,10 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
     {
         _vp = new SubViewport
         {
-            // 렌더 해상도는 논리 캔버스 × UiScale — 배치표 글자·UI도 CRT 와 같은 배율로 키운다.
-            Size = ControlRoom3DController.ViewportSize(CanvasSize),
+            // 배치표는 화면을 거의 가득 채우므로 CRT 보다 높은 해상도로 렌더한다(글자가 뭉개지지 않게).
+            Size = ControlRoom3DController.ViewportSize(CanvasSize,
+                ControlRoom3DController.DocumentSupersample,
+                ControlRoom3DController.DocumentMinRenderScale),
             // 배치표는 근무 배치 단계에서만 보인다. 그 외에는 그리지 않는다(SetActive).
             RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,
             RenderTargetClearMode = SubViewport.ClearMode.Always,
@@ -38,7 +40,9 @@ public partial class DeskScheduleBoard : Node3D, IProjectionSurface
 
         _ui = new ScheduleBoardUI { CanvasSize = CanvasSize };
         _ui.StartPressed = () => StartRequested?.Invoke();
-        ControlRoom3DController.AddScaledView(_vp, _ui, CanvasSize);
+        ControlRoom3DController.AddScaledView(_vp, _ui, CanvasSize,
+            ControlRoom3DController.DocumentSupersample,
+            ControlRoom3DController.DocumentMinRenderScale);
 
         _surface = new MeshInstance3D
         {

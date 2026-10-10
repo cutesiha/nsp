@@ -162,6 +162,19 @@ public partial class AmbientOverlay : CanvasLayer
         Sfx.Instance?.Play("flicker", -12f + 8f * strength);
     }
 
+    // 화면 전체가 한 색으로 번쩍인다(점프스케어의 붉은 섬광 등). Flash() 와 같은 사각형을 쓰고,
+    // 끝나면 흰색으로 되돌려 둔다 — 다음 Flash() 가 붉게 뜨면 안 된다.
+    public void FlashColor(Color color, float strength, float seconds)
+    {
+        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        _flash.Color = color with { A = 0f };
+        _flash.Visible = true;
+        var t = CreateTween();
+        t.TweenProperty(_flash, "color:a", strength, 0.02);
+        t.TweenProperty(_flash, "color:a", 0f, Mathf.Max(0.05f, seconds));
+        t.TweenCallback(Callable.From(() => _flash.Color = new Color(1f, 1f, 1f, 0f)));
+    }
+
     // 노이즈를 잠깐 확 끌어올린다(공포 이벤트 중).
     public void PulseNoise(float amount = 0.25f)
     {
@@ -195,11 +208,13 @@ public partial class AmbientOverlay : CanvasLayer
             float dx = (x - cx) / maxD;
             float dy = (y - cy) / maxD;
             float d = Mathf.Sqrt(dx * dx + dy * dy);
-            // 중앙은 투명, 바깥·모서리로 갈수록 짙어진다. 시작 지점을 안쪽으로 당기고
-            // 곡선을 완만하게 해서, 모서리는 확실히 어둡되 경계는 티 나지 않게.
-            float a = Mathf.Clamp((d - 0.30f) / 0.62f, 0f, 1f);
+            // 중앙은 투명, 바깥·모서리로 갈수록 짙어진다.
+            // 시작 지점을 바깥으로 물려(0.30 → 0.38) 어두워지는 범위를 줄이고,
+            // 최대 짙기도 조금 낮춘다(0.99 → 0.82) — 모서리는 여전히 죽지만
+            // 화면을 눌러 덮는 느낌은 덜어 낸다.
+            float a = Mathf.Clamp((d - 0.38f) / 0.58f, 0f, 1f);
             a = a * a * (3f - 2f * a);          // smoothstep — 부드러운 감쇠
-            a = Mathf.Pow(a, 1.25f) * 0.99f;
+            a = Mathf.Pow(a, 1.25f) * 0.82f;
             img.SetPixel(x, y, new Color(0f, 0f, 0f, a));
         }
         return ImageTexture.CreateFromImage(img);

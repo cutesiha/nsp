@@ -27,11 +27,20 @@ AIService="*res://scripts/ai/AIService.cs"
 Sfx="*res://scripts/core/Sfx.cs"
 AmbientOverlay="*res://scripts/ui/AmbientOverlay.cs"
 AlertSystem="*res://scripts/core/AlertSystem.cs"
+BlinkOverlay="*res://scripts/ui/BlinkOverlay.cs"
+ShiftCardView="*res://scripts/view/ShiftCardView.cs"
+HorrorAudioDirector="*res://scripts/ui/HorrorAudioDirector.cs"
+AchievementManager="*res://scripts/core/AchievementManager.cs"
+AchievementToast="*res://scripts/ui/AchievementToast.cs"
+AdminFearDirector="*res://scripts/ui/AdminFearDirector.cs"
+MonsterThreatPresenter="*res://scripts/view/MonsterThreatPresenter.cs"
+AnomalyCallDirector="*res://scripts/view/AnomalyCallDirector.cs"
+HorrorEventDirector="*res://scripts/ui/HorrorEventDirector.cs"
 
 [display]
 
-window/size/viewport_width=1920
-window/size/viewport_height=1080
+window/size/viewport_width=1800
+window/size/viewport_height=980
 window/stretch/mode="canvas_items"
 
 [dotnet]
@@ -62,3 +71,4 @@ toggle_dialogue_history={
 [rendering]
 
 rendering_device/driver.windows="d3d12"
+environment/defaults/default_clear_color=Color(0.012, 0.014, 0.018, 1)

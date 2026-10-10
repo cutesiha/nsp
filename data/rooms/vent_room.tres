@@ -6,14 +6,28 @@
 script = ExtResource("1_room")
 RoomId = "vent_room"
 DisplayName = "환기실"
-ConnectedRoomIds = Array[String](["power_room", "medical_room"])
-MapPosition = Vector2(160, 220)
+Summary = "공조를 유지해 직원의 스트레스 상승을 억제한다."
+BriefLines = PackedStringArray("· 환기 — 전 직원 스트레스 관리", "⚠ 환기가 고장 나면 전원 스트레스가 계속 오른다")
+ConnectedRoomIds = Array[String](["guard_room", "medical_room"])
+AdjacentRoomIds = Array[String](["power_room", "medical_room"])
+MapPosition = Vector2(90, 560)
+; 띠 시간표에서 이 방을 나타내는 색 — 환기실 청록
+MapColor = Color(0.32, 0.74, 0.74, 1)
 IsCoreRoom = false
+UnlockDay = 1
 ManagedResource = 2
 AccidentName = "환기 필터 고장"
-UnstaffedAccidentSeconds = 25.0
+; 환기실·의무실은 오늘의 운영 규칙(data/ops)에 든 작업실 5개에 들어가지 않는다.
+; 직원 6명으로는 다섯 작업실을 채우는 것이 한계라, 여기까지 짧은 간격으로 상주를
+; 요구하면 관리자가 아무 실수를 하지 않아도 25초마다 사고가 터진다.
+;
+; 그래서 **길게** 잡는다(70초 · 근무는 150초). 비워 두면 근무 중 한 번은 반드시
+; 환기 고장이 나고, **그 사고가 난 뒤에야** 전 직원 스트레스가 오르기 시작한다
+; (TickVentilationFault). 배치만으로 디버프가 걸리지는 않는다 — 경고를 보고
+; 사람을 보낼 시간이 있어야 한다.
+UnstaffedAccidentSeconds = 70.0
 AccidentConsequence = 8
 AccidentAmount = 0.0
 RepairTaskId = "repair_vent"
-RepairSeconds = 15.0
+RepairSeconds = 8.0
 RepairMinWorkers = 1

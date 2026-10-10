@@ -1,0 +1,383 @@
+using Godot;
+
+namespace NSP.Dialogue;
+
+// 추궁이 어떤 규칙으로 성립했는가. 규칙은 셋뿐이고, 위에서 아래로 검사해 처음 걸리는 것을 쓴다.
+//
+//   Presence — 사고가 난 그 방에 있었다                (사고 기록 + 그 사람의 위치 자료)
+//   Behavior — 그 방에서의 행동이 문제가 된다
+//              ㉠ 본인의 행동 주장 + 그와 어긋나는 동료의 목격 증언
+//              ㉡ 행동이 실린 자료 + 같은 방의 사고 기록
+//   Location — 두 자료가 같은 시각에 다른 방을 가리킨다 (예전부터 있던 규칙)
+//
+// None 은 "성립하지 않음"이지 "물을 수 없음"이 아니다 — 틀린 조합을 들이미는 것도 추리다.
+public enum ConfrontKind { None, Presence, Behavior, Location }
+
+// 플레이어에게 **무엇이 확인됐는지** 알려 주는 단계. 규칙(ConfrontKind)과 따로 둔다.
+//
+// 빨간색 = 거짓말 = 범인 으로 읽히면 안 된다(기획안 §5). 정상 직원도 무단 이동을
+// 숨겼다가 CCTV 로 들킬 수 있고, 두 사람의 말이 다르다고 해서 누가 거짓인지는 모른다.
+public enum ConfrontVerdict
+{
+    None,              // 모순 없음 — 두 자료가 양립 가능하다
+    NeedsExplanation,  // 해명 필요 — 수상하지만 논리적 충돌은 아직 없다
+    StatementClash,    // 진술 대립 — 두 사람의 주장이 다르다. 누가 맞는지는 불명
+    FactConflict,      // 확인된 사실 충돌 — 기록과 명시적 주장이 맞지 않는다
+}
+
+// 자료 두 장으로 무엇을 물을 수 있는가를 판정한다.
+//
+// 게임은 "무엇과 무엇이 모순인지" 를 먼저 알려주지 않는다. 플레이어가 두 장을 골라야만
+// 이 판정이 돌고, 판정은 문장 비교가 아니라 자료 구조의 (직원 · 시각 · 작업실 · 행동)
+// 값으로만 한다.
+//
+// 이 클래스는 **거절하지 않는다.** 예전에는 "이 직원의 위치를 확인할 수 있는 자료가
+// 아닙니다" 로 막았는데, 플레이어가 가장 먼저 집는 사고 기록이 늘 그 벽에 걸렸다.
+// 이제 성립하지 않는 조합은 Kind = None 으로 돌아가고, 질문 자체는 그대로 할 수 있다
+// (답은 InterviewReplyPlanner 의 Confront.neutral).
+public static class EvidenceContradiction
+{
+    // 같은 순간으로 볼 수 있는 시간 폭(게임 안의 분). 이 값 하나만 조정하면 된다.
+    public const int WindowMinutes = 10;
+
+    private static float WindowSeconds => WindowMinutes * DialogueClock.SecondsPerMinute;
+    // 전조(설비 접근 · 오래 머무름)는 사고보다 앞서 나온다 — 행동 추궁은 폭을 두 배로 본다.
+    private static float BehaviorWindowSeconds => WindowSeconds * 2f;
+
+    public sealed class Result
+    {
+        public bool IsContradiction;
+        // 어떤 규칙으로 성립했는가. None 이면 성립하지 않은 것이고, 그래도 질문은 할 수 있다.
+        public ConfrontKind Kind = ConfrontKind.None;
+        // 그래서 무엇이 확인된 것인가 — 화면에 띄우는 단계(§5 의 네 상태).
+        public ConfrontVerdict Verdict = ConfrontVerdict.None;
+        // 그 단계를 사람 말로 적은 것. UI 가 그대로 띄운다.
+        public string VerdictText = "";
+        // 성립하지 않을 때 화면에 띄울 안내. UI 는 이것으로 거절하지 않는다 — 곁들이는 설명일 뿐이다.
+        public string Notice = "";
+
+        // 시간 순으로 정렬한 두 자료.
+        public InterviewEvidence Earlier;
+        public InterviewEvidence Later;
+        // 이 판정이 **어느 근무일의 일**에 대한 것인가. 두 자료가 가리키는 날이고,
+        // 말한 날이 아니다. 답변도 이 날의 동선으로 계산해야 한다.
+        public int SubjectDay = 1;
+        // 충돌하는 두 작업실과 기준 시각.
+        public string RoomA = "";
+        public string RoomB = "";
+        public float AnchorTime;
+
+        public string QuestionText = "";
+    }
+
+    public static Result Check(string targetEmployeeId, InterviewEvidence a, InterviewEvidence b)
+    {
+        var fail = new Result { IsContradiction = false, Kind = ConfrontKind.None };
+
+        if (a == null || b == null || a == b || a.Id == b.Id)
+        {
+            fail.Notice = "서로 다른 자료 두 개를 선택해 주십시오.";
+            return fail;
+        }
+
+        // 서로 다른 날의 일을 맞대어 모순이라고 할 수는 없다.
+        //
+        // 비교 기준은 **그 자료가 가리키는 날**(SubjectDay)이다. 말한 날이 아니다 —
+        // DAY2 에 "DAY1 에는 경비실에 있었다"고 한 진술은 DAY1 의 기록과 맞대어야 하고,
+        // 그 추궁은 DAY3 에 해도 성립해야 한다.
+        //
+        // 사건 키에는 날짜가 들어 있지 않아서(Type:Room:Time), 이 문을 두지 않으면
+        // 어제 22:40 저장고 사고와 오늘 22:40 저장고 사고가 같은 사건으로 붙는다.
+        if (a.SubjectDay != b.SubjectDay)
+        {
+            fail.Earlier = a; fail.Later = b;
+            fail.AnchorTime = b.HasTime ? b.AnchorTime : a.AnchorTime;
+            fail.Notice = $"DAY {a.SubjectDay} 자료와 DAY {b.SubjectDay} 자료입니다. " +
+                          "서로 다른 근무의 일이라 모순으로 볼 수 없습니다.";
+            fail.VerdictText = fail.Notice;
+            fail.QuestionText = KoreanParticle.Resolve(
+                $"{Describe(a)} 그리고 {Describe(b)} 이 둘은 서로 다른 날의 일입니다만, 설명해 주시겠습니까?");
+            return fail;
+        }
+
+        // 시간 순으로 세워 두면 아래 규칙들이 "먼저 있었던 일 → 나중 일" 순서로 문장을 만든다.
+        var (earlier, later) = a.AnchorTime <= b.AnchorTime ? (a, b) : (b, a);
+
+        var found = Presence(targetEmployeeId, a, b, earlier, later)
+               ?? Behavior(targetEmployeeId, a, b, earlier, later)
+               ?? Location(targetEmployeeId, a, b, earlier, later)
+               ?? NoRule(earlier, later);
+        Judge(found);
+        return found;
+    }
+
+    // 성립한 규칙과 자료의 종류로 "무엇이 확인된 것인가" 를 정한다.
+    //
+    //   기록 ↔ 명시적 주장이 어긋나면      확인된 사실 충돌
+    //   사람 말 ↔ 사람 말이 어긋나면        진술 대립 (누가 맞는지는 모른다)
+    //   충돌은 없지만 수상하면               해명 필요
+    private static void Judge(Result r)
+    {
+        if (r == null) return;
+        if (r.Kind == ConfrontKind.None)
+        {
+            r.Verdict = ConfrontVerdict.None;
+            r.VerdictText = string.IsNullOrEmpty(r.Notice) ? "모순 없음" : r.Notice;
+            return;
+        }
+
+        bool bothSpoken = IsSpoken(r.Earlier) && IsSpoken(r.Later);
+        bool recordVsClaim = IsRecord(r.Earlier) != IsRecord(r.Later);
+
+        if (r.Kind == ConfrontKind.Location && recordVsClaim)
+        {
+            r.Verdict = ConfrontVerdict.FactConflict;
+            r.VerdictText = "확인된 사실 충돌 — 기록과 진술이 맞지 않습니다.";
+        }
+        else if (bothSpoken)
+        {
+            r.Verdict = ConfrontVerdict.StatementClash;
+            r.VerdictText = "진술 대립 — 두 사람의 말이 다릅니다. 어느 쪽이 맞는지는 아직 알 수 없습니다.";
+        }
+        else
+        {
+            r.Verdict = ConfrontVerdict.NeedsExplanation;
+            r.VerdictText = "해명 필요 — 설명을 들어 볼 만하지만, 그 자체로 어긋나는 것은 아닙니다.";
+        }
+    }
+
+    // 기계가 남긴 기록인가(사람의 말이 아니라).
+    private static bool IsRecord(InterviewEvidence e) =>
+        e != null && e.Kind is EvidenceKind.Cctv or EvidenceKind.Movement or EvidenceKind.Incident;
+
+    // 사람이 입으로 한 말인가.
+    private static bool IsSpoken(InterviewEvidence e) =>
+        e != null && e.Kind is EvidenceKind.OwnStatement or EvidenceKind.Testimony
+            or EvidenceKind.Overheard or EvidenceKind.Call;
+
+    // ── ① 재석 추궁 — 사고가 난 그 방에 있었다 ────────────────────────────
+    //
+    // 사고 기록은 주인이 없는 자료다(누구에게나 물을 수 있다). 그 사고가 난 방에
+    // 이 직원이 있었다는 자료가 한 장이라도 있으면, 그것만으로 물을 거리가 된다.
+    // 거짓말을 잡는 규칙이 아니라 "그 자리에 있었던 사람에게 묻는" 규칙이다 —
+    // 결번 개체는 제자리에서 범행하므로 위치 모순은 거의 생기지 않는다(§1-2).
+    private static Result Presence(string target, InterviewEvidence a, InterviewEvidence b,
+                                   InterviewEvidence earlier, InterviewEvidence later)
+    {
+        var incident = a.Kind == EvidenceKind.Incident ? a : b.Kind == EvidenceKind.Incident ? b : null;
+        if (incident == null || !incident.HasTime || string.IsNullOrEmpty(incident.SubjectRoomId)) return null;
+
+        var other = incident == a ? b : a;
+        if (other.Kind == EvidenceKind.Incident) return null;             // 사고 기록 두 장은 재석이 아니다
+        if (other.SubjectEmployeeId != target || !other.CanAnchorPosition) return null;
+
+        // 그 자료에 따르면 사고 시각에 이 직원은 어느 방에 있었는가.
+        if (RoomClaimedAt(other, incident.AnchorTime) != incident.SubjectRoomId) return null;
+
+        return new Result
+        {
+            IsContradiction = true,
+            Kind = ConfrontKind.Presence,
+            Earlier = earlier,
+            Later = later,
+            SubjectDay = incident.SubjectDay,
+            RoomA = incident.SubjectRoomId,
+            RoomB = incident.SubjectRoomId,
+            AnchorTime = incident.AnchorTime,
+            QuestionText = PresenceQuestion(incident),
+        };
+    }
+
+    // ── ② 행동 추궁 — 그 방에서의 행동이 문제가 된다 ───────────────────────
+    //
+    // 이 게임의 추리는 "그 방에 있던 사람 중 누가 이상 행동을 했는가" 다. 두 갈래로 선다.
+    //   ㉠ 본인이 "그런 행동은 안 했다"고 한 말 + 동료가 "하고 있었다"고 한 증언
+    //   ㉡ 행동이 실린 자료(동료 증언 · 설비 접근 CCTV) + 같은 방의 사고 기록
+    // 결백한 직원도 같은 행동을 할 수 있으므로(가짜 단서), 성립했다는 것이 곧 범인이라는
+    // 뜻은 아니다 — 결백한 직원은 ㉠ 을 만들지 않지만 ㉡ 에는 얼마든지 걸린다.
+    private static Result Behavior(string target, InterviewEvidence a, InterviewEvidence b,
+                                   InterviewEvidence earlier, InterviewEvidence later)
+    {
+        // ② - ㉠ 본인이 "그런 행동은 하지 않았다"고 한 말 + 동료가 "하고 있었다"고 한 증언.
+        //
+        // 결번 개체에게서 잡을 수 있는 **유일한 정면 충돌**이다(§3-2). 사고 기록이 필요 없다 —
+        // 두 사람의 말이 같은 방·같은 시간대에서 서로를 부정하는 것 자체가 물을 거리다.
+        var own = Claim(a, target) ?? Claim(b, target);
+        if (own != null)
+        {
+            var witness = own == a ? b : a;
+            if (witness.Kind == EvidenceKind.Testimony
+                && witness.SubjectEmployeeId == target
+                && !string.IsNullOrEmpty(witness.BehaviorDetail)
+                && witness.SubjectRoomId == own.SubjectRoomId
+                && witness.HasTime && own.HasTime
+                && Mathf.Abs(witness.AnchorTime - own.AnchorTime) <= BehaviorWindowSeconds)
+            {
+                return new Result
+                {
+                    IsContradiction = true,
+                    Kind = ConfrontKind.Behavior,
+                    Earlier = earlier,
+                    Later = later,
+                    SubjectDay = own.SubjectDay,
+                    RoomA = own.SubjectRoomId,
+                    RoomB = witness.SubjectRoomId,
+                    AnchorTime = witness.AnchorTime,
+                    QuestionText = DenialQuestion(own, witness),
+                };
+            }
+        }
+
+        // ② - ㉡ 행동이 실린 자료 + 같은 방의 사고 기록.
+        var incident = a.Kind == EvidenceKind.Incident ? a : b.Kind == EvidenceKind.Incident ? b : null;
+        if (incident == null || !incident.HasTime || string.IsNullOrEmpty(incident.SubjectRoomId)) return null;
+
+        var act = incident == a ? b : a;
+        if (act.SubjectEmployeeId != target || string.IsNullOrEmpty(act.BehaviorDetail)) return null;
+        if (act.SubjectRoomId != incident.SubjectRoomId) return null;
+        if (!act.HasTime || Mathf.Abs(incident.AnchorTime - act.AnchorTime) > BehaviorWindowSeconds) return null;
+
+        return new Result
+        {
+            IsContradiction = true,
+            Kind = ConfrontKind.Behavior,
+            Earlier = earlier,
+            Later = later,
+            SubjectDay = act.SubjectDay,
+            RoomA = act.SubjectRoomId,
+            RoomB = incident.SubjectRoomId,
+            AnchorTime = act.AnchorTime,
+            QuestionText = BehaviorQuestion(act),
+        };
+    }
+
+    // 본인이 자기 행동에 대해 한 주장("설비 근처에 가지 않았다"). 아니면 null.
+    private static InterviewEvidence Claim(InterviewEvidence ev, string target) =>
+        ev.Kind == EvidenceKind.OwnStatement && ev.SubjectEmployeeId == target
+        && !string.IsNullOrEmpty(ev.BehaviorDetail) ? ev : null;
+
+    // ── ③ 위치 추궁 — 같은 시각에 두 자료가 다른 방을 가리킨다 ─────────────
+    //
+    // V1 부터 있던 규칙. 플레이어가 사고 뒤 직원을 다른 방으로 옮겼을 때처럼
+    // 실제로 진술과 기록이 어긋나는 경우에만 성립한다.
+    private static Result Location(string target, InterviewEvidence a, InterviewEvidence b,
+                                   InterviewEvidence earlier, InterviewEvidence later)
+    {
+        if (a.SubjectEmployeeId != target || b.SubjectEmployeeId != target) return null;
+        if (!a.CanAnchorPosition || !b.CanAnchorPosition) return null;
+
+        // 둘 중 늦은 쪽의 시각을 기준으로 양쪽이 각각 어느 방을 주장하는지 본다.
+        string roomFromEarlier = RoomClaimedAt(earlier, later.AnchorTime);
+        string roomFromLater = RoomClaimedAt(later, later.AnchorTime);
+        if (string.IsNullOrEmpty(roomFromEarlier) || string.IsNullOrEmpty(roomFromLater)) return null;
+        if (roomFromEarlier == roomFromLater) return null;
+
+        return new Result
+        {
+            IsContradiction = true,
+            Kind = ConfrontKind.Location,
+            Earlier = earlier,
+            Later = later,
+            SubjectDay = later.SubjectDay,
+            RoomA = roomFromEarlier,
+            RoomB = roomFromLater,
+            AnchorTime = later.AnchorTime,
+            QuestionText = LocationQuestion(earlier, later),
+        };
+    }
+
+    // ── 성립하지 않는 조합 ────────────────────────────────────────────────
+    //
+    // 거절하지 않는다. 두 자료를 그대로 들이미는 질문을 만들어 주고, 답은 중립이다.
+    private static Result NoRule(InterviewEvidence earlier, InterviewEvidence later) => new()
+    {
+        IsContradiction = false,
+        Kind = ConfrontKind.None,
+        Earlier = earlier,
+        Later = later,
+        SubjectDay = later.SubjectDay,
+        AnchorTime = later.HasTime ? later.AnchorTime : earlier.AnchorTime,
+        Notice = "두 자료 사이에서 직접적인 모순을 확인할 수 없습니다.",
+        QuestionText = KoreanParticle.Resolve($"{Describe(earlier)} 그리고 {Describe(later)} 이 둘을 함께 보면 어떻습니까?"),
+    };
+
+    // 그 자료에 따르면 이 직원은 해당 시각에 어느 방에 있었는가. 말할 수 없으면 빈 값.
+    private static string RoomClaimedAt(InterviewEvidence ev, float time)
+    {
+        float gap = time - ev.AnchorTime;
+        if (Mathf.Abs(gap) > WindowSeconds) return "";
+
+        // 도착 기록은 그 순간을 경계로 앞뒤의 방이 다르다.
+        if (ev.Position == PositionClaim.Arrived)
+            return gap >= 0f ? ev.ToRoomId : ev.FromRoomId;
+
+        return ev.SubjectRoomId;
+    }
+
+    // --- 추궁 문장 ------------------------------------------------------
+
+    private static string PresenceQuestion(InterviewEvidence incident)
+    {
+        string when = DialogueClock.Spoken(incident.AnchorTime);
+        string room = InterviewEvidenceBoard.RoomName(incident.SubjectRoomId);
+        return KoreanParticle.Resolve(
+            $"{when}경 {room}에서 사고가 났을 때 그 방에 계셨습니다. 무엇을 하고 있었습니까?");
+    }
+
+    // 본인의 말과 동료의 말이 정면으로 부딪힐 때. 둘 다 그대로 인용한다 —
+    // 어느 쪽이 거짓인지는 화면이 정하지 않는다.
+    private static string DenialQuestion(InterviewEvidence own, InterviewEvidence witness)
+    {
+        string room = InterviewEvidenceBoard.RoomName(own.SubjectRoomId);
+        string who = InterviewEvidenceBoard.Codename(witness.SpeakerEmployeeId);
+        return KoreanParticle.Resolve(
+            $"{room}에서 {own.BehaviorDetail}고 하셨습니다. 하지만 {who} 직원은 "
+            + $"{witness.BehaviorDetail}고 진술했습니다. 설명해 주시죠.");
+    }
+
+    private static string BehaviorQuestion(InterviewEvidence act)
+    {
+        string room = InterviewEvidenceBoard.RoomName(act.SubjectRoomId);
+        return KoreanParticle.Resolve(
+            $"사고 직전 {room}에서 {act.BehaviorDetail}는 증언이 있습니다. 설명해 주시죠.");
+    }
+
+    private static string LocationQuestion(InterviewEvidence earlier, InterviewEvidence later)
+    {
+        // 본인의 진술이 있으면 그것을 먼저 들이민다 — "이렇게 말했는데, 기록은 다르다".
+        bool earlierIsClaim = earlier.Kind == EvidenceKind.OwnStatement;
+        bool laterIsClaim = later.Kind == EvidenceKind.OwnStatement;
+        var (first, second) = (!earlierIsClaim && laterIsClaim) ? (later, earlier) : (earlier, later);
+
+        string line1 = Describe(first);
+        string line2 = Describe(second);
+        return KoreanParticle.Resolve($"{line1} 하지만 {line2} 설명해 주시죠.");
+    }
+
+    private static string Describe(InterviewEvidence ev)
+    {
+        string when = DialogueClock.Spoken(ev.AnchorTime);
+        string room = InterviewEvidenceBoard.RoomName(ev.SubjectRoomId);
+
+        return ev.Kind switch
+        {
+            EvidenceKind.OwnStatement =>
+                $"{when}에는 {room}에 있었다고 하셨습니다.",
+            EvidenceKind.Testimony =>
+                $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} 직원은 {when}경 "
+                + $"{room}에서 당신을 봤다고 진술했습니다.",
+            EvidenceKind.Cctv =>
+                $"같은 시각 {room} CCTV에 당신이 기록되어 있습니다.",
+            EvidenceKind.Movement =>
+                $"시설 로그에는 {when}에 {InterviewEvidenceBoard.RoomName(ev.FromRoomId)}에서 "
+                + $"{room}으로/로 이동한 기록이 있습니다.",
+            EvidenceKind.Incident =>
+                $"{when}경 {room}에서 사고가 있었습니다.",
+            EvidenceKind.Mood =>
+                $"오늘 근무 전에는 '{ev.MoodText}' 이라고 적어 내셨습니다.",
+            EvidenceKind.Overheard =>
+                $"{when}경 {room}에서 나누신 대화가 CCTV 오디오에 잡혔습니다.",
+            _ => $"{when}경 {room} 기록이 있습니다.",
+        };
+    }
+}

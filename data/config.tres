@@ -5,7 +5,12 @@
 [resource]
 script = ExtResource("1_cfg")
 MaxDays = 5
+CompetitionDays = 3
 MaxEmployees = 6
+StatsUnlockDay = 99
+StressUnlockDay = 1
+TabooUnlockDay = 99
+MoodVagueMaxPerDay = 2
 StressMax = 50.0
 MurderMaxTotal = 2
 MurderMaxPerDay = 1
@@ -15,7 +20,8 @@ ApiMaxRetries = 1
 AiModelId = "claude-3-5-haiku-20241022"
 AiMaxTokens = 300
 EmployeeMoveSpeed = 80.0
-DayLengthSeconds = 180.0
+EmployeeMoveSpeedInShift = 86.0
+DayLengthSeconds = 150.0
 PowerBudgetTotal = 10
 PowerCostCctvWatch = 3
 PowerCostVentRepair = 4
@@ -24,14 +30,30 @@ IsolationCapacity = 1
 SaboteurDecisionIntervalSeconds = 4.0
 SaboteurSabotageChance = 0.35
 KillAttemptChance = 0.3
-SabotageTaskGaugeLoss = 5.0
+; 방해공작 1회 피해 — 전부 이전의 두 배다.
+; 결번을 찾아 격리해도 이득이 없던 것이 이유다(격리하면 인원이 6→5 로 줄어
+; 코어 복구가 더 느려지는데, 막아 낸 방해공작은 하루 0.5~2% 뿐이었다).
+SabotageTaskGaugeLoss = 15.0
+SabotageCoreLoss = 9.0
+SabotageCoreLossBlackout = 12.0
+SabotageMaterialLoss = 12
 SurveillanceSaboteurChanceMultiplier = 0.6
-MaterialsPerCoreGauge = 2
+MaterialsPerCoreGauge = 1
 ResolvedTaskDisplaySeconds = 2.5
+RelationshipTablePath = "res://data/relationships/relationships.tres"
+UneasyEfficiencyMultiplier = 0.85
+UneasyStressIntervalSeconds = 14.0
+UneasyStressAmount = 1.0
+UneasyArgumentCheckSeconds = 30.0
+UneasyArgumentChance = 0.35
+UneasyArgumentStress = 2.0
+OverheardLinesPath = "res://data/relationships/overheard_lines.tres"
 StressMin = 1.0
 StressCautionFrom = 11.0
 StressDangerFrom = 31.0
 StressFaintFrom = 46.0
+StressFaintRecoverySeconds = 30.0
+StressAfterRecovery = 20.0
 StressWorkRateNormal = 1.0
 StressWorkRateCaution = 0.85
 StressWorkRateDanger = 0.65
@@ -39,16 +61,59 @@ BaseTaskWorkRate = 1.0
 TechWorkRate = PackedFloat32Array(0.8, 0.8, 1.0, 1.2)
 CourageStressGain = PackedFloat32Array(1.0, 1.0, 0.8, 0.6)
 ObservationClueChance = PackedFloat32Array(0.4, 0.4, 0.65, 0.9)
-MaterialsStart = 20
+MaterialsStart = 14
 MaterialsCapBase = 30
 MaterialsCapMax = 60
-UnstaffedAccidentSecondsDefault = 25.0
-VentUnstaffedStressIntervalSeconds = 15.0
-VentUnstaffedStressAmount = 1.0
-VentFaultStressIntervalSeconds = 10.0
-VentFaultStressAmount = 2.0
+UnstaffedAccidentSecondsDefault = 75.0
+; 야간 근무 자체의 피로 — 근무 중인 직원 전원이 이 간격마다 조금씩 오른다.
+; 0 이하로 두면 이 항목이 통째로 꺼진다(예전 동작).
+ShiftStressIntervalSeconds = 18.0
+ShiftStressAmount = 1.0
+; 자기 작업실에 수리해야 할 사고가 열려 있는 동안의 추가 압박.
+IncidentStressIntervalSeconds = 12.0
+IncidentStressAmount = 1.5
+VentUnstaffedStressIntervalSeconds = 10.0
+VentUnstaffedStressAmount = 1.5
+VentFaultStressIntervalSeconds = 7.0
+VentFaultStressAmount = 2.5
 CoreUnstableIntervalSeconds = 20.0
 CoreUnstableCoreLoss = 1.0
 MaintenanceFaultMaterialLoss = 4
 StorageCollapseCapLoss = 10
 PowerTabooStress = 8.0
+StandingShaderPath = ""
+StandingScanAmt = 0.0
+StandingGrainAmt = 0.0
+StandingTensionDarkness = 0.6
+StandingTensionGlowAmt = 1.5
+StandingTensionHoldSeconds = 2.5
+StandingTensionFadeSeconds = 1.2
+
+; ── 괴물(귀신) — 작업실 사고와 분리된 두 번째 사고 계통 ────────────────
+; 등장은 알려주지 않는다. CCTV 로 GhostDispelSeconds 만큼 계속 봐야 사라진다.
+GhostCheckSeconds = 14.0
+GhostAppearChance = 0.34
+GhostFirstAppearSeconds = 22.0
+GhostCooldownSeconds = 20.0
+GhostMaxPerDay = 3
+GhostGraceSeconds = 34.0
+GhostDispelSeconds = 5.0
+GhostWatchDecayPerSecond = 1.6
+GhostPresenceStressPerSecond = 0.22
+GhostIncidentStress = 22.0
+GhostScreamIntervalSeconds = 7.0
+; ── 조명이 오래 꺼져 있으면 결번 개체가 서두른다 ──────────────────────────
+BlackoutMurderAfterSeconds = 18.0
+BlackoutKillAttemptSeconds = 4.0
+; ── 방심했을 때의 점프스케어(연출 전용) ────────────────────────────────
+CalmScareAfterSeconds = 26.0
+CalmScareCooldownSeconds = 55.0
+CalmScareMaxPerShift = 2
+; ── 동료의 죽음을 본 뒤의 패닉 ────────────────────────────────────────
+PanicAvoidsDangerFrom = 3
+PanicStress = 14.0
+; ── 직원이 먼저 거는 잡담 전화 ────────────────────────────────────────
+IdleCallCheckSeconds = 20.0
+IdleCallChance = 0.45
+IdleCallMaxPerDay = 2
+IdleCallQuietSeconds = 14.0

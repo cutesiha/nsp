@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -23,6 +23,29 @@ public static class DialogueRepository
     public const string EventInterviewSuspected = "interview_suspected";
     // 플레이어가 먼저 거는 일반 통화.
     public const string EventGeneralCall = "general_call";
+    // 아무 일도 없을 때 직원이 먼저 거는 전화. 사건이 아니라 사람이 거는 전화다 —
+    // 근무가 조용하기만 한 시간을 메우고, 관리자가 "가도 된다 / 안 된다"를 정하게 한다.
+    // 허락하면 그 직원이 실제로 그 작업실로 옮겨 간다(배치가 바뀐다).
+    public const string EventIdleVisit = "idle_visit";     // 심심하다 — 옆 방에 가도 되나
+    public const string EventIdleWorry = "idle_worry";     // 옆 방에서 이상한 소리를 들었다
+    // 같은 방 동료가 쓰러졌다 — 의무실로 옮겨도 되는지 묻는 전화.
+    // 받지 않으면(timeout) 직원이 알아서 옮긴다. 명시적으로 거절하면 옮기지 않는다.
+    public const string EventFaintTransportRequest = "faint_transport_request";
+
+    // 이상 개체가 소멸하며 지른 비명을 듣고 직원이 먼저 거는 전화(H-3).
+    // 분위기 연출이다 — 단서가 아니다. 통화 기록 · 근무 기억 · 조사 자료 어디에도 남지 않는다.
+    public const string EventGhostScream = "ghost_scream";
+
+    // 계통 신호가 흔들린 직후, 그 방에 있던 직원이 "여기 설비는 멀쩡하다" 고 알린다.
+    // 누구도 지목하지 않는다 — 증상이 난 방과 원인이 시작된 방이 다를 수 있다는 재료일 뿐이다.
+    public const string EventSignalCheck = "signal_check_report";
+    // 가상 시뮬레이션(교육) 전용 고정 통화 — 수리를 끝낸 직원이 복귀를 묻는다.
+    // 생성기를 태우지 않고 대사 파일의 문장을 그대로 쓴다.
+    public const string EventTutorialRepairDone = "tutorial_repair_done";
+    // 같은 교육 전용 — 코어 복구가 자재가 없어 멈췄다(정비실을 가르치는 자리).
+    public const string EventTutorialMaterialShort = "tutorial_material_short";
+    // 같은 교육 전용 — 자재 보관 한도가 꽉 찼다(저장고를 가르치는 자리).
+    public const string EventTutorialStorageFull = "tutorial_storage_full";
 
     public sealed class Choice
     {
@@ -72,7 +95,8 @@ public static class DialogueRepository
     {
         if (!FileAccess.FileExists(RuntimePath))
         {
-            GD.PushWarning($"DialogueRepository: {RuntimePath} 를 찾지 못했습니다. 폴백 대사를 사용합니다.");
+            GD.PushError($"DialogueRepository: {RuntimePath} 를 찾지 못했습니다. 폴백 대사를 사용합니다. " +
+                "내보내기 빌드라면 export_presets.cfg 의 include_filter 를 확인하십시오.");
             return;
         }
 

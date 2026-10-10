@@ -54,6 +54,9 @@ public partial class MainSceneController : Node2D
     {
         if (GameState.Instance.CurrentPhase != GamePhase.Live)
             return;
+        // 스토리 컷인이 도는 동안에는 근무 시간이 멈춘다(3D 제어실과 같은 규칙).
+        if (NSP.View.StoryCutinDirector.PausesGameplay)
+            return;
 
         GameState.Instance.AdvanceDayTime((float)delta);
         FacilitySimulation.Instance.Tick(delta);

@@ -1,0 +1,65 @@
+[gd_resource type="Resource" script_class="OverheardLineTableDef" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/OverheardLineTableDef.cs" id="1_ovh"]
+
+[resource]
+script = ExtResource("1_ovh")
+Lines = Array[String]([
+"# key|situation|A 대사|B 대사   —  {a}/{b} = 코드네임, 조사는 {b}은/는 처럼 슬래시로",
+"# ── 밀접(Close) ───────────────────────────────",
+"Close|normal|{b} 씨, 아까 준 커피 아직 따뜻해요.|다 마시고 해요. 식으면 맛없어요.",
+"Close|normal|오늘은 좀 조용하네요.|조용할 때 같이 있어서 다행이에요.",
+"Close|normal|끝나면 같이 올라가요.|그래요. 기다릴게요.",
+"Close|incident|다친 데 없어요?|괜찮아요. {a} 씨는요?",
+"Close|incident|방금 그거... 진짜 무서웠어요.|나 여기 있어요. 괜찮아요.",
+"Close|sabotage|아까 여기... 누가 왔다 가지 않았어요?|{a} 씨도 느꼈어요? 저만 그런 줄 알았어요.",
+"Close|sabotage|이거 저절로 이렇게 된 거 아니에요.|...일단 우리끼리만 알고 있어요.",
+"# ── 우호(Friendly) ────────────────────────────",
+"Friendly|normal|이거 끝나면 좀 쉬어도 되겠죠?|관리자님이 안 보시면요.",
+"Friendly|normal|{b} 씨 손 빠르네요.|{a} 씨가 옆에서 잡아 줘서 그래요.",
+"Friendly|normal|야간 근무도 둘이면 할 만하네요.|혼자였으면 벌써 졸았을 거예요.",
+"Friendly|incident|괜찮아요? 소리 엄청 컸는데.|간신히요. 손이 아직 떨려요.",
+"Friendly|incident|다시 돌아가긴 할까요?|같이 보면 금방 잡을 거예요.",
+"Friendly|incident|{b} 씨 먼저 물러나 있어요.|혼자 두고 어떻게 가요.",
+"Friendly|sabotage|좀 이상하지 않았어요? 아까 그 사람.|...누구 말하는지 알 것 같아요.",
+"Friendly|sabotage|나사가 풀린 게 아니라 빠져 있었어요.|누가 일부러 그랬다는 거예요?",
+"Friendly|sabotage|관리자님한테 말해야 할까요?|확실해지면요. 지금은 조심해요.",
+"# ── 중립(Neutral) ─────────────────────────────",
+"Neutral|normal|게이지 몇 퍼센트예요?|절반 조금 넘었어요.",
+"Neutral|normal|공구 거기 두세요.|네, 여기요.",
+"Neutral|normal|교대 시간 언제죠?|아직 멀었어요.",
+"Neutral|incident|보고했어요?|했어요. 일단 치우죠.",
+"Neutral|incident|어디서 터진 거예요?|저쪽이요. 손대지 마세요.",
+"Neutral|incident|...다친 사람은 없죠?|없어요.",
+"Neutral|sabotage|여기 뭐가 좀 빠져 있는데요.|원래 그랬겠죠. 신경 쓰지 마요.",
+"Neutral|sabotage|누가 이거 건드렸어요?|몰라요. 제 일 아니에요.",
+"Neutral|sabotage|이상하네요.|야간엔 다 이상해요.",
+"# ── 불편(Uneasy) — 동실 거부 쌍이 근무 중 모였을 때도 이 줄을 쓴다 ──",
+"Uneasy|normal|거기 좀 비켜 줄래요?|...넓은 데 두고 꼭 여기서 해야 돼요?",
+"Uneasy|normal|그렇게 하면 또 멈춰요.|{a} 씨 방식대로 하면 더 느려요.",
+"Uneasy|normal|말 좀 그만 걸어요.|누가 걸었다고 그래요.",
+"Uneasy|incident|그거 {b} 씨가 마지막으로 만졌잖아요.|지금 제 탓 하는 거예요?",
+"Uneasy|incident|제대로 봤으면 이렇게 안 됐어요.|그 말 그대로 돌려 드릴게요.",
+"Uneasy|incident|보고서엔 {b} 씨 이름 적을게요.|마음대로 하세요.",
+"Uneasy|sabotage|{b} 씨, 아까 어디 있었어요?|그걸 왜 저한테 물어요? {a} 씨는요?",
+"Uneasy|sabotage|이거 손댄 거 {b} 씨죠.|증거 있어요? 없으면 그만해요.",
+"Uneasy|sabotage|...계속 저 쳐다보지 마요.|먼저 이상하게 군 게 누군데요.",
+"# ── 관계 타입 전용(A = 그 감정을 가진 쪽) ───────",
+"type:Lover|normal|졸지 마요. 끝나면 데리러 갈게요.|{a} 씨도 무리하지 말고요.",
+"type:Lover|normal|손 차갑네요. 장갑 끼라니까.|...{a} 씨 앞에서만 이러는 거 알죠?",
+"type:Lover|incident|다친 데 없어요? 대답해 봐요.|괜찮아요, 나 봐요. 멀쩡해요.",
+"type:MutualCrush|normal|...그거 무겁지 않아요?|괜찮아요. ...신경 써 줘서 고마워요.",
+"type:MutualCrush|normal|아까는... 고마웠어요.|...별거 아니었어요.",
+"type:MutualCrush|incident|놀랐죠. 이쪽으로 와요.|...네. 옆에 있을게요.",
+"type:Crush|normal|{b} 씨! 이거 봐요, 제가 고쳤어요!|오, 제법인데요?",
+"type:Crush|normal|끝나고 뭐 해요? 같이 야식 먹을래요?|글쎄요, 생각해 볼게요.",
+"type:Crush|incident|{b} 씨 괜찮아요?! 다친 데는요?|난 괜찮아요. 호들갑은."
+])
+FirstDelaySeconds = 2.5
+LineHoldSeconds = 2.6
+CharsPerSecond = 22.0
+CooldownMinSeconds = 9.0
+CooldownMaxSeconds = 16.0
+IncidentWindowSeconds = 35.0
+SabotageWindowSeconds = 45.0
+TypeLineChance = 0.5

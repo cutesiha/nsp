@@ -1,0 +1,13 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "cat_mask"
+albedo_color = Color(0.24, 0.4, 0.8, 1)
+roughness = 0.8
+metallic = 0.0
+
+; 가면은 앞머리보다 앞에 온다 — 다만 깊이 검사는 **켜 둔다**.
+; 예전에는 no_depth_test 로 강제로 위에 얹었는데, 그러면 뒤통수를 볼 때 머리를
+; 뚫고 가면이 비쳤다(투시). 지금은 가면 자체를 얼굴에서 조금 앞으로 빼서
+; 앞머리를 넘긴다 — MaskAnchor 의 z 값이 그 거리다.
+render_priority = 100

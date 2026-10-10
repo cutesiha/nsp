@@ -6,10 +6,10 @@ using NSP.Ui;
 
 namespace NSP.View;
 
-// 전력 배분용 물리 토글 스위치 박스 — LIGHTING / CCTV / SENSOR 3개의 레버 스위치.
+// 전력 배분용 물리 토글 스위치 박스 — LIGHTING / CCTV / PAD(관리자 패드) 3개의 레버 스위치.
 // 레버를 클릭하면 손이 나와 검지로 튕기고, 그 순간 "딱!" 소리 + 레버가 위/아래로 넘어가며
 // 해당 기기 전원이 on/off 된다. 전력 포인트가 깎이면 스위치 기기에서 지지직 스파크가 튀고,
-// 전력이 0이 되면 SHUT DOWN — 방 조명/센서/CCTV 전부 꺼지고 계속 파지직거린다.
+// 전력이 0이 되면 SHUT DOWN — 방 조명/패드/CCTV 전부 꺼지고 계속 파지직거린다.
 // GameState 를 읽고 TryTogglePower 만 호출한다(전력 상태를 여기서 들고 있지 않는다).
 [Tool]
 public partial class PowerSwitchPanel : Node3D
@@ -19,8 +19,18 @@ public partial class PowerSwitchPanel : Node3D
     {
         (PowerConsumer.Lighting, "LIGHTING", -0.288f),
         (PowerConsumer.CctvWatch, "CCTV", 0.000f),
-        (PowerConsumer.Sensor, "SENSOR", 0.288f),
+        // 세 번째 채널 = **복도 차폐문**. 예전에는 관리자 패드(Sensor)였는데,
+        // 패드는 시설 상시 전원으로 옮기고(GameState.IsConsumerPowered) 이 레버는
+        // 차폐가 가져갔다. 패드 기능 자체는 그대로 살아 있다.
+        (PowerConsumer.Barrier, "BARRIER", 0.288f),
     };
+
+    // switch.glb 면판에는 "SENSOR" 가 새겨져 있다 — 그 위에 명판을 덧대 "BARRIER" 로 바꾼다.
+    // 좌표는 SwitchModel 로컬(모델 단위). 에디터에서 명판이 각인을 정확히 덮도록 맞춘다.
+    [ExportGroup("세 번째 채널 명판")]
+    [Export] public Vector3 NamePlateCenter = new(0.288f, 0.33f, 0.300f);
+    [Export] public Vector2 NamePlateSize = new(0.26f, 0.07f);
+    [Export] public float NamePlateTiltDeg = -14f;
 
     // switch.glb 는 본체와 레버가 하나의 메시로 붙어 있다. 아래 상자 안에 드는 삼각형을
     // 레버로 떼어내 각자 회전축(Pivot)에 매단다. 값은 메시 실측 기준:
@@ -30,6 +40,12 @@ public partial class PowerSwitchPanel : Node3D
     private const float LeverMinZ = 0.222f;       // 이만큼 앞으로 튀어나온 것만 레버
     private const float LeverPivotY = 0.452f;     // 회전축(레버 밑동)
     private const float LeverPivotZ = 0.248f;
+
+    // 앞면 백라이트 — switch.glb 에 새겨진 라벨(LIGHTING/CCTV/SENSOR) 등 밝게 칠한 부분만 은은하게 발광.
+    // 모니터 빛이 뒤에서 오기 때문에 앞면 글자가 안 읽혀서 넣었다(DeviceBacklight). 0 이면 끔.
+    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 1.25f;   // Env 의 glow 문턱(0.78)을 넘겨야 빛이 번진다
+    [Export(PropertyHint.Range, "0,1,0.01")] public float BacklightThreshold = 0.42f;   // 이 밝기를 넘는 텍스처만 빛남
+    [Export] public Color BacklightTint = new(0.80f, 0.95f, 0.88f);
 
     private const float LeverOn = 0f;     // 모델이 만들어진 그대로 = 올라간 상태(ON)
     private const float LeverOff = 42f;   // 앞으로 넘겨 아래로 내린 상태(OFF)
@@ -79,11 +95,11 @@ public partial class PowerSwitchPanel : Node3D
             Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
             BlendMode = BaseMaterial3D.BlendModeEnum.Add, ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
         };
-        float faceY = LeverPivotY * _modelScale, faceZ = LeverPivotZ * _modelScale;
+        float faceY = FaceY, faceZ = FaceZ, centerX = PanelX(0f);
         _spark = new MeshInstance3D
         {
             Mesh = new SphereMesh { Radius = 0.03f, Height = 0.06f, RadialSegments = 6, Rings = 4 },
-            Position = new Vector3(0f, faceY + 0.06f, faceZ), MaterialOverride = _sparkMat,
+            Position = new Vector3(centerX, faceY + 0.06f, faceZ), MaterialOverride = _sparkMat,
         };
         AddChild(_spark);
         var sparkLight = new OmniLight3D
@@ -108,15 +124,23 @@ public partial class PowerSwitchPanel : Node3D
             _lastCapacity = GameState.Instance?.PowerCapacity ?? -1;
         }
 
-        _capacityLabel = new Label3D
+        // 전력 용량 표시 — 씬에 Label3D "CapacityLabel" 이 있으면 그것을 쓴다.
+        // 자리 · 크기 · 색을 에디터에서 잡을 수 있게 노드로 빼 두었다(메인 씬에 있다).
+        // 없는 씬(소품 미리보기 등)에서는 예전처럼 코드로 만들어 붙인다.
+        _capacityLabel = GetNodeOrNull<Label3D>("CapacityLabel");
+        if (_capacityLabel == null)
         {
-            Text = "POWER 3 / 3",
-            Position = new Vector3(0f, faceY + 0.115f, faceZ - 0.020f),
-            RotationDegrees = new Vector3(-14f, 0f, 0f),
-            PixelSize = 0.00042f, FontSize = 40, OutlineSize = 0,
-            Modulate = new Color(0.55f, 0.85f, 0.65f),
-        };
-        AddChild(_capacityLabel);
+            _capacityLabel = new Label3D
+            {
+                Name = "CapacityLabel",
+                Text = "POWER 3 / 3",
+                Position = new Vector3(centerX, faceY + 0.115f, faceZ - 0.020f),
+                RotationDegrees = new Vector3(-14f, 0f, 0f),
+                PixelSize = 0.00042f, FontSize = 40, OutlineSize = 0,
+                Modulate = new Color(0.55f, 0.85f, 0.65f),
+            };
+            AddChild(_capacityLabel);
+        }
     }
 
     private AudioStreamPlayer3D MakePlayer(string key, bool loop, float db)
@@ -131,14 +155,20 @@ public partial class PowerSwitchPanel : Node3D
     private bool _wantCrackle;
 
     // 모델(SwitchModel) 로컬 좌표 → PowerSwitchPanel 로컬 좌표.
+    // 기기를 책상 위 다른 자리로 옮기면 SwitchModel 에 이동값이 붙는다. 레버는 모델의
+    // 자식이라 같이 따라가지만, 코드로 붙이는 것들(LED · 클릭 영역 · 스파크 · 용량 라벨)은
+    // 패널의 자식이므로 그 이동값을 직접 더해 줘야 레버와 같은 자리에 선다.
     private float _modelScale = 1f;
-    private float PanelX(float modelX) => modelX * _modelScale;
+    private Vector3 _modelOffset = Vector3.Zero;
+    private float PanelX(float modelX) => _modelOffset.X + modelX * _modelScale;
+    private float FaceY => _modelOffset.Y + LeverPivotY * _modelScale;
+    private float FaceZ => _modelOffset.Z + LeverPivotZ * _modelScale;
 
     private void BuildSwitch(PowerConsumer channel, string label, float modelX)
     {
         float x = PanelX(modelX);
-        float faceY = LeverPivotY * _modelScale;
-        float faceZ = LeverPivotZ * _modelScale;
+        float faceY = FaceY;
+        float faceZ = FaceZ;
 
         var ledMat = new StandardMaterial3D
         {
@@ -155,6 +185,8 @@ public partial class PowerSwitchPanel : Node3D
         });
 
         // 채널 라벨(LIGHTING/CCTV/SENSOR)은 switch.glb 면판에 이미 새겨져 있어 따로 그리지 않는다.
+        // 세 번째 채널만 예외 — 관리자 패드 전원이 되었으므로 "SENSOR" 각인 위에 "PAD" 명판을 덧댄다.
+        if (channel == PowerConsumer.Barrier && !Engine.IsEditorHint()) BuildNamePlate(label);
 
         BuildBreakdownFx(channel, x, faceY, faceZ);
 
@@ -165,19 +197,50 @@ public partial class PowerSwitchPanel : Node3D
         AddChild(area);
     }
 
+    // "SENSOR" 각인을 덮는 명판. 면판과 같은 각도로 기울고, 글자는 각인처럼 밝은 회색.
+    private void BuildNamePlate(string label)
+    {
+        var model = GetNodeOrNull<Node3D>("SwitchModel");
+        Transform3D m = model?.Transform ?? Transform3D.Identity;
+        float s = model?.Scale.X ?? 1f;
+        var plate = new Node3D
+        {
+            Name = "NamePlate",
+            Position = m * NamePlateCenter,
+            RotationDegrees = new Vector3(NamePlateTiltDeg, 0f, 0f),
+        };
+        AddChild(plate);
+        plate.AddChild(new MeshInstance3D
+        {
+            Mesh = new BoxMesh { Size = new Vector3(NamePlateSize.X * s, NamePlateSize.Y * s, 0.0015f) },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.06f, 0.065f, 0.07f), Metallic = 0.4f, Roughness = 0.55f,
+            },
+        });
+        plate.AddChild(new Label3D
+        {
+            Text = label,
+            Position = new Vector3(0f, 0f, 0.0012f),
+            PixelSize = 0.00022f, FontSize = 48, OutlineSize = 0,
+            Modulate = new Color(0.86f, 0.88f, 0.84f),
+            Shaded = false, DoubleSided = false,
+        });
+    }
+
     // switch.glb 는 본체와 레버가 한 덩어리 메시다. 삼각형 하나하나를 위치로 분류해서
     // 레버 3개를 각각 독립 MeshInstance3D 로 떼어내고, 밑동에 회전축을 세워 매단다.
     // 재질/UV/노멀은 원본 그대로 옮기므로 겉보기는 전혀 달라지지 않는다.
     private void SplitLeversFromModel()
     {
         var model = GetNodeOrNull<Node3D>("SwitchModel");
+        if (model != null) { _modelScale = model.Scale.X; _modelOffset = model.Position; }
         var src = model == null ? null : FindMesh(model);
         if (src?.Mesh == null || src.Mesh.GetSurfaceCount() == 0)
         {
             GD.PushWarning("PowerSwitchPanel: SwitchModel 메시를 찾지 못해 레버를 분리하지 못했습니다.");
             return;
         }
-        _modelScale = model.Scale.X;
 
         var arrays = src.Mesh.SurfaceGetArrays(0);
         var verts = arrays[(int)Mesh.ArrayType.Vertex].AsVector3Array();
@@ -204,7 +267,7 @@ public partial class PowerSwitchPanel : Node3D
             list.Add(index[i]); list.Add(index[i + 1]); list.Add(index[i + 2]);
         }
 
-        var material = src.Mesh.SurfaceGetMaterial(0);
+        var material = DeviceBacklight.Make(src.Mesh.SurfaceGetMaterial(0), BacklightThreshold, BacklightTint, BacklightEnergy);
 
         // 본체 — 원본 노드의 메시를 레버가 빠진 것으로 교체한다.
         var bodyMesh = BuildSubMesh(arrays, tris[0], Vector3.Zero);
@@ -431,7 +494,7 @@ public partial class PowerSwitchPanel : Node3D
     private void OnAreaInput(PowerConsumer channel, InputEvent ev)
     {
         if (ev is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
-        BeginToggle(channel);
+        BeginToggle(channel);   // 입력 잠금(단계 전환 연출 · 교육 마무리)은 BeginToggle 이 본다
     }
 
     // 확대 상태에서는 메인 카메라 광선을 패널 평면에 직접 투영한다. 작은 Area3D가
@@ -441,14 +504,13 @@ public partial class PowerSwitchPanel : Node3D
         Transform3D inv = GlobalTransform.AffineInverse();
         Vector3 origin = inv * rayOriginWorld;
         Vector3 direction = (inv.Basis * rayDirectionWorld).Normalized();
-        float faceZ = LeverPivotZ * _modelScale + 0.01f;
+        float faceZ = FaceZ + 0.01f;
         if (Mathf.Abs(direction.Z) < 0.0001f) return false;
         float distance = (faceZ - origin.Z) / direction.Z;
         if (distance <= 0f) return false;
 
         Vector3 hit = origin + direction * distance;
-        float faceY = LeverPivotY * _modelScale;
-        if (Mathf.Abs(hit.Y - faceY) > 0.16f) return false;
+        if (Mathf.Abs(hit.Y - FaceY) > 0.16f) return false;
 
         PowerConsumer nearest = Switches[0].Channel;
         float nearestX = float.MaxValue;
@@ -467,6 +529,8 @@ public partial class PowerSwitchPanel : Node3D
     {
         if (GameState.Instance == null) return;
         if (GameState.Instance.CurrentPhase is not (GamePhase.Live or GamePhase.Rest)) return;
+        // 확대 상태의 광선 조작(TryInteractRay)도 여기를 지난다 — 잠금은 한 곳에서만 본다.
+        if (ControlRoom3DController.Instance?.IsInputLocked == true) return;
         if (_flipUntil.GetValueOrDefault(channel) > Time.GetTicksMsec() / 1000.0) return; // 연타 방지
 
         bool turningOn = !GameState.Instance.IsConsumerPowered(channel);
@@ -487,7 +551,23 @@ public partial class PowerSwitchPanel : Node3D
         var gs = GameState.Instance;
         if (gs == null) return;
 
-        bool ok = gs.TryTogglePower(channel);
+        // 차폐 레버는 전력만 올리는 것이 아니라 **고른 통로의 문을 실제로 내린다.**
+        // 전력 슬롯 확보 → 문 구동 → 실패 시 슬롯 반납까지 CorridorNet 이 한 번에 처리한다.
+        bool ok;
+        if (channel == PowerConsumer.Barrier)
+        {
+            var net = NSP.Facility.FacilitySimulation.Instance?.Corridors;
+            string why = "복도망을 찾지 못했습니다";
+            ok = net != null && net.LeverToggle(out why);
+            if (!ok)
+                NSP.Ui.FacilityAlertHud.Instance?.Notify("⚠ 차폐 — " + why, NSP.Ui.NoticeLevel.Warning);
+            else if (net.SealedCount > 0)
+                // 무엇이 닫히는지 한 줄로 알린다 — 레버는 책상 위에 있고 문은 지도에 있다.
+                NSP.Ui.FacilityAlertHud.Instance?.Notify(
+                    $"{net.Selected?.DisplayName} 차폐", NSP.Ui.NoticeLevel.Info);
+        }
+        else ok = gs.TryTogglePower(channel);
+
         if (ok)
         {
             bool on = gs.IsConsumerPowered(channel);
@@ -567,7 +647,13 @@ public partial class PowerSwitchPanel : Node3D
             sparkE = Mathf.Lerp(_sparkMat.EmissionEnergyMultiplier, 0f, (float)delta * 12f);
         _sparkMat.EmissionEnergyMultiplier = sparkE;
         _sparkMat.AlbedoColor = _sparkMat.AlbedoColor with { A = Mathf.Clamp(sparkE * 0.25f, 0f, 0.9f) };
-        if (_spark.GetNodeOrNull<OmniLight3D>("SparkLight") is { } sl) sl.LightEnergy = Mathf.Min(sparkE, 4f);
+        if (_spark.GetNodeOrNull<OmniLight3D>("SparkLight") is { } sl)
+        {
+            sl.LightEnergy = Mathf.Min(sparkE, 4f);
+            // 밝기 0 이어도 켜져 있으면 조명 계산에 계속 들어간다 — 꺼질 땐 노드를 숨긴다.
+            bool want = sl.LightEnergy > 0.01f;
+            if (sl.Visible != want) sl.Visible = want;
+        }
 
         // ── 레버 자동 반영(외부 차단) + LED ──
         foreach (var (channel, _, _) in Switches)
@@ -589,7 +675,11 @@ public partial class PowerSwitchPanel : Node3D
                 am.AlbedoColor = am.AlbedoColor with { A = Mathf.Clamp(am.EmissionEnergyMultiplier * 0.2f, 0f, 0.85f) };
             }
             if (_arcLights.TryGetValue(channel, out var al))
+            {
                 al.LightEnergy = Mathf.Min(_arcMats[channel].EmissionEnergyMultiplier, 3.5f);
+                bool arcOn = al.LightEnergy > 0.01f;
+                if (al.Visible != arcOn) al.Visible = arcOn;
+            }
 
             var mat = _ledMats[channel];
             bool rejecting = _rejectUntil.GetValueOrDefault(channel) > now;
@@ -606,6 +696,7 @@ public partial class PowerSwitchPanel : Node3D
             }
         }
 
+        if (_capacityLabel == null) return;
         int max = Config.Instance.Data.PowerCapacityMax;
         _capacityLabel.Text = blackout ? "SHUT DOWN" : $"POWER {cap} / {max}";
         _capacityLabel.Modulate = cap >= max ? new Color(0.55f, 0.85f, 0.65f)
