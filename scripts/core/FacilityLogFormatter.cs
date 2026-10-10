@@ -119,6 +119,7 @@ public static class FacilityLogFormatter
         // 이상 개체 — 소멸은 관리자가 막아 낸 것이고, 사고는 놓친 것이다.
         LogEventType.AnomalyDispelled => Row(e, Pipe(e.Description), DisplayLogSeverity.Recovery),
         LogEventType.AnomalyIncident => Row(e, Pipe(e.Description), DisplayLogSeverity.Critical),
+        LogEventType.AnomalySighting => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning),
         LogEventType.Argument => Row(e, Pipe(e.Description), DisplayLogSeverity.Warning, e.ActorEmployeeId),
         // 작업실이 제 일을 해낸 순간. 원문이 이미 "작업실 — 내용" 형태라 그대로 다듬는다.
         LogEventType.RoomEffect => RoomEffect(e),

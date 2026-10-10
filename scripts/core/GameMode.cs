@@ -77,6 +77,19 @@ public static class GameModes
     // 넘어간다(사흘치 진술만으로 지목하기에는 물어볼 기회가 너무 적다).
     public static bool FinalDayRest => Current == GameMode.Competition;
 
+    // ── 이상 개체의 성질(지시서 §1) ──────────────────────────────────
+    //
+    // 기본 모드 — 작업실에 나타난 개체는 **CCTV 로 계속 지켜보면 소멸한다.**
+    //             못 찾으면 그 방에 사고가 난다. 관리자는 안전하다.
+    // 대회용   — 아무리 오래 봐도 소멸하지 않는다. 직원을 겁준 뒤 작업실을 떠나
+    //             복도를 따라 **중앙제어실로 걸어온다.** 막지 못하면 관리자가 죽는다.
+    //
+    // 두 줄은 서로 반대여야 한다. 둘 다 켜면 "보면 사라지는데 걸어오기도 하는" 것이
+    // 되어 플레이어가 무엇을 해야 하는지 알 수 없다.
+    public static bool GhostDispelEnabled => Current != GameMode.Competition;
+
+    public static bool GhostWalksToControlRoom => Current == GameMode.Competition;
+
     // 무인 방치 사고가 터지기까지의 시간에 곱하는 배율(지시서 §8).
     //
     // 복도 위협까지 같이 감시해야 하는 모드는 운영 부담이 그만큼 커진다. 그렇다고

@@ -23,12 +23,18 @@ public sealed class MonsterThreat
 {
     public MonsterDef Def;
     public ThreatZoneDef Zone;
+    // 이 개체가 **어느 작업실에서 걸어 나왔는가**(대회용). 비어 있으면 전용 출현 구역에서
+    // 나온 것이다. 작업실 개체와 복도 개체가 같은 하나임을 잇는 끈이다(지시서 §3).
+    public string OriginRoomId = "";
     // 들어오는 접근 복도(CorridorSegment.Id). 괴물은 **이 길 하나만** 쓴다 —
     // 그래서 서로 다른 카메라에 같은 개체가 동시에 보이는 일이 없다.
     public string SegmentId = "";
 
     public ThreatPhase Phase = ThreatPhase.Dormant;
     public float PhaseSeconds;
+    // 출현 지점 → 접근 복도 입구까지 걸리는 시간. 0 이하면 출현 구역의 기본값을 쓴다.
+    // 작업실에서 걸어 나온 개체는 그 방의 거리만큼 늦게 닿는다.
+    public float OuterSeconds;
     // 복도 입구(0) → 차폐문 앞(1). 카메라에 보이는 거리가 이 값이다.
     public float Progress;
     // 지금 멈춰 서 있는가(숨 고르기). 표현이 이 값을 읽어 걷기/서기를 가른다.
@@ -165,8 +171,16 @@ public sealed class MonsterThreatSystem
 
     public bool Breaching => _breached;
 
+    // 교육(DAY0) 중에는 켠다 — 문 앞까지는 오되 **넘어오지는 않는다.**
+    // 조작을 배우는 자리에서 실패 한 번에 죽으면 배울 기회가 사라진다(지시서 §7).
+    public bool NoBreach { get; set; }
+
     private void TickSpawn()
     {
+        // 대회용에서 복도 개체는 **작업실에 나타난 이상 개체가 걸어 나온 것**이다.
+        // 전용 출현 구역에서 따로 또 내보내면 작업실 개체와 복도 개체가 서로 무관한
+        // 두 사건이 되어 버린다(지시서 §3). 그래서 그쪽 일정은 돌리지 않는다.
+        if (GameModes.GhostWalksToControlRoom) return;
         if (_breached || _active.Count >= MaxActive) return;
         int day = GameState.Instance?.CurrentDay ?? 1;
         var (count, first, gap) = Schedule(day);
@@ -212,6 +226,94 @@ public sealed class MonsterThreatSystem
         "spider" => Zone("zone_cable"),
         _ => Zone("zone_evacuation"),
     };
+
+    // ── 작업실에서 걸어 나온다(대회용 · 지시서 §3) ───────────────────
+    //
+    // GhostHauntSystem 이 "그 방을 떠났다" 고 알리면 여기로 이어진다. 접근 복도는
+    // **실제 방 연결 그래프에서 중앙제어실에 가장 가까운 쪽**으로 고르므로,
+    // CCTV 에 잡히는 방향과 시뮬레이션상의 경로가 어긋나지 않는다.
+    //
+    // 돌려주는 값이 null 이면 띄우지 못한 것이다(이미 하나 돌고 있거나, 근무가 얼마
+    // 남지 않았거나, 모델 데이터가 없거나). 작업실 쪽은 그래도 정상 종료된다.
+    public MonsterThreat SpawnFromRoom(string originRoomId, string monsterId = "")
+    {
+        if (_sim == null || !GameModes.CorridorThreatsEnabled) return null;
+        if (Suppressed || _breached) return null;
+
+        var def = string.IsNullOrEmpty(monsterId)
+            ? Choose(GameState.Instance?.CurrentDay ?? 1).Def
+            : Monsters.FirstOrDefault(m => m.MonsterId == monsterId);
+        if (def == null) return null;
+
+        string segment = ApproachFrom(originRoomId);
+        if (string.IsNullOrEmpty(segment)) return null;
+
+        // 대응할 시간이 없는 위협은 공정하지 않다 — 근무가 얼마 남지 않았으면 보내지 않는다.
+        float outer = OuterSecondsFrom(originRoomId, segment);
+        float left = DayObjectives.RemainingSeconds;
+        if (left > 0f && left < outer + def.ApproachSeconds + def.BreachDelaySeconds + 4f) return null;
+
+        var t = Spawn(def, ZoneFor(def), segment);
+        if (t == null) return null;
+        t.OriginRoomId = originRoomId;
+        t.OuterSeconds = outer;
+        _spawnedToday++;
+        return t;
+    }
+
+    // 그 작업실에서 중앙제어실로 갈 때 **마지막으로 지나는** 접근 복도.
+    // 방 그래프에서 각 접근 복도의 바깥쪽 방까지의 홉 수를 재어 가장 가까운 것을 쓴다.
+    public string ApproachFrom(string originRoomId)
+    {
+        var net = _sim?.Corridors;
+        if (net == null) return "";
+        string hub = FacilitySimulation.DeployOriginRoomId;
+
+        string best = "";
+        int bestHops = int.MaxValue;
+        foreach (var seg in net.Blockable)
+        {
+            string outer = seg.RoomA == hub ? seg.RoomB : seg.RoomA;
+            int hops = Hops(originRoomId, outer);
+            if (hops < 0 || hops >= bestHops) continue;
+            bestHops = hops;
+            best = seg.Id;
+        }
+        return best;
+    }
+
+    // 작업실 → 접근 복도 입구까지 걸리는 시간. 멀리 있는 방에서 나왔으면 그만큼 늦게 닿는다.
+    private float OuterSecondsFrom(string originRoomId, string segmentId)
+    {
+        var seg = _sim?.Corridors?.ById(segmentId);
+        if (seg == null) return 8f;
+        string hub = FacilitySimulation.DeployOriginRoomId;
+        string outer = seg.RoomA == hub ? seg.RoomB : seg.RoomA;
+        int hops = Mathf.Max(0, Hops(originRoomId, outer));
+        return Mathf.Clamp(5f + hops * 4.5f, 5f, 18f);
+    }
+
+    // 방 그래프 위의 최단 홉 수. 닿지 못하면 -1.
+    // **차폐문 상태를 보지 않는다** — 문을 내렸다고 괴물이 다른 방에서 생겨나지 않는다.
+    private int Hops(string from, string to)
+    {
+        if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to)) return -1;
+        if (from == to) return 0;
+        var seen = new HashSet<string> { from };
+        var queue = new Queue<(string Id, int Depth)>();
+        queue.Enqueue((from, 0));
+        while (queue.Count > 0)
+        {
+            var (id, depth) = queue.Dequeue();
+            foreach (string next in _sim.RoomNeighborsIgnoringBarriers(id))
+            {
+                if (!seen.Add(next)) continue;
+                if (next == to) return depth + 1;
+                queue.Enqueue((next, depth + 1));
+            }
+        }
+        return -1;
+    }
 
     // 개발 도구 · 검사용 — 지금 당장 띄운다.
     public MonsterThreat ForceSpawn(string monsterId, string segmentId = "")
@@ -265,7 +367,7 @@ public sealed class MonsterThreatSystem
         {
             case ThreatPhase.Outer:
                 // 출현 구역 → 복도 입구. 아직 아무 카메라에도 없다.
-                if (t.PhaseSeconds < (t.Zone?.OuterTravelSeconds ?? 8f)) break;
+                if (t.PhaseSeconds < (t.OuterSeconds > 0f ? t.OuterSeconds : t.Zone?.OuterTravelSeconds ?? 8f)) break;
                 Enter(t, ThreatPhase.Approach);
                 EnteredCorridor?.Invoke(t);
                 break;
@@ -283,6 +385,9 @@ public sealed class MonsterThreatSystem
                 // 마지막 유예가 끝난 뒤 넘어온다. 그 유예가 플레이어의 마지막 기회다.
                 if (seg.Sealed) { Enter(t, ThreatPhase.Pounding); break; }
                 if (t.PhaseSeconds < t.Def.BreachDelaySeconds) break;
+                // 교육 중에는 넘어오지 않는다. 문 앞에서 계속 기다리다가, 플레이어가
+                // 문을 내리면 그때 두드리기로 넘어간다(지시서 §7 "DAY 0 즉사 금지").
+                if (NoBreach) { t.PhaseSeconds = t.Def.BreachDelaySeconds; break; }
                 Enter(t, ThreatPhase.Breach);
                 _breached = true;
                 Breached?.Invoke(t);

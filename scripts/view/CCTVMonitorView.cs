@@ -195,7 +195,11 @@ public partial class CCTVMonitorView : Control
             _ghostWired = true;
         }
 
-        bool show = feed && ghost is { Active: true } && ghost.ActiveRoomId == roomId;
+        bool onScreen = feed && ghost is { Active: true } && ghost.ActiveRoomId == roomId;
+        // 대회용에서는 관측해도 소멸하지 않으므로 **게이지만** 띄우지 않는다. 0% 인
+        // 막대를 남겨 두면 "더 보면 채워지겠지" 하고 계속 쳐다보게 된다(지시서 §1).
+        // 보고 있는 동안의 공포 반응은 두 모드 모두 그대로다.
+        bool show = onScreen && GameModes.GhostDispelEnabled;
         if (_dispelBack.Visible != show)
         {
             _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = _dispelLabelBg.Visible = show;
@@ -203,7 +207,7 @@ public partial class CCTVMonitorView : Control
         // 화면에 **실제로 떠 있는 동안에만** 관리자가 반응한다. 지도에서 방만 골라 두고
         // CCTV 가 꺼져 있으면 아무 일도 없다(지시서 §7-6).
         // 붉은 기운이 바깥에서 중앙으로 천천히 조여 온다 — 깜빡이지 않는다.
-        NSP.Ui.AdminFearDirector.Instance?.GhostWatch(show ? 0.35f + ghost.DispelRatio * 0.65f : 0f);
+        NSP.Ui.AdminFearDirector.Instance?.GhostWatch(onScreen ? 0.35f + ghost.DispelRatio * 0.65f : 0f);
         if (!show) return;
 
         float w = (_dispelBack.Size.X - 4f) * ghost.DispelRatio;

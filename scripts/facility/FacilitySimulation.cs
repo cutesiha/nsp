@@ -188,6 +188,9 @@ public partial class FacilitySimulation : Node
         _corridors.Build(_roomDefs);
         _corridors.PathsDirty += OnCorridorPathsDirty;
         _threats.Attach(this);
+        // 작업실을 떠난 개체가 **그대로 이어서** 복도를 걸어온다(지시서 §3).
+        // 여기 한 줄이 "작업실 귀신" 과 "복도 괴물" 을 하나의 사건으로 묶는다.
+        _ghost.Departed += OnGhostDeparted;
         GD.Print($"FacilitySimulation: corridors={_corridors.Segments.Count} " +
                  $"(차폐 가능 {_corridors.Blockable.Count()}개)");
 
@@ -927,6 +930,28 @@ public partial class FacilitySimulation : Node
             // 방은 멀쩡히 쓸 수 있고 그 한 통로만 못 지나간다. 그래서 우회로가 있으면
             // 돌아가고, 없으면 안전한 쪽에서 기다린다.
             .Where(n => _corridors.IsPassable(roomId, n));
+    }
+
+    // 작업실 개체 → 복도 개체. 다음 단계를 띄우지 못해도(이미 하나가 돌고 있거나
+    // 근무가 얼마 남지 않았거나) 작업실 쪽 처리는 이미 끝났으므로 조용히 넘어간다.
+    //
+    // 어떤 종류로 걸어 나올지는 그 날의 가중치가 고른다. **어느 직원이 결번인지와는
+    // 아무 상관이 없다** — 모델이 추리의 답을 흘리면 안 된다(지시서 §4).
+    private void OnGhostDeparted(string roomId)
+    {
+        if (!GameModes.GhostWalksToControlRoom) return;
+        _threats.SpawnFromRoom(roomId);
+    }
+
+    // 차폐문을 **무시한** 방 연결. 괴물이 어느 복도로 들어올지 고를 때 쓴다 —
+    // 문을 내렸다고 해서 괴물이 다른 방에서 생겨나지는 않기 때문이다(길이 막힐 뿐이다).
+    // 직원 길찾기는 여전히 Neighbors()(차폐 반영)를 쓴다.
+    public IEnumerable<string> RoomNeighborsIgnoringBarriers(string roomId)
+    {
+        var own = _roomDefs.GetValueOrDefault(roomId)?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
+        return own
+            .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId))
+            .Distinct();
     }
 
     // 복도망 — 방 그래프 위에 얹힌 차폐문 · 카메라 메타데이터.

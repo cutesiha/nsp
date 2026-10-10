@@ -28,6 +28,18 @@ public partial class PrologueDirector : Node
 
     // 첫 브리핑 선택지(무슨 일이 / 나는 누구 / 내가 할 일). 문구·답변은 전부 데이터 파일에 있다.
     private const string MainMenuId = "g_main";
+    // 대회용은 "그 괴물들은 왜 나를 노리지?" 가 하나 더 붙은 메뉴를 쓴다. 답변 블록은
+    // 세 개를 그대로 공유하므로 중복 대사가 없고, 대본에 그 메뉴가 없으면 기본으로 돌아간다.
+    private const string CompetitionMenuId = "g_main_comp";
+
+    private static string BriefingMenuId =>
+        GameModes.GhostWalksToControlRoom && PrologueScript.GetMenu(CompetitionMenuId) != null
+            ? CompetitionMenuId : MainMenuId;
+
+    // 비상 차폐 유지 시간 — 모드마다 근무일이 다르므로 실제 설정에서 뽑는다.
+    // 하루 24시간으로 세어 기본 5일 = 120시간, 대회용 3일 = 72시간.
+    private static System.Collections.Generic.Dictionary<string, string> MissionTokens() =>
+        new() { ["HOURS"] = (GameModes.MaxDays * 24).ToString() };
     // 콘솔이 끝난 뒤 잠깐 떴다 닫히는 권한 승계 완료 창.
     private const string AuthorityWindowId = "authority_done";
 
@@ -174,14 +186,15 @@ public partial class PrologueDirector : Node
 
         // ── 선택지 : 세 질문을 각각 한 번씩 모두 확인해야 다음으로 넘어간다 ──
         //    순서는 자유. 이미 확인한 질문은 체크 표시 + 비활성으로 남는다.
+        string menuId = BriefingMenuId;
         guide.ResetMenuProgress();
-        while (!guide.AllOptionsAnswered(MainMenuId))
+        while (!guide.AllOptionsAnswered(menuId))
         {
-            var pick = await ShowMenu(guide, MainMenuId);
+            var pick = await ShowMenu(guide, menuId);
             if (pick == null) break;
             // 답변의 마지막 줄도 반드시 입력을 받고 넘어간다 — 다 찍히자마자 다음으로
             // 넘어가면 마지막 문장을 읽을 새가 없다(특히 세 번째 답변 → DAY 0 예고).
-            await ShowGuide(guide, pick.GuideId);
+            await ShowGuide(guide, pick.GuideId, MissionTokens());
             if (pick.IsFinal) break;
         }
 

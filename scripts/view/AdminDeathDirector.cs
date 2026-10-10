@@ -33,6 +33,10 @@ public partial class AdminDeathDirector : Node
     public static void Begin(MonsterThreat t)
     {
         if (IsPlaying) return;
+        // 가상 시뮬레이션(DAY0)에서는 죽지 않는다. 조작을 배우는 자리에서 실패 한 번에
+        // 판이 끝나면 배울 기회가 사라진다(지시서 §7). MonsterThreatSystem.NoBreach 가
+        // 애초에 여기까지 오지 못하게 막지만, 마지막 빗장을 하나 더 건다.
+        if (NSP.Core.DayFeatures.IsTutorialDay) return;
         var ctl = ControlRoom3DController.Instance;
         if (ctl == null) return;
         var d = new AdminDeathDirector { _threat = t };

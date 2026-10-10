@@ -1,0 +1,178 @@
+{
+  "admin": {
+    "body": "male",
+    "color": "#14100E",
+    "color_name": "검정",
+    "hair": "M-05",
+    "hair_path": "res://assets/characters/hair/male/M-05.res",
+    "position": [
+      0.0,
+      0.131999999284744,
+      0.00600000005215406
+    ],
+    "rotation": [
+      -0.5,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      1.00499999523163,
+      1.00499999523163,
+      1.00499999523163
+    ]
+  },
+  "cat": {
+    "body": "female",
+    "color": "#615c98",
+    "color_name": "직접 지정",
+    "hair": "F-104",
+    "hair_path": "res://assets/characters/hair/female/F-104.res",
+    "position": [
+      -0.00169999990612268,
+      0.108799993991852,
+      -0.00879999995231628
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.886199951171875,
+      0.886199951171875,
+      0.886199951171875
+    ]
+  },
+  "director": {
+    "body": "male",
+    "color": "#2A1E18",
+    "color_name": "흑갈색",
+    "hair": "F-005",
+    "hair_path": "res://assets/characters/hair/female/F-005.res",
+    "position": [
+      -0.00199999986216426,
+      0.127999991178513,
+      0.00600000005215406
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.959999978542328,
+      0.959999978542328,
+      0.959999978542328
+    ]
+  },
+  "dog": {
+    "body": "male",
+    "color": "#6e4b35",
+    "color_name": "직접 지정",
+    "hair": "F-037",
+    "hair_path": "res://assets/characters/hair/female/F-037.res",
+    "position": [
+      0.0,
+      0.0815999954938889,
+      0.0082999998703599
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.872999966144562,
+      0.872999966144562,
+      0.872999966144562
+    ]
+  },
+  "fox": {
+    "body": "male",
+    "color": "#cb6c34",
+    "color_name": "직접 지정",
+    "hair": "F-070",
+    "hair_path": "res://assets/characters/hair/female/F-070.res",
+    "position": [
+      0.0,
+      0.123999997973442,
+      0.00600000005215406
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.839999973773956,
+      0.839999973773956,
+      0.839999973773956
+    ]
+  },
+  "rabbit": {
+    "body": "female",
+    "color": "#d45166",
+    "color_name": "직접 지정",
+    "hair": "F-066",
+    "hair_path": "res://assets/characters/hair/female/F-066.res",
+    "position": [
+      -0.00199999986216426,
+      0.0590000003576279,
+      -0.0120000001043081
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.799999952316284,
+      0.799999952316284,
+      0.799999952316284
+    ]
+  },
+  "sheep": {
+    "body": "female",
+    "color": "#596d55",
+    "color_name": "직접 지정",
+    "hair": "F-028",
+    "hair_path": "res://assets/characters/hair/female/F-028.res",
+    "position": [
+      0.0,
+      0.0240000002086163,
+      -0.0370000004768372
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.85999995470047,
+      0.85999995470047,
+      0.85999995470047
+    ]
+  },
+  "wolf": {
+    "body": "male",
+    "color": "#484848",
+    "color_name": "직접 지정",
+    "hair": "F-005",
+    "hair_path": "res://assets/characters/hair/female/F-005.res",
+    "position": [
+      -0.00199999986216426,
+      0.123999997973442,
+      0.00600000005215406
+    ],
+    "rotation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "scale": [
+      0.944999992847443,
+      0.944999992847443,
+      0.944999992847443
+    ]
+  }
+}

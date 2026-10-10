@@ -508,6 +508,30 @@ option: 무슨 일이 벌어진 거지? | g_what_happened
 option: 나는 누구지? | g_who_am_i
 option: 내가 해야 할 일은? | g_mission
 
+# 대회용 전용 메뉴 — 위 세 질문을 **같은 답변 블록 그대로** 쓰고 네 번째만 더 붙인다.
+# 대사를 복제하지 않으므로 기본 모드의 문구를 고치면 이쪽도 같이 고쳐진다.
+# PrologueDirector 가 모드를 보고 둘 중 하나를 연다.
+@menu g_main_comp
+mode: all
+option: 무슨 일이 벌어진 거지? | g_what_happened
+option: 나는 누구지? | g_who_am_i
+option: 내가 해야 할 일은? | g_mission
+option: 그 괴물들은 왜 나를 노리지? | g_why_me
+
+# 대회용에서만 열리는 네 번째 답변. 여기서 "작업실에도 나온다 / 그래도 최종 목표는 너다"
+# 를 한 번에 잇는다. 특정 직원이 결번이라는 힌트는 한 줄도 들어가지 않는다.
+@guide g_why_me
+portrait: normal
+panel: alert
+line: 이상 개체는 시설의 /1작업실/0에서도 발견되고 있습니다.
+line: 직원들도 개체를 목격하면 극심한 불안을 느끼거나 사고를 일으킬 수 있습니다.
+portrait: sneer
+line: 하지만 개체들의 /1최종 추적 대상/0은 관리자님입니다.
+line: 관리자님의 이름과 /1가면 식별 정보/0가 외부에 노출되었기 때문입니다.
+portrait: normal
+line: 개체가 접근하면 /5CCTV/0로 이동 방향을 확인하고, 해당 복도의 /5차폐문/0을 닫으십시오.
+line: 단, 차폐 유지에는 /1전력/0이 소모됩니다. 안전이 확인되면 해제해야 합니다.
+
 # 여기서는 120시간 이야기를 하지 않는다 — 그건 '내가 해야 할 일은?' 의 몫이다.
 @guide g_what_happened
 portrait: normal
@@ -534,7 +558,7 @@ line: 지금부터 직원 배치와 시설 운영의 최종 판단은 관리자�
 @guide g_mission
 portrait: normal
 panel: mission
-line: 비상 차폐는 앞으로 /5120시간/0만 유지됩니다.
+line: 비상 차폐는 앞으로 /5{HOURS}시간/0만 유지됩니다.
 line: 그 안에 직원들을 지휘하여 봉쇄 코어를 /5100% 복구/0하십시오.
 line: 그리고 시설 로그와 진술을 비교해 직원들 사이에 숨어 있는 개체를 찾아내십시오.
 
@@ -710,6 +734,65 @@ portrait: normal
 line: 개체가 /1소멸/0했습니다. 이렇듯, 개체가 나타나면 관측하여 소멸시켜야 합니다.
 portrait: sneer
 line: 개체를 놓치면... 어떻게 되는지는 직접 알게 되실 겁니다.
+
+# ------------------------------------------------------------------------
+# STEP 3-B (대회용) — 이상 개체는 소멸하지 않는다 · 차폐로 막는다
+#   기본 모드는 위의 tut_anomaly_* 를 그대로 쓴다. 아래 묶음은 대회용에서만 열린다.
+#   같은 STEP 자리에서 가르치는 것이 "관측"에서 "차폐"로 바뀌는 것뿐이다.
+# ------------------------------------------------------------------------
+@guide tut_barrier_intro
+portrait: normal
+line: 관리자님, 작업실에서 /1미등록 개체/0가 감지되었습니다.
+portrait: sneer
+line: 어느 작업실인지는 확인되지 않았습니다. /5CCTV/0를 돌려 개체를 찾아보십시오.
+
+@guide tut_barrier_found
+portrait: normal
+line: 찾으셨군요.
+portrait: sneer
+line: 하지만 개체는 /1관측만으로 사라지지 않습니다./0
+line: 작업실을 떠나 /1중앙제어실/0로 향하고 있습니다.
+
+@guide tut_barrier_corridor
+portrait: normal
+line: 개체가 /5서측 접근 복도/0로 진입했습니다.
+line: 복도 /5CCTV/0를 확인하십시오.
+
+@guide tut_barrier_close
+portrait: sneer
+line: 관리자님, 개체가 접근 중입니다.
+portrait: normal
+line: 오른쪽 /5BARRIER/0 스위치로 /5서측 차폐문/0을 닫으십시오.
+
+@guide tut_barrier_wrong
+portrait: sneer
+line: 그 통로가 아닙니다. 개체는 /5서측/0에서 오고 있습니다.
+portrait: normal
+line: 지도에서 서측 통로를 고른 뒤 /5BARRIER/0를 내리십시오.
+
+@guide tut_barrier_power
+portrait: normal
+line: 차폐 장치에 /1전력/0이 공급되지 않고 있습니다.
+line: 전력 용량이 회복될 때까지 기다리거나, 다른 계통을 잠시 내리십시오.
+
+@guide tut_barrier_hold
+portrait: normal
+line: 차폐에 /2성공/0했습니다.
+portrait: sneer
+line: 개체가 문을 두드리고 있군요. 저 소리가 멈출 때까지는 열지 마십시오.
+
+@guide tut_barrier_retreat
+portrait: normal
+line: 접근 신호가 사라졌습니다. 개체가 /2후퇴/0하고 있습니다.
+line: 차폐문을 계속 닫아두면 /1전력/0이 소모되고 직원 이동에도 지장이 생깁니다.
+line: 이제 /5차폐를 해제/0하십시오.
+
+@guide tut_barrier_done
+portrait: normal
+line: 좋습니다.
+portrait: sneer
+line: 실제 근무에서는 접근 방향을 /1직접/0 판단해야 합니다.
+line: 중앙제어실의 안전도 관리자님의 책임입니다.
 
 # STEP 4 — 기절 · 의무실 이송
 # 교육일에는 스트레스가 잠겨 있어 TutorialDirector 가 직접 쓰러뜨린다(TriggerTutorialFaint).

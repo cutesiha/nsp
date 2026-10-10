@@ -224,8 +224,12 @@ public partial class TutorialDirector : Node
         // ── STEP 6 : 이상 개체 (CCTV) ──────────────────────────────────────
         TutorialTelemetry.Step("6 이상 개체");
         // 설명만 하고 넘어가면 근무 중에 화면을 돌려 볼 이유가 생기지 않는다.
-        // 그래서 한 번 실제로 나타나게 하고, 직접 찾아 직접 지켜보게 한다.
-        await RunAnomalyLesson(sim);
+        // 그래서 한 번 실제로 나타나게 하고, 직접 찾아 직접 다루게 한다.
+        //
+        // 가르치는 내용이 모드마다 다르다 — 기본 모드는 "보고 있으면 사라진다",
+        // 대회용은 "사라지지 않는다, 걸어온다, 문으로 막는다"(지시서 §6).
+        if (GameModes.GhostWalksToControlRoom) await RunBarrierLesson(sim);
+        else await RunAnomalyLesson(sim);
 
         // ── STEP 7 : 기절 · 의무실 이송 ───────────────────────────────
         TutorialTelemetry.Step("7 기절·의무실");
@@ -715,6 +719,93 @@ public partial class TutorialDirector : Node
         // 지켜보는 동안 — 화면을 돌리면 게이지가 되감기는 것도 여기서 배운다.
         await SayThen("tut_anomaly_watch", () => !sim.Ghost.Active);
         await Say("tut_anomaly_done");
+    }
+
+    // 대회용 STEP 6 — 개체는 소멸하지 않는다. 걸어오고, 문으로 막는다(지시서 §6).
+    //
+    // 교육 중에는 **절대 죽지 않는다**(§7). 문 앞까지는 오지만 넘어오지 않고
+    // (MonsterThreatSystem.NoBreach), 안내를 읽는 동안 기다려 준다.
+    // 자동으로 문을 닫아 주지도 않는다 — 플레이어가 직접 내려야 다음으로 간다.
+    private const string BarrierLessonSegment = "corridor_west";
+
+    private async Task RunBarrierLesson(FacilitySimulation sim)
+    {
+        if (sim?.Ghost == null || sim.Threats == null) return;
+        var net = sim.Corridors;
+        var west = net?.ById(BarrierLessonSegment);
+        if (west == null) { await RunAnomalyLesson(sim); return; }   // 복도 데이터가 없으면 옛 교육으로
+
+        // ── 6-1. 작업실 출현 ───────────────────────────────────────────
+        // 기절 교육과 같은 직원을 쓴다 — 그래야 "혼자 개체를 마주한 사람이 쓰러진다" 로 읽힌다.
+        _anomalyVictim = PickFaintVictim(sim);
+        string room = string.IsNullOrEmpty(_anomalyVictim) ? AnomalyRoomId
+            : sim.GetEmployeeState(_anomalyVictim)?.CurrentRoomId ?? AnomalyRoomId;
+
+        sim.Threats.NoBreach = true;
+        if (!sim.Ghost.ForceAppear(room, sim, 9999f)) return;        // 교육 중에는 사고로 번지지 않는다
+
+        // 안내가 "CCTV 를 돌려 찾으라" 고 말한다. 그 방을 띄우는 순간이 "찾았다" 다 —
+        // 설명을 다 듣기 전에 먼저 찾아도 그대로 다음으로 넘어간다.
+        await SayThen("tut_barrier_intro", () => sim.SurveillanceTargetRoomId == room || !sim.Ghost.Active);
+
+        // ── 6-2. 관측해도 소멸하지 않음 ────────────────────────────────
+        await Say("tut_barrier_found");
+        // 작업실에서 지우고(= 작업실 CCTV 에서도 사라진다) 복도로 내보낸다.
+        // 들어올 방향은 교육이므로 서측으로 고정한다. 목격 기록은 그대로 남는다.
+        sim.Ghost.ForceDepart(sim, notify: false);
+        var threat = sim.Threats.ForceSpawn("absentee", BarrierLessonSegment);
+        if (threat == null) { sim.Threats.NoBreach = false; return; }
+        threat.OriginRoomId = room;
+
+        // ── 6-3. 복도 CCTV 확인 ────────────────────────────────────────
+        await SayThen("tut_barrier_corridor", () => sim.SurveillanceCorridorId == BarrierLessonSegment);
+
+        // ── 6-4~6-5. 접근 · 차폐 조작 ──────────────────────────────────
+        // 전력이 없으면 아무리 설명해도 문이 내려가지 않는다. 그럴 때만 한 번 짚어 준다.
+        if (!BarrierPowerReady()) await Say("tut_barrier_power");
+        await Say("tut_barrier_close");
+
+        // 올바른 문을 내릴 때까지. 다른 문을 내렸으면 방향을 다시 알려 준다.
+        bool warned = false;
+        while (IsRunning && IsInstanceValid(this) && !west.Sealed)
+        {
+            if (!warned && net.Blockable.Any(s => s.Id != BarrierLessonSegment && s.Sealed))
+            {
+                warned = true;
+                await Say("tut_barrier_wrong");
+            }
+            await NextFrame();
+        }
+
+        // ── 6-6. 차폐문 공격 ───────────────────────────────────────────
+        await Until(() => threat.Phase is ThreatPhase.Pounding or ThreatPhase.Retreat
+                          or ThreatPhase.Finished);
+        await Say("tut_barrier_hold");
+        await Until(() => threat.Phase is ThreatPhase.Retreat or ThreatPhase.Finished);
+
+        // ── 6-7. 차폐 해제 ─────────────────────────────────────────────
+        await SayThen("tut_barrier_retreat", () => !west.Sealed && !west.Moving);
+        await Say("tut_barrier_done");
+
+        // 교육이 남긴 것을 전부 지운다 — 임시 괴물 · 차폐 · 공포 상태가 DAY1 로 넘어가면 안 된다.
+        CleanUpBarrierLesson(sim);
+    }
+
+    // 차폐 장치에 전력이 갈 수 있는 상태인가(이미 켜져 있거나, 남은 용량이 있거나).
+    private static bool BarrierPowerReady()
+    {
+        var gs = GameState.Instance;
+        if (gs == null) return false;
+        return gs.IsConsumerPowered(PowerConsumer.Barrier) || gs.GetPowerRemaining() > 0;
+    }
+
+    private static void CleanUpBarrierLesson(FacilitySimulation sim)
+    {
+        sim.Threats.NoBreach = false;
+        sim.Threats.Reset();
+        sim.Corridors?.ResetAll();
+        NSP.Ui.AdminFearDirector.Instance?.ResetAll();
+        sim.SetCorridorSurveillance("");
     }
 
     // --- await 헬퍼 -------------------------------------------------------
