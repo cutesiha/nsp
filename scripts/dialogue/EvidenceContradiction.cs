@@ -13,6 +13,18 @@ namespace NSP.Dialogue;
 // None 은 "성립하지 않음"이지 "물을 수 없음"이 아니다 — 틀린 조합을 들이미는 것도 추리다.
 public enum ConfrontKind { None, Presence, Behavior, Location }
 
+// 플레이어에게 **무엇이 확인됐는지** 알려 주는 단계. 규칙(ConfrontKind)과 따로 둔다.
+//
+// 빨간색 = 거짓말 = 범인 으로 읽히면 안 된다(기획안 §5). 정상 직원도 무단 이동을
+// 숨겼다가 CCTV 로 들킬 수 있고, 두 사람의 말이 다르다고 해서 누가 거짓인지는 모른다.
+public enum ConfrontVerdict
+{
+    None,              // 모순 없음 — 두 자료가 양립 가능하다
+    NeedsExplanation,  // 해명 필요 — 수상하지만 논리적 충돌은 아직 없다
+    StatementClash,    // 진술 대립 — 두 사람의 주장이 다르다. 누가 맞는지는 불명
+    FactConflict,      // 확인된 사실 충돌 — 기록과 명시적 주장이 맞지 않는다
+}
+
 // 자료 두 장으로 무엇을 물을 수 있는가를 판정한다.
 //
 // 게임은 "무엇과 무엇이 모순인지" 를 먼저 알려주지 않는다. 플레이어가 두 장을 골라야만
@@ -37,6 +49,10 @@ public static class EvidenceContradiction
         public bool IsContradiction;
         // 어떤 규칙으로 성립했는가. None 이면 성립하지 않은 것이고, 그래도 질문은 할 수 있다.
         public ConfrontKind Kind = ConfrontKind.None;
+        // 그래서 무엇이 확인된 것인가 — 화면에 띄우는 단계(§5 의 네 상태).
+        public ConfrontVerdict Verdict = ConfrontVerdict.None;
+        // 그 단계를 사람 말로 적은 것. UI 가 그대로 띄운다.
+        public string VerdictText = "";
         // 성립하지 않을 때 화면에 띄울 안내. UI 는 이것으로 거절하지 않는다 — 곁들이는 설명일 뿐이다.
         public string Notice = "";
 
@@ -78,6 +94,7 @@ public static class EvidenceContradiction
             fail.AnchorTime = b.HasTime ? b.AnchorTime : a.AnchorTime;
             fail.Notice = $"DAY {a.SubjectDay} 자료와 DAY {b.SubjectDay} 자료입니다. " +
                           "서로 다른 근무의 일이라 모순으로 볼 수 없습니다.";
+            fail.VerdictText = fail.Notice;
             fail.QuestionText = KoreanParticle.Resolve(
                 $"{Describe(a)} 그리고 {Describe(b)} 이 둘은 서로 다른 날의 일입니다만, 설명해 주시겠습니까?");
             return fail;
@@ -86,11 +103,57 @@ public static class EvidenceContradiction
         // 시간 순으로 세워 두면 아래 규칙들이 "먼저 있었던 일 → 나중 일" 순서로 문장을 만든다.
         var (earlier, later) = a.AnchorTime <= b.AnchorTime ? (a, b) : (b, a);
 
-        return Presence(targetEmployeeId, a, b, earlier, later)
+        var found = Presence(targetEmployeeId, a, b, earlier, later)
                ?? Behavior(targetEmployeeId, a, b, earlier, later)
                ?? Location(targetEmployeeId, a, b, earlier, later)
                ?? NoRule(earlier, later);
+        Judge(found);
+        return found;
     }
+
+    // 성립한 규칙과 자료의 종류로 "무엇이 확인된 것인가" 를 정한다.
+    //
+    //   기록 ↔ 명시적 주장이 어긋나면      확인된 사실 충돌
+    //   사람 말 ↔ 사람 말이 어긋나면        진술 대립 (누가 맞는지는 모른다)
+    //   충돌은 없지만 수상하면               해명 필요
+    private static void Judge(Result r)
+    {
+        if (r == null) return;
+        if (r.Kind == ConfrontKind.None)
+        {
+            r.Verdict = ConfrontVerdict.None;
+            r.VerdictText = string.IsNullOrEmpty(r.Notice) ? "모순 없음" : r.Notice;
+            return;
+        }
+
+        bool bothSpoken = IsSpoken(r.Earlier) && IsSpoken(r.Later);
+        bool recordVsClaim = IsRecord(r.Earlier) != IsRecord(r.Later);
+
+        if (r.Kind == ConfrontKind.Location && recordVsClaim)
+        {
+            r.Verdict = ConfrontVerdict.FactConflict;
+            r.VerdictText = "확인된 사실 충돌 — 기록과 진술이 맞지 않습니다.";
+        }
+        else if (bothSpoken)
+        {
+            r.Verdict = ConfrontVerdict.StatementClash;
+            r.VerdictText = "진술 대립 — 두 사람의 말이 다릅니다. 어느 쪽이 맞는지는 아직 알 수 없습니다.";
+        }
+        else
+        {
+            r.Verdict = ConfrontVerdict.NeedsExplanation;
+            r.VerdictText = "해명 필요 — 설명을 들어 볼 만하지만, 그 자체로 어긋나는 것은 아닙니다.";
+        }
+    }
+
+    // 기계가 남긴 기록인가(사람의 말이 아니라).
+    private static bool IsRecord(InterviewEvidence e) =>
+        e != null && e.Kind is EvidenceKind.Cctv or EvidenceKind.Movement or EvidenceKind.Incident;
+
+    // 사람이 입으로 한 말인가.
+    private static bool IsSpoken(InterviewEvidence e) =>
+        e != null && e.Kind is EvidenceKind.OwnStatement or EvidenceKind.Testimony
+            or EvidenceKind.Overheard or EvidenceKind.Call;
 
     // ── ① 재석 추궁 — 사고가 난 그 방에 있었다 ────────────────────────────
     //

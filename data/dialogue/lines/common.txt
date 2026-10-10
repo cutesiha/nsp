@@ -411,7 +411,7 @@
 ## LastMemory.blank
 - 기억이 흐릿합니다. 확실한 건 말씀드리기 어렵습니다.
 ## WokeWhere.medical
-- 정신을 차려 보니 {room}이었습니다.
+- 정신을 차려 보니 {room}이었/였습니다.
 ## WokeWhere.sameroom
 - 쓰러진 자리에서 그대로 깨어났습니다.
 ## FoundWhere.room
@@ -434,6 +434,22 @@
 - {room} 바깥쪽으로 빠져나가는 것까지는 봤습니다.
 ## AnomalyDirection.unknown
 - 어디로 갔는지까지는 보지 못했습니다.
+
+## AboutTestimony.deny
+- 거기 있던 건 맞습니다. 하지만 설비는 건드리지 않았습니다.
+## AboutTestimony.work
+- {task} 하고 있었습니다. 그걸 본 모양입니다.
+## AboutTestimony.admit
+- {room}에 있던 건 맞습니다. 특별히 한 일은 없습니다.
+## AboutTestimony.dispute
+- 저는 그 시간에 {room}에 없었습니다. {who}이/가 잘못 본 것 같습니다.
+## ObservationWindow.glance
+- 스치듯 봤습니다. 오래 본 건 아닙니다.
+## ObservationWindow.awhile
+- 잠깐이었습니다. 몇 초였는지까지는 모르겠습니다.
+## NotObservedScope.scope
+- {room}에 있는 것까지만 봤습니다. 그 뒤로는 제 일을 했습니다.
+- 제가 본 건 거기까지입니다. 안 했다는 뜻으로 말씀드린 건 아닙니다.
 
 ## Unknown.any
 - 그건 잘 모르겠습니다.
@@ -935,7 +951,7 @@
 ## LastMemory.blank
 - 기억이 흐릿해요. 확실하게는 말 못 하겠어요.
 ## WokeWhere.medical
-- 정신 차려 보니까 {room}이었어요.
+- 정신 차려 보니까 {room}이었/였어요.
 ## WokeWhere.sameroom
 - 쓰러진 자리에서 그냥 깨어났어요.
 ## FoundWhere.room
@@ -958,6 +974,22 @@
 - {room} 바깥쪽으로 빠져나가는 것까진 봤어요.
 ## AnomalyDirection.unknown
 - 어디로 갔는지까진 못 봤어요.
+
+## AboutTestimony.deny
+- 거기 있던 건 맞아요. 근데 설비는 안 건드렸어요.
+## AboutTestimony.work
+- {task} 하고 있었어요. 그걸 본 모양이네요.
+## AboutTestimony.admit
+- {room}에 있던 건 맞아요. 딱히 뭘 한 건 없고요.
+## AboutTestimony.dispute
+- 저 그 시간에 {room}에 없었는데요. {who}이/가 잘못 본 것 같아요.
+## ObservationWindow.glance
+- 스치듯 봤어요. 오래 본 건 아니에요.
+## ObservationWindow.awhile
+- 잠깐이었어요. 몇 초였는지까진 모르겠고요.
+## NotObservedScope.scope
+- {room}에 있는 것까지만 봤어요. 그 뒤론 제 일 했고요.
+- 제가 본 건 거기까지예요. 안 했다는 뜻으로 말한 건 아니고요.
 
 ## Unknown.any
 - 그건 잘 모르겠어요.

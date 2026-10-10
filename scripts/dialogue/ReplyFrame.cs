@@ -53,6 +53,8 @@ public enum ReplyTopic
     LastMemory, WokeWhere, FoundWhere, FoundCondition, RescueAction,
     // 2단계 — 이상 개체
     AnomalySeenHow, AnomalyDirection,
+    // 3단계 — 발언 추궁
+    AboutTestimony, ObservationWindow, NotObservedScope,
     Unknown,
 }
 

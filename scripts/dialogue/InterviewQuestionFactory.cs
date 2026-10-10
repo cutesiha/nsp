@@ -183,8 +183,11 @@ public static class InterviewQuestionFactory
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskRouteAround);
                 break;
 
+            // 증언 — 그 말이 **가리키는 사람** 에게 들이민다. 목격 트리의 마지막 단계다.
             case EvidenceKind.Testimony:
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskConfirmTestimony);
+                if (!string.IsNullOrEmpty(ev.SpeakerEmployeeId) && ev.SpeakerEmployeeId != targetEmployeeId)
+                    Add(list, targetEmployeeId, ev, InterviewIntent.AskAboutTestimony, ev.SpeakerEmployeeId);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskPresenceReason);
                 break;
 
@@ -448,6 +451,14 @@ public static class InterviewQuestionFactory
                 $"그것을 직접 보았습니까?",
             InterviewIntent.AskAnomalyDirection =>
                 $"그것이 사라지거나 이동하는 방향을 보았습니까?",
+
+            // ── 3단계 · 발언 추궁 ──
+            InterviewIntent.AskAboutTestimony =>
+                $"{who}은/는 {at}당신이 {here}에 있었다고 합니다. 무엇을 하고 있었습니까?",
+            InterviewIntent.AskObservationWindow =>
+                $"얼마나 오래 지켜보셨습니까?",
+            InterviewIntent.AskNotObservedScope =>
+                $"보지 못했다는 것은 어느 순간까지 보고 계셨다는 뜻입니까?",
 
             // ── 통화 기록 ──
             InterviewIntent.AskCallReason => q.CallKind switch

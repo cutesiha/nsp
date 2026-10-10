@@ -39,6 +39,14 @@ public static class PlayerKnownEvidence
         // 이 진술이 가리키는 시각(근무 시작 = 0초). 모순 판정은 이 값이 있어야만 성립한다.
         public float AnchorTime;
         public bool HasTime;
+
+        // 처음 한 말부터 정정까지 **순서대로**. 마지막이 지금의 주장이다.
+        //
+        // 진술을 고치는 것은 가능하지만 **이전 진술을 지우는 것은 불가능해야** 한다
+        // (기획안 §5). 덮어쓰면 "아까는 경비실이라고 하지 않았습니까" 를 물을 근거가 사라진다.
+        public readonly List<string> RoomHistory = new();
+        public bool WasCorrected => RoomHistory.Count > 1;
+        public string FirstRoomId => RoomHistory.Count > 0 ? RoomHistory[0] : RoomId;
     }
 
     // 어떤 직원이 "그때 나는 이런 행동은 하지 않았다"고 말한 내용.
@@ -69,6 +77,13 @@ public static class PlayerKnownEvidence
         // 그때 무엇을 하고 있었는지까지 들었을 때만 채워진다("설비 쪽에 평소보다 오래 머물렀다").
         // 방 이름만 남기면 이 게임에서 가장 중요한 단서의 알맹이가 빠진다.
         public string Detail = "";
+
+        // **못 봤다** 는 진술인가. "조작하는 장면은 보지 못했다" 같은 말이다.
+        //
+        // 이것은 "그 사람이 조작하지 않았다" 는 증거가 **아니다**. 증언자가 그 행동을
+        // 관찰하지 못했다는 뜻일 뿐이다. 둘을 섞으면 무고한 직원을 범인으로 몰거나
+        // 반대로 진범에게 알리바이를 만들어 준다(기획안 §4 · §5).
+        public bool NotObserved;
     }
 
     // 시설 로그 화면에 실제로 떴던 이동 한 건.
@@ -162,17 +177,21 @@ public static class PlayerKnownEvidence
             && x.SpeakerId == speakerId && x.IncidentKey == incidentKey);
         if (found != null)
         {
+            // 같은 방을 다시 말한 것은 반복일 뿐 정정이 아니다. 방이 바뀐 때만 이력에 쌓는다.
+            if (found.RoomId != roomId) found.RoomHistory.Add(roomId);
             found.RoomId = roomId;
             found.StatedExactTime |= exactTime;
             if (anchorTime >= 0f) { found.AnchorTime = anchorTime; found.HasTime = true; }
             return;
         }
-        _locations.Add(new LocationStatement
+        var fresh = new LocationStatement
         {
             Day = Today, SubjectDay = subject,
             SpeakerId = speakerId, IncidentKey = incidentKey ?? "", RoomId = roomId, StatedExactTime = exactTime,
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
-        });
+        };
+        fresh.RoomHistory.Add(roomId);
+        _locations.Add(fresh);
     }
 
     // 직원이 관리자에게 "그런 행동은 하지 않았다"고 말한 것을 남긴다.
@@ -272,13 +291,30 @@ public static class PlayerKnownEvidence
 
     // detail 은 "그 사람이 그때 무엇을 하고 있었는가". 들은 적이 없으면 빈 값 그대로 둔다 —
     // 이 클래스의 규칙은 여전히 "플레이어가 실제로 들은 것만 남긴다" 다.
+    // "그 장면은 보지 못했다" 는 진술. 목격과 **따로** 쌓는다 — 부재의 증거가 아니다.
+    public static void RecordNotObserved(string speakerId, string subjectId, string roomId,
+        string what, float anchorTime = -1f, int subjectDay = 0)
+    {
+        if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId)) return;
+        int subject = subjectDay > 0 ? subjectDay : Today;
+        if (_sightings.Any(x => x.SubjectDay == subject && x.SpeakerId == speakerId
+                                && x.SubjectId == subjectId && x.NotObserved && x.Detail == what)) return;
+        _sightings.Add(new SightingStatement
+        {
+            Day = Today, SubjectDay = subject,
+            SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "",
+            AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
+            Detail = what ?? "", NotObserved = true,
+        });
+    }
+
     public static void RecordSighting(string speakerId, string subjectId, string roomId, float anchorTime = -1f,
         string detail = "", int subjectDay = 0)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId)) return;
         int subject = subjectDay > 0 ? subjectDay : Today;
         var found = _sightings.FirstOrDefault(x => x.SubjectDay == subject && x.SpeakerId == speakerId
-            && x.SubjectId == subjectId && x.RoomId == roomId);
+            && x.SubjectId == subjectId && x.RoomId == roomId && !x.NotObserved);
         if (found != null)
         {
             // 같은 목격을 다시 들었을 때 내용이 더 자세해졌다면 그것만 채워 넣는다.
@@ -302,12 +338,19 @@ public static class PlayerKnownEvidence
             && x.SpeakerId == employeeId && x.IncidentKey == incidentKey);
 
     // 다른 직원이 이 직원을 봤다고 말한 기록.
+    // 본 것만. "못 봤다" 는 여기 들어오지 않는다 — 부재의 증거가 아니기 때문이다.
     public static IEnumerable<SightingStatement> SightingsOf(string employeeId) =>
-        _sightings.Where(x => x.Day == Today && x.SubjectId == employeeId && x.SpeakerId != employeeId);
+        _sightings.Where(x => x.Day == Today && x.SubjectId == employeeId
+                              && x.SpeakerId != employeeId && !x.NotObserved);
+
+    // "그 장면은 못 봤다" 는 진술만. 따로 꺼내 쓴다.
+    public static IEnumerable<SightingStatement> NotObservedOf(string employeeId) =>
+        _sightings.Where(x => x.Day == Today && x.SubjectId == employeeId
+                              && x.SpeakerId != employeeId && x.NotObserved);
 
     // 이 직원이 다른 직원을 봤다고 말한 기록.
     public static IEnumerable<SightingStatement> SightingsBy(string employeeId) =>
-        _sightings.Where(x => x.Day == Today && x.SpeakerId == employeeId);
+        _sightings.Where(x => x.Day == Today && x.SpeakerId == employeeId && !x.NotObserved);
 
     // 시설 로그 화면에 실제로 떴던 이 직원의 이동. 화면에 뜨지 않은 이동은 여기 없다.
     public static List<VisibleMove> VisibleMoves(string employeeId, int day)
@@ -340,7 +383,7 @@ public static class PlayerKnownEvidence
     // 날을 가리지 않는 조회가 필요하므로 SightingsBy(오늘만)와 따로 둔다.
     public static SightingStatement AllStatementsOfSighting(string speakerId, string subjectId, int day) =>
         _sightings.FirstOrDefault(x => x.SubjectDay == day
-            && x.SpeakerId == speakerId && x.SubjectId == subjectId);
+            && x.SpeakerId == speakerId && x.SubjectId == subjectId && !x.NotObserved);
 
     // 관리자가 CCTV 로 이 직원을 실제로 본 모든 순간(최근 순).
     public static IReadOnlyList<CctvObservation> CctvSightingsOf(string employeeId) =>

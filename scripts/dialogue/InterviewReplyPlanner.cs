@@ -258,7 +258,14 @@ public static class InterviewReplyPlanner
                 bool sawEquipment = !string.IsNullOrEmpty(detail)
                                     && (detail.Contains("설비") || detail.Contains("패널") || detail.Contains("조작"));
                 f.Variant = sawEquipment ? "saw" : "no";
-                if (!sawEquipment) f.SaidDontKnow = true;
+                if (!sawEquipment)
+                {
+                    f.SaidDontKnow = true;
+                    // "조작하는 장면은 못 봤다" 도 자료가 된다. 단, 이것은 그 사람이
+                    // 조작하지 않았다는 증거가 아니라 **관찰 범위**의 기록이다.
+                    PlayerKnownEvidence.RecordNotObserved(id, other,
+                        SightingRoom(id, other, day, q.SubjectRoomId), "설비를 조작하는 장면", t, day);
+                }
                 f.Set("who", Codename(other));
                 f.MentionedEmployeeId = other;
                 break;
@@ -548,6 +555,53 @@ public static class InterviewReplyPlanner
                               == KnowledgeLevel.Direct;
                 f.Variant = direct ? "away" : "unknown";
                 if (!direct) f.SaidDontKnow = true;
+                f.Set("room", RoomName(q.SubjectRoomId));
+                break;
+            }
+
+            // ── 3단계 · 남의 발언을 들이밀었을 때 ───────────────────────
+            //
+            // 목격 트리의 마지막 단계다. 증언이 가리키는 사람에게 그 말을 들이민다.
+            // 결번 개체는 여기서도 이미 정해 둔 전략을 유지한다 — 증언 하나로 자백하지
+            // 않는다. 증언은 기록이 아니라 **사람의 말**이기 때문이다(§5 진술 대립).
+            case InterviewIntent.AskAboutTestimony:
+            {
+                f.Topic = ReplyTopic.AboutTestimony;
+                var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
+                bool wasThere = DialogueContextBuilder.RoomAt(id, day, t) == q.SubjectRoomId;
+
+                if (ctx.IsSaboteur && claim.DeniesEquipmentContact) f.Variant = "deny";
+                else if (kind != "none") { f.Variant = "work"; f.Set("task", task); }
+                else if (wasThere) f.Variant = "admit";      // 있었던 건 맞다
+                else { f.Variant = "dispute"; }              // 그 말은 사실이 아니다
+
+                f.Set("who", Codename(q.OtherEmployeeId));
+                f.Set("room", RoomName(q.SubjectRoomId));
+                f.MentionedEmployeeId = q.OtherEmployeeId;
+                f.MentionedRoomId = q.SubjectRoomId;
+                memTopic = RecallTopic.Presence;
+                memRoom = q.SubjectRoomId;
+                break;
+            }
+
+            case InterviewIntent.AskObservationWindow:
+            {
+                f.Topic = ReplyTopic.ObservationWindow;
+                // 얼마나 봤는지는 기록에 없다. 본 적이 있는지만 안다 — 넘겨짚지 않는다.
+                string detail = SightingDetail(id, q.OtherEmployeeId, day);
+                f.Variant = string.IsNullOrEmpty(detail) ? "glance" : "awhile";
+                f.SaidDontKnow = true;
+                f.Set("who", Codename(q.OtherEmployeeId));
+                break;
+            }
+
+            case InterviewIntent.AskNotObservedScope:
+            {
+                f.Topic = ReplyTopic.NotObservedScope;
+                // "못 봤다" 가 어디까지인지 — 관찰 범위를 명확히 할 뿐, 부재를 주장하지 않는다.
+                f.Variant = "scope";
+                f.SaidDontKnow = true;
+                f.Set("who", Codename(q.OtherEmployeeId));
                 f.Set("room", RoomName(q.SubjectRoomId));
                 break;
             }
