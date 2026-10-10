@@ -39,8 +39,12 @@ public static class InterviewQuestionFactory
         // 기절 기록은 한 번 더 예외다 — 쓰러진 사람의 자료이지만, 그 자리에 있었거나
         // 실제로 옮긴 **다른 직원**에게 물어야 발견·구조 경위가 나온다(기획안 §3-④ · §4).
         // 누구에게 열리는지는 아래 분기에서 실제 기록으로 다시 가린다.
+        // 증언은 또 하나의 예외다 — **말한 사람** 에게도 물어야 한다("얼마나 지켜봤습니까").
+        // 자료의 주인뿐 아니라 발언자도 질문 대상이 될 수 있어야 한다(기획안 §4).
+        bool speakerOfThis = ev.Kind == EvidenceKind.Testimony
+                             && ev.SpeakerEmployeeId == targetEmployeeId;
         if (!string.IsNullOrEmpty(ev.SubjectEmployeeId) && ev.SubjectEmployeeId != targetEmployeeId
-            && !IsFaintCard(ev))
+            && !IsFaintCard(ev) && !speakerOfThis)
             return list;
 
         switch (ev.Kind)
@@ -183,13 +187,45 @@ public static class InterviewQuestionFactory
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskRouteAround);
                 break;
 
-            // 증언 — 그 말이 **가리키는 사람** 에게 들이민다. 목격 트리의 마지막 단계다.
+            // 증언 — 한 발언이 담은 **주장**들로 질문을 만든다(기획안 §4).
+            //
+            //   "강아지가 발전실에 있었어요"        → 그 사람에게: 거기서 뭘 했습니까
+            //                                       증언자에게: 얼마나 지켜봤습니까
+            //   "기계를 만지는 건 못 봤어요"        → 증언자에게: 어느 순간까지 보셨습니까
+            //
+            // 말한 사람에게 묻는 것과 그 말이 가리키는 사람에게 묻는 것이 전혀 다르다.
             case EvidenceKind.Testimony:
+            {
+                bool toSpeaker = ev.SpeakerEmployeeId == targetEmployeeId;
+                bool toSubject = ev.SubjectEmployeeId == targetEmployeeId
+                                 && !string.IsNullOrEmpty(ev.SpeakerEmployeeId)
+                                 && ev.SpeakerEmployeeId != targetEmployeeId;
+
+                if (ev.NotObserved)
+                {
+                    // 관찰 범위를 적어 둔 카드다. 말한 본인에게만 되물을 수 있고,
+                    // 그 말로 상대를 추궁할 수는 없다 — 부재의 증거가 아니기 때문이다.
+                    if (toSpeaker)
+                        Add(list, targetEmployeeId, ev, InterviewIntent.AskNotObservedScope,
+                            ev.SubjectEmployeeId);
+                    break;
+                }
+
+                if (toSpeaker)
+                {
+                    Add(list, targetEmployeeId, ev, InterviewIntent.AskSeenPersonAction, ev.SubjectEmployeeId);
+                    Add(list, targetEmployeeId, ev, InterviewIntent.AskObservationWindow, ev.SubjectEmployeeId);
+                    if (!string.IsNullOrEmpty(ev.BehaviorDetail))
+                        Add(list, targetEmployeeId, ev, InterviewIntent.AskWhySuspicious, ev.SubjectEmployeeId);
+                    break;
+                }
+
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskConfirmTestimony);
-                if (!string.IsNullOrEmpty(ev.SpeakerEmployeeId) && ev.SpeakerEmployeeId != targetEmployeeId)
+                if (toSubject)
                     Add(list, targetEmployeeId, ev, InterviewIntent.AskAboutTestimony, ev.SpeakerEmployeeId);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskPresenceReason);
                 break;
+            }
 
             case EvidenceKind.OwnStatement:
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskRestate);

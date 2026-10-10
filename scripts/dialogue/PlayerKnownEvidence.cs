@@ -352,6 +352,10 @@ public static class PlayerKnownEvidence
     public static IEnumerable<SightingStatement> SightingsBy(string employeeId) =>
         _sightings.Where(x => x.Day == Today && x.SpeakerId == employeeId && !x.NotObserved);
 
+    // 이 직원이 "그 장면은 못 봤다" 고 말한 것들.
+    public static IEnumerable<SightingStatement> NotObservedBy(string employeeId) =>
+        _sightings.Where(x => x.Day == Today && x.SpeakerId == employeeId && x.NotObserved);
+
     // 시설 로그 화면에 실제로 떴던 이 직원의 이동. 화면에 뜨지 않은 이동은 여기 없다.
     public static List<VisibleMove> VisibleMoves(string employeeId, int day)
     {

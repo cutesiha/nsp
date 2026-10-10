@@ -573,8 +573,12 @@ public partial class ClueBoardTest : Node
         view.SwitchTab(PadView.Tab.Manual);
         var manual = GD.Load<PadManualDef>(PadManualDef.DefaultPath);
         var chapters = manual?.ChapterList() ?? new System.Collections.Generic.List<PadManualChapterDef>();
-        Check(chapters.Count == 6, $"지침 챕터 6장(data/pad/manual.tres) — {chapters.Count}장");
-        Check(chapters.All(c => c.PageList().Count is >= 2 and <= 4), "챕터마다 2~4쪽");
+        // 7장이다 — 원래 6장에 '작업실'(방 안내)이 끼어들었다. 방 하나에 한 쪽씩이라
+        // 그 장만 8쪽이고, 나머지는 전부 4쪽이다. 쪽이 패드에 들어가는지는 아래에서
+        // 따로 본다(4줄 · 줄당 40자).
+        Check(chapters.Count == 7, $"지침 챕터 7장(data/pad/manual.tres) — {chapters.Count}장");
+        Check(chapters.All(c => c.PageList().Count is >= 2 and <= 8),
+            "챕터마다 2~8쪽 — " + string.Join(" ", chapters.Select(c => $"{c.Title}{c.PageList().Count}")));
         var pages = chapters.SelectMany(c => c.PageList()).ToList();
         Check(pages.All(p => p.Lines.Length <= PadManualDef.MaxLinesPerPage && p.Lines.All(l => l.Length <= PadManualDef.MaxCharsPerLine)),
             $"모든 쪽이 4줄 · 줄당 40자 이내 — 가장 긴 줄 {pages.SelectMany(p => p.Lines).Max(l => l.Length)}자");

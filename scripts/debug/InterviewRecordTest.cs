@@ -16,6 +16,7 @@ namespace NSP.Debug;
 //   B "못 봤다" 가 부재의 증거로 쓰이지 않는가
 //   C 모순 판정이 네 상태로 갈리는가 (빨간색 = 거짓말 이 아니다)
 //   D 증언을 그 말이 가리키는 사람에게 들이밀 수 있는가 (목격 트리 5단계)
+//   E 한 발언을 두 주장으로 나눠 조사할 수 있는가 (§4 조작 흐름)
 public partial class InterviewRecordTest : Node
 {
     private const string Power = "power_room";
@@ -31,6 +32,7 @@ public partial class InterviewRecordTest : Node
         SectionB();
         SectionC();
         SectionD();
+        SectionE();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
     }
@@ -181,6 +183,65 @@ public partial class InterviewRecordTest : Node
             InterviewQuestionFactory.Make("sheep", testimony, InterviewIntent.AskObservationWindow, "dog"));
         GD.Print($"      A(양·관찰시간): {window}");
         Ok(!string.IsNullOrEmpty(window) && window != "…", "증언자에게 관찰 시간을 되물을 수 있다");
+    }
+
+    // ── E. 발언을 골라 그 주장으로 묻는다 (기획안 §4 조작 흐름) ─────────
+    //
+    //   "강아지가 발전실에 있었어요. 기계를 만지는 건 못 봤지만요."
+    //     → 주장 A: 강아지가 발전실에 있는 모습을 봤다
+    //     → 주장 B: 조작하는 장면은 보지 못했다
+    //   A 와 B 에서 나오는 질문이 다르고, B 로는 아무것도 추궁할 수 없어야 한다.
+
+    private void SectionE()
+    {
+        GD.Print("\n#### E. 한 발언을 두 주장으로 나눠 조사한다");
+        Reset();
+        Place(new() { ["sheep"] = Power, ["dog"] = Power });
+        Log(LogEventType.TaskStart, "sheep", Power, 1f);
+        Log(LogEventType.TaskStart, "dog", Power, 1f);
+
+        // 양이 관리자에게 한 말 — 두 주장이 한 번에 들어온다.
+        PlayerKnownEvidence.RecordSighting("sheep", "dog", Power, 300f, "기계 앞에 서 있었다", 1);
+        PlayerKnownEvidence.RecordNotObserved("sheep", "dog", Power, "설비를 조작하는 장면", 300f, 1);
+
+        // ① 말한 본인(양)의 조사 노트에 두 주장이 **따로** 올라온다.
+        var sheepBoard = InterviewEvidenceBoard.Build("sheep");
+        var saidCards = sheepBoard.Where(e => e.Kind == EvidenceKind.Testimony
+                                              && e.SpeakerEmployeeId == "sheep").ToList();
+        GD.Print("      양의 노트: " + string.Join(" / ", saidCards.Select(c => c.Body)));
+        Ok(saidCards.Count == 2, $"① 한 발언이 주장 두 장으로 올라온다 ({saidCards.Count})");
+        Ok(saidCards.Count(c => c.NotObserved) == 1, "   그중 한 장은 '못 봤다' 주장이다");
+
+        var positive = saidCards.FirstOrDefault(c => !c.NotObserved);
+        var negative = saidCards.FirstOrDefault(c => c.NotObserved);
+        if (positive == null || negative == null) return;
+
+        // ② 주장 A 로는 말한 본인에게 되물을 수 있다 — 무엇을 하고 있었나 / 얼마나 봤나.
+        var qa = InterviewQuestionFactory.For("sheep", positive).Select(q => q.Intent).ToList();
+        GD.Print($"      A 주장 → {string.Join(",", qa)}");
+        Ok(qa.Contains(InterviewIntent.AskSeenPersonAction), "② '강아지는 뭘 하고 있었나' 를 되물을 수 있다");
+        Ok(qa.Contains(InterviewIntent.AskObservationWindow), "   '얼마나 지켜봤나' 를 되물을 수 있다");
+
+        // ③ 주장 B 로는 관찰 범위만 되물을 수 있다.
+        var qb = InterviewQuestionFactory.For("sheep", negative).Select(q => q.Intent).ToList();
+        GD.Print($"      B 주장 → {string.Join(",", qb)}");
+        Ok(qb.Contains(InterviewIntent.AskNotObservedScope), "③ '어느 순간까지 보셨나' 를 되물을 수 있다");
+        Ok(!qb.Contains(InterviewIntent.AskSeenPersonAction),
+            "   '뭘 하고 있었나' 는 열리지 않는다 — 못 본 것이므로");
+
+        // ④ 주장 A 는 강아지에게 들이밀 수 있고, 주장 B 는 들이밀 수 없다.
+        var toDogA = InterviewQuestionFactory.For("dog", positive).Select(q => q.Intent).ToList();
+        var toDogB = InterviewQuestionFactory.For("dog", negative).Select(q => q.Intent).ToList();
+        GD.Print($"      강아지에게 A → {string.Join(",", toDogA)} / B → {string.Join(",", toDogB)}");
+        Ok(toDogA.Contains(InterviewIntent.AskAboutTestimony), "④ 본 것은 상대에게 들이밀 수 있다");
+        Ok(toDogB.Count == 0, "   '못 봤다' 로는 상대를 추궁할 수 없다");
+
+        // ⑤ '못 봤다' 는 무엇과 맞대어도 모순이 되지 않는다.
+        var cctv = Card(EvidenceKind.Cctv, "dog", Power, 300f, position: true);
+        var r = EvidenceContradiction.Check("dog", negative, cctv);
+        GD.Print($"      ⑤ {r.Kind} / {r.Verdict} — {r.VerdictText}");
+        Ok(!r.IsContradiction, "⑤ '못 봤다' 와 CCTV 를 맞대도 모순이 아니다");
+        Ok(r.VerdictText.Contains("근거는 되지 않"), "   이유를 밝힌다");
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────

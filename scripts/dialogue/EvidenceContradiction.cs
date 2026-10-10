@@ -80,6 +80,19 @@ public static class EvidenceContradiction
             return fail;
         }
 
+        // "못 봤다" 는 증언은 모순의 재료가 아니다. 관찰 범위를 적어 둔 것일 뿐이라
+        // 무엇과 맞대어도 어긋남을 만들 수 없다(기획안 §4 의 주장 B).
+        if (a.NotObserved || b.NotObserved)
+        {
+            fail.Earlier = a; fail.Later = b;
+            fail.AnchorTime = b.HasTime ? b.AnchorTime : a.AnchorTime;
+            fail.Notice = "보지 못했다는 증언입니다. 그 행동이 없었다는 근거는 되지 않습니다.";
+            fail.VerdictText = fail.Notice;
+            fail.QuestionText = KoreanParticle.Resolve(
+                $"{Describe(a)} 그리고 {Describe(b)} 이 둘을 함께 보면 어떻습니까?");
+            return fail;
+        }
+
         // 서로 다른 날의 일을 맞대어 모순이라고 할 수는 없다.
         //
         // 비교 기준은 **그 자료가 가리키는 날**(SubjectDay)이다. 말한 날이 아니다 —

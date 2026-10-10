@@ -37,6 +37,7 @@ public static class InterviewEvidenceBoard
         AddCctv(list, targetEmployeeId);
         AddTestimonies(list, targetEmployeeId);
         AddOwnStatements(list, targetEmployeeId);
+        AddOwnTestimonies(list, targetEmployeeId);
         AddBehaviorClaims(list, targetEmployeeId);
         AddOverheard(list, targetEmployeeId);
         AddCalls(list, targetEmployeeId);
@@ -337,6 +338,80 @@ public static class InterviewEvidenceBoard
                 Position = PositionClaim.AtRoom,
                 SubjectRoomId = s.RoomId,
                 RelatedEmployeeIds = { s.SpeakerId },
+            });
+        }
+
+        // "그 장면은 보지 못했다" 도 자료다 — 다만 **다른 종류의 자료**다.
+        //
+        // 관찰 범위를 적어 둔 카드이지 부재의 증거가 아니다. 이것으로 "그 사람은
+        // 하지 않았다" 를 세울 수 없게 위치 주장(Position)도 행동(BehaviorDetail)도
+        // 비워 둔다 — 모순 판정의 재료가 되지 않는다(기획안 §4).
+        foreach (var s in PlayerKnownEvidence.NotObservedOf(target))
+        {
+            list.Add(new InterviewEvidence
+            {
+                Id = $"notsee:{target}:{s.SpeakerId}:{s.Detail}",
+                Kind = EvidenceKind.Testimony,
+                Header = Codename(s.SpeakerId) + "의 증언",
+                TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
+                Body = KoreanParticle.Resolve($"{Codename(s.SpeakerId)} · {s.Detail}은/는 보지 못했다"),
+                SubjectEmployeeId = target,
+                SpeakerEmployeeId = s.SpeakerId,
+                AnchorTime = s.AnchorTime,
+                HasTime = s.HasTime,
+                Position = PositionClaim.None,
+                SubjectRoomId = s.RoomId,
+                NotObserved = true,
+                RelatedEmployeeIds = { s.SpeakerId },
+            });
+        }
+    }
+
+    // 이 직원이 **다른 사람에 대해 한** 증언도 자료다.
+    //
+    // 위쪽은 "남들이 이 사람에 대해 한 말" 이고, 이것은 "이 사람이 남에 대해 한 말" 이다.
+    // 발언을 골라 되물으려면(기획안 §4) 말한 본인의 노트에도 그 발언이 있어야 한다.
+    private static void AddOwnTestimonies(List<InterviewEvidence> list, string target)
+    {
+        foreach (var s in PlayerKnownEvidence.SightingsBy(target))
+        {
+            if (s.SubjectId == target) continue;
+            list.Add(new InterviewEvidence
+            {
+                Id = $"told:{target}:{s.SubjectId}:{s.RoomId}",
+                Kind = EvidenceKind.Testimony,
+                Header = Codename(target) + "이/가 한 말",
+                TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
+                Body = string.IsNullOrEmpty(s.Detail)
+                    ? $"{Codename(s.SubjectId)}을/를 {RoomName(s.RoomId)}에서 봤다"
+                    : $"{Codename(s.SubjectId)} · {s.Detail}",
+                BehaviorDetail = s.Detail,
+                SubjectEmployeeId = s.SubjectId,
+                SpeakerEmployeeId = target,
+                AnchorTime = s.AnchorTime,
+                HasTime = s.HasTime,
+                Position = PositionClaim.None,   // 남의 위치 주장이다 — 본인 위치가 아니다
+                SubjectRoomId = s.RoomId,
+                RelatedEmployeeIds = { s.SubjectId },
+            });
+        }
+        foreach (var s in PlayerKnownEvidence.NotObservedBy(target))
+        {
+            list.Add(new InterviewEvidence
+            {
+                Id = $"toldnot:{target}:{s.SubjectId}:{s.Detail}",
+                Kind = EvidenceKind.Testimony,
+                Header = Codename(target) + "이/가 한 말",
+                TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
+                Body = KoreanParticle.Resolve($"{Codename(s.SubjectId)} · {s.Detail}은/는 보지 못했다"),
+                SubjectEmployeeId = s.SubjectId,
+                SpeakerEmployeeId = target,
+                AnchorTime = s.AnchorTime,
+                HasTime = s.HasTime,
+                Position = PositionClaim.None,
+                SubjectRoomId = s.RoomId,
+                NotObserved = true,
+                RelatedEmployeeIds = { s.SubjectId },
             });
         }
     }

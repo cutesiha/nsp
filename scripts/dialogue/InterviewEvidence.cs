@@ -94,6 +94,12 @@ public sealed class InterviewEvidence
     // 설비 접근이 보이던 CCTV 에만 붙는다. 행동 추궁(ConfrontKind.Behavior)의 근거다.
     public string BehaviorDetail = "";
 
+    // **보지 못했다** 는 증언인가.
+    //
+    // 그 사람이 하지 않았다는 증거가 아니라, 증언자의 관찰이 거기까지였다는 기록이다.
+    // 그래서 모순 판정에 들어가지 않는다 — 들어가면 진범에게 알리바이를 만들어 준다.
+    public bool NotObserved;
+
     // 통화 자료일 때만 — 통화 종류(DialogueRepository.Event*) · 누가 걸었나 · 잡담 전화가 말한 작업실 ·
     // 같은 종류의 통화 중 오늘 몇 번째인가(놀러 가고 싶다는 전화가 잦으면 근무 태만을 물을 수 있다).
     public string CallEvent = "";
