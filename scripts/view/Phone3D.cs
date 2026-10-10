@@ -142,8 +142,49 @@ public partial class Phone3D : Node3D
         ring.MaterialOverride = _dialMat;
     }
 
+    // ── 비정상 신호 전화(지시서 §6-2 ② ③) ───────────────────────────
+    //
+    // 발신자가 **없는** 전화다. 직원 전화와 같은 벨 · 수화기 · 손 동작을 그대로 쓰되,
+    // 받으면 대사 엔진(PhoneCallHud)이 아니라 AnomalyCallDirector 가 받는다.
+    //   · 통화 기록 · 증거 · 도전과제 집계 어디에도 남지 않는다.
+    //   · 전화기가 비어 있을 때만 울린다 — 진짜 전화를 절대 밀어내지 않는다.
+    private string _anomaly = "";
+
+    public bool AnomalyActive => _anomaly != "";
+    private static readonly Color UnknownAccent = new(0.52f, 0.56f, 0.58f);
+
+    public bool RingAnomaly(string kind)
+    {
+        if (_state != PhoneState.Idle || string.IsNullOrEmpty(kind)) return false;
+        if (NSP.Taboo.TabooRuleSystem.Instance?.IsPhoneLocked == true) return false;
+
+        _anomaly = kind;
+        _caller = "";
+        _dialogueEvent = DialogueRepository.EventGeneralCall;
+        _incidentRoomId = "";
+        _isIncoming = true;
+        _state = PhoneState.Ringing;
+        _autoPickupAt = -1;
+        // 받지 않으면 저 혼자 끊는다. 직원 전화와 달리 재발신도 없다.
+        _patienceUntil = Time.GetTicksMsec() / 1000.0 + 7.0;
+
+        _ring?.Play();
+        LastCallRejectedByPlayer = false;
+        _hud?.ShowIncoming(UnknownAccent);
+        EmitSignal(SignalName.RingStarted);
+        return true;
+    }
+
+    // AnomalyCallDirector 가 연출을 마치면 부른다. 수화기를 내려놓는 동작까지 같다.
+    public void EndAnomalyCall()
+    {
+        if (_anomaly == "") return;
+        HangUp();
+    }
+
     private Color CallerColor()
     {
+        if (_anomaly != "") return UnknownAccent;
         var def = FacilitySimulation.Instance?.GetEmployeeDef(_caller);
         return def?.IconColor ?? new Color(0.7f, 0.7f, 0.75f);
     }
@@ -385,6 +426,15 @@ public partial class Phone3D : Node3D
         SetDial(DialIdle, 0.6f);
         _hud?.HideIncoming();
 
+        // 받지 않은 비정상 신호는 아무 일도 아니다. 「무심한 관리자」로도 세지 않고
+        // IncomingCallDirector 의 큐에도 알리지 않는다 — 애초에 직원이 건 전화가 아니다.
+        if (_anomaly != "")
+        {
+            _anomaly = "";
+            _caller = "";
+            return;
+        }
+
         string who = _caller;
         string ev = _dialogueEvent;
         _caller = "";
@@ -475,6 +525,16 @@ public partial class Phone3D : Node3D
         _handsetFollowsHand = _handset != null && _player?.HandSocket != null;
 
         SetDial(CallerColor(), 2.0f);
+
+        // 비정상 신호는 대사 엔진을 타지 않는다. 통화 기록 · 증거 · 도전과제 집계
+        // 어디에도 들어가지 않아야 해서, 여기서 갈라져 전용 연출로 넘어간다.
+        if (_anomaly != "")
+        {
+            EmitSignal(SignalName.PickedUp);
+            AnomalyCallDirector.Instance?.Begin(_anomaly);
+            return;
+        }
+
         if (_dialogueEvent == DialogueRepository.EventInterviewSuspected)
             RestRosterView.Instance?.DisarmInterrogate();
         // 통화가 실제로 연결된 지점 — 「상냥한 관리자」(직접 발신)와
@@ -545,6 +605,7 @@ public partial class Phone3D : Node3D
         _handsetFollowsHand = false;
         _state = PhoneState.Idle;
         _isIncoming = false;
+        _anomaly = "";
         _patienceUntil = -1;
         SetLamp(0.12f);
         SetDial(DialIdle, 0.6f);

@@ -25,6 +25,8 @@ public partial class FacilityMonitorView : Control
 
     private Font _font;
     private FacilityMinimap _minimap;
+    // 검사 전용 — 그려진 지도를 픽셀로 확인할 때 쓴다.
+    public FacilityMinimap MinimapForTest => _minimap;
     private Label _clock;
     private Label _protocol;
     private Label _alertLine;
@@ -234,8 +236,17 @@ public partial class FacilityMonitorView : Control
         mapHead.Position = new Vector2(6, 4);
         mapPanel.AddChild(mapHead);
 
+        // 책상 위 BARRIER 레버가 **무엇을** 제어하는지 지도 머리맡에 한 줄로 적어 둔다.
+        // 레버는 책상에 있고 문은 지도 안에 있어서, 이 줄이 없으면 올리기 전까지 알 수 없다.
+        _barrierLabel = MakeLabel("", 11, Dim);
+        _barrierLabel.Position = new Vector2(120, 5);
+        _barrierLabel.Size = new Vector2(326, 16);
+        _barrierLabel.HorizontalAlignment = HorizontalAlignment.Right;
+        mapPanel.AddChild(_barrierLabel);
+
         _minimap = new FacilityMinimap { Position = new Vector2(10, 24), Size = new Vector2(432, BodyHeight - 32f) };
         _minimap.OnRoomSelected = SelectRoom;
+        _minimap.OnCorridorSelected = SelectCorridor;
         _minimap.OnEmployeeSelected = SelectEmployee;
         mapPanel.AddChild(_minimap);
 
@@ -335,6 +346,19 @@ public partial class FacilityMonitorView : Control
         FacilitySimulation.Instance?.SetSurveillanceTarget(roomId);
     }
 
+    // 지도에서 복도를 눌렀다 — 한 번에 두 가지가 정해진다.
+    //   ① 오른쪽 CRT 가 그 복도 카메라로 바뀐다
+    //   ② 책상 위 BARRIER 레버의 제어 대상이 그 통로가 된다
+    // 따로 고르게 하면 "지도에서 고른 통로"와 "레버가 닫는 통로"가 어긋날 수 있다.
+    private void SelectCorridor(string segmentId)
+    {
+        _selRoom = "";
+        _selEmp = "";
+        _minimap.SelectedRoomId = "";
+        _minimap.SelectedEmployeeId = "";
+        FacilitySimulation.Instance?.SetCorridorSurveillance(segmentId);
+    }
+
     private void SelectEmployee(string empId)
     {
         _selEmp = empId;
@@ -432,6 +456,35 @@ public partial class FacilityMonitorView : Control
         else sim.IsolateEmployee(_selEmp);
     }
 
+    private Label _barrierLabel;
+
+    // 지도 머리맡 한 줄 — "BARRIER ▸ 〈고른 통로〉 — 상태".
+    // 전력이 없으면 그 사실을, 통로를 안 골랐으면 고르라는 말을 적는다.
+    private void UpdateBarrierLine()
+    {
+        if (_barrierLabel == null) return;
+        var net = FacilitySimulation.Instance?.Corridors;
+        var seg = net?.Selected;
+        if (seg == null)
+        {
+            _barrierLabel.Text = "BARRIER ▸ 통로 미선택";
+            _barrierLabel.AddThemeColorOverride("font_color", Dim);
+            return;
+        }
+
+        bool power = GameState.Instance?.IsConsumerPowered(PowerConsumer.Barrier) ?? false;
+        bool capacity = power || (GameState.Instance?.GetPowerRemaining() ?? 0) > 0;
+        string state = !capacity ? "전력 부족"
+            : seg.CooldownLeft > 0f ? $"냉각 {seg.CooldownLeft:0.0}s"
+            : seg.StatusText;
+        _barrierLabel.Text = $"BARRIER ▸ {seg.DisplayName} — {state}";
+        _barrierLabel.AddThemeColorOverride("font_color",
+            seg.Sealed ? new Color(1f, 0.46f, 0.38f)
+            : seg.Moving ? new Color(1f, 0.82f, 0.42f)
+            : !capacity ? new Color(0.85f, 0.55f, 0.30f)
+            : new Color(0.52f, 0.72f, 0.66f));
+    }
+
     // --- per-frame -------------------------------------------------
 
     public override void _Process(double delta)
@@ -448,6 +501,7 @@ public partial class FacilityMonitorView : Control
         }
         UpdateProtocol();
         UpdateInspector();
+        UpdateBarrierLine();
         if (_notice != null && _notice.Text != "" && Time.GetTicksMsec() / 1000.0 > _noticeUntil) _notice.Text = "";
 
         if (Time.GetTicksMsec() / 1000.0 > _alertUntil)

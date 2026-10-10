@@ -111,16 +111,22 @@ public partial class GameState : Node
     // (TryTogglePower). 용량이 줄어 이미 켜진 채널 수가 새 용량을 넘으면, 아래 우선순위로
     // 자동으로 끈다 — index 0 이 가장 먼저 차단(CCTV), 마지막 index(SENSOR)가 가장 오래
     // 버틴다(기존 자동 전력배분 시절의 우선순위를 그대로 계승).
+    // 세 번째 채널은 관리자 패드(Sensor)에서 **복도 차폐(Barrier)** 로 바뀌었다.
+    // 패드는 채널에서 빠지고 시설 상시 전원으로 옮겼다(IsConsumerPowered 참조) —
+    // 지시서 §4-1 "기존 PAD 기능을 삭제하거나 먹통으로 만들지 말 것".
+    // 차단 우선순위는 예전 그대로 CCTV → 조명 순이고, 차폐가 가장 오래 버틴다
+    // (안전 설비를 먼저 내리면 경고도 없이 관리자가 죽는다).
     private static readonly PowerConsumer[] SwitchChannels =
-        { PowerConsumer.CctvWatch, PowerConsumer.Lighting, PowerConsumer.Sensor };
+        { PowerConsumer.CctvWatch, PowerConsumer.Lighting, PowerConsumer.Barrier };
     private static readonly PowerConsumer[] ShedPriority =
-        { PowerConsumer.CctvWatch, PowerConsumer.Lighting, PowerConsumer.Sensor };
+        { PowerConsumer.CctvWatch, PowerConsumer.Lighting, PowerConsumer.Barrier };
 
     private readonly Dictionary<PowerConsumer, bool> _switchOn = new()
     {
         [PowerConsumer.CctvWatch] = true,
         [PowerConsumer.Lighting] = true,
-        [PowerConsumer.Sensor] = true,
+        // 근무는 차폐를 **내린 채로** 시작한다 — 조명과 CCTV 가 먼저다(지시서 §4-3).
+        [PowerConsumer.Barrier] = false,
     };
 
     public override void _EnterTree()
@@ -143,16 +149,21 @@ public partial class GameState : Node
 
     private int OnCount() => SwitchChannels.Count(c => _switchOn[c]);
 
-    // VentRepair는 새 전력 패널에 없는 채널(2D 백업 화면 호환용) — 항상 켜진 것으로 취급한다.
+    // 전력 패널에 레버가 없는 채널은 항상 켜진 것으로 취급한다.
+    //   VentRepair — 2D 백업 화면 호환용(처음부터 레버가 없었다)
+    //   Sensor     — 관리자 패드. 세 번째 레버를 차폐에 내주고 시설 상시 전원으로 옮겼다.
+    //                패드 · 경고 단말기 · 사고 보드가 전부 이 값을 보므로 켜진 채로 둔다.
     public bool IsConsumerPowered(PowerConsumer consumer) =>
-        consumer == PowerConsumer.VentRepair || _switchOn.GetValueOrDefault(consumer);
+        consumer is PowerConsumer.VentRepair or PowerConsumer.Sensor
+        || _switchOn.GetValueOrDefault(consumer);
 
     // 플레이어가 전력 패널 스위치를 누른다. 끄는 것은 항상 성공. 켜는 것은 현재 용량 안에
     // 여유가 있을 때만 성공 — 초과분은 거부만 하고(다른 채널을 먼저 꺼야 함) 자동으로 다른
     // 채널을 대신 끄지 않는다(플레이어가 직접 고르게 한다).
     public bool TryTogglePower(PowerConsumer consumer)
     {
-        if (consumer == PowerConsumer.VentRepair) return false;
+        // 레버가 없는 채널은 끌 수도 켤 수도 없다(항상 켜진 것으로 취급한다).
+        if (!_switchOn.ContainsKey(consumer)) return false;
 
         if (_switchOn[consumer])
         {
@@ -250,7 +261,10 @@ public partial class GameState : Node
     {
         int before = PowerCapacity;
         PowerAccidentPenalty = 0;
-        foreach (var c in SwitchChannels) _switchOn[c] = true;
+        // 조명 · CCTV 는 켠다. **차폐만 내린 채로 돌려놓는다** — 차폐는 평상시 꺼 두고
+        // 필요한 순간에 관리자가 직접 올리는 안전 설비라, 복구했다고 저절로 걸려 있으면
+        // 유지 시간 상한만 까먹는다(근무 시작 상태와 같은 기본값).
+        foreach (var c in SwitchChannels) _switchOn[c] = c != PowerConsumer.Barrier;
         LogCapacityChange(before);
     }
 
@@ -261,6 +275,9 @@ public partial class GameState : Node
         int after = PowerCapacity;
         if (after == before || CurrentPhase != GamePhase.Live) return;
         int delta = after - before;
+        // 정전 — 심박과 화면 가장자리의 붉은 기운만. **숨소리는 켜지 않는다**
+        // (숨은 '가까이 있다' 의 신호다. 어둠과 섞으면 둘 다 뜻을 잃는다 — 지시서 §7-2).
+        if (delta < 0) NSP.Ui.AdminFearDirector.Instance?.PowerOutage(6f);
         EventLog.Instance?.LogEvent(LogEventType.PowerCapacityChanged, "", "",
             delta < 0 ? $"⚠ 전력 {before} → {after} [{-delta} 감소]"
                       : $"✓ 전력 {before} → {after} [{delta} 증가]");

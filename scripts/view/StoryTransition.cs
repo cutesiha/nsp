@@ -146,9 +146,11 @@ public static class StoryTransition
 
             // ⑤ 그 날 상태에 맞는 기존 BGM 으로 돌아간다(§5).
             //    배치 화면이면 rest_time 이다. 들어올 때 울리던 곡을 그대로 쓴다.
-            string back = _previousMusic.Length > 0 ? _previousMusic : "rest_time";
-            sfx?.CrossfadeMusic(back, BgmFadeSeconds, loop: true);
-            _previousMusic = "";
+            //
+            // **근무가 이미 시작됐으면 되돌리지 않는다.** 스토리가 흐르는 동안 플레이어가
+            // 근무를 시작할 수 있는데, 그때 여기서 곡을 다시 틀면 "근무 화면엔 BGM 없음"
+            // (EnterShift 가 일부러 끈 것)이 깨져 실시간 근무 내내 시작 BGM 이 깔린다.
+            RestoreMusic(sfx);
         }
         catch (Exception e)
         {
@@ -176,13 +178,27 @@ public static class StoryTransition
 
         // 스토리 BGM 이 남아 있으면 되돌린다. 아무 곡도 몰랐다면 그냥 끈다.
         var sfx = Sfx.Instance;
-        if (sfx != null && sfx.CurrentMusic == StoryMusic)
-        {
-            if (_previousMusic.Length > 0) sfx.CrossfadeMusic(_previousMusic, 0.5f, loop: true);
-            else sfx.FadeOutMusic(0.5f);
-        }
+        if (sfx != null && sfx.CurrentMusic == StoryMusic) RestoreMusic(sfx, 0.5f);
         _previousMusic = "";
         Active = false;
+    }
+
+    // 스토리가 끝난 뒤 음악을 어떻게 되돌릴 것인가.
+    //
+    //   실시간 근무 중  → 켜지 않는다. 그 화면의 소리는 시설 환경음이다(§5).
+    //   그 밖(배치 · 휴게) → 들어올 때 울리던 곡으로 되돌린다.
+    private static void RestoreMusic(Sfx sfx, float fade = BgmFadeSeconds)
+    {
+        if (sfx == null) return;
+        if (GameState.Instance?.CurrentPhase == NSP.Data.GamePhase.Live)
+        {
+            sfx.FadeOutMusic(fade);
+            _previousMusic = "";
+            return;
+        }
+        string back = _previousMusic.Length > 0 ? _previousMusic : "rest_time";
+        sfx.CrossfadeMusic(back, fade, loop: true);
+        _previousMusic = "";
     }
 
     // ── 휴게실 생활음 (§4) ───────────────────────────────────────────

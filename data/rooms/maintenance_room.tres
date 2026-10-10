@@ -8,7 +8,7 @@ RoomId = "maintenance_room"
 DisplayName = "정비실"
 Summary = "코어 복구에 쓸 자재를 생산하고 설비를 고친다."
 BriefLines = PackedStringArray("· 자재 생산 — 코어 복구의 재료", "· 인원이 늘면 시설 전체 경고가 줄어든다")
-ConnectedRoomIds = Array[String](["central_office", "guard_room", "storage_room"])
+ConnectedRoomIds = Array[String](["guard_room", "storage_room"])
 AdjacentRoomIds = Array[String](["storage_room", "medical_room"])
 MapPosition = Vector2(450, 370)
 ; 띠 시간표에서 이 방을 나타내는 색 — 정비실 초록

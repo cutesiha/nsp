@@ -93,10 +93,13 @@ public partial class PresenceDirector : Node
     }
 
     // 근무 중에만, 교육일에는 나오지 않는다.
+    // 강한 공포 연출(§6-4) 직후의 전역 정숙 구간에도 비켜선다 — 큰 것 뒤에 바로
+    // 작은 것이 겹치면 둘 다 값이 떨어진다(§6-5 상호 배제).
     public static bool Allowed()
     {
         var gs = GameState.Instance;
-        return gs != null && gs.CurrentPhase == GamePhase.Live && !DayFeatures.IsTutorialDay;
+        return gs != null && gs.CurrentPhase == GamePhase.Live && !DayFeatures.IsTutorialDay
+               && !NSP.Ui.HorrorEventDirector.QuietNow;
     }
 
     // 지금 상황에서 쓸 수 있는 연출 중 하나.

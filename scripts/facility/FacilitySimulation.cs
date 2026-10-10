@@ -184,6 +184,13 @@ public partial class FacilitySimulation : Node
         if (_roomDefs.Count == 0 || _employeeDefs.Count == 0)
             GD.PushError("FacilitySimulation: 정의 데이터를 불러오지 못했습니다 (res://data/* 스캔 실패).");
 
+        // 복도망은 방 그래프가 실린 **뒤에** 만든다 — 간선이 곧 복도이기 때문이다.
+        _corridors.Build(_roomDefs);
+        _corridors.PathsDirty += OnCorridorPathsDirty;
+        _threats.Attach(this);
+        GD.Print($"FacilitySimulation: corridors={_corridors.Segments.Count} " +
+                 $"(차폐 가능 {_corridors.Blockable.Count()}개)");
+
         BuildInitialStates();
     }
 
@@ -248,6 +255,8 @@ public partial class FacilitySimulation : Node
     // 배치/사망/격리/스트레스/발생 업무를 전부 지우고 DAY 1 초기 상태로 되돌린다.
     public void ResetRun()
     {
+        _corridors.ResetAll();
+        _threats.Reset();
         _activeTasks.Clear();
         _scheduleCursor = 0;
         _scheduleJitter.Clear();
@@ -588,6 +597,28 @@ public partial class FacilitySimulation : Node
         if (roomId != _surveillanceTargetRoomId)
             TabooRuleSystem.Instance?.NotifyCctvSwitched(roomId);
         _surveillanceTargetRoomId = roomId;
+        _surveillanceCorridorId = "";
+    }
+
+    // ── 복도 카메라 ─────────────────────────────────────────────────
+    //
+    // 복도는 작업실이 아니다. 가짜 RoomDef 를 만들어 끼워 넣으면 배치표 · 업무 · 사고 ·
+    // 추리 자료에 전부 섞여 들어간다. 그래서 감시 대상만 **따로** 들고 있는다.
+    //
+    // 복도를 보는 동안 SurveillanceTargetRoomId 는 비어 있다 — 작업실을 보고 있지 않으니
+    // 이상 개체 관측 게이지도 당연히 차지 않는다(기존 규칙 그대로).
+    private string _surveillanceCorridorId = "";
+
+    public string SurveillanceCorridorId => IsSurveillanceForced() ? "" : _surveillanceCorridorId;
+
+    public void SetCorridorSurveillance(string segmentId)
+    {
+        if (IsSurveillanceForced()) return;
+        if (_corridors.ById(segmentId) == null) return;
+        if (_surveillanceCorridorId != segmentId)
+            TabooRuleSystem.Instance?.NotifyCctvSwitched(segmentId);
+        _surveillanceCorridorId = segmentId;
+        _surveillanceTargetRoomId = "";
     }
 
     // 연출로 CCTV 를 강제 전환하기 직전에 보고 있던 채널. 연출이 끝나면 여기로 돌아간다.
@@ -891,7 +922,109 @@ public partial class FacilitySimulation : Node
         var own = _roomDefs.GetValueOrDefault(roomId)?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
         return own
             .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId))
-            .Distinct();
+            .Distinct()
+            // 차폐문이 내려온 간선은 길이 아니다. **방을 잠그는 것(SetRoomLocked)과 다르다** —
+            // 방은 멀쩡히 쓸 수 있고 그 한 통로만 못 지나간다. 그래서 우회로가 있으면
+            // 돌아가고, 없으면 안전한 쪽에서 기다린다.
+            .Where(n => _corridors.IsPassable(roomId, n));
+    }
+
+    // 복도망 — 방 그래프 위에 얹힌 차폐문 · 카메라 메타데이터.
+    private readonly CorridorNet _corridors = new();
+    public CorridorNet Corridors => _corridors;
+
+    // 중앙제어실로 접근하는 괴물. 작업실 이상 개체(GhostHauntSystem)와 **다른 계통**이다 —
+    // 저쪽은 방 안에 나타나 관측으로 사라지고, 이쪽은 복도로 걸어와 문에 막힌다.
+    private readonly MonsterThreatSystem _threats = new();
+    public MonsterThreatSystem Threats => _threats;
+
+    // 문이 완전히 닫히거나(길 끊김) 열린(길 복구) 순간. 걷던 사람과 멈춰 선 사람을 손본다.
+    private void OnCorridorPathsDirty(CorridorSegment seg)
+    {
+        if (seg == null) return;
+        foreach (var emp in _employeeStates.Values)
+        {
+            if (!emp.Alive || emp.Incapacitated || emp.Isolated) continue;
+            // 이송 중인 사람(업고 가는 쪽 · 업힌 쪽)은 FaintRescueSystem 이 길을 쥐고 있다.
+            if (!string.IsNullOrEmpty(emp.CarryingVictimId) || emp.Faint != FaintPhase.None) continue;
+
+            // ① 하필 그 통로를 건너는 중이었다 — 문이 닫힌 그 순간의 위치로 가른다.
+            //    반 넘게 건넜으면 등 뒤에서 닫히고, 아니면 돌아선다. 관통도 순간이동도 없다.
+            if (seg.Sealed && CrossingSegment(emp, seg))
+            {
+                if (PastHalfway(emp)) continue;
+                TurnBack(emp);
+                continue;
+            }
+
+            // ② 차폐 때문에 멈춰 섰던 사람만 다시 길을 찾는다(문이 열린 경우).
+            //    **그 외에는 아무도 건드리지 않는다** — 구조하러 간 동료처럼 배치된 방과
+            //    서 있는 방이 다른 사람은 많고, 그들을 제자리로 끌어오면 다른 시스템이 깨진다.
+            if (!emp.BlockedByBarrier || emp.IsMoving) continue;
+            emp.RerouteTimer = 0f;
+            Reroute(emp);
+        }
+    }
+
+    // 지금 이 사람이 그 구간을 건너는 중인가.
+    private static bool CrossingSegment(EmployeeState emp, CorridorSegment seg) =>
+        emp.IsMoving && seg.Touches(emp.CurrentRoomId) && seg.Other(emp.CurrentRoomId) == emp.TargetRoomId;
+
+    // 건너편에 더 가까운가. 꺾임 지점을 아직 안 지났으면 무조건 출발 쪽으로 본다.
+    private bool PastHalfway(EmployeeState emp)
+    {
+        if (emp.ElbowWaypoint.HasValue) return false;
+        float back = emp.Position.DistanceTo(GetRoomPosition(emp.CurrentRoomId));
+        float ahead = emp.Position.DistanceTo(GetRoomPosition(emp.TargetRoomId));
+        return ahead <= back;
+    }
+
+    // 왔던 방으로 되돌아선다. 도착하면 TickStrandedRoute 가 알아서 다시 길을 찾는다.
+    private void TurnBack(EmployeeState emp)
+    {
+        emp.PathQueue.Clear();
+        emp.ElbowWaypoint = null;
+        emp.TargetRoomId = emp.CurrentRoomId;
+        emp.IsMoving = emp.Position.DistanceSquaredTo(GetRoomPosition(emp.CurrentRoomId)) > 0.25f;
+        emp.RerouteTimer = 0f;
+        emp.BlockedByBarrier = true;
+    }
+
+    // 배치된 방으로 길을 다시 찾는다. 없으면 그 자리에서 기다리고 사실만 표시한다.
+    private void Reroute(EmployeeState emp)
+    {
+        if (string.IsNullOrEmpty(emp.AssignedRoomId) || emp.AssignedRoomId == emp.CurrentRoomId)
+        {
+            emp.BlockedByBarrier = false;
+            return;
+        }
+        bool ok = BeginPathTo(emp, emp.AssignedRoomId);
+        emp.BlockedByBarrier = !ok;
+    }
+
+    // 차폐로 길이 끊겨 멈춰 선 사람은 주기적으로 다시 찾아본다 — 문이 열리면 저절로 출발한다.
+    // (열릴 때 한 번 훑는 것만으로는 부족하다. 돌아서서 걷는 중에 문이 열리는 경우가 있다.)
+    //
+    // **차폐에 막힌 사람만 본다.** 배치된 방과 서 있는 방이 다른 사람은 늘 있고
+    // (구조하러 간 동료 · 이송 중인 운반자 · 순찰), 그들까지 제자리로 끌어오면
+    // 기절 구조와 격리 절차가 통째로 깨진다. BlockedByBarrier 는 차폐가 실제로
+    // 길을 끊었을 때만 켜진다.
+    private const float RerouteIntervalSeconds = 0.5f;
+
+    private void TickStrandedRoute(EmployeeState st, float delta)
+    {
+        if (!st.BlockedByBarrier) return;
+        if (!st.Alive || st.Incapacitated || st.Isolated || st.IsMoving) return;
+        if (st.Isolation != IsolationPhase.None) return;
+        if (!string.IsNullOrEmpty(st.CarryingVictimId) || st.Faint != FaintPhase.None)
+        {
+            st.BlockedByBarrier = false;
+            return;
+        }
+        st.RerouteTimer -= delta;
+        if (st.RerouteTimer > 0f) return;
+        st.RerouteTimer = RerouteIntervalSeconds;
+        Reroute(st);
     }
 
     // 지나가는 길로 쓸 수 있는가. 중앙 제어실 · 격리실은 실시간 운영 중 직원이 들어갈 수 없는
@@ -1111,6 +1244,9 @@ public partial class FacilitySimulation : Node
         _darknessSeconds = 0f;
         _tensionStressTimers.Clear();
         _argumentTimers.Clear();
+        // 전날 내려 둔 차폐문이 남아 있으면 안 된다 — 근무는 언제나 전부 열린 상태에서 시작한다.
+        _corridors.ResetAll();
+        _threats.Reset();
         GameState.Instance.ResetFacilityFaults();
         foreach (var room in _roomStates.Values)
         {
@@ -1219,10 +1355,15 @@ public partial class FacilitySimulation : Node
     {
         float d = (float)delta;
         TickSchedule();
+        // 차폐문 구동 — 움직임보다 먼저 돈다. 문이 닫히는 그 프레임의 판정(건넜나 못 건넜나)이
+        // 걸음보다 한 틱 늦으면 "문 안에 낀" 사람이 생긴다.
+        _corridors.Tick(d);
+        _threats.Tick(d);
         foreach (var emp in _employeeStates.Values)
         {
             if (!emp.Alive) continue;
             TickMovement(emp, d);
+            TickStrandedRoute(emp, d);
         }
         TickActiveTasks(d);
         // 수리 승인 절차(G-2). 게임 시간은 멈추지 않는다 — 미로에 붙잡혀 있는 동안에도 근무는 흐른다.

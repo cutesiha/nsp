@@ -66,7 +66,7 @@ public partial class UnstaffedAccidentTest : Node
         Check(fired, $"{Name(room)} 을 비워 두면 하루 안에 사고가 난다");
     }
 
-    private static string Name(string roomId) =>
+    private static new string Name(string roomId) =>
         FacilitySimulation.Instance?.GetRoomDef(roomId)?.DisplayName ?? roomId;
 
     private void Check(bool ok, string what)

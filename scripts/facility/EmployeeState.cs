@@ -56,6 +56,11 @@ public class EmployeeState
     public List<string> PathQueue = new();
     public Vector2 Position;
     public bool IsMoving;
+    // 차폐문 때문에 길이 끊겨 멈춰 선 사람이 다시 길을 찾아보기까지 남은 시간(초).
+    // 0 이하가 되면 한 번 시도한다 — 문이 열리면 별도 지시 없이 저절로 출발한다.
+    public float RerouteTimer;
+    // 지금 "차폐로 이동 불가" 상태인가. 미니맵·배치표가 이 사실만 읽어 안내를 띄운다.
+    public bool BlockedByBarrier;
     // 통로가 직선이 아닐 때(엘보 통로) 방 중심으로 직행하기 전에 먼저 들르는 꺾임 지점.
     // null이면 이번 구간은 직선 통로라 바로 방 중심으로 이동한다.
     public Vector2? ElbowWaypoint;

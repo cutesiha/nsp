@@ -172,7 +172,7 @@ public partial class ShiftCardView : CanvasLayer
         await Hide();
     }
 
-    public async Task Hide()
+    public new async Task Hide()
     {
         SetProcessInput(false);
         if (!IsInstanceValid(_root)) { IsShown = false; return; }

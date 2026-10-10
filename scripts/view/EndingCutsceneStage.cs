@@ -17,7 +17,7 @@ namespace NSP.View;
 // gameplay 맵이 아니므로 충돌체도, 내비게이션도, 게임 로직도 두지 않는다(문서 §29).
 public partial class EndingCutsceneStage : Node
 {
-    public enum Set { None, Restraint, CoreHall, Corridor }
+    public new enum Set { None, Restraint, CoreHall, Corridor }
 
     // 엔딩 컷씬은 중앙제어실 CRT 가 아니라 화면 전체에 깔린다 — 해상도를 그만큼 쓴다.
     private static readonly Vector2I ViewportSize = new(1280, 720);

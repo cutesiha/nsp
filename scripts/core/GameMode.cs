@@ -61,12 +61,33 @@ public static class GameModes
     // 결번을 무작위로 뽑는가, 정해진 직원으로 고정하는가.
     public static bool FixedSaboteur => Current == GameMode.Competition;
 
+    // 복도로 접근해 관리자를 죽이는 괴물을 쓰는가.
+    //
+    // 기본 5일 모드는 예전 그대로 둔다 — 복도와 차폐문은 지도에 생겼지만 거기로
+    // 들어오는 것은 없다. 대회용 3일만 이 위협을 켠다(지시서 §9 "기본 모드의 기존
+    // 5일 플레이가 망가지면 안 됩니다").
+    //
+    // 기본 모드에서도 켜 보려면 이 줄만 true 로 바꾸면 된다.
+    public static bool CorridorThreatsEnabled => Current == GameMode.Competition;
+
     // 마지막 근무일에도 휴게시간(심문)을 거치는가.
     //
     // 기본 5일은 예전 그대로다 — DAY5 는 근무 보고서에서 곧장 최종 격리 보고서로 간다.
     // 대회용 3일만 DAY3 뒤에 휴게시간을 한 번 더 두고, 그 휴게시간이 끝나야 보고서로
     // 넘어간다(사흘치 진술만으로 지목하기에는 물어볼 기회가 너무 적다).
     public static bool FinalDayRest => Current == GameMode.Competition;
+
+    // 무인 방치 사고가 터지기까지의 시간에 곱하는 배율(지시서 §8).
+    //
+    // 복도 위협까지 같이 감시해야 하는 모드는 운영 부담이 그만큼 커진다. 그렇다고
+    // 지금 사고 빈도를 임의로 반토막 내지는 않는다 — **배율만 모드별로 분리해 두고
+    // 초기값은 1.0**, 즉 지금 당장은 아무것도 바뀌지 않는다. 실제 플레이로 과부하가
+    // 확인되면 아래 상수 한 줄(1.10~1.25 권장)만 올리면 되고, 기본 5일 모드는
+    // 어떤 경우에도 1.0 을 유지한다.
+    public const float CompetitionUnstaffedAccidentScale = 1.0f;
+
+    public static float UnstaffedAccidentScale =>
+        Current == GameMode.Competition ? CompetitionUnstaffedAccidentScale : 1f;
 
     public static string DisplayName(GameMode mode) => mode switch
     {

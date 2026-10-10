@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="MonsterDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 괴물 2 — 기괴한 아기 괴물
+;
+; 작고 낮다. 짧고 빠르게 움직이고 자주 멈춘다.
+; FBX 에는 Idle 과 Walk 둘뿐이다 — 문 두드림과 점프스케어는 **코드 연출**로 대신한다
+; (MonsterActor 가 Walk 를 빠르게 돌리면서 몸을 들썩이게 한다).
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/MonsterDef.cs" id="1_m"]
+
+[resource]
+script = ExtResource("1_m")
+MonsterId = "infant"
+DisplayName = "작은 것"
+ModelPath = "res://assets/models/ghosts/CreepyDoll.fbx"
+TargetHeight = 0.78
+FloorOffset = 0.0
+YawOffsetDegrees = 0.0
+AnimIdle = "Armature|Idle"
+AnimWalk = "Armature|Walk"
+AnimRun = "Armature|Walk"
+AnimAttackDoor = ""
+AnimJumpscare = ""
+AnimRetreat = ""
+ApproachSeconds = 13.0
+BreachDelaySeconds = 3.0
+PoundSeconds = 5.0
+RetreatSeconds = 2.4
+CooldownSeconds = 26.0
+PauseEverySeconds = 2.6
+PauseLengthSeconds = 0.9
+SfxDistant = "duct_scrape"
+SfxStep = "cloth_rustle"
+SfxPound = "pipe_knock"
+SfxScratch = "door_scratch"
+SfxBreach = "cloth_rustle"
+FirstDay = 2
+Weight = 0.9

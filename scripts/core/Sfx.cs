@@ -82,7 +82,9 @@ public partial class Sfx : Node
         int bgmBus = AudioServer.GetBusIndex(GameSettings.BusBgm);
         if (bgmBus >= 0)
         {
-            if (AudioServer.GetBusEffect(bgmBus, 0) is AudioEffectAmplify existing) _bgmDuck = existing;
+            // 이펙트가 하나도 없는 버스에 0번을 물으면 Godot 이 오류를 뱉는다.
+            if (AudioServer.GetBusEffectCount(bgmBus) > 0
+                && AudioServer.GetBusEffect(bgmBus, 0) is AudioEffectAmplify existing) _bgmDuck = existing;
             else
             {
                 _bgmDuck = new AudioEffectAmplify { VolumeDb = 0f };
@@ -185,7 +187,9 @@ public partial class Sfx : Node
         {
             int bus = AudioServer.GetBusIndex(GameSettings.BusAmbience);
             if (bus < 0) return;
-            if (AudioServer.GetBusEffect(bus, 0) is AudioEffectAmplify had) _ambDuck = had;
+            // 버스에 이펙트가 하나도 없는데 0번을 물으면 Godot 이 오류를 뱉는다.
+            if (AudioServer.GetBusEffectCount(bus) > 0
+                && AudioServer.GetBusEffect(bus, 0) is AudioEffectAmplify had) _ambDuck = had;
             else
             {
                 _ambDuck = new AudioEffectAmplify { VolumeDb = 0f };
@@ -522,6 +526,13 @@ public partial class Sfx : Node
     // radio: true 면 같은 보이스를 무전 버스로 흘린다(프롤로그 대재난 무전 전용).
     // 기본값이 false 라 기존 호출부(전화/인터뷰)의 동작은 한 글자도 바뀌지 않는다.
     // pitchMul: 1 보다 작으면 그만큼 낮고 굵은 목소리가 된다(관리자 = 0.6 — ManagerVoicePitch).
+    // ── 통화 신호 왜곡(지시서 §6-2 ①) ────────────────────────────────
+    //
+    // 0 = 정상, 1 = 완전히 비틀림. **소리만** 바뀐다 — 대사 내용도, 통화 기록도,
+    // 증거 카드도 한 글자 건드리지 않는다. 결번자 신원을 오판하게 만들 수 있는
+    // 거짓 공식 증거를 만들지 않기 위해서다. 통화가 끝나면 0 으로 되돌린다.
+    public float VoiceWarp;
+
     public void PlayVoiceBlip(string employeeId, char c, bool radio = false, float pitchMul = 1f)
     {
         if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
@@ -535,12 +546,22 @@ public partial class Sfx : Node
         var player = radio ? _voiceRadioPlayer : _voicePlayer;
         if (player == null) return;
 
+        // 신호가 비틀리는 중이면 가끔 한 음절이 통째로 사라진다(§6-2 ①).
+        if (VoiceWarp > 0f && _voiceRng.Randf() < VoiceWarp * 0.22f) return;
+
         _lastVoiceBlipMsec = now;
         // 말하는 동안 시설 소음만 살짝 비켜 준다 — 전화 · 인터뷰 · 컷인 전부 이 길을 탄다.
         DuckAmbience(VoiceDuckDb, VoiceDuckHold);
         player.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
         float semitones = _voiceRng.RandfRange(-VoicePitchVariationSemitones, VoicePitchVariationSemitones);
-        player.PitchScale = Mathf.Clamp(Mathf.Pow(2f, semitones / 12f) * pitchMul, 0.1f, 4f);
+        float warp = 1f;
+        if (VoiceWarp > 0f)
+        {
+            float w = Mathf.Clamp(VoiceWarp, 0f, 1f);
+            // 서서히 낮아지고, 재생 속도가 불안하게 흔들린다.
+            warp = Mathf.Lerp(1f, 0.58f, w) * (1f + _voiceRng.RandfRange(-0.14f, 0.14f) * w);
+        }
+        player.PitchScale = Mathf.Clamp(Mathf.Pow(2f, semitones / 12f) * pitchMul * warp, 0.1f, 4f);
         player.Play();
     }
 

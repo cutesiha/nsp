@@ -48,23 +48,24 @@ public partial class AchievementToast : CanvasLayer
     private const float PadLeft = 12f;
     private const float IconGap = 12f;
 
-    // ── 색 (어두운 남먹색 바탕 · 얇은 금속 테두리 · 낮은 채도의 크림색 제목) ──
+    // ── 색 ──────────────────────────────────────────────────────────
+    //
+    // 예전에는 테두리 · 제목 · 아이콘이 전부 누런 크림색이었다. 이 게임의 다른 글자
+    // (대사창 · 단말기 버튼)는 전부 밝은 하늘색 계열이라 이 창만 혼자 떠 보였다.
+    // 대사창과 같은 청록으로 맞춘다.
     private static readonly Color Back = new(0.043f, 0.059f, 0.086f, 0.94f);
-    private static readonly Color Edge = new(0.60f, 0.62f, 0.58f, 0.55f);
-    private static readonly Color EdgeInner = new(0.86f, 0.80f, 0.60f, 0.30f);
-    private static readonly Color Tag = new(0.76f, 0.70f, 0.50f, 0.85f);
-    private static readonly Color Title = new(0.95f, 0.91f, 0.78f);
-    private static readonly Color Body = new(0.70f, 0.74f, 0.74f);
-    private static readonly Color IconInk = new(0.88f, 0.84f, 0.66f);
-
-    private const string TagText = "ACHIEVEMENT UNLOCKED";
+    private static readonly Color Edge = new(0.42f, 0.70f, 0.80f, 0.60f);
+    private static readonly Color EdgeInner = new(0.55f, 0.95f, 1f, 0.38f);
+    private static readonly Color Title = new(0.82f, 0.96f, 1f);
+    private static readonly Color Body = new(0.66f, 0.80f, 0.86f);
+    private static readonly Color IconInk = new(0.55f, 0.95f, 1f);
     // 달성음. assets/audio/sfx/achievement_sfx.mp3
     private const string UnlockSfx = "achievement_sfx";
 
     private Control _root;
     private Panel _card;
-    private Label _tag, _title, _body;
-    private Label _icon;
+    private Label _title, _body;
+    private AchievementIconView _icon;
     private Tween _tween;
     // 투명도는 움직임과 따로 간다(단계 길이가 서로 다르다).
     private Tween _fade;
@@ -125,7 +126,7 @@ public partial class AchievementToast : CanvasLayer
         });
         _root.AddChild(_card);
 
-        // 왼쪽 아이콘 칸 — 별도 그림을 준비하지 않았으므로 분류별 픽토그램 한 글자를 쓴다.
+        // 왼쪽 아이콘 칸 — 도전과제마다 다른 그림을 직접 그린다(AchievementIcons).
         var iconBox = new Panel
         {
             MouseFilter = Control.MouseFilterEnum.Ignore,
@@ -140,29 +141,24 @@ public partial class AchievementToast : CanvasLayer
         });
         _card.AddChild(iconBox);
 
-        _icon = Text("◆", ViewFont.FS(22), IconInk);
-        _icon.HorizontalAlignment = HorizontalAlignment.Center;
-        _icon.VerticalAlignment = VerticalAlignment.Center;
+        _icon = new AchievementIconView { MouseFilter = Control.MouseFilterEnum.Ignore, Ink = IconInk };
         _icon.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         iconBox.AddChild(_icon);
 
         float textLeft = (PadLeft + IconSize + IconGap) * scale;
         float textWidth = (CardWidth - PadLeft - IconSize - IconGap - PadLeft) * scale;
 
-        _tag = Text(TagText, ViewFont.FS(9), Tag);
-        _tag.Position = new Vector2(textLeft, 10f * scale);
-        _tag.Size = new Vector2(textWidth, 12f * scale);
-        _card.AddChild(_tag);
-
-        _title = Text("", ViewFont.FS(15), Title);
-        _title.Position = new Vector2(textLeft, 24f * scale);
-        _title.Size = new Vector2(textWidth, 20f * scale);
+        // "ACHIEVEMENT UNLOCKED" 머리글은 뺐다 — 창이 뜨는 것 자체가 그 뜻이고,
+        // 그 자리를 비워야 이름과 설명을 키울 수 있다.
+        _title = Text("", ViewFont.FS(17), Title);
+        _title.Position = new Vector2(textLeft, 16f * scale);
+        _title.Size = new Vector2(textWidth, 24f * scale);
         _card.AddChild(_title);
 
         // 설명은 두 줄까지 접힌다 — 조건 문구가 한 줄에 안 들어가는 것이 보통이다.
-        _body = Text("", ViewFont.FS(9), Body);
-        _body.Position = new Vector2(textLeft, 47f * scale);
-        _body.Size = new Vector2(textWidth, 30f * scale);
+        _body = Text("", ViewFont.FS(12), Body);
+        _body.Position = new Vector2(textLeft, 42f * scale);
+        _body.Size = new Vector2(textWidth, 36f * scale);
         _body.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _card.AddChild(_body);
     }
@@ -219,7 +215,7 @@ public partial class AchievementToast : CanvasLayer
     private void Present(AchievementDefinition def)
     {
         _showing = true;
-        _icon.Text = def.Glyph;
+        _icon.Show(def);
         _title.Text = def.Name;
         _body.Text = def.Condition;
         _card.Visible = true;

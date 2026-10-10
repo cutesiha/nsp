@@ -7,10 +7,20 @@ public enum CorridorKind
 {
     // 일반 통로 — 두 작업실을 잇는 보통 복도.
     Minor,
-    // 주요 연결통로 — 시설 물류가 오가는 굵은 복도. 막히면 돌아가는 길이 길다.
+    // 주요 연결통로 — 시설 물류가 오가는 굵은 복도.
     Trunk,
-    // 중앙제어실 접근 통로 — 관리자가 있는 방으로 들어오는 길.
+    // 중앙제어실 접근 통로 — 관리자가 있는 방으로 들어오는 길. 차폐문이 여기 선다.
     ControlAccess,
+}
+
+// 중앙제어실에서 본 방향. 차폐문 셋과 봉쇄된 남측을 가리킨다.
+public enum CorridorSide
+{
+    None,
+    North,   // 코어실 방향
+    West,    // 발전실 방향
+    East,    // 저장고 방향
+    South,   // 격리실 방향의 옛 통로 — 영구 봉쇄
 }
 
 // 복도 한 구간의 **메타데이터**.
@@ -33,8 +43,16 @@ public partial class CorridorDef : Resource
 
     [Export] public CorridorKind Kind = CorridorKind.Minor;
 
+    // 중앙제어실에서 본 방향(북 · 서 · 동 · 남). 화면 표기와 괴물 접근 경로가 이 값을 쓴다.
+    [Export] public CorridorSide Side = CorridorSide.None;
+
     // 차폐문이 설치된 구간인가. false 면 아무리 골라도 닫히지 않는다.
     [Export] public bool IsBlockable;
+
+    // **영구 봉쇄된 옛 통로.** 방 그래프에는 더 이상 없는 연결이고(= 아무도 지나갈 수 없다),
+    // 지도와 3D 에 "여기는 막혔다"는 사실만 남기기 위해 구간으로 등록한다.
+    // 조작 불가 · 전력 소모 없음 · 전력 사고로도 열리지 않는다.
+    [Export] public bool PermanentSeal;
 
     // 연동 복도 카메라 id(예: CAM-H01). 비어 있으면 카메라 없음.
     [Export] public string CctvCameraId = "";

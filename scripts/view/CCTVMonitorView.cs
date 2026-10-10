@@ -200,6 +200,10 @@ public partial class CCTVMonitorView : Control
         {
             _dispelBack.Visible = _dispelFill.Visible = _dispelLabel.Visible = _dispelLabelBg.Visible = show;
         }
+        // 화면에 **실제로 떠 있는 동안에만** 관리자가 반응한다. 지도에서 방만 골라 두고
+        // CCTV 가 꺼져 있으면 아무 일도 없다(지시서 §7-6).
+        // 붉은 기운이 바깥에서 중앙으로 천천히 조여 온다 — 깜빡이지 않는다.
+        NSP.Ui.AdminFearDirector.Instance?.GhostWatch(show ? 0.35f + ghost.DispelRatio * 0.65f : 0f);
         if (!show) return;
 
         float w = (_dispelBack.Size.X - 4f) * ghost.DispelRatio;
@@ -331,6 +335,11 @@ public partial class CCTVMonitorView : Control
         }
         bool forceFeed = now < _forceFeedUntil;
 
+        // 복도 카메라 — 작업실이 아니라 통로를 비춘다.
+        // 전력 · 감시 설비 고장 규칙은 작업실과 **똑같이** 적용된다(복도만 계속 보이면 안 된다).
+        string corridorId = sim?.SurveillanceCorridorId ?? "";
+        if (!string.IsNullOrEmpty(corridorId)) return UpdateCorridorFeed(sim, corridorId, forceFeed);
+
         if (string.IsNullOrEmpty(roomId) || sim == null)
         {
             ShowState("MONITOR 01에서 방을 선택하세요", darken: 1f);
@@ -419,6 +428,59 @@ public partial class CCTVMonitorView : Control
         if (tex == null) return;
         _bgTex.Texture = tex;
         _feedBound = true;
+    }
+
+    // 복도 영상. 작업실 피드와 같은 3D 뷰포트를 쓰고(FacilityCctvWorld 가 복도로 전환해 둔다)
+    // 차폐문 상태만 화면 아래에 한 줄로 덧붙인다.
+    private bool UpdateCorridorFeed(FacilitySimulation sim, string corridorId, bool forceFeed)
+    {
+        var seg = sim.Corridors.ById(corridorId);
+        if (seg == null)
+        {
+            ShowState("MONITOR 01에서 방을 선택하세요", darken: 1f);
+            _camLabel.Text = "";
+            return false;
+        }
+
+        _camLabel.Text = $"CAM · {seg.CctvCameraId} · {seg.DisplayName}";
+
+        bool powered = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
+        if (!forceFeed && GameState.Instance.CctvSystemOffline)
+        {
+            ShowState("SIGNAL FAILURE\nSURVEILLANCE SYSTEM DOWN", darken: 0.92f);
+            _noise.Modulate = new Color(1, 1, 1, 0.5f + _glitch * 0.4f);
+            return false;
+        }
+        if (!forceFeed && !powered)
+        {
+            ShowState("NO SIGNAL\nCCTV POWER OFF", darken: 0.9f);
+            _noise.Modulate = new Color(1, 1, 1, 0.16f);
+            return false;
+        }
+
+        _stateLabel.Visible = false;
+        BindFacilityFeed();
+        bool hasFeed = _bgTex.Texture != null;
+        FeedVisible = hasFeed;
+        _bgTex.Visible = hasFeed;
+        _bgPlaceholder.Visible = !hasFeed;
+
+        _tint.Color = seg.Sealed ? new Color(0.42f, 0.05f, 0.04f, 0.15f) : new Color(0, 0, 0, 0.12f);
+        _noise.Modulate = new Color(1, 1, 1, 0.06f + _glitch * 0.55f);
+
+        // 화면 아래 한 줄 — 이 문이 지금 어떤 상태인가.
+        var status = _employeeLayer.GetNodeOrNull<Label>("Status") ?? Lbl("", 15, new Color(0.85f, 0.9f, 0.85f));
+        if (status.GetParent() == null) { status.Name = "Status"; _employeeLayer.AddChild(status); }
+        status.Text = seg.IsBlockable
+            ? $"차폐문 {seg.StatusText}" + (seg.Sealed ? $"   유지 {seg.SealedSeconds:0}s / {seg.MaxSealSeconds:0}s" : "")
+            : "차폐 설비 없음";
+        status.AddThemeColorOverride("font_color", seg.Sealed
+            ? new Color(1f, 0.46f, 0.38f)
+            : seg.Moving ? new Color(1f, 0.82f, 0.42f) : new Color(0.72f, 0.82f, 0.78f));
+        status.Position = new Vector2(0, Frame.Size.Y - 60);
+        status.Size = new Vector2(Frame.Size.X, 40);
+        status.HorizontalAlignment = HorizontalAlignment.Center;
+        return true;
     }
 
     private void RebuildEmployees(FacilitySimulation sim, RoomState state)

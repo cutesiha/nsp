@@ -382,7 +382,7 @@ public partial class QaFixTest : Node
         return false;
     }
 
-    private static string Name(string employeeId) =>
+    private static new string Name(string employeeId) =>
         FacilitySimulation.Instance?.GetEmployeeDef(employeeId)?.Codename ?? employeeId;
 
     private void Head(string id, string title) => GD.Print($"\n===== [{id}] {title} =====");

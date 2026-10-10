@@ -159,6 +159,8 @@ public partial class HorrorAudioDirector : Node
         // ④ 다른 공포 연출이 화면을 잡고 있으면 비킨다.
         if (HorrorDirector.Instance is { CustomEventActive: true }) return "전용 공포 연출 중";
         if (Sfx.Instance is { HorrorPlaying: true }) return "앞 공포음이 아직 울리는 중";
+        // ⑤ 강한 연출(§6-4 CCTV 점프스케어 · 발신자 미상 전화) 직후의 전역 정숙 구간.
+        if (HorrorEventDirector.QuietNow) return "강한 연출 직후 정숙 구간";
 
         return "";
     }

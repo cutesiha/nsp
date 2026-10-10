@@ -19,16 +19,18 @@ public partial class PowerSwitchPanel : Node3D
     {
         (PowerConsumer.Lighting, "LIGHTING", -0.288f),
         (PowerConsumer.CctvWatch, "CCTV", 0.000f),
-        // 세 번째 채널 = 관리자 패드 전원. enum 이름(Sensor)은 저장 · 검사 호환으로 그대로 둔다.
-        (PowerConsumer.Sensor, "PAD", 0.288f),
+        // 세 번째 채널 = **복도 차폐문**. 예전에는 관리자 패드(Sensor)였는데,
+        // 패드는 시설 상시 전원으로 옮기고(GameState.IsConsumerPowered) 이 레버는
+        // 차폐가 가져갔다. 패드 기능 자체는 그대로 살아 있다.
+        (PowerConsumer.Barrier, "BARRIER", 0.288f),
     };
 
-    // switch.glb 면판에는 "SENSOR" 가 새겨져 있다 — 그 위에 명판을 덧대 "PAD" 로 바꾼다.
+    // switch.glb 면판에는 "SENSOR" 가 새겨져 있다 — 그 위에 명판을 덧대 "BARRIER" 로 바꾼다.
     // 좌표는 SwitchModel 로컬(모델 단위). 에디터에서 명판이 각인을 정확히 덮도록 맞춘다.
-    [ExportGroup("패드 채널 명판")]
-    [Export] public Vector3 PadPlateCenter = new(0.288f, 0.33f, 0.300f);
-    [Export] public Vector2 PadPlateSize = new(0.22f, 0.07f);
-    [Export] public float PadPlateTiltDeg = -14f;
+    [ExportGroup("세 번째 채널 명판")]
+    [Export] public Vector3 NamePlateCenter = new(0.288f, 0.33f, 0.300f);
+    [Export] public Vector2 NamePlateSize = new(0.26f, 0.07f);
+    [Export] public float NamePlateTiltDeg = -14f;
 
     // switch.glb 는 본체와 레버가 하나의 메시로 붙어 있다. 아래 상자 안에 드는 삼각형을
     // 레버로 떼어내 각자 회전축(Pivot)에 매단다. 값은 메시 실측 기준:
@@ -184,7 +186,7 @@ public partial class PowerSwitchPanel : Node3D
 
         // 채널 라벨(LIGHTING/CCTV/SENSOR)은 switch.glb 면판에 이미 새겨져 있어 따로 그리지 않는다.
         // 세 번째 채널만 예외 — 관리자 패드 전원이 되었으므로 "SENSOR" 각인 위에 "PAD" 명판을 덧댄다.
-        if (channel == PowerConsumer.Sensor && !Engine.IsEditorHint()) BuildPadPlate(label);
+        if (channel == PowerConsumer.Barrier && !Engine.IsEditorHint()) BuildNamePlate(label);
 
         BuildBreakdownFx(channel, x, faceY, faceZ);
 
@@ -196,21 +198,21 @@ public partial class PowerSwitchPanel : Node3D
     }
 
     // "SENSOR" 각인을 덮는 명판. 면판과 같은 각도로 기울고, 글자는 각인처럼 밝은 회색.
-    private void BuildPadPlate(string label)
+    private void BuildNamePlate(string label)
     {
         var model = GetNodeOrNull<Node3D>("SwitchModel");
         Transform3D m = model?.Transform ?? Transform3D.Identity;
         float s = model?.Scale.X ?? 1f;
         var plate = new Node3D
         {
-            Name = "PadPlate",
-            Position = m * PadPlateCenter,
-            RotationDegrees = new Vector3(PadPlateTiltDeg, 0f, 0f),
+            Name = "NamePlate",
+            Position = m * NamePlateCenter,
+            RotationDegrees = new Vector3(NamePlateTiltDeg, 0f, 0f),
         };
         AddChild(plate);
         plate.AddChild(new MeshInstance3D
         {
-            Mesh = new BoxMesh { Size = new Vector3(PadPlateSize.X * s, PadPlateSize.Y * s, 0.0015f) },
+            Mesh = new BoxMesh { Size = new Vector3(NamePlateSize.X * s, NamePlateSize.Y * s, 0.0015f) },
             MaterialOverride = new StandardMaterial3D
             {
                 AlbedoColor = new Color(0.06f, 0.065f, 0.07f), Metallic = 0.4f, Roughness = 0.55f,
@@ -549,7 +551,23 @@ public partial class PowerSwitchPanel : Node3D
         var gs = GameState.Instance;
         if (gs == null) return;
 
-        bool ok = gs.TryTogglePower(channel);
+        // 차폐 레버는 전력만 올리는 것이 아니라 **고른 통로의 문을 실제로 내린다.**
+        // 전력 슬롯 확보 → 문 구동 → 실패 시 슬롯 반납까지 CorridorNet 이 한 번에 처리한다.
+        bool ok;
+        if (channel == PowerConsumer.Barrier)
+        {
+            var net = NSP.Facility.FacilitySimulation.Instance?.Corridors;
+            string why = "복도망을 찾지 못했습니다";
+            ok = net != null && net.LeverToggle(out why);
+            if (!ok)
+                NSP.Ui.FacilityAlertHud.Instance?.Notify("⚠ 차폐 — " + why, NSP.Ui.NoticeLevel.Warning);
+            else if (net.SealedCount > 0)
+                // 무엇이 닫히는지 한 줄로 알린다 — 레버는 책상 위에 있고 문은 지도에 있다.
+                NSP.Ui.FacilityAlertHud.Instance?.Notify(
+                    $"{net.Selected?.DisplayName} 차폐", NSP.Ui.NoticeLevel.Info);
+        }
+        else ok = gs.TryTogglePower(channel);
+
         if (ok)
         {
             bool on = gs.IsConsumerPowered(channel);

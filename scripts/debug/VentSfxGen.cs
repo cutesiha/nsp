@@ -311,18 +311,8 @@ public partial class VentSfxGen : Node
         foreach (double v in env) mean += v;
         mean /= env.Count;
 
-        double Corr(int lag)
-        {
-            double num = 0, den = 0;
-            for (int i = 0; i + lag < env.Count; i++)
-            {
-                num += (env[i] - mean) * (env[i + lag] - mean);
-                den += (env[i] - mean) * (env[i] - mean);
-            }
-            return den <= 1e-12 ? 0 : num / den;
-        }
-
         // 포락선의 주파수 성분을 직접 본다 — 자기상관은 지연이 칸 단위라 20Hz 를 정확히 짚지 못한다.
+        // (그래서 쓰던 자기상관 함수는 지웠다.)
         // 20Hz(날개 통과)가 그 주변 대역보다 몇 배나 솟아 있는가로 판정한다.
         double envRate = Rate / (double)win;
         double Mag(double hz)

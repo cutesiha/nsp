@@ -1,28 +1,24 @@
 [gd_resource type="Resource" script_class="CorridorDef" load_steps=2 format=3]
 
 ; ════════════════════════════════════════════════════════════════════════
-; 시설 주요 연결통로 — 정비실 ↔ 저장고.
-;
-; **직원 이동에 실제로 값을 매기는 구간.** 자재를 만드는 정비실과 쌓아 두는 저장고를
-; 잇는 굵은 복도라 근무 중 왕래가 가장 잦다.
-;
-; 이 문을 닫으면 저장고↔정비실이 한 걸음에서 네 걸음으로 늘어난다
-; (저장고 → 코어실 → 발전실 → 경비실 → 정비실). 괴물을 막는 문이 아니라
-; **운영을 포기하고 사는 문**이다.
+; 중앙제어실 동측 접근 복도 — 중앙제어실 ↔ 저장고.
+; 설비 배관 통로(MAINTENANCE CABLE PASSAGE)에서 나온 것이 이 복도로 들어온다.
 ; ════════════════════════════════════════════════════════════════════════
 
 [ext_resource type="Script" path="res://scripts/data/CorridorDef.cs" id="1_cor"]
 
 [resource]
 script = ExtResource("1_cor")
-SegmentId = "corridor_trunk"
-DisplayName = "주요 연결통로"
-RoomA = "maintenance_room"
+SegmentId = "corridor_east"
+DisplayName = "동측 접근 복도"
+RoomA = "central_office"
 RoomB = "storage_room"
-Kind = 1
+Kind = 2
+Side = 3
 IsBlockable = true
-CctvCameraId = "CAM-H03"
-ThreatLane = false
+PermanentSeal = false
+CctvCameraId = "CAM-E01"
+ThreatLane = true
 DriveSeconds = 0.8
-MaxSealSeconds = 9.0
+MaxSealSeconds = 11.0
 ReengageCooldownSeconds = 3.0

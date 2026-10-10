@@ -130,11 +130,15 @@ public static class RoomStaffing
     public static float UnstaffedAccidentSeconds(string roomId, NSP.Data.RoomDef def)
     {
         var ops = OpsProfile.Room(roomId);
-        if (ops != null) return ops.UnstaffedAccidentSeconds;
-        if (def == null) return 0f;
-        return def.UnstaffedAccidentSeconds > 0f
-            ? def.UnstaffedAccidentSeconds
+        float seconds =
+            ops != null ? ops.UnstaffedAccidentSeconds
+            : def == null ? 0f
+            : def.UnstaffedAccidentSeconds > 0f ? def.UnstaffedAccidentSeconds
             : Config.Instance?.Data?.UnstaffedAccidentSecondsDefault ?? 25f;
+
+        // 0 이하는 "이 방은 비워 둬도 사고가 나지 않는다" 는 뜻이므로 그대로 둔다.
+        // 모드별 배율은 GameModes 에 있고 지금 값은 1.0 이다(지시서 §8).
+        return seconds <= 0f ? seconds : seconds * GameModes.UnstaffedAccidentScale;
     }
 
     public static float RepairSeconds(string roomId, NSP.Data.RoomDef def)

@@ -187,7 +187,7 @@ public partial class RepairTimeTest : Node
     private string FarRoom(string room) => _sim.GetRoomIds()
         .First(r => r != room && _sim.GetRoomDef(r)?.IsRestricted == false && _sim.IsRoomActive(r));
 
-    private static string Name(string roomId) =>
+    private static new string Name(string roomId) =>
         FacilitySimulation.Instance?.GetRoomDef(roomId)?.DisplayName ?? roomId;
 
     // FacilityWarningSystem.Raise 는 비공개다 — 검사에서만 직접 띄운다.

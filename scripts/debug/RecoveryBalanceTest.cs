@@ -63,7 +63,7 @@ public partial class RecoveryBalanceTest : Node
         GetTree().Quit();
     }
 
-    private static string Name(Style s) => s switch
+    private static new string Name(Style s) => s switch
     {
         Style.Rookie => "초보", Style.Average => "평균", _ => "숙련",
     };

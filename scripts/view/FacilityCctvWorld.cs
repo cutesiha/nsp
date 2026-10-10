@@ -142,6 +142,7 @@ public partial class FacilityCctvWorld : Node3D
             _rooms[roomId] = inst;
         }
 
+        BuildCorridors();
         BuildEntity();
         // 휴게실 자리 마커는 지금 읽어 둔다 — 왼쪽 모니터(RestRosterView)가 휴게시간
         // 첫 프레임에 자리를 물어볼 수 있어야 두 화면의 배치가 어긋나지 않는다.
@@ -202,6 +203,159 @@ public partial class FacilityCctvWorld : Node3D
         _employeesBuilt = true;
     }
 
+    // ── 복도 ────────────────────────────────────────────────────────
+    //
+    // 작업실 옆에 복도 구간을 나란히 세워 둔다. 전 시설을 하나의 연속 월드로 재구성하지
+    // 않는다 — 한 번에 한 화면만 보이므로, 보이는 곳만 있으면 된다.
+    // 다만 **상태는 같은 데이터(CorridorSegment)를 읽으므로** 지도 · 길찾기와 늘 일치한다.
+    //
+    // 카메라가 붙은 구간만 세운다(카메라 없는 복도는 비출 방법이 없다).
+    private readonly Dictionary<string, CorridorVisual> _corridors = new();
+    private string _shownCorridor = "\0";
+    // 복도 카메라의 두 구도 중 어느 쪽인가. false = 먼 시야, true = 차폐문 근접.
+    private bool _corridorNearView;
+
+    public bool CorridorNearView
+    {
+        get => _corridorNearView;
+        set { if (_corridorNearView != value) { _corridorNearView = value; _shownCorridor = "\0"; } }
+    }
+
+    private void BuildCorridors()
+    {
+        var sim = FacilitySimulation.Instance;
+        var net = sim?.Corridors;
+        if (net == null) return;
+        // 구간마다 월드에서 서로 멀찍이 떼어 놓는다 — 한 번에 하나만 보이지만,
+        // 겹쳐 두면 조명과 그림자가 서로 새어 든다.
+        int i = 0;
+        foreach (var seg in net.Segments)
+        {
+            if (string.IsNullOrEmpty(seg.CctvCameraId)) continue;
+            var vis = new CorridorVisual();
+            var node = vis.Build(seg, sim.RoomDisplayName(seg.RoomA), sim.RoomDisplayName(seg.RoomB),
+                seg.RoomA == FacilitySimulation.DeployOriginRoomId);
+            node.Position = new Vector3(120f + i * 40f, 0f, 0f);
+            AddChild(node);
+            _corridors[seg.Id] = vis;
+            i++;
+        }
+    }
+
+    // 복도를 비춘다. 돌려주는 값은 "실제로 복도를 띄웠는가".
+    private bool ShowCorridor(FacilitySimulation sim, string segmentId, float delta)
+    {
+        if (!_corridors.TryGetValue(segmentId, out var vis)) return false;
+        var seg = sim.Corridors.ById(segmentId);
+        if (seg == null) return false;
+
+        if (_shownCorridor != segmentId)
+        {
+            _shownCorridor = segmentId;
+            _shownRoom = "\0";
+            foreach (var (_, node) in _rooms) node.Visible = false;
+            foreach (var (id, v) in _corridors) v.Root.Visible = id == segmentId;
+            HideAllActors();
+
+            // 카메라를 그 복도로 옮긴다. 구도는 두 가지(먼 시야 / 차폐문 근접).
+            Vector3 origin = vis.Root.Position;
+            _camera.Fov = _corridorNearView ? 54f : 62f;
+            _camera.GlobalPosition = origin +
+                (_corridorNearView ? vis.NearCameraPosition : vis.FarCameraPosition);
+            _camera.LookAt(origin + (_corridorNearView ? vis.NearCameraLookAt : vis.FarCameraLookAt), Vector3.Up);
+            _camBaseRot = _camera.Rotation;
+        }
+
+        vis.Sync(seg, (float)(Time.GetTicksMsec() / 1000.0));
+        vis.SetLit(GameState.Instance?.IsConsumerPowered(NSP.Data.PowerConsumer.Lighting) ?? true);
+        UpdateMonster(sim, segmentId, vis, delta);
+        return true;
+    }
+
+    // 지금 보고 있는 복도에 괴물이 들어와 있으면 세운다.
+    //
+    // **한 번에 하나뿐**이고 위치는 전부 MonsterThreatSystem 이 쥔 Progress 하나에서 나오므로,
+    // 서로 다른 카메라에 같은 개체가 동시에 보이는 일이 구조적으로 생기지 않는다.
+    private MonsterActor _monster;
+
+    public MonsterActor MonsterForTest => _monster;
+
+    private void UpdateMonster(FacilitySimulation sim, string segmentId, CorridorVisual vis, float delta)
+    {
+        _monster ??= CreateMonsterActor();
+        var t = sim.Threats.Current;
+        // 복도 안(Approach~Retreat)일 때만 보인다. 외곽 구역에 있는 동안은 소리뿐이다.
+        if (t == null || !t.InCorridor || t.SegmentId != segmentId) { _monster.Hide(); return; }
+        if (!_monster.Use(t.Def)) { _monster.Hide(); return; }
+        _monster.Place(t, vis, delta);
+    }
+
+    private MonsterActor CreateMonsterActor()
+    {
+        var a = new MonsterActor();
+        a.Attach(this);
+        return a;
+    }
+
+    // ── CCTV 점프스케어(지시서 §6-4) ──────────────────────────────────
+    //
+    // **죽이지 않는다.** 복도 침입(MonsterThreatSystem)과 완전히 다른 계통이다 —
+    // 위협 상태도, 직원도, 코어도, 증거도 건드리지 않고 지금 비추고 있는 카메라
+    // 바로 앞에 한 마리를 0.2~0.7초 세웠다 치운다. 쓰는 배우도 따로다(_scare):
+    // 복도에 진짜로 들어와 있는 개체(_monster)를 빼앗아 쓰면 그 순간 복도 영상에서
+    // 괴물이 사라져 버린다.
+    private MonsterActor _scare;
+
+    public MonsterActor ScareForTest => _scare;
+
+    // distance  — 카메라 앞 거리(m). 작을수록 화면을 꽉 채운다.
+    // sideways  — 좌우 치우침(m). 정면만 반복하면 같은 그림이 된다.
+    // yawOffset — 정면 기준 회전(도).
+    // headRatio — 키의 몇 할 높이를 **화면 한가운데**에 둘 것인가(0.9 ≈ 얼굴).
+    //
+    // 카메라마다 내려다보는 각도가 다르다. 그래서 "세계 기준 눈높이에서 얼마" 로
+    // 잡으면 어떤 방에서는 얼굴이, 어떤 방에서는 발끝이 잡힌다. 시선 축 위의 한 점을
+    // 먼저 정하고 거기에 머리를 맞추면 어느 카메라에서든 얼굴이 가운데 온다.
+    public bool ShowScare(NSP.Data.MonsterDef def, string clip, float distance,
+        float sideways, float yawOffset, float headRatio)
+    {
+        if (def == null || _camera == null) return false;
+        _scare ??= CreateMonsterActor();
+        if (!_scare.Use(def)) return false;
+
+        Transform3D c = _camera.GlobalTransform;
+        Vector3 fwd = -c.Basis.Z.Normalized();
+        Vector3 right = c.Basis.X.Normalized();
+        Vector3 aim = c.Origin + fwd * distance + right * sideways;
+        Vector3 floor = aim - Vector3.Up * Mathf.Clamp(headRatio, 0.2f, 1f) * def.TargetHeight;
+        float yaw = Mathf.RadToDeg(Mathf.Atan2(-fwd.X, -fwd.Z)) + yawOffset;
+
+        // SetPose 는 이 월드 기준 **로컬** 좌표를 받는다.
+        _scare.SetPose(ToLocal(floor), yaw, 1f);
+        _scare.PlayRole(clip, 1.4f);
+
+        // 카메라 자리에 차가운 보조등을 켠다. 이게 없으면 작업실 조명이 닿지 않아
+        // "검은 덩어리가 화면을 가렸다" 로만 보이고, 무엇이 왔는지 알 수 없다.
+        _scareLight ??= new OmniLight3D
+        {
+            LightColor = new Color(0.72f, 0.80f, 0.88f),
+            OmniRange = 3.4f, ShadowEnabled = false,
+        };
+        if (_scareLight.GetParent() == null) AddChild(_scareLight);
+        _scareLight.Position = ToLocal(c.Origin + fwd * 0.18f + Vector3.Up * 0.12f);
+        _scareLight.LightEnergy = 3.0f;
+        _scareLight.Visible = true;
+        return true;
+    }
+
+    private OmniLight3D _scareLight;
+
+    public void HideScare()
+    {
+        _scare?.Hide();
+        if (_scareLight != null) _scareLight.Visible = false;
+    }
+
     private void BuildEntity()
     {
         var ps = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
@@ -239,6 +393,12 @@ public partial class FacilityCctvWorld : Node3D
                          || StoryCutinDirector.ShowsRestRoom;
         if (interview != _interviewMode) ApplyCameraMode(interview);
 
+        // 복도를 보고 있으면 작업실 대신 그쪽을 띄운다. 직원 · 괴물 갱신은 건너뛴다 —
+        // 복도에 사람이 서 있는 연출은 PHASE B 에서 붙는다.
+        if (!interview && sim != null && !string.IsNullOrEmpty(sim.SurveillanceCorridorId)
+            && ShowCorridor(sim, sim.SurveillanceCorridorId, (float)delta))
+            return;
+
         // 시뮬레이션이 없으면(F6 단독 프리뷰) 방 하나는 보여준다.
         string target = interview ? InterviewRoomId
             : sim == null ? "core_room" : sim.SurveillanceTargetRoomId ?? "";
@@ -246,8 +406,12 @@ public partial class FacilityCctvWorld : Node3D
         if (target != _shownRoom)
         {
             _shownRoom = target;
+            _shownCorridor = "\0";
             foreach (var (roomId, node) in _rooms)
                 node.Visible = roomId == target;
+            foreach (var (_, v) in _corridors) v.Root.Visible = false;
+            // 복도를 보다 돌아왔으면 카메라 구도를 작업실 쪽으로 되돌린다.
+            ApplyCameraMode(_interviewMode);
         }
 
         // 휴게시간 — 직원들은 휴게실에 앉아 있다. 왼쪽 모니터에서 고른 한 명만 자리에서 빠진다

@@ -26,7 +26,10 @@ public sealed class CorridorSegment
     public string DisplayName = "";
     public string RoomA = "", RoomB = "";
     public CorridorKind Kind = CorridorKind.Minor;
+    public CorridorSide Side = CorridorSide.None;
     public bool IsBlockable;
+    // 영구 봉쇄된 옛 통로. 방 그래프에 간선이 아예 없고, 지도·3D 표시를 위해서만 존재한다.
+    public bool PermanentSeal;
     public string CctvCameraId = "";
     public bool ThreatLane;
 
@@ -41,17 +44,17 @@ public sealed class CorridorSegment
     public float SealedSeconds;
     public float CooldownLeft;
 
-    public bool Sealed => State == BarrierState.Sealed;
-    public bool Moving => State is BarrierState.Closing or BarrierState.Opening;
+    public bool Sealed => PermanentSeal || State == BarrierState.Sealed;
+    public bool Moving => !PermanentSeal && State is BarrierState.Closing or BarrierState.Opening;
 
     // 지금 이 구간으로 지나갈 수 있는가. **완전히 닫힌 순간부터** 막힌다 —
     // 닫히는 중에는 아직 지나갈 수 있고, 그래서 "문이 내려오는데 뛰어 들어간" 상황이 성립한다.
-    public bool Passable => State != BarrierState.Sealed;
+    public bool Passable => !PermanentSeal && State != BarrierState.Sealed;
 
     public bool Touches(string roomId) => RoomA == roomId || RoomB == roomId;
     public string Other(string roomId) => RoomA == roomId ? RoomB : RoomA;
 
-    public string StatusText => State switch
+    public string StatusText => PermanentSeal ? "PERMANENT SEAL" : State switch
     {
         BarrierState.Sealed => "SEALED",
         BarrierState.Closing => "CLOSING",
@@ -130,19 +133,38 @@ public sealed class CorridorNet
             string key = EdgeKey(d.RoomA, d.RoomB);
             if (!_byEdge.TryGetValue(key, out var seg))
             {
-                // 실제 그래프에 없는 조합 — 여기서 새 길을 만들지 않는다(그러면 진실원이 둘이 된다).
-                GD.PushWarning($"CorridorNet: {d.SegmentId} 의 {d.RoomA}↔{d.RoomB} 는 방 그래프에 없는 연결입니다.");
-                continue;
+                // 영구 봉쇄된 옛 통로는 **일부러** 방 그래프에 없다. 지도와 3D 에 "막혔다"를
+                // 보여 주기 위해 구간으로만 등록한다(길찾기는 애초에 이 길을 모른다).
+                if (d.PermanentSeal)
+                {
+                    seg = new CorridorSegment
+                    {
+                        RoomA = string.CompareOrdinal(d.RoomA, d.RoomB) < 0 ? d.RoomA : d.RoomB,
+                        RoomB = string.CompareOrdinal(d.RoomA, d.RoomB) < 0 ? d.RoomB : d.RoomA,
+                    };
+                    _byEdge[key] = seg;
+                    _segments.Add(seg);
+                }
+                else
+                {
+                    // 실제 그래프에 없는 조합 — 여기서 새 길을 만들지 않는다(진실원이 둘이 된다).
+                    GD.PushWarning($"CorridorNet: {d.SegmentId} 의 {d.RoomA}↔{d.RoomB} 는 방 그래프에 없는 연결입니다.");
+                    continue;
+                }
             }
             if (!string.IsNullOrEmpty(d.SegmentId)) seg.Id = d.SegmentId;
             if (!string.IsNullOrEmpty(d.DisplayName)) seg.DisplayName = d.DisplayName;
             seg.Kind = d.Kind;
-            seg.IsBlockable = d.IsBlockable;
+            seg.Side = d.Side;
+            seg.PermanentSeal = d.PermanentSeal;
+            // 영구 봉쇄는 조작 대상이 아니다 — 데이터가 뭐라 적혀 있든 여기서 못 박는다.
+            seg.IsBlockable = d.IsBlockable && !d.PermanentSeal;
             seg.CctvCameraId = d.CctvCameraId ?? "";
             seg.ThreatLane = d.ThreatLane;
             seg.DriveSeconds = Mathf.Max(0.05f, d.DriveSeconds);
             seg.MaxSealSeconds = d.MaxSealSeconds;
             seg.ReengageCooldownSeconds = Mathf.Max(0f, d.ReengageCooldownSeconds);
+            if (seg.PermanentSeal) seg.Shut = 1f;
         }
 
         foreach (var seg in _segments) _byId[seg.Id] = seg;
@@ -221,8 +243,12 @@ public sealed class CorridorNet
     // 저절로 열리거나 닫히면 레버가 무엇을 가리키는지 알 수 없게 된다.
     public bool Select(string segmentId)
     {
-        var seg = ById(segmentId);
-        if (seg == null || SelectedId == segmentId) return false;
+        segmentId ??= "";
+        if (SelectedId == segmentId) return false;
+        // 빈 문자열은 "아무것도 고르지 않음".
+        // **차폐 가능한 구간만** 제어 대상이 된다 — 봉쇄된 남측 격벽을 CCTV 로 들여다봤다고
+        // 레버의 대상이 그쪽으로 옮겨 가면, 정작 문을 내려야 할 때 엉뚱한 곳을 가리킨다.
+        if (segmentId.Length > 0 && ById(segmentId) is not { IsBlockable: true }) return false;
         SelectedId = segmentId;
         return true;
     }
@@ -262,11 +288,65 @@ public sealed class CorridorNet
         return Seal(segmentId, out reason);
     }
 
+    // ── 물리 BARRIER 레버 ────────────────────────────────────────────
+    //
+    // 레버 하나가 두 가지를 한꺼번에 한다: **전력 슬롯을 잡고 · 고른 문을 내린다.**
+    // 따로 두면 "전력은 올렸는데 문은 안 닫힌" 상태가 생기고, 그 상태를 화면에서
+    // 설명할 방법이 없다. 올리면 닫히고 내리면 열린다 — 레버가 곧 문이다.
+    //
+    // 올리는 데 실패하면(용량 부족 · 냉각 · 선택 없음) 잡았던 슬롯을 그대로 반납한다.
+    public bool LeverToggle(out string reason)
+    {
+        reason = "";
+        var gs = GameState.Instance;
+        if (gs == null) return false;
+
+        // 내리기 — 닫혀 있던 문을 열고 슬롯을 반납한다.
+        if (gs.IsConsumerPowered(PowerConsumer.Barrier))
+        {
+            foreach (var s in _segments.Where(s => s.State is BarrierState.Sealed or BarrierState.Closing).ToList())
+                Unseal(s.Id);
+            gs.TryTogglePower(PowerConsumer.Barrier);
+            _leverHolds = false;
+            return true;
+        }
+
+        var seg = Selected;
+        if (seg == null) { reason = "차폐할 통로를 먼저 선택하십시오"; return false; }
+        if (!seg.IsBlockable) { reason = "해당 통로는 차폐 불가"; return false; }
+        if (seg.CooldownLeft > 0f) { reason = $"구동부 냉각 중 {seg.CooldownLeft:0.0}초"; return false; }
+
+        // 전력 슬롯부터 잡는다 — 못 잡으면 용량 부족이다(조명이나 CCTV 를 먼저 꺼야 한다).
+        if (!gs.TryTogglePower(PowerConsumer.Barrier)) { reason = "전력 용량 부족"; return false; }
+        if (Seal(seg.Id, out reason)) { _leverHolds = true; return true; }
+
+        gs.TryTogglePower(PowerConsumer.Barrier);   // 되돌린다
+        return false;
+    }
+
+    // 레버가 올려서 잡은 슬롯인가. **레버가 잡은 것만** 레버가 놓는다 —
+    // 검사나 연출이 직접 올려 둔 전력까지 여기서 내리면 남의 상태를 건드리는 셈이 된다.
+    private bool _leverHolds;
+
+    // 닫힌 문이 하나도 없는데 차폐 전력만 잡고 있으면 슬롯을 돌려준다.
+    // 유지 시간 상한으로 문이 저절로 열린 경우가 여기로 온다 — 레버도 따라 내려간다.
+    private void ReleaseIdlePower()
+    {
+        var gs = GameState.Instance;
+        if (!_leverHolds || gs == null || !gs.IsConsumerPowered(PowerConsumer.Barrier)) return;
+        if (_segments.Any(s => s.State != BarrierState.Open)) return;
+        gs.TryTogglePower(PowerConsumer.Barrier);
+        _leverHolds = false;
+    }
+
     // 전부 연다 — 근무 종료 · 새 근무 · 타이틀 복귀. 전날 문이 닫힌 채로 남지 않게 한다.
     public void ResetAll()
     {
+        _leverHolds = false;
         foreach (var seg in _segments)
         {
+            // 영구 봉쇄는 근무가 바뀌어도 열리지 않는다 — 그게 '영구' 의 뜻이다.
+            if (seg.PermanentSeal) { seg.Shut = 1f; continue; }
             seg.State = BarrierState.Open;
             seg.Shut = 0f;
             seg.SealedSeconds = 0f;
@@ -322,6 +402,7 @@ public sealed class CorridorNet
                     break;
             }
         }
+        ReleaseIdlePower();
     }
 
     private void Raise(CorridorSegment seg) => StateChanged?.Invoke(seg, seg.State);

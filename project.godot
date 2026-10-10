@@ -32,6 +32,10 @@ ShiftCardView="*res://scripts/view/ShiftCardView.cs"
 HorrorAudioDirector="*res://scripts/ui/HorrorAudioDirector.cs"
 AchievementManager="*res://scripts/core/AchievementManager.cs"
 AchievementToast="*res://scripts/ui/AchievementToast.cs"
+AdminFearDirector="*res://scripts/ui/AdminFearDirector.cs"
+MonsterThreatPresenter="*res://scripts/view/MonsterThreatPresenter.cs"
+AnomalyCallDirector="*res://scripts/view/AnomalyCallDirector.cs"
+HorrorEventDirector="*res://scripts/ui/HorrorEventDirector.cs"
 
 [display]
 

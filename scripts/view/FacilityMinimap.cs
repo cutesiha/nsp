@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
+using NSP.Data;
 using NSP.Facility;
 using NSP.Ui;
 
@@ -254,6 +255,10 @@ public partial class FacilityMinimap : Control
         foreach (var roomId in Layout.Keys)
             DrawRoom(sim, roomId);
 
+        // 차폐문 마커와 상태 표는 **방 상자 뒤에** 올린다 — 중앙제어실 바로 앞 복도라
+        // 문 자리가 방 상자와 가깝고, 먼저 그리면 상자에 글자가 잘려 나간다.
+        DrawBarrierOverlay(sim);
+
         DrawDragHint(sim);
 
         BuildIconPositions(sim);
@@ -287,12 +292,40 @@ public partial class FacilityMinimap : Control
         }
     }
 
+    // ── 복도 ────────────────────────────────────────────────────────
+    //
+    // 예전에는 3px 짜리 선 한 줄이었다 — 통로가 아니라 배선처럼 보였다.
+    // 지금은 **폭이 있는 바닥 띠 + 양쪽 벽선** 으로 그린다. 굵기와 색은 구간의 성격을 따른다.
+    //   일반 통로      가는 띠 · 어두운 녹청
+    //   주요 연결통로   굵은 띠 · 밝은 녹청 + 가운데 점선(물류 동선)
+    //   차폐 가능 구간  굵은 띠 + 문 마커(▮) + OPEN/SEALED 글자 + 카메라 표시
+    // 닫히는 중에는 문 마커가 가운데로 모이고, 닫히면 구간 전체가 붉게 죽는다.
+    //
+    // 꺾임은 직원 이동과 **같은 규칙(CorridorElbow)** 을 쓴다 — 그래야 걷는 길과 그린 길이 겹친다.
+    private const float LaneMinor = 8f;
+    private const float LaneTrunk = 15f;
+    private const float LaneAccess = 12f;
+
+    private static readonly Color LaneFloor = new(0.115f, 0.175f, 0.165f);
+    private static readonly Color LaneEdge = new(0.42f, 0.55f, 0.50f);
+    private static readonly Color LaneTrunkFloor = new(0.12f, 0.21f, 0.20f);
+    private static readonly Color LaneTrunkEdge = new(0.45f, 0.64f, 0.58f);
+    // 중앙제어실 접근 통로 — 다른 통로와 **색으로도** 갈린다(관리자 쪽으로 들어오는 길).
+    // 네온이 아니라 낡은 황동/올리브 쪽으로 낮게 깐다.
+    private static readonly Color LaneAccessFloor = new(0.16f, 0.16f, 0.11f);
+    private static readonly Color LaneAccessEdge = new(0.58f, 0.56f, 0.38f);
+    private static readonly Color LaneSealed = new(0.84f, 0.26f, 0.21f);
+    private static readonly Color LaneSealedFloor = new(0.21f, 0.07f, 0.06f);
+    private static readonly Color DoorInk = new(0.80f, 0.86f, 0.80f);
+
     private void DrawCorridors(FacilitySimulation sim)
     {
         // 성능: 매 프레임 도는 _Draw 라 HashSet 을 새로 만들지 않고 재사용한다.
         _seenCorridors.Clear();
         var seen = _seenCorridors;
-        var col = new Color(0.30f, 0.37f, 0.33f);
+        var net = sim.Corridors;
+        Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+
         foreach (var roomId in Layout.Keys)
         {
             var def = sim.GetRoomDef(roomId);
@@ -303,21 +336,243 @@ public partial class FacilityMinimap : Control
                 string key = string.CompareOrdinal(roomId, other) < 0 ? roomId + "|" + other : other + "|" + roomId;
                 if (!seen.Add(key)) continue;
 
-                // 직원 이동과 같은 규칙(CorridorElbow)으로 한 번 직각으로 꺾어 그려 정확히 겹치게 한다.
-                // 중앙 제어실 ↔ 작업실은 안쪽 살, 작업실 ↔ 작업실은 바깥쪽 고리가 된다.
+                var seg = net?.Between(roomId, other);
                 Vector2 pa = CenterOf(roomId), pb = CenterOf(other);
-                var elbow = CorridorElbow.Compute(pa, pb, CenterOf(FacilitySimulation.DeployOriginRoomId));
-                if (elbow == null)
-                {
-                    DrawLine(pa, pb, col, 3f);
-                }
-                else
-                {
-                    DrawLine(pa, elbow.Value, col, 3f);
-                    DrawLine(elbow.Value, pb, col, 3f);
-                }
+                var elbow = CorridorElbow.Compute(pa, pb, hub);
+                DrawLane(seg, pa, elbow, pb);
             }
         }
+
+    }
+
+    // 차폐문 마커 · 상태 표 · 남측 영구 봉쇄. 방 상자까지 다 그린 뒤에 올린다.
+    private void DrawBarrierOverlay(FacilitySimulation sim)
+    {
+        var net = sim.Corridors;
+        if (net == null) return;
+        Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+        foreach (var seg in net.Blockable)
+        {
+            if (!Layout.ContainsKey(seg.RoomA) || !Layout.ContainsKey(seg.RoomB)) continue;
+            Vector2 pa = CenterOf(seg.RoomA), pb = CenterOf(seg.RoomB);
+            DrawBarrierMarker(seg, pa, CorridorElbow.Compute(pa, pb, hub), pb,
+                net.SelectedId == seg.Id);
+        }
+        foreach (var seg in net.Segments)
+            if (seg.PermanentSeal) DrawPermanentSeal();
+        DrawThreatZones();
+    }
+
+    // ── 외곽 서비스 구역 표기 ───────────────────────────────────────
+    //
+    // 괴물이 나오는 곳이다. **작업실이 아니다** — 배치할 수도, 누를 수도, 볼 수도 없다.
+    // 그래서 방 상자가 아니라 지도 바깥 가장자리에 작은 약호만 찍는다.
+    // 괴물이 지금 거기 있는지는 **알려주지 않는다**(알려주면 CCTV 를 돌릴 이유가 사라진다).
+    private static readonly Color ZoneInk = new(0.40f, 0.42f, 0.36f);
+
+    private void DrawThreatZones()
+    {
+        foreach (var z in NSP.Facility.MonsterThreatSystem.Zones)
+        {
+            Vector2 p = z.MapAnchor * Size;
+            // 가장자리 밖으로 나가도 지도 안쪽으로 끌어당긴다(작은 CRT 에서 잘리지 않게).
+            p.X = Mathf.Clamp(p.X, 30f, Size.X - 30f);
+            p.Y = Mathf.Clamp(p.Y, 9f, Size.Y - 9f);
+            // 점선 테두리 — 통행 구역이 아니라는 표시.
+            var r = new Rect2(p - new Vector2(44f, 7f), new Vector2(88f, 14f));
+            for (float x = r.Position.X; x < r.End.X; x += 7f)
+            {
+                DrawLine(new Vector2(x, r.Position.Y), new Vector2(Mathf.Min(x + 4f, r.End.X), r.Position.Y),
+                    ZoneInk with { A = 0.55f }, 1f);
+                DrawLine(new Vector2(x, r.End.Y), new Vector2(Mathf.Min(x + 4f, r.End.X), r.End.Y),
+                    ZoneInk with { A = 0.55f }, 1f);
+            }
+            DrawString(_font, new Vector2(r.Position.X, r.End.Y - 3f), z.CodeName,
+                HorizontalAlignment.Center, r.Size.X, 9, ZoneInk);
+        }
+    }
+
+    // ── 남측 영구 봉쇄 격벽 ─────────────────────────────────────────
+    //
+    // 차폐문과 **다른 물건**이다. 조작할 수 없고 전력과도 무관하며, 애초에 길이 없다
+    // (방 그래프에서 중앙제어실↔격리실 간선을 지웠다). 여기서는 "예전에는 길이었고
+    // 지금은 용접해 막았다"는 사실만 보여 준다.
+    //
+    // 자리는 중앙제어실 바로 아래 — 경비실과 정비실 사이의 빈 공간이되,
+    // **그 둘을 잇는 가로 복도(y 가 같다)보다 위**라 정상 통행을 가리지 않는다.
+    private static readonly Color SealPanel = new(0.26f, 0.085f, 0.075f);
+    private static readonly Color SealEdge = new(0.82f, 0.22f, 0.17f);
+    private static readonly Color SealHatch = new(0.52f, 0.15f, 0.12f);
+    private const float SealWidth = 116f;
+    private const float SealHeight = 17f;
+    private const float SealGapBelowRoom = 19f;
+
+    // 검사 전용 — 두 방을 잇는 띠의 한가운데(미니맵 로컬 좌표).
+    public Vector2 LaneMidForTest(string a, string b)
+    {
+        Vector2 pa = CenterOf(a), pb = CenterOf(b);
+        var elbow = CorridorElbow.Compute(pa, pb, CenterOf(FacilitySimulation.DeployOriginRoomId));
+        return elbow == null ? (pa + pb) * 0.5f : (pa + elbow.Value) * 0.5f;
+    }
+
+    private Rect2 SealRect()
+    {
+        Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+        float y = hub.Y + BoxSize.Y * 0.5f + SealGapBelowRoom;
+        return new Rect2(hub.X - SealWidth * 0.5f, y - SealHeight * 0.5f, SealWidth, SealHeight);
+    }
+
+    private void DrawPermanentSeal()
+    {
+        Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+        var r = SealRect();
+
+        // 중앙제어실 바닥에서 격벽까지 짧은 토막 — "여기가 길이었다".
+        DrawLine(hub + new Vector2(0f, BoxSize.Y * 0.5f), r.GetCenter(), SealHatch with { A = 0.75f }, 6f);
+
+        DrawRect(r, SealPanel);
+        DrawRect(r, SealEdge, false, 1.6f);
+        // 금속 패널 — 사선 경고 무늬.
+        for (float x = r.Position.X + 6f; x < r.End.X - 2f; x += 9f)
+            DrawLine(new Vector2(x, r.End.Y - 2f),
+                new Vector2(Mathf.Min(x + 7f, r.End.X - 2f), r.Position.Y + 2f), SealHatch, 2.2f);
+        // 양 끝 리벳 자리.
+        DrawRect(new Rect2(r.Position.X + 2f, r.Position.Y + 2f, 3f, r.Size.Y - 4f), SealEdge with { A = 0.7f });
+        DrawRect(new Rect2(r.End.X - 5f, r.Position.Y + 2f, 3f, r.Size.Y - 4f), SealEdge with { A = 0.7f });
+
+        DrawString(_font, new Vector2(r.Position.X - 20f, r.End.Y + 11f), "⨯ PERMANENT SEAL",
+            HorizontalAlignment.Center, r.Size.X + 40f, 9, SealEdge with { A = 0.92f });
+    }
+
+    // 바닥 띠 + 양쪽 벽선. 꺾임이 있으면 두 토막으로 나눠 그리고 모서리를 메운다.
+    private void DrawLane(CorridorSegment seg, Vector2 a, Vector2? elbow, Vector2 b)
+    {
+        var kind = seg?.Kind ?? CorridorKind.Minor;
+        float w = kind switch
+        {
+            CorridorKind.Trunk => LaneTrunk,
+            CorridorKind.ControlAccess => LaneAccess,
+            _ => LaneMinor,
+        };
+        bool shut = seg is { Sealed: true };
+        var floor = shut ? LaneSealedFloor
+            : kind == CorridorKind.Trunk ? LaneTrunkFloor
+            : kind == CorridorKind.ControlAccess ? LaneAccessFloor
+            : LaneFloor;
+        var edge = shut ? LaneSealed
+            : kind == CorridorKind.Trunk ? LaneTrunkEdge
+            : kind == CorridorKind.ControlAccess ? LaneAccessEdge
+            : LaneEdge;
+
+        if (elbow == null)
+        {
+            Strip(a, b, w, floor, edge);
+        }
+        else
+        {
+            Strip(a, elbow.Value, w, floor, edge);
+            Strip(elbow.Value, b, w, floor, edge);
+            // 꺾이는 모서리의 빈 사각형을 메워 'ㄱ' 자가 끊겨 보이지 않게 한다.
+            DrawRect(new Rect2(elbow.Value - new Vector2(w, w) * 0.5f, new Vector2(w, w)), floor);
+        }
+
+        // 주요 연결통로는 가운데 점선으로 한 번 더 구분한다(물류 동선).
+        if (seg?.Kind == CorridorKind.Trunk && !shut)
+            DashedSpine(a, elbow, b, edge with { A = 0.55f });
+    }
+
+    private void Strip(Vector2 a, Vector2 b, float w, Color floor, Color edge)
+    {
+        Vector2 d = b - a;
+        if (d.LengthSquared() < 0.01f) return;
+        Vector2 n = d.Normalized().Orthogonal() * (w * 0.5f);
+        // 바닥 — 선 굵기로 칠하면 끝이 둥글게 뭉개져서 사각형으로 그린다.
+        DrawColoredPolygon(new[] { a + n, b + n, b - n, a - n }, floor);
+        // 양쪽 벽.
+        DrawLine(a + n, b + n, edge, 1.2f);
+        DrawLine(a - n, b - n, edge, 1.2f);
+    }
+
+    private void DashedSpine(Vector2 a, Vector2? elbow, Vector2 b, Color col)
+    {
+        if (elbow == null) { Dashes(a, b, col); return; }
+        Dashes(a, elbow.Value, col);
+        Dashes(elbow.Value, b, col);
+    }
+
+    private void Dashes(Vector2 a, Vector2 b, Color col)
+    {
+        const float dash = 6f, gap = 6f;
+        Vector2 dir = (b - a).Normalized();
+        float len = a.DistanceTo(b);
+        for (float t = 4f; t + dash < len - 4f; t += dash + gap)
+            DrawLine(a + dir * t, a + dir * (t + dash), col, 1.1f);
+    }
+
+    // 차폐문 — 통로 한가운데의 작은 셔터. 상태 글자와 카메라 표시가 함께 붙는다.
+    private void DrawBarrierMarker(CorridorSegment seg, Vector2 a, Vector2? elbow, Vector2 b, bool selected)
+    {
+        // 문은 꺾임이 있으면 긴 쪽 토막의 한가운데에 둔다 — 모서리에 걸치면 모양이 깨진다.
+        Vector2 p0 = a, p1 = elbow ?? b;
+        if (elbow != null && elbow.Value.DistanceSquaredTo(b) > a.DistanceSquaredTo(elbow.Value))
+        {
+            p0 = elbow.Value;
+            p1 = b;
+        }
+        Vector2 mid = DoorPoint(a, elbow, b);
+        Vector2 along = (p1 - p0).Normalized();
+        Vector2 across = along.Orthogonal();
+
+        float w = seg.Kind == CorridorKind.Trunk ? LaneTrunk : LaneAccess;
+        var ink = seg.Sealed ? LaneSealed : DoorInk;
+
+        // 문짝 두 장이 양쪽에서 가운데로 내려온다 — Shut 이 그 진행도다.
+        float half = w * 0.5f;
+        float leaf = half * Mathf.Clamp(seg.Shut, 0f, 1f);
+        float thick = 3.2f;
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Vector2 outer = mid + across * (half * side);
+            Vector2 inner = mid + across * ((half - leaf) * side);
+            DrawLine(outer - along * thick, outer + along * thick, ink, 2.2f);
+            if (leaf > 0.5f) DrawLine(outer, inner, ink, 2.6f);
+        }
+        // 닫혔으면 통로를 가로질러 한 줄로 막는다.
+        if (seg.Sealed)
+            DrawLine(mid - across * half, mid + across * half, LaneSealed, 3.2f);
+
+        // 고른 구간은 가는 사각 테두리로 표시한다(레버가 무엇을 제어하는지).
+        if (selected)
+            DrawRect(new Rect2(mid - new Vector2(13f, 13f), new Vector2(26f, 26f)),
+                HoverCyan with { A = 0.85f }, false, 1.2f);
+
+        // 카메라가 붙은 구간이라는 작은 점 하나는 늘 찍는다. 글자는 아래 조건에서만.
+        if (!string.IsNullOrEmpty(seg.CctvCameraId))
+            DrawCircle(mid - across * (half + 5f), 2.2f, new Color(0.45f, 0.62f, 0.58f));
+
+        // 상태 **글자**는 꼭 필요할 때만 띄운다 — 작은 CRT 에 세 구간의 문구가 늘 떠 있으면
+        // 방 이름과 직원 코드네임 위에 겹쳐 지도가 읽히지 않는다.
+        // 지금 고른 구간이거나, 열려 있지 않은 구간만.
+        if (!selected && seg.State == BarrierState.Open) return;
+
+        string text = seg.StatusText;
+        if (selected && !string.IsNullOrEmpty(seg.CctvCameraId) && seg.State == BarrierState.Open)
+            text = seg.CctvCameraId;
+        var tone = seg.Sealed ? LaneSealed
+            : seg.Moving ? new Color(0.98f, 0.78f, 0.36f)
+            : HoverCyan;
+
+        // 허브(중앙 제어실) 반대쪽에 붙인다 — 지도 가운데는 방이 빽빽하다.
+        Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+        float sign = (mid + across - hub).LengthSquared() >= (mid - across - hub).LengthSquared() ? 1f : -1f;
+        var size = _font.GetStringSize(text, HorizontalAlignment.Left, -1, 10);
+        Vector2 tl = mid + across * sign * (half + 4f) - new Vector2(size.X * 0.5f, 0f);
+        tl.Y -= 6f;
+        var plate = new Rect2(tl - new Vector2(4f, 2f), size + new Vector2(8f, 5f));
+        // 어두운 받침 — 통로 띠 위에 그대로 쓰면 글자가 묻힌다.
+        DrawRect(plate, new Color(0.02f, 0.04f, 0.04f, 0.88f));
+        DrawRect(plate, tone with { A = 0.55f }, false, 1f);
+        DrawString(_font, tl + new Vector2(0f, size.Y - 2f), text, HorizontalAlignment.Left, -1, 10, tone);
     }
 
     private void DrawRoom(FacilitySimulation sim, string roomId)
@@ -669,6 +924,60 @@ public partial class FacilityMinimap : Control
             if (sim.IsRoomActive(roomHit)) OnRoomSelected?.Invoke(roomHit);
             AcceptEvent();
         }
+
+        // 통로는 **가장 마지막** 에 본다. 직원 아이콘 · 작업실 상자가 먼저이므로
+        // 새로 생긴 통로 히트박스 때문에 기존 조작이 가려지는 일이 없다.
+        string corridorHit = CorridorAt(sim, mb.Position);
+        if (corridorHit == null) return;
+        // 차폐 가능한 구간이면 레버의 제어 대상도 함께 바뀐다.
+        // 봉쇄된 남측 격벽은 CCTV 로 보기만 하고 제어 대상은 건드리지 않는다.
+        sim.Corridors.Select(corridorHit);
+        NSP.Core.Sfx.Instance?.Play("tick", -14f);
+        OnCorridorSelected?.Invoke(corridorHit);
+        AcceptEvent();
+    }
+
+    // 통로를 골랐다 — 차폐 레버의 제어 대상이 바뀐다.
+    public Action<string> OnCorridorSelected;
+
+    // 문 마커 주변 작은 상자. **카메라가 붙은 구간**만 집힌다 — 그래야 누르면 볼 것이 있다.
+    // (봉쇄된 남측 격벽도 카메라가 있으므로 눌러 확인할 수 있다. 다만 차폐 대상은 못 된다.)
+    private const float DoorHitRadius = 15f;
+
+    public string CorridorAt(FacilitySimulation sim, Vector2 pos)
+    {
+        var net = sim?.Corridors;
+        if (net == null) return null;
+        Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+        foreach (var seg in net.Segments)
+        {
+            if (string.IsNullOrEmpty(seg.CctvCameraId)) continue;
+            if (seg.PermanentSeal)
+            {
+                if (SealRect().Grow(5f).HasPoint(pos)) return seg.Id;
+                continue;
+            }
+            if (!Layout.ContainsKey(seg.RoomA) || !Layout.ContainsKey(seg.RoomB)) continue;
+            Vector2 a = CenterOf(seg.RoomA), b = CenterOf(seg.RoomB);
+            Vector2 door = DoorPoint(a, CorridorElbow.Compute(a, b, hub), b);
+            if (pos.DistanceTo(door) <= DoorHitRadius) return seg.Id;
+        }
+        return null;
+    }
+
+    // 문이 놓이는 지점 — 그리기와 히트 판정이 **같은 식**을 써야 눌리는 자리와 보이는 자리가 맞는다.
+    private static Vector2 DoorPoint(Vector2 a, Vector2? elbow, Vector2 b)
+    {
+        Vector2 p0 = a, p1 = elbow ?? b;
+        if (elbow != null && elbow.Value.DistanceSquaredTo(b) > a.DistanceSquaredTo(elbow.Value))
+        {
+            p0 = elbow.Value;
+            p1 = b;
+        }
+        // 한가운데(0.5)가 아니라 조금 앞쪽에 둔다. 통로 두 개가 직각으로 만나는 자리가
+        // 하필 서로의 중점인 경우가 있어(저장고↔정비실 세로선과 서비스 통로의 꺾임이
+        // 같은 점에서 만난다) 문 마커와 상태 표가 겹쳤다.
+        return p0.Lerp(p1, 0.38f);
     }
 
     // 같은 방에 여러 명이 겹쳐 있어도 클릭 지점에 가장 가까운 직원을 집는다.

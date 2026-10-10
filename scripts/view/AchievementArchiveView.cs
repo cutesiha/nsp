@@ -302,8 +302,11 @@ public partial class AchievementListView : Control
             unlocked ? new Color(0.07f, 0.12f, 0.12f) : new Color(0.035f, 0.045f, 0.048f));
         DrawRect(new Rect2(bx, by, IconBox, IconBox),
             (unlocked ? mint : deep) with { A = unlocked ? 0.55f : 0.35f }, false, 1.2f);
-        DrawString(_font, new Vector2(bx, by + IconBox * 0.70f), unlocked ? def.Glyph : "□",
-            HorizontalAlignment.Center, IconBox, ViewFont.S(22), unlocked ? mint : deep);
+        // 그림은 도전과제마다 다르다(AchievementIcons). 미달성은 자물쇠, 숨김 과제는 물음표라
+        // 달성 전에 내용이 새지 않는다.
+        NSP.Ui.AchievementIcons.Draw(this, def,
+            new Rect2(bx + IconBox * 0.16f, by + IconBox * 0.16f, IconBox * 0.68f, IconBox * 0.68f),
+            unlocked ? mint : deep, unlocked, _font);
 
         float tx = bx + IconBox + 16f;
         DrawString(_font, new Vector2(tx, r.Position.Y + 28f), $"{def.No:00}.  {name}",

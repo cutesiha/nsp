@@ -34,7 +34,6 @@ public partial class ControlRoomAtmosphere : Node3D
     [Export] public NodePath AlertTerminalPath = "../ControlRoom/AdminPad";
 
     // 플레이어 숨소리 기본 볼륨(dB). 긴장 상태에서 이보다 커진다.
-    [Export] public float BreathBaseDb = -25f;
 
     private enum Amb { Off, Normal, Warning, TabooPrecursor, Blackout }
 
@@ -74,10 +73,9 @@ public partial class ControlRoomAtmosphere : Node3D
     // Layer 시스템 밖에서 직접 관리하는 신규 상시음.
     //   _electric  : 배전/케이블 계통의 전기 치치직 (electric_crackle_loop)
     //   _sensorWhir: 책상 위 패드 거치대의 상시 구동음 (crt_hum 을 올려 얇은 회전음처럼)
-    //   _breath    : 플레이어 본인의 숨소리 (에셋 없음 — 런타임에 필터드 노이즈로 생성)
+    //   (관리자 숨소리는 제거했다 — 생성음이 물 내려가는 소리로 들렸다)
     private AudioStreamPlayer3D _electric;
     private AudioStreamPlayer3D _sensorWhir;
-    private AudioStreamPlayer _breath;
     private float _nextSensorPing = 5f;
     private float _nextElecPop = 3f;
 
@@ -127,7 +125,7 @@ public partial class ControlRoomAtmosphere : Node3D
         _electric = MakeSimpleLoop3D("electric_crackle_loop", NodeAt(ControlPanelPath), 2.4f, 9f);
         _sensorWhir = MakeSimpleLoop3D("crt_hum", NodeAt(AlertTerminalPath), 1.1f, 3.5f);
         if (_sensorWhir != null) _sensorWhir.PitchScale = 1.5f;
-        BuildBreath();
+
 
         _nextOneShot = (float)GD.RandRange(6.0, 14.0);
         WireBreathEvents();
@@ -147,61 +145,6 @@ public partial class ControlRoomAtmosphere : Node3D
         return p;
     }
 
-    // 플레이어 숨소리. 녹음 에셋이 없어 런타임에 만든다 — 저역 통과시킨 노이즈에 들숨/날숨
-    // 엔벨로프를 씌운 5.4초 루프. 볼륨은 아주 낮게 깔고(_Process 에서 상태별로 조절), 긴장
-    // 상황(사고 경고 / 금기 전조 / 정전)에서 조금 커지고 빨라진다.
-    private void BuildBreath()
-    {
-        _breath = new AudioStreamPlayer { Bus = NSP.Core.GameSettings.BusSfx, VolumeDb = Silent, Stream = MakeBreathStream() };
-        AddChild(_breath);
-        if (_breath.Stream != null) _breath.Play();
-    }
-
-    private static AudioStream MakeBreathStream()
-    {
-        const int rate = 22050;
-        const float dur = 5.4f;
-        int n = (int)(rate * dur);
-        var pcm = new byte[n * 2];
-        var rng = new RandomNumberGenerator();
-        float lp = 0f;
-        for (int i = 0; i < n; i++)
-        {
-            float t = (float)i / rate;
-            float env = BreathEnvelope(t);
-            float white = rng.RandfRange(-1f, 1f);
-            // 들숨은 조금 밝게(컷오프 높게), 날숨은 어둡게.
-            float k = t < 2.2f ? 0.055f : 0.03f;
-            lp += k * (white - lp);
-            short v = (short)Mathf.Clamp(lp * env * 26000f, -32767f, 32767f);
-            pcm[i * 2] = (byte)(v & 0xFF);
-            pcm[i * 2 + 1] = (byte)((v >> 8) & 0xFF);
-        }
-        return new AudioStreamWav
-        {
-            Format = AudioStreamWav.FormatEnum.Format16Bits,
-            MixRate = rate,
-            Stereo = false,
-            Data = pcm,
-            LoopMode = AudioStreamWav.LoopModeEnum.Forward,
-            LoopBegin = 0,
-            LoopEnd = n,
-        };
-    }
-
-    // 들숨 0.15~1.5s, 날숨 2.7~4.6s(조금 더 길고 약하게), 나머지는 정적.
-    private static float BreathEnvelope(float t)
-    {
-        float inhale = Bump(t, 0.15f, 1.5f);
-        float exhale = Bump(t, 2.7f, 4.6f) * 0.8f;
-        return Mathf.Clamp(inhale + exhale, 0f, 1f);
-    }
-
-    private static float Bump(float t, float a, float b)
-    {
-        if (t <= a || t >= b) return 0f;
-        return Mathf.Sin((t - a) / (b - a) * Mathf.Pi);
-    }
 
     private Node3D NodeAt(NodePath p) => GetNodeOrNull<Node3D>(p);
 
@@ -319,7 +262,7 @@ public partial class ControlRoomAtmosphere : Node3D
 
     // 기계 쪽을 늘 더 크게 둔다(요청) — 송풍은 그 뒤에 깔린다.
     private const float BedLiveMachineDb = -10f;
-    private const float BedLiveFanDb = -16f;
+    private const float BedLiveFanDb = -12f;
     private const float BedStoryMachineDb = -26f;
     private const float BedStoryFanDb = -32f;
     private const float BedIdleMachineDb = -28f;
@@ -366,28 +309,10 @@ public partial class ControlRoomAtmosphere : Node3D
             }
         }
 
-        // 숨소리 — 근무 중에는 계속. 정전에도 죽지 않고 오히려 또렷해진다(고립감).
-        //
-        // 여기에 **사건 후 잔여 반응**(_breathStress)이 더해진다. 평상시에는 거의 들리지
-        // 않고, 기절 · 사망 같은 일이 있은 뒤 몇 초 동안만 또렷해진다(§15 · §16).
-        if (_breath != null)
-        {
-            float tgt = _amb switch
-            {
-                Amb.Off => Silent,
-                Amb.Warning => BreathBaseDb + 5f,
-                Amb.TabooPrecursor => BreathBaseDb + 8f,
-                Amb.Blackout => BreathBaseDb + 7f,
-                _ => BreathBaseDb,
-            };
-            // 가쁜 호흡은 최대 +9dB 까지. 그 위로 올리면 숨소리가 대사를 덮는다.
-            if (_amb != Amb.Off) tgt += _breathStress * 9f;
-            _breath.VolumeDb = Mathf.MoveToward(_breath.VolumeDb, tgt, d * 8f);
-            float pTgt = _amb is Amb.TabooPrecursor or Amb.Blackout ? 1.18f : _amb == Amb.Warning ? 1.08f : 1f;
-            // 빨라지는 쪽도 상한을 둔다 — 1.45 를 넘으면 사람 숨이 아니라 과호흡 효과음이 된다.
-            pTgt = Mathf.Min(1.45f, pTgt + _breathStress * 0.3f);
-            _breath.PitchScale = Mathf.Lerp(_breath.PitchScale, pTgt, d * 1.5f);
-        }
+        // 관리자 숨소리는 **없앴다.** 녹음 에셋이 없어 런타임에 저역 통과 노이즈로 만들어
+        // 깔았는데, 그게 숨이 아니라 "물 내려가는 소리" 로 들렸다 — 특히 정전(SHUT DOWN)
+        // 때 볼륨과 피치가 같이 올라가서 꼬르륵거리는 배수음처럼 또렷해졌다.
+        // 사건 반응(_breathStress)과 admin_gasp(실제 녹음)는 그대로 둔다.
     }
 
     // ── 관리자 호흡 (지시서 §15 · §16) ────────────────────────────────
@@ -399,7 +324,7 @@ public partial class ControlRoomAtmosphere : Node3D
     //   직원 기절             : 조금 빨라짐         (5~8초)
     //   직원 사망 · 치명적 실패 : 명확한 가쁜 호흡   (10~15초)
     //
-    // 새 Stress HUD 를 만들지 않는다(§15) — 기존 _breath 플레이어의 볼륨과 피치만 흔든다.
+    // 새 Stress HUD 를 만들지 않는다(§15) — 값만 들고 있다가 admin_gasp 한 번으로 드러낸다.
     // 연속 사건이면 쌓이되 상한이 있다(§16).
     private float _breathStress;          // 0 = 평상시, 1 = 가쁜 호흡
     private float _breathDecayPerSec = 0.1f;
