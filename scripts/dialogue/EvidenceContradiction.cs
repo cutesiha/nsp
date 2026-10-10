@@ -43,6 +43,9 @@ public static class EvidenceContradiction
         // 시간 순으로 정렬한 두 자료.
         public InterviewEvidence Earlier;
         public InterviewEvidence Later;
+        // 이 판정이 **어느 근무일의 일**에 대한 것인가. 두 자료가 가리키는 날이고,
+        // 말한 날이 아니다. 답변도 이 날의 동선으로 계산해야 한다.
+        public int SubjectDay = 1;
         // 충돌하는 두 작업실과 기준 시각.
         public string RoomA = "";
         public string RoomB = "";
@@ -58,6 +61,25 @@ public static class EvidenceContradiction
         if (a == null || b == null || a == b || a.Id == b.Id)
         {
             fail.Notice = "서로 다른 자료 두 개를 선택해 주십시오.";
+            return fail;
+        }
+
+        // 서로 다른 날의 일을 맞대어 모순이라고 할 수는 없다.
+        //
+        // 비교 기준은 **그 자료가 가리키는 날**(SubjectDay)이다. 말한 날이 아니다 —
+        // DAY2 에 "DAY1 에는 경비실에 있었다"고 한 진술은 DAY1 의 기록과 맞대어야 하고,
+        // 그 추궁은 DAY3 에 해도 성립해야 한다.
+        //
+        // 사건 키에는 날짜가 들어 있지 않아서(Type:Room:Time), 이 문을 두지 않으면
+        // 어제 22:40 저장고 사고와 오늘 22:40 저장고 사고가 같은 사건으로 붙는다.
+        if (a.SubjectDay != b.SubjectDay)
+        {
+            fail.Earlier = a; fail.Later = b;
+            fail.AnchorTime = b.HasTime ? b.AnchorTime : a.AnchorTime;
+            fail.Notice = $"DAY {a.SubjectDay} 자료와 DAY {b.SubjectDay} 자료입니다. " +
+                          "서로 다른 근무의 일이라 모순으로 볼 수 없습니다.";
+            fail.QuestionText = KoreanParticle.Resolve(
+                $"{Describe(a)} 그리고 {Describe(b)} 이 둘은 서로 다른 날의 일입니다만, 설명해 주시겠습니까?");
             return fail;
         }
 
@@ -95,6 +117,7 @@ public static class EvidenceContradiction
             Kind = ConfrontKind.Presence,
             Earlier = earlier,
             Later = later,
+            SubjectDay = incident.SubjectDay,
             RoomA = incident.SubjectRoomId,
             RoomB = incident.SubjectRoomId,
             AnchorTime = incident.AnchorTime,
@@ -133,6 +156,7 @@ public static class EvidenceContradiction
                     Kind = ConfrontKind.Behavior,
                     Earlier = earlier,
                     Later = later,
+                    SubjectDay = own.SubjectDay,
                     RoomA = own.SubjectRoomId,
                     RoomB = witness.SubjectRoomId,
                     AnchorTime = witness.AnchorTime,
@@ -156,6 +180,7 @@ public static class EvidenceContradiction
             Kind = ConfrontKind.Behavior,
             Earlier = earlier,
             Later = later,
+            SubjectDay = act.SubjectDay,
             RoomA = act.SubjectRoomId,
             RoomB = incident.SubjectRoomId,
             AnchorTime = act.AnchorTime,
@@ -190,6 +215,7 @@ public static class EvidenceContradiction
             Kind = ConfrontKind.Location,
             Earlier = earlier,
             Later = later,
+            SubjectDay = later.SubjectDay,
             RoomA = roomFromEarlier,
             RoomB = roomFromLater,
             AnchorTime = later.AnchorTime,
@@ -206,6 +232,7 @@ public static class EvidenceContradiction
         Kind = ConfrontKind.None,
         Earlier = earlier,
         Later = later,
+        SubjectDay = later.SubjectDay,
         AnchorTime = later.HasTime ? later.AnchorTime : earlier.AnchorTime,
         Notice = "두 자료 사이에서 직접적인 모순을 확인할 수 없습니다.",
         QuestionText = KoreanParticle.Resolve($"{Describe(earlier)} 그리고 {Describe(later)} 이 둘을 함께 보면 어떻습니까?"),

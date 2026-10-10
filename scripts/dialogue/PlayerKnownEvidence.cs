@@ -27,8 +27,11 @@ public static class PlayerKnownEvidence
     // 어떤 직원이 "사건 당시 나는 여기 있었다"고 말한 내용.
     public sealed class LocationStatement
     {
-        // 어느 근무의 자료인가. 휴게시간 조사 자료는 항상 오늘 것만 본다.
+        // **말한 날**. 휴게시간 조사 자료는 기본적으로 오늘 말한 것만 본다.
         public int Day = 1;
+        // **그 말이 가리키는 날**. 어제 일을 오늘 말할 수 있으므로 Day 와 다를 수 있고,
+        // 모순 판정은 Day 가 아니라 이 값을 증거의 날짜와 맞대어 본다.
+        public int SubjectDay = 1;
         public string SpeakerId = "";
         public string IncidentKey = "";
         public string RoomId = "";
@@ -44,7 +47,8 @@ public static class PlayerKnownEvidence
     // 이것이 **행동**에 대한 주장이라 동료의 목격 증언과 맞대어지기 때문이다(행동 추궁).
     public sealed class BehaviorClaim
     {
-        public int Day = 1;
+        public int Day = 1;          // 말한 날
+        public int SubjectDay = 1;   // 그 말이 가리키는 날
         public string SpeakerId = "";
         public string IncidentKey = "";
         public string Text = "";
@@ -55,7 +59,8 @@ public static class PlayerKnownEvidence
     // 어떤 직원이 "그 사람을 여기서 봤다"고 말한 내용.
     public sealed class SightingStatement
     {
-        public int Day = 1;
+        public int Day = 1;          // 말한 날
+        public int SubjectDay = 1;   // 그 말이 가리키는 날
         public string SpeakerId = "";
         public string SubjectId = "";
         public string RoomId = "";
@@ -145,11 +150,15 @@ public static class PlayerKnownEvidence
 
     // --- 진술 기록 ------------------------------------------------------
 
+    // subjectDay 는 **그 말이 가리키는 근무일**. 0 이면 오늘 일을 말한 것으로 본다.
+    // 같은 사건 키라도 날이 다르면 다른 주장이다 — 사건 키에는 날짜가 들어 있지 않아서,
+    // 날을 같이 보지 않으면 어제 저장고 사고와 오늘 저장고 사고가 한 장으로 뭉친다.
     public static void RecordLocationStatement(string speakerId, string incidentKey, string roomId, bool exactTime,
-        float anchorTime = -1f)
+        float anchorTime = -1f, int subjectDay = 0)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(roomId)) return;
-        var found = _locations.FirstOrDefault(x => x.Day == Today
+        int subject = subjectDay > 0 ? subjectDay : Today;
+        var found = _locations.FirstOrDefault(x => x.SubjectDay == subject
             && x.SpeakerId == speakerId && x.IncidentKey == incidentKey);
         if (found != null)
         {
@@ -160,7 +169,7 @@ public static class PlayerKnownEvidence
         }
         _locations.Add(new LocationStatement
         {
-            Day = Today,
+            Day = Today, SubjectDay = subject,
             SpeakerId = speakerId, IncidentKey = incidentKey ?? "", RoomId = roomId, StatedExactTime = exactTime,
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
         });
@@ -172,10 +181,11 @@ public static class PlayerKnownEvidence
     // 그 문장이 실제로 답변에 실려 나갈 때 한 번만 부른다. 같은 사건에 대해 두 번 말해도
     // 자료는 한 장이다(진술이 늘어나는 것이 아니라 같은 주장을 반복한 것이므로).
     public static void RecordBehaviorClaim(string speakerId, string incidentKey, string text,
-        float anchorTime = -1f)
+        float anchorTime = -1f, int subjectDay = 0)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(text)) return;
-        var found = _behaviors.FirstOrDefault(x => x.Day == Today
+        int subject = subjectDay > 0 ? subjectDay : Today;
+        var found = _behaviors.FirstOrDefault(x => x.SubjectDay == subject
             && x.SpeakerId == speakerId && x.IncidentKey == (incidentKey ?? "") && x.Text == text);
         if (found != null)
         {
@@ -184,7 +194,7 @@ public static class PlayerKnownEvidence
         }
         _behaviors.Add(new BehaviorClaim
         {
-            Day = Today,
+            Day = Today, SubjectDay = subject,
             SpeakerId = speakerId, IncidentKey = incidentKey ?? "", Text = text,
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
         });
@@ -263,10 +273,11 @@ public static class PlayerKnownEvidence
     // detail 은 "그 사람이 그때 무엇을 하고 있었는가". 들은 적이 없으면 빈 값 그대로 둔다 —
     // 이 클래스의 규칙은 여전히 "플레이어가 실제로 들은 것만 남긴다" 다.
     public static void RecordSighting(string speakerId, string subjectId, string roomId, float anchorTime = -1f,
-        string detail = "")
+        string detail = "", int subjectDay = 0)
     {
         if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId)) return;
-        var found = _sightings.FirstOrDefault(x => x.Day == Today && x.SpeakerId == speakerId
+        int subject = subjectDay > 0 ? subjectDay : Today;
+        var found = _sightings.FirstOrDefault(x => x.SubjectDay == subject && x.SpeakerId == speakerId
             && x.SubjectId == subjectId && x.RoomId == roomId);
         if (found != null)
         {
@@ -276,7 +287,7 @@ public static class PlayerKnownEvidence
         }
         _sightings.Add(new SightingStatement
         {
-            Day = Today,
+            Day = Today, SubjectDay = subject,
             SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "",
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
             Detail = detail ?? "",
@@ -319,6 +330,17 @@ public static class PlayerKnownEvidence
     // 이 직원이 관리자에게 한 모든 위치 진술(최근 순).
     public static IReadOnlyList<LocationStatement> StatementsBy(string employeeId) =>
         _locations.Where(x => x.Day == Today && x.SpeakerId == employeeId).ToList();
+
+    // 날을 가리지 않는다 — 어제 한 말도 포함. 어제 사건에 대한 그제 발언을 오늘 추궁할 때
+    // 쓰인다(3단계 대화 기록 추궁과 검증).
+    public static IReadOnlyList<LocationStatement> AllStatementsBy(string employeeId) =>
+        _locations.Where(x => x.SpeakerId == employeeId).ToList();
+
+    // 이 직원이 저 직원에 대해 그 날 말해 둔 목격 한 건. 없으면 null.
+    // 날을 가리지 않는 조회가 필요하므로 SightingsBy(오늘만)와 따로 둔다.
+    public static SightingStatement AllStatementsOfSighting(string speakerId, string subjectId, int day) =>
+        _sightings.FirstOrDefault(x => x.SubjectDay == day
+            && x.SpeakerId == speakerId && x.SubjectId == subjectId);
 
     // 관리자가 CCTV 로 이 직원을 실제로 본 모든 순간(최근 순).
     public static IReadOnlyList<CctvObservation> CctvSightingsOf(string employeeId) =>

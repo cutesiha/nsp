@@ -69,16 +69,19 @@ public static class KoreanDialogueComposer
     // 붙는 답변은 셋뿐이다 — 자기 위치(SelfLocation) · 그 방에 있던 이유(PresenceReason) ·
     // 거기서 한 일(ActionAtDestination). 그 밖의 질문에 끼워 넣으면 묻지도 않은 변명이 된다.
     // 결백한 직원은 애초에 DeniesEquipmentContact 가 false 라 이 자리에 오지 않는다.
-    public static void ApplyEquipmentDenial(ReplyFrame f, DialogueContext ctx, bool topicFits)
+    // addCaveat 가 거짓이면 문장은 붙이지 않고 **주장만 자료로 남긴다**.
+    // 핵심 문장이 이미 그 부인을 말하고 있을 때(설비 질문의 deny) 같은 말을 두 번 하지 않기 위해서다.
+    public static void ApplyEquipmentDenial(ReplyFrame f, DialogueContext ctx, bool topicFits,
+                                            bool addCaveat = true)
     {
         if (f == null || ctx == null || !topicFits || string.IsNullOrEmpty(ctx.ClaimKey)) return;
         var claim = DialogueClaimState.Get(ctx.EmployeeId, ctx.CurrentDay, ctx.ClaimKey);
         if (!claim.DeniesEquipmentContact) return;
         if (f.Caveats.Contains(EquipmentDenialSlot)) return;
 
-        f.Caveats.Add(EquipmentDenialSlot);
+        if (addCaveat) f.Caveats.Add(EquipmentDenialSlot);
         PlayerKnownEvidence.RecordBehaviorClaim(ctx.EmployeeId, ctx.ClaimKey, EquipmentDenialText,
-            ctx.HasSubjectTime ? ctx.SubjectTime : -1f);
+            ctx.HasSubjectTime ? ctx.SubjectTime : -1f, ctx.SubjectDay);
     }
 
     public const string EquipmentDenialSlot = "Denial.equipment";
@@ -112,7 +115,7 @@ public static class KoreanDialogueComposer
             {
                 vars["who"] = Codename(others[0]);
                 // "그 시각 그 방에서 저 사람과 함께 있었다" — 상대의 위치까지 걸린 진술이다(AskWhoWasPresent 와 같다).
-                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, others[0], room, ctx.SubjectTime);
+                PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, others[0], room, ctx.SubjectTime, "", ctx.SubjectDay);
             }
             DropCompanionMemory(memory, a => a.Slot.StartsWith("mem.with") || a.Slot == "mem.alone");
             return slot;

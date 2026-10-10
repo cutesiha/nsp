@@ -350,8 +350,10 @@ public static class InterviewEvidenceBoard
             list.Add(new InterviewEvidence
             {
                 // 위치 진술은 (말한 사람 · 사건) 으로 한 건이다(RecordLocationStatement 와 같은 기준).
-                Id = $"claim:{target}:{st.IncidentKey}",
+                // 같은 사건 키라도 가리키는 날이 다르면 다른 진술이다.
+                Id = $"claim:{target}:{st.SubjectDay}:{st.IncidentKey}",
                 Kind = EvidenceKind.OwnStatement,
+                Day = st.Day, SubjectDay = st.SubjectDay,
                 Header = Codename(target) + "의 진술",
                 TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",
                 Body = $"본인 · {RoomName(st.RoomId)}에 있었다",
@@ -378,8 +380,9 @@ public static class InterviewEvidenceBoard
             n++;
             list.Add(new InterviewEvidence
             {
-                Id = $"deny:{target}:{n}:{b.IncidentKey}",
+                Id = $"deny:{target}:{n}:{b.SubjectDay}:{b.IncidentKey}",
                 Kind = EvidenceKind.OwnStatement,
+                Day = b.Day, SubjectDay = b.SubjectDay,
                 Header = Codename(target) + "의 진술",
                 TimeText = b.HasTime ? DialogueClock.Text(b.AnchorTime) : "",
                 Body = $"본인 · {b.Text}",

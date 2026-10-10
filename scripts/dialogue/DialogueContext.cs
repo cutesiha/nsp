@@ -43,6 +43,9 @@ public sealed class DialogueContext
     // 물을 때(이동 기록·CCTV)는 그 자료의 시각이다. 이 값이 없으면 시간을 근거로 삼지 않는다.
     public float SubjectTime;
     public bool HasSubjectTime;
+    // 그 시각이 속한 근무일. 위치·동석자·목격은 **반드시 이 날의 동선**으로 계산한다.
+    // 오늘이 아닐 수 있다(어제 자료를 오늘 다시 묻는 경우).
+    public int SubjectDay;
     // 이 대화에서 세우는 주장(알리바이)을 묶는 키. 사건이면 사건 키, 아니면 "t:<시각>".
     // 서로 다른 순간의 주장이 한 덩어리로 섞이지 않게 하는 유일한 기준이다.
     public string ClaimKey = "no_incident";

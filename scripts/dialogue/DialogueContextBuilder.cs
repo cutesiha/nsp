@@ -310,6 +310,14 @@ public static class DialogueContextBuilder
         if (e == null) return KnowledgeLevel.None;
         if (e.WitnessEmployeeIds.Contains(employeeId) || e.ActorEmployeeId == employeeId)
             return KnowledgeLevel.Direct;
+
+        // 그 자리에 있었다는 것만으로는 본 게 아니다 — 쓰러져 있었거나, 격리됐거나, 배치가
+        // 풀린 상태였다면 의식이 없거나 업무에서 빠져 있었다는 뜻이다. 그런 직원을 목격자로
+        // 세우면 "기절해 있던 양이 사고를 봤다" 같은 없는 목격이 만들어진다.
+        // (본인이 당사자이거나 로그가 목격자로 적어 둔 경우는 위에서 이미 통과한다.)
+        if (!OnDutyAt(employeeId, e.Day, e.GameTimeSeconds))
+            return LearnedLater(employeeId, e) ? KnowledgeLevel.Later : KnowledgeLevel.None;
+
         string where = RoomAt(employeeId, e.Day, e.GameTimeSeconds);
         if (!string.IsNullOrEmpty(where) && where == e.RoomId) return KnowledgeLevel.Direct;
         // 벽 너머의 일은 아무나 알아차리지 못한다 — 관찰력이 낮으면 "몰랐다"가 사실이다.
@@ -456,10 +464,13 @@ public static class DialogueContextBuilder
     // 이동 기록이나 CCTV 처럼 사건이 아닌 순간을 물을 때 그 기본값이 끼어들면, 질문은
     // 22:13 이동을 묻는데 답변은 22:40 사고를 기준으로 계산되는 사고가 난다.
     // 그래서 증거 기반 심문은 반드시 이쪽으로 들어온다.
+    // anchorDay 는 그 시각이 속한 근무일. 0 이면 오늘이다. 어제 자료를 오늘 묻는 경우가
+    // 있으므로, 위치는 반드시 이 날의 동선에서 읽는다.
     public static DialogueContext BuildAt(string employeeId, DialogueConversationKind kind,
-        string questionId, LogEntry subject, float anchorTime, string claimKey)
+        string questionId, LogEntry subject, float anchorTime, string claimKey, int anchorDay = 0)
     {
         var ctx = Build(employeeId, kind, questionId, "", subject, autoSelectSubject: false);
+        if (subject == null && anchorDay > 0) ctx.SubjectDay = anchorDay;
         if (anchorTime >= 0f)
         {
             ctx.SubjectTime = anchorTime;
@@ -467,8 +478,9 @@ public static class DialogueContextBuilder
             // 사건이 따로 없으면 그 시각의 실제 위치를 여기서 다시 잡는다.
             if (subject == null)
             {
-                string at = RoomAt(employeeId, ctx.CurrentDay, anchorTime);
-                ctx.RoomAtSubject = string.IsNullOrEmpty(at) ? RoomAtOrLast(employeeId, ctx.CurrentDay, anchorTime) : at;
+                int day = ctx.SubjectDay > 0 ? ctx.SubjectDay : ctx.CurrentDay;
+                string at = RoomAt(employeeId, day, anchorTime);
+                ctx.RoomAtSubject = string.IsNullOrEmpty(at) ? RoomAtOrLast(employeeId, day, anchorTime) : at;
             }
         }
         if (!string.IsNullOrEmpty(claimKey)) ctx.ClaimKey = claimKey;
@@ -515,10 +527,12 @@ public static class DialogueContextBuilder
             ctx.HasSubjectTime = true;
             ctx.ClaimKey = ctx.Subject.Key;
         }
+        // 사건이 속한 날. 어제 사건을 오늘 물을 수 있으므로 오늘로 고정하면 안 된다.
+        ctx.SubjectDay = subject?.Day ?? day;
         // 통로를 걷던 중이면 직전에 실제로 있던 방으로 답한다. 지금 배치된 방으로 떨어뜨리지
         // 않는다 — 재배치된 직원이 "가 본 적도 없는 방에 있었다"고 말하게 되기 때문이다.
         if (string.IsNullOrEmpty(ctx.RoomAtSubject) && ctx.HasSubjectTime)
-            ctx.RoomAtSubject = RoomAtOrLast(employeeId, day, ctx.SubjectTime);
+            ctx.RoomAtSubject = RoomAtOrLast(employeeId, ctx.SubjectDay, ctx.SubjectTime);
 
         var suspicious = FindKnownSuspicious(employeeId, day);
         if (suspicious != null)

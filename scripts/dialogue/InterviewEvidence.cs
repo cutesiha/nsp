@@ -34,8 +34,22 @@ public sealed class InterviewEvidence
     // 화면/질문/테스트가 자료를 가리키는 고유 키. 같은 자료는 같은 Id 로 다시 만들어진다.
     public string Id = "";
     public EvidenceKind Kind;
-    // 어느 근무의 자료인가. 조사 자료는 항상 오늘 것만 모은다.
+    // 이 자료가 **만들어진** 근무일. 기록이면 기록된 날, 진술이면 직원이 말한 날이다.
+    // 조사 자료는 기본적으로 오늘 만들어진 것만 모은다.
     public int Day = 1;
+
+    // 이 자료의 **내용이 가리키는** 근무일.
+    //
+    // 기록 자료는 Day 와 같다. 하지만 진술은 다르다 — DAY2 에 한 말이 DAY1 의 일을
+    // 가리킬 수 있다. 모순은 "언제 말했는가" 가 아니라 "무엇에 대한 말인가" 로 따져야
+    // 하므로, 판정은 Day 가 아니라 이 값을 맞대어 본다.
+    // 0 이면 Day 와 같다고 본다(기존 자료 전부가 그렇다).
+    private int _subjectDay;
+    public int SubjectDay
+    {
+        get => _subjectDay > 0 ? _subjectDay : Day;
+        set => _subjectDay = value;
+    }
 
     // 이 자료가 플레이어에게 실제로 보인 적이 있는가.
     // 조사 자료에 들어오는 순간 항상 true 다 — false 인 자료를 만들지 않는 것이

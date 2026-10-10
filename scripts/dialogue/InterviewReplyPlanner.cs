@@ -59,8 +59,10 @@ public static class InterviewReplyPlanner
         variant = "neutral";
         if (string.IsNullOrEmpty(employeeId) || result == null) return "…";
 
-        int day = DialogueContextBuilder.Day();
-        var ctx = Anchor(employeeId, result.AnchorTime, result.Later?.IncidentKey ?? "");
+        // 추궁은 **그 자료들이 가리키는 날**의 일로 계산한다. 오늘 추궁한다고 해서
+        // 오늘 동선으로 답하면, 어제 일을 묻는데 오늘 있던 방이 나온다.
+        int day = result.SubjectDay > 0 ? result.SubjectDay : DialogueContextBuilder.Day();
+        var ctx = Anchor(employeeId, result.AnchorTime, result.Later?.IncidentKey ?? "", day);
         var plan = DialogueResponsePlanner.Plan(ctx);
         var claim = DialogueClaimState.Get(employeeId, day, ctx.ClaimKey);
 
@@ -88,10 +90,11 @@ public static class InterviewReplyPlanner
     private static ReplyFrame Build(InterviewQuestion q)
     {
         string id = q.TargetEmployeeId;
-        int day = DialogueContextBuilder.Day();
+        // 이 질문이 가리키는 날. 오늘이 아닐 수 있다.
+        int day = q.AnchorDay > 0 ? q.AnchorDay : DialogueContextBuilder.Day();
         float t = q.HasAnchorTime ? q.AnchorTime : (GameState.Instance?.DayTimeSeconds ?? 0f);
 
-        var ctx = Anchor(id, q.HasAnchorTime ? q.AnchorTime : -1f, q.IncidentKey);
+        var ctx = Anchor(id, q.HasAnchorTime ? q.AnchorTime : -1f, q.IncidentKey, day);
         var plan = DialogueResponsePlanner.Plan(ctx);
         var claim = DialogueClaimState.Get(id, day, ctx.ClaimKey);
         // 거짓 알리바이를 대고 있으면 실제 동선을 꺼낼 수 없다 — 꺼내는 순간 자백이 된다.
@@ -119,7 +122,7 @@ public static class InterviewReplyPlanner
                 covered.Add(MemoryKind.Dispatched);
                 if (f.Variant is "task" or "repair") covered.Add(MemoryKind.Worked);
                 // "그 방으로 갔다"는 것을 스스로 인정한 진술이다.
-                RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t, day);
                 break;
 
             case InterviewIntent.AskPresenceReason:
@@ -128,7 +131,7 @@ public static class InterviewReplyPlanner
                 memTopic = RecallTopic.Presence;
                 memRoom = truthful ? q.SubjectRoomId : plan.RoomId;
                 if (f.Variant == "task") covered.Add(MemoryKind.Worked);
-                RecordClaim(id, ctx.ClaimKey, truthful ? q.SubjectRoomId : plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, truthful ? q.SubjectRoomId : plan.RoomId, t, day);
                 break;
 
             case InterviewIntent.AskWhoWasPresent:
@@ -140,8 +143,10 @@ public static class InterviewReplyPlanner
                 f.Variant = others.Count > 0 ? "with" : "alone";
                 f.Set("who", others.Count > 0 ? Codename(others[0]) : "");
                 f.Set("room", RoomName(room));
+                // 이름을 입에 올렸다 — 꼬리질문이 이 사람을 파고들 수 있다.
+                if (others.Count > 0) { f.MentionedEmployeeId = others[0]; f.MentionedRoomId = room; }
                 // "그 시각 그 방에서 저 사람과 함께 있었다" — 상대의 위치까지 걸린 진술이다.
-                if (others.Count > 0) RecordSighting(id, others[0], room, t);
+                if (others.Count > 0) RecordSighting(id, others[0], room, t, day);
                 memTopic = RecallTopic.Presence;
                 memRoom = room;
                 covered.Add(MemoryKind.Companion);
@@ -185,6 +190,368 @@ public static class InterviewReplyPlanner
                 break;
             }
 
+            // ── 2단계 · 이동 ────────────────────────────────────────────
+
+            case InterviewIntent.AskArrivalState:
+            {
+                f.Topic = ReplyTopic.ArrivalState;
+                string room = q.ToRoomId;
+                // 도착했을 때 그 방에 실제로 무슨 일이 있었는가 — 기록에서만 찾는다.
+                var trouble = IncidentIn(room, day, q.AnchorTime);
+                var (kind, task) = WorkAt(id, day, room, t);
+                if (trouble != null)
+                {
+                    f.Variant = "incident";
+                    f.Set("what", IncidentWord(trouble.EventType));
+                }
+                else if (kind != "none") { f.Variant = "task"; f.Set("task", task); }
+                else f.Variant = "calm";
+                f.Set("room", RoomName(room));
+                memTopic = RecallTopic.Presence;
+                memRoom = room;
+                break;
+            }
+
+            case InterviewIntent.AskVisitPurpose:
+            {
+                f.Topic = ReplyTopic.VisitPurpose;
+                string other = q.OtherEmployeeId;
+                var (kind, task) = WorkAt(id, day, q.ToRoomId, t);
+                // 그 방에서 실제로 한 업무가 있으면 그것이 이유다. 없으면 업무 외 방문이고,
+                // 그걸 어떻게 말하는지는 성향이 가른다 — 없는 용건을 지어내지는 않는다.
+                if (kind != "none") { f.Variant = "work"; f.Set("task", task); }
+                else f.Variant = truthful ? "admit" : "evasive";
+                f.Set("who", Codename(other));
+                f.Set("room", RoomName(q.ToRoomId));
+                f.MentionedEmployeeId = other;
+                f.MentionedRoomId = q.ToRoomId;
+                break;
+            }
+
+            // ── 2단계 · 목격 ────────────────────────────────────────────
+            //
+            // '봤다' / '만졌다' / '조작했다' 는 전부 다른 주장이다. 이 직원이 실제로
+            // 어디까지 봤는지(SightingStatement.Detail)를 넘어서 말하지 않는다.
+
+            case InterviewIntent.AskSeenPersonAction:
+            {
+                f.Topic = ReplyTopic.SeenPersonAction;
+                string other = q.OtherEmployeeId;
+                string detail = SightingDetail(id, other, day);
+                string room = SightingRoom(id, other, day, q.SubjectRoomId);
+                if (!string.IsNullOrEmpty(detail)) { f.Variant = "detail"; f.Set("what", detail); }
+                else { f.Variant = "onlythere"; f.SaidDontKnow = true; }   // 거기 있던 것만 봤다
+                f.Set("who", Codename(other));
+                f.Set("room", RoomName(room));
+                f.MentionedEmployeeId = other;
+                f.MentionedRoomId = room;
+                f.MentionedDetail = detail;
+                break;
+            }
+
+            case InterviewIntent.AskSeenScope:
+            {
+                f.Topic = ReplyTopic.SeenScope;
+                string other = q.OtherEmployeeId;
+                string detail = SightingDetail(id, other, day);
+                // 설비를 만지는 것까지 봤다고 기록된 경우에만 "봤다"고 답한다.
+                bool sawEquipment = !string.IsNullOrEmpty(detail)
+                                    && (detail.Contains("설비") || detail.Contains("패널") || detail.Contains("조작"));
+                f.Variant = sawEquipment ? "saw" : "no";
+                if (!sawEquipment) f.SaidDontKnow = true;
+                f.Set("who", Codename(other));
+                f.MentionedEmployeeId = other;
+                break;
+            }
+
+            case InterviewIntent.AskWhySuspicious:
+            {
+                f.Topic = ReplyTopic.WhySuspicious;
+                string other = q.OtherEmployeeId;
+                string room = SightingRoom(id, other, day, q.SubjectRoomId);
+                // 의심의 근거는 "그 직후 그 방에서 사고가 났다" 처럼 **실제 사건**이어야 한다.
+                var after = IncidentIn(room, day, q.AnchorTime);
+                if (after != null)
+                {
+                    f.Variant = "incident";
+                    f.Set("what", IncidentWord(after.EventType));
+                    f.Set("room", RoomName(room));
+                }
+                else
+                {
+                    // 근거가 없으면 수상하다고 단정하지 않는다 — 이게 §3-⑥ 고양이 사례다.
+                    f.Variant = "notreally";
+                    f.SaidDontKnow = true;
+                }
+                f.Set("who", Codename(other));
+                f.MentionedEmployeeId = other;
+                break;
+            }
+
+            // ── 2단계 · 설비 사고 / 방해공작 ────────────────────────────
+
+            case InterviewIntent.AskEquipmentFault:
+            {
+                f.Topic = ReplyTopic.EquipmentFault;
+                string room = q.SubjectRoomId;
+                // 사고 전에 그 방에 이미 고장·수리가 있었는가 — 로그에서만 찾는다.
+                bool knew = DialogueContextBuilder.KnowledgeOf(id, ctx.Subject?.Entry) != KnowledgeLevel.None;
+                var (kind, _) = WorkAt(id, day, room, t);
+                if (kind == "repair") f.Variant = "repairing";      // 고치던 중이었다
+                else if (!knew) f.Variant = "unaware";              // 사고 자체를 몰랐다
+                else f.Variant = "none";                            // 이상은 못 느꼈다
+                f.Set("room", RoomName(room));
+                memTopic = RecallTopic.Presence;
+                memRoom = room;
+                break;
+            }
+
+            case InterviewIntent.AskInspectionWork:
+            {
+                f.Topic = ReplyTopic.InspectionWork;
+                var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
+                f.Variant = kind == "repair" ? "repair" : kind == "task" ? "task" : "none";
+                f.Set("task", task);
+                f.Set("room", RoomName(q.SubjectRoomId));
+                covered.Add(MemoryKind.Worked);
+                break;
+            }
+
+            // Q4 — 이 유형의 중심. 네 갈래(점검만 / 손대지 않았다 / 수리했다 / 기억 안 난다).
+            //
+            // 결번 개체의 전략은 **한 번 정해지면 바뀌지 않는다**(DialogueClaim.DeniesEquipmentContact).
+            // 질문을 다시 눌렀다고 "사실은 만졌다" 로 흔들리면 추리가 성립하지 않는다.
+            // 자백은 플레이어가 증거를 들이밀었을 때(ConfrontAnswer)만 나온다.
+            case InterviewIntent.AskEquipmentTouch:
+            {
+                f.Topic = ReplyTopic.EquipmentTouch;
+                var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
+
+                if (ctx.IsSaboteur && claim.DeniesEquipmentContact)
+                {
+                    // "확인만 했다" — 접촉 자체를 부인하지는 않되 조작은 부인한다.
+                    // "설비 근처에는 가지 않았다" 를 자료로도 남긴다 — 나중에 동료의 목격
+                    // 증언이나 CCTV 와 맞대어 행동 추궁이 성립하는 바로 그 진술이다.
+                    f.Variant = "deny";
+                    KoreanDialogueComposer.ApplyEquipmentDenial(f, ctx, true, addCaveat: false);
+                }
+                else if (kind == "repair") { f.Variant = "repair"; f.Set("task", task); }
+                else if (kind == "task") { f.Variant = "inspect"; f.Set("task", task); }
+                else if (DialogueContextBuilder.RoomAt(id, day, t) == q.SubjectRoomId)
+                    f.Variant = "nearby";       // 거기 있었지만 설비는 건드리지 않았다
+                else { f.Variant = "notthere"; f.SaidDontKnow = true; }
+
+                f.Set("room", RoomName(q.SubjectRoomId));
+                memTopic = RecallTopic.Presence;
+                memRoom = q.SubjectRoomId;
+                break;
+            }
+
+            case InterviewIntent.AskWhoReported:
+            {
+                f.Topic = ReplyTopic.WhoReported;
+                // 실제로 관리자에게 알린 기록이 있는가. 없으면 알리지 않은 것이다.
+                bool called = CallMemoryLog.For(id, day)
+                    .Any(r => r.Kind == CallRecordKind.Reported
+                              && Mathf.Abs(r.Time - t) <= ShiftMemory.RecallWindowMinutes * DialogueClock.SecondsPerMinute);
+                var others = DialogueContextBuilder.OccupantsAt(q.SubjectRoomId, day, t, id);
+                if (called) f.Variant = "manager";
+                else if (others.Count > 0)
+                {
+                    f.Variant = "colleague";
+                    f.Set("who", Codename(others[0]));
+                    f.MentionedEmployeeId = others[0];
+                    f.MentionedRoomId = q.SubjectRoomId;
+                }
+                else { f.Variant = "noone"; f.SaidDontKnow = true; }
+                break;
+            }
+
+            case InterviewIntent.AskTouchDetail:
+            {
+                f.Topic = ReplyTopic.TouchDetail;
+                var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
+                if (ctx.IsSaboteur && claim.DeniesEquipmentContact) f.Variant = "denysetting";
+                else if (kind != "none") { f.Variant = "task"; f.Set("task", task); }
+                else { f.Variant = "vague"; f.SaidDontKnow = true; }
+                break;
+            }
+
+            case InterviewIntent.AskRepairConfirm:
+            {
+                f.Topic = ReplyTopic.RepairConfirm;
+                // 수리 완료 기록이 실제로 남아 있는가.
+                bool done = EventLog.Instance?.GetAllEntries().Any(e => e.Day == day
+                    && e.ActorEmployeeId == id && e.RoomId == q.SubjectRoomId
+                    && e.EventType == LogEventType.TaskComplete) ?? false;
+                f.Variant = done ? "confirmed" : "notconfirmed";
+                if (!done) f.SaidDontKnow = true;
+                break;
+            }
+
+            // ── 2단계 · 정전 ────────────────────────────────────────────
+            //
+            // 직접 겪은 것 / 경보만 들은 것 / 나중에 들은 것 / 몰랐던 것을 가른다.
+            // 이 구분은 이미 KnowledgeLevel 이 들고 있다 — 새로 짐작하지 않는다.
+
+            case InterviewIntent.AskBlackoutExperience:
+            {
+                f.Topic = ReplyTopic.BlackoutExperience;
+                var know = DialogueContextBuilder.KnowledgeOf(id, ctx.Subject?.Entry);
+                f.Variant = know switch
+                {
+                    KnowledgeLevel.Direct => "sawit",     // 불이 꺼지는 걸 직접 봤다
+                    KnowledgeLevel.Indirect => "alarm",   // 경보만 들었다
+                    KnowledgeLevel.Later => "heard",      // 나중에 들었다
+                    _ => "unaware",                       // 몰랐다
+                };
+                if (know is KnowledgeLevel.Later or KnowledgeLevel.None) f.SaidDontKnow = true;
+                f.Set("room", RoomName(plan.RoomId));
+                memTopic = RecallTopic.Location;
+                memRoom = plan.RoomId;
+                break;
+            }
+
+            case InterviewIntent.AskBlackoutSigns:
+            {
+                f.Topic = ReplyTopic.BlackoutSigns;
+                // "직전에 이상한 소리를 들었다" 는 그 방에서 실제로 앞선 고장이 있었을 때만.
+                var before = IncidentIn(plan.RoomId, day, t);
+                var know = DialogueContextBuilder.KnowledgeOf(id, ctx.Subject?.Entry);
+                if (before != null && know == KnowledgeLevel.Direct)
+                {
+                    f.Variant = "noise";
+                    f.Set("room", RoomName(plan.RoomId));
+                }
+                else { f.Variant = "nothing"; f.SaidDontKnow = true; }
+                break;
+            }
+
+            case InterviewIntent.AskAfterBlackoutMet:
+            {
+                f.Topic = ReplyTopic.AfterBlackoutMet;
+                // 정전 직후 그 방에 실제로 같이 있던 사람만.
+                var others = DialogueContextBuilder.OccupantsAt(plan.RoomId, day, t, id);
+                if (others.Count > 0)
+                {
+                    f.Variant = "met";
+                    f.Set("who", Codename(others[0]));
+                    RecordSighting(id, others[0], plan.RoomId, t, day);
+                    f.MentionedEmployeeId = others[0];
+                    f.MentionedRoomId = plan.RoomId;
+                }
+                else { f.Variant = "noone"; f.SaidDontKnow = true; }
+                break;
+            }
+
+            case InterviewIntent.AskHeardFromWhom:
+            {
+                f.Topic = ReplyTopic.HeardFromWhom;
+                var others = DialogueContextBuilder.OccupantsAt(plan.RoomId, day, t, id);
+                if (others.Count > 0)
+                {
+                    f.Variant = "person";
+                    f.Set("who", Codename(others[0]));
+                    f.MentionedEmployeeId = others[0];
+                }
+                else { f.Variant = "vague"; f.SaidDontKnow = true; }
+                break;
+            }
+
+            // ── 2단계 · 기절 / 구조 ─────────────────────────────────────
+
+            case InterviewIntent.AskLastMemory:
+            {
+                f.Topic = ReplyTopic.LastMemory;
+                // 쓰러지기 직전에 그 방에서 실제로 하던 일. 없으면 흐릿하다고 답한다 —
+                // 스트레스가 높았다는 이유만으로 원인을 지어내지 않는다.
+                var (kind, task) = WorkAt(id, day, q.SubjectRoomId, t);
+                if (kind != "none") { f.Variant = "task"; f.Set("task", task); }
+                else { f.Variant = "blank"; f.SaidDontKnow = true; }
+                f.Set("room", RoomName(q.SubjectRoomId));
+                break;
+            }
+
+            case InterviewIntent.AskWokeWhere:
+            {
+                f.Topic = ReplyTopic.WokeWhere;
+                // 의무실로 옮겨졌는가 — 실제 이송 기록으로만 판단한다.
+                bool moved = EventLog.Instance?.GetAllEntries().Any(e => e.Day == day
+                    && (e.Description ?? "").Contains("이송")
+                    && (e.Description ?? "").Contains(Codename(id))) ?? false;
+                f.Variant = moved ? "medical" : "sameroom";
+                f.Set("room", RoomName(moved ? FacilitySimulation.MedicalRoomIdPublic : q.SubjectRoomId));
+                break;
+            }
+
+            case InterviewIntent.AskFoundWhere:
+            {
+                f.Topic = ReplyTopic.FoundWhere;
+                f.Variant = "room";
+                f.Set("who", Codename(q.OtherEmployeeId));
+                f.Set("room", RoomName(q.SubjectRoomId));
+                f.MentionedEmployeeId = q.OtherEmployeeId;
+                f.MentionedRoomId = q.SubjectRoomId;
+                break;
+            }
+
+            case InterviewIntent.AskFoundCondition:
+            {
+                f.Topic = ReplyTopic.FoundCondition;
+                f.Variant = "unconscious";
+                f.Set("who", Codename(q.OtherEmployeeId));
+                // 그때 주변에 또 누가 있었는지는 **본 만큼만** 말한다.
+                var others = DialogueContextBuilder.OccupantsAt(q.SubjectRoomId, day, t, id)
+                    .Where(x => x != q.OtherEmployeeId).ToList();
+                if (others.Count > 0)
+                {
+                    f.Variant = "withothers";
+                    f.Set("other", Codename(others[0]));
+                    f.MentionedEmployeeId = others[0];
+                    f.MentionedRoomId = q.SubjectRoomId;
+                }
+                break;
+            }
+
+            case InterviewIntent.AskRescueAction:
+            {
+                f.Topic = ReplyTopic.RescueAction;
+                f.Variant = "carried";
+                f.Set("who", Codename(q.OtherEmployeeId));
+                f.Set("room", RoomName(FacilitySimulation.MedicalRoomIdPublic));
+                covered.Add(MemoryKind.Relocated);
+                break;
+            }
+
+            // ── 2단계 · 이상 개체 ───────────────────────────────────────
+
+            case InterviewIntent.AskAnomalySeenHow:
+            {
+                f.Topic = ReplyTopic.AnomalySeenHow;
+                var know = DialogueContextBuilder.KnowledgeOf(id, ctx.Subject?.Entry);
+                f.Variant = know switch
+                {
+                    KnowledgeLevel.Direct => "saw",
+                    KnowledgeLevel.Indirect => "heard",   // 소리만 들었다
+                    KnowledgeLevel.Later => "told",
+                    _ => "nothing",
+                };
+                if (know != KnowledgeLevel.Direct) f.SaidDontKnow = true;
+                break;
+            }
+
+            case InterviewIntent.AskAnomalyDirection:
+            {
+                f.Topic = ReplyTopic.AnomalyDirection;
+                // 직접 본 사람만 방향을 말할 수 있다.
+                bool direct = DialogueContextBuilder.KnowledgeOf(id, ctx.Subject?.Entry)
+                              == KnowledgeLevel.Direct;
+                f.Variant = direct ? "away" : "unknown";
+                if (!direct) f.SaidDontKnow = true;
+                f.Set("room", RoomName(q.SubjectRoomId));
+                break;
+            }
+
             case InterviewIntent.AskIncidentKnown:
             {
                 f.Topic = ReplyTopic.IncidentKnown;
@@ -215,6 +582,15 @@ public static class InterviewReplyPlanner
                 f.Variant = "any";
                 // 내세우는 방 — 결번 개체가 거짓 알리바이를 대는 중이면 주장한 방(ShiftMemory.Recall 의 Lying 과 같은 기준).
                 string room = !truthful && !string.IsNullOrEmpty(claim.ClaimedRoomId) ? claim.ClaimedRoomId : plan.RoomId;
+                // 끌어낼 기록이 없으면 방 이름을 대지 않는다. 빈 값은 '통로'로 읽히므로
+                // 그대로 두면 가 본 적도 없는 통로에 있었다는 진술이 되어 자료로 남는다.
+                if (string.IsNullOrEmpty(room))
+                {
+                    f.Variant = "unknown";
+                    f.FallbackSlot = "Unknown.any";
+                    memTopic = RecallTopic.Location;
+                    break;
+                }
                 f.Set("room", RoomName(room));
                 // B-2: 동석자 여부까지 사람이 통째로 쓴 한 문장(alone/with)이 캐릭터 파일에 있으면 그것을 쓴다.
                 // 없으면 .any + 근무 기억(mem.alone/with) 조합을 그대로 쓴다.
@@ -223,14 +599,19 @@ public static class InterviewReplyPlanner
                 if (DialogueLineBank.HasOwn(id, "WhereAtIncident." + variant))
                 {
                     f.Variant = variant;
-                    if (others.Count > 0) { f.Set("who", Codename(others[0])); RecordSighting(id, others[0], room, t); }
+                    if (others.Count > 0)
+                    {
+                        f.Set("who", Codename(others[0]));
+                        RecordSighting(id, others[0], room, t, day);
+                        f.MentionedEmployeeId = others[0]; f.MentionedRoomId = room;
+                    }
                     covered.Add(MemoryKind.Companion);
                     if (q.HasAnchorTime) ShiftMemory.MarkCompanionAsked(id, day, q.AnchorTime);
                 }
                 memTopic = RecallTopic.Location;
                 memRoom = room;
                 // 이 답변은 그대로 '이 직원의 진술' 자료가 된다.
-                RecordClaim(id, ctx.ClaimKey, room, t);
+                RecordClaim(id, ctx.ClaimKey, room, t, day);
                 break;
             }
 
@@ -257,7 +638,13 @@ public static class InterviewReplyPlanner
                 var others = DialogueContextBuilder.OccupantsAt(plan.RoomId, day, t, id);
                 f.Variant = others.Count > 0 ? "someone" : "none";
                 f.Set("who", others.Count > 0 ? Codename(others[0]) : "");
-                if (others.Count > 0) RecordSighting(id, others[0], plan.RoomId, t);
+                if (others.Count > 0)
+                {
+                    RecordSighting(id, others[0], plan.RoomId, t, day);
+                    f.MentionedEmployeeId = others[0];
+                    f.MentionedRoomId = plan.RoomId;
+                }
+                else f.SaidDontKnow = true;
                 break;
             }
 
@@ -281,7 +668,7 @@ public static class InterviewReplyPlanner
                 bool matches = !string.IsNullOrEmpty(q.SubjectRoomId) && plan.RoomId == q.SubjectRoomId;
                 f.Variant = matches ? "admit" : "deny";
                 f.Set("room", RoomName(matches ? q.SubjectRoomId : plan.RoomId));
-                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t, day);
                 // 남의 증언을 인정/부정하는 답이다 — 위치를 새로 묻는 게 아니므로 기억을 붙이지 않는다.
                 memTopic = RecallTopic.None;
                 break;
@@ -292,7 +679,7 @@ public static class InterviewReplyPlanner
                 f.Variant = "same";
                 f.Set("room", RoomName(plan.RoomId));
                 // 같은 주장을 되풀이하는 것이므로 진술 자료도 그대로 유지된다.
-                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t, day);
                 memTopic = RecallTopic.Location;
                 memRoom = plan.RoomId;
                 break;
@@ -355,7 +742,7 @@ public static class InterviewReplyPlanner
                 covered.Add(MemoryKind.Relocated);
                 covered.Add(MemoryKind.Dispatched);
                 if (f.Variant is "task" or "repair") covered.Add(MemoryKind.Worked);
-                RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, truthful ? q.ToRoomId : plan.RoomId, t, day);
                 break;
 
             // ── 통화 기록 ──
@@ -455,7 +842,7 @@ public static class InterviewReplyPlanner
                     "froze" => "이상 개체 앞에서 굳어 있었다",
                     _ => "이상 개체 앞에서도 자리를 지켰다",
                 };
-                PlayerKnownEvidence.RecordSighting(id, other, q.SubjectRoomId, t, detail);
+                PlayerKnownEvidence.RecordSighting(id, other, q.SubjectRoomId, t, detail, day);
                 break;
             }
 
@@ -466,11 +853,16 @@ public static class InterviewReplyPlanner
                 f.Topic = ReplyTopic.AlibiProof;
                 string room = plan.RoomId;
                 var others = DialogueContextBuilder.OccupantsAt(room, day, t, id);
-                if (others.Count > 0) { f.Variant = "witness"; f.Set("who", Codename(others[0])); RecordSighting(id, others[0], room, t); }
+                if (others.Count > 0)
+                {
+                    f.Variant = "witness"; f.Set("who", Codename(others[0]));
+                    RecordSighting(id, others[0], room, t, day);
+                    f.MentionedEmployeeId = others[0]; f.MentionedRoomId = room;
+                }
                 else if (!truthful) f.Variant = "evasive";
                 else f.Variant = PlayerKnownEvidence.HasRoomRecord(room) ? "cctv" : "none";
                 f.Set("room", RoomName(room));
-                RecordClaim(id, ctx.ClaimKey, room, t);
+                RecordClaim(id, ctx.ClaimKey, room, t, day);
                 memTopic = RecallTopic.Location;
                 memRoom = room;
                 covered.Add(MemoryKind.Companion);
@@ -493,7 +885,7 @@ public static class InterviewReplyPlanner
                 else f.Variant = "plain";
                 f.Set("room", RoomName(room));
                 f.OpenerSlot = "react.accused";
-                RecordClaim(id, ctx.ClaimKey, room, t);
+                RecordClaim(id, ctx.ClaimKey, room, t, day);
                 memTopic = RecallTopic.Presence;
                 memRoom = room;
                 if (f.Variant == "task") covered.Add(MemoryKind.Worked);
@@ -512,7 +904,7 @@ public static class InterviewReplyPlanner
                     f.Set("who", Codename(suspect));
                     f.Set("room", RoomName(ctx.KnownSuspicious?.RoomId ?? ""));
                     PlayerKnownEvidence.RecordSighting(id, suspect, ctx.KnownSuspicious?.RoomId ?? "",
-                        ctx.KnownSuspicious?.TimeSeconds ?? -1f, ctx.KnownSuspiciousDetail);
+                        ctx.KnownSuspicious?.TimeSeconds ?? -1f, ctx.KnownSuspiciousDetail, day);
                 }
                 else f.Variant = ctx.IsSaboteur ? "deflect" : "none";
                 break;
@@ -525,7 +917,7 @@ public static class InterviewReplyPlanner
                 f.Variant = !truthful ? "deny" : ctx.IsSaboteur ? "evasive" : "admit";
                 f.Set("room", RoomName(q.SubjectRoomId));
                 f.OpenerSlot = "react.accused";
-                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t);
+                RecordClaim(id, ctx.ClaimKey, plan.RoomId, t, day);
                 memTopic = RecallTopic.Location;
                 memRoom = plan.RoomId;
                 break;
@@ -579,7 +971,8 @@ public static class InterviewReplyPlanner
         if (!string.IsNullOrEmpty(q.ToRoomId)) return q.ToRoomId;
         bool incidentRoom = !string.IsNullOrEmpty(q.IncidentKey);
         if (!incidentRoom && !string.IsNullOrEmpty(q.SubjectRoomId)) return q.SubjectRoomId;
-        return string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
+        // 기록이 없으면 빈 값이다 — 지금 배치된 방으로 메우지 않는다.
+        return ctx.RoomAtSubject;
     }
 
     // 이동 이유는 실제 로그에서만 찾는다. 찾지 못하면 지어내지 않는다.
@@ -617,24 +1010,41 @@ public static class InterviewReplyPlanner
                                             && e.GameTimeSeconds >= time - 1f);
     }
 
+    // 이 이동이 실제로 어떤 이동이었는가. **질문을 만드는 쪽과 답하는 쪽이 같은 기준을
+    // 써야** 한다 — 사유마다 첫 질문이 달라지는데(기획안 §3-⑤) 판정이 어긋나면
+    // "도착했을 때 어땠나" 를 묻고 "쓰러져서 실려 갔다" 가 돌아온다.
+    //
+    //   carried    쓰러져서 동료가 업고 갔다 — 본인에게 이동 이유를 묻지 않는다
+    //   ordered    관리자가 직접 배치했다
+    //   dispatched 관리자가 전화로 "가 보라"고 했다(사고 대응)
+    //   repair     그 방의 수리 작업 때문에 갔다
+    //   task       그 방의 업무 때문에 갔다
+    //   plain      업무 기록이 없는 이동 — 무단 이동
+    public static string MoveKindOf(string id, int day, string toRoomId, float at, bool playerOrdered)
+    {
+        if (CarriedToMedical(id, day, toRoomId, at)) return "carried";
+        if (playerOrdered) return "ordered";
+        float window = ShiftMemory.RecallWindowMinutes * DialogueClock.SecondsPerMinute;
+        if (CallMemoryLog.For(id, day).Any(r => r.Kind == CallRecordKind.OrderedGo && r.RoomId == toRoomId
+                                                && r.Time <= at + 1f && r.Time >= at - window))
+            return "dispatched";
+        var (kind, _) = WorkAt(id, day, toRoomId, at);
+        return kind == "repair" ? "repair" : kind == "task" ? "task" : "plain";
+    }
+
     private static void FillMoveReason(ReplyFrame f, InterviewQuestion q, string id, int day, bool truthful)
     {
-        // 제 발로 간 게 아니다 — 쓰러져서 동료가 업고 갔다. 다른 어떤 이유보다 먼저다.
-        if (CarriedToMedical(id, day, q.ToRoomId, q.AnchorTime)) { f.Variant = "carried"; return; }
-        if (q.PlayerOrderedMove) { f.Variant = "ordered"; return; }
-        // 관리자가 전화로 "확인하러 가라"고 해서 옮긴 이동 — 통화 기록에서만 찾는다.
-        float window = ShiftMemory.RecallWindowMinutes * DialogueClock.SecondsPerMinute;
-        if (CallMemoryLog.For(id, day).Any(r => r.Kind == CallRecordKind.OrderedGo && r.RoomId == q.ToRoomId
-                                                && r.Time <= q.AnchorTime + 1f && r.Time >= q.AnchorTime - window))
-        { f.Variant = "dispatched"; return; }
-
-        var (kind, task) = WorkAt(id, day, q.ToRoomId, q.AnchorTime);
-        if (kind == "repair") { f.Variant = "repair"; return; }
-        if (kind == "task") { f.Variant = "task"; f.Set("task", task); return; }
-
+        string kind = MoveKindOf(id, day, q.ToRoomId, q.AnchorTime, q.PlayerOrderedMove);
+        if (kind == "task")
+        {
+            var (_, task) = WorkAt(id, day, q.ToRoomId, q.AnchorTime);
+            f.Variant = "task";
+            f.Set("task", task);
+            return;
+        }
         // 업무 기록이 없는 이동. 결백한 직원에게는 그냥 별일 아닌 이동이고,
         // 방해자에게는 설명할 수 없는 이동이다 — 여기서 갈린다.
-        f.Variant = truthful ? "plain" : "evasive";
+        f.Variant = kind == "plain" ? (truthful ? "plain" : "evasive") : kind;
     }
 
     private static void FillPresenceReason(ReplyFrame f, InterviewQuestion q, string id, int day,
@@ -688,15 +1098,18 @@ public static class InterviewReplyPlanner
     // --- 공통 -----------------------------------------------------------
 
     // 질문이 가리키는 그 순간으로 컨텍스트를 고정한다. 사건이 없으면 시각 자체가 키가 된다.
-    private static DialogueContext Anchor(string employeeId, float anchorTime, string incidentKey)
+    // anchorDay 가 0 이면 오늘이다. 자료가 어제 것이면 반드시 그 날로 들어와야 한다 —
+    // 사건 키도 그 날의 로그에서 찾아야 하고(오늘에서 찾으면 사건이 통째로 사라진다),
+    // 위치도 그 날의 동선에서 읽어야 한다.
+    private static DialogueContext Anchor(string employeeId, float anchorTime, string incidentKey, int anchorDay = 0)
     {
-        int day = DialogueContextBuilder.Day();
+        int day = anchorDay > 0 ? anchorDay : DialogueContextBuilder.Day();
         var subject = DialogueContextBuilder.FindByKey(day, incidentKey);
         string claimKey = !string.IsNullOrEmpty(incidentKey) ? incidentKey
             : anchorTime >= 0f ? $"t:{anchorTime:0.0}" : "no_incident";
 
         var ctx = DialogueContextBuilder.BuildAt(employeeId, DialogueConversationKind.Interview,
-            DialogueQuestions.Where, subject, anchorTime, claimKey);
+            DialogueQuestions.Where, subject, anchorTime, claimKey, day);
         ctx.TargetEmployeeId = LocalDialogueGenerator.OpinionTargetId(employeeId);
         return ctx;
     }
@@ -706,18 +1119,60 @@ public static class InterviewReplyPlanner
     // 모든 대사를 자료로 만들지는 않는다(기분·소감·되묻기는 남기지 않는다).
     // 여기 들어오는 것은 "언제 · 어디" 가 붙은 주장뿐이고, 그래야 나중에 로그·CCTV 와
     // 맞대어 볼 수 있다.
-    private static void RecordClaim(string employeeId, string claimKey, string roomId, float time)
+    // subjectDay 는 이 주장이 가리키는 근무일이다. 말한 날이 아니다.
+    private static void RecordClaim(string employeeId, string claimKey, string roomId, float time, int subjectDay)
     {
         if (string.IsNullOrEmpty(roomId) || time < 0f) return;
-        PlayerKnownEvidence.RecordLocationStatement(employeeId, claimKey, roomId, true, time);
+        PlayerKnownEvidence.RecordLocationStatement(employeeId, claimKey, roomId, true, time, subjectDay);
     }
 
     // "그 사람을 거기서 봤다" 는 말도 자료가 된다 — 다른 직원을 심문할 때 그대로 쓴다.
-    private static void RecordSighting(string speakerId, string subjectId, string roomId, float time)
+    private static void RecordSighting(string speakerId, string subjectId, string roomId, float time, int subjectDay)
     {
         if (string.IsNullOrEmpty(subjectId) || string.IsNullOrEmpty(roomId)) return;
-        PlayerKnownEvidence.RecordSighting(speakerId, subjectId, roomId, time);
+        PlayerKnownEvidence.RecordSighting(speakerId, subjectId, roomId, time, "", subjectDay);
     }
+
+    // ── 2단계 도우미 — 전부 "기록에 있는 것만" 돌려준다 ──────────────────
+
+    // 이 직원이 저 직원에 대해 실제로 말해 둔 목격 내용. 없으면 빈 값이다.
+    // 비어 있다는 것은 "거기 있는 것만 봤다" 는 뜻이지 "아무 일도 없었다" 가 아니다.
+    private static string SightingDetail(string speakerId, string subjectId, int day)
+    {
+        if (string.IsNullOrEmpty(subjectId)) return "";
+        var s = PlayerKnownEvidence.AllStatementsOfSighting(speakerId, subjectId, day);
+        return s?.Detail ?? "";
+    }
+
+    // 그 목격이 일어난 방. 기록이 없으면 질문이 들고 온 방을 쓴다.
+    private static string SightingRoom(string speakerId, string subjectId, int day, string fallback)
+    {
+        var s = PlayerKnownEvidence.AllStatementsOfSighting(speakerId, subjectId, day);
+        return string.IsNullOrEmpty(s?.RoomId) ? fallback : s.RoomId;
+    }
+
+    // 그 방에서 그 시각 앞뒤로 실제로 일어난 사고 한 건. 없으면 null — 지어내지 않는다.
+    private static LogEntry IncidentIn(string roomId, int day, float at)
+    {
+        if (string.IsNullOrEmpty(roomId)) return null;
+        float window = EvidenceContradiction.WindowMinutes * DialogueClock.SecondsPerMinute * 2f;
+        return EventLog.Instance?.GetAllEntries().FirstOrDefault(e => e.Day == day
+            && e.RoomId == roomId
+            && Mathf.Abs(e.GameTimeSeconds - at) <= window
+            && InterviewEvidenceBoard.IsIncidentType(e.EventType));
+    }
+
+    // 사고를 부르는 짧은 말. 로그 문장을 그대로 읽지 않는다 — 직원이 쓸 말이 아니다.
+    private static string IncidentWord(LogEventType type) => type switch
+    {
+        LogEventType.PowerOutage => "정전",
+        LogEventType.TaskFailed => "설비 고장",
+        LogEventType.Sabotage => "설비 사고",
+        LogEventType.AnomalyIncident => "이상 현상",
+        LogEventType.CctvDisconnect => "감시 장비 고장",
+        LogEventType.Death => "사망 사고",
+        _ => "사고",
+    };
 
     private static string RoomName(string roomId) => InterviewEvidenceBoard.RoomName(roomId);
     private static string Codename(string employeeId) => InterviewEvidenceBoard.Codename(employeeId);

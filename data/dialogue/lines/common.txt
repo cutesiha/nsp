@@ -312,6 +312,129 @@
 - 저는 {room}에 없었습니다. 기록이 잘못됐을 겁니다.
 - 아닙니다. 그 시간에 저는 거기 없었습니다.
 
+## WhereAtIncident.unknown
+- 그 시각에 어디였는지는 확실하지 않습니다.
+- 정확히 어디였는지 기억이 분명하지 않습니다.
+- 그때 제가 어디 있었는지는 단정해서 말씀드리기 어렵습니다.
+
+## ArrivalState.incident
+- 도착했을 때 이미 {what}이/가 난 뒤였습니다.
+- 가 보니 {room}에 {what}이/가 있었습니다.
+## ArrivalState.task
+- 도착해서 바로 {task}에 들어갔습니다.
+## ArrivalState.calm
+- 특별한 건 없었습니다. 평소와 같았습니다.
+## VisitPurpose.work
+- {task} 때문에 간 겁니다. 사람을 만나러 간 게 아닙니다.
+## VisitPurpose.admit
+- {who}이/가 거기 있던 건 맞습니다. 잠깐 이야기한 것도 맞습니다.
+## VisitPurpose.evasive
+- 특별한 이유는 없었습니다. 지나는 길이었습니다.
+## SeenPersonAction.detail
+- {what}
+- {what} 그 정도까지는 봤습니다.
+## SeenPersonAction.onlythere
+- 거기 있던 것만 봤습니다. 뭘 하고 있었는지까지는 못 봤습니다.
+- {room}에 서 있는 건 봤습니다만, 그 이상은 모르겠습니다.
+## SeenScope.saw
+- 네. 설비 쪽에 손을 대는 것까지는 봤습니다.
+## SeenScope.no
+- 아닙니다. 거기까지는 못 봤습니다.
+- 조작하는 장면은 보지 못했습니다. 봤다고 말씀드릴 수 없습니다.
+## WhySuspicious.incident
+- 그 직후에 {room}에서 {what}이/가 났으니까요.
+## WhySuspicious.notreally
+- 수상하다고 생각한 적 없습니다. 그냥 거기 있었다고 말씀드린 겁니다.
+- 제가 수상하다고 한 게 아닙니다. 본 것만 말씀드렸습니다.
+
+## EquipmentFault.repairing
+- 그 전부터 손보고 있었습니다. 완전히 잡히진 않았습니다.
+## EquipmentFault.unaware
+- 사고가 났다는 것 자체를 몰랐습니다.
+## EquipmentFault.none
+- 특별한 이상은 못 느꼈습니다.
+## InspectionWork.repair
+- {task} 작업을 하고 있었습니다.
+## InspectionWork.task
+- {task} 중이었습니다.
+## InspectionWork.none
+- 점검이라고 할 만한 건 하지 않았습니다.
+## EquipmentTouch.deny
+- 설정은 건드리지 않았습니다. 이상한 게 보여서 확인만 했습니다.
+## EquipmentTouch.repair
+- 네. {task} 때문에 직접 손을 댔습니다.
+## EquipmentTouch.inspect
+- {task} 하면서 만지긴 했습니다. 설정을 바꾸지는 않았습니다.
+## EquipmentTouch.nearby
+- {room}에 있긴 했습니다만 설비에는 손대지 않았습니다.
+## EquipmentTouch.notthere
+- 저는 그 설비 근처에 가지 않았습니다.
+## WhoReported.manager
+- 관리자님께 바로 알렸습니다.
+## WhoReported.colleague
+- {who}에게 먼저 말했습니다.
+## WhoReported.noone
+- 따로 알리지는 못했습니다.
+## TouchDetail.denysetting
+- 들여다보기만 했습니다. 설정값은 그대로 뒀습니다.
+## TouchDetail.task
+- {task} 하는 데 필요한 부분만 만졌습니다.
+## TouchDetail.vague
+- 어느 부분이었는지까지는 분명하지 않습니다.
+## RepairConfirm.confirmed
+- 네. 끝내고 정상 작동까지 확인했습니다.
+## RepairConfirm.notconfirmed
+- 거기까지는 확인하지 못했습니다.
+
+## BlackoutExperience.sawit
+- 갑자기 조명이 꺼졌습니다. 작업하다가 놀랐습니다.
+## BlackoutExperience.alarm
+- 불이 꺼진 건 못 봤습니다만 경보는 들었습니다.
+## BlackoutExperience.heard
+- 나중에 전력이 나갔다는 얘기를 들었습니다.
+## BlackoutExperience.unaware
+- 저는 별다른 걸 느끼지 못했습니다.
+## BlackoutSigns.noise
+- 경보가 울리기 전에 {room} 장치가 잠깐 이상한 소리를 냈습니다.
+## BlackoutSigns.nothing
+- 특별한 징후는 느끼지 못했습니다.
+## AfterBlackoutMet.met
+- {who}을/를 만났습니다.
+## AfterBlackoutMet.noone
+- 아무도 만나지 못했습니다.
+## HeardFromWhom.person
+- {who}에게 들었습니다.
+## HeardFromWhom.vague
+- 누구였는지까지는 분명하지 않습니다.
+## LastMemory.task
+- {task} 하던 것까지는 기억납니다. 그 뒤는 모르겠습니다.
+## LastMemory.blank
+- 기억이 흐릿합니다. 확실한 건 말씀드리기 어렵습니다.
+## WokeWhere.medical
+- 정신을 차려 보니 {room}이었습니다.
+## WokeWhere.sameroom
+- 쓰러진 자리에서 그대로 깨어났습니다.
+## FoundWhere.room
+- {room} 바닥에 쓰러져 있었습니다.
+## FoundCondition.unconscious
+- 의식이 없었습니다. 바로 상태부터 살폈습니다.
+## FoundCondition.withothers
+- 의식이 없었습니다. {other}도 근처에 있었습니다.
+## RescueAction.carried
+- {who}을/를 {room}으로/로 옮겼습니다.
+## AnomalySeenHow.saw
+- 네. 눈앞에서 봤습니다.
+## AnomalySeenHow.heard
+- 모습은 못 보고 소리만 들었습니다.
+## AnomalySeenHow.told
+- 직접 보지는 못했습니다. 나중에 들었습니다.
+## AnomalySeenHow.nothing
+- 저는 아무것도 보지 못했습니다.
+## AnomalyDirection.away
+- {room} 바깥쪽으로 빠져나가는 것까지는 봤습니다.
+## AnomalyDirection.unknown
+- 어디로 갔는지까지는 보지 못했습니다.
+
 ## Unknown.any
 - 그건 잘 모르겠습니다.
 
@@ -712,6 +835,129 @@
 ## PressPresence.deny
 - 저 {room}에 없었어요. 기록이 잘못됐을 거예요.
 - 아니에요. 그 시간에 저는 거기 없었어요.
+
+## WhereAtIncident.unknown
+- 그 시각에 어디였는지는 확실하지 않아요.
+- 어디였는지 정확히는 기억이 안 나요.
+- 그때 제가 어디 있었는지는 딱 잘라 말하기 어려워요.
+
+## ArrivalState.incident
+- 갔더니 이미 {what}이/가 난 뒤였어요.
+- 가 보니까 {room}에 {what}이/가 있었어요.
+## ArrivalState.task
+- 가자마자 {task} 시작했어요.
+## ArrivalState.calm
+- 별거 없었어요. 평소랑 똑같았는데요.
+## VisitPurpose.work
+- {task} 때문에 간 거예요. 사람 만나러 간 거 아니에요.
+## VisitPurpose.admit
+- {who} 거기 있었던 건 맞아요. 얘기 좀 한 것도 맞고요.
+## VisitPurpose.evasive
+- 별 이유 없었어요. 그냥 지나가는 길이었는데요.
+## SeenPersonAction.detail
+- {what}
+- {what} 그 정도까지는 봤어요.
+## SeenPersonAction.onlythere
+- 거기 있는 것만 봤어요. 뭘 하는지까지는 못 봤고요.
+- {room}에 서 있는 건 봤는데, 그 이상은 모르겠어요.
+## SeenScope.saw
+- 네. 설비 쪽에 손대는 것까지는 봤어요.
+## SeenScope.no
+- 아뇨. 거기까지는 못 봤어요.
+- 조작하는 건 못 봤어요. 봤다고는 말 못 하겠는데요.
+## WhySuspicious.incident
+- 그 직후에 {room}에서 {what}이/가 났으니까요.
+## WhySuspicious.notreally
+- 수상하다고 한 적 없는데요. 그냥 거기 있었다고 말한 거예요.
+- 제가 수상하다고 한 게 아니에요. 본 것만 말한 거고요.
+
+## EquipmentFault.repairing
+- 그 전부터 손보고 있었어요. 완전히 잡히진 않았고요.
+## EquipmentFault.unaware
+- 사고 났다는 것도 몰랐는데요.
+## EquipmentFault.none
+- 별다른 이상은 못 느꼈어요.
+## InspectionWork.repair
+- {task} 하고 있었어요.
+## InspectionWork.task
+- {task} 중이었어요.
+## InspectionWork.none
+- 점검이랄 것도 안 했어요.
+## EquipmentTouch.deny
+- 설정은 안 건드렸어요. 이상한 게 보여서 확인만 한 거예요.
+## EquipmentTouch.repair
+- 네. {task} 때문에 직접 손댔어요.
+## EquipmentTouch.inspect
+- {task} 하면서 만지긴 했어요. 설정을 바꾸진 않았고요.
+## EquipmentTouch.nearby
+- {room}에 있긴 했는데 설비엔 손 안 댔어요.
+## EquipmentTouch.notthere
+- 저 그 설비 근처에 안 갔는데요.
+## WhoReported.manager
+- 관리자님한테 바로 알렸어요.
+## WhoReported.colleague
+- {who}한테 먼저 말했어요.
+## WhoReported.noone
+- 따로 알리진 못했어요.
+## TouchDetail.denysetting
+- 들여다보기만 했어요. 설정값은 그대로 뒀고요.
+## TouchDetail.task
+- {task} 하는 데 필요한 데만 만졌어요.
+## TouchDetail.vague
+- 어디였는지까진 잘 모르겠어요.
+## RepairConfirm.confirmed
+- 네. 끝내고 정상 작동까지 봤어요.
+## RepairConfirm.notconfirmed
+- 거기까진 확인 못 했어요.
+
+## BlackoutExperience.sawit
+- 갑자기 조명이 꺼졌어요. 작업하다가 깜짝 놀랐어요.
+## BlackoutExperience.alarm
+- 불이 꺼진 건 못 봤는데 경보는 들었어요.
+## BlackoutExperience.heard
+- 나중에 전력 나갔다는 얘기를 들었어요.
+## BlackoutExperience.unaware
+- 저는 별다른 거 못 느꼈는데요.
+## BlackoutSigns.noise
+- 경보 울리기 전에 {room} 기계가 잠깐 이상한 소리를 내긴 했어요.
+## BlackoutSigns.nothing
+- 딱히 징후 같은 건 못 느꼈어요.
+## AfterBlackoutMet.met
+- {who} 만났어요.
+## AfterBlackoutMet.noone
+- 아무도 못 만났어요.
+## HeardFromWhom.person
+- {who}한테 들었어요.
+## HeardFromWhom.vague
+- 누구였는지까진 잘 모르겠어요.
+## LastMemory.task
+- {task} 하던 것까진 기억나요. 그 뒤는 모르겠어요.
+## LastMemory.blank
+- 기억이 흐릿해요. 확실하게는 말 못 하겠어요.
+## WokeWhere.medical
+- 정신 차려 보니까 {room}이었어요.
+## WokeWhere.sameroom
+- 쓰러진 자리에서 그냥 깨어났어요.
+## FoundWhere.room
+- {room} 바닥에 쓰러져 있었어요.
+## FoundCondition.unconscious
+- 의식이 없었어요. 바로 상태부터 봤고요.
+## FoundCondition.withothers
+- 의식이 없었어요. {other}도 근처에 있었고요.
+## RescueAction.carried
+- {who} {room}으로/로 옮겼어요.
+## AnomalySeenHow.saw
+- 네. 눈앞에서 봤어요.
+## AnomalySeenHow.heard
+- 모습은 못 보고 소리만 들었어요.
+## AnomalySeenHow.told
+- 직접 보진 못했어요. 나중에 들은 거예요.
+## AnomalySeenHow.nothing
+- 저는 아무것도 못 봤는데요.
+## AnomalyDirection.away
+- {room} 바깥쪽으로 빠져나가는 것까진 봤어요.
+## AnomalyDirection.unknown
+- 어디로 갔는지까진 못 봤어요.
 
 ## Unknown.any
 - 그건 잘 모르겠어요.

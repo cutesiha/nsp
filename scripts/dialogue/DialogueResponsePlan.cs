@@ -61,6 +61,10 @@ public sealed class DialogueResponsePlan
     public CoreKind Core = CoreKind.None;
     // 핵심 답변 뒤에 반드시 붙어야 하는 보정 문장(예: 직접 보지는 못했다). 생략 대상이 아니다.
     public bool NeedsIndirectCaveat;
+
+    // 그 시각의 위치를 끌어낼 기록이 아예 없다. 방 이름을 지어내는 대신 "잘 모르겠다"로
+    // 답해야 한다는 표시 — 빈 RoomId 를 '통로'로 읽어 버리지 않게 하는 구분이다.
+    public bool RoomUnknown;
     // 방해자가 원인을 아는 척하지 않기 위한 보정.
     public bool NeedsUnknownCauseCaveat;
 

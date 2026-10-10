@@ -116,19 +116,19 @@ public static class LocalDialogueGenerator
         {
             case CoreKind.SelfLocation:
                 PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, plan.RoomId,
-                    plan.Time == TimeRef.Exact, when);
+                    plan.Time == TimeRef.Exact, when, ctx.SubjectDay);
                 break;
             case CoreKind.SuspiciousSighting:
                 // "누구를 어디서 봤다" 뿐 아니라 "그때 무엇을 하고 있었다" 까지 남긴다.
                 // 이 게임에서 가장 중요한 단서가 바로 이 한 줄이다(§1-3).
                 PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId,
                     plan.IncidentRoomId, ctx.KnownSuspicious?.TimeSeconds ?? when,
-                    ctx.KnownSuspiciousDetail);
+                    ctx.KnownSuspiciousDetail, ctx.SubjectDay);
                 break;
             case CoreKind.SightingPlace:
                 PlayerKnownEvidence.RecordSighting(ctx.EmployeeId, plan.SubjectEmployeeId,
                     plan.RoomId, ctx.KnownSuspicious?.TimeSeconds ?? when,
-                    ctx.KnownSuspiciousDetail);
+                    ctx.KnownSuspiciousDetail, ctx.SubjectDay);
                 break;
 
             // 최초 진술(이상한 점)에서 "저도 그 방에 있었어요" 라고 말한 것도 위치 진술이다.
@@ -140,7 +140,7 @@ public static class LocalDialogueGenerator
                 string said = SpokenRoom(ctx, plan, key);
                 if (ctx.HasSubjectTime && !string.IsNullOrEmpty(said))
                     PlayerKnownEvidence.RecordLocationStatement(ctx.EmployeeId, key, said,
-                        plan.Time == TimeRef.Exact, when);
+                        plan.Time == TimeRef.Exact, when, ctx.SubjectDay);
                 break;
         }
     }

@@ -123,10 +123,14 @@ public static class DialogueResponsePlanner
         plan.RoomId = ctx.IsSaboteur ? claim.ClaimedRoomId : ctx.RoomAtSubject;
         // 정상 직원의 위치는 기록에서만 나온다. 기록이 없으면 지금 배치된 방으로 메우지
         // 않는다 — 그 순간 "실제로 가 보지 않은 방"이 진술이자 조사 자료가 된다.
+        //
+        // 그 날의 동선에서 읽는다. 오늘로 고정하면 어제 일을 물었을 때 오늘 있던 방이 나온다.
         if (string.IsNullOrEmpty(plan.RoomId) && ctx.HasSubjectTime)
-            plan.RoomId = DialogueContextBuilder.RoomAtOrLast(ctx.EmployeeId, ctx.CurrentDay, ctx.SubjectTime);
-        if (string.IsNullOrEmpty(plan.RoomId)) plan.RoomId = ctx.AssignedRoomId;
-        plan.Certainty = Certainty.High;
+            plan.RoomId = DialogueContextBuilder.RoomAtOrLast(
+                ctx.EmployeeId, ctx.SubjectDay > 0 ? ctx.SubjectDay : ctx.CurrentDay, ctx.SubjectTime);
+        // 끝내 기록이 없으면 방을 지어내지 않는다. 모르면 모른다고 답해야 한다.
+        plan.RoomUnknown = string.IsNullOrEmpty(plan.RoomId);
+        plan.Certainty = plan.RoomUnknown ? Certainty.Low : Certainty.High;
 
         if (!ctx.IsSaboteur) return;
 
@@ -277,7 +281,9 @@ public static class DialogueResponsePlanner
     private static string AnchorRoom(DialogueContext ctx, DialogueClaim claim)
     {
         if (ctx.IsSaboteur && !string.IsNullOrEmpty(claim.ClaimedRoomId)) return claim.ClaimedRoomId;
-        return string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
+        // 기록이 없으면 빈 값이다. 지금 배치된 방으로 메우면 꼬리질문이 통째로 엉뚱한
+        // 방을 전제로 깔린다("거기서 누구와 있었나" → 가 본 적 없는 방의 인원).
+        return ctx.RoomAtSubject;
     }
 
     private static void PlanFollowUp(DialogueContext ctx, DialogueResponsePlan plan,
@@ -507,7 +513,9 @@ public static class DialogueResponsePlanner
     {
         if (!string.IsNullOrEmpty(claim.ClaimedRoomId)) return;
 
-        string real = string.IsNullOrEmpty(ctx.RoomAtSubject) ? ctx.AssignedRoomId : ctx.RoomAtSubject;
+        // 실제 위치는 기록에서만 온다. 여기에 배치표를 섞으면 "진실"의 기준 자체가
+        // 틀어져서, 거짓말을 하지 않았는데 ClaimTruthful 이 거짓으로 뒤집힌다.
+        string real = ctx.RoomAtSubject;
         bool hides = mode is DeceptionMode.Omit or DeceptionMode.Vague
             or DeceptionMode.Redirect or DeceptionMode.Deny;
         string cover = string.IsNullOrEmpty(ctx.AssignedRoomId) ? real : ctx.AssignedRoomId;

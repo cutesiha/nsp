@@ -34,6 +34,25 @@ public enum ReplyTopic
     Innocence,
     Suspect,
     PressPresence,
+    // 2단계 — 이동 / 목격 질문 트리
+    ArrivalState,      // 도착했을 때 현장이 어땠는가
+    VisitPurpose,      // 그 직원을 만나러 간 이유
+    SeenPersonAction,  // 그 사람은 무엇을 하고 있었는가
+    SeenScope,         // 어디까지 봤는가(조작 장면까지 봤는가)
+    WhySuspicious,     // 왜 수상하다고 생각했는가
+    // 2단계 — 설비 사고 / 방해공작
+    EquipmentFault,    // 사고 전에 설비에 이상이 있었는가
+    InspectionWork,    // 어떤 점검 / 수리를 했는가
+    EquipmentTouch,    // 설비를 만지거나 설정을 바꿨는가
+    WhoReported,       // 누구에게 먼저 알렸는가
+    TouchDetail,       // 어느 부분을 만졌는가
+    RepairConfirm,     // 수리 후 정상 작동을 확인했는가
+    // 2단계 — 정전
+    BlackoutExperience, BlackoutSigns, AfterBlackoutMet, HeardFromWhom,
+    // 2단계 — 기절 / 구조
+    LastMemory, WokeWhere, FoundWhere, FoundCondition, RescueAction,
+    // 2단계 — 이상 개체
+    AnomalySeenHow, AnomalyDirection,
     Unknown,
 }
 
@@ -76,6 +95,18 @@ public sealed class ReplyFrame
     public int MaxSentences;
     // -1 이면 말투 설정을 따른다.
     public int MaxExclamations = -1;
+
+    // ── 이 답변이 실제로 입에 올린 것 ────────────────────────────────
+    //
+    // 꼬리질문은 **방금 답변에 실제로 나온 인물 · 방 · 행동** 만 근거로 삼는다.
+    // 질문 의도만 보고 고정 목록을 펼치면, 말한 적 없는 사람에 대해 "그 사람은 뭘
+    // 하고 있었습니까" 를 묻게 된다(기획안 §9 꼬리질문 규칙).
+    public string MentionedEmployeeId = "";
+    public string MentionedRoomId = "";
+    // 그 사람이 무엇을 하고 있었는지까지 말했는가. 비어 있으면 "있는 것만 봤다" 는 뜻이다.
+    public string MentionedDetail = "";
+    // 모른다 / 기억나지 않는다고 답했다. 같은 것을 다시 캐묻지 않기 위한 표시.
+    public bool SaidDontKnow;
 
     public ReplyFrame Set(string key, string value)
     {

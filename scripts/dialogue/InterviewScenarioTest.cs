@@ -285,7 +285,10 @@ public static class InterviewScenarioTest
 
         var qs = InterviewQuestionFactory.For("sheep", sheep);
         foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent})");
-        Check(qs.Count == 4, $"괜찮은가 · 생김새 · 무엇을 했나 · 같이 있던 사람 — 네 질문 ({qs.Count})");
+        // 2단계에서 "직접 보았는가"(AskAnomalySeenHow) 와 "어디로 갔는가"(AskAnomalyDirection) 가
+        // 앞뒤로 붙었다 — 모습을 묻기 전에 **본 것이 맞는지** 부터 가린다(기획안 §3-③).
+        Check(qs.Count == 6, $"직접 봤나 · 괜찮은가 · 생김새 · 무엇을 했나 · 어디로 갔나 · 같이 있던 사람 ({qs.Count})");
+        Check(qs[0].Intent == InterviewIntent.AskAnomalySeenHow, "'직접 보았는가' 가 가장 먼저 온다");
         foreach (var q in qs)
         {
             string a = InterviewReplyPlanner.Answer(q);

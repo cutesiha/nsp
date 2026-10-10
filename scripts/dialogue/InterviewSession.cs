@@ -308,6 +308,75 @@ public sealed class InterviewSession
         var ev = InterviewEvidenceBoard.Find(Board, asked.EvidenceId);
         if (ev == null) return result;
 
+        // ── ① 방금 답변이 **실제로 입에 올린 것**부터 ──────────────────────
+        //
+        // 직원이 "강아지를 봤다"고 말했으면 "강아지가 뭘 하고 있었습니까" 를 물을 수
+        // 있어야 한다. 이름이 나오지 않았으면 그 질문은 만들지 않는다 — 말한 적 없는
+        // 사람에 대해 캐묻는 꼴이 되기 때문이다(기획안 §9 꼬리질문 규칙).
+        var said = InterviewReplyPlanner.FrameFor(asked);
+        string named = said?.MentionedEmployeeId ?? "";
+        if (!string.IsNullOrEmpty(named) && named != EmployeeId)
+        {
+            // 인물 → 행동 → 관찰 범위 → 의심 근거. 이미 말한 단계는 건너뛴다.
+            var chain = string.IsNullOrEmpty(said.MentionedDetail)
+                ? new[] { InterviewIntent.AskSeenPersonAction }
+                : new[] { InterviewIntent.AskSeenScope, InterviewIntent.AskWhySuspicious };
+
+            foreach (var intent in chain)
+            {
+                if (result.Count >= 2) break;
+                var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent, named);
+                if (string.IsNullOrEmpty(q.Text) || _asked.Contains(q.Key)) continue;
+                result.Add(q);
+            }
+            // "거기 있는 것만 봤다"로 끝난 답에는 같은 것을 또 묻지 않는다.
+            if (said.SaidDontKnow && result.Count > 0) return result;
+        }
+
+        // ── ② "설비를 만졌습니까" 는 **답에 따라** 갈라진다 ────────────────
+        //
+        // 기획안 §3-② Q4 의 A~D. 같은 질문이라도 "점검만 했다" 와 "수리했다" 와
+        // "손도 대지 않았다" 는 이어서 물을 것이 전혀 다르다.
+        // 정전 — 인지 수준에 따라 이어지는 질문이 다르다(기획안 §3-① Q1 분기).
+        if (asked.Intent == InterviewIntent.AskBlackoutExperience && said != null)
+        {
+            var next = said.Variant switch
+            {
+                "sawit" => new[] { InterviewIntent.AskBlackoutSigns, InterviewIntent.AskEquipmentFault },
+                "alarm" => new[] { InterviewIntent.AskWhereAtIncident, InterviewIntent.AskAfterBlackoutMet },
+                "heard" => new[] { InterviewIntent.AskHeardFromWhom, InterviewIntent.AskWhereAtIncident },
+                _ => new[] { InterviewIntent.AskWhereAtIncident, InterviewIntent.AskInspectionWork },
+            };
+            foreach (var intent in next)
+            {
+                if (result.Count >= 2) break;
+                var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent);
+                if (string.IsNullOrEmpty(q.Text) || _asked.Contains(q.Key)) continue;
+                result.Add(q);
+            }
+            if (result.Count > 0) return result;
+        }
+
+        if (asked.Intent == InterviewIntent.AskEquipmentTouch && said != null)
+        {
+            var next = said.Variant switch
+            {
+                "inspect" => new[] { InterviewIntent.AskTouchDetail, InterviewIntent.AskWhoWasPresent },
+                "repair" => new[] { InterviewIntent.AskRepairConfirm, InterviewIntent.AskTouchDetail },
+                "deny" => new[] { InterviewIntent.AskTouchDetail, InterviewIntent.AskPresenceReason },
+                "nearby" => new[] { InterviewIntent.AskPresenceReason, InterviewIntent.AskWhoWasPresent },
+                _ => new[] { InterviewIntent.AskWhoWasPresent },   // 기억이 흐릿하다 → 동행자부터
+            };
+            foreach (var intent in next)
+            {
+                if (result.Count >= 2) break;
+                var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent);
+                if (string.IsNullOrEmpty(q.Text) || _asked.Contains(q.Key)) continue;
+                result.Add(q);
+            }
+            if (result.Count > 0) return result;
+        }
+
         // 방금 물은 것과 같은 자료에서, 아직 안 물어본 중립 질문을 최대 둘.
         // "정확히 몇 시였나"(FollowExactTime)는 더 이상 내지 않는다 — 시각은 기록에 이미 있다.
         var pool = new List<InterviewIntent>();
@@ -328,8 +397,53 @@ public sealed class InterviewSession
                 pool.Add(InterviewIntent.AskWhoWasPresent);
                 break;
             case InterviewIntent.AskWhereAtIncident:
+                pool.Add(InterviewIntent.AskEquipmentTouch);
                 pool.Add(InterviewIntent.AskAlibiProof);
                 pool.Add(InterviewIntent.AskBeforeIncident);
+                break;
+
+            // 설비 사고 — "만졌습니까" 의 답에 따라 갈라진다(기획안 §3-② Q4 의 A~D).
+            case InterviewIntent.AskEquipmentFault:
+                pool.Add(InterviewIntent.AskInspectionWork);
+                pool.Add(InterviewIntent.AskEquipmentTouch);
+                break;
+            case InterviewIntent.AskInspectionWork:
+                pool.Add(InterviewIntent.AskEquipmentTouch);
+                pool.Add(InterviewIntent.AskRepairConfirm);
+                break;
+            case InterviewIntent.AskTouchDetail:
+                pool.Add(InterviewIntent.AskWhoWasPresent);
+                break;
+            case InterviewIntent.AskWhoReported:
+                pool.Add(InterviewIntent.AskWhoWasPresent);
+                break;
+
+            // 정전 — 인지 수준에 따라 갈라진다(아래 ③ 에서 답을 보고 고른다).
+            case InterviewIntent.AskBlackoutSigns:
+                pool.Add(InterviewIntent.AskWhereAtIncident);
+                pool.Add(InterviewIntent.AskAfterBlackoutMet);
+                break;
+            case InterviewIntent.AskAfterBlackoutMet:
+                pool.Add(InterviewIntent.AskWhereAtIncident);
+                break;
+
+            // 기절 · 구조
+            case InterviewIntent.AskLastMemory:
+                pool.Add(InterviewIntent.AskWokeWhere);
+                break;
+            case InterviewIntent.AskFoundWhere:
+                pool.Add(InterviewIntent.AskFoundCondition);
+                pool.Add(InterviewIntent.AskRescueAction);
+                break;
+            case InterviewIntent.AskFoundCondition:
+                pool.Add(InterviewIntent.AskRescueAction);
+                pool.Add(InterviewIntent.AskWhoWasPresent);
+                break;
+
+            // 이상 개체
+            case InterviewIntent.AskAnomalySeenHow:
+                pool.Add(InterviewIntent.AskGhostAppearance);
+                pool.Add(InterviewIntent.AskAnomalyDirection);
                 break;
             case InterviewIntent.AskIncidentKnown:
                 pool.Add(InterviewIntent.AskWhereAtIncident);
@@ -352,7 +466,26 @@ public sealed class InterviewSession
                 pool.Add(InterviewIntent.AskRestate);
                 break;
             case InterviewIntent.AskWhoWasPresent:
+            case InterviewIntent.AskWhoSeenNear:
                 pool.Add(InterviewIntent.AskNextLocation);
+                break;
+
+            // 목격 사슬 — 행동을 들었으면 관찰 범위와 의심 근거로 이어진다.
+            case InterviewIntent.AskSeenPersonAction:
+                pool.Add(InterviewIntent.AskSeenScope);
+                pool.Add(InterviewIntent.AskWhySuspicious);
+                break;
+            case InterviewIntent.AskSeenScope:
+                pool.Add(InterviewIntent.AskWhySuspicious);
+                break;
+
+            // 이동 — 도착 상황을 들었으면 거기서 무엇을 했는지로 이어진다.
+            case InterviewIntent.AskArrivalState:
+                pool.Add(InterviewIntent.AskActionAtDestination);
+                pool.Add(InterviewIntent.AskWhoWasPresent);
+                break;
+            case InterviewIntent.AskVisitPurpose:
+                pool.Add(InterviewIntent.AskActionAtDestination);
                 break;
             case InterviewIntent.AskCallReason:
                 pool.Add(InterviewIntent.AskCallAfter);
@@ -378,7 +511,13 @@ public sealed class InterviewSession
             if (result.Count >= 2) break;
             // 개체 조우 꼬리질문 "같이 있던 사람은" 은 같이 있던 사람이 있을 때만.
             if (intent == InterviewIntent.AskGhostOthers && ev.RelatedEmployeeIds.Count == 0) continue;
-            var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent);
+            // 목격 사슬은 **이름이 실제로 나왔을 때만** 만든다. 상대가 없는데 열면
+            // "(직원)은 뭘 하고 있었습니까" 같은 빈 질문이 된다.
+            if (intent is InterviewIntent.AskSeenPersonAction or InterviewIntent.AskSeenScope
+                    or InterviewIntent.AskWhySuspicious
+                && string.IsNullOrEmpty(named)) continue;
+            // 목격 사슬 질문은 방금 답변에서 나온 사람을 그대로 들고 간다.
+            var q = InterviewQuestionFactory.Make(EmployeeId, ev, intent, named);
             // 꼬리질문은 '방금 답변에서 이어지는 것'이라 이미 물은 건 뺀다
             // (기본 목록과 자료 질문에는 그대로 남아 있다).
             if (string.IsNullOrEmpty(q.Text) || _asked.Contains(q.Key)) continue;
