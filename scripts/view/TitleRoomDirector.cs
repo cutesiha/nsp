@@ -205,11 +205,12 @@ public partial class TitleRoomDirector : Node
         while (term != null && !term.MenuRevealDone) await NextFrame();
         await Wait(0.30);
 
-        // 2) 화면이 축소되며 제어실 전체가 드러난다.
-        _ctl?.ClearFocus(0.70f);
+        // 2) **화면을 축소하지 않는다.** 시작 화면은 모니터1 확대 화면 그대로다 —
+        //    표제와 메뉴가 화면을 꽉 채운 채로 선택까지 간다. 제어실 전체는
+        //    근무가 시작될 때 처음 보인다.
         await Wait(0.30);
 
-        // 3) 축소되는 동안 나머지 장비가 하나씩 켜진다.
+        // 3) 그 사이 나머지 장비가 하나씩 켜진다(소리로 들린다).
         Sfx.Instance?.Play("relay_click", -7f);        // 오른쪽 모니터(직원 신원) ON
         var t1 = CreateTween();
         t1.TweenMethod(Callable.From<float>(v => _ctl?.SetScreenBrightnessFor("02", v)), 0.13f, 1.0f, 0.5)
@@ -317,7 +318,7 @@ public partial class TitleRoomDirector : Node
     {
         AchievementArchiveView.Instance?.Close();
         Sfx.Instance?.Play("relay_click", -8f);
-        _ctl?.ClearFocus(0.45f);
+        // 확대는 풀지 않는다 — 타이틀은 처음부터 끝까지 모니터1 확대 화면이다.
         TitleTerminalView.Instance?.ShowMenu();
         _hint.SetSub(MenuHint);
         _phase = Phase.Menu;

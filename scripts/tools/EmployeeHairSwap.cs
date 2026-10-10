@@ -14,11 +14,14 @@ namespace NSP.Tools;
 // 몸·가면·옷·색은 건드리지 않는다. HairAnchor 아래의 기존 헤어 조각(HairCap/HairBack/…)만
 // 지우고, 헤어 스튜디오에서 고른 메시 하나를 그 자리에 넣는다.
 //
-// 좌표계가 다르다는 점이 핵심이다.
-//   · 기존 직원 모델은 머리가 지름 0.26m 쯤 되는 큰 구이고 **얼굴이 -Z** 를 본다
-//     (MaskAnchor 가 z = -0.105 에 있다)
-//   · 분리해 둔 헤어는 사람 두상(0.18m)에 +Z 를 보도록 맞춰져 있다
-// 그래서 저장된 변환을 그대로 쓸 수 없고, 이 머리 크기에 맞춰 다시 계산하고 180° 돌린다.
+// 위치·크기는 둘 중 하나로 정해진다.
+//
+//   ① 스튜디오가 **게임 모델 위에서** 맞춘 값이 있으면 그대로 쓴다(fit: "model").
+//      스튜디오가 그 캐릭터의 .tscn 을 그대로 올려 같은 자리(Head/HairAnchor)에
+//      붙여 보여 주므로, 거기서 본 그대로가 여기서 들어간다.
+//   ② 그런 값이 없으면(옛 저장본 — 헤어팩 두상 기준) 이 머리 크기에 맞춰 자동으로
+//      계산하고 180° 돌린다. 머리 구는 지름 0.26m 이고 얼굴이 -Z 를 보는데,
+//      헤어는 사람 두상(0.18m)에 +Z 를 보도록 맞춰져 있기 때문이다.
 public partial class EmployeeHairSwap : Node
 {
     private const string SceneDir = "res://scenes/cctv_characters/employees";
@@ -61,21 +64,49 @@ public partial class EmployeeHairSwap : Node
                 continue;
             }
 
-            float scale = e.CapSize.X > 0.0001f
-                ? Mathf.Clamp(headW * CapWidthFactor / e.CapSize.X, 0.3f, 4f) : 1f;
-            // 180도 돌렸으므로 정수리 중심의 X·Z 도 같이 뒤집힌다.
-            var rot = new Basis(Vector3.Up, Mathf.Pi);
-            Vector3 cap = rot * (e.CapCenter * scale);
-            float crownTop = (e.CapCenter.Y + e.CapSize.Y * 0.5f) * scale;
-            var pos = new Vector3(
-                headCenter.X - cap.X,
-                headTop + Lift - crownTop,
-                headCenter.Z - cap.Z);
+            Vector3 pos;
+            Vector3 rotDeg;
+            float scale;
+            string how;
 
-            GD.Print($"  {id,-7} {a.HairId}  {a.ColorHex}  배율 {scale:F3}  " +
-                     $"위치 ({pos.X:F3}, {pos.Y:F3}, {pos.Z:F3})");
+            if (a.TunedOnModel)
+            {
+                // 스튜디오에서 이 모델을 보며 맞춘 값 — 손대지 않는다.
+                pos = a.Position;
+                rotDeg = a.RotationDeg;
+                scale = a.Scale.X;
+                how = "스튜디오";
+            }
+            else
+            {
+                scale = e.CapSize.X > 0.0001f
+                    ? Mathf.Clamp(headW * CapWidthFactor / e.CapSize.X, 0.3f, 4f) : 1f;
+                // 180도 돌렸으므로 정수리 중심의 X·Z 도 같이 뒤집힌다.
+                var rot = new Basis(Vector3.Up, Mathf.Pi);
+                Vector3 cap = rot * (e.CapCenter * scale);
+                float crownTop = (e.CapCenter.Y + e.CapSize.Y * 0.5f) * scale;
+                pos = new Vector3(
+                    headCenter.X - cap.X,
+                    headTop + Lift - crownTop,
+                    headCenter.Z - cap.Z);
+                rotDeg = new Vector3(0f, 180f, 0f);
+                how = "자동";
+            }
 
-            if (apply && Patch($"{SceneDir}/{file}", id, e, a, pos, scale)) done++;
+            // 아래쪽만 늘리기 — 세로로만 키우고 정수리 높이는 그대로 둔다.
+            // (늘린 만큼 메시 꼭대기가 올라가므로 그만큼 내려서 상쇄한다.)
+            float k = Mathf.Max(0.2f, a.StretchY);
+            var size = new Vector3(scale, scale * k, scale);
+            if (!Mathf.IsEqualApprox(k, 1f))
+                pos.Y -= (e.CapCenter.Y + e.CapSize.Y * 0.5f) * scale * (k - 1f);
+
+            GD.Print($"  {id,-7} {a.HairId}  {a.ColorHex}  배율 {scale:F3}" +
+                     (Mathf.IsEqualApprox(k, 1f) ? "" : $"×세로{k:F2}") +
+                     $"  위치 ({pos.X:F3}, {pos.Y:F3}, {pos.Z:F3})  " +
+                     $"회전 ({rotDeg.X:F0}, {rotDeg.Y:F0}, {rotDeg.Z:F0})  [{how}]");
+
+            if (apply && Patch($"{SceneDir}/{file}", id, e, a,
+                               HairFit.Compose(pos, rotDeg, size))) done++;
         }
 
         if (apply) GD.Print($"\n  {done}/{Targets.Length}개 씬을 고쳤다");
@@ -113,7 +144,7 @@ public partial class EmployeeHairSwap : Node
     // ── .tscn 고치기 ────────────────────────────────────────────────────
 
     private static bool Patch(string scenePath, string id, HairEntry e, HairAssignment a,
-                              Vector3 pos, float scale)
+                              Transform3D xform)
     {
         using var f = FileAccess.Open(scenePath, FileAccess.ModeFlags.Read);
         if (f == null) { GD.Print($"  !! {scenePath} 를 열지 못했다"); return false; }
@@ -155,7 +186,8 @@ public partial class EmployeeHairSwap : Node
         keep.Insert(insertAt, mat.ToString().TrimEnd('\n', '\r'));
 
         // ③ 새 헤어 노드 한 개를 넣는다.
-        var b = new Basis(Vector3.Up, Mathf.Pi).Scaled(Vector3.One * scale);
+        Basis b = xform.Basis;
+        Vector3 pos = xform.Origin;
         var node = new StringBuilder();
         node.AppendLine();
         node.AppendLine($"[node name=\"Hair\" type=\"MeshInstance3D\" parent=\"{HairPath}\" index=\"0\"]");

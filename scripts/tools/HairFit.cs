@@ -16,6 +16,11 @@ public static class HairFit
     // 조금 넘겨 덮으므로 1 보다 약간 크다. 화면으로 확인하며 고른 값이다.
     public const float CapWidthFactor = 1.10f;
 
+    // 게임 직원 모델은 머리가 **사람 두상이 아니라 지름 0.26m 짜리 큰 구**다. 그 구는
+    // 실제 머리통보다 크게 그려져 있어서, 머리카락을 구 폭에 그대로 맞추면 과하게 커진다.
+    // 1 보다 작은 값이 되는 이유가 그것이다(헤어팩 두상은 1.10, 여기는 0.95).
+    public const float ModelCapWidthFactor = 0.95f;
+
     // 정수리 위로 띄우는 높이(m). 0 이면 머리카락 끝이 두피에 딱 붙어 비어 보인다.
     public const float Lift = 0.004f;
 
@@ -24,18 +29,19 @@ public static class HairFit
     // 머리 본 기준 좌표계에서의 초기 변환. 스튜디오의 BoneAttachment3D 아래에 그대로 넣는다.
     // yaw 는 팩 단위로 정한 방향이다(HairCatalog.PackYaw).
     public static void Auto(HairEntry e, HairBaseEntry b, Transform3D headRest, float yaw,
-                            out Vector3 pos, out Vector3 rotDeg, out float scale)
+                            out Vector3 pos, out Vector3 rotDeg, out float scale,
+                            float widthFactor = CapWidthFactor)
     {
         rotDeg = new Vector3(0f, yaw, 0f);
-        scale = FitScale(e, b);
+        scale = FitScale(e, b, widthFactor);
         pos = Place(e, b, headRest, yaw, scale);
     }
 
     // 머리카락 윗부분의 폭을 귀 위쪽 머리통 폭에 맞춘다.
-    public static float FitScale(HairEntry e, HairBaseEntry b)
+    public static float FitScale(HairEntry e, HairBaseEntry b, float widthFactor = CapWidthFactor)
         => e == null || b == null || e.CapSize.X <= 0.0001f
             ? 1f
-            : Mathf.Clamp(b.CraniumSize.X * CapWidthFactor / e.CapSize.X, MinScale, MaxScale);
+            : Mathf.Clamp(b.CraniumSize.X * widthFactor / e.CapSize.X, MinScale, MaxScale);
 
     // 좌우·앞뒤는 귀 위쪽 중심에, 꼭대기는 정수리에 맞춘다. 크기가 달라지면 위치도
     // 달라지므로(원점이 AABB 중심이다) 둘을 따로 구할 수 있게 떼어 놓았다.

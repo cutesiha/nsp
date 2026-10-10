@@ -290,7 +290,11 @@ public partial class Prologue3DDirector : Node
         // 사이렌 · 기계음)과 변형음(폭풍우 · 재난음)이 여기서 전부 끊긴다 —
         // 예전에는 마지막 장면의 경보 루프가 게임 안까지 따라 들어왔다.
         StopSceneLoops();
+        // 사이렌은 컷씬 데이터가 켰을 수도 있다(소유권이 저쪽이다). 그래도 여기서
+        // 끊는다 — 프롤로그 연출기가 내려간 뒤에 사이렌이 울릴 이유는 없다.
+        SilenceLoops(SirenKey);
         _cutWarps.Clear();
+        _sirenQuiet = false;          // 다시 틀면 사이렌도 처음 크기부터 시작한다
         Sfx.Instance?.StopAllWarped(0.4f);
         RestoreBus();
     }

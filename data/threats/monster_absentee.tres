@@ -23,7 +23,8 @@ DisplayName = "형체"
 ModelPath = "res://assets/models/ghosts/MonsterPSX.fbx"
 TargetHeight = 1.82
 FloorOffset = 0.0
-YawOffsetDegrees = 0.0
+; 이 모델만 앞이 반대다 — 0 이면 복도에서도 돌진에서도 뒷모습으로 온다.
+YawOffsetDegrees = 180.0
 AnimIdle = "MonsterPSX_Rig|Idle_Watchful"
 AnimWalk = "MonsterPSX_Rig|Walk_Nervous"
 AnimRun = "MonsterPSX_Rig|Run_Frantic"

@@ -9,6 +9,7 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/wolf_epaulette.tres" id="7_wolfepaulett"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="8_badgegold"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-005.res" id="hair_new"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-005.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M11"]
 radius = 0.092
@@ -100,6 +101,11 @@ albedo_color = Color(0.282, 0.282, 0.282, 1)
 roughness = 0.72
 metallic = 0.0
 cull_mode = 2
+[sub_resource type="StandardMaterial3D" id="HairMatNew"]
+albedo_color = Color(0.282, 0.282, 0.282, 1)
+roughness = 0.72
+metallic = 0.0
+cull_mode = 2
 [node name="WolfEmployee3D" unique_id=890552455 instance=ExtResource("1_base")]
 
 [node name="ChestBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="1" unique_id=1324881492]
@@ -109,7 +115,7 @@ material_override = ExtResource("2_wolfaccent")
 material_override = ExtResource("2_wolfaccent")
 
 [node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.0865)
 
 [node name="Face" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="0" unique_id=2108410691]
 transform = Transform3D(1.4, 0, 0, 0, 1.46, 0, 0, 0, 0.72, 0, -0.007758, 0.002208)
@@ -205,7 +211,8 @@ material_override = ExtResource("8_badgegold")
 mesh = SubResource("M19")
 
 
+
 [node name="Hair" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" index="0"]
-transform = Transform3D(-1.004814, 0, 0, 0, 1.004814, 0, 0, 0, -1.004814, 0.002592, 0.042, 0.001537)
+transform = Transform3D(-1.355, 0, 0, 0, 1.355, 0, 0, 0, -1.355, 0.003, 0.013, 0.018)
 material_override = SubResource("HairMatNew")
 mesh = ExtResource("hair_new")

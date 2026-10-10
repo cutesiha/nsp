@@ -141,6 +141,7 @@ public partial class ControlRoom3DController : Node3D
         GetViewport().PhysicsObjectPicking = true;
         AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
         CollectScreens(this);
+        CollectRims(this);
         BuildViewports();
         // 씬의 Environment 가 올라온 뒤 그래픽 품질을 한 번 더 반영한다(글로우 on/off).
         NSP.Core.GameSettings.ApplyEnvironmentQuality(GetViewport()?.World3D?.Environment);
@@ -446,8 +447,35 @@ public partial class ControlRoom3DController : Node3D
                 s.ScreenMaterial?.SetShaderParameter("brightness", v);
     }
 
+    // 모니터 **기기** 외곽선의 은은한 빛.
+    //
+    // 본체(베젤) 메시를 한 겹 더 깔고 앞면을 잘라(cull_front) 조금 부풀린 것이다(grow) —
+    // 본체 뒤로만 삐져나와 기기의 윤곽선이 된다. 어느 각도에서 봐도 테두리가 같다.
+    //
+    // 밝기는 **화면 전원을 그대로 따라간다** — 정전이나 부팅 연출로 화면이 꺼지는데
+    // 테두리만 혼자 빛나고 있으면 그 장면이 통째로 깨진다.
+    private const float RimEnergy = 1.0f;
+
+    private void ApplyRimGlow()
+    {
+        foreach (var rim in _rims)
+            if (IsInstanceValid(rim))
+                rim.EmissionEnergyMultiplier = RimEnergy * Mathf.Clamp(_brightness, 0f, 1.2f);
+    }
+
+    private readonly List<StandardMaterial3D> _rims = new();
+
+    private void CollectRims(Node n)
+    {
+        if (n is MeshInstance3D { } mi && mi.Name.ToString().Contains("BezelOutline")
+            && mi.GetSurfaceOverrideMaterial(0) is StandardMaterial3D m && !_rims.Contains(m))
+            _rims.Add(m);
+        foreach (var c in n.GetChildren()) CollectRims(c);
+    }
+
     private void ApplyScreenParams()
     {
+        ApplyRimGlow();
         foreach (var s in _screens)
         {
             s.ScreenMaterial?.SetShaderParameter("brightness", _brightness);

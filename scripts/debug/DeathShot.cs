@@ -18,12 +18,15 @@ namespace NSP.Debug;
 public partial class DeathShot : Node
 {
     private string _dir = "";
+    private string _monsterId = "absentee";
     private int _shot;
 
     public override void _Ready()
     {
         var args = OS.GetCmdlineUserArgs();
         _dir = args.Length > 0 ? args[0] : ProjectSettings.GlobalizePath("user://");
+        // 두 번째 인자로 개체를 고른다(absentee · infant · spider). 비우면 결번자.
+        _monsterId = args.Length > 1 ? args[1] : "absentee";
         _ = Run();
     }
 
@@ -61,8 +64,8 @@ public partial class DeathShot : Node
         sim.Corridors.Unseal(seg.Id);
         Ok(!seg.Sealed, "북측 차폐문이 열려 있다");
 
-        var t = sim.Threats.ForceSpawn("absentee", "corridor_north");
-        Ok(t != null, "결번자가 북측 복도에 들어섰다");
+        var t = sim.Threats.ForceSpawn(_monsterId, "corridor_north");
+        Ok(t != null, $"{_monsterId} 가 북측 복도에 들어섰다");
         if (t == null) { GetTree().Quit(); return; }
 
         int dayBefore = GameState.Instance?.CurrentDay ?? 0;

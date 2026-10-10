@@ -107,6 +107,13 @@ public partial class PrologueAudioTest : Node
         var raw = GD.Load<AudioStreamMP3>("res://assets/audio/sfx/storm.mp3");
         Check(raw is { Loop: false }, "원본 파일의 loop 는 건드리지 않는다(원샷 재생이 멈추도록)");
 
+        // 원음 채널 — 유리가 깨지는 순간 · 사람 비명은 변형 버스를 지나지 않는다.
+        sfx.PlayWarped("glass_bomb", -3f, 1f, "glass_dry", bus: GameSettings.BusSfx);
+        await Frames(2);
+        Check(sfx.WarpedPlaying("glass_dry"), "원음 채널도 돈다");
+        Check(sfx.WarpedBus("glass_dry") == GameSettings.BusSfx, "원음 채널은 SFX 버스로 나간다");
+        Check(sfx.WarpedBus("glass_low") == GameSettings.BusWarp, "변형 채널은 Warp 버스로 나간다");
+
         sfx.StopAllWarped();
         await Frames(2);
         Check(!sfx.WarpedPlaying("storm") && !sfx.WarpedPlaying("glass_low"),
@@ -229,17 +236,38 @@ public partial class PrologueAudioTest : Node
         AddChild(dir);
 
         // ① 대재난이 시작되는 장면 — 폭풍우가 깔린다.
+        //    사이렌은 컷씬 데이터가 켠다(여기서는 그걸 흉내낸다).
+        sfx.Loop("siren", -2f);
         dir.Begin("core_warning");
         await Seconds(0.4);
         Check(sfx.WarpedPlaying("storm"), "대재난 시작 장면이 폭풍우를 깐다");
+        Check(sfx.LoopVolumeDb("siren") > -10f, "초반에는 사이렌이 크다");
 
-        // ② 마지막 장면 — 브리핑실 경보.
+        // ② 지상 컷 — 여기서부터 사이렌을 떨어뜨린다.
+        dir.Begin("surface_wide");
+        await Seconds(0.4);
+        Check(sfx.LoopVolumeDb("siren") <= -20f,
+            $"지상 컷부터 사이렌이 아주 작아진다 ({sfx.LoopVolumeDb("siren"):0.0}dB)");
+        Check(sfx.WarpedPlaying("surface_disaster"), "그 자리를 지상 재난음이 메운다");
+
+        // ③ 이후 컷에서도 다시 커지지 않는다(장면들이 저마다 사이렌을 켠다).
+        dir.Begin("disaster_run");
+        await Seconds(0.4);
+        Check(sfx.LoopVolumeDb("siren") <= -20f,
+            $"이후 컷에서도 사이렌이 다시 커지지 않는다 ({sfx.LoopVolumeDb("siren"):0.0}dB)");
+        Check(sfx.WarpedPlaying("shout_f") && sfx.WarpedPlaying("shout_m"),
+            "여성 · 남성 비명이 **같이** 들린다");
+        Check(sfx.WarpedBus("shout_f") == GameSettings.BusSfx
+            && sfx.WarpedBus("shout_m") == GameSettings.BusSfx,
+            "비명은 변형 없이 원음으로 나간다 — 사람 목소리로 알아들어야 한다");
+
+        // ④ 마지막 장면 — 브리핑실 경보.
         dir.Begin("director_last");
         await Seconds(1.0);
         Check(sfx.IsLooping("alarm"), "마지막 장면이 경보를 켠다");
         Check(sfx.WarpedPlaying("storm"), "폭풍우는 컷이 바뀌어도 이어진다");
 
-        // ③ 컷씬 종료.
+        // ⑤ 컷씬 종료.
         dir.End();
         await Seconds(0.8);
         Check(!sfx.IsLooping("alarm"), "End() 가 경보를 끈다 — 프롤로그 뒤 무한 재생 사고");

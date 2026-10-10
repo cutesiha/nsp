@@ -11,6 +11,7 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_pink.tres" id="9_badgepink"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="10_badgegold"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-104.res" id="hair_new"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-104.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_44ynl"]
 radius = 0.1
@@ -124,6 +125,11 @@ albedo_color = Color(0.380, 0.361, 0.596, 1)
 roughness = 0.72
 metallic = 0.0
 cull_mode = 2
+[sub_resource type="StandardMaterial3D" id="HairMatNew"]
+albedo_color = Color(0.380, 0.361, 0.596, 1)
+roughness = 0.72
+metallic = 0.0
+cull_mode = 2
 [node name="CatEmployee3D" unique_id=358206478 instance=ExtResource("1_base")]
 
 [node name="BustLayerL1" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="1" unique_id=202816569]
@@ -218,7 +224,7 @@ transform = Transform3D(0.56, 0, 0, 0, 0.66, 0, 0, 0, 0.45, -0.072, 0.05, -0.092
 material_override = ExtResource("2_cataccent")
 
 [node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.0865)
 
 [node name="Face" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/MaskAnchor" index="0" unique_id=1198048233]
 transform = Transform3D(1.34, 0, 0, 0, 1.465146, 0, 0, 0, 0.689482, 0, -0.007758, 0.002208)
@@ -366,7 +372,8 @@ material_override = ExtResource("10_badgegold")
 mesh = SubResource("STAR_PT")
 
 
+
 [node name="Hair" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" index="0"]
-transform = Transform3D(-1.082959, 0, 0, 0, 1.082959, 0, 0, 0, -1.082959, 0.002133, -0.001043, 0.008241)
+transform = Transform3D(-1.18, 0, 0, 0, 1.18, 0, 0, 0, -1.18, 0.002, -0.001, -0.006)
 material_override = SubResource("HairMatNew")
 mesh = ExtResource("hair_new")

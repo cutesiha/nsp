@@ -25,6 +25,9 @@ public partial class LightingShot : Node
         string dir = args.Length > 0 ? args[0] : ProjectSettings.GlobalizePath("user://");
         GD.Print($"renderer = {ProjectSettings.GetSetting("rendering/renderer/rendering_method")} · {RenderingServer.GetVideoAdapterName()}");
 
+        // 시작 화면만 보는 모드 — DAY1 로 건너뛰지 않고 타이틀 그대로 켠 뒤 찍는다.
+        if (args.Length > 1 && args[1] == "title") { await ShotTitle(dir); return; }
+
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
             ?.SetValue(null, true);
         var scene = GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate();
@@ -38,6 +41,11 @@ public partial class LightingShot : Node
         if (variant == "nofill" && scene.FindChild("DeskFillLight", true, false) is Light3D fl) fl.Visible = false;
         if (variant is "noglow" or "nothing")
             ((WorldEnvironment)scene.FindChild("WorldEnvironment", true, false)).Environment.GlowEnabled = false;
+        // 화면 전체에 깔리는 오버레이(필름 그레인 · 가운데 가산 하이라이트)가 검정을
+        // 얼마나 들어 올리는지 — "뿌옇다" 의 범인을 가리는 변수다.
+        if (variant == "nooverlay") AmbientOverlay.Instance?.SetSceneIntensity(0f);
+        if (variant is "medium" or "low")
+            GameSettings.GraphicsQuality = variant == "medium" ? GameSettings.Quality.Medium : GameSettings.Quality.Low;
         if (variant != "") GD.Print("variant = " + variant);
         await Frames(120);
         Save(dir, $"lighting_schedule{(variant == "" ? "" : "_" + variant)}.png");
@@ -85,6 +93,25 @@ public partial class LightingShot : Node
         GetTree().Quit();
     }
 
+    // 시작 화면 — 대기 상태 한 장, 전원을 넣어 두 CRT 가 다 켜진 상태 한 장.
+    private async System.Threading.Tasks.Task ShotTitle(string dir)
+    {
+        AddChild(GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate());
+        for (int i = 0; i < 1200 && TitleRoomDirector.Instance is not { IsRunning: true }; i++) await Frame();
+        await Frames(120);
+        Save(dir, "title_standby.png");
+        ReportContrast();
+
+        // [ PRESS ANY KEY ] — 사람이 누르는 것과 같은 경로로 전원을 넣는다.
+        var key = new InputEventKey { Keycode = Key.Enter, PhysicalKeycode = Key.Enter, Pressed = true };
+        GetTree().Root.PushInput(key, true);
+        await Frames(420);          // 표제 타이핑 → 축소 → 장비 점등까지
+        Save(dir, "title_poweron.png");
+        ReportContrast();
+        GD.Print("saved → " + dir);
+        GetTree().Quit();
+    }
+
     private void Save(string dir, string file)
         => GetViewport().GetTexture().GetImage().SavePng(dir + "/" + file);
 
@@ -117,6 +144,33 @@ public partial class LightingShot : Node
 
         GD.Print($"[대비] 방 구석 {corner:0.000} (좌상 {cornerTL:0.000} · 우상 {cornerTR:0.000} · 좌하 {cornerBL:0.000})"
                  + $" · 책상 {deskPool:0.000} · 책상/구석 = {(corner > 0.0001f ? deskPool / corner : 999f):0.0}배");
+        ReportHistogram(img);
+    }
+
+    // 화면이 "뿌연가" 를 재는 값. 눈으로는 "빛이 예쁘다" 와 "뿌옇다" 가 섞여 보이지만,
+    // 숫자로는 갈린다 — **어두워야 할 곳이 실제로 어두운가**.
+    //
+    //   검정 바닥(p01 · p05)  이 값이 0 에서 멀어질수록 화면 전체에 막이 낀 것이다.
+    //   순수 검정 비율        0.02 아래인 화소가 얼마나 되는가. 글로우가 번지면 0 에 수렴한다.
+    //   p95 - p05            밝은 곳과 어두운 곳의 폭. 좁으면 대비가 죽은 것이다.
+    private static void ReportHistogram(Image img)
+    {
+        var s = img.GetSize();
+        var lum = new System.Collections.Generic.List<float>(s.X * s.Y / 16);
+        int black = 0;
+        for (int y = 0; y < s.Y; y += 4)
+        for (int x = 0; x < s.X; x += 4)
+        {
+            var c = img.GetPixel(x, y);
+            float l = c.R * 0.299f + c.G * 0.587f + c.B * 0.114f;
+            lum.Add(l);
+            if (l < 0.02f) black++;
+        }
+        lum.Sort();
+        float P(float q) => lum[Mathf.Clamp((int)(q * (lum.Count - 1)), 0, lum.Count - 1)];
+        GD.Print($"[밝기분포] p01 {P(0.01f):0.000} · p05 {P(0.05f):0.000} · p50 {P(0.5f):0.000}"
+                 + $" · p95 {P(0.95f):0.000} · p99 {P(0.99f):0.000}");
+        GD.Print($"[밝기분포] 순수 검정(<0.02) {black * 100f / lum.Count:0.0}% · 폭(p95-p05) {P(0.95f) - P(0.05f):0.000}");
     }
 
     // 책상면 띠(전화기 · 스위치박스가 놓인 줄)의 평균 밝기.

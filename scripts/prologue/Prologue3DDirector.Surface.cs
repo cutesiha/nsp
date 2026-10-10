@@ -29,6 +29,9 @@ public partial class Prologue3DDirector
         SceneLoop("vent_loop", -9f);              // 거센 바람
         SceneLoop("drone_loop", -15f);            // 먼 곳의 낮은 울림
         SceneLoop("electric_crackle_loop", -22f); // 불타는 소리
+        // 지상을 보는 순간부터 사이렌은 멀리서 겨우 들리는 정도로 떨어진다 —
+        // 그래야 무너지는 소리와 사람들의 소리가 들린다. 이후 컷에서도 다시 커지지 않는다.
+        SirenGoQuiet();
         SceneLoop("siren", -15f);                 // 사이렌의 잔향 — 멀리
         // 지상의 재난 그 자체. 지상 컷이 이어지는 동안 계속 깔린다.
         SurfaceDisasterBegin();

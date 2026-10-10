@@ -118,9 +118,14 @@ public partial class AdminDeathDirector : Node
         // 작은 것은 화면 밖으로 빠진다.
         Vector3 floor = c.Origin - up * Mathf.Clamp(def.TargetHeight - 0.16f, 0.52f, 1.80f);
 
+        // 카메라를 바라보게 돌린다. 개체마다 모델의 앞이 어느 축인지 다르므로
+        // 여기서 뒤집지 않는다 — 어긋나는 모델은 그 개체의 YawOffsetDegrees 로 맞춘다
+        // (복도 CCTV 와 이 돌진이 같은 값을 쓰게 하려면 한 곳에서만 고쳐야 한다).
         float yaw = Mathf.RadToDeg(Mathf.Atan2(-fwd.X, -fwd.Z));
         Vector3 far = floor + fwd * 4.2f;
-        Vector3 near = floor + fwd * 0.78f;
+        // 코앞까지 들어온다. 다만 **키에 따라** 멈추는 거리가 달라야 한다 — 같은 거리면
+        // 큰 개체는 가슴만 화면을 덮어 무엇인지 알 수 없고, 작은 개체는 멀어 보인다.
+        Vector3 near = floor + fwd * (0.38f + def.TargetHeight * 0.18f);
 
         _actor.SetPose(far, yaw);
         _actor.PlayRole(PickCharge(def), 1.35f);
@@ -129,8 +134,9 @@ public partial class AdminDeathDirector : Node
         // 로만 보이고, 무엇에게 당했는지 끝내 알 수 없다. 가까워질수록 밝아진다.
         var flash = new OmniLight3D
         {
-            LightColor = new Color(0.86f, 0.84f, 0.80f),
-            OmniRange = 2.6f, LightEnergy = 0f, ShadowEnabled = false,
+            // 윤곽만 드러낼 만큼. 세게 비추면 얼굴이 하얗게 날아가 무엇인지 더 안 보인다.
+            LightColor = new Color(0.78f, 0.80f, 0.86f),
+            OmniRange = 2.2f, LightEnergy = 0f, ShadowEnabled = false,
             Position = c.Origin + fwd * 0.25f + up * 0.10f,
         };
         AddChild(flash);
@@ -145,7 +151,7 @@ public partial class AdminDeathDirector : Node
             float u = Mathf.Clamp((float)(t / dur), 0f, 1f);
             float e = u * u * u;
             _actor.SetPose(far.Lerp(near, e), yaw, Mathf.Lerp(1f, 1.18f, e));
-            flash.LightEnergy = Mathf.Lerp(0.15f, 2.4f, e);
+            flash.LightEnergy = Mathf.Lerp(0.08f, 0.85f, e);
         }
     }
 

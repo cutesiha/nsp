@@ -300,6 +300,7 @@ public partial class HairStudioTest : Node
         studio.PickForTest("admin", "male", anyMale);
         Ok(studio.CurrentHairId == anyMale, $"헤어를 고르면 선택이 바뀐다 ({anyMale})");
         Ok(studio.HairNode is { Visible: true, Mesh: not null }, "고른 헤어가 실제로 장착된다");
+        Ok(!studio.UsesGameModel, "관리자는 3D 모델이 없어 헤어팩 두상을 쓴다");
         Ok(studio.HairNode.GetParent() is BoneAttachment3D ba && ba.BoneName == "Head",
             "머리 본(BoneAttachment3D 'Head') 아래에 붙는다");
         Ok(studio.CurrentScale > 0.2f, $"자동 맞춤 배율이 들어간다 ({studio.CurrentScale:F3})");
@@ -314,9 +315,36 @@ public partial class HairStudioTest : Node
             $"여성 헤어가 장착된다 ({anyFemale})");
         Ok(!studio.CurrentPos.IsEqualApprox(fitted), "헤어마다 맞춤값이 다르게 나온다");
 
-        // 장면에는 고른 헤어 하나만 올라가야 한다 — 수십 개를 동시에 올리지 않는다.
-        int meshes = CountMeshes(studio.BaseSkeleton);
-        Ok(meshes <= 5, $"3D 장면에 올라간 메시가 적다 ({meshes}개 — 몸·눈·눈썹 + 헤어 1개)");
+        // ── 직원은 **게임에 실제로 쓰는 그 모델** 위에서 맞춘다 ──────────────
+        //
+        // 헤어팩 두상에서 맞춘 값은 게임 모델에 그대로 쓸 수 없다(머리 크기도 보는
+        // 방향도 다르다). 스튜디오에서 본 그대로가 게임에 들어가려면, 보고 있는
+        // 몸체와 붙는 자리가 게임과 같아야 한다.
+        Ok(studio.UsesGameModel, "양은 게임 직원 모델을 베이스로 쓴다");
+        Ok(studio.HairNode.GetParent()?.Name == "HairAnchor",
+            $"게임과 같은 자리(Head/HairAnchor) 아래에 붙는다 ({studio.HairNode.GetParent()?.Name})");
+        Ok(Mathf.Abs(Mathf.Wrap(studio.CurrentRot.Y, -180f, 180f)) > 170f,
+            $"얼굴이 -Z 를 보는 모델이라 머리카락이 180도 돌아간다 ({studio.CurrentRot.Y:F0}도)");
+        Ok(studio.CurrentScale > 0.2f && studio.CurrentScale < 4f,
+            $"그 머리 크기에 맞춘 배율이 나온다 ({studio.CurrentScale:F3})");
+
+        // 붙는 자리에는 고른 헤어 하나만 올라가야 한다 — 갈아 끼워 둔 옛 머리카락이
+        // 남아 있으면 두 개가 겹쳐 보이고, 맞춘 값도 믿을 수 없게 된다.
+        int onMount = CountMeshes(studio.HairMount);
+        Ok(onMount == 1, $"붙는 자리에 머리카락은 하나뿐이다 ({onMount}개)");
+
+        // 저장할 때 '무엇을 기준으로 맞춘 값인지' 가 같이 적혀야 교체 도구가 그대로 쓴다.
+        // (실제 저장은 하지 않는다 — 사람이 고른 결과를 테스트가 덮어쓰면 안 된다.)
+        Ok(studio.CurrentFitSpace == HairAssignment.FitModel,
+            $"저장할 때 기준이 함께 적힌다 (fit: '{studio.CurrentFitSpace}')");
+        var asIfSaved = new HairAssignment
+        {
+            Fit = studio.CurrentFitSpace,
+            Position = studio.CurrentPos,
+            RotationDeg = studio.CurrentRot,
+            Scale = Vector3.One * studio.CurrentScale,
+        };
+        Ok(asIfSaved.TunedOnModel, "교체 도구가 그 값을 다시 계산하지 않고 그대로 쓴다");
 
         RemoveChild(studio);
         studio.QueueFree();

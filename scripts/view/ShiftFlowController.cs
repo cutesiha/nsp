@@ -408,6 +408,10 @@ public partial class ShiftFlowController : Node
         {
             StartNewRun(1);
             _stressHintShown = false;
+            // 시작 화면은 모니터1 확대 화면 그대로 끝난다. 프롤로그를 끄고 곧장 배치로
+            // 들어오는 경로에서는 여기서 확대를 풀어야 한다 — 안 그러면 모니터1 에
+            // 얼굴을 박은 채로 근무 배치가 시작된다(프롤로그가 있으면 그쪽이 맡는다).
+            _ctl?.ClearFocus(0.6f);
         }
 
         _stage = Stage.Schedule;

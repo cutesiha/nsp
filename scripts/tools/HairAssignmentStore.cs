@@ -18,6 +18,23 @@ public sealed class HairAssignment
     public Vector3 RotationDeg = Vector3.Zero;
     public Vector3 Scale = Vector3.One;
 
+    // 위치·회전·크기가 **무엇을 기준으로 맞춘 값인가**.
+    //   "model" : 게임에 쓰는 그 캐릭터의 3D 모델(Head/HairAnchor 기준). 그대로 쓴다.
+    //   ""      : 헤어팩에 딸려 온 사람 두상 기준(예전 값). 머리 크기도 방향도 달라서
+    //             게임 모델에 그대로 쓸 수 없다 — 교체 도구가 자동 맞춤으로 다시 계산한다.
+    public string Fit = "";
+
+    public const string FitModel = "model";
+
+    // 머리카락 **아래쪽만** 늘리는 배율. 1 이면 그대로.
+    //
+    // 뒤통수가 짧은 헤어를 큰 머리 구에 씌우면 목덜미에 흰 살이 드러난다. 전체를
+    // 키우면 정수리가 뜨고 얼굴까지 덮으므로, 세로로만 늘이고 **정수리 높이는 고정**한다.
+    // 스튜디오에는 없는 값이라 저장본을 직접 손보거나 여기 기본값을 쓴다.
+    public float StretchY = 1f;
+
+    public bool TunedOnModel => Fit == FitModel && Scale.X > 0.001f;
+
     public Godot.Collections.Dictionary ToDict() => new()
     {
         ["body"] = Body,
@@ -28,6 +45,8 @@ public sealed class HairAssignment
         ["position"] = Arr(Position),
         ["rotation"] = Arr(RotationDeg),
         ["scale"] = Arr(Scale),
+        ["fit"] = Fit,
+        ["stretch_y"] = Mathf.Snapped(StretchY, 0.001f),
     };
 
     public static HairAssignment FromDict(string id, Godot.Collections.Dictionary d) => new()
@@ -41,12 +60,17 @@ public sealed class HairAssignment
         Position = Vec(d, "position", Vector3.Zero),
         RotationDeg = Vec(d, "rotation", Vector3.Zero),
         Scale = Vec(d, "scale", Vector3.One),
+        Fit = Str(d, "fit", ""),
+        StretchY = Num(d, "stretch_y", 1f),
     };
 
     private static Godot.Collections.Array Arr(Vector3 v) => new()
     {
         Mathf.Snapped(v.X, 0.0001f), Mathf.Snapped(v.Y, 0.0001f), Mathf.Snapped(v.Z, 0.0001f),
     };
+
+    private static float Num(Godot.Collections.Dictionary d, string k, float fallback)
+        => d.TryGetValue(k, out Variant v) ? (float)v.AsDouble() : fallback;
 
     private static string Str(Godot.Collections.Dictionary d, string k, string fallback)
         => d.TryGetValue(k, out Variant v) ? v.AsString() : fallback;
@@ -85,6 +109,26 @@ public sealed class HairAssignmentStore
         ("wolf", "늑대", ""),
         ("dog", "강아지", ""),
     };
+
+    // 그 캐릭터가 게임에서 실제로 쓰는 3D 모델. 없으면 빈 문자열(관리자 · 총괄관리자).
+    //
+    // 스튜디오의 베이스와 교체 도구의 대상이 **같은 파일**을 보게 하는 단 하나의 표다.
+    // 둘이 따로 들고 있으면 "스튜디오에서 맞춘 자리" 와 "게임에 들어가는 자리" 가
+    // 조용히 어긋난다.
+    public static string ModelScene(string characterId) => characterId switch
+    {
+        "rabbit" => "res://scenes/cctv_characters/employees/RabbitEmployee3D.tscn",
+        "cat" => "res://scenes/cctv_characters/employees/CatEmployee3D.tscn",
+        "fox" => "res://scenes/cctv_characters/employees/FoxEmployee3D.tscn",
+        "sheep" => "res://scenes/cctv_characters/employees/SheepEmployee3D.tscn",
+        "wolf" => "res://scenes/cctv_characters/employees/WolfEmployee3D.tscn",
+        "dog" => "res://scenes/cctv_characters/employees/DogEmployee3D.tscn",
+        _ => "",
+    };
+
+    // 직원 모델 안에서 머리카락이 붙는 자리와 머리 메시. 게임·스튜디오·교체 도구가 같이 쓴다.
+    public const string HairAnchorPath = "VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor";
+    public const string HeadMeshPath = "VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HeadMesh";
 
     // 직원의 초기 베이스는 데이터의 Gender 에서 읽는다. 코드에 성별을 박지 않는다
     // ("캐릭터 이름 및 성별 임의 변경 금지" — 지시서 §8).

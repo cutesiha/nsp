@@ -45,11 +45,15 @@ public partial class Sfx
     //          0.5 면 두 배 길고 한 옥타브 낮다.
     //   loop   파일 길이보다 오래 깔아야 하는 소리(폭풍우)에만 쓴다.
     //   delay  겹겹이 쌓을 때 한 겹을 늦춘다.
+    //   bus    비우면 Warp 버스(일그러뜨린다). **원래 소리 그대로** 내보내되 채널로
+    //          쥐고 있다가 끊어야 하는 소리는 GameSettings.BusSfx 를 넘긴다 —
+    //          유리가 깨지는 순간이나 사람 비명은 변형이 과하면 무슨 소리인지
+    //          알아들을 수 없게 된다. 그런 소리는 원음을 앞에 세우고 변형은 밑에만 깐다.
     public void PlayWarped(string key, float volumeDb = -6f, float pitch = 0.8f,
-        string channel = null, bool loop = false, float delaySeconds = 0f)
+        string channel = null, bool loop = false, float delaySeconds = 0f, string bus = null)
     {
         string ch = string.IsNullOrEmpty(channel) ? key : channel;
-        if (delaySeconds <= 0f) { StartWarped(key, volumeDb, pitch, ch, loop); return; }
+        if (delaySeconds <= 0f) { StartWarped(key, volumeDb, pitch, ch, loop, bus); return; }
 
         int gen = _warpGen;
         int seq = BumpSeq(ch);
@@ -58,16 +62,17 @@ public partial class Sfx
         timer.Timeout += () =>
         {
             if (gen != _warpGen || seq != SeqOf(ch) || !IsInstanceValid(this)) return;
-            StartWarped(key, volumeDb, pitch, ch, loop);
+            StartWarped(key, volumeDb, pitch, ch, loop, bus);
         };
     }
 
-    private void StartWarped(string key, float volumeDb, float pitch, string channel, bool loop)
+    private void StartWarped(string key, float volumeDb, float pitch, string channel, bool loop, string bus)
     {
         BumpSeq(channel);
         var stream = Load(key);
         if (stream == null) return;
-        GameSettings.EnsureWarpBus();
+        string target = string.IsNullOrEmpty(bus) ? GameSettings.BusWarp : bus;
+        if (target == GameSettings.BusWarp) GameSettings.EnsureWarpBus();
 
         // 루프는 파일을 복제해서 건다 — 캐시에 든 원본의 loop 를 켜 버리면
         // 그 파일을 쓰는 다른 자리(원샷)까지 끝없이 반복된다.
@@ -79,13 +84,14 @@ public partial class Sfx
 
         if (!_warp.TryGetValue(channel, out var p) || !IsInstanceValid(p))
         {
-            p = new AudioStreamPlayer { Bus = GameSettings.BusWarp };
+            p = new AudioStreamPlayer();
             AddChild(p);
             _warp[channel] = p;
         }
         if (_warpFade.TryGetValue(channel, out var old) && old != null && old.IsValid()) old.Kill();
         _warpFade.Remove(channel);
 
+        p.Bus = target;          // 같은 채널을 원음 ↔ 변형으로 바꿔 쓸 수도 있다
         p.Stream = stream;
         p.VolumeDb = volumeDb;
         p.PitchScale = Mathf.Clamp(pitch, 0.1f, 4f);
@@ -115,6 +121,10 @@ public partial class Sfx
         _warpGen++;
         foreach (string ch in new List<string>(_warp.Keys)) StopWarped(ch, fadeSeconds);
     }
+
+    // 그 채널이 어느 버스로 나가는가(검사 · 진단용). 없으면 빈 문자열.
+    public string WarpedBus(string channel) =>
+        _warp.TryGetValue(channel, out var p) && IsInstanceValid(p) ? p.Bus : "";
 
     public bool WarpedPlaying(string channel) =>
         _warp.TryGetValue(channel, out var p) && IsInstanceValid(p) && p.Playing;

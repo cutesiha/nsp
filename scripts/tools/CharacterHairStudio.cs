@@ -60,6 +60,21 @@ public partial class CharacterHairStudio : Node3D
     private MeshInstance3D _hairMesh;
     private StandardMaterial3D _hairMat;
 
+    // 지금 올라가 있는 베이스가 어떤 것이든 똑같이 다루기 위한 값들.
+    //   _mount      머리카락이 붙어 있는 자리(본 어태치먼트 또는 HairAnchor)
+    //   _fit        자동 맞춤 기준 — **_mount 좌표계**로 잰 머리 크기
+    //   _headRest   HairFit 이 쓰는 변환(본 레스트 / 앵커면 단위행렬)
+    //   _baseYaw    이 베이스에서 머리카락을 돌려 놓아야 하는 기본 각
+    //   _capFactor  머리 폭의 몇 배로 맞출지 — 두상과 게임 모델이 다르다
+    //   _gameBase   게임 직원 모델을 올렸는가(저장할 때 기준을 같이 적는다)
+    private Node3D _mount;
+    private HairBaseEntry _fit;
+    private Transform3D _headRest = Transform3D.Identity;
+    private float _baseYaw;
+    private float _capFactor = HairFit.CapWidthFactor;
+    private bool _gameBase;
+    private float _camHeadY = 1.55f, _camBodyHeight = 1.7f;
+
     private float _yaw = 20f, _pitch = -8f, _dist = 2.6f;
     private bool _closeUp;
     private bool _dragging;
@@ -156,11 +171,69 @@ public partial class CharacterHairStudio : Node3D
         world.AddChild(_baseRoot);
     }
 
+    // ── 베이스 몸체 ─────────────────────────────────────────────────────
+    //
+    // **게임에 실제로 쓰는 그 캐릭터의 3D 모델**을 올린다.
+    //
+    // 예전에는 헤어팩에 딸려 온 사람 두상(남/녀)을 썼다. 그 위에서 아무리 정성껏
+    // 맞춰도 게임에서는 어긋났다 — 직원 모델은 머리가 지름 0.26m 짜리 큰 구이고
+    // 얼굴이 -Z 를 본다. 머리 크기도 방향도 다른 두상에서 잰 값이었던 것이다.
+    // 이제 그 캐릭터의 .tscn 을 그대로 올리고, 머리카락도 게임과 **똑같은 자리**
+    // (Head/HairAnchor) 에 똑같은 방식으로 붙인다. 여기서 보이는 그대로가 들어간다.
+    //
+    // 3D 모델이 없는 캐릭터(관리자 · 총괄관리자)는 예전처럼 헤어팩 두상을 쓴다.
     private void LoadBase(string sex)
     {
+        bool wasGame = _gameBase;
         foreach (Node c in _baseRoot.GetChildren()) { _baseRoot.RemoveChild(c); c.QueueFree(); }
-        _skel = null; _attach = null; _hairMesh = null;
+        _skel = null; _attach = null; _hairMesh = null; _mount = null; _fit = null;
+        _headRest = Transform3D.Identity;
+        _baseYaw = 0f;
+        _capFactor = HairFit.CapWidthFactor;
+        _gameBase = false;
 
+        string model = HairAssignmentStore.ModelScene(_charId);
+        if (model == "" || !LoadGameBase(model)) LoadPackBase(sex);
+
+        // 두 베이스는 서로 반대쪽을 본다. 캐릭터를 옮길 때 보던 각을 그대로 두면
+        // 멀쩡히 얼굴을 보다가 갑자기 뒤통수가 나온다 — 같이 돌려 준다.
+        if (wasGame != _gameBase) _yaw = Mathf.Wrap(_yaw + 180f, -180f, 180f);
+    }
+
+    // 게임 직원 모델.
+    private bool LoadGameBase(string path)
+    {
+        var packed = ResourceLoader.Load<PackedScene>(path);
+        if (packed == null) { SetStatus($"{path} 를 열지 못했다 — 헤어팩 두상으로 돌아간다", true); return false; }
+
+        var inst = packed.Instantiate<Node3D>();
+        _baseRoot.AddChild(inst);
+        var anchor = inst.GetNodeOrNull<Node3D>(HairAssignmentStore.HairAnchorPath);
+        var head = inst.GetNodeOrNull<MeshInstance3D>(HairAssignmentStore.HeadMeshPath);
+        if (anchor == null || head?.Mesh == null)
+        {
+            SetStatus($"{path} 에서 머리를 찾지 못했다 — 헤어팩 두상으로 돌아간다", true);
+            _baseRoot.RemoveChild(inst);
+            inst.QueueFree();
+            return false;
+        }
+
+        // 지난번에 갈아 끼워 둔 머리카락은 미리보기에서 치운다 — 지금 고르는 것 하나만 보여야 한다.
+        foreach (Node c in anchor.GetChildren()) { anchor.RemoveChild(c); c.QueueFree(); }
+
+        _fit = MeasureHead(inst, anchor, head);
+        _headRest = Transform3D.Identity;   // 머리카락이 앵커 **바로 아래** 붙는다
+        _baseYaw = 180f;                    // 직원 모델은 얼굴이 -Z 를 본다
+        _capFactor = HairFit.ModelCapWidthFactor;
+        _gameBase = true;
+        MountHair(anchor);
+        FrameCamera();
+        return true;
+    }
+
+    // 헤어팩에 딸려 온 사람 두상(모델이 없는 캐릭터용).
+    private void LoadPackBase(string sex)
+    {
         HairBaseEntry b = _cat.Base(sex);
         if (b == null) { SetStatus($"{sex} 베이스를 카탈로그에서 찾지 못했다", true); return; }
         var packed = ResourceLoader.Load<PackedScene>(b.ScenePath);
@@ -179,6 +252,16 @@ public partial class CharacterHairStudio : Node3D
         _attach = new BoneAttachment3D { BoneName = b.HeadBone, BoneIdx = head };
         _skel.AddChild(_attach);
 
+        _fit = b;
+        _headRest = head >= 0 ? _skel.GetBoneGlobalRest(head) : Transform3D.Identity;
+        _camHeadY = b.SkullCenter.Y;
+        _camBodyHeight = b.BodyHeight;
+        MountHair(_attach);
+        FrameCamera();
+    }
+
+    private void MountHair(Node3D parent)
+    {
         _hairMat = new StandardMaterial3D
         {
             AlbedoColor = Color.FromString(_colorHex, Colors.Black),
@@ -187,19 +270,69 @@ public partial class CharacterHairStudio : Node3D
             CullMode = BaseMaterial3D.CullModeEnum.Disabled,
         };
         _hairMesh = new MeshInstance3D { MaterialOverride = _hairMat, Visible = false };
-        _attach.AddChild(_hairMesh);
+        _mount = parent;
+        parent.AddChild(_hairMesh);
+    }
 
-        FrameCamera();
+    // 머리 구를 **실측** 해서 자동 맞춤 기준을 만든다. 숫자를 코드에 박지 않는다 —
+    // 캐릭터마다 머리 크기가 다르면 그대로 따라간다.
+    private HairBaseEntry MeasureHead(Node3D root, Node3D anchor, MeshInstance3D head)
+    {
+        Aabb box = head.Mesh.GetAabb();
+        Transform3D headInRoot = RelativeTo(head, root);
+        Transform3D anchorInRoot = RelativeTo(anchor, root);
+        Aabb inAnchor = anchorInRoot.AffineInverse() * headInRoot * box;
+
+        _camHeadY = (headInRoot * box).GetCenter().Y;
+        _camBodyHeight = ModelHeight(root);
+
+        return new HairBaseEntry
+        {
+            Sex = _body,
+            ScenePath = "",
+            HeadBone = "",
+            // 이 모델의 머리는 통짜 구다 — 귀는 따로 붙어 있어서 머리 메시에 끼지 않는다.
+            // 그래서 '두개골' 과 '귀 위쪽' 을 가를 필요가 없다.
+            SkullCenter = inAnchor.GetCenter(), SkullSize = inAnchor.Size,
+            CraniumCenter = inAnchor.GetCenter(), CraniumSize = inAnchor.Size,
+            BodyHeight = _camBodyHeight,
+        };
+    }
+
+    // 트리에 들어가 있지 않아도 되는 상대 변환 — GlobalTransform 을 쓰지 않는다.
+    private static Transform3D RelativeTo(Node3D node, Node3D ancestor)
+    {
+        var t = Transform3D.Identity;
+        for (Node3D n = node; n != null && n != ancestor; n = n.GetParent() as Node3D)
+            t = n.Transform * t;
+        return t;
+    }
+
+    private static float ModelHeight(Node3D root)
+    {
+        float top = 0f;
+        foreach (MeshInstance3D mi in AllMeshes(root))
+        {
+            if (mi.Mesh == null) continue;
+            top = Mathf.Max(top, (RelativeTo(mi, root) * mi.Mesh.GetAabb()).End.Y);
+        }
+        return top > 0.2f ? top : 1.7f;
+    }
+
+    private static IEnumerable<MeshInstance3D> AllMeshes(Node n)
+    {
+        if (n is MeshInstance3D mi) yield return mi;
+        foreach (Node c in n.GetChildren())
+            foreach (MeshInstance3D m in AllMeshes(c)) yield return m;
     }
 
     // 캐릭터나 베이스를 바꿔도 보고 있던 배율을 유지한다 — 얼굴을 당겨 보던 중에
     // 다른 캐릭터로 넘어가면 허리가 잡히던 문제가 있었다.
     private void FrameCamera()
     {
-        HairBaseEntry b = _cat.Base(_body);
-        if (b == null || _camTarget == null) return;
+        if (_camTarget == null) return;
         _camTarget.Position = new Vector3(0f,
-            _closeUp ? b.SkullCenter.Y - 0.02f : b.BodyHeight * 0.52f, 0f);
+            _closeUp ? _camHeadY - 0.02f : _camBodyHeight * 0.52f, 0f);
     }
 
     private void TintEyebrows()
@@ -314,9 +447,11 @@ public partial class CharacterHairStudio : Node3D
         tools.AddThemeConstantOverride("separation", 8);
         _closeUpBtn = ToggleBtn("상반신 확대", ToggleCloseUp);
         tools.AddChild(_closeUpBtn);
-        tools.AddChild(Btn("정면", () => { _yaw = 0f; _pitch = -4f; }));
-        tools.AddChild(Btn("측면", () => { _yaw = 90f; _pitch = -4f; }));
-        tools.AddChild(Btn("뒤", () => { _yaw = 180f; _pitch = -4f; }));
+        // 베이스마다 보는 방향이 다르다 — 헤어팩 두상은 +Z, 게임 직원 모델은 -Z 를 본다.
+        // '정면' 이 얼굴이어야지, 어떤 캐릭터에서는 뒤통수가 나오면 안 된다.
+        tools.AddChild(Btn("정면", () => { _yaw = FaceYaw; _pitch = -4f; }));
+        tools.AddChild(Btn("측면", () => { _yaw = FaceYaw + 90f; _pitch = -4f; }));
+        tools.AddChild(Btn("뒤", () => { _yaw = FaceYaw + 180f; _pitch = -4f; }));
         tools.AddChild(Btn("앞/뒤 뒤집기", () =>
         {
             _rot.Y = Mathf.Wrap(_rot.Y + 180f, -180f, 180f);
@@ -430,10 +565,28 @@ public partial class CharacterHairStudio : Node3D
         LoadBase(_body);
         RebuildHairList();
         if (_hairId != "") SelectInList(_hairId);
-        PushSliders();
-        Apply();
+
+        // 저장된 위치·크기가 **다른 베이스에서 잰 값**이면 그대로 쓰지 않는다.
+        // 헤어팩 두상에서 맞춘 옛 값을 게임 모델에 얹으면 엉뚱한 데 가 붙는다 —
+        // 그럴 때는 이 모델 기준의 자동 맞춤에서 다시 시작한다.
+        if (_hairId != "" && _store.Get(id).Fit != FitSpace)
+        {
+            AutoFit();
+            SetStatus("저장된 값이 다른 베이스 기준이라 이 모델에 맞춰 다시 올렸다 — 조정 후 저장하면 그 값이 게임에 들어간다");
+        }
+        else
+        {
+            PushSliders();
+            Apply();
+        }
         Refresh();
     }
+
+    // 지금 베이스가 무엇인지 — 저장할 때 같이 적는다.
+    private string FitSpace => _gameBase ? HairAssignment.FitModel : "";
+
+    // 얼굴이 보이는 카메라 각. 게임 직원 모델은 -Z 를 보므로 반대편에서 봐야 한다.
+    private float FaceYaw => _gameBase ? 180f : 0f;
 
     private void SetBody(string sex)
     {
@@ -529,11 +682,9 @@ public partial class CharacterHairStudio : Node3D
     private void AutoFit()
     {
         HairEntry e = _cat.ById(_hairId);
-        HairBaseEntry b = _cat.Base(_body);
-        if (e == null || b == null || _skel == null) { Apply(); return; }
-        int head = _skel.FindBone(b.HeadBone);
-        Transform3D rest = head >= 0 ? _skel.GetBoneGlobalRest(head) : Transform3D.Identity;
-        HairFit.Auto(e, b, rest, HairCatalog.PackYaw(e.SourceFile), out _pos, out _rot, out _scale);
+        if (e == null || _fit == null) { Apply(); return; }
+        HairFit.Auto(e, _fit, _headRest, _baseYaw + HairCatalog.PackYaw(e.SourceFile),
+            out _pos, out _rot, out _scale, _capFactor);
         PushSliders();
         Apply();
         Refresh();
@@ -637,6 +788,9 @@ public partial class CharacterHairStudio : Node3D
         a.Position = _pos;
         a.RotationDeg = _rot;
         a.Scale = Vector3.One * _scale;
+        // 이 값이 **무엇을 기준으로 맞춘 것인지** 같이 적는다. 게임 모델 위에서 맞춘
+        // 값이면 교체 도구가 다시 계산하지 않고 그대로 넣는다 — 본 대로 들어간다.
+        a.Fit = FitSpace;
 
         Error err = _store.Save();
         _dirty = false;
@@ -658,6 +812,7 @@ public partial class CharacterHairStudio : Node3D
         _summary.Text =
             $"CHARACTER: {codename}\n" +
             $"BODY: {_body.ToUpper()}" + (def != null && !string.IsNullOrEmpty(def.Gender) ? $"  ({def.Gender})" : "") + "\n" +
+            $"BASE: {(_gameBase ? "게임 모델 (그대로 적용)" : "헤어팩 두상 (모델 없음)")}\n" +
             $"HAIR: {(_hairId == "" ? "(아직 안 고름)" : _hairId)}\n" +
             $"COLOR: {_colorName} {_colorHex}\n" +
             $"POSITION: {_pos.X:F3}, {_pos.Y:F3}, {_pos.Z:F3}\n" +
@@ -706,14 +861,9 @@ public partial class CharacterHairStudio : Node3D
     public void ScaleForTest(float s)
     {
         HairEntry e = _cat.ById(_hairId);
-        HairBaseEntry b = _cat.Base(_body);
         _scale = s;
-        if (e != null && b != null && _skel != null)
-        {
-            int head = _skel.FindBone(b.HeadBone);
-            Transform3D rest = head >= 0 ? _skel.GetBoneGlobalRest(head) : Transform3D.Identity;
-            _pos = HairFit.Place(e, b, rest, HairCatalog.PackYaw(e.SourceFile), s);
-        }
+        if (e != null && _fit != null)
+            _pos = HairFit.Place(e, _fit, _headRest, _baseYaw + HairCatalog.PackYaw(e.SourceFile), s);
         PushSliders(); Apply(); Refresh();
     }
     public void CloseUpForTest(bool on) { if (_closeUp != on) ToggleCloseUp(); }
@@ -728,6 +878,10 @@ public partial class CharacterHairStudio : Node3D
     public System.Collections.Generic.IEnumerable<string> ListedIds => _listed.Select(e => e.Id);
     public MeshInstance3D HairNode => _hairMesh;
     public Skeleton3D BaseSkeleton => _skel;
+    public Node3D HairMount => _mount;
+    public Node3D BaseRoot => _baseRoot;
+    public bool UsesGameModel => _gameBase;
+    public string CurrentFitSpace => FitSpace;
     public HairCatalog Catalog => _cat;
     public HairAssignmentStore Store => _store;
 

@@ -12,13 +12,19 @@ namespace NSP.Debug;
 // 창 모드로만 돌아간다 — 헤드리스는 그림을 그리지 않는다.
 public partial class HairStudioShot : Node
 {
+    // 지금 **그 캐릭터가 고른 머리카락**을, 그 캐릭터의 실제 모델 위에서 찍는다.
+    // 헤어 id 는 저장본에서 읽는다 — 고른 것이 바뀌면 캡처도 따라 바뀐다.
     // Scale 0 = 자동 맞춤 그대로. 0 이 아니면 그 값으로 덮어써서 비교한다.
-    private readonly (string Char, string Body, string Hair, bool CloseUp, float Yaw, float Scale)[] _shots =
+    private readonly (string Char, bool CloseUp, float Yaw, float Scale)[] _shots =
     {
-        ("admin", "male", "F-040", true, 0f, 0f),
-        ("admin", "male", "F-072", false, 18f, 0f),
-        ("director", "male", "F-013", true, 0f, 0f),
-        ("wolf", "male", "F-002", true, 20f, 0f),
+        ("rabbit", true, 0f, 0f),
+        ("rabbit", false, 18f, 0f),
+        ("cat", true, 20f, 0f),
+        ("fox", true, 0f, 0f),
+        ("sheep", true, 20f, 0f),
+        ("wolf", true, 0f, 0f),
+        ("dog", true, 20f, 0f),
+        ("admin", true, 0f, 0f),
     };
 
     private CharacterHairStudio _studio;
@@ -54,10 +60,14 @@ public partial class HairStudioShot : Node
             return;
         }
 
-        (string ch, string body, string hair, bool close, float yaw, float sc) = _shots[_at];
+        (string ch, bool close, float yaw, float sc) = _shots[_at];
+        HairAssignment a = _studio.Store.Get(ch);
+        string body = a.Body;
+        string hair = a.HairId != "" ? a.HairId : _studio.Catalog.Entries[0].Id;
         _studio.PickForTest(ch, body, hair);
         _studio.CloseUpForTest(close);
-        _studio.OrbitForTest(yaw, close ? -2f : -8f);
+        // 게임 모델은 얼굴이 -Z 라 반대편에서 봐야 얼굴이 나온다.
+        _studio.OrbitForTest(yaw + (_studio.UsesGameModel ? 180f : 0f), close ? -2f : -8f);
         if (sc > 0f) _studio.ScaleForTest(sc);
         GD.Print($"  {_at + 1}. {ch}/{body}/{hair} close={close} yaw={yaw} → " +
                  $"pos{_studio.CurrentPos.Snapped(Vector3.One * 0.001f)} " +
@@ -69,7 +79,8 @@ public partial class HairStudioShot : Node
     {
         Image img = GetViewport().GetTexture()?.GetImage();
         if (img == null) { GD.Print("  !! 화면을 읽지 못했다"); return; }
-        (string ch, _, string hair, bool close, _, _) = _shots[i];
+        (string ch, bool close, _, _) = _shots[i];
+        string hair = _studio.Store.Get(ch).HairId;
         string p = $"{_dir}/{i + 1:00}_{ch}_{hair}{(close ? "_face" : "")}.png";
         Error e = img.SavePng(p);
         if (e == Error.Ok) _saved.Add(p);

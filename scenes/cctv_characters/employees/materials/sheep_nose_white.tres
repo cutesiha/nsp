@@ -1,0 +1,10 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+; 양의 코 — 색은 작업복(body_white)과 같지만 **가면 재질**이라 따로 둔다.
+; 공용 body_white 에 깊이 검사 끄기를 걸면 작업복 전체가 벽을 뚫고 보인다.
+[resource]
+resource_name = "sheep_nose_white"
+albedo_color = Color(0.93, 0.935, 0.945, 1)
+roughness = 0.78
+metallic = 0.0
+render_priority = 101

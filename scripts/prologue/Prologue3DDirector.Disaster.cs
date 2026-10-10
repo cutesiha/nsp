@@ -165,7 +165,7 @@ public partial class Prologue3DDirector
         // ④ 유리 칸막이 파손 — 큰 조각은 메시, 작은 조각은 입자.
         // 소리는 변형음 두 겹(깨지는 순간 + 끌리는 저음)으로 깐다.
         GlassBurst(huge: false);
-        Sfx.Instance?.Play("glass_shatter", -8f);
+        Sfx.Instance?.Play("glass_shatter", -14f);   // 원음 glass_bomb 위에 얇게 얹는 잔파편
         Shake(1.2f, 1.8f);
         var glass = _stage.LabGlass;
         if (glass != null)

@@ -2,8 +2,12 @@ using Godot;
 
 namespace NSP.Debug;
 
-// 실행 중인 게임 화면 위에 얹히는 개발용 복귀 버튼.
-// DeveloperHub 를 통해 들어왔을 때만 만들어지므로, 평소 플레이에는 존재하지 않는다.
+// 개발용 복귀 경로. DeveloperHub 를 통해 들어왔을 때만 올라오므로 평소 플레이에는 없다.
+//
+// **버튼은 기본적으로 그리지 않는다.** 화면 왼쪽 위에 흰 버튼이 떠 있으면 게임 화면을
+// 그대로 보고 확인할 수가 없다(스크린샷마다 끼어든다). 허브로 돌아가는 길은 F10 하나로
+// 충분하다 — DeveloperHub 가 직접 키를 받으므로 이 오버레이와 무관하게 동작한다.
+// 굳이 버튼이 필요하면 실행 인자에 --devbutton 을 붙인다.
 public partial class DevHubOverlay : CanvasLayer
 {
     public event System.Action ReturnRequested;
@@ -11,6 +15,8 @@ public partial class DevHubOverlay : CanvasLayer
     public override void _Ready()
     {
         Layer = 210;   // 자막 띠(112) · 건너뛰기 버튼(125) 보다 위
+        if (!System.Array.Exists(OS.GetCmdlineArgs(), a => a == "--devbutton")) return;
+
         var b = new Button
         {
             Text = "◀ DEV HUB  (F10)",

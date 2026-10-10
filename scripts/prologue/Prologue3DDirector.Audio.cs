@@ -27,9 +27,30 @@ public partial class Prologue3DDirector
     {
         var sfx = Sfx.Instance;
         if (sfx == null) return;
+        if (key == SirenKey && _sirenQuiet) volumeDb = Mathf.Min(volumeDb, SirenQuietDb);
         // 이미 돌고 있다면 컷씬 데이터가 켠 것이다(사이렌). 소유권을 빼앗지 않는다.
         if (!sfx.IsLooping(key)) _sceneLoops.Add(key);
         sfx.Loop(key, volumeDb);
+        // 이미 돌고 있던 사이렌도 내린다 — 소유권과 상관없이 음량은 여기서 정한다.
+        if (key == SirenKey && _sirenQuiet) sfx.SetLoopVolume(key, SirenQuietDb);
+    }
+
+    // ── 사이렌 ─────────────────────────────────────────────────────────
+    //
+    // 대재난 초반에는 사이렌이 화면을 때린다. 그런데 지상 컷(밖은 이미 끝났다)부터는
+    // 그 사이렌이 계속 같은 크기로 울리면 **그 뒤의 모든 소리를 덮어 버린다** —
+    // 무너지는 지상도, 사람들이 지르는 소리도, 차폐문 쿠웅도 사이렌 밑에 깔린다.
+    // 지상을 본 순간부터는 멀리서 겨우 들리는 정도로 떨어뜨리고, 그 자리를
+    // 폭풍우 · 재난음이 대신 채운다.
+    private const string SirenKey = "siren";
+    private const float SirenQuietDb = -26f;
+    private bool _sirenQuiet;
+
+    private void SirenGoQuiet()
+    {
+        if (_sirenQuiet) return;
+        _sirenQuiet = true;
+        Sfx.Instance?.SetLoopVolume(SirenKey, SirenQuietDb);
     }
 
     private void StopSceneLoop(string key)
@@ -63,12 +84,14 @@ public partial class Prologue3DDirector
     private readonly HashSet<string> _cutWarps = new();
 
     private void CutWarp(string key, float volumeDb, float pitch,
-        string channel = null, bool loop = false, float delaySeconds = 0f)
+        string channel = null, bool loop = false, float delaySeconds = 0f, bool dry = false)
     {
         var sfx = Sfx.Instance;
         if (sfx == null) return;
         _cutWarps.Add(string.IsNullOrEmpty(channel) ? key : channel);
-        sfx.PlayWarped(key, volumeDb, pitch, channel, loop, delaySeconds);
+        // dry — 변형 없이 **원래 소리 그대로**. 컷이 바뀌면 끊어야 하니 채널로는 쥐고 있는다.
+        sfx.PlayWarped(key, volumeDb, pitch, channel, loop, delaySeconds,
+            dry ? GameSettings.BusSfx : null);
     }
 
     private const float CutWarpFade = 0.45f;
@@ -96,8 +119,9 @@ public partial class Prologue3DDirector
     }
 
     // 대사 · 무전이 그 위에서 들려야 한다. 깔려 있는 줄 알겠지만 말을 덮지는 않는 크기.
-    private const float StormDb = -17f;
-    private const float StormLowDb = -24f;
+    // 지상 컷부터 사이렌이 −26dB 로 내려가므로, 그 빈자리를 이 두 겹이 메운다.
+    private const float StormDb = -12f;
+    private const float StormLowDb = -19f;
 
     private void StormEnd(float fade = 1.6f)
     {
@@ -121,29 +145,37 @@ public partial class Prologue3DDirector
 
     // ── 유리가 깨지는 소리 ──────────────────────────────────────────────
     //
-    // glass_bomb 한 파일을 세 속도로 겹친다. 그대로 틀면 1.6초짜리 "창문 깨짐" 이지만,
-    // 느리게 겹쳐 깔면 **거대한 무언가가 길게 갈라지는 소리**가 된다.
-    //   huge  : 봉쇄 코어가 갈라지는 순간(세 겹 · 6초)
-    //   !huge : 연구실 유리 칸막이(두 겹 · 3초)
+    // glass_bomb 한 파일을 겹쳐 쓴다. **맨 앞은 원음 그대로** 크게 간다 —
+    // 처음에는 전부 깊게 변형해 깔았더니 무슨 소리인지 알 수 없는 웅얼거림이 되었다.
+    // 유리가 깨졌다는 것은 한 번에 알아들어야 하고, '거대함' 은 그 밑에 깔리는
+    // 느린 겹들이 만든다.
+    //   huge  : 봉쇄 코어가 갈라지는 순간(원음 + 두 겹 · 5초)
+    //   !huge : 연구실 유리 칸막이(원음 + 한 겹)
     private void GlassBurst(bool huge, float db = 0f)
     {
-        CutWarp("glass_bomb", db - (huge ? 2f : 5f), huge ? 0.92f : 1.00f, "glass_crack");
-        CutWarp("glass_bomb", db - (huge ? 1f : 8f), huge ? 0.46f : 0.52f, "glass_low",
-            delaySeconds: huge ? 0.08f : 0.10f);
+        // ① 깨지는 순간 — 변형 없이, 이 컷에서 가장 큰 소리로.
+        CutWarp("glass_bomb", db + (huge ? 0f : -3f), huge ? 0.96f : 1.00f, "glass_crack", dry: true);
+        // ② 바로 밑에 깔리는 반 옥타브 아래 — 덩치를 만든다. 원음을 가리지 않게 조금 작게.
+        CutWarp("glass_bomb", db - (huge ? 4f : 9f), huge ? 0.70f : 0.78f, "glass_low",
+            delaySeconds: huge ? 0.06f : 0.08f);
         if (!huge) return;
-        // 갈라진 뒤 한참 끌리는 꼬리. 이 한 겹이 "길고 기괴하게" 를 만든다.
-        CutWarp("glass_bomb", db - 7f, 0.30f, "glass_tail", delaySeconds: 0.55f);
+        // ③ 갈라진 뒤 끌리는 꼬리. 여기만 깊게 변형한다 — 앞의 두 겹이 끝난 뒤에 남는다.
+        CutWarp("glass_bomb", db - 9f, 0.52f, "glass_tail", delaySeconds: 0.5f);
     }
 
     // ── 직원들의 비명 ──────────────────────────────────────────────────
     //
-    // 여성 · 남성 녹음을 **섞어** 쓴다. 한 쪽만 틀면 한 사람이 지르는 소리로 들리고,
-    // 원본 그대로면 너무 또렷해서 "녹음" 처럼 들린다 — 속도를 내리고 Warp 버스로
-    // 흘려 복도 저편에서 울리는 소리로 만든다. 남성 쪽은 반 박자 늦게 깔린다.
+    // 여성 · 남성 녹음을 **같이** 들려준다. 둘 다 사람 목소리로 알아들어야 하므로
+    // 변형 버스를 쓰지 않고 원음 그대로 간다 — 깊게 일그러뜨렸더니 두 사람이 아니라
+    // 정체 모를 소리 하나로 뭉쳐 버렸다. 속도만 아주 조금 내려 둘을 구분짓고,
+    // 남성 쪽은 한 호흡 늦게 들어와 "여러 명" 이 되게 한다.
+    //
+    // 공간감은 밑에 아주 작게 까는 변형 한 겹이 맡는다(복도 저편의 울림).
     private void ShoutingMix()
     {
-        CutWarp("female_run_shouting", -8f, 0.86f, "shout_f");
-        CutWarp("male_run_shouting", -10f, 0.90f, "shout_m", delaySeconds: 0.35f);
+        CutWarp("female_run_shouting", -5f, 0.97f, "shout_f", dry: true);
+        CutWarp("male_run_shouting", -6f, 0.95f, "shout_m", delaySeconds: 0.18f, dry: true);
+        CutWarp("female_run_shouting", -17f, 0.82f, "shout_far", delaySeconds: 0.5f);
     }
 
     // ── 지상의 재난음 ──────────────────────────────────────────────────
@@ -155,7 +187,8 @@ public partial class Prologue3DDirector
     {
         var sfx = Sfx.Instance;
         if (sfx == null || sfx.WarpedPlaying(SurfaceDisasterCh)) return;
-        sfx.PlayWarped("disaster", -9f, 0.78f, SurfaceDisasterCh, loop: true);
+        // 지상 컷에서는 이 소리가 주인공이다 — 사이렌을 내린 만큼 여기가 올라간다.
+        sfx.PlayWarped("disaster", -5f, 0.78f, SurfaceDisasterCh, loop: true);
     }
 
     private void SurfaceDisasterEnd() => Sfx.Instance?.StopWarped(SurfaceDisasterCh, 0.9f);

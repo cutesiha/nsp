@@ -163,6 +163,12 @@ public sealed class MonsterActor
     // 복도 안의 위치와 자세를 상태에 맞춘다.
     //   vis       그 괴물이 지금 들어와 있는 복도
     //   faceYaw   중앙제어실 쪽을 보는 각도
+    // 복도 CCTV 영상에서만 쓰는 확대 배율. 침입(사망 연출)은 이 값을 쓰지 않는다.
+    // 다만 복도 천장을 뚫으면 머리가 잘려 무엇인지 더 안 보인다 — 천장 아래로 제한한다.
+    // 그래서 작은 개체(애기 · 거미)가 많이 커지고, 큰 개체는 조금만 커진다.
+    private const float CctvScale = 2.1f;
+    private const float CctvHeadroom = 2.25f;
+
     public void Place(MonsterThreat t, CorridorVisual vis, float delta)
     {
         if (_def == null || vis == null) { Hide(); return; }
@@ -176,6 +182,11 @@ public sealed class MonsterActor
         if (t.Phase is ThreatPhase.AtDoor or ThreatPhase.Pounding or ThreatPhase.Breach) x = 0f;
         else if (t.Phase == ThreatPhase.Approach) x *= 1f - Mathf.SmoothStep(0.78f, 1f, t.Progress);
         _root.Position = vis.Root.Position + new Vector3(x, 0f, z);
+        // CCTV 화면은 모니터 안의 작은 사각형이다. 실제 키 그대로 세우면 복도 저편에서
+        // 점처럼 보여 "뭔가 있다" 조차 읽히지 않는다 — 영상에서만 크게 키운다.
+        // 발이 원점이라 위로 자라므로 바닥에 붙은 채 커진다.
+        _root.Scale = Vector3.One * Mathf.Min(CctvScale,
+            CctvHeadroom / Mathf.Max(0.2f, _def.TargetHeight));
 
         // 언제나 중앙제어실 쪽(= 카메라 쪽)을 본다.
         _root.RotationDegrees = new Vector3(0f, vis.FacingControlYawDegrees, 0f);

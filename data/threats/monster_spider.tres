@@ -19,7 +19,8 @@ DisplayName = "다리 많은 것"
 ModelPath = "res://assets/models/ghosts/Huntsman_spider(Unrigged).fbx"
 TargetHeight = 0.62
 FloorOffset = 0.0
-YawOffsetDegrees = 180.0
+; 머리(눈)가 앞으로 오게 — 180 이면 배부터 들어온다.
+YawOffsetDegrees = 0.0
 AnimIdle = ""
 AnimWalk = ""
 AnimRun = ""
