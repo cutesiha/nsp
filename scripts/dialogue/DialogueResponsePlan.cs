@@ -62,6 +62,10 @@ public sealed class DialogueResponsePlan
     // 핵심 답변 뒤에 반드시 붙어야 하는 보정 문장(예: 직접 보지는 못했다). 생략 대상이 아니다.
     public bool NeedsIndirectCaveat;
 
+    // 감싸느라 **이번 답에서 꺼내지 않은** 사람. 사실이 사라진 것은 아니다 —
+    // 재석 질문이나 자료 제시로 되찾을 수 있어야 한다는 표시다(검증용).
+    public string WithheldEmployeeId = "";
+
     // 그 시각의 위치를 끌어낼 기록이 아예 없다. 방 이름을 지어내는 대신 "잘 모르겠다"로
     // 답해야 한다는 표시 — 빈 RoomId 를 '통로'로 읽어 버리지 않게 하는 구분이다.
     public bool RoomUnknown;

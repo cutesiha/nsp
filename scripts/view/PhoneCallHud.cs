@@ -390,7 +390,8 @@ public partial class PhoneCallHud : CanvasLayer
         // [전원] 을 켰을 때만 오늘 확보한 자료 전부를 사건별로 묶어 보여 준다.
         foreach (var (label, tab) in new (string, NoteTab)[]
                  {
-                     ("현재 직원", NoteTab.CurrentEmployee), ("★ 단서", NoteTab.Starred),
+                     ("현재 직원", NoteTab.CurrentEmployee), ("대화·진술", NoteTab.Spoken),
+                     ("★ 단서", NoteTab.Starred),
                      ("전원", NoteTab.ByIncident),
                  })
         {
@@ -499,6 +500,16 @@ public partial class PhoneCallHud : CanvasLayer
             case NoteTab.CurrentEmployee:
                 foreach (var card in InterviewEvidenceDisplay.Compress(_session.Board)) { AddCard(card, near); shown++; }
                 break;
+            // 대화·진술 — 사람이 한 말만 모아 본다. 이 발언을 골라 질문을 만든다(기획안 §4).
+            case NoteTab.Spoken:
+                foreach (var ev in _session.SpokenRecords())
+                {
+                    var one = new EvidenceCard();
+                    one.Items.Add(ev);
+                    AddCard(one, near);
+                    shown++;
+                }
+                break;
             case NoteTab.Starred:
                 foreach (var ev in _session.Board)
                 {
@@ -512,9 +523,12 @@ public partial class PhoneCallHud : CanvasLayer
         }
 
         if (shown == 0)
-            _evidenceList.AddChild(Lbl(_session.Tab == NoteTab.Starred
-                ? "★ 로 기록한 오늘의 단서가 없습니다."
-                : "확보한 자료가 없습니다.", 13, new Color(0.55f, 0.62f, 0.66f)));
+            _evidenceList.AddChild(Lbl(_session.Tab switch
+            {
+                NoteTab.Starred => "★ 로 기록한 오늘의 단서가 없습니다.",
+                NoteTab.Spoken => "아직 들은 말이 없습니다. 통화하거나 심문하면 여기에 쌓입니다.",
+                _ => "확보한 자료가 없습니다.",
+            }, 13, new Color(0.55f, 0.62f, 0.66f)));
 
         RefreshTimeline();
         UpdateSlots();

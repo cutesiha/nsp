@@ -155,6 +155,21 @@ public static class DialogueResponsePlanner
         DialogueVoiceProfile profile, DialogueClaim claim)
     {
         bool canPoint = ctx.KnownSuspicious != null && !string.IsNullOrEmpty(ctx.KnownSuspiciousActorId);
+
+        // 소중한 사람을 감싸는 중이면 **먼저 이름을 꺼내지 않는다.**
+        //
+        // 거짓말이 아니다 — "수상한 사람" 을 물었고, 본인은 그 사람이 수상했다고
+        // 생각하지 않는다(기획안 §3-⑥ 고양이 사례). 그래서 사실은 지워지지 않고,
+        // "그곳에 있던 직원을 모두 말해 주십시오"(재석 질문)에는 그대로 나온다.
+        if (canPoint && ConcealmentMotive.ShieldsFrom(ctx.EmployeeId, ctx.KnownSuspiciousActorId)
+            && string.IsNullOrEmpty(claim.MentionedSuspectId))
+        {
+            plan.Core = CoreKind.NoSighting;
+            plan.Certainty = Certainty.Medium;
+            plan.WithheldEmployeeId = ctx.KnownSuspiciousActorId;
+            return;
+        }
+
         if (!canPoint)
         {
             plan.Core = CoreKind.NoSighting;

@@ -20,6 +20,7 @@ public enum NoteTab
 {
     ByIncident,       // 오늘의 사고를 중심으로 묶어 보기(전원 자료)
     CurrentEmployee,  // 지금 심문 중인 직원의 자료만 시간순
+    Spoken,           // 대화·진술만 — 통화 · 엿들은 말 · 증언 · 이 직원의 이전 진술
     Starred,          // 플레이어가 ★ 로 찍어 둔 자료만
 }
 
@@ -139,6 +140,16 @@ public sealed class InterviewSession
 
     // 지금 화면에 그릴 자료. 시간순은 Board 가 이미 맞춰 두었다.
     public List<InterviewEvidence> Visible() => Board.Where(Passes).ToList();
+
+    // 사람이 입으로 한 말만. 기획안 §4 의 "대화·진술 자료" 분류다.
+    //
+    // 대화 기록을 통화 내역이 아니라 **조사자료의 한 종류** 로 다루기 위한 것이다.
+    // 여기서 발언을 고르면 그 발언의 주장으로 질문을 만들 수 있다.
+    public static bool IsSpokenRecord(InterviewEvidence e) =>
+        e != null && e.Kind is EvidenceKind.Call or EvidenceKind.Overheard
+            or EvidenceKind.Testimony or EvidenceKind.OwnStatement;
+
+    public List<InterviewEvidence> SpokenRecords() => Board.Where(IsSpokenRecord).ToList();
 
     private bool Passes(InterviewEvidence e) => Filter switch
     {
