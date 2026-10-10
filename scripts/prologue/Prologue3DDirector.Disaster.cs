@@ -96,12 +96,19 @@ public partial class Prologue3DDirector
     // ── ⑥ 연구실 파손 (disaster_04_lab_wreck) ───────────────────────────
     //
     // 대재난의 물리적 충격을 처음 보여 주는 컷. 두 번 흔들리고, 두 번째에 유리가 깨진다(§14).
+    //
+    // **두 컷으로 끊는다.** 한 컷에 다 넣으면 플레이어가 흔들림 중에 클릭하는 순간
+    // 유리가 깨지는 장면이 통째로 날아간다 — 실제로 그렇게 넘어가고 있었다.
+    //   disaster_lab       : 사람이 일하고 있고, 두 번 흔들린다 → 클릭을 기다린다
+    //   disaster_lab_glass : 유리가 깨진다 → 다 본 뒤에 다시 클릭해야 넘어간다
     private async Task DisasterLab(int gen)
     {
         _stage.ShowPrologueSet(EndingCutsceneStage.PSet.Lab);
         _stage.PrologueLights(1f);
         var root = _stage.PrologueSetRoot(EndingCutsceneStage.PSet.Lab);
         _stage.SetCam(new Vector3(-1.9f, 1.8f, 5.6f), new Vector3(0.9f, 1.35f, -1.6f), 60f);
+        // 유리는 다음 컷에서 깨진다 — 앞서 한 번 깨진 상태로 들어왔어도 되돌려 둔다.
+        if (_stage.LabGlass != null) _stage.LabGlass.Visible = true;
 
         // 실험대 **앞**에 세운다. 상판 위에 세우면 하부 수납장을 뚫고 서 있게 된다.
         var worker = Spawn(root, "cat", new Vector3(-2.4f, 0f, 2.45f), 18f);
@@ -129,11 +136,37 @@ public partial class Prologue3DDirector
         _stage.PrologueLights(0.12f);
         worker.PlayClip("ghost_startle");
         JiggleProps(2.6f, knock: true);
-        await Wait(0.16);
+        await Wait(0.9);
+        if (!Alive(gen)) return;
+        // 어둠 속에서 한 박자 — 다음 클릭에 유리가 깨진다.
+        _stage.PrologueLights(0.3f);
+        Sfx.Instance?.Play("steam_hiss", -16f, 0.8f);
+    }
+
+    // ── ⑥-2 유리 칸막이가 깨진다 ────────────────────────────────────────
+    //
+    // 앞 컷에서 놀란 그 자리 그대로 이어진다. 세트 · 쓰러진 소품은 남아 있고
+    // 사람만 다시 세운다(컷이 바뀌면 배우가 정리되므로).
+    private async Task DisasterLabGlass(int gen)
+    {
+        _stage.ShowPrologueSet(EndingCutsceneStage.PSet.Lab);
+        var root = _stage.PrologueSetRoot(EndingCutsceneStage.PSet.Lab);
+        _stage.PrologueLights(0.3f);
+        // 앞 컷의 구도를 그대로 쓰되 아주 조금만 밀고 들어간다 — 깨지는 칸막이와
+        // 그 앞에 선 사람이 **한 화면에** 같이 있어야 한다.
+        _stage.SetCam(new Vector3(-1.82f, 1.78f, 5.25f), new Vector3(0.55f, 1.35f, -1.6f), 59f);
+
+        var worker = Spawn(root, "cat", new Vector3(-2.4f, 0f, 2.45f), 18f);
+        worker.PlayClip("ghost_startle");
+
+        await Wait(0.35);
         if (!Alive(gen)) return;
 
         // ④ 유리 칸막이 파손 — 큰 조각은 메시, 작은 조각은 입자.
-        Sfx.Instance?.Play("glass_shatter", -3f);
+        // 소리는 변형음 두 겹(깨지는 순간 + 끌리는 저음)으로 깐다.
+        GlassBurst(huge: false);
+        Sfx.Instance?.Play("glass_shatter", -8f);
+        Shake(1.2f, 1.8f);
         var glass = _stage.LabGlass;
         if (glass != null)
         {
@@ -147,6 +180,7 @@ public partial class Prologue3DDirector
         if (!Alive(gen)) return;
         _stage.PrologueLights(0.8f);
         worker.PlayClip("ghost_uneasy");
+        await Wait(1.2);
     }
 
     // 실험대 위 소품이 흔들리고, 큰 충격에서는 떨어진다.
@@ -227,7 +261,9 @@ public partial class Prologue3DDirector
         rab.StumbleIn(0.28f, 1.0f);
 
         Sfx.Instance?.Play("footsteps_run", -7f);
-        Sfx.Instance?.Loop("siren", -4f);
+        // 복도 저편에서 사람들이 질러대는 소리 — 남녀 녹음을 섞어 깔아 둔다.
+        ShoutingMix();
+        SceneLoop("siren", -4f);
         _ = _stage.MoveCamCut(new Vector3(2.05f, 1.8f, 6f), new Vector3(-0.4f, 1.35f, -12f), 4.2);
 
         // 출발이 완전히 동시가 아니다 — 뒤의 둘은 반 박자 늦는다.
@@ -296,15 +332,16 @@ public partial class Prologue3DDirector
         if (!Alive(gen)) return;
         _stage.BulkheadWarn(1f);
         _stage.PrologueBulkheadClose(1.9);
-        Sfx.Instance?.Loop("machinery_loop", -10f);
+        SceneLoop("machinery_loop", -10f);
         _ = _stage.MoveCamCut(new Vector3(-0.9f, 1.7f, -13.5f), new Vector3(0f, 1.9f, -20f), 2.0);
 
         await Wait(1.95);
         if (!Alive(gen)) return;
-        // 가까스로 닫힌다 — 쇳소리 한 번.
-        Sfx.Instance?.StopLoop("machinery_loop");
-        Sfx.Instance?.Play("metal_clang", -2f);
-        Shake(1.1f, 2.2f);
+        // 가까스로 닫힌다 — 수십 톤짜리 문이 바닥에 닿는 **쿠웅**. 쇳소리는 그 위에 얇게 얹는다.
+        StopSceneLoop("machinery_loop");
+        Slam(near: true);
+        Sfx.Instance?.Play("metal_clang", -7f);
+        Shake(2.2f, 2.6f);
         _stage.BulkheadWarn(0f);
         await Wait(0.6);
     }
@@ -372,8 +409,8 @@ public partial class Prologue3DDirector
         _stage.PrologueCoreOutput(100f);
         // 코어만 꽉 채우면 '거대한 홀' 이 읽히지 않는다 — 바닥 · 난간까지 들어오게 물러난다.
         _stage.SetCam(new Vector3(0.6f, 3.1f, 15.8f), new Vector3(0f, 6.6f, -3f), 62f);
-        Sfx.Instance?.Loop("machinery_loop", -8f);
-        Sfx.Instance?.Loop("siren", -7f);
+        SceneLoop("machinery_loop", -8f);
+        SceneLoop("siren", -7f);
 
         // 천천히 밀고 들어가면서 출력이 떨어진다.
         _ = _stage.MoveCamCut(new Vector3(0.1f, 3.0f, 8.0f), new Vector3(0f, 8.0f, -3f), 9.0);
@@ -417,7 +454,8 @@ public partial class Prologue3DDirector
         // 홀의 윤곽만 남기고 비상등 한 점을 켜 둔다 — 그래야 다음 섬광이 대비로 터진다.
         _stage.CoreHallFill(0.26f, new Color(0.42f, 0.5f, 0.72f));
         _stage.CoreFloorFill(0.12f, new Color(0.9f, 0.3f, 0.26f));
-        foreach (var k in new[] { "machinery_loop", "siren", "alarm" }) Sfx.Instance?.StopLoop(k);
+        SilenceLoops("machinery_loop", "siren", "alarm");
+        StormSilence(0.3f);
         _shake = 0f;
         _stage.ShakeOffset(Vector3.Zero);
         await Wait(0.55);
@@ -426,10 +464,12 @@ public partial class Prologue3DDirector
         // ② 폭발. 소리를 겹쳐 쌓는다 — boom 하나로 끝내지 않는다(§29).
         Sfx.Instance?.Play("boom", 0f, 0.62f);          // 깊은 저음
         Sfx.Instance?.Play("boom", -5f, 1.35f);         // 날카로운 윗소리
-        Sfx.Instance?.Play("glass_shatter", -2f);
         Sfx.Instance?.Play("metal_clang", -4f);
         Sfx.Instance?.Play("electric_arc", -3f);
         Sfx.Instance?.Play("rubble_collapse", -5f);
+        // 봉쇄 코어가 **갈라지는** 소리. 짧은 유리 파손음 대신 느리게 겹쳐 쌓은
+        // 변형음을 쓴다 — 창문이 아니라 거대한 구(球)가 깨지는 것이어야 한다.
+        GlassBurst(huge: true);
 
         Flash?.Invoke(new Color(0.85f, 0.94f, 1f), 0.09f, 0.22f);
         Shake(9f, 3.2f);
@@ -458,6 +498,8 @@ public partial class Prologue3DDirector
         // ④ 이명 — 주변 소리가 한순간 멀어진다(§30).
         Sfx.Instance?.Play("tinnitus", -5f);
         Muffle?.Invoke(1.6f);
+        // 이명이 걷히는 동안 폭풍우가 다시 밀려든다(차폐 전까지 깔려 있어야 한다).
+        StormResume(2.4f);
         await Wait(1.3);
         if (!Alive(gen)) return;
 
@@ -483,8 +525,8 @@ public partial class Prologue3DDirector
         _stage.PrologueCoreBreach();
         _stage.SetCam(new Vector3(-2.6f, 2.2f, 8.0f), new Vector3(0.6f, 6.6f, -3f), 56f);
         _stage.CoreHallFill(0.7f, new Color(1f, 0.55f, 0.35f));
-        Sfx.Instance?.Loop("siren", -12f);
-        Sfx.Instance?.Loop("electric_crackle_loop", -20f);
+        SceneLoop("siren", -12f);
+        SceneLoop("electric_crackle_loop", -20f);
         Shake(0.35f, 0.25f);
         // 아주 느리게 — 무전 내용이 읽혀야 하므로 화면이 바쁘면 안 된다(§33 · §50).
         await _stage.MoveCamCut(new Vector3(-1.2f, 2.6f, 10.5f), new Vector3(0.2f, 7.0f, -3f), 10.0);
@@ -505,7 +547,7 @@ public partial class Prologue3DDirector
 
         var dir = Spawn(root, "wolf", new Vector3(0f, 0f, -1.05f), 180f);
         dir.PlayClip("talk");
-        Sfx.Instance?.Loop("alarm", -16f);
+        SceneLoop("alarm", -16f);
         Shake(0.5f, 0.2f);
 
         await Wait(2.6);
@@ -539,9 +581,14 @@ public partial class Prologue3DDirector
         await Wait(0.25);
         if (!Alive(gen)) return;
 
-        // 멀리서 거대한 금속 구조가 잠긴다(§36).
-        Sfx.Instance?.Play("metal_clang", -6f, 0.65f);
+        // 멀리서 거대한 금속 구조가 잠긴다(§36) — 시설 전체에 울리는 둔탁한 쿠웅.
+        Slam(near: false);
+        Sfx.Instance?.Play("metal_clang", -9f, 0.65f);
         Sfx.Instance?.Play("rubble_collapse", -14f);
+        // 비상 차폐가 내려갔다. 대재난 내내 깔려 있던 폭풍우와 경보가 여기서 걷힌다 —
+        // 이 소리들이 남아 있으면 프롤로그가 끝난 뒤에도 계속 울린다.
+        StopSceneLoop("alarm");
+        StormEnd(2.0f);
         SetBriefingEmergency(0.6f);
         if (_sealLampMat != null) _sealLampMat.EmissionEnergyMultiplier = 3.4f;
         Shake(1.6f, 1.2f);

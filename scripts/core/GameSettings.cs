@@ -26,6 +26,11 @@ public static class GameSettings
     //   ② 게임 정보음(전화벨 · 경고)과 섞이지 않게 통째로 눌러 둘 수 있다(§13 · §21)
     // 가까운 소리는 이 버스를 아주 살짝 어둡게 통과시킨다 — 방 밖에서 들리는 느낌.
     public const string BusHorror = "Horror";
+    // 프롤로그 재난 연출 전용 — 받아 온 음원(유리 폭발 · 재난음 · 비명 · 폭풍우)을
+    // 원본 그대로가 아니라 **기괴하게 일그러뜨려** 내보내는 길이다. SFX 로 보내므로
+    // 효과음 볼륨 설정을 그대로 따른다. 이 버스는 처음 쓸 때 만들어진다 —
+    // 실시간 근무 중에는 존재하지 않아 잔향 · 페이저 비용이 들지 않는다.
+    public const string BusWarp = "Warp";
 
     private const string ConfigPath = "user://nsp_settings.cfg";
 
@@ -159,6 +164,50 @@ public static class GameSettings
 
     // 공포 버스의 패너 효과 인덱스. 재생 직전에 pan 을 바꿔 좌우를 정한다.
     public const int HorrorPannerIndex = 0;
+
+    // ── 기괴하게 변형하는 버스(프롤로그 재난) ─────────────────────────────
+    //
+    // 받아 온 음원을 그대로 틀면 "어디서 들어 본 효과음" 으로 들린다. 재난 구간에서는
+    // 같은 파일을 **깊은 지하에서 울리는 정체 모를 소리**로 바꿔 내보낸다. 파일을
+    // 고치지 않고 버스에서만 일그러뜨리므로, 원본은 다른 자리에서 그대로 쓸 수 있다.
+    //
+    //   저역통과   위쪽을 깎아 멀고 둔탁하게 — 새 효과음처럼 들리게 하는 가장 큰 몫
+    //   페이저     아주 느린 위상 쓸림. "기계가 아닌 무언가" 의 울렁임을 만든다
+    //   잔향       거대한 콘크리트 공간. Horror 버스보다 훨씬 깊게 건다
+    //
+    // 처음 쓸 때 만든다 — 프롤로그 · 엔딩 말고는 이 버스를 지나는 소리가 없으므로
+    // 평소에는 버스 자체가 없어 효과 비용이 0 이다.
+    public static void EnsureWarpBus()
+    {
+        if (AudioServer.GetBusIndex(BusWarp) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusWarp);
+        AudioServer.SetBusSend(idx, BusSfx);
+
+        AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter
+        {
+            CutoffHz = 5200f,
+            Resonance = 0.38f,
+        });
+        AudioServer.AddBusEffect(idx, new AudioEffectPhaser
+        {
+            RangeMinHz = 160f,
+            RangeMaxHz = 2600f,
+            RateHz = 0.28f,
+            Feedback = 0.55f,
+            Depth = 2.4f,
+        });
+        AudioServer.AddBusEffect(idx, new AudioEffectReverb
+        {
+            PredelayMsec = 90f,
+            RoomSize = 0.92f,
+            Damping = 0.28f,
+            Wet = 0.46f,
+            Dry = 0.82f,
+            Spread = 1f,
+        });
+    }
 
     // 공포 소리의 좌우 위치를 정한다. -1 = 완전 왼쪽, +1 = 완전 오른쪽.
     // 극단값(±1)은 쓰지 않는다 — 헤드폰에서 머리 밖에 붙어 버려 "옆" 이 아니게 된다(§14).

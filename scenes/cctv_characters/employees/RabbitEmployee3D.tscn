@@ -8,6 +8,7 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/whisker_white.tres" id="6_whiskerwhite"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/rabbit_hair.tres" id="8_rabbithair"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_white.tres" id="9_badgewhite"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-066.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M17"]
 radius = 0.098
@@ -103,6 +104,11 @@ height = 0.045
 radial_segments = 10
 rings = 4
 
+[sub_resource type="StandardMaterial3D" id="HairMatNew"]
+albedo_color = Color(0.831, 0.318, 0.400, 1)
+roughness = 0.72
+metallic = 0.0
+cull_mode = 2
 [node name="RabbitEmployee3D" unique_id=1852789160 instance=ExtResource("1_base")]
 
 [node name="BandOverBustL1" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="15" unique_id=492162774]
@@ -140,31 +146,6 @@ material_override = ExtResource("2_rabbitaccent")
 
 [node name="CollarBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" parent_id_path=PackedInt32Array(441613077) index="1" unique_id=1997149230]
 material_override = ExtResource("2_rabbitaccent")
-
-[node name="HairCap" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="0" unique_id=508346766]
-transform = Transform3D(1.3694872, 0, 0, 0, 1.4247341, 0, 0, 0, 1.4209678, 0, -0.0005751848, 0.012108441)
-material_override = ExtResource("8_rabbithair")
-mesh = SubResource("M17")
-
-[node name="HairBack" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="1" unique_id=1476583192]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.32095945, 0.104543835)
-material_override = ExtResource("8_rabbithair")
-mesh = SubResource("M18")
-
-[node name="HairBackTip" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="2" unique_id=1168065858]
-transform = Transform3D(1.02, 0, 0, 0, 0.6, 0, 0, 0, 0.5, 0, -0.7, 0.088)
-material_override = ExtResource("8_rabbithair")
-mesh = SubResource("M19")
-
-[node name="HairSideL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="3" unique_id=347587699]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.09328821, -0.33000004, -0.008)
-material_override = ExtResource("8_rabbithair")
-mesh = SubResource("M20")
-
-[node name="HairSideR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="4" unique_id=386432436]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09328821, -0.33000004, -0.008)
-material_override = ExtResource("8_rabbithair")
-mesh = SubResource("M22")
 
 [node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
@@ -353,3 +334,9 @@ mesh = SubResource("M30")
 transform = Transform3D(0.968912, 0.247404, 0, -0.247404, 0.968912, 0, 0, 0, 1, -0.102, -0.198, -0.086)
 material_override = ExtResource("9_badgewhite")
 mesh = SubResource("M31")
+
+
+[node name="Hair" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" index="0"]
+transform = Transform3D(-0.980328, 0, 0, 0, 0.980328, 0, 0, 0, -0.980328, 0.004862, -0.04711, 0.002549)
+material_override = SubResource("HairMatNew")
+mesh = ExtResource("hair_new")

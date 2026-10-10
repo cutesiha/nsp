@@ -16,6 +16,8 @@ namespace NSP.View;
 //        그래서 바깥으로 벌리려면 L 은 음수, R 은 양수다. 반대로 쓰면 팔이 몸통을 뚫는다.
 //   · 팔꿈치는 **+X** 가 정상 굽힘(손이 앞으로 올라온다). 음수면 반대로 꺾인다.
 //   · 무릎은 **-X** 가 정상 굽힘(발뒤꿈치가 뒤로 올라온다). 팔꿈치와 반대 방향이다.
+//   · 몸통 · 목 · 머리는 +Y 로 **올라가는** 뼈라 같은 회전이 반대로 보인다 :
+//     **-X 가 앞으로 숙이는 쪽**이고 +X 는 뒤로 젖히는 쪽이다(팔다리와 부호가 반대).
 public partial class CutsceneActor : Node3D
 {
     public enum Gait { Clip, Walk, Run }
@@ -493,16 +495,22 @@ public partial class CutsceneActor : Node3D
         // ── 몸통 ─────────────────────────────────────────────────────────
         // 골반은 앞으로 나가는 다리를 따라 돌고, 가슴은 그 반대로 돌아간다(§6).
         float twist = (run ? 6f : 2.5f) * amp;
-        Set(_torso, lean + st * 16f + Mathf.Abs(_turnLean) * 0.2f,
+        // ── 상체를 **앞으로** 숙이는 부호 ────────────────────────────────
+        // 몸통 · 목 · 머리는 팔다리와 달리 +Y 로 **올라가는** 뼈다. 같은 +X 회전이
+        // 팔다리는 앞(-Z)으로 보내지만 올라가는 뼈는 뒤(+Z)로 넘긴다 — 그래서 여기만
+        // 부호가 반대다. 이 부호가 뒤집혀 있어서 달리는 동안 전원이 상체를 뒤로
+        // 젖히고 있었다. 사람은 달릴 때 상체를 앞으로 숙인다.
+        Set(_torso, -lean + st * 16f + Mathf.Abs(_turnLean) * 0.2f,
                     -sL * twist, st * 11f + _turnLean * 0.5f + sway * swayT * 4.5f);
+        // 가슴은 숙인 몸통 위에서 조금 펴진다 — 그래야 앞을 보고 달리는 자세가 된다.
         Set(_chest, ((run ? 3f : 1f) + 3f * panic) * amp, -sL * twist * 0.5f,
                     _turnLean * 0.35f + sway * swayT * 2.2f);
         // 숙인 만큼 목을 들어 앞을 본다 — 안 그러면 바닥만 보고 달린다.
-        Set(_neck, ((run ? -5f : -1.5f) - _style.Lean * 0.55f) * amp, 0f, 0f);
+        Set(_neck, ((run ? 5f : 1.5f) + _style.Lean * 0.55f) * amp, 0f, 0f);
         // 뒤를 흘끗 보는 동작은 목이 맡는다 — 가슴까지 돌리면 달리기가 무너진다.
         if (_head != null)
             _head.RotationDegrees = new Vector3(
-                (run ? -3f : 0f) - _style.Lean * 0.35f * amp
+                (run ? 3f : 0f) + _style.Lean * 0.35f * amp
                     + Mathf.Sin(p * 2f) * (run ? 2.5f : 0.8f) * (1f + panic),
                 _lookOver + sway * Mathf.Sin(_styleT * 1.9f + _phase * 3.7f) * 5f,
                 -st * 7f - _turnLean * 0.25f - sway * swayT * 3f);

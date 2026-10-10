@@ -311,6 +311,9 @@ public partial class PrologueDirector : Node
     private void Complete()
     {
         IsRunning = false;
+        // 프롤로그가 어떤 길로 끝나든(건너뛰기 · 화면을 못 찾아 중단) 컷씬 소리를 남기지 않는다.
+        // 경보 · 사이렌 · 폭풍우가 하나라도 남으면 DAY 0 배치 화면까지 따라 들어온다.
+        _scene3d?.End();
         Finished?.Invoke();
     }
 

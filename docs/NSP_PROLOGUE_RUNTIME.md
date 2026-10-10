@@ -270,8 +270,11 @@ fx: alert
 
 # ── 지상 : 밖은 이미 끝났다 ──
 # 사이렌 → 시설 내부 긴장 → **여기서 한 번 밖을 본다** → 다시 지하.
-# 지하 안만 보여 주면 "이 시설만의 사고" 로 읽힌다. 세 컷, 전부 합쳐 11초쯤.
-# 소리가 먼저 오고(거의 암전), 붉은 하늘 아래 폐허가 드러나고, 먼지 속에서 끊긴다.
+# 지하 안만 보여 주면 "이 시설만의 사고" 로 읽힌다. **두 컷**, 합쳐 8초쯤.
+# 붉은 하늘 아래 폐허가 드러나고(건물 한 동이 실제로 무너진다), 먼지 속에서 끊긴다.
+# 세 컷이던 것을 둘로 줄였다 — 가운데 도로 컷(surface_road)이 같은 폐허를 한 번 더
+# 보여 주기만 해서 지상 구간이 늘어졌다. 장면 자체는 남아 있으니 되살리려면
+# scene3d: surface_road 슬라이드를 다시 끼우면 된다.
 @slide
 title: SURFACE RELAY / LAST SIGNAL
 image: res://assets/cutscene/prologue/disaster_03_surface_red.png
@@ -280,13 +283,6 @@ imagenote: 지상 중계 — 붉은 하늘 아래 무너진 지상, 건물 한 �
 overlay: 지상 중계 회선 — 최종 수신
 sfx: alarm
 hold: 5.0
-
-@slide
-image: res://assets/cutscene/prologue/disaster_03_surface_red.png
-scene3d: surface_road
-imagenote: 잔해가 쌓인 도로 · 철골 틈에서 스파크가 튄다
-hold: 3.2
-fx: cut
 
 @slide
 image: res://assets/cutscene/prologue/disaster_03_surface_red.png
@@ -305,11 +301,22 @@ sfx: alarm
 hold: 0.7
 fx: cut
 
+# 연구실은 **두 컷**이다. 흔들림까지 본 뒤 한 번, 유리가 깨지는 것을 본 뒤 또 한 번
+# 눌러야 넘어간다 — 한 컷이던 때는 클릭 한 번에 유리가 깨지는 장면이 통째로 날아갔다.
+# noskip: 이 붙은 컷은 그 시간 동안 클릭이 막히고, 끝나면 입력을 기다린다.
 @slide
 image: res://assets/cutscene/prologue/disaster_04_lab_wreck.png
 scene3d: disaster_lab
 imagenote: 연구실 파손 · 집기가 쏟아짐
-hold: 3.4
+noskip: 2.4
+hold: 3.0
+
+@slide
+image: res://assets/cutscene/prologue/disaster_04_lab_wreck.png
+scene3d: disaster_lab_glass
+imagenote: 유리 칸막이가 깨진다 — 조각이 바닥으로 쏟아진다
+noskip: 1.9
+hold: 2.4
 
 @slide
 image: res://assets/cutscene/prologue/disaster_05_staff_running.png
@@ -432,7 +439,9 @@ imagenote:
 win: 비상 차폐
 winbig: 120:00:00
 winsub: EMERGENCY SEAL ENGAGED
-sfx: boom
+# 차폐문이 바닥에 닿는 쿠웅. 폭발음(boom)이 아니라 **수십 톤이 내려앉는 둔탁한 소리**다
+# — 저음이 소리의 90% 인 전용 음원(SlamSfxGen 이 합성한다).
+sfx: bulkhead_slam
 sfxloopstop: siren
 shake: 0
 hold: 2.8

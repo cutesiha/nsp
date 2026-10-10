@@ -26,16 +26,19 @@ public partial class Prologue3DDirector
     // 바깥의 기본 소리 — 들어갈 때 한 번 깔고 나갈 때 전부 내린다.
     private void SurfaceAmbience()
     {
-        Sfx.Instance?.Loop("vent_loop", -9f);              // 거센 바람
-        Sfx.Instance?.Loop("drone_loop", -15f);            // 먼 곳의 낮은 울림
-        Sfx.Instance?.Loop("electric_crackle_loop", -22f); // 불타는 소리
-        Sfx.Instance?.Loop("siren", -15f);                 // 사이렌의 잔향 — 멀리
+        SceneLoop("vent_loop", -9f);              // 거센 바람
+        SceneLoop("drone_loop", -15f);            // 먼 곳의 낮은 울림
+        SceneLoop("electric_crackle_loop", -22f); // 불타는 소리
+        SceneLoop("siren", -15f);                 // 사이렌의 잔향 — 멀리
+        // 지상의 재난 그 자체. 지상 컷이 이어지는 동안 계속 깔린다.
+        SurfaceDisasterBegin();
     }
 
     public void SurfaceAmbienceStop()
     {
         foreach (var k in new[] { "vent_loop", "drone_loop", "electric_crackle_loop" })
-            Sfx.Instance?.StopLoop(k);
+            StopSceneLoop(k);
+        SurfaceDisasterEnd();
     }
 
     // ── ① 소리부터 · 와이드 ─────────────────────────────────────────────

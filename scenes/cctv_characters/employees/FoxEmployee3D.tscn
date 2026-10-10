@@ -10,6 +10,7 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/fox_inner.tres" id="7_foxinner"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/fox_hair.tres" id="8_foxhair"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/fox_glove.tres" id="9_foxglove"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-070.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M17"]
 radius = 0.088
@@ -114,6 +115,11 @@ size = Vector3(0.08, 0.155, 0.03)
 [sub_resource type="PrismMesh" id="M16"]
 size = Vector3(0.04, 0.085, 0.016)
 
+[sub_resource type="StandardMaterial3D" id="HairMatNew"]
+albedo_color = Color(0.796, 0.424, 0.204, 1)
+roughness = 0.72
+metallic = 0.0
+cull_mode = 2
 [node name="FoxEmployee3D" unique_id=528476091 instance=ExtResource("1_base")]
 
 [node name="ChestBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="1" unique_id=1324881492]
@@ -121,46 +127,6 @@ material_override = ExtResource("2_foxaccent")
 
 [node name="CollarBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" parent_id_path=PackedInt32Array(441613077) index="1" unique_id=1997149230]
 material_override = ExtResource("2_foxaccent")
-
-[node name="HairTop" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="0" unique_id=1486284616]
-transform = Transform3D(1.4, 0, 0, 0, 1.144575, 0, 0, 0, 1.32, 0, 0.06438947, 0.022)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M17")
-
-[node name="HairBack" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="1" unique_id=724606078]
-transform = Transform3D(1.3, 0, 0, 0, 1.4971533, 0, 0, 0, 1.2690848, 0, -0.029999971, 0.088)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M18")
-
-[node name="HairSideL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="2" unique_id=1194077454]
-transform = Transform3D(1.02, 0, 0, 0, 1.3, 0, 0, 0, 1.18, -0.087896176, -0.027999997, 0.02)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M19")
-
-[node name="HairSideR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="3" unique_id=1204944274]
-transform = Transform3D(1.02, 0, 0, 0, 1.3, 0, 0, 0, 1.18, 0.09172877, -0.027999997, 0.02)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M20")
-
-[node name="HairWaveL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="4" unique_id=379549989]
-transform = Transform3D(0.76551753, 0, 0, 0, 0.8606668, 0, 0, 0, 0.8552967, -0.08131799, -0.11199999, 0.038)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M21")
-
-[node name="HairWaveR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="5" unique_id=475000527]
-transform = Transform3D(0.80914617, 0, 0, 0, 0.83664674, 0, 0, 0, 0.91974276, 0.085033864, -0.11199999, 0.038)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M22")
-
-[node name="HairTuftL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="6" unique_id=1143410564]
-transform = Transform3D(1.0006497, 0, 0, 0, 1.0155736, 0, 0, 0, 0.9, -0.07923665, 0.03204465, 0.06)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M23")
-
-[node name="HairTuftR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="7" unique_id=1176850564]
-transform = Transform3D(0.87675714, 0, 0, 0, 1.0541962, 0, 0, 0, 0.9, 0.08323077, 0.038463354, 0.06)
-material_override = ExtResource("8_foxhair")
-mesh = SubResource("M24")
 
 [node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
@@ -265,3 +231,9 @@ material_override = ExtResource("9_foxglove")
 
 [node name="ThighBandL" parent="VisualRoot/RigRoot/Hips/UpperLegL" parent_id_path=PackedInt32Array(111173917) index="3"]
 material_override = ExtResource("2_foxaccent")
+
+
+[node name="Hair" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" index="0"]
+transform = Transform3D(-0.927512, 0, 0, 0, 0.927512, 0, 0, 0, -0.927512, 0.00013, 0.036381, 0.002059)
+material_override = SubResource("HairMatNew")
+mesh = ExtResource("hair_new")

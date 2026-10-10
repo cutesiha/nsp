@@ -10,6 +10,7 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_tan.tres" id="8_badgetan"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_pink.tres" id="9_badgepink"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="10_badgegold"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-104.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_44ynl"]
 radius = 0.1
@@ -118,6 +119,11 @@ rings = 0
 [sub_resource type="PrismMesh" id="STAR_PT"]
 size = Vector3(0.026, 0.034, 0.009)
 
+[sub_resource type="StandardMaterial3D" id="HairMatNew"]
+albedo_color = Color(0.380, 0.361, 0.596, 1)
+roughness = 0.72
+metallic = 0.0
+cull_mode = 2
 [node name="CatEmployee3D" unique_id=358206478 instance=ExtResource("1_base")]
 
 [node name="BustLayerL1" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="1" unique_id=202816569]
@@ -210,36 +216,6 @@ transform = Transform3D(0.56, 0, 0, 0, 0.66, 0, 0, 0, 0.45, -0.072, 0.05, -0.092
 
 [node name="CollarBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" parent_id_path=PackedInt32Array(441613077) index="1" unique_id=1997149230]
 material_override = ExtResource("2_cataccent")
-
-[node name="HairCap" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="0" unique_id=1851932300]
-transform = Transform3D(1.4646435, 0, 0, 0, 1.28, 0, 0, 0, 1.35, 0, 0.01999998, 0.014)
-material_override = ExtResource("7_cathair")
-mesh = SubResource("SphereMesh_44ynl")
-
-[node name="HairBack" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="1" unique_id=1071623953]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.072, 0.092)
-material_override = ExtResource("7_cathair")
-mesh = SubResource("M16")
-
-[node name="HairSideL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="2" unique_id=423983420]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.113578126, -0.07200003, 0.04)
-material_override = ExtResource("7_cathair")
-mesh = SubResource("M17")
-
-[node name="HairFrontL" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="3" unique_id=1251409649]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.104, -0.082, -0.058)
-material_override = ExtResource("7_cathair")
-mesh = SubResource("M18")
-
-[node name="HairSideR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="4" unique_id=909495640]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.108, -0.07200003, 0.032841794)
-material_override = ExtResource("7_cathair")
-mesh = SubResource("M19")
-
-[node name="HairFrontR" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="5" unique_id=1304771248]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.11056641, -0.08200002, -0.058)
-material_override = ExtResource("7_cathair")
-mesh = SubResource("M20")
 
 [node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
@@ -388,3 +364,9 @@ mesh = SubResource("STAR_PT")
 transform = Transform3D(0.58721876, 0.8094288, 0, -0.8094288, 0.58721876, 0, 0, 0, 1, -0.09812561, 0.116983294, -0.09432314)
 material_override = ExtResource("10_badgegold")
 mesh = SubResource("STAR_PT")
+
+
+[node name="Hair" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" index="0"]
+transform = Transform3D(-1.082959, 0, 0, 0, 1.082959, 0, 0, 0, -1.082959, 0.002133, -0.001043, 0.008241)
+material_override = SubResource("HairMatNew")
+mesh = ExtResource("hair_new")

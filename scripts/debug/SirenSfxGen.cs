@@ -31,13 +31,16 @@ public partial class SirenSfxGen : Node
 {
     private const int Rate = 22050;
 
-    private const double Period = 8.0;    // 한 주기(초)
+    // 한 주기가 8초였을 때는 쓸어 올리는 소리가 너무 더뎌서 "경보" 로 들리지 않았다.
+    // 상승 2.5초 · 하강 1.0초로 줄이고, 꼭대기에 머무는 1.5초는 그대로 두었다 —
+    // 그래서 주기가 5초다. 훑는 속도가 두 배 가까이 빨라져 다급하게 들린다.
+    private const double Period = 5.0;    // 한 주기(초)
     private const double LoHz = 403.0;    // 바닥 음높이
     private const double HiHz = 558.0;    // 꼭대기 음높이
     // 일부러 실제 민방위 경보의 박자(5초 상승 / 3초 하강)를 쓰지 않는다. 녹음을 베끼지
     // 않더라도 실제 경보 신호와 같은 패턴을 그대로 내보내는 것은 피한다.
-    private const double RiseSec = 4.0;   // 올라가는 데 걸리는 시간
-    private const double FallSec = 2.5;   // 내려오는 데 걸리는 시간
+    private const double RiseSec = 2.5;   // 올라가는 데 걸리는 시간
+    private const double FallSec = 1.0;   // 내려오는 데 걸리는 시간
     private const double HoldSec = Period - RiseSec - FallSec;   // 꼭대기에서 머무는 시간
     // 시설 전체에 울리는 경보다. 작게 깔리면 안 된다.
     private const double TargetRms = 0.36;

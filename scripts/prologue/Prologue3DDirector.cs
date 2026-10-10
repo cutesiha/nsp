@@ -36,7 +36,7 @@ public partial class Prologue3DDirector : Node
     private static readonly string[] Known =
     {
         "archive_facility", "archive_director", "archive_habitat", "archive_core", "core_warning",
-        "disaster_lab", "disaster_run", "disaster_bulkhead", "disaster_cctv",
+        "disaster_lab", "disaster_lab_glass", "disaster_run", "disaster_bulkhead", "disaster_cctv",
         "core_drop", "core_explode", "disaster_after", "director_last",
         "surface_wide", "surface_road", "surface_last",
     };
@@ -55,6 +55,10 @@ public partial class Prologue3DDirector : Node
     public override void _ExitTree()
     {
         RestoreBus();
+        // 씬이 통째로 내려가도(타이틀로 돌아가기 등) 켜 둔 소리는 직접 끈다 —
+        // Sfx 는 autoload 라 살아남으므로 루프가 그대로 울린다.
+        StopSceneLoops();
+        Sfx.Instance?.StopAllWarped();
         if (Instance == this) Instance = null;
     }
 
@@ -256,6 +260,9 @@ public partial class Prologue3DDirector : Node
             _fadeRect.Visible = false;
         }
         if (!id.StartsWith("surface")) SurfaceAmbienceStop();
+        // 앞 컷의 변형음(비명 · 유리)을 짧게 줄여 끈다. 폭풍우처럼 재난 전체에
+        // 걸쳐 깔리는 소리는 컷 등록소에 들어 있지 않아 여기서 끊기지 않는다.
+        StopCutWarps();
         _ = RunScene(id, gen);
     }
 
@@ -279,6 +286,12 @@ public partial class Prologue3DDirector : Node
         if (_flash != null) _flash.Color = _flash.Color with { A = 0f };
         if (_fadeRect != null) { _fadeRect.Color = _fadeRect.Color with { A = 0f }; _fadeRect.Visible = false; }
         SurfaceAmbienceStop();
+        // 이 연출기가 켠 소리는 **하나도 남기지 않는다.** 장면이 켠 반복음(경보 ·
+        // 사이렌 · 기계음)과 변형음(폭풍우 · 재난음)이 여기서 전부 끊긴다 —
+        // 예전에는 마지막 장면의 경보 루프가 게임 안까지 따라 들어왔다.
+        StopSceneLoops();
+        _cutWarps.Clear();
+        Sfx.Instance?.StopAllWarped(0.4f);
         RestoreBus();
     }
 
@@ -309,6 +322,7 @@ public partial class Prologue3DDirector : Node
             case "archive_core": await ArchiveCore(gen); break;
             case "core_warning": await CoreWarning(gen); break;
             case "disaster_lab": await DisasterLab(gen); break;
+            case "disaster_lab_glass": await DisasterLabGlass(gen); break;
             case "disaster_run": await DisasterRun(gen); break;
             case "disaster_bulkhead": await DisasterBulkhead(gen); break;
             case "disaster_cctv": await DisasterCctv(gen); break;
@@ -436,6 +450,9 @@ public partial class Prologue3DDirector : Node
         _stage.ShowCoreHallForPrologue();
         _stage.SetCam(new Vector3(0.2f, 2.6f, 9.0f), new Vector3(0f, 8.2f, -3f), 58f);
 
+        // 대재난이 시작되는 컷이다. 여기서 폭풍우가 깔리고, 비상 차폐가 내려갈 때까지
+        // 한 번도 끊기지 않는다(폭발 직전의 침묵 동안에만 재워 둔다).
+        StormBegin();
         Sfx.Instance?.Play("machinery_loop", -14f, 0.86f);
         // 빛이 한 번 출렁인다 → 두 번째는 더 크게 → 경고음.
         for (int i = 0; i < 3 && Alive(gen); i++)

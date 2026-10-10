@@ -8,6 +8,7 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/wolf_hair.tres" id="6_wolfhair"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/wolf_epaulette.tres" id="7_wolfepaulett"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="8_badgegold"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-005.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M11"]
 radius = 0.092
@@ -94,6 +95,11 @@ height = 0.17
 radial_segments = 12
 rings = 0
 
+[sub_resource type="StandardMaterial3D" id="HairMatNew"]
+albedo_color = Color(0.282, 0.282, 0.282, 1)
+roughness = 0.72
+metallic = 0.0
+cull_mode = 2
 [node name="WolfEmployee3D" unique_id=890552455 instance=ExtResource("1_base")]
 
 [node name="ChestBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest" parent_id_path=PackedInt32Array(873189456) index="1" unique_id=1324881492]
@@ -101,26 +107,6 @@ material_override = ExtResource("2_wolfaccent")
 
 [node name="CollarBand" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck" parent_id_path=PackedInt32Array(441613077) index="1" unique_id=1997149230]
 material_override = ExtResource("2_wolfaccent")
-
-[node name="HairSweep1" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="0" unique_id=1758053794]
-transform = Transform3D(1.28, 0, 0, 0, 0.90298307, 0, 0, 0, 1.3700745, 0, 0.05799997, 0.017834468)
-material_override = ExtResource("6_wolfhair")
-mesh = SubResource("M11")
-
-[node name="HairSweep2" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="1" unique_id=1257196236]
-transform = Transform3D(1.4827813, 0, 0, 0, 0.692041, 0, 0, 0, 1.4895238, 0, 0.029999971, 0.025824279)
-material_override = ExtResource("6_wolfhair")
-mesh = SubResource("M12")
-
-[node name="HairSweep3" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="2" unique_id=1228998045]
-transform = Transform3D(1.6308894, 0, 0, 0, 0.7061883, 0, 0, 0, 1.436656, 0, -0.004999995, 0.042207956)
-material_override = ExtResource("6_wolfhair")
-mesh = SubResource("M13")
-
-[node name="HairNape" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" parent_id_path=PackedInt32Array(458749375) index="3" unique_id=1089733280]
-transform = Transform3D(1.6137403, 0, 0, 0, 1.1059937, 0, 0, 0, 1.1743052, 0, -0.054999948, 0.03532219)
-material_override = ExtResource("6_wolfhair")
-mesh = SubResource("M14")
 
 [node name="MaskAnchor" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head" parent_id_path=PackedInt32Array(748432806) index="2" unique_id=2072944236]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.142, -0.071395)
@@ -217,3 +203,9 @@ mesh = SubResource("M18")
 transform = Transform3D(0.852525, -0.522687, 0, 0.522687, 0.852525, 0, 0, 0, 1, -0.16411066, 0.21224833, -0.015720576)
 material_override = ExtResource("8_badgegold")
 mesh = SubResource("M19")
+
+
+[node name="Hair" type="MeshInstance3D" parent="VisualRoot/RigRoot/Hips/Torso/Chest/Neck/Head/HairAnchor" index="0"]
+transform = Transform3D(-1.004814, 0, 0, 0, 1.004814, 0, 0, 0, -1.004814, 0.002592, 0.042, 0.001537)
+material_override = SubResource("HairMatNew")
+mesh = ExtResource("hair_new")

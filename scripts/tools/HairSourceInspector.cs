@@ -4,80 +4,64 @@ using Godot;
 
 namespace NSP.Tools;
 
-// 원본 에셋 구조 조사기 — 스튜디오를 만들기 전에 **실제로 무엇이 들어 있는지** 본다.
+// 베이스 몸체 조사기 — 의상을 **어떻게 만들 수 있는지** 판단하기 위한 실측.
 //
 //   godot --headless --path . res://scenes/tools/HairSourceInspector.tscn --quit-after 400
 //
-// 지시서는 "FBX 내부 노드와 메시 구조를 조사하여 실제 개별 헤어스타일 단위로 분리" 하라고
-// 했다. 파일 이름만 보고 짐작하지 않기 위해, 가져온 씬을 직접 펼쳐 표면 단위로 센다.
-// 표면 개수가 같은 쌍은 "같은 메시가 두 번 들어 있는 것" 일 수 있으므로 실제로 비교한다.
+// 핵심 질문: 몸 메시가 본 가중치를 들고 있는가. 들고 있다면 그 가중치를 그대로 물려받는
+// "껍질" 을 떠서 옷을 만들 수 있다 — Blender 없이도 몸을 정확히 따라 움직이고, 애초에
+// 몸 바깥에 있으므로 뚫릴 일이 없다.
 public partial class HairSourceInspector : Node
 {
-    private const string MaleHair = "res://assets/characters/source/male_hair/hair.fbx";
-
-    private sealed class Surf
-    {
-        public string Label = "";
-        public Vector3[] V;
-        public int Idx;
-        public Aabb Box;
-    }
-
     public override void _Ready()
     {
-        GD.Print($"\n################ 남성 헤어팩 표면 단위 — {MaleHair}");
-        var packed = ResourceLoader.Load<PackedScene>(MaleHair);
-        var root = packed.Instantiate<Node3D>();
-        var surfs = new List<Surf>();
-
-        foreach (Node n in root.GetChildren())
-        {
-            if (n is not MeshInstance3D mi || mi.Mesh == null) continue;
-            Transform3D t = mi.Transform;
-            for (int s = 0; s < mi.Mesh.GetSurfaceCount(); s++)
-            {
-                var arr = mi.Mesh.SurfaceGetArrays(s);
-                var vs = arr[(int)Mesh.ArrayType.Vertex].As<Vector3[]>();
-                var idx = arr[(int)Mesh.ArrayType.Index].As<int[]>();
-                var baked = new Vector3[vs.Length];
-                for (int i = 0; i < vs.Length; i++) baked[i] = t * vs[i];
-                var box = new Aabb(baked[0], Vector3.Zero);
-                foreach (Vector3 v in baked) box = box.Expand(v);
-                string mat = mi.Mesh.SurfaceGetMaterial(s)?.ResourceName ?? "(무)";
-                surfs.Add(new Surf
-                {
-                    Label = $"노드{mi.Name}.surf{s} '{mat}'",
-                    V = baked, Idx = idx?.Length ?? vs.Length, Box = box,
-                });
-                GD.Print($"- {surfs[^1].Label}: 정점 {vs.Length} 삼각 {(idx?.Length ?? vs.Length) / 3} " +
-                         $"크기{box.Size.Snapped(Vector3.One * 0.0001f)} 중심{box.GetCenter().Snapped(Vector3.One * 0.0001f)}");
-            }
-        }
-        root.QueueFree();
-
-        GD.Print("\n-- 정점·삼각형 수가 같은 쌍을 실제로 비교한다");
-        for (int i = 0; i < surfs.Count; i++)
-            for (int j = i + 1; j < surfs.Count; j++)
-            {
-                Surf a = surfs[i], b = surfs[j];
-                if (a.V.Length != b.V.Length || a.Idx != b.Idx) continue;
-
-                float dSize = (a.Box.Size - b.Box.Size).Length();
-                Vector3 ca = a.Box.GetCenter(), cb = b.Box.GetCenter();
-                float maxInOrder = 0f;
-                for (int k = 0; k < a.V.Length; k++)
-                    maxInOrder = Mathf.Max(maxInOrder, (a.V[k] - ca).DistanceTo(b.V[k] - cb));
-
-                // 정점 순서가 달라졌을 수도 있다 — 정렬해서도 재 본다.
-                var sa = a.V.Select(v => v - ca).OrderBy(v => v.X).ThenBy(v => v.Y).ThenBy(v => v.Z).ToArray();
-                var sb = b.V.Select(v => v - cb).OrderBy(v => v.X).ThenBy(v => v.Y).ThenBy(v => v.Z).ToArray();
-                float maxSorted = 0f;
-                for (int k = 0; k < sa.Length; k++) maxSorted = Mathf.Max(maxSorted, sa[k].DistanceTo(sb[k]));
-
-                GD.Print($"  {a.Label} ↔ {b.Label}: 크기차 {dSize:F6}m · " +
-                         $"순서대로 최대 {maxInOrder:F6}m · 정렬 후 최대 {maxSorted:F6}m");
-            }
-
+        foreach (string p in new[] { HairSourceSplitter.MaleBaseGltf, HairSourceSplitter.FemaleBaseGltf })
+            Probe(p);
         GD.Print("\n#### 조사 끝");
+    }
+
+    private void Probe(string path)
+    {
+        GD.Print($"\n################ {path.GetFile()}");
+        var root = ResourceLoader.Load<PackedScene>(path).Instantiate<Node3D>();
+        Skeleton3D skel = HairSourceSplitter.FindSkeleton(root);
+
+        MeshInstance3D body = skel.GetChildren().OfType<MeshInstance3D>()
+            .Where(m => m.Mesh != null)
+            .OrderByDescending(m => m.Mesh.SurfaceGetArrays(0)[(int)Mesh.ArrayType.Vertex].As<Vector3[]>().Length)
+            .First();
+        GD.Print($"  몸 메시 '{body.Name}' · skin={(body.Skin != null ? "있음" : "없음")} " +
+                 $"· skeleton='{body.Skeleton}'");
+
+        var arr = body.Mesh.SurfaceGetArrays(0);
+        var vs = arr[(int)Mesh.ArrayType.Vertex].As<Vector3[]>();
+        var bones = arr[(int)Mesh.ArrayType.Bones].As<int[]>();
+        var weights = arr[(int)Mesh.ArrayType.Weights].As<float[]>();
+        var norms = arr[(int)Mesh.ArrayType.Normal].As<Vector3[]>();
+        var uvs = arr[(int)Mesh.ArrayType.TexUV].As<Vector2[]>();
+        var idx = arr[(int)Mesh.ArrayType.Index].As<int[]>();
+        GD.Print($"  정점 {vs.Length} · 삼각 {idx.Length / 3} · 법선 {(norms != null ? "O" : "X")} " +
+                 $"· UV {(uvs != null ? "O" : "X")}");
+        GD.Print($"  BONES {(bones == null ? "없음" : $"{bones.Length}개 ({bones.Length / vs.Length}/정점)")} " +
+                 $"· WEIGHTS {(weights == null ? "없음" : $"{weights.Length}개")}");
+        if (bones == null) { GD.Print("  !! 가중치가 없다 — 껍질 방식 불가"); root.QueueFree(); return; }
+
+        // 어느 본이 어디를 지배하는가. 옷 영역을 본 이름으로 정의하기 위한 자료다.
+        int per = bones.Length / vs.Length;
+        var owned = new Dictionary<int, (int n, float lo, float hi)>();
+        for (int i = 0; i < vs.Length; i++)
+        {
+            int best = bones[i * per]; float bw = weights[i * per];
+            for (int k = 1; k < per; k++)
+                if (weights[i * per + k] > bw) { bw = weights[i * per + k]; best = bones[i * per + k]; }
+            if (!owned.TryGetValue(best, out var e)) e = (0, 99f, -99f);
+            owned[best] = (e.n + 1, Mathf.Min(e.lo, vs[i].Y), Mathf.Max(e.hi, vs[i].Y));
+        }
+        GD.Print("  주 지배 본 (정점수 많은 순):");
+        foreach (var kv in owned.OrderByDescending(k => k.Value.n).Take(16))
+            GD.Print($"    {skel.GetBoneName(kv.Key),-14} 정점 {kv.Value.n,5}  y {kv.Value.lo:F3}~{kv.Value.hi:F3}");
+        GD.Print($"  (가중치가 실린 본 {owned.Count}개 / 전체 {skel.GetBoneCount()}개)");
+
+        root.QueueFree();
     }
 }

@@ -23,6 +23,7 @@ public partial class PrologueStageShot : Node
         ("surface_road", new[] { 0.6, 1.6, 2.8 }),
         ("surface_last", new[] { 0.5, 1.6, 2.6 }),
         ("disaster_lab", new[] { 0.8, 1.8, 2.3, 3.2 }),
+        ("disaster_lab_glass", new[] { 0.3, 0.6, 1.2, 2.2 }),
         ("disaster_run", new[] { 0.2, 1.0, 2.2, 3.6 }),
         ("disaster_bulkhead", new[] { 0.8, 2.0, 3.0 }),
         ("disaster_cctv", new[] { 0.5, 0.7, 0.86, 1.3 }),
