@@ -940,7 +940,9 @@ public partial class FacilitySimulation : Node
     private void OnGhostDeparted(string roomId)
     {
         if (!GameModes.GhostWalksToControlRoom) return;
-        _threats.SpawnFromRoom(roomId);
+        // 작업실에서 본 **바로 그 개체**가 걸어 나온다. 여기서 종류를 넘기지 않으면
+        // 복도 쪽이 따로 추첨해, 눈으로 본 것과 다른 괴물이 문 앞에 선다.
+        _threats.SpawnFromRoom(roomId, _ghost.ActiveMonsterId);
     }
 
     // 차폐문을 **무시한** 방 연결. 괴물이 어느 복도로 들어올지 고를 때 쓴다 —

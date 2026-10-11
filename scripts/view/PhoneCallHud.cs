@@ -657,7 +657,13 @@ public partial class PhoneCallHud : CanvasLayer
         // 카드 본문은 "누가 · 어디서" 만. 태그는 왼쪽 색 띠가, 시각은 오른쪽 라벨이 맡는다.
         // 한 줄에 다 싣지 않는다 — 전문은 카드를 누르면 아래 상세칸에 뜬다.
         string body = string.IsNullOrEmpty(line2) ? StripHead(line1) : line2;
-        var b = CardButton(SlotBadge(ev) + Short(body, CardBodyChars), on, near.Contains(ev.Id), usable);
+        // [A] / [B] 배지도 같은 줄을 먹는다 — 글자 수에서 빼 두지 않으면 고른 카드만
+        // 끝이 … 없이 잘려 나간다(고른 순간 읽기가 더 어려워진다).
+        string badge = SlotBadge(ev);
+        var b = CardButton(badge + Short(body, BodyChars - badge.Length), on, near.Contains(ev.Id), usable);
+        // 잘린 카드의 전문은 마우스를 올려 읽는다. 발언 카드는 원문이 길어서
+        // 열네 글자로는 무슨 말을 했는지 알 수 없다 — 읽을 길이 있어야 고를 수 있다.
+        b.TooltipText = body;
         b.Pressed += () =>
         {
             _session.Toggle(captured.Id);
@@ -681,6 +687,12 @@ public partial class PhoneCallHud : CanvasLayer
 
     // 카드 본문에 들어가는 글자 수. 넘치면 … 로 자르고 전문은 상세칸이 맡는다.
     private const int CardBodyChars = 14;
+    // 「대화·진술」 탭의 카드는 **사람이 한 말**이다. 열네 글자로 자르면 어느 발언인지
+    // 구별할 수가 없어서 고를 수가 없다. 이 탭에서만 넉넉히 보여 준다.
+    private const int SpokenBodyChars = 30;
+
+    private int BodyChars =>
+        _session != null && _session.Tab == NoteTab.Spoken ? SpokenBodyChars : CardBodyChars;
 
     // 카드 한 장의 높이. 기울어진 CRT 에서 읽히려면 이 정도는 되어야 한다.
     private const float CardHeight = 44f;

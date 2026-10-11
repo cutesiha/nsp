@@ -130,6 +130,35 @@ public sealed class FaintRescueSystem
 
     // ── 매 틱 ─────────────────────────────────────────────────────────
 
+    // 근무가 끝났다 — 의무실에 누워 있던 사람은 **휴게시간 전에 깨어난다.**
+    //
+    // 회복은 시간제(StressFaintRecoverySeconds)라, 근무 막바지에 쓰러지면 타이머가 남은
+    // 채로 근무가 끝난다. 그러면 그 사람은 휴게시간 내내 의식이 없는 것으로 남아
+    //   · 휴게실 3D 에서 사라지고(그 자리에 아무도 안 앉는다)
+    //   · 심문 명단에서도 빠진다 — 그날 사건의 **당사자**인데 물어볼 수가 없다
+    // 근무와 근무 사이는 치료를 받는 시간이다. 그 사이에 깨어나는 것이 맞다.
+    public void WakeAllForRest()
+    {
+        var sim = _sim;
+        if (sim == null) return;
+        foreach (string id in sim.GetEmployeeIds())
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null || !st.Incapacitated) continue;
+            st.Incapacitated = false;
+            st.Faint = FaintPhase.None;
+            st.FaintPhaseTimer = 0f;
+            st.FaintRecoverTimer = 0f;
+            st.MedicalBedSpotId = "";
+            var cfg = Config.Instance?.Data;
+            if (cfg != null)
+                st.Stress = Mathf.Clamp(cfg.StressAfterRecovery, cfg.StressMin, cfg.StressFaintFrom - 1f);
+            EventLog.Instance?.LogEvent(LogEventType.Neglect, id, st.CurrentRoomId,
+                $"{Name(id)} 회복 — 근무 종료 후 치료 완료", detail: LogDetail.Recovered);
+            Recovered?.Invoke(id);
+        }
+    }
+
     public void Tick(float delta)
     {
         if (_sim == null) return;

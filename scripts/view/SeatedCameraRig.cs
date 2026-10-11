@@ -53,6 +53,12 @@ public partial class SeatedCameraRig : Node3D
     // 패드를 든 동안 숨쉬기 흔들림을 얼마나 죽이는가(1 = 완전 정지).
     // 코앞 20cm 의 글자를 읽는 화면이 미세하게 계속 흔들리면 읽기 어렵고 멀미가 난다.
     [Export] public float PadHoldSteadiness = 1f;
+
+    // 공포 호흡 — AdminFearDirector 가 들숨(+) / 날숨(−)에 맞춰 눈높이를 밀어 올린다(m).
+    // 위의 BreathBob(평상시 미세 흔들림)과 **별개**다: 저쪽은 늘 돌고, 이쪽은 위협이
+    // 가까울 때만 돈다. 모니터를 확대해 글자를 읽는 중에는 크게 줄인다.
+    public float FearBreathMeters { get; set; }
+    private const float FearBreathZoomScale = 0.35f;
     private float _padWeight;
     private Tween _padTween;
     private Transform3D _cameraBase = Transform3D.Identity;
@@ -83,6 +89,9 @@ public partial class SeatedCameraRig : Node3D
             rot += new Vector3(Mathf.Sin(phase + 1.3f) * BreathSwayDegrees,
                                Mathf.Sin(phase * 0.37f) * BreathSwayDegrees * 0.7f, 0f) * breath;
         }
+
+        if (!Mathf.IsZeroApprox(FearBreathMeters))
+            pos += new Vector3(0f, FearBreathMeters * (_zoomed ? FearBreathZoomScale : 1f) * breath, 0f);
 
         rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight + _collapseRotDeg;
         Position = pos + _collapsePos + PadLeanMeters * _padWeight;

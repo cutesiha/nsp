@@ -30,7 +30,9 @@ public sealed class CorridorVisual
     // 걸치는 괴물만 보이고, 키 작은 것(아기 괴물 0.78m · 거미 0.62m)은 통째로 가려진다.
     // 세로 슬릿은 키와 상관없이 몸통 한 줄이 그대로 비친다 — 문 앞에 무엇이 붙어
     // 긁고 있는지 **반드시** 눈으로 확인할 수 있어야 한다(지시서 §4 · §6).
-    private const float SlotHalf = 0.12f;
+    // (폭은 "몸통 한 줄이 비칠 만큼"이면 충분하다. 0.12 는 사람이 지나갈 만큼 벌어져
+    //  보여서 닫힌 문으로 읽히지 않았다 — 반으로 줄여 **틈**으로 보이게 한다.)
+    private const float SlotHalf = 0.055f;
     private const float LeafW = Width * 0.5f - SlotHalf;          // 문짝 한 장 폭
     private const float LeafSealX = SlotHalf + LeafW * 0.5f;      // 닫혔을 때 중심 x
     private const float LeafPocketX = Width * 0.5f + LeafW * 0.5f + 0.14f;  // 열려 벽 속에 들어간 자리
@@ -115,8 +117,8 @@ public sealed class CorridorVisual
             Box(_root, new Vector3(Width, 0.014f, 0.045f), new Vector3(0f, 0.006f, z), dark);
         Box(_root, new Vector3(0.06f, 0.16f, Length), new Vector3(-hw + 0.03f, 0.08f, 0f), dark, "KickL");
         Box(_root, new Vector3(0.06f, 0.16f, Length), new Vector3(hw - 0.03f, 0.08f, 0f), dark, "KickR");
-        // 가운데 안전선 두 줄(노란 도장).
-        var line = Mat(new Color(0.42f, 0.36f, 0.13f), 0.9f);
+        // 가운데 안전선 두 줄 — **방향마다 색이 다르다**(아래 SideDress 참조).
+        var line = Mat(LineColor(seg.Side), 0.9f);
         Box(_root, new Vector3(0.05f, 0.013f, Length - 0.4f), new Vector3(-0.42f, 0.007f, 0f), line);
         Box(_root, new Vector3(0.05f, 0.013f, Length - 0.4f), new Vector3(0.42f, 0.007f, 0f), line);
 
@@ -131,9 +133,10 @@ public sealed class CorridorVisual
         Box(_root, new Vector3(0.05f, 0.07f, Length), new Vector3(-hw + 0.04f, 1.12f, 0f), trim, "RailL");
         Box(_root, new Vector3(0.05f, 0.07f, Length), new Vector3(hw - 0.04f, 1.12f, 0f), trim, "RailR");
 
-        BuildLamps();
+        BuildLamps(seg.Side);
         BuildEndDoors(seg, roomAName, roomBName, steel, dark);
         BuildZoneSigns(seg, steel);
+        SideDress(seg, steel, dark);
         if (seg.PermanentSeal) BuildPermanentSeal(seg, steel, dark);
         else if (seg.IsBlockable) BuildShutter(seg, steel, dark, trim);
 
@@ -141,9 +144,46 @@ public sealed class CorridorVisual
     }
 
     // 천장등 — 일정 간격의 형광등. 가운데 하나는 비상등 색으로 둔다(차폐문 쪽).
-    private void BuildLamps()
+    // ── 복도 셋을 눈으로 가르는 것 ───────────────────────────────────
+    //
+    // 세 복도가 똑같이 생기면 CCTV 를 돌렸을 때 **지금 보는 것이 어느 쪽인지** 알 수가
+    // 없다. 10초 안에 문을 내려야 하는 게임에서 그건 치명적이다 — 이름표를 읽을 시간이
+    // 없으니 한눈에 갈라져야 한다. 그래서 셋을 조명 색 · 바닥선 · 설비로 나눈다.
+    //
+    //   북(코어실)   차가운 푸른빛 · 냉각 배관 두 줄
+    //   서(발전실)   주황빛 · 벽을 타고 가는 전선 다발과 분전함
+    //   동(저장고)   흐린 녹색 · 벽에 쌓인 화물 상자와 바닥 운반 레일
+    //
+    // 색은 그 방의 성격에서 가져왔다(코어=냉각, 발전=전기, 저장=화물).
+
+    private static Color LampGlow(CorridorSide side) => side switch
     {
-        var lampMat = Glow(new Color(0.78f, 0.82f, 0.74f), 1.1f);
+        CorridorSide.North => new Color(0.64f, 0.78f, 0.92f),
+        CorridorSide.West => new Color(0.94f, 0.74f, 0.46f),
+        CorridorSide.East => new Color(0.68f, 0.84f, 0.66f),
+        _ => new Color(0.78f, 0.82f, 0.74f),
+    };
+
+    private static Color LampLight(CorridorSide side) => side switch
+    {
+        CorridorSide.North => new Color(0.68f, 0.80f, 1f),
+        CorridorSide.West => new Color(1f, 0.78f, 0.50f),
+        CorridorSide.East => new Color(0.72f, 0.88f, 0.70f),
+        _ => new Color(0.86f, 0.89f, 0.82f),
+    };
+
+    private static Color LineColor(CorridorSide side) => side switch
+    {
+        CorridorSide.North => new Color(0.16f, 0.36f, 0.44f),
+        CorridorSide.West => new Color(0.46f, 0.34f, 0.10f),
+        CorridorSide.East => new Color(0.18f, 0.38f, 0.22f),
+        _ => new Color(0.42f, 0.36f, 0.13f),
+    };
+
+    private void BuildLamps(CorridorSide side)
+    {
+        var lampMat = Glow(LampGlow(side), 1.1f);
+        var lampColor = LampLight(side);
         float hl = Length * 0.5f;
         for (float z = -hl + 1.8f; z < hl; z += 3.4f)
         {
@@ -151,11 +191,84 @@ public sealed class CorridorVisual
             var l = new OmniLight3D
             {
                 Position = new Vector3(0f, Height - 0.32f, z),
-                LightColor = new Color(0.86f, 0.89f, 0.82f),
+                LightColor = lampColor,
                 LightEnergy = 1.15f, OmniRange = 6.2f, ShadowEnabled = false,
             };
             _root.AddChild(l);
             _lamps.Add(l);
+        }
+    }
+
+    // 방향별 설비. 복도 껍데기는 그대로 두고 **벽과 바닥에 다른 것이 붙는다.**
+    private void SideDress(CorridorSegment seg, Material steel, Material dark)
+    {
+        float hw = Width * 0.5f, hl = Length * 0.5f;
+        switch (seg.Side)
+        {
+            // ── 북측 : 코어 냉각 배관 ─────────────────────────────────
+            // 굵은 배관 두 줄이 벽을 타고 가고, 일정 간격으로 이음매 링이 붙는다.
+            case CorridorSide.North:
+            {
+                var pipe = Mat(new Color(0.46f, 0.52f, 0.56f), 0.42f, 0.65f);
+                var ring = Mat(new Color(0.30f, 0.36f, 0.40f), 0.55f, 0.40f);
+                foreach (float y in new[] { 0.96f, 1.42f })
+                {
+                    Box(_root, new Vector3(0.16f, 0.16f, Length - 0.4f),
+                        new Vector3(-hw + 0.14f, y, 0f), pipe);
+                    for (float z = -hl + 1.2f; z < hl; z += 2.4f)
+                        Box(_root, new Vector3(0.22f, 0.22f, 0.09f), new Vector3(-hw + 0.14f, y, z), ring);
+                }
+                // 성에 낀 밸브 손잡이 몇 개.
+                for (float z = -hl + 2.6f; z < hl; z += 5.2f)
+                    Box(_root, new Vector3(0.07f, 0.34f, 0.07f), new Vector3(-hw + 0.14f, 1.72f, z), ring);
+                break;
+            }
+
+            // ── 서측 : 발전 계통 전선 ────────────────────────────────
+            // 전선 다발이 벽을 타고 흐르고, 분전함이 일정 간격으로 박혀 있다.
+            case CorridorSide.West:
+            {
+                var cable = Mat(new Color(0.10f, 0.09f, 0.08f), 0.85f, 0.1f);
+                var box = Mat(new Color(0.38f, 0.30f, 0.12f), 0.62f, 0.35f);
+                foreach (float y in new[] { 1.52f, 1.62f, 1.72f })
+                    Box(_root, new Vector3(0.07f, 0.06f, Length - 0.4f),
+                        new Vector3(hw - 0.12f, y, 0f), cable);
+                for (float z = -hl + 2.2f; z < hl; z += 4.4f)
+                {
+                    Box(_root, new Vector3(0.14f, 0.46f, 0.34f), new Vector3(hw - 0.14f, 1.20f, z), box);
+                    Box(_root, new Vector3(0.05f, 0.08f, 0.08f), new Vector3(hw - 0.22f, 1.34f, z),
+                        Glow(new Color(0.95f, 0.62f, 0.18f), 0.8f));
+                }
+                // 바닥 경고 빗금 — 전기 구역 표시.
+                var hazard = Mat(new Color(0.52f, 0.42f, 0.10f), 0.92f);
+                for (float z = -hl + 1.0f; z < hl; z += 1.1f)
+                    Box(_root, new Vector3(Width - 0.5f, 0.012f, 0.14f), new Vector3(0f, 0.008f, z), hazard);
+                break;
+            }
+
+            // ── 동측 : 저장고 화물 ───────────────────────────────────
+            // 벽을 따라 상자가 쌓여 있고 바닥에 운반 레일이 깔려 있다.
+            case CorridorSide.East:
+            {
+                var crate = Mat(new Color(0.34f, 0.28f, 0.19f), 0.88f);
+                var crate2 = Mat(new Color(0.27f, 0.23f, 0.17f), 0.90f);
+                var rail = Mat(new Color(0.40f, 0.42f, 0.40f), 0.35f, 0.70f);
+                foreach (float x in new[] { -0.46f, 0.46f })
+                    Box(_root, new Vector3(0.07f, 0.03f, Length - 0.6f), new Vector3(x, 0.015f, 0f), rail);
+                // 상자 더미 — 한쪽 벽에만 붙여 두어 통로는 비워 둔다.
+                float[] stacks = { -hl + 2.0f, -hl + 5.4f, -hl + 9.6f, -hl + 13.0f };
+                for (int i = 0; i < stacks.Length; i++)
+                {
+                    float z = stacks[i];
+                    Box(_root, new Vector3(0.62f, 0.52f, 0.68f), new Vector3(hw - 0.36f, 0.26f, z), crate);
+                    if (i % 2 == 0)
+                        Box(_root, new Vector3(0.50f, 0.42f, 0.54f),
+                            new Vector3(hw - 0.40f, 0.73f, z + 0.04f), crate2);
+                }
+                // 팔레트 한 장 — 비어 있는 자리도 있어야 창고로 보인다.
+                Box(_root, new Vector3(0.78f, 0.09f, 0.78f), new Vector3(hw - 0.30f, 0.045f, hl - 2.6f), crate2);
+                break;
+            }
         }
     }
 

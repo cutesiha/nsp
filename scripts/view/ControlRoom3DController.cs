@@ -832,6 +832,13 @@ public partial class ControlRoom3DController : Node3D
     // 프롤로그 컷씬(머리 충격 등)에서 제어실 카메라 자체를 흔든다.
     public void ShakeCamera(float strengthDegrees, float seconds) => _rig?.Shake(strengthDegrees, seconds);
 
+    // 관리자 호흡 — 들숨(+) / 날숨(−)에 맞춰 눈높이가 아주 조금 오르내린다(m).
+    // AdminFearDirector 가 매 프레임 넘긴다. 0 이면 평소대로다.
+    public void SetBreathLift(float meters)
+    {
+        if (_rig != null) _rig.FearBreathMeters = meters;
+    }
+
     // 프롤로그 — 의식을 잃고 책상에 엎어지는 시점 연출.
     public void CollapseCameraOntoDesk(float seconds = 0.38f) => _rig?.CollapseOntoDesk(seconds);
     public void ResetCameraCollapse() => _rig?.ResetCollapse();

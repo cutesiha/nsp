@@ -26,5 +26,5 @@ PermanentSeal = false
 CctvCameraId = "CAM-N01"
 ThreatLane = true
 DriveSeconds = 0.8
-MaxSealSeconds = 11.0
+MaxSealSeconds = 0.0
 ReengageCooldownSeconds = 3.0

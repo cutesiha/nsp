@@ -10,7 +10,6 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_pink.tres" id="8_badgepink"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_white.tres" id="9_badgewhite"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-037.res" id="hair_new"]
-[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-037.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M11"]
 radius = 0.088

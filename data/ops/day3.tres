@@ -187,6 +187,10 @@ SaboteurStartSeconds = 22.0
 MaxSabotageActionsPerDay = 3
 AllowMurder = false
 GhostMaxPerDay = 2
+; 첫 번째는 반드시 나온다(두 번째는 평소대로 추첨). 둘이 들어올 자리를 남겨야 하므로
+; DAY2 보다 앞당긴다 — 뒤로 밀리면 두 번째가 근무 안에 들어오지 못한다.
+GhostFirstAppearFromSeconds = 24.0
+GhostFirstAppearBySeconds = 42.0
 SabotageTargetRooms = Array[String](["core_room", "power_room", "storage_room", "guard_room", "maintenance_room", "vent_room", "medical_room"])
 SabotageSettleSeconds = 4.0
 SabotagePrepareMinSeconds = 5.5

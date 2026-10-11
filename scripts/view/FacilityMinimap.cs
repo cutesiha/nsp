@@ -427,6 +427,21 @@ public partial class FacilityMinimap : Control
         Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
         var r = SealRect();
 
+        // 중앙제어실 ↔ 격리실 옛 통로. **지도에만 그린다** — 길찾기에는 존재하지 않고
+        // (data/rooms 에서 이미 지워졌다) 격벽이 가로막고 있어 아무도 지나가지 못한다.
+        // 그래도 길 자체를 지워 버리면 격리실이 지도에서 뚝 떨어져 떠 있는 방이 되고,
+        // "왜 저기로는 안 오지" 가 설명되지 않는다. 막힌 길로 보여 주는 편이 읽힌다.
+        if (Layout.ContainsKey("isolation_room"))
+        {
+            Vector2 iso = CenterOf("isolation_room");
+            Vector2 top = hub + new Vector2(0f, BoxSize.Y * 0.5f);
+            Vector2 bottom = new(iso.X, iso.Y - BoxSize.Y * 0.5f);
+            Strip(top, bottom, LaneMinor, LaneSealedFloor with { A = 0.55f },
+                  LaneSealed with { A = 0.42f });
+            // 죽은 길이라는 표시 — 가운데를 따라 성긴 빗금.
+            Dashes(top, bottom, SealHatch with { A = 0.80f });
+        }
+
         // 중앙제어실 바닥에서 격벽까지 짧은 토막 — "여기가 길이었다".
         DrawLine(hub + new Vector2(0f, BoxSize.Y * 0.5f), r.GetCenter(), SealHatch with { A = 0.75f }, 6f);
 
@@ -923,6 +938,9 @@ public partial class FacilityMinimap : Control
             // 오늘 잠긴 작업실은 선택해도 볼 것이 없다 — 인스펙터/CCTV를 그쪽으로 돌리지 않는다.
             if (sim.IsRoomActive(roomHit)) OnRoomSelected?.Invoke(roomHit);
             AcceptEvent();
+            // 작업실 상자 안이면 **여기서 끝낸다.** 통로 판정이 넓어졌으므로 그냥
+            // 흘려보내면 방을 누를 때마다 통로까지 같이 집혔다.
+            return;
         }
 
         // 통로는 **가장 마지막** 에 본다. 직원 아이콘 · 작업실 상자가 먼저이므로
@@ -940,29 +958,66 @@ public partial class FacilityMinimap : Control
     // 통로를 골랐다 — 차폐 레버의 제어 대상이 바뀐다.
     public Action<string> OnCorridorSelected;
 
-    // 문 마커 주변 작은 상자. **카메라가 붙은 구간**만 집힌다 — 그래야 누르면 볼 것이 있다.
+    // **카메라가 붙은 구간**만 집힌다 — 그래야 누르면 볼 것이 있다.
     // (봉쇄된 남측 격벽도 카메라가 있으므로 눌러 확인할 수 있다. 다만 차폐 대상은 못 된다.)
-    private const float DoorHitRadius = 15f;
+    //
+    // 예전에는 문 마커 반경 15px 하나뿐이었다. 지도 위의 작은 점을 정확히 겨냥해야
+    // 차폐문이 잡혀서, 세 개를 번갈아 고르는 평범한 조작이 지나치게 까다로웠다.
+    // 이제 **통로 띠 어디를 눌러도** 그 구간이 잡힌다. 문 마커는 그대로 두되 더 넓다.
+    private const float DoorHitRadius = 26f;
+    private const float LaneHitRadius = 14f;
 
     public string CorridorAt(FacilitySimulation sim, Vector2 pos)
     {
         var net = sim?.Corridors;
         if (net == null) return null;
         Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
+
+        // 여러 구간이 겹치는 자리가 있다(꺾임이 서로의 중점에서 만난다). 먼저 찾은 것을
+        // 쓰지 않고 **가장 가까운** 것을 고른다.
+        string best = null;
+        float bestScore = float.MaxValue;
+
         foreach (var seg in net.Segments)
         {
             if (string.IsNullOrEmpty(seg.CctvCameraId)) continue;
             if (seg.PermanentSeal)
             {
-                if (SealRect().Grow(5f).HasPoint(pos)) return seg.Id;
+                if (SealRect().Grow(6f).HasPoint(pos)) { best = seg.Id; bestScore = -1f; }
                 continue;
             }
             if (!Layout.ContainsKey(seg.RoomA) || !Layout.ContainsKey(seg.RoomB)) continue;
             Vector2 a = CenterOf(seg.RoomA), b = CenterOf(seg.RoomB);
-            Vector2 door = DoorPoint(a, CorridorElbow.Compute(a, b, hub), b);
-            if (pos.DistanceTo(door) <= DoorHitRadius) return seg.Id;
+            Vector2? elbow = CorridorElbow.Compute(a, b, hub);
+            float toDoor = pos.DistanceTo(DoorPoint(a, elbow, b));
+            float toLane = LaneDistance(pos, a, elbow, b);
+
+            // 문 마커가 띠보다 세고, 차폐 가능한 구간이 그냥 통로보다 세다 —
+            // 겹치는 자리에서 **조작할 수 있는 쪽**을 놓치지 않게.
+            float bias = seg.IsBlockable ? 0f : 9f;
+            float score =
+                toDoor <= DoorHitRadius ? toDoor * 0.5f + bias :
+                toLane <= LaneHitRadius ? toLane + 22f + bias : float.MaxValue;
+            if (score >= bestScore) continue;
+            bestScore = score;
+            best = seg.Id;
         }
-        return null;
+        return best;
+    }
+
+    // 통로 띠(꺾이면 두 토막)까지의 거리.
+    private static float LaneDistance(Vector2 p, Vector2 a, Vector2? elbow, Vector2 b)
+        => elbow == null
+            ? PointToSegment(p, a, b)
+            : Mathf.Min(PointToSegment(p, a, elbow.Value), PointToSegment(p, elbow.Value, b));
+
+    private static float PointToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        Vector2 ab = b - a;
+        float len2 = ab.LengthSquared();
+        if (len2 < 0.0001f) return p.DistanceTo(a);
+        float t = Mathf.Clamp((p - a).Dot(ab) / len2, 0f, 1f);
+        return p.DistanceTo(a + ab * t);
     }
 
     // 문이 놓이는 지점 — 그리기와 히트 판정이 **같은 식**을 써야 눌리는 자리와 보이는 자리가 맞는다.

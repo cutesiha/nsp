@@ -112,6 +112,11 @@ public partial class GhostModeTest : Node
         Head("D", "같은 개체가 복도로 걸어 나간다");
         GameModes.ForceSelect(GameMode.Competition);
         var g = StartShift();
+        // 이 절이 보는 것은 **작업실 → 복도 인계**다. 접근이 10초로 짧아지면서, 체류를
+        // 기다리는 40초 사이에 일정표가 띄운 다른 위협이 문까지 닿아 침입해 버린다 —
+        // 침입하면 그 판은 끝난 것이므로 인계도 일어나지 않는다(실제 게임에서는 관리자가
+        // 죽은 뒤다). 여기서는 죽음을 꺼 두고 인계만 본다.
+        _sim.Threats.NoBreach = true;
 
         // 발전실은 서측 접근 복도 바로 바깥이다 — 거기서 나오면 서측으로 들어와야 한다.
         const string origin = "power_room";
@@ -146,9 +151,18 @@ public partial class GhostModeTest : Node
         Ok(!spawnInCorridor, "그 단계에서는 복도 CCTV 에도 잡히지 않는다");
 
         // 실제로 복도에 들어서는지.
+        //
+        // **정확히 Approach 단계인지를 보지 않는다.** 복도를 건너는 데 10초뿐이라, 체류가
+        // 끝나기를 기다린 40초 안에 이미 문 앞까지 간 경우가 흔하다. 확인할 것은 "복도
+        // 구간에 들어와 CCTV 에 잡히는 상태가 되었는가" 이고, 그건 두 값으로 충분하다.
+        bool enteredFired = false;
+        _sim.Threats.EnteredCorridor += x => { if (x == t) enteredFired = true; };
         for (int i = 0; i < 60 * 30 && t.Phase == ThreatPhase.Outer; i++) _sim.Threats.Tick(Step);
-        Ok(t.Phase == ThreatPhase.Approach, "접근 복도에 들어섰다");
+        Ok(t.Phase is ThreatPhase.Approach or ThreatPhase.AtDoor or ThreatPhase.Pounding,
+            $"접근 복도에 들어섰다({t.Phase} · 진행 {t.Progress:0.00})");
         Ok(t.InCorridor, "이제부터 복도 CCTV 로 보인다");
+        Ok(enteredFired || t.Phase != ThreatPhase.Outer, "복도 진입 신호가 떴다(전조 연출이 걸리는 자리)");
+        _sim.Threats.NoBreach = false;
     }
 
     // ── E. 사고 · 기록 · 교육 보호 ──────────────────────────────────
@@ -205,30 +219,25 @@ public partial class GhostModeTest : Node
     {
         Head("F", "프롤로그와 DAY 0 대본");
         var baseMenu = NSP.Prologue.PrologueScript.GetMenu("g_main");
-        var compMenu = NSP.Prologue.PrologueScript.GetMenu("g_main_comp");
 
-        Ok(baseMenu != null && baseMenu.Options.Count == 3, "기본 모드 질문은 세 개 그대로다");
-        Ok(compMenu != null && compMenu.Options.Count == 4, "대회용 질문은 네 개다");
-        if (baseMenu == null || compMenu == null) return;
+        // 두 모드가 **같은 세 질문**을 쓴다. 대회용 전용 네 번째 질문
+        // ("그 괴물들은 왜 나를 노리지?")은 없앴다 — 브리핑을 늘리는 대신, 그 한 줄을
+        // 정작 필요한 자리인 **접근 장면**으로 옮겼다(tut_barrier_corridor).
+        Ok(baseMenu != null && baseMenu.Options.Count == 3, "브리핑 질문은 세 개다");
+        Ok(NSP.Prologue.PrologueScript.GetMenu("g_main_comp") == null,
+            "대회용 전용 메뉴는 더 이상 없다");
+        if (baseMenu == null) return;
 
-        Ok(compMenu.RequireAll, "대회용도 네 질문을 전부 확인해야 넘어간다");
-        // 앞 세 개는 **같은 답변 블록**을 가리켜야 한다 — 복제하면 한쪽만 고쳐질 수 있다.
-        var shared = baseMenu.Options.Select(o => o.GuideId).ToList();
-        Ok(shared.All(id => compMenu.Options.Any(o => o.GuideId == id)),
-            "앞 세 질문은 같은 답변 블록을 공유한다(중복 대사 없음)");
-
-        var extra = compMenu.Options.Select(o => o.GuideId).Except(shared).ToList();
-        Ok(extra.Count == 1 && extra[0] == "g_why_me", "추가되는 질문은 하나뿐이다");
-        var why = NSP.Prologue.PrologueScript.GetGuide("g_why_me");
-        Ok(why != null && why.Beats.Count > 0, "새 답변 대사가 실제로 있다");
-        Ok(compMenu.Options.Any(o => o.Label.Contains("왜 나를 노리지")), "질문 문구가 지시서와 같다");
+        // 그 설명은 사라지지 않고 접근 장면으로 옮겨 갔다 — 거기서 **한 줄로** 나온다.
+        var corridor = NSP.Prologue.PrologueScript.GetGuide("tut_barrier_corridor");
+        string body = corridor == null ? "" : string.Join(" ", corridor.Beats.Select(b => b.Value));
+        Ok(body.Contains("추적 대상"), "접근 장면에서 '왜 나를 노리는가' 를 한 줄로 말한다");
 
         // 결번 추리의 답(특정 직원)을 흘리지 않아야 한다.
-        string body = why == null ? "" : string.Join(" ", why.Beats.Select(b => b.Value));
         var names = FacilitySimulation.Instance.GetEmployeeIds()
             .Select(id => FacilitySimulation.Instance.GetEmployeeDef(id)?.Codename ?? "")
             .Where(n => n.Length > 0).ToList();
-        Ok(!names.Any(n => body.Contains(n)), "**답변이 특정 직원을 지목하지 않는다**");
+        Ok(!names.Any(n => body.Contains(n)), "**그 설명이 특정 직원을 지목하지 않는다**");
 
         // 모드별 제한 시간 — 기본 5일 120시간 / 대회용 3일 72시간.
         var mission = NSP.Prologue.PrologueScript.GetGuide("g_mission");

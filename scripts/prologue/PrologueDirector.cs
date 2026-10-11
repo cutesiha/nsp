@@ -27,14 +27,14 @@ public partial class PrologueDirector : Node
     public bool IsRunning { get; private set; }
 
     // 첫 브리핑 선택지(무슨 일이 / 나는 누구 / 내가 할 일). 문구·답변은 전부 데이터 파일에 있다.
+    //
+    // 두 모드가 **같은 세 질문**을 쓴다. 대회용에만 "왜 나를 노리지?" 를 네 번째로 붙여
+    // 두었는데, 브리핑이 길어지는 데 비해 그 설명이 필요한 자리는 여기가 아니었다 —
+    // 개체가 복도로 들어와 걸어오는 그 순간이다. 그래서 그 한 줄은 교육의 접근 장면
+    // (tut_barrier_corridor)으로 옮겼다. 대회용 전용 메뉴(g_main_comp)는 없앴다.
     private const string MainMenuId = "g_main";
-    // 대회용은 "그 괴물들은 왜 나를 노리지?" 가 하나 더 붙은 메뉴를 쓴다. 답변 블록은
-    // 세 개를 그대로 공유하므로 중복 대사가 없고, 대본에 그 메뉴가 없으면 기본으로 돌아간다.
-    private const string CompetitionMenuId = "g_main_comp";
 
-    private static string BriefingMenuId =>
-        GameModes.GhostWalksToControlRoom && PrologueScript.GetMenu(CompetitionMenuId) != null
-            ? CompetitionMenuId : MainMenuId;
+    private static string BriefingMenuId => MainMenuId;
 
     // 비상 차폐 유지 시간 — 모드마다 근무일이 다르므로 실제 설정에서 뽑는다.
     // 하루 24시간으로 세어 기본 5일 = 120시간, 대회용 3일 = 72시간.

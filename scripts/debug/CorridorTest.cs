@@ -171,12 +171,18 @@ public partial class CorridorTest : Node
         Tick(seg.ReengageCooldownSeconds + 0.1f);
         Ok(_net.CanSeal(seg, out _), "냉각이 끝나면 다시 닫을 수 있다");
 
-        // 유지 상한.
+        // 유지 상한 — **없다.**
+        //
+        // 전에는 11초가 지나면 문이 저절로 열렸다. 그러면 "닫고 기다리기" 가 되어 버려
+        // 플레이어가 판단할 것이 없다. 지금 차폐는 전력 1 을 먹고 **열 때까지 닫혀 있고**,
+        // 반대편에서 개체가 오면 직접 열어 그쪽으로 옮겨 닫아야 한다. 그 선택이 전부다.
         Reset();
         _net.Seal(seg.Id, out _);
         Tick(seg.DriveSeconds + 0.1f);
-        Tick(seg.MaxSealSeconds + 0.2f);
-        Ok(!seg.Sealed, $"유지 상한 {seg.MaxSealSeconds:0}초가 지나면 저절로 열린다");
+        Ok(seg.MaxSealSeconds <= 0f, $"유지 상한이 없다(MaxSealSeconds {seg.MaxSealSeconds:0})");
+        Tick(60f);
+        Ok(seg.Sealed, "1분이 지나도 저절로 열리지 않는다");
+        Ok(_net.Unseal(seg.Id), "관리자가 열어야 열린다");
 
         // 전력 상실 → 안전측 개방.
         Reset();

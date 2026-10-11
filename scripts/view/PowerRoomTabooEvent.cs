@@ -19,7 +19,7 @@ namespace NSP.View;
 //  - 금기 판정 / 위반 로그        : TabooRuleSystem (그대로)
 //  - 전력 용량 감소                : GameState.TriggerPowerAccident (TabooRuleSystem.ApplyDeferredConsequence 경유)
 //  - CCTV 강제 전환 / 신호 차단    : FacilitySimulation.SetSurveillanceTarget + CCTVMonitorView
-//  - 3D 발전실 화면 / 개체 모델  : FacilityCctvWorld (기존 entity.tscn GLB)
+//  - 3D 발전실 화면 / 개체 모델  : FacilityCctvWorld (data/threats 의 세 개체)
 //  - SENSOR 경고                   : AlertSystem (PROTOCOL VIOLATION / POWER SYSTEM ABNORMALITY)
 //  - 스트레스                      : FacilitySimulation.AddStress (연동 지점)
 //  - 공포 연출 억제                : HorrorDirector.CustomEventActive

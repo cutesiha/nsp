@@ -253,6 +253,18 @@ public sealed class MonsterThreatSystem
         float left = DayObjectives.RemainingSeconds;
         if (left > 0f && left < outer + def.ApproachSeconds + def.BreachDelaySeconds + 4f) return null;
 
+        // **작업실에서 걸어 나온 개체가 우선이다.**
+        //
+        // 동시 한도는 하나뿐이라(MaxActive), 일정표가 띄운 익명의 위협이 그 자리를 잡고
+        // 있으면 이 개체는 조용히 사라진다 — 플레이어는 방금 CCTV 로 그것이 방을 나서는
+        // 것을 보았는데 복도에는 아무것도 오지 않는다. 그건 연결이 끊긴 것으로 보인다.
+        //
+        // 그래서 **아직 복도에 들어서지 않은**(= 플레이어가 본 적 없는) 일정표 위협이
+        // 자리를 잡고 있으면 그것을 거둔다. 이미 복도를 걸어오고 있는 것은 건드리지
+        // 않는다 — 보고 있는 것을 지우는 쪽이 더 나쁘다.
+        var idle = _active.FirstOrDefault(x => x.Active && !x.InCorridor && string.IsNullOrEmpty(x.OriginRoomId));
+        if (idle != null) idle.Phase = ThreatPhase.Finished;
+
         var t = Spawn(def, ZoneFor(def), segment);
         if (t == null) return null;
         t.OriginRoomId = originRoomId;

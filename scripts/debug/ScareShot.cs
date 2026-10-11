@@ -76,11 +76,12 @@ public partial class ScareShot : Node
             Ok(def != null, $"{id} 데이터가 있다");
             if (def == null) continue;
 
-            string clip = !string.IsNullOrEmpty(def.AnimJumpscare) ? def.AnimJumpscare
-                : !string.IsNullOrEmpty(def.AnimRun) ? def.AnimRun : def.AnimIdle;
+            // 게임과 **같은 방식**으로 고른다 — 클립을 처음부터 틀면 결번자는 웅크렸다
+            // 도는 준비 동작만 나와 뒷모습이 찍힌다(실제로 그렇게 찍혀서 고쳤다).
+            string clip = MonsterCast.ScareClip(def);
 
             CCTVMonitorView.Instance?.FlashGlitch(0.9f);
-            bool up = world.ShowScare(def, clip, dist, side, yaw, 0.90f);
+            bool up = world.ShowScare(def, clip, dist, side, yaw, 0.90f, MonsterCast.ScareClipAt(def));
             Ok(up, $"{id} 를 카메라 앞에 세웠다");
             await Seconds(0.35);
             ShotCctv($"{id}_scare");

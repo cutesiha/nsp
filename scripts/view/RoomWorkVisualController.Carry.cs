@@ -114,6 +114,14 @@ public sealed partial class RoomWorkVisualController
         // 운반자 — 픽업 클립을 지금 단계 시각에 맞춰 튼다.
         // (CCTV 를 돌렸다 돌아와도 처음부터 다시 재생하지 않는다 — §61)
         PlayAt(anim, anim?.BodyClip(FaintVisuals.PickupClip(style), female), t);
+        // **재생 속도를 1 로 되돌린다.**
+        //
+        // 직전까지는 환자에게 걸어오던 중이고, 걷기는 이동 속도에 맞춰 재생 속도를
+        // 최대 2.5배까지 올려 둔다(SyncCarryWalkSpeed). 그 배율을 그대로 둔 채 들어
+        // 올리는 클립을 틀면 1.8초짜리 손동작이 몇 배로 빨라져 **팔이 휘젓는 것처럼**
+        // 보인다. 들기·눕히기·일어서기는 손으로 만든 고정 길이 동작이라 배속이 붙으면 안 된다.
+        // (눕히기와 일어서기는 이미 1 로 되돌리고 있었다 — 들기만 빠져 있었다.)
+        anim?.SetSpeedFactor(1f);
         anim?.SetProceduralRoot(true);
 
         // 환자 — 바닥 → 운반 자세. 손이 몸에 닿기 전에는 거의 움직이지 않는다.

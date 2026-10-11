@@ -121,9 +121,21 @@ public partial class MonsterThreatPresenter : Node
 
     private void OnEntered(MonsterThreat t)
     {
-        // 복도에 들어섰다 — 이제 어느 쪽인지 들린다. 경고 한 줄은 띄우지 않는다
-        // (알려 주는 순간 CCTV 를 돌려 찾을 이유가 사라진다).
-        PlayAt(t.Def.SfxStep, -18f, Pan(t), 0.95f);
+        // 복도에 들어섰다. **여기서부터 10초다.**
+        //
+        // 전에는 발소리 한 번(-18dB)만 났다. 조용한 편이 무섭긴 하지만, 접근 시간이
+        // 10초로 줄어든 지금은 그 순간을 놓치면 아무것도 해 볼 수 없다. 그래서 전조는
+        // 놓칠 수 없게 만든다 — 다만 **어느 복도인지는 여전히 말하지 않는다.**
+        // 방향은 소리의 좌우(Pan)와 CCTV 로 찾는 것이 이 게임의 조작이다.
+        PlayAt(t.Def.SfxStep, -6f, Pan(t), 0.95f);
+        PlayAt(t.Def.SfxDistant, -10f, Pan(t), 0.8f);
+
+        // 제어실 조명이 한 번 흔들리고, 화면에 잡음이 지나가고, 숨이 가빠진다.
+        // 셋 다 이미 있는 연출이다 — 새 UI 를 띄우지 않고 방 자체가 알려 준다.
+        RoomEffectStats.LightFlickerRequested?.Invoke();
+        CCTVMonitorView.Instance?.FlashGlitch(0.45f);
+        ControlRoom3DController.Instance?.ShakeCamera(0.3f, 0.25f);
+        AdminFearDirector.Instance?.Burst(0.55f, 2.2f);
     }
 
     private void OnReachedDoor(MonsterThreat t)

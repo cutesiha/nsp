@@ -752,7 +752,8 @@ public partial class TitleRoomDirector : Node
             Position = new Vector3(-1.8f, 2.3f, -0.6f),
         };
         _ctl.GetNodeOrNull<Node3D>("ControlRoom")?.AddChild(_morning);
-        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true, targetDb: -15f, restartIfSame: true);
+        // 시작 화면 BGM. 방 소리에 묻히지 않을 만큼만 올려 둔다(-15 → -11).
+        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true, targetDb: -11f, restartIfSame: true);
     }
 
     private void TickEndingLook(double delta)

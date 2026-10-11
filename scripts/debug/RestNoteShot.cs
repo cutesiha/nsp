@@ -79,6 +79,41 @@ public partial class RestNoteShot : Node
         await Frames(40);
         Save(dir, "rest_03_노트전체.png");
 
+        // ── 「대화·진술」 탭 — 발언을 골라 질문까지(기획안 §4) ──────────────
+        //
+        // 여기까지 와야 실제 조작 경로를 본 것이다. 세션 API 만 맞아도 카드가 읽히지
+        // 않거나 버튼이 꺼져 있으면 플레이어는 그 흐름을 쓸 수 없다.
+        if (session != null)
+        {
+            hud.SetCollapsed(false);
+            session.ClearSelection();
+            session.SetTab(NoteTab.Spoken);
+            Call(hud, "RefreshEvidence");
+            Call(hud, "BuildInterviewMenu");
+            await Frames(40);
+            Save(dir, "rest_04_대화진술탭.png");
+
+            // 원문 발언 한 장을 고른다 — 자막 띠에 「[…]로 묻는다」 가 떠야 한다.
+            var said = session.SpokenRecords().FirstOrDefault(e => e.SpokenLine)
+                       ?? session.SpokenRecords().FirstOrDefault();
+            if (said != null)
+            {
+                session.Toggle(said.Id);
+                Call(hud, "RefreshEvidence");
+                Call(hud, "BuildInterviewMenu");
+                await Frames(40);
+                Save(dir, "rest_05_발언선택.png");
+
+                // 그 발언으로 물을 수 있는 질문 목록.
+                Call(hud, "OnAskWithEvidence");
+                await Frames(40);
+                Save(dir, "rest_06_발언질문.png");
+                GD.Print($"  고른 발언: {said.OneLine}");
+                foreach (var q in session.QuestionsForSelection()) GD.Print("   · " + q.Text);
+            }
+            else GD.Print("  !! 대화·진술 탭에 발언이 없다");
+        }
+
         GD.Print("saved → " + dir);
         GetTree().Quit();
     }
@@ -110,6 +145,16 @@ public partial class RestNoteShot : Node
                 i % 2 == 0 ? new[] { "fox" } : new[] { "fox", "cat" });
         PlayerKnownEvidence.RecordSighting("wolf", "fox", "maintenance_room", At(166));
         PlayerKnownEvidence.RecordCctvObservation("guard_room", At(60), new[] { "dog" });
+
+        // 「대화·진술」 탭에 올릴 말들. 실제 대화창이 저장하는 그 경로로 넣는다.
+        // 자료에 묶이지 않은 답(= 뭉뚱그린 말)만 원문 카드가 되는지도 여기서 같이 보인다.
+        DialogueHistory.Instance?.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice,
+            "오늘 근무는 어땠습니까?", DialogueConversationType.Interview, "fox");
+        DialogueHistory.Instance?.AddEntry("fox", "여우", DialogueEntryType.NpcResponse,
+            "오늘은 별일 없었습니다. 평소대로 제 일만 했어요.", DialogueConversationType.Interview, "fox");
+        DialogueHistory.Instance?.AddEntry("fox", "여우", DialogueEntryType.NpcResponse,
+            "정비실에서 점검 중이었습니다. 다른 방 일은 모릅니다.",
+            DialogueConversationType.Interview, "fox");
     }
 
     private static float At(float minutes) => minutes;

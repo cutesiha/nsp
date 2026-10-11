@@ -54,9 +54,9 @@ public partial class RoomCctvPreview : Node3D
     private bool _freeCamera;
 
     private Node3D _roomNode;
-    // 괴물 미리보기 — 실제 FacilityCctvWorld 와 같은 부품(EntityRig + GhostBehaviour)을 쓴다.
+    // 괴물 미리보기 — 실제 FacilityCctvWorld 와 같은 부품(MonsterActor + GhostBehaviour)을 쓴다.
     private Node3D _entity;
-    private EntityRig _entityRig;
+    private MonsterActor _ghostActor;
     private GhostBehaviour _ghost;
     private bool _ghostOn;
     private float _shake, _shakeUntil;
@@ -105,21 +105,25 @@ public partial class RoomCctvPreview : Node3D
     }
 
     // 괴물 한 마리. 방을 바꿔도 다시 만들지 않는다(GhostBehaviour 가 방 노드를 인자로 받는다).
-    private const float GhostScale = 3.2f;
-    private const float GhostStandY = 0.499f * GhostScale;
+    // 실제 게임과 같은 몸을 쓴다 — data/threats 의 세 개체 중 하나다.
+    private const float GhostScale = 1.75f;
+    private const float GhostStandY = 0f;
 
     private void BuildGhost()
     {
-        var ps = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
-        if (ps == null) return;
-        _entity = ps.Instantiate<Node3D>();
+        var def = MonsterCast.Pick(1);
+        if (def == null) return;
+        _ghostActor = new MonsterActor();
+        _ghostActor.Attach(this);
+        if (!_ghostActor.Use(def)) return;
+        _ghostActor.PlayRole(MonsterCast.MoveClip(def));
+
+        _entity = _ghostActor.Root;
         _entity.Scale = Vector3.One * GhostScale;
         _entity.Visible = false;
-        AddChild(_entity);
 
-        _entityRig = EntityRig.Build(_entity);
         _ghost = new GhostBehaviour();
-        _ghost.Attach(_entity, _entityRig, GhostScale, GhostStandY);
+        _ghost.Attach(_entity, GhostScale, GhostStandY);
         _ghost.Impact += (kind, at) =>
         {
             // 실제 게임과 같은 세기 — 벽 0.4도 / 설비 0.6도 / 바닥 0.7도.

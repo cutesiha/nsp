@@ -538,15 +538,25 @@ public partial class RestEvidenceTest : Node
             "다른 직원의 자료로는 이 사람에게 질문할 수 없다");
         back.SetScope(false);
 
-        // DAY 가 넘어가면 오늘 자료는 섞이지 않는다.
+        // DAY 가 넘어가면 **기록**은 오늘 것만 남는다.
+        //
+        // 진술은 다르다 — 어제 한 말을 오늘 들고 추궁할 수 있어야 한다(기획안 §4).
+        // 전에는 이 자리에서 진술까지 함께 끊어 냈는데, 그러면 DAY1 에 받아 둔 위치
+        // 진술을 DAY3 에 찾을 길이 없어 "발언으로 추궁하기" 자체가 하루짜리가 된다.
+        // 섞이지 않게 막는 것은 **날짜 표시와 모순 판정**이 맡는다(SubjectDay).
         GameState.Instance.GoToNextDay();
         var day2 = InterviewEvidenceBoard.Build("cat");
+        var oldClaims = day2.Where(e => e.Kind == EvidenceKind.OwnStatement).ToList();
         GD.Print($"   DAY{GameState.Instance.CurrentDay} 조사 자료 {day2.Count}장 " +
-                 $"(진술 {day2.Count(e => e.Kind == EvidenceKind.OwnStatement)}장)");
-        Check(!day2.Any(e => e.Kind == EvidenceKind.OwnStatement),
-            "지난 DAY 의 진술이 다음 DAY 자료에 섞이지 않는다");
+                 $"(진술 {oldClaims.Count}장) " +
+                 string.Join(" / ", oldClaims.Select(InterviewEvidenceDisplay.Body)));
+        Check(oldClaims.Count > 0, "지난 DAY 의 진술은 다음 DAY 에도 남는다");
+        Check(oldClaims.All(e => e.Day < GameState.Instance.CurrentDay),
+            "그 진술의 날짜는 **말한 날 그대로** 다(오늘 것으로 덮이지 않는다)");
+        Check(oldClaims.All(e => InterviewEvidenceDisplay.Body(e).StartsWith("DAY")),
+            "카드에 지난 날짜가 적혀 있다 — 오늘 한 말로 읽히지 않는다");
         Check(!day2.Any(e => e.Kind == EvidenceKind.Cctv),
-            "지난 DAY 의 CCTV 기록도 섞이지 않는다");
+            "지난 DAY 의 CCTV 기록은 섞이지 않는다");
     }
 
 

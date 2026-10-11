@@ -9,7 +9,6 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/wolf_epaulette.tres" id="7_wolfepaulett"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="8_badgegold"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-005.res" id="hair_new"]
-[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-005.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M11"]
 radius = 0.092

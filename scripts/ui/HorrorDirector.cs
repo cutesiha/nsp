@@ -44,6 +44,7 @@ public partial class HorrorDirector : Node
     private ColorRect _deathRed;
     private TextureRect _noise;
     private Label _bigLabel;
+    private NSP.View.MonsterActor _faceActor;
     private Node3D _faceEntity;
     private OmniLight3D _faceLight;
     private bool _faceJumpscarePlaying;
@@ -154,41 +155,53 @@ public partial class HorrorDirector : Node
         return ImageTexture.CreateFromImage(img);
     }
 
+    // 카메라 바로 앞에 얼굴을 들이미는 연출의 몸.
+    //
+    // 모델은 매번 다르다 — 그 날 나올 수 있는 세 개체 중에서 뽑는다(MonsterCast).
+    // 늘 같은 얼굴이면 두 번째부터는 놀랍지 않고, 무엇보다 **작업실에서 본 것과 같은
+    // 종류** 여야 "아까 그게 들어왔다" 로 읽힌다.
     private void BuildEntityFaceJumpscare()
     {
         var camera = GetParent()?.GetNodeOrNull<Camera3D>("PlayerSeatRig/Camera3D");
-        var scene = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
-        if (camera == null || scene == null) return;
+        if (camera == null) return;
 
-        _faceEntity = scene.Instantiate<Node3D>();
+        _faceActor = new NSP.View.MonsterActor();
+        _faceActor.Attach(camera);
+        _faceEntity = _faceActor.Root;
         _faceEntity.Name = "EntityFaceJumpscare";
         _faceEntity.Visible = false;
-        _faceEntity.Position = new Vector3(0f, -0.26f, -0.34f);
-        _faceEntity.RotationDegrees = new Vector3(0f, 180f, 0f);
-        _faceEntity.Scale = Vector3.One * 1.25f;
-        camera.AddChild(_faceEntity);
 
+        // 빛은 **카메라에** 단다. 개체에 달면 모델마다 키가 달라 매번 다른 곳을 비춘다.
         _faceLight = new OmniLight3D
         {
-            Position = new Vector3(0f, 0.24f, 0.24f),
+            Position = new Vector3(0.12f, 0.02f, -0.30f),
             LightColor = new Color(1f, 0.18f, 0.14f),
             LightEnergy = 0f,
             OmniRange = 1.8f,
             ShadowEnabled = false,
         };
-        _faceEntity.AddChild(_faceLight);
+        camera.AddChild(_faceLight);
     }
 
     // 개체를 카메라 바로 앞에 한 프레임 만에 켠다. 접근 트윈을 쓰지 않아 예고 없이 튀어나오며,
     // 노출 시간도 약 0.1초로 제한해 형체를 오래 감상하는 연출이 되지 않게 한다.
     public async void PlayEntityFaceJumpscare()
     {
-        if (_faceJumpscarePlaying || _faceEntity == null) return;
+        if (_faceJumpscarePlaying || _faceActor == null) return;
+
+        var def = NSP.View.MonsterCast.Pick(GameState.Instance?.CurrentDay ?? 1);
+        if (def == null || !_faceActor.Use(def)) return;
         _faceJumpscarePlaying = true;
 
-        _faceEntity.Position = new Vector3(0f, -0.26f, -0.14f);
-        _faceEntity.RotationDegrees = new Vector3(4f, 180f, 9f);
-        _faceEntity.Scale = Vector3.One * 1.72f;
+        // 카메라의 자식이라 **로컬 좌표**다. 모델은 발이 원점이므로 얼굴이 렌즈 높이에
+        // 오도록 키만큼 내린다 — 키가 다른 셋을 한 값으로 세우면 어떤 것은 가슴만 잡힌다.
+        _faceActor.PlayRole(NSP.View.MonsterCast.ScareClip(def), 1f, 0d);
+        float at = NSP.View.MonsterCast.ScareClipAt(def);
+        if (at > 0f) _faceActor.SeekRole(at);
+
+        _faceEntity.Position = new Vector3(0f, -def.TargetHeight * 0.92f, -0.62f);
+        _faceEntity.RotationDegrees = new Vector3(0f, 9f, 0f);
+        _faceEntity.Scale = Vector3.One;
         _faceEntity.Visible = true;
         if (_faceLight != null) _faceLight.LightEnergy = 11f;
 

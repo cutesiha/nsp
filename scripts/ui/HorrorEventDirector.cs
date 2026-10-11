@@ -151,6 +151,7 @@ public partial class HorrorEventDirector : Node
 
         _clock += (float)delta;
         TickWarp((float)delta);
+        TickStare((float)delta);
 
         if (AutoDisabled || _busy || _clock < _nextAt) return;
         if (!Safe()) return;
@@ -158,6 +159,49 @@ public partial class HorrorEventDirector : Node
         var def = Pick();
         if (def == null) { _nextAt = _clock + MinGap; return; }
         Fire(def);
+    }
+
+    // ── 한 화면을 오래 들여다보면 ───────────────────────────────────
+    //
+    // CCTV 는 "가끔 확인하는 화면" 이 아니라 "계속 돌려야 하는 화면" 이다(§6-4).
+    // 그래서 **한 방만 붙들고 있는 것**에 대가를 붙인다 — 같은 작업실 영상을 계속
+    // 띄워 두면 그 화면이 괴물 얼굴로 가득 찬다. 죽지는 않는다. 손이 화면을 돌리게
+    // 만드는 것이 전부다.
+    //
+    // 추첨을 기다리지 않는다. 플레이어의 행동이 직접 부르는 유일한 공포 연출이다.
+    private const float StareSeconds = 22f;
+    // 한 번 놀란 뒤에는 한참 조용하다. 안 그러면 한 방을 지켜보는 내내 반복된다.
+    private const float StareCooldown = 95f;
+    private string _stareRoom = "";
+    private float _stareHeld;
+    private float _stareReadyAt;
+
+    private void TickStare(float delta)
+    {
+        var sim = FacilitySimulation.Instance;
+        string room = sim?.SurveillanceTargetRoomId ?? "";
+        bool live = !string.IsNullOrEmpty(room)
+                    && CCTVMonitorView.Instance?.FeedVisible == true
+                    && string.IsNullOrEmpty(sim.SurveillanceCorridorId);
+
+        if (!live || room != _stareRoom)
+        {
+            _stareRoom = live ? room : "";
+            _stareHeld = 0f;
+            return;
+        }
+
+        _stareHeld += delta;
+        if (_stareHeld < StareSeconds || _clock < _stareReadyAt) return;
+        if (_busy || AutoDisabled || !Safe()) return;
+
+        _stareHeld = 0f;
+        _stareReadyAt = _clock + StareCooldown;
+        // 다음 추첨도 뒤로 민다 — 놀란 직후에 또 다른 연출이 겹치지 않게.
+        _nextAt = Mathf.Max(_nextAt, _clock + MinGap);
+        _busy = true;
+        _ = RunCctvScare();
+        Fired?.Invoke(Kind.CctvScare);
     }
 
     // ── 발동 가능한가 ────────────────────────────────────────────────
@@ -300,12 +344,14 @@ public partial class HorrorEventDirector : Node
         {
             // 얼굴이 화면 한가운데 오도록 — 키의 0.9 지점을 시선 축에 맞춘다.
             const float headRatio = 0.90f;
-            string clip = !string.IsNullOrEmpty(def.AnimJumpscare) ? def.AnimJumpscare
-                : !string.IsNullOrEmpty(def.AnimRun) ? def.AnimRun : def.AnimIdle;
+            // 클립을 처음부터 틀지 않는다. 비명 클립은 앞부분이 웅크렸다 도는 준비
+            // 동작이라, 1초도 안 되는 연출은 거기서 끝나 **뒷모습만** 보여 준다.
+            string clip = NSP.View.MonsterCast.ScareClip(def);
 
             CCTVMonitorView.Instance?.FlashGlitch(shot.Glitch);
             Sfx.Instance?.PlayHorror("cctv_cut", -8f, 0f, 0.92f);
-            world.ShowScare(def, clip, shot.Distance, shot.Sideways, shot.Yaw, headRatio);
+            world.ShowScare(def, clip, shot.Distance, shot.Sideways, shot.Yaw, headRatio,
+                            NSP.View.MonsterCast.ScareClipAt(def));
             Sfx.Instance?.PlayGhostScreamDistant(-12f);
 
             await Wait(shot.HoldSeconds);

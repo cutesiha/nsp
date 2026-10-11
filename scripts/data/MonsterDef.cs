@@ -32,14 +32,28 @@ public partial class MonsterDef : Resource
     [Export] public string AnimRun = "";
     [Export] public string AnimAttackDoor = "";
     [Export] public string AnimJumpscare = "";
+    // 점프스케어 클립을 **몇 초 지점부터** 쓸지. 0 이면 처음부터.
+    //
+    // 임포트된 클립은 앞부분이 웅크리거나 몸을 돌리는 준비 동작인 경우가 많다.
+    // 돌진은 0.5초 남짓이라 그 구간만 보여 주고 끝나 버려서, 얼굴을 들이미는 장면이
+    // **뒷모습**으로 나간다(결번자 모델이 그랬다). 앞을 보고 고개를 든 구간을
+    // DeathShot 의 facing 모드로 찾아 여기에 적는다.
+    [Export] public float AnimJumpscareAtSeconds = 0f;
     [Export] public string AnimRetreat = "";
 
     // ── 행동 ────────────────────────────────────────────────────────
-    // 복도 입구에서 차폐문 앞까지 걸리는 시간(초). 이 시간이 곧 플레이어의 대응 시간이다.
-    [Export] public float ApproachSeconds = 16f;
+    // 복도 입구에서 차폐문 앞까지 걸리는 시간(초). **이 시간이 곧 플레이어의 대응 시간이다.**
+    //
+    // 10초로 맞춰 둔다. 복도에 들어선 순간이 전조로 분명히 드러나고(MonsterThreatPresenter),
+    // 그때부터 CCTV 로 방향을 확인하고 문을 내리기까지 딱 10초다. 세 개체가 모두 같은
+    // 값을 쓰는 것도 일부러다 — 개체마다 창이 다르면 플레이어가 배울 수가 없다.
+    [Export] public float ApproachSeconds = 10f;
     // 문 앞에 닿은 뒤 침입을 확정하기까지 주는 마지막 유예(초).
-    // **이 값이 0 이면 경고 없는 즉사가 된다.** 반드시 양수로 둔다.
-    [Export] public float BreachDelaySeconds = 3.5f;
+    //
+    // **반드시 차폐문 구동 시간(CorridorDef.DriveSeconds, 0.8초)보다 넉넉히 길어야 한다.**
+    // 짧으면 개체가 문 앞에 선 순간 레버를 내려도 문이 닫히기 전에 넘어온다 — 막을 방법이
+    // 없는 죽음이 되어 "10초 안에 판단하라" 가 아니라 "10초 전에 찍어라" 가 된다.
+    [Export] public float BreachDelaySeconds = 2.2f;
     // 문이 닫혀 있을 때 두드리는 시간 → 물러나는 시간 → 다음 시도까지의 쿨다운.
     [Export] public float PoundSeconds = 7f;
     [Export] public float RetreatSeconds = 3f;

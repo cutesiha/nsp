@@ -504,16 +504,14 @@ public partial class StoryCutinHud : CanvasLayer
         }
     }
 
-    // 새로 들어오는 자리를 **최종 자리에** 미리 놓는다(페이드로만 나타나게).
-    private void PlaceEntering(EmployeeStandingPortrait p)
-    {
-        Vector2 vp = _root.Size;
-        if (vp.X <= 0f || vp.Y <= 0f) return;
-        float boxW = vp.X * BoxWidthFrac;
-        float top = vp.Y * BoxTopFrac;
-        p.Size = new Vector2(boxW, vp.Y - top);
-        p.SnapTo(TargetPosOf(p, vp, boxW, top));
-    }
+    // (등장 자리를 따로 계산하던 PlaceEntering 은 없앴다.
+    //
+    //  그 함수는 모니터2 안인지(MonitorBox*) 화면 전체인지(Box*)를 가리지 않고 늘
+    //  화면 전체용 상수로 자리를 계산했다. 그래서 모니터 안에서 스탠딩이 **살짝 어긋난
+    //  자리**에 나타났고, 다음 줄에서 LayoutPortraits 가 제 자리로 끌어오면서 그만큼
+    //  미끄러졌다 — 원화마다 여백이 달라 어긋나는 양도 캐릭터마다 달라 보였다.
+    //  LayoutPortraits 가 이미 "아직 안 보이는 자리는 트윈 없이 놓는다"를 하고 있으므로
+    //  계산이 두 벌 있을 이유가 없다.)
 
     // 창 크기가 바뀌면 자리도 다시 잡는다(트윈 없이 즉시).
     private Vector2 _lastViewport = Vector2.Zero;
@@ -603,6 +601,15 @@ public partial class StoryCutinHud : CanvasLayer
 
         if (!string.IsNullOrEmpty(speakerId))
         {
+            // **이미 서 있는 사람은 그 자리에서 말한다.**
+            //
+            // 전에는 줄이 지정한 자리만 보고 그 자리에 세웠다. 그래서 왼쪽에 서 있던
+            // 직원의 다음 줄이 오른쪽으로 지정되어 있으면 같은 사람이 양쪽에 서서
+            // **화면에 두 명으로 뜬다**. 자리는 연출의 희망이고, 누가 서 있는지가 사실이다.
+            var otherSlot = slot == _left ? _right : _left;
+            bool otherOn = slot == _left ? _rightOn : _leftOn;
+            if (otherOn && otherSlot.EmployeeId == speakerId) slot = otherSlot;
+
             bool entering = slot == _left ? !_leftOn : !_rightOn;
 
             // 같은 자리에 다른 사람이 서 있으면 교체, 같은 사람이면 표정만 바꾼다.
@@ -615,9 +622,10 @@ public partial class StoryCutinHud : CanvasLayer
                 // 가운데에서 옆으로 부드럽게 비켜 주고(LayoutPortraits), 새로 오는 쪽은
                 // **최종 자리에서** 페이드로만 나타난다(미끄러져 들어오지 않는다).
                 if (slot == _left) _leftOn = true; else _rightOn = true;
+                // 알파를 먼저 0 으로 내린다 — LayoutPortraits 가 "아직 화면에 없는 자리"로
+                // 보고 트윈 없이 최종 자리에 **놓아** 준다(미끄러져 들어오지 않는다).
                 slot.Modulate = new Color(1, 1, 1, 0);
                 LayoutPortraits(animate: true);
-                PlaceEntering(slot);
                 slot.FadeIn(FadeSeconds);
             }
             else LayoutPortraits(animate: true);

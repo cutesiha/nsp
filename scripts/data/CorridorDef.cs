@@ -63,9 +63,13 @@ public partial class CorridorDef : Resource
     // 문이 완전히 닫히거나 열리는 데 걸리는 시간(초).
     [Export] public float DriveSeconds = 0.8f;
 
-    // 닫아 둘 수 있는 최대 시간(초). 이 시간이 지나면 자동으로 열린다 —
-    // 문을 내려 두기만 해도 무적이 되는 것을 막는다. 0 이하면 제한 없음.
-    [Export] public float MaxSealSeconds = 9f;
+    // 닫아 둘 수 있는 최대 시간(초). 0 이하면 **제한 없음 — 열 때까지 닫혀 있는다.**
+    //
+    // 지금은 전 구간이 0 이다. 문은 시간으로 풀리지 않는다 — 전력 1 을 먹고 한 짝이
+    // 영구히 닫히고, 반대편에서 개체가 오면 **직접 열고 그쪽으로 옮겨 닫아야** 한다.
+    // 그 선택이 이 시스템의 긴장이다. 시간 제한을 두면 "닫고 기다리기"가 되어
+    // 플레이어가 아무 판단도 하지 않게 된다.
+    [Export] public float MaxSealSeconds;
 
     // 한 번 열린 뒤 다시 닫기까지의 대기(초). 연타로 문을 깜빡이지 못하게 한다.
     [Export] public float ReengageCooldownSeconds = 3f;

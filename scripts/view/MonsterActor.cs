@@ -230,13 +230,13 @@ public sealed class MonsterActor
     private string Pick(params string[] candidates) =>
         candidates.FirstOrDefault(c => !string.IsNullOrEmpty(c) && _anim != null && _anim.HasAnimation(c)) ?? "";
 
-    private void Play(string clip, float speed)
+    private void Play(string clip, float speed, double blend = 0.25)
     {
         if (_anim == null || string.IsNullOrEmpty(clip)) return;
         if (_playing == clip && _anim.IsPlaying()) { _anim.SpeedScale = speed; return; }
         _playing = clip;
         _anim.SpeedScale = speed;
-        _anim.Play(clip, 0.25);
+        _anim.Play(clip, blend);
     }
 
     // 점프스케어 — 카메라 앞으로 돌진하는 연출에서 쓰는 직접 제어.
@@ -248,7 +248,39 @@ public sealed class MonsterActor
         _root.Scale = Vector3.One * scale;
     }
 
-    public void PlayRole(string clip, float speed = 1f) => Play(clip, speed);
+    // 돌진 연출 전용 — **월드 좌표로** 세우고 viewer 쪽을 똑바로 보게 한다.
+    //
+    // 각도를 직접 계산하지 않는다. 이 배우는 중앙제어실 노드 밑에 붙는데 그 노드가
+    // 어떻게 놓여 있느냐에 따라 "로컬 yaw 몇 도" 의 답이 달라져, 같은 식으로도 앞뒤가
+    // 뒤집힌다(실제로 뒷모습으로 오는 버그가 여기서 났다). 부모가 무엇이든 결과가
+    // 같도록 LookAt 으로 맞춘다.
+    //   괴물 모델 셋 다 **로컬 +Z 가 앞**이다(DeathShot 의 facing 모드로 확인).
+    //   LookAt 은 -Z 를 목표로 돌리므로 **반대편**을 보게 해야 얼굴이 이쪽을 본다.
+    public void FaceViewer(Vector3 globalPosition, Vector3 viewer, float scale = 1f,
+                           float yawWobbleDegrees = 0f)
+    {
+        _root.Visible = true;
+
+        Vector3 toViewer = viewer - globalPosition;
+        toViewer.Y = 0f;                  // 고개를 숙이거나 들지 않는다 — 수평으로만 돈다
+        _root.GlobalPosition = globalPosition;
+        if (toViewer.LengthSquared() > 0.0001f)
+        {
+            // +Z 가 보는 사람 쪽을 향하는 각도. 축을 직접 맞추므로 LookAt 의
+            // 기저 재계산을 거치지 않는다(거기서 배율이 흐트러진 적이 있다).
+            float yaw = Mathf.RadToDeg(Mathf.Atan2(toViewer.X, toViewer.Z));
+            _root.GlobalRotationDegrees = new Vector3(0f, yaw + yawWobbleDegrees, 0f);
+        }
+        _root.Scale = Vector3.One * scale;
+    }
+
+    // blend 를 0 으로 주면 **그 자리에서 바로** 갈아탄다. 0.06초짜리 들이밀기에
+    // 기본 0.25초 블렌드를 쓰면 바뀐 자세가 화면에 닿기 전에 연출이 끝난다.
+    public void PlayRole(string clip, float speed = 1f, double blend = 0.25) => Play(clip, speed, blend);
+
+    // 조사용 — 지금 트는 클립의 특정 시점으로 건너뛴다. 클립 안에서 몸이 도는지
+    // (뒷모습으로 서 있는 구간이 있는지) 눈으로 확인할 때 쓴다.
+    public void SeekRole(double seconds) => _anim?.Seek(seconds, true);
 
     public MonsterDef Def => _def;
 }

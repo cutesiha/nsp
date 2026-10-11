@@ -606,6 +606,21 @@ public static class InterviewReplyPlanner
                 break;
             }
 
+            // 뭉뚱그린 말의 **범위**를 좁힌다.
+            //
+            // 여기서 새 사건을 꺼내지 않는다. 이 사람이 말한 것이 "자기 자리에서 본 것까지"
+            // 였음을 분명히 하는 답이다 — 숨길 것이 있는 사람은 그 범위를 더 좁혀 말하고,
+            // 없는 사람은 모르는 범위를 솔직히 내놓는다. 어느 쪽이든 거짓 사건은 만들지 않는다.
+            case InterviewIntent.AskStatementScope:
+            {
+                f.Topic = ReplyTopic.StatementScope;
+                f.Variant = ConcealmentMotive.For(ctx).Any ? "narrow" : "open";
+                f.Set("room", RoomName(plan.RoomId));
+                // 모르는 범위를 스스로 말한 답이다 — 모른다고 말한 것으로 센다.
+                f.SaidDontKnow = true;
+                break;
+            }
+
             case InterviewIntent.AskIncidentKnown:
             {
                 f.Topic = ReplyTopic.IncidentKnown;

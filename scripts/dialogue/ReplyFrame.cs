@@ -55,6 +55,8 @@ public enum ReplyTopic
     AnomalySeenHow, AnomalyDirection,
     // 3단계 — 발언 추궁
     AboutTestimony, ObservationWindow, NotObservedScope,
+    // 원문 발언의 범위
+    StatementScope,
     Unknown,
 }
 

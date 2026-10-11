@@ -170,17 +170,30 @@ public sealed class RestRoomVisual
     // 이것을 빼먹으면 다음 근무 첫 몇 프레임 동안 직원들이 바닥에 반쯤 묻힌 채로 서 있다.
     public void Release(IReadOnlyDictionary<string, Node3D> actors)
     {
-        foreach (var (_, node) in actors)
-        {
-            var vr = node.GetNodeOrNull<Node3D>("VisualRoot");
-            if (vr != null && !Mathf.IsZeroApprox(vr.Position.Y)) vr.Position = Vector3.Zero;
-            var rig = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot");
-            if (rig != null && rig.Rotation != Vector3.Zero) rig.Rotation = Vector3.Zero;
-        }
+        foreach (var (_, node) in actors) ResetBody(node);
         _chats.Clear();
         _posture.Clear();
         _postureT.Clear();
         _rosterKey = "";   // 다음 휴게시간에는 자리를 다시 뽑는다
+    }
+
+    // 몸을 기본 자세로 돌린다 — 내려 둔 골반, 숙인 상체, 비틀린 뼈대까지.
+    //
+    // 구조 연출은 상체를 VisualRoot 의 X·Z 회전으로 숙인다(FaintVisuals.PoseResponder).
+    // 그 값을 되돌리지 않으면 **기울어진 채로 의자에 앉는다** — 놀람이 가장 큰 토끼가
+    // 눈에 띄게 기울어 보이던 것이 이것이다. Y(바라보는 방향)는 자리마다 다르므로 둔다.
+    private static void ResetBody(Node3D node)
+    {
+        var vr = node?.GetNodeOrNull<Node3D>("VisualRoot");
+        if (vr != null)
+        {
+            if (!Mathf.IsZeroApprox(vr.Position.Y)) vr.Position = Vector3.Zero;
+            var r = vr.RotationDegrees;
+            if (!Mathf.IsZeroApprox(r.X) || !Mathf.IsZeroApprox(r.Z))
+                vr.RotationDegrees = new Vector3(0f, r.Y, 0f);
+        }
+        var rig = node?.GetNodeOrNull<Node3D>("VisualRoot/RigRoot");
+        if (rig != null && rig.Rotation != Vector3.Zero) rig.Rotation = Vector3.Zero;
     }
 
     // 휴게실에 앉아 있을 직원.
@@ -218,6 +231,10 @@ public sealed class RestRoomVisual
         // 기절해 누워 있던 직원이 휴게실 의자 위에 누운 채로 앉아 있었다.
         var rig = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot");
         if (rig != null && rig.Rotation != Vector3.Zero) rig.Rotation = Vector3.Zero;
+        // 구조 연출이 숙여 둔 상체도 같은 이유로 편다 — 기울어진 채 앉지 않게.
+        var vrr = vr.RotationDegrees;
+        if (!Mathf.IsZeroApprox(vrr.X) || !Mathf.IsZeroApprox(vrr.Z))
+            vr.RotationDegrees = new Vector3(0f, vrr.Y, 0f);
 
         float hip = node.GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips")?.Position.Y ?? 0.9f;
         vr.Position = new Vector3(0f, (SeatHeight - hip) * Mathf.Clamp(seated, 0f, 1f), 0f);

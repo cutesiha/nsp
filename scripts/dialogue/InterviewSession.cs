@@ -164,17 +164,23 @@ public sealed class InterviewSession
     };
 
     // 이 자료로 지금 이 직원에게 물을 수 있는가.
-    // 사고 기록은 주인이 없으므로 누구에게나 쓸 수 있고, 다른 직원의 자료는 읽기 전용이다.
+    //
+    // 규칙은 질문 생성기가 쥐고 있다(InterviewQuestionFactory.MayQuestionWith). 전에는
+    // 여기에 같은 규칙을 한 벌 더 적어 두었는데, 그쪽이 늘어나는 동안 이쪽이 그대로 남아
+    // **질문은 만들어지지만 화면에서는 고를 수 없는 자료**가 생겼다. 규칙은 한 곳에만 둔다.
     public bool CanUse(InterviewEvidence e) =>
-        e != null && (string.IsNullOrEmpty(e.SubjectEmployeeId) || e.SubjectEmployeeId == EmployeeId);
+        InterviewQuestionFactory.MayQuestionWith(EmployeeId, e);
 
     // --- 중요 표시(플레이어의 메모) ----------------------------------------
     //
     // ★ 는 곧 관리자 패드의 단서다(ClueBoard). 근무 중 로그 창에서 찍은 것도 여기서 ★ 로 보인다.
     // 조사 노트의 자료는 전부 오늘 것이므로 오늘 날짜로 찾는다.
 
+    // 자료의 **자기 날짜**로 찾는다. 노트에 어제 한 발언이 함께 올라오게 되면서,
+    // 오늘 날짜로만 찾으면 어제 카드는 ★ 를 눌러도 불이 들어오지 않는다
+    // (꽂히기는 어제 날짜로 꽂히고, 확인은 오늘 날짜로 하니 서로 어긋난다).
     public bool IsStarred(string evidenceId) =>
-        NSP.Core.ClueBoard.IsPinned(DialogueContextBuilder.Day(), evidenceId);
+        NSP.Core.ClueBoard.IsPinned(InterviewEvidenceBoard.Find(Board, evidenceId));
 
     public void ToggleStar(string evidenceId)
     {

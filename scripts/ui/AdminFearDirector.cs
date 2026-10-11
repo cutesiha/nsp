@@ -28,7 +28,17 @@ public partial class AdminFearDirector : CanvasLayer
 
     // ── 수치 ────────────────────────────────────────────────────────
     private const string HeartKey = "admin_heartbeat";
-    private const string BreathKey = "man_breath";
+
+    // ── 호흡 — 들숨 · 날숨을 **직접 친다** ──────────────────────────
+    //
+    // 예전에는 man_breath.mp3 를 통째로 루프했다. 그 파일은 15초 동안 여러 번
+    // 숨 쉬는 것을 한 덩어리로 녹음한 것이라, 어디가 들숨이고 어디가 날숨인지
+    // 알 수 없다 — 화면이든 시점이든 **맞출 수 있는 기준이 없다.**
+    // 그래서 한 숨을 두 조각으로 나눠 직접 친다. 소리 · 비네팅 · 시점이 같은
+    // 위상 하나를 읽으므로 셋이 어긋나지 않는다.
+    // (한 숨짜리 녹음으로 바꾸고 싶으면 아래 두 줄만 갈아 끼우면 된다.)
+    private const string InhaleKey = "breath_close";
+    private const string ExhaleKey = "admin_exhale";
 
     // 거리 구간별 BPM. 실제 간격은 60/BPM 초다.
     private const float BpmFar = 78f;
@@ -38,7 +48,18 @@ public partial class AdminFearDirector : CanvasLayer
 
     private const float HeartDbFar = -22f;
     private const float HeartDbNear = -9f;
-    private const float BreathDbMax = -8f;
+    // 숨소리는 심장박동보다 잘 들려야 한다 — 가장 가까울 때 거의 귓가다.
+    private const float BreathDbFar = -14f;
+    private const float BreathDbNear = -4f;
+
+    // 한 숨이 도는 데 걸리는 시간. 가까울수록 가빠진다.
+    private const float BreathPeriodCalm = 4.0f;
+    private const float BreathPeriodNear = 2.3f;
+    // 한 주기에서 들숨이 차지하는 몫. 사람은 들이마시는 쪽이 짧고 내쉬는 쪽이 길다.
+    private const float InhaleShare = 0.42f;
+    // 들숨 끝에서 비네팅이 얼마나 더 짙어지는가 / 눈높이가 얼마나 올라가는가(m).
+    private const float BreathVignette = 0.20f;
+    private const float BreathLiftMeters = 0.013f;
 
     // 붉은 비네팅 — 가장자리에서만 번진다. 중앙은 끝까지 읽을 수 있어야 한다.
     private const float VignetteMaxEdge = 0.62f;   // 가장 셀 때의 알파
@@ -77,6 +98,11 @@ void fragment() {
     private double _nextBeat;
     private float _bpm = BpmFar;
     private bool _breathing;
+    // 호흡 위상 0~1(0 에서 들이마시기 시작). 소리 · 비네팅 · 시점이 전부 이 값을 읽는다.
+    private float _breathPhase;
+    // 0 = 다 내쉰 상태, 1 = 다 들이마신 상태. 위상에서 만든 부드러운 곡선이다.
+    private float _breathWave;
+    private bool _exhaled;
 
     // 일회성 반응(기괴한 전화 · 점프스케어 · 기절 발견 등)이 남은 시간.
     private float _burst;
@@ -203,7 +229,7 @@ void fragment() {
         _reach = Mathf.MoveToward(_reach, _reachTarget, (_reach < _reachTarget ? 0.22f : 0.6f) * d);
 
         TickHeart(d);
-        TickBreath(threat, atDoor);
+        TickBreath(d, threat, atDoor);
         Apply();
     }
 
@@ -257,33 +283,71 @@ void fragment() {
     }
 
     // 숨소리는 **가까울 때만**. 평상시에 계속 몰아쉬면 피로하기만 하다.
-    private void TickBreath(float threat, bool atDoor)
+    private void TickBreath(float d, float threat, bool atDoor)
     {
         bool want = !_suppressBreath && (atDoor || threat >= 0.62f || _burstLevel >= 0.55f);
-        if (want && !_breathing)
+        if (!want)
         {
-            Sfx.Instance?.Loop(BreathKey, BreathDbMax - 6f);
-            _breathing = Sfx.Instance?.IsLooping(BreathKey) ?? false;
+            // 소리는 바로 멎어도 화면은 끊지 않는다 — 내쉬던 중이었으면 끝까지 내쉰다.
+            _breathing = false;
+            _breathWave = Mathf.MoveToward(_breathWave, 0f, d * 1.6f);
+            return;
         }
-        else if (!want && _breathing) StopBreath();
 
-        if (_breathing)
-            Sfx.Instance?.SetLoopVolume(BreathKey, Mathf.Lerp(BreathDbMax - 10f, BreathDbMax, _level));
+        if (!_breathing)
+        {
+            _breathing = true;
+            // 다음 한 줄에서 바로 첫 들숨이 터지도록 주기 끝에 세워 둔다.
+            _breathPhase = 1f;
+            _exhaled = true;
+        }
+
+        float level = Mathf.Clamp(_level, 0f, 1f);
+        float period = Mathf.Lerp(BreathPeriodCalm, BreathPeriodNear, level);
+        float db = Mathf.Lerp(BreathDbFar, BreathDbNear, level);
+
+        _breathPhase += d / Mathf.Max(0.5f, period);
+        if (_breathPhase >= 1f)
+        {
+            _breathPhase -= 1f;
+            _exhaled = false;
+            // 가빠질수록 조금 높고 급하게 — 소리를 바꾸지 않고 피치만 아주 살짝.
+            Sfx.Instance?.Play(InhaleKey, db, Mathf.Lerp(0.92f, 1.06f, level));
+        }
+        else if (!_exhaled && _breathPhase >= InhaleShare)
+        {
+            _exhaled = true;
+            Sfx.Instance?.Play(ExhaleKey, db - 2f, Mathf.Lerp(0.94f, 1.04f, level));
+        }
+
+        // 들숨 구간은 0→1 로 차오르고, 날숨 구간은 1→0 으로 빠진다.
+        float u = _breathPhase < InhaleShare
+            ? _breathPhase / InhaleShare
+            : 1f - (_breathPhase - InhaleShare) / (1f - InhaleShare);
+        _breathWave = Mathf.SmoothStep(0f, 1f, Mathf.Clamp(u, 0f, 1f));
     }
 
     private void StopBreath()
     {
-        if (!_breathing) return;
         _breathing = false;
-        Sfx.Instance?.StopLoop(BreathKey);
+        _breathPhase = 0f;
+        _breathWave = 0f;
+        _exhaled = false;
     }
 
     private void Apply()
     {
+        // 시점 — 들이마시면 눈높이가 올라가고 내쉬면 내려간다. 1cm 남짓이다:
+        // 이보다 크면 화면이 출렁여 모니터 글자를 읽을 수 없다.
+        ControlRoom3DController.Instance?.SetBreathLift((_breathWave - 0.5f) * 2f * BreathLiftMeters);
+
         if (_mat == null) return;
         float edge = _level * VignetteMaxEdge;
         // 귀신 관측은 가장자리 세기와 **별도로** 중앙 침범만 만든다.
         if (_reach > 0.01f) edge = Mathf.Max(edge, 0.26f + _reach * 0.26f);
+        // 숨을 들이마실수록 가장자리가 짙어지고, 내쉬면 다시 열린다.
+        // 가운데는 끝까지 읽혀야 하므로 위쪽을 막아 둔다.
+        edge = Mathf.Min(0.88f, edge + _breathWave * BreathVignette);
         _mat.SetShaderParameter("edge", edge);
         _mat.SetShaderParameter("reach", _reach);
         _veil.Visible = edge > 0.004f;

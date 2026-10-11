@@ -14,9 +14,10 @@ namespace NSP.View;
 //
 // 연출 순서 — 전부 합쳐 2초 남짓이다.
 //   ① 인기척   아주 짧은 정적 + 바로 뒤의 숨소리. 화면이 한 번 꺾인다
-//   ② 돌진     **3D 모델이 실제로** 카메라 앞까지 0.35초 만에 밀려 들어온다
+//   ② 돌진     **3D 모델이 실제로** 달려든다. 알아볼 만한 거리에서 한 번 **멈칫** 하고,
+//              그 정적 끝에 한 호흡으로 **얼굴을 화면에 들이민다**
 //              (정지 이미지를 한 프레임 붙이는 방식이 아니다)
-//   ③ 충격     비명 · 충격음 · 이명 · 강한 흔들림 · 붉은 섬광
+//   ③ 여진     이명 · 붉게 물든 화면이 잠깐 남는다
 //   ④ 암전     BlinkOverlay 로 화면 전체가 닫힌다
 //   ⑤ 기록     사망 화면 → 타이틀
 //
@@ -72,18 +73,15 @@ public partial class AdminDeathDirector : Node
         await Wait(0.42);
 
         // ── ② 돌진 ─────────────────────────────────────────────────
+        // 비명 · 충격음 · 흔들림은 Charge 안에서, **얼굴이 들이닥치는 바로 그 순간**에
+        // 같이 터진다. 여기서 따로 울리면 소리가 그림보다 한 박자 늦는다.
         var cam = GetViewport()?.GetCamera3D();
         if (cam != null) await Charge(cam);
         else await Wait(0.35);
 
-        // ── ③ 충격 ─────────────────────────────────────────────────
-        Sfx.Instance?.PlayGhostScream(2f);
-        Sfx.Instance?.Play("impact_blunt", 0f, 0.86f);
-        Sfx.Instance?.Play("tinnitus", -6f);
-        ctl?.ShakeCamera(9f, 0.55f);
-        ctl?.SetScreenTint(new Color(1.6f, 0.25f, 0.2f));
-        CCTVMonitorView.Instance?.FlashGlitch(1f);
-        await Wait(0.55);
+        // ── ③ 여진 ─────────────────────────────────────────────────
+        // 들이민 얼굴은 Charge 가 이미 한 호흡 붙들고 있었다. 여기서는 숨 한 번만 더.
+        await Wait(0.12);
 
         // ── ④ 암전 ─────────────────────────────────────────────────
         var blink = BlinkOverlay.Instance;
@@ -101,6 +99,10 @@ public partial class AdminDeathDirector : Node
     }
 
     // 괴물이 **실제로** 카메라 쪽으로 밀려 들어온다. 모델 · 애니메이션은 데이터가 정한다.
+    //
+    // 세 토막이다 — 달려든다 → 멈칫 → 쾅.
+    // 가운데의 멈칫이 핵심이다. 쉬지 않고 밀려오면 "뭔가 커졌다" 로 끝나지만,
+    // 알아볼 만한 거리에서 한 번 멈춰 서면 다음 한 호흡이 놀란다.
     private async Task Charge(Camera3D cam)
     {
         var def = _threat?.Def;
@@ -110,25 +112,14 @@ public partial class AdminDeathDirector : Node
         _actor.Attach(this);
         if (!_actor.Use(def)) { await Wait(0.35); return; }
 
-        Transform3D c = cam.GlobalTransform;
-        Vector3 fwd = -c.Basis.Z.Normalized();
-        Vector3 up = Vector3.Up;
-        // 모델은 발이 원점에 있다. 발밑을 **그 개체의 키만큼** 내려야 마지막 한
-        // 프레임에 얼굴이 화면 한가운데 온다 — 한 값으로 고정하면 큰 것은 가슴만,
-        // 작은 것은 화면 밖으로 빠진다.
-        Vector3 floor = c.Origin - up * Mathf.Clamp(def.TargetHeight - 0.16f, 0.52f, 1.80f);
-
-        // 카메라를 바라보게 돌린다. 개체마다 모델의 앞이 어느 축인지 다르므로
-        // 여기서 뒤집지 않는다 — 어긋나는 모델은 그 개체의 YawOffsetDegrees 로 맞춘다
-        // (복도 CCTV 와 이 돌진이 같은 값을 쓰게 하려면 한 곳에서만 고쳐야 한다).
-        float yaw = Mathf.RadToDeg(Mathf.Atan2(-fwd.X, -fwd.Z));
-        Vector3 far = floor + fwd * 4.2f;
-        // 코앞까지 들어온다. 다만 **키에 따라** 멈추는 거리가 달라야 한다 — 같은 거리면
-        // 큰 개체는 가슴만 화면을 덮어 무엇인지 알 수 없고, 작은 개체는 멀어 보인다.
-        Vector3 near = floor + fwd * (0.38f + def.TargetHeight * 0.18f);
-
-        _actor.SetPose(far, yaw);
-        _actor.PlayRole(PickCharge(def), 1.35f);
+        // 발바닥에서 얼굴까지의 높이. 모델은 발이 원점이므로 이만큼 내려야 얼굴이
+        // 화면 한가운데 온다 — 한 값으로 고정하면 큰 것은 가슴만, 작은 것은 화면
+        // 밖으로 빠진다. **키울 때도 같은 비율로** 내려야 한다(안 그러면 몸집이
+        // 커지는 만큼 얼굴이 화면 위로 빠져나가 어깨만 남는다).
+        float eye = Mathf.Clamp(def.TargetHeight - 0.16f, 0.52f, 1.80f);
+        // 들이미는 자세는 고개가 조금 내려가 있어 계산대로 세우면 얼굴이 화면 가운데보다
+        // 아래에 걸린다. 그만큼 들어 올린다 — 키에 비례해야 작은 개체가 위로 뜨지 않는다.
+        float faceLift = def.TargetHeight * 0.077f;
 
         // 관리자 자리에서 터지는 짧은 빛. 이게 없으면 "검은 덩어리가 화면을 덮었다"
         // 로만 보이고, 무엇에게 당했는지 끝내 알 수 없다. 가까워질수록 밝아진다.
@@ -136,31 +127,105 @@ public partial class AdminDeathDirector : Node
         {
             // 윤곽만 드러낼 만큼. 세게 비추면 얼굴이 하얗게 날아가 무엇인지 더 안 보인다.
             LightColor = new Color(0.78f, 0.80f, 0.86f),
-            OmniRange = 2.2f, LightEnergy = 0f, ShadowEnabled = false,
-            Position = c.Origin + fwd * 0.25f + up * 0.10f,
+            OmniRange = 2.4f, LightEnergy = 0f, ShadowEnabled = false,
         };
         AddChild(flash);
 
-        // 0.35초 만에 코앞까지. 뒤로 갈수록 빨라진다(ease-in) — 피할 수 없다는 감각.
-        const double dur = 0.35;
+        // 카메라 자리를 **매 프레임 다시 읽는다**. 마지막에 화면을 세게 흔드는데,
+        // 처음 한 번 읽은 자리에 세워 두면 들이민 얼굴이 흔들림과 함께 화면 밖으로
+        // 밀려나 어깨만 스쳐 지나간다. 괴물은 흔들려도 렌즈에 붙어 있어야 한다.
+        void Pose(float dist, float s, float yawWobble = 0f)
+        {
+            Transform3D c = cam.GlobalTransform;
+            Vector3 fwd = -c.Basis.Z.Normalized();
+            // 관리자(카메라)를 똑바로 보게 세운다. 각도 계산은 MonsterActor 가 월드
+            // 좌표로 처리한다 — 여기서 로컬 yaw 를 직접 넣으면 부모 노드가 놓인
+            // 방향에 따라 앞뒤가 뒤집힌다.
+            _actor.FaceViewer(c.Origin - Vector3.Up * (eye * s - faceLift) + fwd * dist,
+                              c.Origin, s, yawWobble);
+            // 빛은 관리자 쪽에 남는다 — 괴물에 바싹 붙이면 얼굴이 하얗게 날아간다.
+            flash.GlobalPosition = c.Origin + fwd * 0.12f + c.Basis.X * 0.28f - Vector3.Up * 0.05f;
+        }
+
+        const float FarDist = 3.6f;      // 문간의 어둠에서 출발
+        const float HoldDist = 1.45f;    // 무엇인지 알아볼 수 있는 거리
+        // 얼굴이 화면을 채우는 거리. 키에 비례한다 — 작은 개체를 큰 것과 같은 거리에
+        // 세우면 화면 아래쪽 귀퉁이에만 걸린다.
+        //
+        // **더 붙이면 안 된다.** 0.4m 쯤에서 카메라가 모델 안으로 들어가 버려
+        // 뒷면이 잘려 나가고 화면에 아무것도 남지 않는다(가장 중요한 한 컷이 통째로
+        // 비었던 원인이다). 0.6m 도 얼굴이 아니라 뺨 한 면만 가득 찬다.
+        float faceDist = Mathf.Max(0.52f, 0.30f + def.TargetHeight * 0.30f);
+
+        Pose(FarDist, 1f);
+        // 달려드는 동안은 **달리기** 클립이다. 비명 클립을 처음부터 틀면 웅크렸다
+        // 도는 준비 동작만 보여 주고 끝나 버린다(얼굴 대신 등이 들이닥친다).
+        _actor.PlayRole(Approach(def), 1.35f);
+
+        // ⓐ 달려든다 — 뒤로 갈수록 빨라진다(ease-in). 피할 수 없다는 감각.
+        await Sweep(0.30, u =>
+        {
+            float e = u * u * u;
+            Pose(Mathf.Lerp(FarDist, HoldDist, e), 1f);
+            flash.LightEnergy = Mathf.Lerp(0.06f, 0.75f, e);
+        });
+
+        // ⓑ 멈칫 — 숨 한 번. 제자리에서 아주 조금 떨 뿐이다.
+        //    이 정적이 있어야 바로 다음 한 호흡이 놀란다.
+        await Sweep(0.16, u =>
+        {
+            Pose(HoldDist, 1f, Mathf.Sin(u * 26f) * 1.1f);
+            flash.LightEnergy = 0.75f;
+        });
+
+        // ⓒ 쾅 — 한 호흡에 얼굴을 들이민다.
+        // 소리 · 흔들림 · 붉은 섬광이 **이 순간에** 같이 터져야 "쾅" 으로 읽힌다.
+        // 여기서 비명 클립으로 갈아타되 **앞을 보는 구간부터** 튼다.
+        if (!string.IsNullOrEmpty(def.AnimJumpscare))
+        {
+            _actor.PlayRole(def.AnimJumpscare, 1f, 0d);
+            if (def.AnimJumpscareAtSeconds > 0f) _actor.SeekRole(def.AnimJumpscareAtSeconds);
+        }
+        var ctl = ControlRoom3DController.Instance;
+        Sfx.Instance?.PlayGhostScream(2f);
+        Sfx.Instance?.Play("impact_blunt", 0f, 0.86f);
+        Sfx.Instance?.Play("tinnitus", -6f);
+        ctl?.ShakeCamera(9f, 0.55f);
+        ctl?.SetScreenTint(new Color(1.6f, 0.25f, 0.2f));
+        CCTVMonitorView.Instance?.FlashGlitch(1f);
+        await Sweep(0.06, u =>
+        {
+            float s = Mathf.Lerp(1f, 1.12f, u);
+            Pose(Mathf.Lerp(HoldDist, faceDist, u), s);
+            flash.LightEnergy = Mathf.Lerp(0.75f, 0.95f, u);
+        });
+
+        // 얼굴이 박힌 채로 남는다 — 흔들리는 동안에도 계속 화면 한가운데에 붙여 둔다.
+        await Sweep(0.42, _ =>
+        {
+            Pose(faceDist, 1.12f);
+            flash.LightEnergy = 0.95f;
+        });
+    }
+
+    // seconds 동안 매 프레임 step(0→1) 을 부른다. 돌진의 세 토막이 같은 방식으로 움직인다.
+    private async Task Sweep(double seconds, System.Action<float> step)
+    {
         double t = 0;
-        while (t < dur)
+        while (t < seconds)
         {
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             t += GetProcessDeltaTime();
-            float u = Mathf.Clamp((float)(t / dur), 0f, 1f);
-            float e = u * u * u;
-            _actor.SetPose(far.Lerp(near, e), yaw, Mathf.Lerp(1f, 1.18f, e));
-            flash.LightEnergy = Mathf.Lerp(0.08f, 0.85f, e);
+            step(Mathf.Clamp((float)(t / seconds), 0f, 1f));
         }
     }
 
-    // 점프스케어 클립이 있으면 그것, 없으면 달리기, 그것도 없으면 걷기.
+    // 달려드는 동안 쓸 클립 — 달리기가 있으면 그것, 없으면 걷기, 그것도 없으면 비명.
     // 셋 다 없는 모델(거미)은 MonsterActor 가 코드 연출로 몸을 흔든다.
-    private static string PickCharge(MonsterDef def) =>
-        !string.IsNullOrEmpty(def.AnimJumpscare) ? def.AnimJumpscare
-        : !string.IsNullOrEmpty(def.AnimRun) ? def.AnimRun
-        : def.AnimWalk;
+    private static string Approach(MonsterDef def) =>
+        !string.IsNullOrEmpty(def.AnimRun) ? def.AnimRun
+        : !string.IsNullOrEmpty(def.AnimWalk) ? def.AnimWalk
+        : def.AnimJumpscare;
 
     // ── 사망 기록 화면 ──────────────────────────────────────────────
 
@@ -185,7 +250,7 @@ public partial class AdminDeathDirector : Node
         var ink = new Color(0.80f, 0.82f, 0.80f);
         var dim = new Color(0.46f, 0.50f, 0.49f);
 
-        col.AddChild(Lbl("관리자 사망", 42, red));
+        col.AddChild(Lbl("당신은 사망했습니다.", 42, red));
         col.AddChild(Lbl("ADMINISTRATOR LOST", 16, red with { A = 0.75f }));
         col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 18) });
 

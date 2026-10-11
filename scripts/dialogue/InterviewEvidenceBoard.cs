@@ -39,10 +39,13 @@ public static class InterviewEvidenceBoard
         AddOwnStatements(list, targetEmployeeId);
         AddOwnTestimonies(list, targetEmployeeId);
         AddBehaviorClaims(list, targetEmployeeId);
+        AddSpokenLines(list, targetEmployeeId);
         AddOverheard(list, targetEmployeeId);
         AddCalls(list, targetEmployeeId);
 
-        foreach (var e in list) e.Day = day;
+        // 오늘 확보한 기록에 오늘 날짜를 찍는다. 어제 한 발언처럼 **자기 날짜를 들고 온
+        // 카드는 건드리지 않는다** — 덮어쓰면 어제 진술이 오늘 진술로 보인다.
+        foreach (var e in list) if (!e.DayIsFixed) e.Day = day;
         return Sort(list);
     }
 
@@ -126,6 +129,9 @@ public static class InterviewEvidenceBoard
     // 시간이 없는 자료(기분)는 항상 맨 위에 둔다 — 근무 전에 적어 낸 것이므로.
     private static List<InterviewEvidence> Sort(List<InterviewEvidence> list) => list
         .OrderBy(e => e.HasTime ? 1 : 0)
+        // 날을 먼저 가른다 — 지난 근무의 진술이 오늘 기록 사이에 시각 순으로 끼어들면
+        // 같은 밤에 일어난 일처럼 읽힌다.
+        .ThenBy(e => e.Day)
         .ThenBy(e => e.AnchorTime)
         .ThenBy(e => e.Id, System.StringComparer.Ordinal)
         .ToList();
@@ -217,6 +223,11 @@ public static class InterviewEvidenceBoard
         //    "그 시각 그 사람은 바닥에 누워 있었다" 가 알리바이·모순의 재료가 된다.
         if (r.Detail == LogDetail.Fainted && !string.IsNullOrEmpty(r.RelatedEmployeeId))
         {
+            // 쓰러진 **자리**는 로그 줄에 실려 오지 않는다(화면 줄은 방 색을 쓸 때만 방을
+            // 들고 다닌다). 원본 기록에서 직접 찾아야 한다 — 이 방이 비어 있으면
+            // "어디서 발견했는가 · 어떤 상태였는가" 를 아무에게도 물을 수 없고(§3-④),
+            // 재석 주장으로도 쓸 수 없다(CanAnchorPosition 이 거짓이 된다).
+            string fellIn = string.IsNullOrEmpty(r.RoomId) ? IncidentRoomOf(r) : r.RoomId;
             return new InterviewEvidence
             {
                 Id = $"faint:{r.RelatedEmployeeId}:{r.Timestamp:0.00}",
@@ -229,7 +240,7 @@ public static class InterviewEvidenceBoard
                 HasTime = true,
                 // 쓰러진 그 자리에 있었다는 뜻이다 — 위치 주장으로 쓸 수 있다.
                 Position = PositionClaim.AtRoom,
-                SubjectRoomId = r.RoomId,
+                SubjectRoomId = fellIn,
             };
         }
 
@@ -418,27 +429,94 @@ public static class InterviewEvidenceBoard
 
     // --- 이 직원이 앞서 한 진술 -------------------------------------------
 
+    // 날을 가리지 않는다 — **어제 한 말도 오늘 들고 추궁할 수 있어야 한다.**
+    //
+    // 전에는 오늘 한 말만(StatementsBy) 올라와서, DAY1 에 받아 둔 위치 진술을 DAY3 에
+    // 찾을 수가 없었다. 기록은 PlayerKnownEvidence 에 그대로 남아 있는데 화면에 길이
+    // 없었던 것이다.
     private static void AddOwnStatements(List<InterviewEvidence> list, string target)
     {
-        foreach (var st in PlayerKnownEvidence.StatementsBy(target))
+        foreach (var st in PlayerKnownEvidence.AllStatementsBy(target))
         {
+            // 번복 이력을 **각각 한 장씩** 꺼낸다. 마지막이 지금의 주장이고 그 앞은 정정 전이다.
+            //
+            // RoomHistory 에 값만 쌓아 두고 화면에는 최신 발언만 올리면, 진술을 보존한
+            // 의미가 없다 — 플레이어가 "아까는 이렇게 말했다" 를 손에 쥘 수 없으니
+            // 번복 자체를 추궁할 수 없다.
+            var rooms = st.RoomHistory.Count > 0
+                ? (IReadOnlyList<string>)st.RoomHistory
+                : new[] { st.RoomId };
+            for (int i = 0; i < rooms.Count; i++)
+            {
+                bool latest = i == rooms.Count - 1;
+                string room = rooms[i];
+                list.Add(new InterviewEvidence
+                {
+                    // 위치 진술은 (말한 사람 · 사건) 으로 한 건이다(RecordLocationStatement 와 같은 기준).
+                    // 같은 사건 키라도 가리키는 날이 다르면 다른 진술이다.
+                    // 정정 전 진술은 뒤에 순번을 붙여 서로 다른 자료로 갈라 둔다.
+                    Id = $"claim:{target}:{st.SubjectDay}:{st.IncidentKey}" + (latest ? "" : $"#was{i + 1}"),
+                    Kind = EvidenceKind.OwnStatement,
+                    Day = st.Day, SubjectDay = st.SubjectDay,
+                    DayIsFixed = true,
+                    Header = Codename(target) + "의 진술" + (latest ? "" : "(정정 전)"),
+                    TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",
+                    Body = (latest ? "본인 · " : "본인 · 처음엔 ") + $"{RoomName(room)}에 있었다",
+                    SubjectEmployeeId = target,
+                    SpeakerEmployeeId = target,
+                    AnchorTime = st.AnchorTime,
+                    HasTime = st.HasTime,
+                    Position = PositionClaim.AtRoom,
+                    SubjectRoomId = room,
+                    IncidentKey = st.IncidentKey,
+                    Superseded = !latest,
+                });
+            }
+        }
+    }
+
+    // --- 요약하지 않은 원문 발언 -------------------------------------------
+    //
+    // "오늘은 별일 없었습니다" 처럼 **뭉뚱그린 말**은 어느 요약 카드에도 올라오지 않는다.
+    // 위치도 행동도 말하지 않으니 요약할 알맹이가 없기 때문이다. 그런데 추리에서는 바로
+    // 그 말이 중요하다 — 사고 기록을 들이밀어 "그 말에 이것도 포함됩니까" 를 물을 수 있어야
+    // 한다(기획안 §4).
+    //
+    // 그래서 **아직 어떤 자료와도 묶이지 않은 발언**만 원문 그대로 카드가 된다. 자료를 들고
+    // 한 질문의 답은 이미 그 자료 밑에 요약으로 붙으므로 여기 들어오지 않는다. 그 조건이
+    // 이 목록이 대화 전체로 불어나지 않게 막아 주는 문이다.
+    private static void AddSpokenLines(List<InterviewEvidence> list, string target)
+    {
+        var history = DialogueHistory.Instance?.GetAllEntries();
+        if (history == null) return;
+
+        foreach (var e in history)
+        {
+            if (e.SpeakerId != target) continue;
+            // **질문에 대한 답만** 자료가 된다(NpcResponse).
+            //
+            // 인사말·전화 첫마디(NpcLine)는 주장이 아니다. "오셨어요, 뭐가 궁금하세요?" 를
+            // 카드로 올려 두면 "그 말은 어디까지입니까" 를 묻게 된다 — 조사가 아니라 희롱이다.
+            if (e.EntryType != DialogueEntryType.NpcResponse) continue;
+            if (e.EvidenceIds.Count > 0) continue;        // 이미 자료에 묶인 답
+            if (string.IsNullOrWhiteSpace(e.Text)) continue;
+
             list.Add(new InterviewEvidence
             {
-                // 위치 진술은 (말한 사람 · 사건) 으로 한 건이다(RecordLocationStatement 와 같은 기준).
-                // 같은 사건 키라도 가리키는 날이 다르면 다른 진술이다.
-                Id = $"claim:{target}:{st.SubjectDay}:{st.IncidentKey}",
+                Id = $"said:{target}:{e.Day}:{e.Seq}",
                 Kind = EvidenceKind.OwnStatement,
-                Day = st.Day, SubjectDay = st.SubjectDay,
-                Header = Codename(target) + "의 진술",
-                TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",
-                Body = $"본인 · {RoomName(st.RoomId)}에 있었다",
+                Day = e.Day, SubjectDay = e.Day,
+                DayIsFixed = true,
+                Header = Codename(target) + "이/가 한 말",
+                TimeText = DialogueClock.Text(e.Timestamp),
+                Body = e.Text,
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = target,
-                AnchorTime = st.AnchorTime,
-                HasTime = st.HasTime,
-                Position = PositionClaim.AtRoom,
-                SubjectRoomId = st.RoomId,
-                IncidentKey = st.IncidentKey,
+                AnchorTime = e.Timestamp,
+                HasTime = true,
+                // 위치도 행동도 주장하지 않는 문장이다 — 모순 판정의 재료가 되지 않는다.
+                Position = PositionClaim.None,
+                SpokenLine = true,
             });
         }
     }

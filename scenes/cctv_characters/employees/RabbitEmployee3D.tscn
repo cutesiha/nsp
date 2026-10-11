@@ -9,7 +9,6 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/rabbit_hair.tres" id="8_rabbithair"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_white.tres" id="9_badgewhite"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-066.res" id="hair_new"]
-[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-066.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M17"]
 radius = 0.098

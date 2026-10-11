@@ -214,9 +214,18 @@ public static class InterviewEvidenceDisplay
     }
 
     // 자료 한 장의 둘째 줄.
+    //
+    // 오늘 것이 아니면 맨 앞에 날짜를 붙인다. 어제 한 진술이 오늘 노트에 함께 있는데
+    // 표시가 없으면 **오늘 한 말로 읽힌다** — 그 착각 하나로 추리 전체가 틀어진다.
     public static string Body(InterviewEvidence ev)
     {
         if (ev == null) return "";
+        string line = BodyLine(ev);
+        return ev.Day > 0 && ev.Day != DialogueContextBuilder.Day() ? $"DAY{ev.Day} · {line}" : line;
+    }
+
+    private static string BodyLine(InterviewEvidence ev)
+    {
         string who = InterviewEvidenceBoard.Codename(ev.SubjectEmployeeId);
         string room = InterviewEvidenceBoard.RoomName(ev.SubjectRoomId);
         return ev.Kind switch
@@ -230,7 +239,13 @@ public static class InterviewEvidenceDisplay
                                      + InterviewEvidenceBoard.RoomName(ev.ToRoomId)
                                      + (ev.PlayerOrdered ? "  (지시)" : ""),
             EvidenceKind.Testimony => $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who} · {room}에서 봤다",
-            EvidenceKind.OwnStatement => $"{who} · \"{room}에 있었다\"",
+            // 진술 카드는 세 종류다. 전에는 전부 "그 방에 있었다" 한 문구로 찍혀서,
+            // 행동 주장("설비에 손대지 않았다")까지 위치 진술처럼 보였다.
+            EvidenceKind.OwnStatement => ev.SpokenLine
+                ? $"{who} · \"{ev.Body}\""                                   // 원문 발언 그대로
+                : !string.IsNullOrEmpty(ev.BehaviorDetail)
+                    ? $"{who} · \"{ev.BehaviorDetail}\""                     // 행동 주장
+                    : $"{who} · {(ev.Superseded ? "처음엔 " : "")}\"{room}에 있었다\"",
             // 누가 누구와 · 무슨 말을 — 방 이름은 시각 옆 태그로 충분하다.
             EvidenceKind.Overheard => ev.Body,
             _ => $"{who} · {ev.Body}",

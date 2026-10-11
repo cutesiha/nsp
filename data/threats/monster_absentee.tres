@@ -23,20 +23,25 @@ DisplayName = "형체"
 ModelPath = "res://assets/models/ghosts/MonsterPSX.fbx"
 TargetHeight = 1.82
 FloorOffset = 0.0
-; 이 모델만 앞이 반대다 — 0 이면 복도에서도 돌진에서도 뒷모습으로 온다.
-YawOffsetDegrees = 180.0
+; 괴물 세 모델 모두 **로컬 +Z 가 앞**이다(DeathShot 의 facing 모드로 눈으로 확인).
+; 복도 CCTV 와 돌진 연출이 쓰는 각도 계산이 그 약속에 맞춰져 있으므로 보정은 0 이다.
+; 180 을 넣으면 복도에서도 돌진에서도 **뒷모습**으로 온다.
+YawOffsetDegrees = 0.0
 AnimIdle = "MonsterPSX_Rig|Idle_Watchful"
 AnimWalk = "MonsterPSX_Rig|Walk_Nervous"
 AnimRun = "MonsterPSX_Rig|Run_Frantic"
 AnimAttackDoor = "MonsterPSX_Rig|Attack_Lunge"
 AnimJumpscare = "MonsterPSX_Rig|Scream_lol"
+; Scream_lol 은 앞 1초가 웅크렸다 몸을 도는 준비 동작이다 — 거기서 멈추면 뒷모습으로
+; 얼굴을 들이미는 꼴이 된다. 1.3초부터가 앞을 보고 고개를 든 구간이다.
+AnimJumpscareAtSeconds = 1.3
 AnimRetreat = "MonsterPSX_Rig|WallSlam_Recover"
-ApproachSeconds = 20.0
-BreachDelaySeconds = 4.0
+ApproachSeconds = 10.0
+BreachDelaySeconds = 2.2
 PoundSeconds = 6.0
 RetreatSeconds = 3.2
 CooldownSeconds = 30.0
-PauseEverySeconds = 6.0
+PauseEverySeconds = 0.0
 PauseLengthSeconds = 1.6
 SfxDistant = "duct_crawl"
 SfxStep = "footsteps_run"

@@ -34,6 +34,7 @@ AchievementManager="*res://scripts/core/AchievementManager.cs"
 AchievementToast="*res://scripts/ui/AchievementToast.cs"
 AdminFearDirector="*res://scripts/ui/AdminFearDirector.cs"
 MonsterThreatPresenter="*res://scripts/view/MonsterThreatPresenter.cs"
+FaintCameraDirector="*res://scripts/view/FaintCameraDirector.cs"
 AnomalyCallDirector="*res://scripts/view/AnomalyCallDirector.cs"
 HorrorEventDirector="*res://scripts/ui/HorrorEventDirector.cs"
 

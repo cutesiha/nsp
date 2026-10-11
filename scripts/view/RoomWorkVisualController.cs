@@ -103,6 +103,24 @@ public sealed partial class RoomWorkVisualController
     private System.Func<CctvEmployeeAction, string, Vector3, float> _facing;
     public void SetFacingResolver(System.Func<CctvEmployeeAction, string, Vector3, float> f) => _facing = f;
 
+    // 휴게시간으로 넘어간다 — **작업하던 모습을 전부 벗긴다.**
+    //
+    // 휴게시간에는 이 컨트롤러가 돌지 않는다(FacilityCctvWorld 가 휴게실 쪽으로 간다).
+    // 그래서 마지막 프레임의 작업 상태가 그대로 굳어 버렸다 — 상자를 든 채로, 공구를
+    // 쥔 채로, 허리를 숙인 채로 의자에 앉아 있었다. 그만두는 것이 아니라 **치워야** 한다.
+    //
+    // 되돌리는 것은 세 가지다: 손에 든 것 · 몸에 걸친 것 · 자리 때문에 내려 둔 골반.
+    public void ReleaseForRest(System.Collections.Generic.IReadOnlyDictionary<string, Node3D> nodes)
+    {
+        foreach (var (id, a) in _actors)
+        {
+            Release(a);
+            if (nodes != null && nodes.TryGetValue(id, out var node) && node != null)
+                ClearVisualOffset(node);
+        }
+        Reset();
+    }
+
     public void Reset()
     {
         _actors.Clear();
@@ -644,7 +662,20 @@ public sealed partial class RoomWorkVisualController
     private static void ClearVisualOffset(Node3D node)
     {
         var vr = node.GetNodeOrNull<Node3D>("VisualRoot");
-        if (vr != null && !Mathf.IsZeroApprox(vr.Position.Y)) vr.Position = vr.Position with { Y = 0 };
+        if (vr == null) return;
+        if (!Mathf.IsZeroApprox(vr.Position.Y)) vr.Position = vr.Position with { Y = 0 };
+
+        // **숙였던 상체를 펴 준다.**
+        //
+        // 구조 연출(FaintVisuals.PoseResponder)은 놀라는 움찔거림과 무릎을 굽혀 환자를
+        // 살피는 자세를 VisualRoot 의 X·Z 회전으로 만든다. 그런데 그 값을 되돌리는 곳이
+        // 어디에도 없었다 — 연출이 끝나도 몸이 기울어진 채로 남아 그대로 일하고, 그대로
+        // 휴게실 의자에 앉았다. 놀람 크기가 가장 큰 토끼(StartleOf 1.00)가 제일 눈에 띄었다.
+        //
+        // Y(바라보는 방향)는 건드리지 않는다 — 그건 자세가 아니라 방향이다.
+        var r = vr.RotationDegrees;
+        if (!Mathf.IsZeroApprox(r.X) || !Mathf.IsZeroApprox(r.Z))
+            vr.RotationDegrees = new Vector3(0f, r.Y, 0f);
     }
 
     // 여성 베이스인지 — 이름이 아니라 실제 몸(가슴 파츠 유무)으로 판단한다.

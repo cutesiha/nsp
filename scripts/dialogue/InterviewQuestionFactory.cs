@@ -28,24 +28,34 @@ public static class InterviewQuestionFactory
         return list;
     }
 
+    // 이 자료를 들고 이 직원에게 물어도 되는가.
+    //
+    // **질문 생성과 화면의 선택 가능 판정이 같은 규칙을 봐야 한다.** 둘이 갈라져 있던 동안,
+    // 화면에서는 고를 수 없는데 질문은 만들어지는 자료가 생겼다 — 기절 기록(목격자·구조자에게
+    // 묻는 §3-④)과 증언(말한 본인에게 되묻는 §4)이 통째로 막혀 있었다. 그래서 규칙은
+    // 여기 한 곳에만 둔다(InterviewSession.CanUse 가 이 함수를 그대로 쓴다).
+    //
+    //   · 주인이 없는 자료(시설 사고 기록)  → 누구에게나
+    //   · 이 직원이 **대상**인 자료          → 당연히
+    //   · 이 직원이 **말한** 자료            → 자기 말은 자기에게 되묻는다(§4)
+    //   · 기절 기록                          → 쓰러진 사람 외에도. 누구에게 열리는지는
+    //                                          아래 분기에서 실제 기록으로 다시 가린다.
+    public static bool MayQuestionWith(string targetEmployeeId, InterviewEvidence ev)
+    {
+        if (ev == null || string.IsNullOrEmpty(targetEmployeeId)) return false;
+        if (string.IsNullOrEmpty(ev.SubjectEmployeeId)) return true;
+        if (ev.SubjectEmployeeId == targetEmployeeId) return true;
+        if (ev.SpeakerEmployeeId == targetEmployeeId) return true;
+        return IsFaintCard(ev);
+    }
+
     // 이 자료로 물어볼 수 있는 것들.
     public static List<InterviewQuestion> For(string targetEmployeeId, InterviewEvidence ev)
     {
         var list = new List<InterviewQuestion>();
         if (ev == null || string.IsNullOrEmpty(targetEmployeeId)) return list;
 
-        // 다른 직원의 자료로는 이 사람에게 물을 수 없다(사고 기록은 주인이 없으므로 예외).
-        //
-        // 기절 기록은 한 번 더 예외다 — 쓰러진 사람의 자료이지만, 그 자리에 있었거나
-        // 실제로 옮긴 **다른 직원**에게 물어야 발견·구조 경위가 나온다(기획안 §3-④ · §4).
-        // 누구에게 열리는지는 아래 분기에서 실제 기록으로 다시 가린다.
-        // 증언은 또 하나의 예외다 — **말한 사람** 에게도 물어야 한다("얼마나 지켜봤습니까").
-        // 자료의 주인뿐 아니라 발언자도 질문 대상이 될 수 있어야 한다(기획안 §4).
-        bool speakerOfThis = ev.Kind == EvidenceKind.Testimony
-                             && ev.SpeakerEmployeeId == targetEmployeeId;
-        if (!string.IsNullOrEmpty(ev.SubjectEmployeeId) && ev.SubjectEmployeeId != targetEmployeeId
-            && !IsFaintCard(ev) && !speakerOfThis)
-            return list;
+        if (!MayQuestionWith(targetEmployeeId, ev)) return list;
 
         switch (ev.Kind)
         {
@@ -227,6 +237,13 @@ public static class InterviewQuestionFactory
                 break;
             }
 
+            // 원문 발언 — 요약이 아니라 그 사람이 한 **문장 그대로** 쥐고 있는 카드다.
+            // 위치를 말하지 않은 문장이므로 "다시 설명해 달라(= 그 방에 있었다고 하셨죠)" 가
+            // 성립하지 않는다. 물을 수 있는 것은 그 말의 **범위** 하나뿐이다(기획안 §4).
+            case EvidenceKind.OwnStatement when ev.SpokenLine:
+                Add(list, targetEmployeeId, ev, InterviewIntent.AskStatementScope);
+                break;
+
             case EvidenceKind.OwnStatement:
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskRestate);
                 Add(list, targetEmployeeId, ev, InterviewIntent.AskWhoWasPresent);
@@ -376,6 +393,13 @@ public static class InterviewQuestionFactory
     }
 
     // 질문 문장. 시각은 자료에 시각이 있을 때만 말한다.
+    // 인용은 한 줄에 들어갈 만큼만 — 긴 답변을 통째로 질문에 실으면 자막이 넘친다.
+    private static string Quote(string line)
+    {
+        string s = (line ?? "").Trim().Replace("\n", " ");
+        return s.Length <= 34 ? s : s[..33].TrimEnd() + "…";
+    }
+
     private static string Text(InterviewQuestion q, InterviewEvidence ev)
     {
         string at = q.HasAnchorTime ? DialogueClock.Spoken(q.AnchorTime) + "경 " : "";
@@ -495,6 +519,11 @@ public static class InterviewQuestionFactory
                 $"얼마나 오래 지켜보셨습니까?",
             InterviewIntent.AskNotObservedScope =>
                 $"보지 못했다는 것은 어느 순간까지 보고 계셨다는 뜻입니까?",
+
+            // 그 사람이 한 말을 **그대로 인용해서** 되묻는다. 요약하면 추궁이 아니라
+            // 관리자의 해석이 된다 — 플레이어가 고른 그 문장이 질문에 그대로 실려야 한다.
+            InterviewIntent.AskStatementScope =>
+                $"아까 \"{Quote(ev?.Body)}\" 라고 하셨습니다. 그 말은 어디까지를 말씀하신 겁니까?",
 
             // ── 통화 기록 ──
             InterviewIntent.AskCallReason => q.CallKind switch

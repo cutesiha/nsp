@@ -70,7 +70,6 @@ public sealed class GhostBehaviour
 
     // ── 붙어 있는 대상 ────────────────────────────────────────────────
     private Node3D _entity;
-    private EntityRig _rig;
     private float _scale = 1f;
     private float _standY;      // 서 있을 때 루트의 Y(발이 바닥에 닿는 높이)
 
@@ -107,13 +106,40 @@ public sealed class GhostBehaviour
     public Vector3 Position => _pos;
     public float FaceDegrees => _faceY;
 
-    public void Attach(Node3D entity, EntityRig rig, float scale, float standY)
+    public void Attach(Node3D entity, float scale, float standY)
     {
         _entity = entity;
-        _rig = rig;
         _scale = scale;
         _standY = standY;
         _rng.Randomize();
+    }
+
+    // 지금 붙어 있는 몸의 키(m). 벽 · 설비 · 바닥까지의 거리를 재는 데만 쓴다 —
+    // 등장할 때마다 종류가 바뀌므로 그때 같이 넣어 준다.
+    public float BodyHeight { get; set; } = 1.8f;
+
+    // 몸의 비율. 정확할 필요는 없다. "최대로 숙였을 때 머리 앞면이 어디까지 닿는가" 를
+    // 재서 표면에 파묻히지 않을 거리를 잡는 용도뿐이다.
+    private float NeckPivotY => BodyHeight * 0.84f;     // 발바닥 → 목 관절
+    private float TorsoPivotY => BodyHeight * 0.52f;    // 발바닥 → 고관절
+    private float HeadFrontY => BodyHeight * 0.07f;     // 목 관절 → 머리 앞면 높이
+    private float HeadFrontZ => BodyHeight * 0.08f;     // 중심축 → 머리 앞면
+    private float CrouchDrop => BodyHeight * 0.17f;     // 웅크릴 때 내려앉는 높이
+
+    // 상체 · 목을 그만큼 꺾었을 때 머리 앞면이 오는 자리(발바닥 기준 로컬).
+    private Vector3 HeadFrontLocal(float torsoPitch, float neckPitch)
+    {
+        Vector3 p = new(0f, HeadFrontY, HeadFrontZ);
+        p = RotX(p, neckPitch);
+        p += new Vector3(0f, NeckPivotY - TorsoPivotY, 0f);
+        p = RotX(p, torsoPitch);
+        return p + new Vector3(0f, TorsoPivotY, 0f);
+    }
+
+    private static Vector3 RotX(Vector3 v, float a)
+    {
+        float c = Mathf.Cos(a), s = Mathf.Sin(a);
+        return new Vector3(v.X, v.Y * c - v.Z * s, v.Y * s + v.Z * c);
     }
 
     public void Reset(Vector3 startPos)
@@ -128,7 +154,6 @@ public sealed class GhostBehaviour
         _rootPitch = 0f;
         _phase = 0f;
         Pose = GhostPose.IdleStare;
-        _rig?.Reset();
     }
 
     // ── 한 걸음 ───────────────────────────────────────────────────────
@@ -275,7 +300,7 @@ public sealed class GhostBehaviour
 
     // 표면에서 떨어져 설 거리(월드). 최대로 꺾었을 때 머리 앞면이 표면에 겨우 닿는 거리다.
     private float Standoff() =>
-        EntityRig.HeadFrontLocal(BangTorso, BangNeck).Z * _scale + SurfaceClearance;
+        HeadFrontLocal(BangTorso, BangNeck).Z * _scale + SurfaceClearance;
 
     // 그 자리에 실제로 설 수 있는가(방 안이고, 벽에 끼지 않는가).
     private static bool InsideRoom(Vector3 p) =>
@@ -412,7 +437,7 @@ public sealed class GhostBehaviour
     // 잘라 붙인 메시가 눈에 띄게 벌어진다.
     // 다리를 접은 만큼만 내리고 나머지는 상체를 깊게 숙여 "머리를 바닥으로 내리찍는" 그림을
     // 만든다 — 머리는 바닥 위 0.7m 쯤까지 내려온다. CCTV 거리에서는 바닥을 찧는 것으로 읽힌다.
-    private float KneelDropForFloor() => EntityRig.CrouchDrop * _scale * 0.66f;
+    private float KneelDropForFloor() => CrouchDrop * _scale * 0.66f;
 
     // ── 가만히 / 비틀린 응시 / 웅크림 / 배회 ──────────────────────────
 
@@ -497,7 +522,7 @@ public sealed class GhostBehaviour
         _steps.Clear();
         _stepIndex = 0;
         _stepTime = 0f;
-        float drop = EntityRig.CrouchDrop * _scale;
+        float drop = CrouchDrop * _scale;
         Add(_rng.RandfRange(0.35f, 0.6f), t =>
         {
             float k = Ease(t);
@@ -563,7 +588,6 @@ public sealed class GhostBehaviour
     private void AddStandStill(float seconds) =>
         Add(seconds, _ =>
         {
-            _rig?.SetIdle(_phase * 1.4f);
             Stand(0.03f + Mathf.Sin(_phase * 1.2f) * 0.02f, 0f, arms: Arms.Keep);
         });
 
@@ -577,8 +601,6 @@ public sealed class GhostBehaviour
                 _pos = from.Lerp(to, e);
                 _pos.Y = _standY + Mathf.Abs(Mathf.Sin(_phase * 5.2f)) * 0.02f;
                 _wantFaceY = faceY;
-                _rig?.SetWalk(_phase * 5.2f, 1f);
-                _rig?.SetTorso(0.05f, 0f, 0f);
                 _rootPitch = 0f;
             },
             enter: () => from = _pos);
@@ -588,30 +610,25 @@ public sealed class GhostBehaviour
 
     private enum Arms { Keep, Limp, Brace }
 
-    // 서 있는 자세. 상체·목을 직접 먹인다.
+    // 서 있는 자세.
+    //
+    // 예전에는 팔·다리·목을 관절 단위로 직접 먹였다(EntityRig). 지금 쓰는 세 모델은
+    // 각자 자기 뼈와 클립을 들고 있어서, 그 위에 관절 각도를 덮어쓰면 자기 애니메이션과
+    // 싸운다 — 몸 전체의 기울기와 높이만 정하고 나머지는 모델에 맡긴다.
     private void Stand(float torsoPitch, float neckPitch, float neckYaw = 0f, float neckRoll = 0f,
         float torsoYaw = 0f, Arms arms = Arms.Limp)
     {
-        if (_rig == null) return;
-        _rig.SetTorso(torsoPitch, torsoYaw, 0f);
-        _rig.SetNeck(neckPitch, neckYaw, neckRoll);
-        _rig.SetLegs(torsoPitch * 0.12f, -torsoPitch * 0.2f);
-        if (arms == Arms.Limp) _rig.SetArmsLimp(1f, _phase * 1.1f);
-        else if (arms == Arms.Brace) _rig.SetArmsBrace(1f);
         _rootPitch = 0f;
         _pos.Y = _standY;
     }
 
-    // 머리 박기 전용 — 상체와 목이 함께 꺾이고, 팔이 표면을 짚는다.
+    // 머리 박기 전용 — 몸 전체가 표면 쪽으로 꺾인다.
     private void Bang(float torsoPitch, float neckPitch, float armBrace, float neckYaw = 0f, float neckRoll = 0f)
     {
-        if (_rig == null) return;
-        _rig.SetTorso(torsoPitch, 0f, 0f);
-        _rig.SetNeck(neckPitch, neckYaw, neckRoll);
-        _rig.SetArmsBrace(armBrace);
-        _rig.SetLegs(Mathf.Max(0f, torsoPitch) * 0.18f, -Mathf.Max(0f, torsoPitch) * 0.30f);
-        _rootPitch = 0f;
-        _pos.Y = _standY;
+        // 관절이 없으므로 상체 각도를 **몸 전체 기울기**로 옮긴다. 안 그러면 머리를
+        // 박는 동작이 화면에서 아무 변화 없이 지나간다.
+        _rootPitch = torsoPitch * 0.55f;
+        _pos.Y = _standY * Mathf.Cos(_rootPitch);
     }
 
     // 무릎을 접어 골반을 낮추고, 필요하면 몸 전체를 앞으로 기울인 자세.
@@ -621,11 +638,6 @@ public sealed class GhostBehaviour
     private void Kneel(float drop, float hip, float knee, float torsoPitch, float neckPitch,
         float rootPitch = 0f)
     {
-        if (_rig == null) return;
-        _rig.SetLegs(hip, knee);
-        _rig.SetTorso(torsoPitch, 0f, 0f);
-        _rig.SetNeck(neckPitch, 0f, 0f);
-        _rig.SetArmsLimp(0.8f, _phase * 1.3f);
         _rootPitch = rootPitch;
         _pos.Y = _standY * Mathf.Cos(rootPitch) - drop;
     }
@@ -729,8 +741,7 @@ public sealed class GhostBehaviour
     // 지금 머리 앞면이 있는 월드 좌표(충돌 지점 — 소리·흔들림을 여기에 건다).
     public Vector3 HeadWorld()
     {
-        Vector3 local = _rig?.HeadFrontLocalNow()
-                        ?? new Vector3(0f, EntityRig.NeckPivotY, EntityRig.HeadFrontZ);
+        Vector3 local = HeadFrontLocal(_rootPitch, 0f);
         // 몸 전체 기울기 → 그 다음 방향(요) 순서로 돌린다(Godot 의 YXZ 와 같은 순서).
         float c = Mathf.Cos(_rootPitch), s = Mathf.Sin(_rootPitch);
         local = new Vector3(local.X, local.Y * c - local.Z * s, local.Y * s + local.Z * c);

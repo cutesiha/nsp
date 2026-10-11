@@ -12,13 +12,18 @@ namespace NSP.View;
 //  - 모든 방 씬은 원점에 겹쳐 배치하고, 선택된 방 하나만 Visible=true (나머지 조명/메시는 꺼짐).
 //  - 카메라는 단 하나. 방마다 각도가 달라지지 않도록 고정 구도(코너 위에서 대각선 아래)를 공유한다.
 //  - 직원 6명은 색만 다른 임시 모델(employee_placeholder.tscn). 현재 방에 있는 직원만 표시.
-//  - 개체(entity.tscn)는 평소 숨김. HorrorDirector L3 때 잠깐 등장(연출 훅만, 튜닝은 이후).
+//  - 괴물은 평소 숨김. 작업실에 나타난 동안에만 보이고, 모델은 그때 뽑힌 종류로 바뀐다.
 public partial class FacilityCctvWorld : Node3D
 {
-    private const float EntityScale = 3.2f;
-    // entity.glb의 실제 Y 범위는 약 -0.499~+0.495m로 원점이 몸 중앙에 있다.
-    // 이 값을 올려야 발이 바닥에 닿고 모델 절반이 지면 아래로 묻히지 않는다.
-    private const float EntityFloorOriginY = 0.499f * EntityScale;
+    // 작업실에 나타난 개체를 CCTV 에서 얼마나 키워 보여 주는가.
+    //
+    // 실제 키 그대로 세우면 대각선 위에서 내려다보는 구도 + 어두운 방 때문에 설비 뒤로
+    // 묻혀 "뭔가 있다" 조차 읽히지 않는다. MonsterActor 가 이미 데이터의 TargetHeight 로
+    // 맞춰 세우므로, 여기서는 그 위에 곱하는 배율 하나만 둔다.
+    private const float EntityScale = 1.75f;
+    // MonsterActor 는 **발을 원점에** 두고 세운다. 그래서 바닥 보정이 필요 없다.
+    // (예전 entity.glb 는 원점이 몸 한가운데라 절반이 바닥에 묻혔고, 그 보정값이 여기 있었다.)
+    private const float EntityFloorOriginY = 0f;
 
     public static FacilityCctvWorld Instance { get; private set; }
 
@@ -116,8 +121,6 @@ public partial class FacilityCctvWorld : Node3D
     private double _ghostLungeUntil;
     private bool _ghostVanishing;        // 소멸 연출 중 — 이 동안에는 위치를 건드리지 않는다
     private CpuParticles3D _ghostDust;
-    // 팔·다리 관절. 원본 glb 에는 뼈가 없어서 메시를 잘라 직접 만든다(EntityRig).
-    private EntityRig _rig;
 
     public override void _Ready()
     {
@@ -316,8 +319,9 @@ public partial class FacilityCctvWorld : Node3D
     // 카메라마다 내려다보는 각도가 다르다. 그래서 "세계 기준 눈높이에서 얼마" 로
     // 잡으면 어떤 방에서는 얼굴이, 어떤 방에서는 발끝이 잡힌다. 시선 축 위의 한 점을
     // 먼저 정하고 거기에 머리를 맞추면 어느 카메라에서든 얼굴이 가운데 온다.
+    // clipAtSeconds — 그 클립의 **몇 초 지점**부터 쓸 것인가. 0 이면 처음부터.
     public bool ShowScare(NSP.Data.MonsterDef def, string clip, float distance,
-        float sideways, float yawOffset, float headRatio)
+        float sideways, float yawOffset, float headRatio, float clipAtSeconds = 0f)
     {
         if (def == null || _camera == null) return false;
         _scare ??= CreateMonsterActor();
@@ -328,11 +332,13 @@ public partial class FacilityCctvWorld : Node3D
         Vector3 right = c.Basis.X.Normalized();
         Vector3 aim = c.Origin + fwd * distance + right * sideways;
         Vector3 floor = aim - Vector3.Up * Mathf.Clamp(headRatio, 0.2f, 1f) * def.TargetHeight;
-        float yaw = Mathf.RadToDeg(Mathf.Atan2(-fwd.X, -fwd.Z)) + yawOffset;
 
-        // SetPose 는 이 월드 기준 **로컬** 좌표를 받는다.
-        _scare.SetPose(ToLocal(floor), yaw, 1f);
-        _scare.PlayRole(clip, 1.4f);
+        // 카메라를 바라보게 **월드 좌표로** 세운다. 예전에는 각도를 월드에서 계산해
+        // 로컬 회전으로 넣었는데, 이 월드 노드가 돌아가 있으면 그만큼 어긋나
+        // 얼굴 대신 등이 화면을 채웠다.
+        _scare.FaceViewer(floor, c.Origin, 1f, yawOffset);
+        _scare.PlayRole(clip, 1.4f, 0d);
+        if (clipAtSeconds > 0f) _scare.SeekRole(clipAtSeconds);
 
         // 카메라 자리에 차가운 보조등을 켠다. 이게 없으면 작업실 조명이 닿지 않아
         // "검은 덩어리가 화면을 가렸다" 로만 보이고, 무엇이 왔는지 알 수 없다.
@@ -356,25 +362,37 @@ public partial class FacilityCctvWorld : Node3D
         if (_scareLight != null) _scareLight.Visible = false;
     }
 
+    // 작업실에 나타나는 개체의 몸. 모델은 **등장할 때마다** 그 날 뽑힌 종류로 바뀐다
+    // (UseHauntModel). 여기서는 빈 배우와 배선만 만들어 둔다.
     private void BuildEntity()
     {
-        var ps = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
-        if (ps == null) return;
-        _entity = ps.Instantiate<Node3D>();
+        _haunt = CreateMonsterActor();
+        _entity = _haunt.Root;
         _entity.Visible = false;
-        // 모델 원본 높이가 작아 어두운 발전실에서 직원/설비 뒤로 묻혔다. CCTV 공격
-        // 전용 존재는 화면을 확실히 채우도록 사람보다 훨씬 큰 비율을 사용한다.
         _entity.Scale = Vector3.One * EntityScale;
-        AddChild(_entity);
-        // 팔·다리를 따로 움직일 수 있게 메시를 관절 밑으로 쪼갠다.
-        // 실패해도(원화 교체 등) 게임은 그대로 돈다 — 그때는 통짜로만 움직인다.
-        _rig = EntityRig.Build(_entity);
-        _ghost.Attach(_entity, _rig, EntityScale, EntityFloorOriginY);
+        // 팔다리를 따로 접는 리그는 쓰지 않는다. 세 모델은 각자 자기 뼈와 클립을
+        // 들고 있어서, GhostBehaviour 는 **자리와 방향만** 잡아 주면 된다.
+        // (GhostBehaviour 의 리그 호출은 전부 null 을 견딘다.)
+        _ghost.Attach(_entity, EntityScale, EntityFloorOriginY);
         if (!_ghostBehaviourWired)
         {
             _ghost.Impact += OnGhostImpact;
             _ghostBehaviourWired = true;
         }
+    }
+
+    private MonsterActor _haunt;
+
+    // 이번 등장에 쓸 모델로 갈아 끼운다. 어느 종류인지는 판정(GhostHauntSystem)이 정한다 —
+    // 화면이 따로 뽑으면 작업실에서 본 것과 복도로 들어오는 것이 다른 개체가 된다.
+    private bool UseHauntModel(string monsterId)
+    {
+        var def = MonsterCast.ById(monsterId) ?? MonsterCast.Pick(GameState.Instance?.CurrentDay ?? 1);
+        if (def == null || _haunt == null) return false;
+        if (!_haunt.Use(def)) return false;
+        _haunt.PlayRole(MonsterCast.MoveClip(def));
+        _ghost.BodyHeight = def.TargetHeight;
+        return true;
     }
 
     public override void _Process(double delta)
@@ -458,6 +476,9 @@ public partial class FacilityCctvWorld : Node3D
     {
         // 휴게시간에서 나가는 길 — 앉은 자세로 내려 둔 골반을 먼저 되돌린다.
         if (_interviewMode && !interview) _restRoom.Release(_employees);
+        // 휴게시간으로 들어가는 길 — 들고 있던 상자 · 공구 · 작업 자세를 벗긴다.
+        // 이걸 하지 않으면 근무 마지막 프레임의 모습 그대로 휴게실 의자에 앉는다.
+        if (!_interviewMode && interview) _workVisual.ReleaseForRest(_employees);
         _interviewMode = interview;
         if (_camera == null) return;
 
@@ -718,13 +739,18 @@ public partial class FacilityCctvWorld : Node3D
     private void UpdateEntity(string target)
     {
         if (_entity == null) return;
-        if (_entityHideAt > 0 && Time.GetTicksMsec() / 1000.0 >= _entityHideAt)
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (_entityHideAt > 0 && now >= _entityHideAt)
         {
             _entityHideAt = -1;
             _entity.Visible = false;
+            return;
         }
-        if (_entity.Visible && !string.IsNullOrEmpty(target) && _rooms.ContainsKey(target))
-            _entity.Position = new Vector3(-2.0f, EntityFloorOriginY, -2.0f);
+        if (!_entity.Visible || _entityHideAt <= 0) return;
+        if (string.IsNullOrEmpty(target) || !_rooms.ContainsKey(target)) return;
+        // 스쳐 지나가는 중 — 가로지르는 자리를 매 프레임 잇는다.
+        float t = (float)((now - _flashStart) / Mathf.Max(0.01f, (float)(_entityHideAt - _flashStart)));
+        _entity.Position = _flashFrom.Lerp(_flashTo, Mathf.Clamp(t, 0f, 1f));
     }
 
     // ── 괴물 ───────────────────────────────────────────────────────────
@@ -766,10 +792,11 @@ public partial class FacilityCctvWorld : Node3D
         {
             _ghostShowing = true;
             if (_entity == null) return;
+            // 이번에 나타난 종류로 몸을 바꿔 끼운다.
+            if (!UseHauntModel(ghost.ActiveMonsterId)) { _ghostShowing = false; return; }
             _entity.Visible = true;
             _entity.Scale = Vector3.One * EntityScale;
             _entity.RotationDegrees = Vector3.Zero;
-            _rig?.Reset();
             _ghost.Reset(GhostSpot((int)(GD.Randi() % (uint)GhostSpots.Length)));
             // 그 방만 어두워진다 — 화면을 돌리다 "여기만 이상하다"가 먼저 눈에 들어와야 한다.
             DimRoomLights(target, 0.45f);
@@ -880,7 +907,7 @@ public partial class FacilityCctvWorld : Node3D
         _ghostShowing = false;
 
         // ① 두 손으로 머리를 감싸 쥔다 — 어깨를 들어 팔을 세우고 팔꿈치를 접는다.
-        //    ② 그대로 몸을 심하게 떤다. 둘 다 관절(EntityRig)로 실제로 움직인다.
+        //    ② 그대로 몸을 심하게 떤다.
         Vector3 anchor = _entity.Position;
         var writhe = CreateTween();
         writhe.TweenProperty(_entity, "rotation_degrees:x", -18f, 0.2)
@@ -896,8 +923,8 @@ public partial class FacilityCctvWorld : Node3D
             if (!IsInstanceValid(this) || !IsInstanceValid(_entity)) { _ghostVanishing = false; return; }
             t0 += GetProcessDeltaTime();
             float k = Mathf.Min(1f, (float)(t0 / 0.25));          // 감싸 쥐는 데 0.25초
-            _rig?.SetHeadGrab(k);
-            _rig?.AddTremble((float)t0, k);
+            // 머리를 감싸 쥐는 리그 동작은 없앴다 — 세 모델은 각자 뼈를 들고 있고,
+            // 그 위에 팔을 억지로 접으면 자기 애니메이션과 싸운다. 몸 떨림만 남긴다.
             // 제자리에서 몸이 흔들린다.
             _entity.Position = anchor + new Vector3(
                 Mathf.Sin((float)t0 * 41f) * 0.03f, 0f, Mathf.Sin((float)t0 * 33f) * 0.02f);
@@ -920,7 +947,6 @@ public partial class FacilityCctvWorld : Node3D
             _entity.Visible = false;
             _entity.Scale = Vector3.One * EntityScale;
             _entity.RotationDegrees = Vector3.Zero;
-            _rig?.Reset();
         }
         RestoreRoomLights();
         _ghostVanishing = false;
@@ -983,12 +1009,29 @@ public partial class FacilityCctvWorld : Node3D
 
     private void OnHorrorLevel3(bool taboo) => FlashEntity();
 
-    // "개체 등장" — 현재 보고 있는 방 구석에 잠깐 나타났다 사라진다.
-    public void FlashEntity(float seconds = 1.1f)
+    // "뭔가 지나갔다" — 보고 있는 작업실 화면을 **빠르게** 가로질러 사라진다.
+    //
+    // 한 자리에 가만히 세워 두면 그냥 '거기 있는 것' 이 되어 버린다. 카메라 앞을
+    // 스쳐 지나가야 "방금 뭐였지" 가 된다. 멈춰 서서 쳐다보지도 않는다.
+    public void FlashEntity(float seconds = 0.45f)
     {
-        if (_entity == null) return;
+        if (_entity == null || _haunt == null) return;
+        var def = MonsterCast.Pick(GameState.Instance?.CurrentDay ?? 1);
+        if (def == null || !_haunt.Use(def)) return;
+        _haunt.PlayRole(MonsterCast.MoveClip(def), 1.8f);
+
         _entity.Visible = true;
-        _entity.Position = new Vector3(-2.0f, EntityFloorOriginY, -2.0f);
-        _entityHideAt = Time.GetTicksMsec() / 1000.0 + seconds;
+        _entity.Scale = Vector3.One * EntityScale;
+        _flashFrom = new Vector3(-2.3f, EntityFloorOriginY, -1.1f);
+        _flashTo = new Vector3(1.4f, EntityFloorOriginY, -2.3f);
+        _flashStart = Time.GetTicksMsec() / 1000.0;
+        _entityHideAt = _flashStart + seconds;
+        _entity.Position = _flashFrom;
+        // 가는 쪽을 보고 걷는다 — 카메라를 똑바로 보면 '지나간다' 가 아니라 '들렀다' 가 된다.
+        _entity.RotationDegrees = new Vector3(0f,
+            Mathf.RadToDeg(Mathf.Atan2(_flashTo.X - _flashFrom.X, _flashTo.Z - _flashFrom.Z)), 0f);
     }
+
+    private Vector3 _flashFrom, _flashTo;
+    private double _flashStart;
 }

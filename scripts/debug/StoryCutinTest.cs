@@ -47,6 +47,8 @@ public partial class StoryCutinTest : Node
         await SinglePortrait();
         await TwoPortraits();
         await StagingMoves();
+        await NoTwinOnStage();
+        await MonitorStaging();
         await ExpressionSwitch();
         await ExpressionFallback();
         await SkipRules();
@@ -283,6 +285,94 @@ public partial class StoryCutinTest : Node
         Check(_hud.RightPortrait.EmployeeId == "", "퇴장한 자리가 비었다");
 
         await AdvanceAll(task, 1);
+    }
+
+    // ── ③-C 한 사람이 두 명으로 뜨지 않는다 ───────────────────────────
+    //
+    // 줄마다 자리(Side)가 적혀 있지만, 그것은 **연출의 희망**이지 사실이 아니다.
+    // 이미 왼쪽에 서 있는 직원의 다음 줄이 오른쪽으로 적혀 있으면 그대로 오른쪽에도
+    // 세워서 같은 사람이 화면에 둘이 됐다. 서 있는 사람이 우선이다.
+    private async Task NoTwinOnStage()
+    {
+        GD.Print("\n── ③-C 같은 직원이 양쪽에 서지 않는다 ──");
+        var beat = new StoryBeat { BeatId = "test_twin" }
+            .Add("cat", "왼쪽에서 먼저 말합니다.", CutinSide.Left)
+            .Add("dog", "오른쪽이 들어옵니다.", CutinSide.Right)
+            // 선택지를 고른 뒤 같은 사람이 **반대쪽 자리로 적힌 줄**을 말하는 상황.
+            .Add("cat", "고양이가 오른쪽 자리로 적힌 줄을 말합니다.", CutinSide.Right);
+
+        var task = _dir.Play(beat);
+        await Frames(4);
+        await Advance(2);
+        await Frames(4);
+        Check(_hud.LeftPortrait.EmployeeId == "cat" && _hud.RightPortrait.EmployeeId == "dog",
+            "둘이 각자 자리에 섰다");
+
+        await Advance(2);
+        await Frames(4);
+        GD.Print($"      왼쪽 {_hud.LeftPortrait.EmployeeId} / 오른쪽 {_hud.RightPortrait.EmployeeId}");
+        Check(!(_hud.LeftPortrait.EmployeeId == "cat" && _hud.RightPortrait.EmployeeId == "cat"),
+            "고양이가 양쪽에 동시에 서 있지 않다");
+        Check(_hud.LeftPortrait.EmployeeId == "cat", "고양이는 서 있던 왼쪽에서 말한다");
+        Check(_hud.RightPortrait.EmployeeId == "dog", "강아지는 제자리에 그대로 있다");
+        Check(_hud.LeftPortrait.IsSpeaking && !_hud.RightPortrait.IsSpeaking,
+            "말하는 쪽은 고양이 하나다");
+
+        await AdvanceAll(task, 1);
+    }
+
+    // ── ③-D 모니터2 안에서도 제자리에 나타난다 ────────────────────────
+    //
+    // DAY1~5 본편 스토리는 화면 전체가 아니라 **모니터2 영상 안**에서 돈다. 그런데 등장
+    // 자리를 계산하는 길이 두 벌이었고, 그중 하나가 모니터 여부를 보지 않아 늘 화면 전체용
+    // 상수를 썼다. 그래서 스탠딩이 살짝 어긋난 자리에 떴다가 다음 줄에서 제 자리로
+    // 미끄러졌다 — 원화마다 여백이 달라 어긋나는 양도 캐릭터마다 달라 보였다.
+    private async Task MonitorStaging()
+    {
+        GD.Print("\n── ③-D 모니터2 안에서의 등장 ──");
+        var screen = new Control { Size = new Vector2(744, 460) };
+        AddChild(screen);
+        _hud.SetRenderTarget(screen);
+        await Frames(2);
+        Check(_hud.IsOnMonitor, "모니터 안으로 옮겨졌다");
+
+        var beat = new StoryBeat { BeatId = "test_monitor" }
+            .Add("cat", "모니터 안 첫 줄입니다.", CutinSide.Left)
+            .Add("cat", "같은 사람이 한 줄 더 말합니다.", CutinSide.Left)
+            .Add("rabbit", "둘째 사람이 들어옵니다.", CutinSide.Right);
+
+        var task = _dir.Play(beat);
+        await Frames(4);
+
+        // 등장 직후의 자리·크기를 적어 둔다.
+        var pos0 = _hud.LeftPortrait.Position;
+        var size0 = _hud.LeftPortrait.Size;
+
+        // 다음 줄 — 구도가 그대로면(혼자 → 혼자) **한 픽셀도 움직이면 안 된다.**
+        await Advance(2);
+        await Settle(() => _hud.LeftPortrait.Modulate.A > 0.98f);
+        GD.Print($"      등장 {pos0} {size0} → 다음 줄 {_hud.LeftPortrait.Position} {_hud.LeftPortrait.Size}");
+        Check(_hud.LeftPortrait.Position.IsEqualApprox(pos0),
+            $"다음 줄에서 자리가 움직이지 않는다 ({pos0.X:F1},{pos0.Y:F1} → " +
+            $"{_hud.LeftPortrait.Position.X:F1},{_hud.LeftPortrait.Position.Y:F1})");
+        Check(_hud.LeftPortrait.Size.IsEqualApprox(size0), "크기도 그대로다");
+
+        // 모니터 폭 기준으로 가운데에 서 있다(화면 전체 폭으로 계산하지 않았다).
+        float center = _hud.LeftPortrait.Position.X + _hud.LeftPortrait.Size.X / 2f;
+        Check(Mathf.Abs(center - 744f / 2f) < 2f, $"모니터 한가운데에 선다 (중심 {center:F0} / 372)");
+
+        // 둘째 사람이 들어와도 제자리에서 페이드로만 나타난다.
+        await Advance(2);
+        await Frames(3);
+        var enterPos = _hud.RightPortrait.Position;
+        await Settle(() => _hud.RightPortrait.Modulate.A > 0.98f);
+        Check(_hud.RightPortrait.Position.IsEqualApprox(enterPos),
+            "새로 들어온 쪽도 미끄러지지 않는다");
+
+        await AdvanceAll(task, 1);
+        _hud.SetRenderTarget(null);
+        screen.QueueFree();
+        await Frames(2);
     }
 
     // ── ④ smile ↔ bad 표정 ──────────────────────────────────────────

@@ -17,6 +17,9 @@ namespace NSP.Debug;
 //   C 모순 판정이 네 상태로 갈리는가 (빨간색 = 거짓말 이 아니다)
 //   D 증언을 그 말이 가리키는 사람에게 들이밀 수 있는가 (목격 트리 5단계)
 //   E 한 발언을 두 주장으로 나눠 조사할 수 있는가 (§4 조작 흐름)
+//   F 그 흐름이 **실제 조작 경로**(Toggle → QuestionsForSelection)를 통과하는가
+//   G 요약하지 않은 원문 발언을 골라 범위를 물을 수 있는가
+//   H 어제 한 발언과 정정 전 발언을 각각 고를 수 있는가
 public partial class InterviewRecordTest : Node
 {
     private const string Power = "power_room";
@@ -33,6 +36,9 @@ public partial class InterviewRecordTest : Node
         SectionC();
         SectionD();
         SectionE();
+        SectionF();
+        SectionG();
+        SectionH();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
     }
@@ -242,6 +248,202 @@ public partial class InterviewRecordTest : Node
         GD.Print($"      ⑤ {r.Kind} / {r.Verdict} — {r.VerdictText}");
         Ok(!r.IsContradiction, "⑤ '못 봤다' 와 CCTV 를 맞대도 모순이 아니다");
         Ok(r.VerdictText.Contains("근거는 되지 않"), "   이유를 밝힌다");
+    }
+
+    // ── F. 실제 조작 경로 ───────────────────────────────────────────────
+    //
+    // 여기까지의 검사는 질문 생성기(InterviewQuestionFactory)를 직접 불렀다. 그런데
+    // 플레이어는 생성기를 부르지 않는다 — **카드를 누르고(Toggle) 질문 버튼을 누른다
+    // (QuestionsForSelection).** 그 사이에 InterviewSession.CanUse 라는 문이 하나 더 있고,
+    // 그 문이 생성기와 다른 규칙을 들고 있던 동안 §4 의 흐름은 화면에서 막혀 있었다.
+    // 이 절은 **세션을 통과하는지**만 본다.
+
+    private void SectionF()
+    {
+        GD.Print("\n#### F. 세션(Toggle → QuestionsForSelection)을 실제로 통과한다");
+        Reset();
+        Place(new() { ["sheep"] = Power, ["dog"] = Power, ["wolf"] = Guard });
+        Log(LogEventType.TaskStart, "sheep", Power, 1f);
+        Log(LogEventType.TaskStart, "dog", Power, 1f);
+
+        PlayerKnownEvidence.RecordSighting("sheep", "dog", Power, 300f, "기계 앞에 서 있었다", 1);
+        PlayerKnownEvidence.RecordNotObserved("sheep", "dog", Power, "설비를 조작하는 장면", 300f, 1);
+
+        // ① 양에게 **양 자신의 증언**을 들고 물을 수 있는가 — 세션까지 통과해야 한다.
+        var sheep = new InterviewSession("sheep");
+        var own = sheep.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony
+                                                  && e.SpeakerEmployeeId == "sheep" && !e.NotObserved);
+        Ok(own != null, "① 양의 노트에 양이 한 증언이 있다");
+        if (own == null) return;
+
+        Ok(sheep.CanUse(own), "   그 카드를 쓸 수 있다고 판정한다");
+        sheep.Toggle(own.Id);
+        Ok(sheep.Selected.Count == 1, "   카드를 눌러 **실제로 선택된다**");
+        var qs = sheep.QuestionsForSelection().Select(q => q.Intent).ToList();
+        GD.Print($"      세션 질문 → {string.Join(",", qs)}");
+        Ok(qs.Contains(InterviewIntent.AskSeenPersonAction), "   선택한 자료로 질문이 뜬다");
+
+        // ② '못 봤다' 카드는 목격 대상(강아지)에게 추궁 수단이 되지 않는다.
+        var dog = new InterviewSession("dog");
+        var notSeen = dog.Board.FirstOrDefault(e => e.NotObserved);
+        Ok(notSeen != null, "② 강아지의 노트에 '못 봤다' 증언이 올라온다");
+        if (notSeen != null)
+        {
+            dog.Toggle(notSeen.Id);
+            Ok(dog.QuestionsForSelection().Count == 0,
+                "   그 카드로는 강아지에게 물을 질문이 하나도 없다");
+        }
+
+        // ③ 남의 자료로 아무나 붙잡고 묻는 것은 여전히 막혀 있다.
+        var wolf = new InterviewSession("wolf");
+        wolf.SetScope(true);                       // [전원] 보기로 남의 자료까지 읽는다
+        var others = wolf.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Testimony
+                                                     && e.SpeakerEmployeeId == "sheep"
+                                                     && e.SubjectEmployeeId == "dog");
+        Ok(others != null, "③ [전원] 보기에서는 남의 증언도 읽을 수 있다");
+        if (others != null)
+        {
+            Ok(!wolf.CanUse(others), "   그러나 늑대에게 그 자료로 물을 수는 없다");
+            wolf.Toggle(others.Id);
+            Ok(wolf.Selected.Count == 0, "   눌러도 선택되지 않는다(읽기 전용)");
+        }
+
+        // ④ 기절 기록 — 쓰러진 사람이 아닌 **같이 있던 직원**도 고를 수 있어야 한다.
+        //    (여기도 CanUse 가 막고 있어서 §3-④ 질문 트리가 화면에서 닫혀 있었다.)
+        EventLog.Instance.Log(new LogEntry
+        {
+            Day = 1, GameTimeSeconds = 400f, EventType = LogEventType.Neglect,
+            Detail = LogDetail.Fainted, ActorEmployeeId = "dog", RoomId = Power,
+            Description = "(테스트) 기절", WitnessEmployeeIds = new List<string>(),
+        });
+        var sheep2 = new InterviewSession("sheep");
+        var faint = sheep2.Board.FirstOrDefault(e => e.Id.StartsWith("faint:"));
+        Ok(faint != null, "④ 같은 방에 있던 양의 노트에 기절 기록이 올라온다");
+        if (faint != null)
+        {
+            sheep2.Toggle(faint.Id);
+            var fq = sheep2.QuestionsForSelection().Select(q => q.Intent).ToList();
+            GD.Print($"      기절 기록[{faint.Id}] 대상 {faint.SubjectEmployeeId}·{faint.SubjectRoomId}"
+                     + $"·{faint.AnchorTime} / 현장 인원 "
+                     + string.Join(",", DialogueContextBuilder.OccupantsAt(
+                         faint.SubjectRoomId, faint.SubjectDay, faint.AnchorTime, faint.SubjectEmployeeId))
+                     + $" / 양 위치 {DialogueContextBuilder.RoomAt("sheep", 1, faint.AnchorTime)}");
+            GD.Print($"      기절 기록 → {string.Join(",", fq)}");
+            Ok(sheep2.Selected.Count == 1, "   발견자가 그 기록을 고를 수 있다");
+            Ok(fq.Contains(InterviewIntent.AskFoundWhere), "   '어디서 발견했나' 가 뜬다");
+        }
+    }
+
+    // ── G. 원문 발언 ────────────────────────────────────────────────────
+    //
+    // "오늘은 별일 없었습니다" 는 어느 요약 카드에도 올라오지 않던 말이다.
+    // 요약할 위치도 행동도 없기 때문이다 — 그래서 그 말을 쥐고 범위를 캐물을 수 없었다.
+
+    private void SectionG()
+    {
+        GD.Print("\n#### G. 요약하지 않은 원문 발언을 골라 범위를 묻는다");
+        Reset();
+        DialogueHistory.Instance?.ClearAll();
+        Place(new() { ["cat"] = Storage });
+        Log(LogEventType.TaskStart, "cat", Storage, 1f);
+
+        // 실제 대화창이 저장하는 그 경로로 넣는다(자료에 묶이지 않은 답 = 뭉뚱그린 말).
+        DialogueHistory.Instance?.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice,
+            "오늘 근무는 어땠습니까?", DialogueConversationType.Interview, "cat");
+        DialogueHistory.Instance?.AddEntry("cat", "고양이", DialogueEntryType.NpcResponse,
+            "오늘은 별일 없었습니다. 평소대로 했어요.", DialogueConversationType.Interview, "cat");
+        // 자료를 들고 한 질문의 답은 이미 요약 카드에 붙으므로 원문 카드가 되지 않는다.
+        DialogueHistory.Instance?.AddEntry("cat", "고양이", DialogueEntryType.NpcResponse,
+            "그 시각에는 저장고에 있었습니다.", DialogueConversationType.Interview, "cat",
+            new[] { "incident:TaskFailed:storage_room:200.0" });
+
+        var session = new InterviewSession("cat");
+        var spoken = session.Board.Where(e => e.SpokenLine).ToList();
+        GD.Print("      원문 카드: " + string.Join(" / ", spoken.Select(s => s.Body)));
+        Ok(spoken.Count == 1, $"① 자료에 묶이지 않은 발언만 원문 카드가 된다 ({spoken.Count})");
+        if (spoken.Count == 0) return;
+
+        var line = spoken[0];
+        Ok(line.Body.Contains("별일 없었"), "   카드에 **원문 그대로** 실린다");
+        Ok(line.Position == PositionClaim.None, "   위치 주장이 아니다");
+
+        // ② 「대화·진술」 탭에 올라오고, 골라서 질문할 수 있다.
+        session.SetTab(NoteTab.Spoken);
+        Ok(session.SpokenRecords().Any(e => e.Id == line.Id), "② 대화·진술 탭에 올라온다");
+        session.Toggle(line.Id);
+        Ok(session.Selected.Count == 1, "   눌러서 선택된다");
+        var q = session.QuestionsForSelection();
+        GD.Print($"      질문 → {string.Join(" / ", q.Select(x => x.Text))}");
+        Ok(q.Any(x => x.Intent == InterviewIntent.AskStatementScope), "   범위를 묻는 질문이 뜬다");
+        Ok(q.Any(x => x.Text.Contains("별일 없었")), "   질문이 그 발언을 인용한다");
+
+        // ③ 답이 실제로 나온다(빈 문장이 아니다).
+        var turn = session.Ask(q.First(x => x.Intent == InterviewIntent.AskStatementScope));
+        GD.Print($"      답 → \"{turn.Answer}\"");
+        Ok(turn.Answer.Length > 0, "③ 답변이 비어 있지 않다");
+        Ok(!turn.Answer.Contains("{") && !turn.Answer.Contains("은/는"),
+            "   치환되지 않은 자리표시자가 남지 않는다");
+
+        // ④ 범위를 말하지 않은 발언으로는 모순을 세울 수 없다.
+        var incident = Card(EvidenceKind.Incident, "", Storage, 200f);
+        var r = EvidenceContradiction.Check("cat", line, incident);
+        GD.Print($"      ④ {r.Verdict} — {r.VerdictText}");
+        Ok(!r.IsContradiction, "④ 원문 발언만으로는 모순이 성립하지 않는다");
+        Ok(r.VerdictText.Contains("어디까지"), "   먼저 범위를 물어야 한다고 알려 준다");
+    }
+
+    // ── H. 이전 날짜 · 정정 전 발언 ──────────────────────────────────────
+
+    private void SectionH()
+    {
+        GD.Print("\n#### H. 어제 한 발언과 정정 전 발언을 각각 고를 수 있다");
+        Reset();
+        Place(new() { ["fox"] = Core });
+        const string key = "TaskFailed:core_room:300.0";
+
+        // DAY1 — 핵심제어실이라고 말했다가 저장고로 고쳤다.
+        PlayerKnownEvidence.RecordLocationStatement("fox", key, Core, true, 300f, 1);
+        PlayerKnownEvidence.RecordLocationStatement("fox", key, Storage, true, 300f, 1);
+
+        var day1 = new InterviewSession("fox");
+        var claims1 = day1.Board.Where(e => e.Kind == EvidenceKind.OwnStatement && !e.SpokenLine).ToList();
+        GD.Print("      DAY1 진술 카드: " + string.Join(" / ", claims1.Select(c => c.Body)));
+        Ok(claims1.Count == 2, $"① 정정 전 발언과 지금 발언이 **각각** 카드가 된다 ({claims1.Count})");
+        Ok(claims1.Count(c => c.Superseded) == 1, "   그중 한 장이 정정 전 발언이다");
+        foreach (var c in claims1)
+        {
+            day1.ClearSelection();
+            day1.Toggle(c.Id);
+            Ok(day1.Selected.Count == 1, $"   고를 수 있다 — {c.Body}");
+        }
+
+        // DAY3 로 넘어간다. 진술 기록은 판이 끝날 때까지 남는다.
+        GameState.Instance.GoToNextDay();
+        GameState.Instance.GoToNextDay();
+        Ok(DialogueContextBuilder.Day() == 3, $"② DAY{DialogueContextBuilder.Day()} 로 넘어왔다");
+
+        var day3 = new InterviewSession("fox");
+        var claims3 = day3.Board.Where(e => e.Kind == EvidenceKind.OwnStatement && !e.SpokenLine).ToList();
+        GD.Print("      DAY3 노트: " + string.Join(" / ",
+            claims3.Select(c => $"DAY{c.Day}·대상DAY{c.SubjectDay} {c.Body}")));
+        Ok(claims3.Count == 2, $"③ DAY1 에 한 위치 진술을 DAY3 에도 찾을 수 있다 ({claims3.Count})");
+        Ok(claims3.All(c => c.Day == 1), "   말한 날이 DAY1 로 남아 있다(오늘 날짜로 덮이지 않는다)");
+        Ok(claims3.All(c => c.SubjectDay == 1), "   가리키는 날도 DAY1 이다");
+
+        var old = claims3.FirstOrDefault(c => c.Superseded);
+        if (old != null)
+        {
+            day3.Toggle(old.Id);
+            Ok(day3.Selected.Count == 1, "④ DAY3 에서 DAY1 의 정정 전 발언을 고를 수 있다");
+            Ok(day3.QuestionsForSelection().Count > 0, "   그 발언으로 물을 질문이 있다");
+        }
+
+        // ⑤ DAY1 진술과 DAY3 기록을 맞대면 날짜가 다르다고 막힌다(1단계에서 세운 규칙).
+        var todayRecord = Card(EvidenceKind.Cctv, "fox", Core, 300f, position: true);
+        todayRecord.Day = 3;
+        var r = EvidenceContradiction.Check("fox", old ?? claims3[0], todayRecord);
+        GD.Print($"      ⑤ {r.Verdict} — {r.VerdictText}");
+        Ok(!r.IsContradiction, "⑤ 어제 발언과 오늘 기록은 모순으로 묶이지 않는다");
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────────

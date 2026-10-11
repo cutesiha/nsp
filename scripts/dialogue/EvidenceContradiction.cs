@@ -93,6 +93,22 @@ public static class EvidenceContradiction
             return fail;
         }
 
+        // 요약하지 않은 원문 발언은 그 자체로는 맞댈 것이 없다.
+        //
+        // "오늘은 별일 없었습니다" 는 어느 방에 있었다고도, 무엇을 했다고도 말하지 않는다.
+        // 범위를 좁혀 받아 내야(AskStatementScope) 비로소 맞댈 주장이 생긴다.
+        // 여기서 억지로 모순을 만들면 관리자의 해석이 증거가 된다.
+        if (a.SpokenLine || b.SpokenLine)
+        {
+            fail.Earlier = a; fail.Later = b;
+            fail.AnchorTime = b.HasTime ? b.AnchorTime : a.AnchorTime;
+            fail.Notice = "범위를 말하지 않은 발언입니다. 그 말이 어디까지인지 먼저 물어야 합니다.";
+            fail.VerdictText = fail.Notice;
+            fail.QuestionText = KoreanParticle.Resolve(
+                $"{Describe(a)} 그리고 {Describe(b)} 이 둘을 함께 보면 어떻습니까?");
+            return fail;
+        }
+
         // 서로 다른 날의 일을 맞대어 모순이라고 할 수는 없다.
         //
         // 비교 기준은 **그 자료가 가리키는 날**(SubjectDay)이다. 말한 날이 아니다 —

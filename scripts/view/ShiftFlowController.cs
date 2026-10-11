@@ -647,6 +647,8 @@ public partial class ShiftFlowController : Node
         }
         _stage = Stage.Rest;
 
+        // 의무실에 누워 있던 사람을 깨운다 — 휴게실에 앉고 심문도 받을 수 있어야 한다.
+        FacilitySimulation.Instance?.Rescue?.WakeAllForRest();
         GameState.Instance?.SetPhase(GamePhase.Rest);
         // 근무 정산 BGM 페이드아웃 + 휴게시간 BGM(rest_time) 페이드인.
         Sfx.Instance?.CrossfadeMusic("rest_time", 0.9f, loop: true, restartIfSame: true);

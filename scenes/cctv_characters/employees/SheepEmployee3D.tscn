@@ -9,7 +9,6 @@
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/sheep_hair.tres" id="6_sheephair"]
 [ext_resource type="Material" path="res://scenes/cctv_characters/employees/materials/badge_gold.tres" id="7_badgegold"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-028.res" id="hair_new"]
-[ext_resource type="ArrayMesh" path="res://assets/characters/hair/female/F-028.res" id="hair_new"]
 
 [sub_resource type="SphereMesh" id="M11"]
 radius = 0.085

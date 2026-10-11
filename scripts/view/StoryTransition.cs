@@ -28,7 +28,8 @@ public static class StoryTransition
     public const string StoryMusic = "breakroom";
     // 그 BGM 의 음량. 메인 BGM(Sfx.MusicDefaultDb)보다 조금만 낮게 둔다 —
     // 대사를 덮으면 안 되지만, 너무 깔리면 휴게실로 넘어온 느낌이 나지 않는다.
-    private const float StoryMusicDb = -6.5f;
+    // (-6.5 에서는 너무 깔려 있었다. 메인 BGM 바로 아래까지 올린다.)
+    private const float StoryMusicDb = -4.5f;
     // 멀리서 들리는 사람들의 웅성거림. 말이 들리면 안 되고 "사람이 있다" 만 들려야 한다.
     private const float MurmurDb = -24f;
 

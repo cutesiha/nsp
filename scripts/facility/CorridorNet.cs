@@ -34,7 +34,9 @@ public sealed class CorridorSegment
     public bool ThreatLane;
 
     public float DriveSeconds = 0.8f;
-    public float MaxSealSeconds = 9f;
+    // 0 = 시간으로는 열리지 않는다(CorridorDef 참조). 기본값도 0 이어야 한다 —
+    // 데이터를 못 읽은 구간만 저 혼자 몇 초 뒤에 열리면 규칙이 구간마다 달라진다.
+    public float MaxSealSeconds;
     public float ReengageCooldownSeconds = 3f;
 
     public BarrierState State = BarrierState.Open;

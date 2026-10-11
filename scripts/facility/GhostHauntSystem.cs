@@ -24,6 +24,13 @@ public sealed class GhostHauntSystem
 {
     // 지금 괴물이 있는 작업실. 비어 있으면 어디에도 없다.
     public string ActiveRoomId { get; private set; } = "";
+
+    // 이번에 나타난 **개체의 종류**(data/threats 의 셋 중 하나).
+    //
+    // 등장할 때 한 번 정해서 떠날 때까지 들고 간다. 작업실에서 본 것과 복도로 걸어
+    // 들어오는 것이 **같은 개체**여야 하기 때문이다(지시서 §3) — 여기서 정하지 않으면
+    // 복도 쪽에서 따로 추첨해 서로 다른 괴물이 되어 버린다.
+    public string ActiveMonsterId { get; private set; } = "";
     public bool Active => !string.IsNullOrEmpty(ActiveRoomId);
     // 나타난 뒤 흐른 시간 · 관리자가 **연속해서** 본 시간.
     public float AliveSeconds { get; private set; }
@@ -64,6 +71,10 @@ public sealed class GhostHauntSystem
     {
         Sfx.Instance?.StopLoop(PresenceLoopKey);
         ActiveRoomId = "";
+        // 떠난 뒤에도 종류는 남겨 둔다(Clear 는 지우지 않는다) — 복도로 이어 보낼 때
+        // 읽어야 하기 때문이다. 근무가 통째로 바뀌는 여기서만 비운다.
+        ActiveMonsterId = "";
+        _lastMonsterId = "";
         AliveSeconds = WatchedSeconds = 0f;
         AppearedToday = DispelledToday = StruckToday = 0;
         _nextCheckAt = 0f;
@@ -124,6 +135,21 @@ public sealed class GhostHauntSystem
         string room = PickRoom(sim);
         if (!string.IsNullOrEmpty(room)) Appear(room, sim);
     }
+
+    // 오늘 나올 수 있는 개체 중 하나. 날짜별 해금(MonsterDef.FirstDay)과 가중치를 따른다.
+    private string PickMonsterId()
+    {
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        // 같은 개체가 연달아 나오지 않게 한 번만 다시 뽑는다 — 하루 두 번 나오는 날에
+        // 둘 다 같은 것이면 "종류가 여럿" 이라는 사실 자체가 전달되지 않는다.
+        var def = NSP.View.MonsterCast.Pick(day, _rng);
+        if (def != null && def.MonsterId == _lastMonsterId)
+            def = NSP.View.MonsterCast.Pick(day, _rng) ?? def;
+        _lastMonsterId = def?.MonsterId ?? "";
+        return _lastMonsterId;
+    }
+
+    private string _lastMonsterId = "";
 
     // 나타날 방. 이미 고장 난 방은 고른다 해도 사고를 더할 수 없으니 제외한다.
     private string PickRoom(FacilitySimulation sim)
@@ -196,6 +222,7 @@ public sealed class GhostHauntSystem
     private void Appear(string roomId, FacilitySimulation sim)
     {
         ActiveRoomId = roomId;
+        ActiveMonsterId = PickMonsterId();
         _lastRoomId = roomId;
         _witnesses.Clear();
         AliveSeconds = WatchedSeconds = 0f;

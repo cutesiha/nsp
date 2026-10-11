@@ -189,6 +189,11 @@ SaboteurStartSeconds = 26.0
 MaxSabotageActionsPerDay = 2
 AllowMurder = false
 GhostMaxPerDay = 1
+; 하루 한 번은 **반드시** 나온다. 추첨에만 맡기면 하루 한도가 1 이라 운이 나쁜 날은
+; 중앙제어실 쪽 위협이 통째로 0 이 된다(근무 150초 중 열 번 중 한 번꼴).
+; 늦게 나오면 복도를 걸어올 시간이 모자라 그대로 근무가 끝나므로 앞쪽에 둔다.
+GhostFirstAppearFromSeconds = 28.0
+GhostFirstAppearBySeconds = 48.0
 SabotageTargetRooms = Array[String](["core_room", "power_room", "storage_room", "guard_room", "maintenance_room", "vent_room", "medical_room"])
 SabotageSettleSeconds = 4.5
 SabotagePrepareMinSeconds = 6.0
