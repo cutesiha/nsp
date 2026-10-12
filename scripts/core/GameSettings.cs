@@ -42,19 +42,37 @@ public static class GameSettings
     //   · 3D 렌더 해상도 배율   (가장 큰 절감)
     //   · 빛 번짐(Glow)         (두 번째로 큰 절감)
     //   · 그림자 해상도 · 부드러움
-    public enum Quality { High, Medium, Low }
+    //   · 점 광원(Omni) 그림자  (내장 GPU 에서 특히 비싸다 — 아래 PointShadows)
+    //
+    // **새 항목은 반드시 뒤에 붙인다.** 저장 파일에는 숫자로 들어가 있어서, 가운데에
+    // 끼워 넣으면 전에 "낮음" 으로 저장한 사람이 다른 품질로 켜진다.
+    public enum Quality { High, Medium, Low, VeryLow }
 
     // Scale = 3D 렌더 해상도 배율 · Glow = 빛 번짐 · ShadowAtlas = 그림자 해상도
+    // PointShadows = 점 광원(OmniLight3D)이 그림자를 드리우는가
     // (0.65는 팔/손가락처럼 작은 메시가 심하게 뭉개져 전화 모션이 달라 보였다.
     //  0.72여도 렌더 픽셀 수는 최고 품질의 약 52%다.)
-    public static readonly (Quality Q, string Label, float Scale, bool Glow, int ShadowAtlas)[] QualityLevels =
+    public static readonly (Quality Q, string Label, float Scale, bool Glow, int ShadowAtlas, bool PointShadows)[] QualityLevels =
     {
-        (Quality.High,   "높음", 1.00f, true,  4096),
-        (Quality.Medium, "보통", 0.82f, true,  2048),
+        (Quality.High,   "높음", 1.00f, true,  4096, true),
+        (Quality.Medium, "보통", 0.82f, true,  2048, true),
         // 낮음만 번짐을 끈다. 책상 기기의 라벨은 그대로 빛나되 번져 나가지는 않는다 —
         // 대신 모니터 뒤쪽 빛(M0x_BackGlow)은 실제 광원이라 품질과 무관하게 켜져 있어,
         // 번짐이 없어도 모니터 기기의 실루엣은 그대로 보인다.
-        (Quality.Low,    "낮음", 0.72f, false, 1024),
+        (Quality.Low,    "낮음", 0.72f, false, 1024, true),
+        // **매우 낮음** — i3 + 내장 그래픽 같은 기계를 위한 칸이다.
+        //
+        // "낮음" 을 더 내리지 않고 칸을 새로 만든 이유 : 0.72 라는 값은 그냥 고른 것이
+        // 아니라, 0.65 에서 전화 받는 손가락이 뭉개져 모션이 달라 보여서 올려 둔 값이다.
+        // 그 판단을 뒤집어 모두의 "낮음" 을 흐리게 만드는 대신, 더 필요한 사람만
+        // 한 칸 더 내려갈 수 있게 한다.
+        //
+        // 실측(docs/perf/probe_paired.md, Intel UHD · i3-10110U · 1800×980)
+        //   3D 스케일 0.72 → 0.60   프레임 −5.4 ms
+        //   3D 스케일 0.72 → 0.52   프레임 −6.8 ms
+        //   점 광원 그림자 끄기      프레임 −2.1 ms · draw call −338
+        // 둘을 합치면 이 기계에서 25 FPS 대가 33 FPS 대가 된다.
+        (Quality.VeryLow, "매우 낮음", 0.58f, false, 512, false),
     };
 
     // 숫자키로 확대할 대상들.
@@ -336,6 +354,52 @@ public static class GameSettings
         RenderingServer.DirectionalSoftShadowFilterSetQuality(soft);
 
         ApplyEnvironmentQuality(tree.Root.World3D?.Environment);
+        ApplyPointShadowPolicy();
+
+        // CRT 화면들의 렌더 해상도도 같이 바꾼다.
+        //
+        // 여기까지는 **메인 3D 만** 바뀌었다. CRT 모니터와 CCTV 3D 월드는 각자
+        // SubViewport 에 그려지고, 그 크기는 만들어질 때 ControlRoom3DController.RenderScale
+        // 로 한 번 정해진 뒤 그대로였다 — 캐시된 static 값이라 무효화되지도 않았다.
+        // 그래서 실행 중에 품질을 낮춰도 화면 안의 화면은 그대로 높은 해상도로 그려졌고,
+        // 플레이어 입장에서는 "낮음으로 내려도 별로 안 빨라진다" 가 된다.
+        NSP.View.ControlRoom3DController.OnQualityChanged();
+    }
+
+    // ── 점 광원 그림자 ──────────────────────────────────────────────
+    //
+    // **왜 점 광원만 따로 보는가.** 스포트라이트의 그림자는 그림자 맵 한 장이지만,
+    // 점 광원(OmniLight3D)의 그림자는 **큐브맵 — 여섯 면**이다. 장면을 여섯 번 더
+    // 그린다는 뜻이다. 실측에서 켜고 끄는 것만으로 draw call 이 799 → 461 로
+    // 338 개 줄었고 프레임이 2.1 ms 빨라졌다(docs/perf/probe_paired.md ⑧).
+    // 이 방에서 그림자를 켠 광원 열셋 중 열하나가 점 광원이다.
+    //
+    // **높음 · 보통은 건드리지 않는다.** 조명과 공포 분위기를 그대로 두라는 요구가
+    // 있고, 실제로 천장 광원의 그림자가 빠지면 책상 위 기기들이 바닥에서 뜬 것처럼
+    // 보인다. 끄는 것은 "매우 낮음" 뿐이다.
+    //
+    // 원래 그림자를 켜고 있던 광원만 기억해 두었다가 되돌린다 — 그렇지 않으면
+    // 품질을 올렸을 때 **원래 꺼져 있던** 광원까지 그림자를 켜 장면이 달라진다.
+    private static readonly System.Collections.Generic.HashSet<ulong> _pointShadowWasOn = new();
+
+    public static void ApplyPointShadowPolicy()
+    {
+        if (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null) return;
+        Walk(tree.Root, QualityLevels[(int)_quality].PointShadows);
+
+        static void Walk(Node n, bool on)
+        {
+            if (n is OmniLight3D l)
+            {
+                ulong id = l.GetInstanceId();
+                if (!on)
+                {
+                    if (l.ShadowEnabled) { _pointShadowWasOn.Add(id); l.ShadowEnabled = false; }
+                }
+                else if (_pointShadowWasOn.Contains(id)) l.ShadowEnabled = true;
+            }
+            foreach (var c in n.GetChildren()) Walk(c, on);
+        }
     }
 
     // 씬이 바뀌어 Environment 가 새로 올라온 뒤에도 한 번 불러 준다.

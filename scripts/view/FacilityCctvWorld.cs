@@ -297,6 +297,8 @@ public partial class FacilityCctvWorld : Node3D
     {
         var a = new MonsterActor();
         a.Attach(this);
+        // 연출이 시작되기 전에 모델을 미리 꽂아 둘 대상으로 등록한다(MonsterWarmup).
+        MonsterWarmup.Register(a);
         return a;
     }
 
@@ -397,6 +399,7 @@ public partial class FacilityCctvWorld : Node3D
 
     public override void _Process(double delta)
     {
+        using var _perf = NSP.Debug.PerfStats.Scope(NSP.Debug.PerfStats.Span.CctvWorld);
         _lastDelta = delta;
         WireHorror();
         if (!_employeesBuilt) BuildEmployees();

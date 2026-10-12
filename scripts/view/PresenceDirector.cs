@@ -82,6 +82,7 @@ public partial class PresenceDirector : Node
         var room = Room();
         if (room == null) return false;
         _body = new MonsterActor();
+        MonsterWarmup.Register(_body);
         _body.Attach(room);
         // 아주 약한 뒷빛. 없으면 어두운 뒷벽 앞에서 **아무것도 보이지 않는다.**
         // 얼굴을 드러낼 만큼 비추면 안 된다 — 정체가 보이면 무섭지 않다.

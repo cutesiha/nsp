@@ -289,6 +289,7 @@ public partial class CCTVMonitorView : Control
 
     public override void _Process(double delta)
     {
+        using var _perf = NSP.Debug.PerfStats.Scope(NSP.Debug.PerfStats.Span.CctvMonitor);
         FeedVisible = false;
         float d = (float)delta;
         var sim = FacilitySimulation.Instance;

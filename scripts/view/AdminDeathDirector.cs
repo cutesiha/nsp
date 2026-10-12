@@ -45,7 +45,21 @@ public partial class AdminDeathDirector : Node
         d.Run();
     }
 
-    public override void _Ready() => Instance = this;
+    public override void _Ready()
+    {
+        Instance = this;
+        // 즉사 연출의 배우를 미리 세워 둔다 — 쓰는 것은 죽는 순간이지만, 그때 만들면
+        // 모델을 처음 읽느라 연출의 첫 프레임이 멈춘다(PERFORMANCE_BASELINE.md D).
+        _actor = MakeActor();
+    }
+
+    private MonsterActor MakeActor()
+    {
+        var a = new MonsterActor();
+        a.Attach(this);
+        MonsterWarmup.Register(a);
+        return a;
+    }
 
     public override void _ExitTree()
     {
@@ -108,8 +122,12 @@ public partial class AdminDeathDirector : Node
         var def = _threat?.Def;
         if (def == null) { await Wait(0.35); return; }
 
-        _actor = new MonsterActor();
-        _actor.Attach(this);
+        // 배우는 **사망하는 순간에 만들지 않는다.**
+        //
+        // 전에는 여기서 new 했다. 그래서 즉사 연출이 시작되는 바로 그 프레임에 FBX 를
+        // 처음 읽었고(실측 88.8 ms), 가장 놀라야 할 장면이 멈춘 채 시작했다.
+        // 이제 _Ready 에서 만들어 MonsterWarmup 에 등록해 두므로 여기서는 꽂기만 한다.
+        _actor ??= MakeActor();
         if (!_actor.Use(def)) { await Wait(0.35); return; }
 
         // 발바닥에서 얼굴까지의 높이. 모델은 발이 원점이므로 이만큼 내려야 얼굴이

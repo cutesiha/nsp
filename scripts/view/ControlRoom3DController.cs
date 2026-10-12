@@ -45,6 +45,7 @@ public partial class ControlRoom3DController : Node3D
             GameSettings.Load();
             _renderScale = GameSettings.GraphicsQuality switch
             {
+                GameSettings.Quality.VeryLow => 0.58f,
                 GameSettings.Quality.Low => 0.70f,
                 GameSettings.Quality.Medium => 0.85f,
                 _ => 1.0f,
@@ -72,6 +73,13 @@ public partial class ControlRoom3DController : Node3D
             Mathf.Max(1, Mathf.RoundToInt(logicalSize.Y * k)));
     }
 
+    // 품질이 바뀌면 다시 크기를 잡아야 할 화면들. AddScaledView 가 스스로 적어 둔다 —
+    // 어떤 배율(superSample · minRenderScale)로 만들었는지를 여기서만 알 수 있다.
+    private sealed record ScaledSurface(SubViewport Vp, Control Frame, Vector2I Logical,
+        float SuperSample, float MinRenderScale);
+
+    private static readonly List<ScaledSurface> _surfaces = new();
+
     public static void AddScaledView(SubViewport vp, Control view, Vector2I logicalSize,
         float superSample = 1f, float minRenderScale = 0f)
     {
@@ -80,6 +88,7 @@ public partial class ControlRoom3DController : Node3D
         frame.Scale = new Vector2(k, k);
         vp.AddChild(frame);
         frame.AddChild(view);
+        _surfaces.Add(new ScaledSurface(vp, frame, logicalSize, superSample, minRenderScale));
     }
 
     [Export] public string[] AutoStaffRooms =
@@ -367,6 +376,9 @@ public partial class ControlRoom3DController : Node3D
     private void ConfigureNamed(string token, SubViewport vp)
     {
         if (vp == null) return;
+        // 놓아 두었던 화면이면 **붙이기 전에** 제 크기를 돌려준다 — 2×2 짜리 텍스처가
+        // 한 프레임이라도 CRT 에 뜨면 화면 전체가 한 덩어리 색으로 번진다.
+        Reclaim(vp);
         foreach (var s in _screens)
             if (s.Name.ToString().Contains(token))
                 s.Configure(vp);
@@ -382,6 +394,96 @@ public partial class ControlRoom3DController : Node3D
     // 덮여 있는 동안에는 CRT 안의 화면도 보이지 않는다 — 그릴 이유가 없다.
     // 안의 Control 은 _Process 를 그대로 받으므로 타이핑 · 타이머 같은 로직은 멈추지 않는다.
     public static bool WorldCovered { get; set; }
+
+    // 그래픽 품질이 바뀌었다 — 이미 만들어진 SubViewport 들의 **렌더 해상도**를 다시 잡는다.
+    //
+    // RenderScale 은 처음 읽은 값을 static 에 캐시한다(매 프레임 설정 파일을 읽지 않으려고).
+    // 그래서 설정 창에서 품질을 바꿔도 이 값이 그대로였고, 만들어 둔 화면들은 예전
+    // 해상도로 계속 그려졌다. 캐시를 비우고 각 뷰포트 크기를 다시 계산한다.
+    //
+    // **레이아웃과 입력 좌표는 그대로다** — 화면 안의 UI 는 논리 크기(MonitorCanvasSize)로
+    // 배치되고, 뷰포트 크기와 스케일 프레임에 같은 배율이 곱해지므로 보이는 결과는 같고
+    // 텍셀 수만 달라진다(RenderScale 주석 참조).
+    public static void OnQualityChanged()
+    {
+        _renderScale = -1f;                      // 다음 접근에서 설정을 다시 읽는다
+        Instance?.ResizeViewports();
+    }
+
+    // ── 안 쓰는 화면의 **렌더 타깃을 놓아 준다** ────────────────────────
+    //
+    // SubViewport 는 Disabled 로 내려 두어도 자기 크기만큼 텍스처를 계속 쥐고 있다.
+    // 화면 프로그램이 스무 개인데 한 번에 붙는 건 둘뿐이라, 나머지 열여섯 장이
+    // 내내 자리를 차지한다. 실측(docs/perf/probe_paired.md ⑦) **GPU 메모리 −29 MB ·
+    // 프레임 −1.9 ms** — 시스템 메모리를 나눠 쓰는 내장 GPU 에서는 이 29 MB 가
+    // 그냥 29 MB 가 아니라 다른 것이 밀려나느냐 마느냐다.
+    //
+    // 두 가지를 지킨다.
+    //   · **AddScaledView 로 등록된 것만** 줄인다. 안의 UI 가 고정 크기 프레임에
+    //     들어 있어 뷰포트 크기를 바꿔도 배치가 흔들리지 않는 것들이다.
+    //   · 떨어진 **뒤 한참 있다가** 줄인다. 잠깐 다른 화면을 띄웠다 돌려주는 경우
+    //     (스토리가 모니터2 를 빌려 쓴다)에 매번 텍스처를 다시 만들지 않게.
+    private const double IdleReleaseSeconds = 4.0;
+    private static readonly Vector2I ReleasedSize = new(2, 2);
+    private readonly System.Collections.Generic.Dictionary<SubViewport, double> _idleSince = new();
+
+    private static ScaledSurface SurfaceOf(SubViewport vp)
+    {
+        foreach (var s in _surfaces) if (s.Vp == vp) return s;
+        return null;
+    }
+
+    // 제 크기로 돌려놓는다. 이미 제 크기면 아무 일도 하지 않는다.
+    private static void Reclaim(SubViewport vp)
+    {
+        if (vp == null || vp.Size != ReleasedSize) return;
+        var s = SurfaceOf(vp);
+        if (s == null) return;
+        vp.Size = ViewportSize(s.Logical, s.SuperSample, s.MinRenderScale);
+    }
+
+    private void ReleaseIdleViewports(double delta)
+    {
+        foreach (var s in _surfaces)
+        {
+            var vp = s.Vp;
+            if (vp == null || !IsInstanceValid(vp)) continue;
+            if (vp.RenderTargetUpdateMode != SubViewport.UpdateMode.Disabled) continue;
+            if (vp.Size == ReleasedSize) continue;
+
+            // CCTV 화면은 화면에서 내려가 있어도 스냅샷(증거 사진)의 원본이 된다 —
+            // 줄여 두면 2×2 짜리 증거가 남는다. 건드리지 않는다.
+            if (vp == _cctvVp) continue;
+
+            double t = _idleSince.GetValueOrDefault(vp) + delta;
+            _idleSince[vp] = t;
+            if (t >= IdleReleaseSeconds) vp.Size = ReleasedSize;
+        }
+    }
+
+    private void ResizeViewports()
+    {
+        // 뷰포트 크기와 **안쪽 프레임의 배율을 같이** 바꾼다.
+        // 하나만 바꾸면 내용이 화면보다 작아져 검은 여백이 생기거나 넘쳐서 잘린다.
+        _surfaces.RemoveAll(s => !IsInstanceValid(s.Vp) || !IsInstanceValid(s.Frame));
+        foreach (var s in _surfaces)
+        {
+            // 놓아 준 화면은 그대로 둔다 — 다시 붙을 때 그때 품질에 맞춰 잡는다.
+            if (s.Vp.Size == ReleasedSize) continue;
+            var want = ViewportSize(s.Logical, s.SuperSample, s.MinRenderScale);
+            if (s.Vp.Size != want) s.Vp.Size = want;
+            float k = SurfaceScale(s.SuperSample, s.MinRenderScale);
+            if (!Mathf.IsEqualApprox(s.Frame.Scale.X, k)) s.Frame.Scale = new Vector2(k, k);
+        }
+
+        // CCTV 3D 월드는 자기 기준 크기(640×480)를 쓴다.
+        if (_facilityCctvVp != null && IsInstanceValid(_facilityCctvVp))
+        {
+            var want = new Vector2I(
+                Mathf.RoundToInt(640 * RenderScale), Mathf.RoundToInt(480 * RenderScale));
+            if (_facilityCctvVp.Size != want) _facilityCctvVp.Size = want;
+        }
+    }
 
     private void UpdateActiveViewports()
     {
@@ -399,6 +501,10 @@ public partial class ControlRoom3DController : Node3D
                 : _brightness > 0.1f ? SubViewport.UpdateMode.Always
                 : SubViewport.UpdateMode.Once;
             if (vp.RenderTargetUpdateMode != want) vp.RenderTargetUpdateMode = want;
+
+            // 붙어 있는 화면은 **곧바로** 제 크기를 되찾는다 — 그려야 하니까.
+            if (bound) Reclaim(vp);
+            _idleSince[vp] = bound ? 0d : _idleSince.GetValueOrDefault(vp);
 
             if (bound && vp == _cctvVp) cctvOnScreen = true;
             if (bound && vp == _interviewVp) interviewOnScreen = true;
@@ -529,6 +635,19 @@ public partial class ControlRoom3DController : Node3D
 
         // 근무 부팅 전까지 CRT 는 꺼진 상태로 둔다(시작 화면 / 배치 단계).
         SetScreenBrightness(0.02f);
+
+        // 괴물 모델을 **지금** 읽어 둔다.
+        //
+        // 여기는 시작 화면이다 — 아직 아무 일도 일어나지 않고, 몇 프레임쯤 바빠도
+        // 플레이어가 알아채지 못한다. 이걸 하지 않으면 그 비용이 점프스케어가 터지는
+        // 순간으로 미뤄진다(실측 142 ms, PERFORMANCE_BASELINE.md D).
+        // 준비 자체는 프레임을 나눠 처리하므로 여기서도 끊김을 만들지 않는다.
+        if (GameState.Instance != null)
+            MonsterWarmup.Run(this, Mathf.Max(1, GameState.Instance.CurrentDay));
+
+        // 방·복도 조명은 이 시점에 다 올라와 있다 — 품질에 맞춰 점 광원 그림자를 정리한다.
+        // (설정을 읽은 시점에는 아직 이 노드들이 없어서 그때 한 번으로는 안 닿는다.)
+        GameSettings.ApplyPointShadowPolicy();
     }
 
     private void AutoStaff()
@@ -550,8 +669,10 @@ public partial class ControlRoom3DController : Node3D
 
     public override void _Process(double delta)
     {
+        using var _perf = NSP.Debug.PerfStats.Scope(NSP.Debug.PerfStats.Span.ControlRoom);
         // CCTV 피드 상태는 매 프레임 바뀔 수 있으므로 여기서 계속 반영한다(값이 같으면 no-op).
         UpdateCctvWorldViewport();
+        ReleaseIdleViewports(delta);
 
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
         // 관리자 패드를 들고 있는 동안 근무 시간은 멈춘다(시계 · 시뮬레이션 모두).

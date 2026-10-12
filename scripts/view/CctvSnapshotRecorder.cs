@@ -87,6 +87,7 @@ public partial class CctvSnapshotRecorder : Node
 
     private ImageTexture Grab()
     {
+        using var _perf = NSP.Debug.PerfStats.Scope(NSP.Debug.PerfStats.Span.Snapshot);
         if (Source == null || !IsInstanceValid(Source)) return null;
         var img = Source.GetTexture()?.GetImage();
         if (img == null || img.IsEmpty()) return null;

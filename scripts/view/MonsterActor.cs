@@ -34,48 +34,119 @@ public sealed class MonsterActor
 
     // ── 모델 ────────────────────────────────────────────────────────
 
-    // 필요한 모델로 바꿔 끼운다. 같은 괴물이면 다시 읽지 않는다.
+    // 한 번 읽은 모델은 **버리지 않고 숨겨 둔다.**
+    //
+    // 전에는 괴물이 바뀔 때마다 QueueFree 하고 다음에 다시 읽었다. 그 "다시 읽기"가
+    // 하필 점프스케어가 터지는 순간에 걸리면 한 프레임이 통째로 멈춘다 —
+    // 실측 88.8 ms(PERFORMANCE_BASELINE.md D). 모델 노드는 메시·텍스처를 **공유**하므로
+    // (PackedScene 인스턴스는 리소스를 복제하지 않는다) 숨겨 두는 비용은 노드 몇 개뿐이고
+    // VRAM 은 늘지 않는다.
+    private readonly System.Collections.Generic.Dictionary<string, Node3D> _loaded = new();
+
+    // 필요한 모델로 바꿔 끼운다. 같은 괴물이면 아무 일도 하지 않는다.
     public bool Use(MonsterDef def)
     {
+        using var _perf = NSP.Debug.PerfStats.Scope(NSP.Debug.PerfStats.Span.MonsterLoad);
         if (def == null) return false;
         if (_def?.MonsterId == def.MonsterId) return _model != null;
 
-        _model?.QueueFree();
-        _model = null;
+        // 쓰던 것은 재워 둔다(지우지 않는다).
+        if (_sway != null) Sleep(_sway);
         _sway = null;
         _anim = null;
         _playing = "";
         _def = def;
 
+        // 전에 읽어 둔 것이 있으면 그것을 다시 쓴다 — 여기가 0 ms 가 되는 자리다.
+        if (_loaded.TryGetValue(def.MonsterId, out var cached) && IsValid(cached))
+        {
+            _sway = cached;
+            Wake(_sway);
+            _model = _sway.GetChildCount() > 0 ? _sway.GetChild<Node3D>(0) : null;
+            _anim = _model == null ? null : FindAnim(_model);
+            return _model != null;
+        }
+
+        _model = Build(def, out _sway);
+        if (_model == null) { _sway = null; return false; }
+        _loaded[def.MonsterId] = _sway;
+        return true;
+    }
+
+    // 모델을 **미리** 읽어 둔다(연출 전에 부른다). 지금 쓰는 모델은 바뀌지 않는다.
+    //
+    // 점프스케어 직전에 처음 읽지 않기 위한 입구다. 이미 읽어 둔 것이면 아무 일도 없다.
+    // 이 배우가 아직 살아 있는가(씬이 바뀌며 노드가 해제되지 않았는가).
+    public bool IsAlive => GodotObject.IsInstanceValid(_root);
+
+    public bool Preload(MonsterDef def)
+    {
+        if (def == null || string.IsNullOrEmpty(def.MonsterId) || !IsAlive) return false;
+        if (_loaded.TryGetValue(def.MonsterId, out var had) && IsValid(had)) return true;
+
+        var model = Build(def, out var sway);
+        if (model == null) return false;
+        Sleep(sway);                          // 준비만 해 두고 화면에도 처리에도 올리지 않는다
+        _loaded[def.MonsterId] = sway;
+        return true;
+    }
+
+    // 쓰지 않는 모델을 **완전히 재운다.**
+    //
+    // Visible=false 만으로는 모자란다. 그리지는 않지만 AnimationPlayer 는 계속 돌고
+    // 그때마다 스켈레톤이 갱신된다 — 미리 읽어 둔 모델이 열다섯이면 그 비용이 그대로
+    // 상시 부담이 된다(실제로 준비를 넣자마자 평상시 FPS 가 25 → 18 로 떨어졌다).
+    // ProcessMode.Disabled 가 그 처리를 통째로 끊는다.
+    private static void Sleep(Node3D sway)
+    {
+        if (!IsValid(sway)) return;
+        sway.Visible = false;
+        sway.ProcessMode = Node.ProcessModeEnum.Disabled;
+    }
+
+    private static void Wake(Node3D sway)
+    {
+        if (!IsValid(sway)) return;
+        sway.ProcessMode = Node.ProcessModeEnum.Inherit;
+        sway.Visible = true;
+    }
+
+    public bool IsLoaded(MonsterDef def) =>
+        def != null && _loaded.TryGetValue(def.MonsterId, out var n) && IsValid(n);
+
+    private static bool IsValid(Node n) => n != null && GodotObject.IsInstanceValid(n);
+
+    // 실제로 읽고 세우는 부분. Use 와 Preload 가 같은 길을 쓴다.
+    private Node3D Build(MonsterDef def, out Node3D sway)
+    {
+        sway = new Node3D { Name = "Sway_" + def.MonsterId };
+        _root.AddChild(sway);
+
         if (string.IsNullOrEmpty(def.ModelPath) || !ResourceLoader.Exists(def.ModelPath))
         {
             GD.PushWarning($"MonsterActor: 모델을 찾지 못했습니다 — {def.ModelPath}. 임시 형상으로 대신합니다.");
-            _sway = new Node3D { Name = "Sway" };
-            _root.AddChild(_sway);
-            _model = Placeholder(def);
-            _sway.AddChild(_model);
-            return true;
+            var ph = Placeholder(def);
+            sway.AddChild(ph);
+            return ph;
         }
 
         var ps = GD.Load<PackedScene>(def.ModelPath);
         var inst = ps?.Instantiate<Node3D>();
-        if (inst == null) return false;
-
-        _sway = new Node3D { Name = "Sway" };
-        _root.AddChild(_sway);
-        _sway.AddChild(inst);
-        _model = inst;
+        if (inst == null) { sway.QueueFree(); sway = null; return null; }
+        sway.AddChild(inst);
 
         HideRigWidgets(inst);
-        _anim = FindAnim(inst);
+        var anim = FindAnim(inst);
         // 임포트된 클립은 전부 LoopMode.None 으로 들어온다. 걷기 · 대기처럼 이어져야 하는
         // 것만 루프로 바꿔 둔다(한 번만 재생되고 멈추면 얼어붙은 것처럼 보인다).
-        LoopClip(def.AnimIdle);
-        LoopClip(def.AnimWalk);
-        LoopClip(def.AnimRun);
+        // 클립 리소스는 공유되므로 한 번만 고치면 된다.
+        LoopClipOn(anim, def.AnimIdle);
+        LoopClipOn(anim, def.AnimWalk);
+        LoopClipOn(anim, def.AnimRun);
+        if (_def?.MonsterId == def.MonsterId) _anim = anim;
 
         FitToHeight(inst, def);
-        return true;
+        return inst;
     }
 
     // Rigify 가 같이 내보내는 조작용 위젯 메시(WGT_*). 화면에 나올 것이 아니다.
@@ -93,10 +164,10 @@ public sealed class MonsterActor
         return null;
     }
 
-    private void LoopClip(string clip)
+    private static void LoopClipOn(AnimationPlayer anim, string clip)
     {
-        if (_anim == null || string.IsNullOrEmpty(clip) || !_anim.HasAnimation(clip)) return;
-        var a = _anim.GetAnimation(clip);
+        if (anim == null || string.IsNullOrEmpty(clip) || !anim.HasAnimation(clip)) return;
+        var a = anim.GetAnimation(clip);
         if (a != null) a.LoopMode = Animation.LoopModeEnum.Linear;
     }
 
@@ -153,6 +224,14 @@ public sealed class MonsterActor
 
     // ── 매 프레임 ───────────────────────────────────────────────────
 
+    // 화면에 낼 때.
+    //
+    // **_root 의 ProcessMode 는 건드리지 않는다.** 한때 여기서 재웠다가, 바깥에서
+    // Root.Visible 을 직접 켜는 호출부(HorrorDirector 의 얼굴 점프스케어)가 있다는 것을
+    // 발견하고 되돌렸다 — 그 경로로는 깨우지 못해 애니메이션이 멈춘 채 떴을 것이다.
+    // 재우는 것은 **쓰지 않는 모델(sway)** 쪽만으로 충분하다.
+    private void ShowRoot() => _root.Visible = true;
+
     public void Hide()
     {
         _root.Visible = false;
@@ -172,7 +251,7 @@ public sealed class MonsterActor
     public void Place(MonsterThreat t, CorridorVisual vis, float delta)
     {
         if (_def == null || vis == null) { Hide(); return; }
-        _root.Visible = true;
+        ShowRoot();
 
         float z = vis.ApproachZ(t.Progress);
         // 거미는 벽에 붙어 온다(§6) — 사람형은 복도 가운데로.
@@ -242,7 +321,7 @@ public sealed class MonsterActor
     // 점프스케어 — 카메라 앞으로 돌진하는 연출에서 쓰는 직접 제어.
     public void SetPose(Vector3 position, float yawDegrees, float scale = 1f)
     {
-        _root.Visible = true;
+        ShowRoot();
         _root.Position = position;
         _root.RotationDegrees = new Vector3(0f, yawDegrees, 0f);
         _root.Scale = Vector3.One * scale;
@@ -259,7 +338,7 @@ public sealed class MonsterActor
     public void FaceViewer(Vector3 globalPosition, Vector3 viewer, float scale = 1f,
                            float yawWobbleDegrees = 0f)
     {
-        _root.Visible = true;
+        ShowRoot();
 
         Vector3 toViewer = viewer - globalPosition;
         toViewer.Y = 0f;                  // 고개를 숙이거나 들지 않는다 — 수평으로만 돈다

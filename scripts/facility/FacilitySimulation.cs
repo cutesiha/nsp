@@ -1380,6 +1380,7 @@ public partial class FacilitySimulation : Node
 
     public void Tick(double delta)
     {
+        using var _perf = NSP.Debug.PerfStats.Scope(NSP.Debug.PerfStats.Span.SimTick);
         float d = (float)delta;
         TickSchedule();
         // 차폐문 구동 — 움직임보다 먼저 돈다. 문이 닫히는 그 프레임의 판정(건넜나 못 건넜나)이

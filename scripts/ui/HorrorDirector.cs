@@ -167,6 +167,8 @@ public partial class HorrorDirector : Node
 
         _faceActor = new NSP.View.MonsterActor();
         _faceActor.Attach(camera);
+        // 연출 전에 미리 읽어 둘 대상으로 등록한다(MonsterWarmup).
+        NSP.View.MonsterWarmup.Register(_faceActor);
         _faceEntity = _faceActor.Root;
         _faceEntity.Name = "EntityFaceJumpscare";
         _faceEntity.Visible = false;
@@ -188,6 +190,10 @@ public partial class HorrorDirector : Node
     public async void PlayEntityFaceJumpscare()
     {
         if (_faceJumpscarePlaying || _faceActor == null) return;
+
+        // 점프스케어 지연 측정의 시작점 — 호출된 순간부터 **화면에 실제로 그려질 때까지**.
+        // (RenderingServer.FramePostDraw 를 기다렸다가 PerfStats.MarkEnd 를 찍는다.)
+        NSP.Debug.PerfStats.MarkBegin("점프스케어(얼굴) 호출→표시");
 
         var def = NSP.View.MonsterCast.Pick(GameState.Instance?.CurrentDay ?? 1);
         if (def == null || !_faceActor.Use(def)) return;
@@ -211,6 +217,13 @@ public partial class HorrorDirector : Node
         GetParent()?.GetNodeOrNull<SeatedCameraRig>("PlayerSeatRig")?.Shake(4.8f, 0.14f);
         _noise.Modulate = new Color(1f, 1f, 1f, 1f);
         _red.Color = new Color(0.72f, 0f, 0f, 0.56f);
+
+        // 다음 그림이 실제로 그려진 순간 = 플레이어가 그것을 본 순간.
+        if (NSP.Debug.PerfStats.Running)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            NSP.Debug.PerfStats.MarkEnd("점프스케어(얼굴) 호출→표시");
+        }
 
         await Wait(0.105);
         _faceEntity.Visible = false;
