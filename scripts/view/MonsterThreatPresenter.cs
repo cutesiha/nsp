@@ -37,6 +37,7 @@ public partial class MonsterThreatPresenter : Node
 
     public override void _ExitTree()
     {
+        StopCorridorCry();
         Unwire();
         if (Instance == this) Instance = null;
     }
@@ -45,7 +46,7 @@ public partial class MonsterThreatPresenter : Node
     {
         if (!_wired) Wire();
         var t = _threats?.Current;
-        if (t == null) return;
+        if (t == null) { StopCorridorCry(); return; }
 
         double now = Time.GetTicksMsec() / 1000.0;
 
@@ -63,6 +64,57 @@ public partial class MonsterThreatPresenter : Node
             _nextStep = now + Mathf.Lerp(StepFar, StepNear, close) * (float)GD.RandRange(0.85, 1.15);
             PlayAt(t.Def.SfxStep, Mathf.Lerp(-28f, -11f, close), Pan(t), Mathf.Lerp(0.92f, 1.04f, close));
         }
+
+        TickCorridorCry(t);
+    }
+
+    // ── 복도에 있는 동안 계속 나는 울음소리 ──────────────────────────────
+    //
+    // 복도에 들어선 뒤 문까지 오는 10초 동안, 발소리 사이사이가 조용했다. 그러면
+    // "지금 복도에 뭔가 있다" 가 귀로 이어지지 않는다(1013 QA 12번).
+    //
+    //   · 복도 CCTV 를 **안 보고 있을 때** — 어디선가 거슬리게 들리는 정도(IdleDb)
+    //   · 그 복도 CCTV 를 **띄웠을 때**   — 바로 앞에서 나는 것처럼 크게(WatchDb)
+    //
+    // 음원은 개체별로 다르다(아기 = babymonster, 나머지 = monster). 원음 그대로 쓰지
+    // 않고 Warp 버스로 조금 일그러뜨린다 — 그대로 틀면 "녹음을 튼 것" 으로 들린다.
+    private const string CryCh = "corridor_cry";
+    private const float CryIdleDb = -17f;
+    private const float CryWatchDb = -2f;
+    private string _cryKey = "";
+
+    private static string CryKeyFor(MonsterDef def) =>
+        def?.MonsterId == "infant" ? "babymonster" : "monster";
+
+    private void TickCorridorCry(MonsterThreat t)
+    {
+        bool inCorridor = t.Phase is ThreatPhase.Approach or ThreatPhase.AtDoor
+            or ThreatPhase.Pounding or ThreatPhase.Breach or ThreatPhase.Retreat;
+        if (!inCorridor || t.Paused) { StopCorridorCry(); return; }
+
+        var sfx = Sfx.Instance;
+        if (sfx == null) return;
+
+        string key = CryKeyFor(t.Def);
+        if (_cryKey != key || !sfx.WarpedPlaying(CryCh))
+        {
+            if (!string.IsNullOrEmpty(_cryKey)) sfx.StopWarped(CryCh);
+            _cryKey = key;
+            // 아기 쪽은 조금 높게, 형체 · 거미는 낮게 — 같은 버스를 써도 정체가 구분된다.
+            sfx.PlayWarped(key, CryIdleDb, key == "babymonster" ? 1.04f : 0.88f, CryCh, loop: true);
+        }
+
+        var sim = FacilitySimulation.Instance;
+        bool watching = sim != null && sim.SurveillanceCorridorId == t.SegmentId
+                        && (GameState.Instance?.IsCctvOperational() ?? false) && sim.CctvFeedLive;
+        sfx.FadeWarped(CryCh, watching ? CryWatchDb : CryIdleDb, 0.35f);
+    }
+
+    private void StopCorridorCry()
+    {
+        if (string.IsNullOrEmpty(_cryKey)) return;
+        _cryKey = "";
+        Sfx.Instance?.StopWarped(CryCh, 0.6f);
     }
 
     private void Wire()
@@ -150,6 +202,8 @@ public partial class MonsterThreatPresenter : Node
     private void OnPounded(MonsterThreat t)
     {
         PlayAt(t.Def.SfxPound, -4f, Pan(t), (float)GD.RandRange(0.92, 1.08));
+        // 문짝이 그 충격에 짧게 밀렸다 돌아온다 — "막혀 있다" 가 눈으로 보여야 한다.
+        FacilityCctvWorld.Instance?.PoundCorridorDoor(t.SegmentId);
         // 문과 장치가 미세하게 흔들린다. 과한 파괴 연출은 쓰지 않는다.
         ControlRoom3DController.Instance?.ShakeCamera(0.45f, 0.18f);
         CCTVMonitorView.Instance?.FlashGlitch(0.25f);
@@ -162,6 +216,7 @@ public partial class MonsterThreatPresenter : Node
 
     private void OnBreached(MonsterThreat t)
     {
+        StopCorridorCry();
         PlayAt(t.Def.SfxBreach, -2f, Pan(t), 1f);
         AdminDeathDirector.Begin(t);
     }

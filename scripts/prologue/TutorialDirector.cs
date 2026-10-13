@@ -249,8 +249,12 @@ public partial class TutorialDirector : Node
 
         // ── STEP 9 : 휴게시간 · 기록 비교 ────────────────────────────────────────
         TutorialTelemetry.Step("9 휴게시간 심문");
+        // 「근무 종료」 버튼 둘레를 밝힌다 — 어디를 눌러야 하는지 말로만 알려 주면
+        // 작은 버튼 하나를 못 찾는다(1013 QA 15번). 근무가 끝나면 이 화면이 내려간다.
+        NSP.View.FacilityMonitorView.HighlightEndShift(true);
         await Say("tut_endshift");
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Rest);
+        NSP.View.FacilityMonitorView.HighlightEndShift(false);
         // 교육이 끝나기 전에는 다음 날로 넘어갈 수 없다.
         RestRosterView.Instance?.SetNextEnabled(false, "교육 진행 중...");
         await Say("tut_rest");
@@ -339,14 +343,34 @@ public partial class TutorialDirector : Node
         return "";
     }
 
+    // ── 교육 전용 통화의 치환값 ──────────────────────────────────────
+    //
+    // 복귀 전화(tutorial_repair_done)는 **그 판에서 실제로 일어난 일**을 말해야 한다.
+    // 쓰러진 사람도, 돌아갈 작업실도 상황마다 달라지므로 대사에는 토큰만 두고 여기서
+    // 채운다. 예전에는 "고양이 직원" · "경비실" 이 문장에 박혀 있어, 여우가 쓰러졌는데
+    // 고양이를 옮겼다고 보고하고 코어실로 가면서 경비실로 간다고 말했다(1013 QA 14번).
+
+    // 이번 교육에서 실제로 쓰러진 직원. 복귀 전화가 이 이름을 부른다.
+    private string _faintVictimId = "";
+
     // 안내가 뜨기 전에 벨을 먼저 울리는 시간.
     private const double TutorialCallRingLeadSeconds = 1.3;
 
     private void RingTutorialCall(string caller, string dialogueEvent, string roomId)
     {
         if (string.IsNullOrEmpty(caller)) return;
+        if (dialogueEvent == DialogueRepository.EventTutorialRepairDone) RefreshCallTokens();
         if (Phone3D.Instance is { IsBusy: false })
             Phone3D.Instance.RingIncoming(caller, dialogueEvent, roomId);
+    }
+
+    // 복귀 전화가 울리기 직전에 실제 값을 읽어 둔다.
+    private void RefreshCallTokens()
+    {
+        var sim = FacilitySimulation.Instance;
+        DialogueRepository.SetCallToken("VICTIM", string.IsNullOrEmpty(_faintVictimId) ? ""
+            : sim?.GetEmployeeDef(_faintVictimId)?.Codename ?? "");
+        DialogueRepository.SetCallToken("BACK_ROOM", sim?.RoomDisplayName(AssignRoomId) ?? "");
     }
 
     // "그렇게 하십시오" 를 고르면 토끼는 말한 대로 정비실로 돌아간다.
@@ -437,11 +461,28 @@ public partial class TutorialDirector : Node
 
         try
         {
+            // 교육에서는 거절해도 벌점이 없다 — 대신 다시 띄우고 한 번 더 시킨다.
+            RepairApprovalSystem.RetryOnDecline = true;
             await Say("tut_approval");
             // 여기서부터 응답 제한 시간이 흐른다.
             RepairApprovalSystem.Paused = false;
-            // [예] 를 누르면 미로로 넘어간다. 거절하거나 시간을 넘겨도 교육은 이어진다.
-            await Until(() => RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking);
+
+            // [예] 를 누를 때까지 반복한다. [아니오] · 무응답이면 GUIDE-0 가 한마디 하고
+            // 같은 요청을 다시 띄운다(1013 QA 11번). 그동안 수리는 진행되지 않는다.
+            while (true)
+            {
+                await Until(() => RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking);
+                // 거절은 Finish 가 요청을 다시 줄에 세우고 Held 를 켜 둔다 — 그 상태로만 되돌아온다.
+                if (!RepairApprovalSystem.Held) break;
+                RepairApprovalSystem.Paused = true;
+                await Say("tut_approval_retry");
+                RepairApprovalSystem.Paused = false;
+                RepairApprovalSystem.Held = false;            // 여기서 다시 뜬다
+                await Until(() => RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Asking
+                                  || FacilitySimulation.Instance?.HasRepairPending(AccidentRoomId) == false);
+                if (RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking) break;
+            }
+            RepairApprovalSystem.RetryOnDecline = false;
 
             if (RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Maze)
             {
@@ -458,6 +499,7 @@ public partial class TutorialDirector : Node
         {
             RepairApprovalSystem.Paused = false;
             RepairApprovalSystem.Held = false;
+            RepairApprovalSystem.RetryOnDecline = false;
         }
 
         // 패드를 손에 든 채로 다음 안내가 흐르면 화면이 패드에 가린다 — 내려놓을 때까지 기다린다.
@@ -571,6 +613,8 @@ public partial class TutorialDirector : Node
         // 그 사이에 플레이어가 그 사람을 옮겼으면 조건이 깨지므로 다시 고른다.
         string victim = Eligible(sim, _anomalyVictim) ? _anomalyVictim : PickFaintVictim(sim);
         if (string.IsNullOrEmpty(victim)) return;
+        // 복귀 전화가 이 사람의 이름을 부른다(ApplyCallTokens).
+        _faintVictimId = victim;
 
         DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, true);
         if (!sim.TriggerTutorialFaint(victim))
@@ -636,6 +680,7 @@ public partial class TutorialDirector : Node
         NSP.View.FacilityMonitorView.HighlightMaterials(false);
         RepairApprovalSystem.Paused = false;
         RepairApprovalSystem.Held = false;
+        RepairApprovalSystem.RetryOnDecline = false;
         DayFeatures.ForceRoomOpen(FacilitySimulation.MedicalRoomIdPublic, false);
         // 교육이 상황에 맞춰 연 작업실과 줄여 둔 보관 한도를 되돌린다.
         // (자재 보유량 자체는 DAY1 로 넘어갈 때 GameState.GoToNextDay 가 처음 값으로 되돌린다.)
@@ -740,6 +785,10 @@ public partial class TutorialDirector : Node
         _anomalyVictim = PickFaintVictim(sim);
         string room = string.IsNullOrEmpty(_anomalyVictim) ? AnomalyRoomId
             : sim.GetEmployeeState(_anomalyVictim)?.CurrentRoomId ?? AnomalyRoomId;
+        // 작업실마다 **들어오는 접근 복도가 정해져 있다**(1013 QA 12번). 이 교육의 안내는
+        // "서측" 으로 못 박혀 있으므로, 서측으로 이어지지 않는 방이 뽑혔으면 서측 방
+        // (경비실)으로 되돌린다 — 말과 화면이 어긋나는 쪽이 훨씬 나쁘다.
+        if (sim.Threats.ApproachFrom(room) != BarrierLessonSegment) room = AnomalyRoomId;
 
         sim.Threats.NoBreach = true;
         if (!sim.Ghost.ForceAppear(room, sim, 9999f)) return;        // 교육 중에는 사고로 번지지 않는다

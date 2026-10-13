@@ -95,6 +95,15 @@ public sealed class GhostHauntSystem
     private float _forcedFirstAt = -1f;
     private string _lastRoomId = "";
 
+    // ── 출몰의 원인(내부 진실 · 플레이어 비공개) ─────────────────────────
+    // 이 값들은 화면 어디에도 쓰이지 않는다. 결번의 봉쇄 교란과 이상 개체 출몰 사이의
+    // 인과가 실제로 이어졌는지 자동 검증이 확인하는 데만 쓴다(지시서 §11-22).
+    private float _lastAppearInstability;
+    private ContainmentSystem.Disturbance _lastAppearCause;
+
+    public float LastAppearInstability => _lastAppearInstability;
+    public ContainmentSystem.Disturbance LastAppearCause => _lastAppearCause;
+
     // --- 진행 --------------------------------------------------------------
 
     public void Tick(float delta, FacilitySimulation sim)
@@ -127,10 +136,26 @@ public sealed class GhostHauntSystem
         bool forced = AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt;
         if (!forced)
         {
-            if (_nextCheckAt <= 0f) _nextCheckAt = now + cfg.GhostCheckSeconds;
+            // ── 봉쇄 계통이 불안정할수록 자주, 그리고 더 쉽게 나온다(지시서 §1) ──
+            //
+            // 기본 확률을 **대체하지 않고 곱한다.** 불안정성이 0 이어도 개체는 나온다 —
+            // 그래야 "나왔다 = 방금 누가 손댔다" 라는 공식이 생기지 않는다. 그리고 불안정성은
+            // 천천히 가라앉으므로, 한참 전의 교란이 지금의 출몰로 이어질 수도 있다.
+            var cont = sim.Containment;
+            float period = Mathf.Max(2f, cfg.GhostCheckSeconds * (cont?.CheckIntervalScale ?? 1f));
+            if (_nextCheckAt <= 0f) _nextCheckAt = now + period;
             if (now < _nextCheckAt) return;
-            _nextCheckAt = now + cfg.GhostCheckSeconds;
-            if (_rng.Randf() >= cfg.GhostAppearChance) return;
+            _nextCheckAt = now + period;
+            float chance = Mathf.Clamp(cfg.GhostAppearChance * (cont?.AppearChanceMultiplier ?? 1f), 0f, 0.95f);
+            if (_rng.Randf() >= chance) return;
+            // 이번 출몰이 봉쇄 불안정성 위에서 일어났는가(검증 · 디버그 전용 내부 기록).
+            _lastAppearInstability = cont?.Instability ?? 0f;
+            _lastAppearCause = cont?.LastDisturbanceBefore(now);
+        }
+        else
+        {
+            _lastAppearInstability = sim.Containment?.Instability ?? 0f;
+            _lastAppearCause = null;
         }
         string room = PickRoom(sim);
         if (!string.IsNullOrEmpty(room)) Appear(room, sim);

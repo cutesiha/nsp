@@ -47,6 +47,17 @@ public static class MonitorUi
         b.AddThemeStyleboxOverride("disabled", disabled);
         b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         b.Pressed += () => onPressed?.Invoke();
+        AddFeedback(b);
         return b;
+    }
+
+    // 버튼 소리 — 올리면 tick, 누르면 relay_click. 스타일박스가 붙은 Button 은
+    // 색은 바뀌어도 소리가 없어서 "눌린 것 같지 않다"는 말이 나온다(1013 QA 2번).
+    // CRT 안쪽 UI 와 창 UI 모두 이 하나를 쓴다.
+    public static void AddFeedback(BaseButton b, float hoverDb = -17f, float pressDb = -8f)
+    {
+        if (b == null) return;
+        b.MouseEntered += () => { if (!b.Disabled) NSP.Core.Sfx.Instance?.Play("tick", hoverDb); };
+        b.Pressed += () => NSP.Core.Sfx.Instance?.Play("relay_click", pressDb);
     }
 }

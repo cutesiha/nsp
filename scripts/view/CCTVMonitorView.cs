@@ -44,6 +44,9 @@ public partial class CCTVMonitorView : Control
     private bool _ghostWired;
     private ImageTexture[] _noiseFrames;
     private float _noiseSwap;
+    // 괴물을 보고 있는 동안 추가로 끼는 회색 노이즈(0~1)와 그 최대 두께.
+    private float _ghostNoise;
+    private const float GhostNoiseAdd = 0.34f;
     private int _noiseIdx;
     private float _recBlink;
     private float _glitch;
@@ -208,6 +211,15 @@ public partial class CCTVMonitorView : Control
         // CCTV 가 꺼져 있으면 아무 일도 없다(지시서 §7-6).
         // 붉은 기운이 바깥에서 중앙으로 천천히 조여 온다 — 깜빡이지 않는다.
         NSP.Ui.AdminFearDirector.Instance?.GhostWatch(onScreen ? 0.35f + ghost.DispelRatio * 0.65f : 0f);
+
+        // 1013 QA 27번 — 그것을 보고 있는 동안 회색 노이즈가 훨씬 두껍게 낀다.
+        // 사라지면 붉은 비네팅 · 숨소리와 **같은 속도로** 빠진다(뚝 끊기지 않는다).
+        _ghostNoise = onScreen
+            ? Mathf.Min(1f, _ghostNoise + d * 2.4f)
+            : Mathf.Max(0f, _ghostNoise - d * 0.8f);
+        if (_ghostNoise > 0.001f)
+            _noise.Modulate = _noise.Modulate with { A = _noise.Modulate.A + _ghostNoise * GhostNoiseAdd };
+
         if (!show) return;
 
         float w = (_dispelBack.Size.X - 4f) * ghost.DispelRatio;

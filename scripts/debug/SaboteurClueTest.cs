@@ -26,6 +26,7 @@ public partial class SaboteurClueTest : Node
     // 플레이어(테스트 대역)가 내린 배치 명령. 이 명령 없이 방이 바뀌면 자율 이동이다.
     private readonly Dictionary<string, string> _orderedMoves = new();
     private int _unorderedMoves;
+    private int _covertMoves;
     private readonly List<string> _unorderedLog = new();
 
     private sealed class Run
@@ -107,6 +108,15 @@ public partial class SaboteurClueTest : Node
                 // 기절한 직원의 의무실 이송은 시설이 하는 일이라 자율 이동이 아니다
                 // (스트레스 46 이상 → TickStressFaint 가 강제로 옮긴다).
                 if (st.Incapacitated) { where[id] = st.CurrentRoomId; continue; }
+                // 결번 개체의 은밀 이동은 자율 이동이 맞다 — 다만 **규칙이 허용한** 이동이다
+                // (감시 공백에서만 일어나고, 그 기록은 시설 로그에 뜨지 않는다).
+                // 따로 센다. 여기서 보는 것은 "일반 직원이 멋대로 움직이는가" 다.
+                if (st.CovertMove || _sim.Covert.Phase != CovertPhase.Idle)
+                {
+                    _covertMoves++;
+                    where[id] = st.CurrentRoomId;
+                    continue;
+                }
                 if (!_orderedMoves.ContainsKey(id))
                 {
                     _unorderedMoves++;
@@ -222,9 +232,10 @@ public partial class SaboteurClueTest : Node
 
     private void CheckMovement()
     {
-        GD.Print($"\n[A/B] 플레이어 명령 없는 방 이동 {_unorderedMoves}건");
+        GD.Print($"\n[A/B] 플레이어 명령 없는 방 이동 {_unorderedMoves}건 " +
+                 $"(규칙이 허용한 결번 은밀 이동 {_covertMoves}건은 따로 센다)");
         foreach (string s in _unorderedLog.Take(5)) GD.Print("      " + s);
-        Check(_unorderedMoves == 0, "A/B 직원은 플레이어 명령으로만 방을 옮긴다");
+        Check(_unorderedMoves == 0, "A/B 일반 직원은 플레이어 명령으로만 방을 옮긴다");
     }
 
     // --- Test C/D : 재배치하면 준비가 취소된다 ------------------------------

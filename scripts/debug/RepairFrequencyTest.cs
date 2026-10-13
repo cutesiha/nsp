@@ -77,7 +77,6 @@ public partial class RepairFrequencyTest : Node
         _sim.ResetForNewShift();
         EventLog.Instance?.ClearAll();
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
         GameState.Instance.SetPhase(GamePhase.Live);
 
         var ids = _sim.GetActiveEmployeeIds().Take(headcount).ToList();

@@ -40,7 +40,10 @@ public partial class AchievementArchiveView : Control
     private const float ListTop = 132f;
     private const float ListWidth = 688f;
     private const float ListHeight = 398f;
-    private const float BarWidth = 5f;
+    // 마우스로 집을 수 있어야 해서 가느다란 선(5px)보다 넓게 그린다. 집는 판정은
+    // 그보다 더 넉넉하게(BarGrabPad) 잡아 조금 빗나가도 잡힌다.
+    private const float BarWidth = 10f;
+    private const float BarGrabPad = 7f;
     private const float FootY = 556f;
 
     private Font _font;
@@ -56,6 +59,11 @@ public partial class AchievementArchiveView : Control
     // 지금 고른 줄(0~29)과 픽셀 스크롤 위치.
     public int Cursor { get; private set; }
     public float Scroll { get; private set; }
+
+    // 스크롤바를 집고 있는가. 집은 순간 손잡이 안에서의 상대 위치를 기억해 두어
+    // 손잡이가 마우스 밑에서 튀지 않는다.
+    public bool BarDragging { get; private set; }
+    private float _barGrabOffset;
 
     public static float ContentHeight => Achievements.Total * RowStep;
     public static float MaxScroll => Mathf.Max(0f, ContentHeight - ListHeight);
@@ -104,6 +112,7 @@ public partial class AchievementArchiveView : Control
     {
         IsOpen = false;
         Visible = false;
+        BarDragging = false;
         SetProcess(false);
     }
 
@@ -163,10 +172,24 @@ public partial class AchievementArchiveView : Control
         return BackRect().HasPoint(p) ? "back" : "";
     }
 
+    // [뒤로] 위에 마우스가 올라와 있는가. 바뀌었으면 true(효과음용).
+    public bool BackHover { get; private set; }
+
+    public bool SetBackHover(Vector2 p)
+    {
+        bool on = !Embedded && IsOpen && BackRect().HasPoint(p);
+        if (on == BackHover) return false;
+        BackHover = on;
+        Redraw();
+        return on;   // 올라온 순간에만 소리를 낸다(내려갈 때는 조용히)
+    }
+
     // 목록 위에 마우스를 올리면 그 줄로 커서가 간다. 옮겨졌으면 true(효과음용).
     public bool HoverAt(Vector2 p)
     {
         if (!IsOpen) return false;
+        // 스크롤바를 끌고 있거나 그 위를 지나는 중에는 커서를 끌어가지 않는다.
+        if (BarDragging || OverScrollBar(p)) return false;
         if (!ListRect().HasPoint(p)) return false;
         int row = Mathf.FloorToInt((p.Y - ListTop + Scroll) / RowStep);
         if (row < 0 || row >= Achievements.Total || row == Cursor) return false;
@@ -178,7 +201,54 @@ public partial class AchievementArchiveView : Control
     // 목록 안을 가리키고 있는가(휠을 스크롤로 쓸지 판단).
     public bool OverList(Vector2 p) => ListRect().HasPoint(p);
 
+    // ── 스크롤바 집기 ───────────────────────────────────────────────
+    //
+    // 띄운 쪽(타이틀은 TitleRoomDirector, 일시정지 창은 AchievementPanel)이 누름 ·
+    // 움직임 · 뗌을 그대로 넘겨 준다. 여기서 좌표 계산만 한다.
+
+    // 스크롤바(막대 길이 전체)를 가리키고 있는가. 집는 판정은 넉넉하게 잡는다.
+    public bool OverScrollBar(Vector2 p) => MaxScroll > 0f && BarGrabRect().HasPoint(p);
+
+    // 눌렀다. 손잡이 위면 그 자리를 유지하고, 빈 곳이면 손잡이를 그 지점으로 데려온다.
+    public bool BeginBarDrag(Vector2 p)
+    {
+        if (!IsOpen || !OverScrollBar(p)) return false;
+        BarDragging = true;
+        var lr = ListRect();
+        float thumb = ThumbHeight();
+        float thumbY = lr.Position.Y + (lr.Size.Y - thumb) * (MaxScroll <= 0f ? 0f : Scroll / MaxScroll);
+        _barGrabOffset = p.Y >= thumbY && p.Y <= thumbY + thumb
+            ? p.Y - thumbY            // 손잡이를 집었다 — 상대 위치 유지
+            : thumb * 0.5f;           // 빈 곳을 눌렀다 — 손잡이 가운데가 마우스로 온다
+        DragBarTo(p);
+        return true;
+    }
+
+    // 집은 채로 움직였다. 손잡이의 위쪽 끝을 (마우스 − 집은 지점) 으로 둔다.
+    public bool DragBarTo(Vector2 p)
+    {
+        if (!BarDragging || MaxScroll <= 0f) return false;
+        var lr = ListRect();
+        float span = lr.Size.Y - ThumbHeight();
+        if (span <= 0.5f) return false;
+        float ratio = Mathf.Clamp((p.Y - _barGrabOffset - lr.Position.Y) / span, 0f, 1f);
+        float next = ratio * MaxScroll;
+        if (Mathf.IsEqualApprox(next, Scroll)) return false;
+        Scroll = next;
+        Redraw();
+        return true;
+    }
+
+    public void EndBarDrag() => BarDragging = false;
+
+    private static float ThumbHeight() =>
+        Mathf.Max(28f, ListHeight * (ListHeight / Mathf.Max(1f, ContentHeight)));
+
     private static Rect2 ListRect() => new(ListLeft, ListTop, ListWidth, ListHeight);
+    // 그려지는 막대보다 좌우로 BarGrabPad 만큼 넓은 집기 영역.
+    private static Rect2 BarGrabRect() => new(
+        ListLeft + ListWidth - BarWidth - BarGrabPad, ListTop,
+        BarWidth + BarGrabPad * 2f, ListHeight);
     private static Rect2 BackRect() => new(Canvas.X - ListLeft - 128f, FootY - 24f, 128f, 36f);
 
     // ── 그리기 ──────────────────────────────────────────────────────
@@ -224,9 +294,9 @@ public partial class AchievementArchiveView : Control
         DrawScrollBar(lr);
 
         // 아래 조작줄.
-        if (!Embedded) Button(BackRect(), BackLabel);
+        if (!Embedded) Button(BackRect(), BackLabel, BackHover);
         DrawString(_font, new Vector2(0f, FootY + 26f),
-            Embedded ? "↑ ↓ 이동   휠 스크롤   ESC 닫기" : "↑ ↓ 이동   휠 스크롤   ESC 뒤로",
+            Embedded ? "↑ ↓ 이동   휠·막대 끌기   ESC 닫기" : "↑ ↓ 이동   휠·막대 끌기   ESC 뒤로",
             HorizontalAlignment.Center, Canvas.X, ViewFont.S(11), Deep);
 
         // 주사선.
@@ -234,22 +304,31 @@ public partial class AchievementArchiveView : Control
             DrawRect(new Rect2(0, y, Canvas.X, 1f), new Color(0f, 0f, 0f, 0.13f));
     }
 
-    // 오른쪽 가장자리의 가느다란 막대. 지금 어디쯤인지만 알리면 된다.
+    // 오른쪽 가장자리의 막대. 마우스로 집어 끌 수 있으니 집는 중에는 밝게 그린다.
     private void DrawScrollBar(Rect2 lr)
     {
         if (MaxScroll <= 0f) return;
         float x = lr.Position.X + lr.Size.X - BarWidth;
         DrawRect(new Rect2(x, lr.Position.Y, BarWidth, lr.Size.Y), Deep with { A = 0.30f });
-        float thumb = Mathf.Max(28f, lr.Size.Y * (ListHeight / ContentHeight));
+        DrawRect(new Rect2(x, lr.Position.Y, BarWidth, lr.Size.Y), Mint with { A = 0.16f }, false, 1f);
+        float thumb = ThumbHeight();
         float y = lr.Position.Y + (lr.Size.Y - thumb) * (Scroll / MaxScroll);
-        DrawRect(new Rect2(x, y, BarWidth, thumb), Mint with { A = 0.55f });
+        DrawRect(new Rect2(x, y, BarWidth, thumb), Mint with { A = BarDragging ? 0.92f : 0.55f });
+        // 손잡이라는 것이 보이게 가운데에 홈 세 줄.
+        float cy = y + thumb * 0.5f;
+        for (int i = -1; i <= 1; i++)
+            DrawRect(new Rect2(x + 2f, cy + i * 4f, BarWidth - 4f, 1f),
+                new Color(0.02f, 0.05f, 0.05f, 0.75f));
     }
 
-    private void Button(Rect2 r, string label)
+    // 가리키면 칸이 차고 테두리가 밝아진다 — 다른 단말기 버튼과 같은 호버 규약.
+    private void Button(Rect2 r, string label, bool hover)
     {
-        DrawRect(r, Mint with { A = 0.38f }, false, 1.1f);
-        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 25f), label,
-            HorizontalAlignment.Center, r.Size.X, ViewFont.S(15), Ink);
+        if (hover) DrawRect(r, Mint with { A = 0.16f });
+        DrawRect(r, Mint with { A = hover ? 0.90f : 0.38f }, false, hover ? 1.8f : 1.1f);
+        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 25f),
+            (hover ? "< " : "") + label,
+            HorizontalAlignment.Center, r.Size.X, ViewFont.S(15), hover ? Ink : Dim);
     }
 }
 

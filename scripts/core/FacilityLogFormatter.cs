@@ -182,6 +182,11 @@ public static class FacilityLogFormatter
 
         string from = s.LastRoom.GetValueOrDefault(id, "");
         s.LastRoom[id] = e.RoomId;
+        // 관리자가 **볼 수 없었던** 이동(조명이 꺼져 위치 추적이 끊긴 동안). 줄을 쓰지 않는다 —
+        // 다만 "마지막으로 알려진 방" 은 갱신한다. 그래야 불을 다시 켠 뒤 돌아오는 길이
+        // "환기실 → 정비실" 한 줄로 뜨고, 관리자가 비로소 "왜 거기서 오지?" 를 묻게 된다(§3-3).
+        // 나가는 줄이 없는 들어오는 줄 — 그 비대칭 자체가 단서다.
+        if (e.Covert) return null;
         if (from == e.RoomId || string.IsNullOrEmpty(from)) return null;
 
         // 관리자가 지시한 목적지에 도착했는가(추리 시스템이 "지시" 여부를 구분한다).

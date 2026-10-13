@@ -694,14 +694,12 @@ public partial class FacilityMinimap : Control
                 $"CORE {sim.CoreProgressPreview():0.0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
                 new Color(0.5f, 0.8f, 1f));
 
-        // 지금 이 인원이면 무엇이 달라지는가. 사람을 옮기는 즉시 이 줄이 바뀐다.
-        string effect = sim.StaffingEffectLine(roomId);
-        if (!string.IsNullOrEmpty(effect))
-            DrawString(_font, box.Position + new Vector2(0f, box.Size.Y - 4f), effect,
-                HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
-                effect.Contains("불안정") || effect.Contains("정지")
-                    ? new Color(1f, 0.72f, 0.35f)
-                    : new Color(0.62f, 0.78f, 0.72f));
+        // 「출력 100% 불안정」 · 「효율 80%」 같은 운영 수치 줄은 **여기서 그리지 않는다**.
+        //
+        // 상자 아래쪽은 직원 아이콘과 그 밑의 코드네임이 쓰는 자리라, 이 줄을 같이 그리면
+        // 글자 둘이 겹쳐 둘 다 못 읽는다(1013 QA 20번). 같은 값은 방 카드
+        // (NSP.Ui.RoomEffectText → FacilityMonitorView 오른쪽 칸)가 그대로 보여 준다 —
+        // 지도는 "누가 어디에 있는가" 만 맡는다.
     }
 
     // 사고 수리 표시 — 방 바로 위에 붉은 진행 막대 한 줄. 글자는 막대 안에 넣는다.

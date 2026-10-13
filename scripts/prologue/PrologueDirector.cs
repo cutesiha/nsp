@@ -113,6 +113,10 @@ public partial class PrologueDirector : Node
         await Wait(0.9);
 
         _ctl?.FocusMonitor(1);   // "모니터1 확대버전 화면"
+        // 프롤로그는 처음부터 끝까지 모니터1 확대 화면이다 — **고정**이다.
+        // 잠금을 걸어 두어야 ESC 가 확대를 푸는 데 먼저 쓰이지 않고 바로
+        // 일시정지 창을 열어 준다(1013 QA 18번).
+        _ctl?.SetFocusLocked(true);
         await Wait(0.7);
 
         await PlayCutscene(cutscene, "prologue_archive");
@@ -129,6 +133,7 @@ public partial class PrologueDirector : Node
         await Wait(0.7);
         cutscene.Clear();
         _ctl?.SetScreenBrightness(0.0f);
+        _ctl?.SetFocusLocked(false);
         _ctl?.ClearFocus();
 
         // 삐———— 이명. 그 밑으로 숨소리 · 멀리서 튀는 전기 · 먹먹한 경보음.
@@ -311,6 +316,8 @@ public partial class PrologueDirector : Node
     private void Complete()
     {
         IsRunning = false;
+        // 어떤 길로 끝나든 확대 잠금은 반드시 푼다 — 남으면 그 뒤로 아무것도 조작할 수 없다.
+        _ctl?.SetFocusLocked(false);
         // 프롤로그가 어떤 길로 끝나든(건너뛰기 · 화면을 못 찾아 중단) 컷씬 소리를 남기지 않는다.
         // 경보 · 사이렌 · 폭풍우가 하나라도 남으면 DAY 0 배치 화면까지 따라 들어온다.
         _scene3d?.End();

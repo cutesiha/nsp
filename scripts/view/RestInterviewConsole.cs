@@ -110,7 +110,11 @@ public partial class RestInterviewConsole : Control
 
     // 띠 높이 · 그 아래 첫 줄. 조사 목표(46~68) 바로 아래에서 시작한다.
     private const float BandY = 72f;
-    private const float BandH = 130f;
+    // 1013 QA 16번 — 띄 안의 방 이름 · 위의 시각 · 왼쪽 직원 이름이 너무 작았다.
+    // 글자 크기(BandFontPx)를 올리면 눈금 · 이름 칸 · 줄 높이가 같은 비율로 커지므로,
+    // 띄 자체도 그만큼 높여 준다. 늘어난 높이는 아래 카드 목록에서 빌려 온다(목록은 스크롤된다).
+    private const float BandH = 164f;
+    private const int BandFontPx = 17;
 
     public override void _ExitTree()
     {
@@ -127,6 +131,7 @@ public partial class RestInterviewConsole : Control
         _band = new StaffTimelineView
         {
             Position = new Vector2(16, BandY), Size = new Vector2(768, BandH),
+            FontPx = BandFontPx,
         };
         _band.PinPressed = id => EvidencePinPressed?.Invoke(id);
         _band.IncidentPressed = OnIncidentLinePressed;
@@ -141,11 +146,11 @@ public partial class RestInterviewConsole : Control
         AddChild(NoteTabs);
 
         // 카드 목록은 그대로 남기고 스크롤 높이만 줄인다(띠가 목록을 대신하지 않는다).
-        _listFrame = FramePanel(new Vector2(16, BandY + BandH + 44), new Vector2(768, 170));
+        _listFrame = FramePanel(new Vector2(16, BandY + BandH + 44), new Vector2(768, 136));
         AddChild(_listFrame);
         _listScroll = new ScrollContainer
         {
-            Position = new Vector2(24, BandY + BandH + 50), Size = new Vector2(752, 158),
+            Position = new Vector2(24, BandY + BandH + 50), Size = new Vector2(752, 124),
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
         };
         AddChild(_listScroll);

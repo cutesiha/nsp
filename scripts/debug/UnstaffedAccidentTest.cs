@@ -42,7 +42,6 @@ public partial class UnstaffedAccidentTest : Node
         _sim.ResetForNewShift();
         EventLog.Instance?.ClearAll();
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
         GameState.Instance.SetPhase(GamePhase.Live);
 
         // 이 방만 비우고 나머지는 전부 채운다 — 다른 방 사고가 동시 사고 제한에 걸리지 않게.

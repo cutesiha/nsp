@@ -136,8 +136,13 @@ public partial class ConfigData : Resource
     //  조명이 오래 꺼져 있으면 — 결번 개체가 어둠 속에서 서두른다.
     // ─────────────────────────────────────────────────────────────────────
     // 조명 전력이 이 시간(초) 이상 끊겨 있으면 "어둠" 상태로 본다.
+    // 지금 이 값이 하는 일은 "어둠이 충분히 길어졌는가"(IsDarknessCritical) 하나뿐이다.
+    // 예전에는 이 시간이 지나면 **그 자체로** 사람이 죽었다(TickPowerLossMurder). 그 경로는
+    // 걷어냈다 — 지금 어둠은 결번 개체에게 움직일 기회를 줄 뿐이고, 실제 접근과 준비는
+    // CovertActionSystem 이 본다.
     [Export] public float BlackoutMurderAfterSeconds = 18f;
-    // 어둠 상태에서의 범행 준비 시간(초). 평소 KillAttemptSeconds 를 대신한다.
+    // ⚠ 더 이상 쓰이지 않는다. 범행 준비 시간은 날짜별 운영 규칙이 정한다
+    //   (OpsProfileDef.CovertKillPrepareSeconds). 저장 데이터 호환을 위해 남겨 둔다.
     [Export] public float BlackoutKillAttemptSeconds = 4f;
 
     // ─────────────────────────────────────────────────────────────────────
@@ -172,7 +177,8 @@ public partial class ConfigData : Resource
     [Export] public int SabotagePowerLoss = 1;             // 전력 조작        : 전력 -1
     [Export] public float SabotageCctvBlockSeconds = 20f;  // CCTV 방해        : 그 방 20초 차단
     [Export] public int SabotageMaterialLoss = 4;          // 자재 폐기        : 자재 -4
-    [Export] public float KillAttemptSeconds = 8f;         // 조건부 살인      : 8초간 범행 시도
+    // ⚠ 더 이상 쓰이지 않는다 — OpsProfileDef.CovertKillPrepareSeconds 로 옮겼다(날짜별로 다르다).
+    [Export] public float KillAttemptSeconds = 8f;
     // 경비실에 근무자가 있으면 방해공작 성공 확률이 이 배율만큼 낮아진다(40% 감소).
     [Export] public float SurveillanceSaboteurChanceMultiplier = 0.6f;
 
@@ -206,14 +212,6 @@ public partial class ConfigData : Resource
     // 거절 · 무응답 · 미로 실패 시 그 수리에 걸리는 추가 시간 배율.
     // 수리가 느려지는 것 자체가 벌점이다 — 스트레스 · 낮은 기술과 겹치면 한 건에 하루가 녹는다.
     [Export] public float RepairDenyPenaltyRate = 0.35f;
-
-    // ── 순환 배치 규정(G-3) ─────────────────────────────────────────
-    // 하루의 이 지점에서 한 번 걸린다(0~1). 제한 시간 안에 최소 인원을 다른 방으로 옮겨야 한다.
-    [Export(PropertyHint.Range, "0.1,0.9,0.05")] public float RotationAtDayRatio = 0.5f;
-    [Export] public float RotationWindowSeconds = 30f;
-    [Export] public int RotationMinMoves = 2;
-    // 못 지킨 날, 남은 근무 동안 야간 피로에 걸리는 배율.
-    [Export] public float RotationMissPenaltyRate = 2f;
 
     // ── 의무실 고장(G-4) ────────────────────────────────────────────
     // 의무실이 고장 난 동안 기절 회복에 걸리는 시간 배율. 치료 업무 자체는 수리 중이라

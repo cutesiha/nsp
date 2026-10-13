@@ -174,7 +174,6 @@ public partial class RepairTimeTest : Node
         _sim.ResetForNewShift();
         EventLog.Instance?.ClearAll();
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
         GameState.Instance.SetPhase(GamePhase.Live);
     }
 

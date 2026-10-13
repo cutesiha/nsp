@@ -72,10 +72,25 @@ public partial class PadRepairOverlay : Control
     // 승인 요청 화면에서 [예] / [아니오] 를 눌렀다(패드 화면 좌표).
     public bool TryPress(Vector2 at)
     {
-        if (!Visible || RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking) return false;
-        if (YesRect.HasPoint(at)) { RepairApprovalSystem.Approve(); Sfx.Instance?.Play("relay_click", -3f); return true; }
-        if (NoRect.HasPoint(at)) { RepairApprovalSystem.Decline(); Sfx.Instance?.Play("switch", -4f, 0.8f); return true; }
-        return false;
+        switch (ButtonAt(at))
+        {
+            case "yes": RepairApprovalSystem.Approve(); Sfx.Instance?.Play("relay_click", -3f); return true;
+            case "no": RepairApprovalSystem.Decline(); Sfx.Instance?.Play("switch", -4f, 0.8f); return true;
+            default: return false;
+        }
+    }
+
+    // 그 자리가 어느 버튼인가 — "yes" / "no" / "".
+    //
+    // 거치대에 놓인 채로도 이 판정이 필요하다. 승인 요청이 떠 있을 때 [예] 를 누르면
+    // 패드를 **들면서 바로 미로가 시작되고**, [아니오] 를 누르면 패드를 들지 않은 채
+    // 요청만 닫힌다(1013 QA 11번). 그 밖을 누르면 평소처럼 들기만 한다.
+    public string ButtonAt(Vector2 at)
+    {
+        if (!Visible || RepairApprovalSystem.Current != RepairApprovalSystem.Phase.Asking) return "";
+        if (YesRect.HasPoint(at)) return "yes";
+        if (NoRect.HasPoint(at)) return "no";
+        return "";
     }
 
     private Rect2 YesRect => new(_canvas.X * 0.5f - 320f, _canvas.Y * 0.655f, 300f, 110f);

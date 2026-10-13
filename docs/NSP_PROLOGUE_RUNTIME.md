@@ -455,13 +455,18 @@ hold: 1.6
 sfx: cloth_rustle
 
 # 플레이어가 머리를 세게 얻어맞고 책상에 엎어진다.
-# fx: impact 가 충격음(impact_blunt) → 강한 흔들림 → 쓰러지는 소리(body_fall) → 암전까지 한 번에 처리한다.
+# fx: impact 가 세 박자를 한 번에 처리한다 —
+#   ① 쾅        머리 타격음(head_impact) + 붉은 섬광 + 강한 흔들림
+#   ② 헤롱헤롱  이명 · 숨소리 · 느리고 폭 넓은 시야 출렁임(아직 쓰러지지 않는다)
+#   ③ 퍽        1.55초 뒤 책상으로 무너진다(body_fall) + 암전
 # 이 뒤의 '이명 → 의식 회복' 한 박자는 PrologueDirector 가 맡는다.
 @slide
 title:
 image:
 imagenote:
 overlay:
+# 세 박자를 다 보기 전엔 넘어가지 않는다(쾅 → 헤롱헤롱 → 펍 = 2.1초).
+noskip: 2.2
 hold: 2.6
 fx: impact
 
@@ -546,7 +551,8 @@ line: 전임 시설 총괄 관리자는 사고 당시 /1사망/0했습니다.
 line: 비상 승계 규정에 따라 모든 관리 권한이 관리자님께 이전되었습니다.
 line: 지금부터 직원 배치와 시설 운영의 최종 판단은 관리자님의 몫입니다.
 
-# 이 세 줄이 게임 전체 목표 그 자체다. 옆 정보판에 120:00:00 과 코어 3% → 100% 가 함께 뜬다.
+# 이 세 줄이 게임 전체 목표 그 자체다. 옆 정보판에 ‹근무일×24›:00:00 과 코어 0% → 100% 가
+# 함께 뜬다. 정보판의 시간은 아래 {HOURS} 와 **반드시 같은 값**이다(기본 5일=120, 대회용 3일=72).
 @guide g_mission
 portrait: normal
 panel: mission
@@ -696,6 +702,12 @@ line: 관리자님께서 직접 누가 방해공작을 했는지 알아내셔야
 @guide tut_approval
 portrait: normal
 line: 작업실 사고가 발생하면 /1사고 수리 승인 요청/0이 뜹니다. 책상 위 패드에서 /3‘예’/0를 눌러 보십시오.
+
+# 교육에서 [아니오] 를 누르거나 제한 시간을 넘기면 — 벌점 없이 다시 띄우고 이 줄을 읽는다.
+@guide tut_approval_retry
+portrait: sneer
+line: 승인 요청을 /1거절/0하면 사고 수리가 늦어집니다.
+line: 다시 해보세요.
 
 @guide tut_approval_maze
 portrait: normal

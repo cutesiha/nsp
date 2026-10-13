@@ -118,14 +118,25 @@ public partial class GhostModeTest : Node
         // 죽은 뒤다). 여기서는 죽음을 꺼 두고 인계만 본다.
         _sim.Threats.NoBreach = true;
 
-        // 발전실은 서측 접근 복도 바로 바깥이다 — 거기서 나오면 서측으로 들어와야 한다.
+        // 작업실 → 접근 복도 대응표. 방 연결 그래프에서 저절로 나오는 값이지만,
+        // 방을 하나 이어 붙이면 조용히 달라질 수 있는 자리라 일곱 방을 전부 못 박아 둔다
+        // (1013 QA 12번 — "정비실·저장고·의무실은 동측, 발전실·경비실·환기실은 서측,
+        //  코어실은 북측").
         const string origin = "power_room";
-        Ok(_sim.Threats.ApproachFrom(origin) == "corridor_west",
-            "발전실에서 나오면 **서측** 접근 복도로 들어온다");
-        Ok(_sim.Threats.ApproachFrom("core_room") == "corridor_north",
-            "코어실에서 나오면 북측으로 들어온다");
-        Ok(_sim.Threats.ApproachFrom("storage_room") == "corridor_east",
-            "저장고에서 나오면 동측으로 들어온다");
+        foreach (var (room, want, label) in new[]
+                 {
+                     ("maintenance_room", "corridor_east", "정비실 → 동측"),
+                     ("storage_room", "corridor_east", "저장고 → 동측"),
+                     ("medical_room", "corridor_east", "의무실 → 동측"),
+                     ("power_room", "corridor_west", "발전실 → 서측"),
+                     ("guard_room", "corridor_west", "경비실 → 서측"),
+                     ("vent_room", "corridor_west", "환기실 → 서측"),
+                     ("core_room", "corridor_north", "코어실 → 북측"),
+                 })
+        {
+            string got = _sim.Threats.ApproachFrom(room);
+            Ok(got == want, $"{label} 접근 복도로 들어온다 (실제 {got})");
+        }
 
         g.ForceAppear(origin, _sim);
         _sim.SetSurveillanceTarget(origin);

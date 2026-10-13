@@ -112,6 +112,10 @@ public partial class PhoneCallHud : CanvasLayer
     // 3D CRT 입력기가 통화창 뒤의 버튼까지 같은 마우스 입력을 전달하지 않도록,
     // 열려 있는 통화창의 상태를 외부에 명시한다.
     public bool IsOpen => _panel?.Visible ?? false;
+
+    // 지금 받고 있는 것이 개체가 흔내 낸 가짜 전화인가.
+    // HorrorEventDirector 가 이 값을 보고 목소리 왼곡을 최대로 고정한다.
+    public bool IsGhostFakeCall => IsOpen && _dialogueEvent == DialogueRepository.EventGhostFakeCall;
     // 지금 통화 중인 상대. 튜토리얼이 "토끼와 통화 중인가"를 확인하는 데 쓴다.
     public string CurrentEmployeeId => _employeeId;
 
@@ -876,8 +880,12 @@ public partial class PhoneCallHud : CanvasLayer
         // 통화 상대의 모습 — 심문 화면에서는 오른쪽 CRT 가 이미 맡고 있으므로 띄우지 않는다.
 
         var def = FacilitySimulation.Instance?.GetEmployeeDef(employeeId);
-        _speaker.Text = "▶ " + (def?.Codename ?? employeeId);
-        if (_barName != null) _barName.Text = "▶ " + (def?.Codename ?? employeeId);
+        // 개체가 흉내 내어 건 전화는 이름 뒤에 ? 가 붙는다 — 시설도 누구인지 확신하지
+        // 못한다는 뜻이고, 플레이어가 받기 전에 얻는 유일한 단서다(1013 QA 25번).
+        string callerName = (def?.Codename ?? employeeId)
+            + (_dialogueEvent == DialogueRepository.EventGhostFakeCall ? "?" : "");
+        _speaker.Text = "▶ " + callerName;
+        if (_barName != null) _barName.Text = "▶ " + callerName;
         _frame.Accent = def?.IconColor ?? Cyan;
 
         // 이름은 그 직원의 고유색 그대로(어두운 색만 살짝 띄워 가독성 확보),
@@ -924,7 +932,10 @@ public partial class PhoneCallHud : CanvasLayer
             {
                 // 근무 기억용 구조화 기록 — "그래서 바로 관리자님께 전화드렸잖아요".
                 // 비명 문의(H-3)는 순수 분위기 연출이라 기록하지 않는다 — 기록하면 조사 자료 카드가 된다.
-                if (_dialogueEvent != DialogueRepository.EventGhostScream)
+                // 가짜 전화(개체)도 기록하지 않는다 — 기록에 남으면 "그 직원이 전화했다" 는
+                // 거짓 증거가 되어 추리가 통째로 어긋난다.
+                if (_dialogueEvent != DialogueRepository.EventGhostScream
+                    && _dialogueEvent != DialogueRepository.EventGhostFakeCall)
                     CallMemoryLog.Record(employeeId, CallRecordKind.Reported, _incidentRoomId, _dialogueEvent);
                 RecordNpc(_event.Opening, DialogueEntryType.NpcLine, DialogueConversationType.IncomingCall);
                 StartTyping("\"" + _event.Opening + "\"", AfterMode.EventChoices);
@@ -951,9 +962,13 @@ public partial class PhoneCallHud : CanvasLayer
         if (dialogueEvent == DialogueRepository.EventWitnessSuspicious) return null;
         var src = DialogueRepository.GetEvent(dialogueEvent, employeeId);
         if (src == null) return null;
-        var line = new LocalDialogueGenerator.CallLine { Opening = src.Opening };
+        // 교육 전용 통화는 {VICTIM} · {BACK_ROOM} 토큰을 쓴다 — 그 판에서 실제로 쓰러진
+        // 사람과 실제로 돌아갈 작업실로 채운다(1013 QA 14번). 다른 대사에는 토큰이 없어
+        // 아무 일도 일어나지 않는다.
+        string Fill(string s) => DialogueRepository.Fill(s);
+        var line = new LocalDialogueGenerator.CallLine { Opening = Fill(src.Opening) };
         foreach (var c in src.Choices)
-            line.Choices.Add(new LocalDialogueGenerator.CallChoice { Text = c.Text, Reply = c.Reply });
+            line.Choices.Add(new LocalDialogueGenerator.CallChoice { Text = c.Text, Reply = Fill(c.Reply) });
         return line;
     }
 

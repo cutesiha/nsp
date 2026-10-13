@@ -133,9 +133,8 @@ public partial class PlaytestAuditTest : Node
         Reset(3);
         GameState.Instance.SetPhase(GamePhase.Live);
 
-        int approvals = 0, rotations = 0, stays = 0;
+        int approvals = 0, stays = 0;
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
 
         var rooms = _sim.GetRoomIds().Where(r => _sim.GetRoomDef(r)?.IsRestricted == false).ToList();
         // 절반만 배치한다 — 빈 방이 생겨야 무인 경고(체류 대기)가 실제로 걸린다.
@@ -144,7 +143,6 @@ public partial class PlaytestAuditTest : Node
 
         var seenApproval = new HashSet<string>();
         var seenStay = new HashSet<string>();
-        bool rotationSeen = false;
 
         for (float t = 0f; t < Config.Instance.Data.DayLengthSeconds; t += Step)
         {
@@ -156,9 +154,7 @@ public partial class PlaytestAuditTest : Node
                 && RepairApprovalSystem.Active != null
                 && seenApproval.Add(RepairApprovalSystem.Active.RoomId)) approvals++;
 
-            // 순환 배치 — 하루 한 번.
-            if (!rotationSeen && RotationOrderSystem.Current == RotationOrderSystem.Phase.Waiting)
-            { rotationSeen = true; rotations++; }
+            // 순환 배치 규정(G-3)은 1013 QA 28번으로 삭제되었다 — 세는 항목에서도 빠졌다.
 
             // 체류 대기 — 무인 경고가 걸린 방(사람을 보내 머물게 해야 풀린다).
             foreach (string r in rooms)
@@ -169,9 +165,9 @@ public partial class PlaytestAuditTest : Node
         }
         stays = seenStay.Count;
 
-        int total = approvals + rotations + stays;
-        GD.Print($"   수리 승인 {approvals}회 · 순환 배치 {rotations}회 · 체류 대기 {stays}건 = 하루 {total}회");
-        Check(total >= 4, $"관리자 입력이 필요한 이벤트가 하루 4회 이상 ({total}회)");
+        int total = approvals + stays;
+        GD.Print($"   수리 승인 {approvals}회 · 체류 대기 {stays}건 = 하루 {total}회");
+        Check(total >= 3, $"관리자 입력이 필요한 이벤트가 하루 3회 이상 ({total}회)");
     }
 
     // --- 도우미 ---------------------------------------------------------
@@ -183,7 +179,6 @@ public partial class PlaytestAuditTest : Node
         _sim.ResetForNewShift();
         EventLog.Instance?.ClearAll();
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
         _notices.Clear();
     }
 

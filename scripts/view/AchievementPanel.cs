@@ -83,20 +83,47 @@ public partial class AchievementPanel : CanvasLayer
             return;
         }
 
-        if (e is InputEventMouseButton { Pressed: true } mb)
+        if (e is InputEventMouseButton mb)
         {
-            if (mb.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown)
+            if (mb.Pressed && mb.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown)
             {
                 float step = mb.ButtonIndex == MouseButton.WheelUp ? -WheelStep : WheelStep;
                 if (_view.ScrollBy(step)) Sfx.Instance?.Play("tick", -22f);
                 GetViewport().SetInputAsHandled();
+                return;
+            }
+            // 오른쪽 스크롤바 집기 — 누른 채로 끌어 오르내릴 수 있다.
+            if (mb.ButtonIndex == MouseButton.Left)
+            {
+                if (mb.Pressed)
+                {
+                    if (_view.BeginBarDrag(_view.GetLocalMousePosition()))
+                    {
+                        Sfx.Instance?.Play("tick", -20f);
+                        GetViewport().SetInputAsHandled();
+                    }
+                }
+                else if (_view.BarDragging)
+                {
+                    _view.EndBarDrag();
+                    GetViewport().SetInputAsHandled();
+                }
             }
             return;
         }
 
-        // 목록 위에 마우스를 올리면 그 줄로 커서가 간다(타이틀 기록실과 같은 동작).
-        if (e is InputEventMouseMotion && _view.HoverAt(_view.GetLocalMousePosition()))
-            Sfx.Instance?.Play("tick", -22f);
+        if (e is InputEventMouseMotion)
+        {
+            // 집은 채라면 막대만 따라오고 목록 커서는 가만히 둔다.
+            if (_view.BarDragging)
+            {
+                _view.DragBarTo(_view.GetLocalMousePosition());
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            // 목록 위에 마우스를 올리면 그 줄로 커서가 간다(타이틀 기록실과 같은 동작).
+            if (_view.HoverAt(_view.GetLocalMousePosition())) Sfx.Instance?.Play("tick", -22f);
+        }
     }
 
     // ── 화면 ────────────────────────────────────────────────────────
@@ -158,6 +185,7 @@ public partial class AchievementPanel : CanvasLayer
         close.AddThemeStyleboxOverride("pressed", hover);
         close.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         close.Pressed += Close;
+        MonitorUi.AddFeedback(close);
         sheet.AddChild(close);
     }
 }

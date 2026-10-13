@@ -100,6 +100,9 @@ public partial class PadView : Control
 
     // 화면을 눌렀다 — 승인 요청의 [예]/[아니오] 였으면 true.
     public bool TryRepairPress(Vector2 at) => _repair != null && _repair.TryPress(at);
+
+    // 그 자리가 승인 요청의 어느 버튼인가 — "yes" / "no" / "" (누르지는 않는다).
+    public string RepairButtonAt(Vector2 at) => _repair?.ButtonAt(at) ?? "";
     private ColorRect _powerBar;
     private TextureRect _powerNoise;
     private Tween _appTween, _slide, _powerTween;

@@ -58,6 +58,16 @@ public static class RepairApprovalSystem
     // 순서를 만들려고 쓴다. 교육 밖에서는 아무도 켜지 않는다.
     public static bool Held { get; set; }
 
+    // DAY0 교육 전용 — [아니오] 나 무응답으로 끝나도 **벌점 없이 같은 요청을 다시 세운다**.
+    // 배우는 중에 거절했다고 수리 시간을 늘려 버리면 교육이 곧 벌이 된다. 대신
+    // GUIDE-0 가 "거절하면 수리가 늦어집니다. 다시 해보세요." 를 읽고 다시 띄운다
+    // (1013 QA 11번). 다시 세우는 동안 Held 를 켜 두므로, 교육이 말을 끝낸 뒤에
+    // Held 를 내려 주어야 요청이 다시 뜬다. 교육 밖에서는 아무도 켜지 않는다.
+    public static bool RetryOnDecline { get; set; }
+
+    // 그 거절이 '다시 하기' 로 되돌려졌다 — 교육이 안내를 읽을 신호.
+    public static event Action DeclinedForRetry;
+
     // 이 수리가 아직 승인 절차를 기다리는 중인가. 그동안은 수리 게이지가 차지 않는다 —
     // 승인하기도 전에 직원들이 알아서 고쳐 버리면 이 절차가 아무 의미가 없다.
     public static bool IsAwaiting(NSP.Facility.SpawnedTask task)
@@ -85,6 +95,7 @@ public static class RepairApprovalSystem
         _queue.Clear();
         Paused = false;
         Held = false;
+        RetryOnDecline = false;
         Current = Phase.Idle;
         Active = null;
         Maze = null;
@@ -188,6 +199,23 @@ public static class RepairApprovalSystem
         LastApproved = approved;
         LastSucceeded = succeeded;
         string room = Active?.RoomId ?? "";
+
+        // 교육에서 거절했다 — 벌점도 로그도 없이 같은 요청을 다시 줄에 세운다.
+        // 수리 게이지는 IsAwaiting 이 계속 막아 주므로 그동안 수리도 진행되지 않는다.
+        if (!approved && RetryOnDecline && Active != null)
+        {
+            Sfx.Instance?.Play("switch_fail", -6f);
+            var again = Active;
+            Current = Phase.Idle;
+            Active = null;
+            Maze = null;
+            MazeStarted = false;
+            MazeFailed = false;
+            Held = true;                  // 교육이 안내를 읽은 뒤 직접 내린다
+            _queue.Enqueue(again);
+            DeclinedForRetry?.Invoke();
+            return;
+        }
 
         if (!succeeded && Active?.Task != null)
         {

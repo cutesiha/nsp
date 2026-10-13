@@ -69,7 +69,6 @@ public partial class Day1RhythmTest : Node
         _sim.ResetForNewShift();
         EventLog.Instance?.ClearAll();
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
         GameState.Instance.AssignRandomSaboteur(_sim.GetActiveEmployeeIds());
         GameState.Instance.SetPhase(GamePhase.Live);
 

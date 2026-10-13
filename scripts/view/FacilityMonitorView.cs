@@ -142,7 +142,8 @@ public partial class FacilityMonitorView : Control
         _protocol.PivotOffset = new Vector2(394f, 12f);
         AddChild(_protocol);
         // 그 숫자를 가리키는 하늘색 네모. 평소에는 꺼져 있고 교육이 켠다.
-        BuildMaterialsMark();
+        BuildMark(_materialsMark);
+        BuildMark(_endMark);
         RoomEffectStats.MaterialsGained += PopMaterials;
     }
 
@@ -152,13 +153,24 @@ public partial class FacilityMonitorView : Control
     // 다른 UI 칸과 같은 하늘색 테두리를 그 숫자 둘레에만 둘러 주는 것이 전부다 —
     // 새 안내창을 띄우지 않는다.
     // 네 변을 각각 얇은 ColorRect 로 긋고 가운데를 아주 옅게 채운다.
-    private readonly System.Collections.Generic.List<ColorRect> _materialsMark = new();
-    private bool _materialsMarkOn;
-    private float _materialsMarkT;
+    // 강조 테두리 한 벌. 같은 장치를 자재 숫자와 「근무 종료」 버튼이 나눠 쓴다.
+    private sealed class Mark
+    {
+        public readonly System.Collections.Generic.List<ColorRect> Rects = new();
+        public bool On;
+        public float T;
+        public Color Tint = MarkCyan;
+    }
+
+    private readonly Mark _materialsMark = new();
+    // 「근무 종료」 버튼 강조 — 교육이 "이제 근무를 종료해 보십시오" 라고 말할 때 켠다.
+    // 평소에도 **끝낼 수 있게 된 순간**에 켜 둔다(1013 QA 15번 — 버튼을 못 찾는다).
+    private readonly Mark _endMark = new() { Tint = MarkAmber };
 
     private static readonly Color MarkCyan = new(0.45f, 0.88f, 0.95f);
+    private static readonly Color MarkAmber = new(1f, 0.80f, 0.36f);
 
-    private void BuildMaterialsMark()
+    private void BuildMark(Mark m)
     {
         // [0] = 안쪽 바탕, [1~4] = 위 · 아래 · 왼 · 오른 변.
         for (int i = 0; i < 5; i++)
@@ -168,29 +180,29 @@ public partial class FacilityMonitorView : Control
             // 알파 하나로만 한다(그 경로는 확인됐다).
             var r = new ColorRect
             {
-                Color = MarkCyan with { A = 0f },
+                Color = m.Tint with { A = 0f },
                 MouseFilter = MouseFilterEnum.Ignore,
             };
             AddChild(r);
-            _materialsMark.Add(r);
-
+            m.Rects.Add(r);
         }
     }
 
-    // 매 프레임 그 숫자 자리에 맞춰 둔다(줄이 오른쪽 정렬이라 자리가 움직인다).
-    private void UpdateMaterialsMark(double delta)
+    // 매 프레임 그 자리에 맞춰 둔다(오른쪽 정렬이라 자리가 움직인다).
+    private void UpdateMark(Mark m, Rect2 target, double delta)
     {
-        if (_materialsMark.Count < 5) return;
-        if (!_materialsMarkOn)
+        if (m.Rects.Count < 5) return;
+        // 꺼졌거나 가리킬 자리가 아직 없으면 지운다. 자리만 없다고 그냥 돌아가면
+        // 마지막 알파가 엉뚱한 곳에 남는다.
+        if (!m.On || target.Size.X <= 0f)
         {
-            foreach (var r in _materialsMark)
-                if (r.Color.A > 0f) r.Color = MarkCyan with { A = 0f };
+            foreach (var r in m.Rects)
+                if (r.Color.A > 0f) r.Color = m.Tint with { A = 0f };
             return;
         }
 
-        var box = _materialsRect.Grow(5f);
-        if (box.Size.X <= 0f) return;
-        _materialsMarkT += (float)delta;
+        var box = target.Grow(5f);
+        m.T += (float)delta;
 
         const float T = 2f;   // 테두리 두께
         Rect2[] rects =
@@ -202,15 +214,15 @@ public partial class FacilityMonitorView : Control
             new(box.Position + new Vector2(box.Size.X - T, 0), new Vector2(T, box.Size.Y)),
         };
         // 숨 쉬듯 밝아졌다 어두워진다 — 가만히 떠 있으면 UI 의 일부로 읽힌다.
-        float a = 0.55f + 0.45f * Mathf.Sin(_materialsMarkT * 4.2f);
+        float a = 0.55f + 0.45f * Mathf.Sin(m.T * 4.2f);
         for (int i = 0; i < 5; i++)
         {
             // 자리는 **바뀌었을 때만** 쓴다. 매 프레임 Size 를 덮어쓰면 이 화면에서는
             // 사각형이 아예 그려지지 않았다(원인은 못 찾았고, 바뀔 때만 쓰면 멀쩡하다).
-            if (_materialsMark[i].Position != rects[i].Position) _materialsMark[i].Position = rects[i].Position;
-            if (_materialsMark[i].Size != rects[i].Size) _materialsMark[i].Size = rects[i].Size;
+            if (m.Rects[i].Position != rects[i].Position) m.Rects[i].Position = rects[i].Position;
+            if (m.Rects[i].Size != rects[i].Size) m.Rects[i].Size = rects[i].Size;
             // [0] 은 안쪽 바탕이라 아주 옅게, 나머지 네 변은 또렷하게.
-            _materialsMark[i].Color = MarkCyan with { A = i == 0 ? a * 0.18f : a };
+            m.Rects[i].Color = m.Tint with { A = i == 0 ? a * 0.18f : a };
         }
     }
 
@@ -220,9 +232,18 @@ public partial class FacilityMonitorView : Control
 
     public static void HighlightMaterials(bool on)
     {
-        if (Instance == null || Instance._materialsMarkOn == on) return;
-        Instance._materialsMarkOn = on;
-        Instance._materialsMarkT = 0f;
+        if (Instance == null || Instance._materialsMark.On == on) return;
+        Instance._materialsMark.On = on;
+        Instance._materialsMark.T = 0f;
+    }
+
+    // 「근무 종료」 버튼을 강조할지. 교육이 그 단계에서 켠다.
+    // 끄지 않아도 근무가 끝나면 이 화면 자체가 내려간다.
+    public static void HighlightEndShift(bool on)
+    {
+        if (Instance == null || Instance._endMark.On == on) return;
+        Instance._endMark.On = on;
+        Instance._endMark.T = 0f;
     }
 
 
@@ -489,7 +510,12 @@ public partial class FacilityMonitorView : Control
 
     public override void _Process(double delta)
     {
-        UpdateMaterialsMark(delta);
+        UpdateMark(_materialsMark, _materialsRect, delta);
+        // 버튼 강조는 **누를 수 있을 때만** 켠다 — 못 누르는 버튼이 빛나면 더 헷갈린다.
+        if (_endBtn != null)
+            UpdateMark(_endMark, _endMark.On && !_endBtn.Disabled
+                ? new Rect2(_endBtn.GlobalPosition - GlobalPosition, _endBtn.Size)
+                : new Rect2(), delta);
         string clock = ShiftClock(GameState.Instance?.DayTimeSeconds ?? 0f);
         if (_clock.Text != clock) _clock.Text = clock;
 

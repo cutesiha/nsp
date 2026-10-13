@@ -36,6 +36,32 @@ public static class DialogueRepository
     // 분위기 연출이다 — 단서가 아니다. 통화 기록 · 근무 기억 · 조사 자료 어디에도 남지 않는다.
     public const string EventGhostScream = "ghost_scream";
 
+    // 개체가 **직원 목소리를 흉내 내어** 거는 가짜 전화(1013 QA 25번).
+    // 발신자 이름 옆에 ? 가 붙고 목소리가 굵고 불안정하게 변조된다. 받아도 시설은
+    // 아무것도 바뀌지 않는다 — 기록에도 남기지 않는다(비명 문의와 같은 규약).
+    public const string EventGhostFakeCall = "ghost_fake_call";
+
+    // ── 통화 대사의 치환값 ─────────────────────────────────────────────
+    //
+    // 전화를 거는 쪽이 "그 판에서 실제로 일어난 일"을 여기에 채워 두고, 화면(PhoneCallHud)
+    // 이 Fill 로 꺼내 쓴다. 이름 · 방 이름을 문장에 박아 두면 상황이 바뀌는 순간 그대로
+    // 거짓말이 되기 때문이다(교육 복귀 전화 14번 · 귀신의 가짜 전화 25번).
+    public static readonly Dictionary<string, string> CallTokens = new();
+
+    public static void SetCallToken(string key, string value)
+    {
+        if (string.IsNullOrEmpty(key)) return;
+        CallTokens[key] = value ?? "";
+    }
+
+    public static string Fill(string text)
+    {
+        if (string.IsNullOrEmpty(text) || CallTokens.Count == 0) return text;
+        foreach (var (k, v) in CallTokens)
+            if (!string.IsNullOrEmpty(v)) text = text.Replace("{" + k + "}", v);
+        return text;
+    }
+
     // 계통 신호가 흔들린 직후, 그 방에 있던 직원이 "여기 설비는 멀쩡하다" 고 알린다.
     // 누구도 지목하지 않는다 — 증상이 난 방과 원인이 시작된 방이 다를 수 있다는 재료일 뿐이다.
     public const string EventSignalCheck = "signal_check_report";

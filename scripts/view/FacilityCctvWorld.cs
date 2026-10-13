@@ -214,6 +214,13 @@ public partial class FacilityCctvWorld : Node3D
     //
     // 카메라가 붙은 구간만 세운다(카메라 없는 복도는 비출 방법이 없다).
     private readonly Dictionary<string, CorridorVisual> _corridors = new();
+
+    // 그 구간의 차폐문을 한 번 울린다(괴물이 두드린 순간). 보고 있지 않아도 상관없다 —
+    // 화면에 떠 있을 때만 보이고, 아니면 아무 일도 일어나지 않는다.
+    public void PoundCorridorDoor(string segmentId)
+    {
+        if (!string.IsNullOrEmpty(segmentId) && _corridors.TryGetValue(segmentId, out var v)) v.Pound();
+    }
     private string _shownCorridor = "\0";
     // 복도 카메라의 두 구도 중 어느 쪽인가. false = 먼 시야, true = 차폐문 근접.
     private bool _corridorNearView;
@@ -955,12 +962,108 @@ public partial class FacilityCctvWorld : Node3D
         _ghostVanishing = false;
     }
 
-    // 끝내 못 찾았다 — 화면 밖에서 벌어진 일이므로 조용히 사라지고 방 조명만 돌아온다.
+    // 끝내 못 찾았다 — 그 방 설비가 부서진다.
+    //
+    // 보고 있지 않았으면 조용히 사라진다(화면 밖에서 벌어진 일이다). 하지만 마침 그 방을
+    // 보고 있었다면 **부수는 장면을 그대로 보여 준다**(1013 QA 21번) — 개체가 설비를
+    // 들이받고, 불꽃이 튀고, 방이 붉게 꺼진다. 그래야 "고장 = 저것이 한 짓" 이 된다.
     private void OnGhostStruck(string roomId)
     {
+        if (_ghostShowing && _entity != null && roomId == _shownRoom && !_ghostVanishing)
+        {
+            _ = PlayRampage();
+            return;
+        }
         _ghostShowing = false;
         if (_entity != null) _entity.Visible = false;
         RestoreRoomLights();
+    }
+
+    // 설비를 부수는 1.4초. 그동안 UpdateGhost 가 손대지 못하게 _ghostVanishing 을 쥔다.
+    private async System.Threading.Tasks.Task PlayRampage()
+    {
+        _ghostVanishing = true;
+        _ghostShowing = false;
+        Vector3 at = _entity.Position;
+
+        Sfx.Instance?.PlayGhostScream();
+        CCTVMonitorView.Instance?.FlashGlitch(0.8f);
+        DimRoomLights(_shownRoom, 0.18f);
+
+        // ① 설비를 두 번 들이받는다 — 있는 동작(머리 박기 · 덮침)을 이어 쓴다.
+        for (int i = 0; i < 2; i++)
+        {
+            if (!IsInstanceValid(this) || !IsInstanceValid(_entity)) { _ghostVanishing = false; return; }
+            if (!ForceGhostPose(i == 0 ? GhostPose.RapidHeadbang : GhostPose.FloorHeadbang))
+                HauntLunge();
+            ShakeCamera(5.5f, 0.35f);
+            Sfx.Instance?.Play("impact_blunt", -4f, (float)GD.RandRange(0.62, 0.78));
+            Sfx.Instance?.Play("metal_clang", -6f, (float)GD.RandRange(0.8, 1.05));
+            SpawnGhostSparks(at + new Vector3(0f, 0.6f, 0f));
+            await ToSignal(GetTree().CreateTimer(0.45), SceneTreeTimer.SignalName.Timeout);
+        }
+        if (!IsInstanceValid(this)) return;
+
+        // ② 설비가 터진다 — 불꽃 한 번 더 + 전기 아크.
+        Sfx.Instance?.Play("electric_arc", -2f);
+        Sfx.Instance?.Play("rubble_collapse", -9f, 0.9f);
+        SpawnGhostSparks(at + new Vector3(0f, 0.9f, 0f));
+        SpawnGhostDust(at);
+        ShakeCamera(7.5f, 0.6f);
+        CCTVMonitorView.Instance?.FlashGlitch(1f);
+        await ToSignal(GetTree().CreateTimer(0.35), SceneTreeTimer.SignalName.Timeout);
+        if (!IsInstanceValid(this)) return;
+
+        // ③ 그것은 사라지고, 부서진 방만 남는다.
+        if (IsInstanceValid(_entity)) _entity.Visible = false;
+        RestoreRoomLights();
+        _ghostVanishing = false;
+    }
+
+    // 설비에서 튀는 불꽃. 먼지(SpawnGhostDust)와 같은 틀을 쓰되 색과 속도만 다르다.
+    private CpuParticles3D _ghostSparks;
+
+    private void SpawnGhostSparks(Vector3 at)
+    {
+        _ghostSparks ??= BuildGhostSparks();
+        if (_ghostSparks == null) return;
+        _ghostSparks.Position = at;
+        _ghostSparks.Emitting = false;
+        _ghostSparks.Restart();
+        _ghostSparks.Emitting = true;
+    }
+
+    private CpuParticles3D BuildGhostSparks()
+    {
+        var p = new CpuParticles3D
+        {
+            Amount = 38,
+            Lifetime = 0.6,
+            OneShot = true,
+            Explosiveness = 0.95f,
+            Emitting = false,
+            Mesh = new QuadMesh { Size = new Vector2(0.035f, 0.035f) },
+            Direction = Vector3.Up,
+            Spread = 85f,
+            Gravity = new Vector3(0f, -4.5f, 0f),
+            InitialVelocityMin = 1.4f,
+            InitialVelocityMax = 3.4f,
+            ScaleAmountMin = 0.4f,
+            ScaleAmountMax = 1.1f,
+        };
+        p.MaterialOverride = new StandardMaterial3D
+        {
+            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+            BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+            BillboardMode = BaseMaterial3D.BillboardModeEnum.Particles,
+            // 빌보드는 이 값이 없으면 scale 을 통째로 무시한다(컷씬 키트에서 겪은 함정).
+            BillboardKeepScale = true,
+            AlbedoColor = new Color(1f, 0.82f, 0.45f, 0.95f),
+            VertexColorUseAsAlbedo = true,
+        };
+        AddChild(p);
+        return p;
     }
 
     private void SpawnGhostDust(Vector3 at)

@@ -64,6 +64,7 @@ public sealed class MonsterActor
             Wake(_sway);
             _model = _sway.GetChildCount() > 0 ? _sway.GetChild<Node3D>(0) : null;
             _anim = _model == null ? null : FindAnim(_model);
+            _forwardExtent = _extents.GetValueOrDefault(def.MonsterId, 0f);
             return _model != null;
         }
 
@@ -145,7 +146,9 @@ public sealed class MonsterActor
         LoopClipOn(anim, def.AnimRun);
         if (_def?.MonsterId == def.MonsterId) _anim = anim;
 
-        FitToHeight(inst, def);
+        float extent = FitToHeight(inst, def);
+        _extents[def.MonsterId] = extent;
+        if (_def?.MonsterId == def.MonsterId) _forwardExtent = extent;
         return inst;
     }
 
@@ -174,16 +177,18 @@ public sealed class MonsterActor
     // 실제로 그려지는 크기를 재서 원하는 키에 맞춘다.
     // FBX 마다 단위가 달라 배율을 적어 두면 모델을 바꿀 때마다 다시 재야 한다 —
     // 재서 맞추면 교체해도 그대로 선다.
-    private static void FitToHeight(Node3D inst, MonsterDef def)
+    // 앞쪽(로컬 +Z)으로 나온 길이를 돌려준다 — 차폐문 앞에 세울 때 쓴다.
+    private static float FitToHeight(Node3D inst, MonsterDef def)
     {
-        if (def.TargetHeight <= 0f) return;
+        if (def.TargetHeight <= 0f) return 0f;
         var box = VisualBounds(inst, inst);
-        if (box.Size.Y <= 0.0001f) return;
+        if (box.Size.Y <= 0.0001f) return 0f;
         float k = def.TargetHeight / box.Size.Y;
         inst.Scale = Vector3.One * k;
         // 발이 바닥(y=0)에 닿게 내린다.
         inst.Position = new Vector3(0f, -box.Position.Y * k + def.FloorOffset, 0f);
         inst.RotationDegrees = new Vector3(0f, def.YawOffsetDegrees, 0f);
+        return Mathf.Max(0f, (box.Position.Z + box.Size.Z) * k);
     }
 
     private static Aabb VisualBounds(Node3D root, Node n, bool first = true)
@@ -248,12 +253,30 @@ public sealed class MonsterActor
     private const float CctvScale = 2.1f;
     private const float CctvHeadroom = 2.25f;
 
+    // 차폐문 앞에 설 때 몸 앞면과 문 사이에 남기는 거리(m). 뼈가 움직여 팔이 더 뻗는
+    // 몫까지 여기서 감당한다 — 스킨 메시의 AABB 는 바인드 포즈 기준이라 그만큼은 못 잰다.
+    private const float DoorClearance = 0.45f;
+
+    // 이 모델이 **앞쪽(로컬 +Z)으로 나온 길이**(배율 1 기준, m). FitToHeight 가 잰다.
+    private float _forwardExtent;
+    private readonly System.Collections.Generic.Dictionary<string, float> _extents = new();
+    private float ForwardExtent => _forwardExtent;
+
     public void Place(MonsterThreat t, CorridorVisual vis, float delta)
     {
         if (_def == null || vis == null) { Hide(); return; }
         ShowRoot();
 
         float z = vis.ApproachZ(t.Progress);
+        // 차폐문을 **뚫고 들어가지 않는다**(1013 QA 23번).
+        //
+        // ApproachZ 는 문 앞 0.55 m 에서 멈추지만, 그건 발 위치 기준이다. 몸은 CCTV 용으로
+        // 최대 2.1배까지 키워 세우므로 큰 개체(거미)는 그 0.55 m 를 그대로 넘어 문 저편까지
+        // 삐져나왔다. 모델마다 앞으로 나온 길이가 다르니 **직접 재서** 그만큼 더 물러세운다.
+        float scaleUsed = Mathf.Min(CctvScale, CctvHeadroom / Mathf.Max(0.2f, _def.TargetHeight));
+        float outward = Mathf.Sign(vis.ApproachZ(1f) - vis.DoorZ);
+        float limitZ = vis.DoorZ + outward * (DoorClearance + ForwardExtent * scaleUsed);
+        z = outward > 0f ? Mathf.Max(z, limitZ) : Mathf.Min(z, limitZ);
         // 거미는 벽에 붙어 온다(§6) — 사람형은 복도 가운데로.
         float x = _def.MonsterId == "spider" ? vis.WallHugX : 0f;
         // 문 앞에 붙는 순간에는 관찰 슬릿 정면으로 모인다. 벽에 붙은 채로 멈춰 서면

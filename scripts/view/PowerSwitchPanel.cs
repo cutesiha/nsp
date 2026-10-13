@@ -122,6 +122,7 @@ public partial class PowerSwitchPanel : Node3D
                     lv.RotationDegrees = lv.RotationDegrees with { X = on ? LeverOn : LeverOff };
             }
             _lastCapacity = GameState.Instance?.PowerCapacity ?? -1;
+            NSP.Facility.RoomEffectStats.PowerEquipmentFailed += OnPowerEquipmentFailed;
         }
 
         // 전력 용량 표시 — 씬에 Label3D "CapacityLabel" 이 있으면 그것을 쓴다.
@@ -141,6 +142,12 @@ public partial class PowerSwitchPanel : Node3D
             };
             AddChild(_capacityLabel);
         }
+    }
+
+    public override void _ExitTree()
+    {
+        if (!Engine.IsEditorHint())
+            NSP.Facility.RoomEffectStats.PowerEquipmentFailed -= OnPowerEquipmentFailed;
     }
 
     private AudioStreamPlayer3D MakePlayer(string key, bool loop, float db)
@@ -469,6 +476,20 @@ public partial class PowerSwitchPanel : Node3D
         };
         AddChild(arcLight);
         _arcLights[channel] = arcLight;
+    }
+
+    // 발전실 사고 — 설비 자체가 터진다. 세 채널 전부에서 연기가 오르고, 그 위에
+    // 파열음 한 방을 얹는다. 레버가 실제로 내려가는지(= 전력이 모자라 차단되는지)와
+    // **무관하게** 터져야 한다. 사고가 났는데 화면이 조용하면 플레이어는 사고를 모른다.
+    // 등록·해제는 _Ready / _ExitTree 에서 한다.
+    private void OnPowerEquipmentFailed()
+    {
+        if (Engine.IsEditorHint() || !IsInsideTree()) return;
+        foreach (var (channel, _, _) in Switches) BreakdownAt(channel);
+        // 금속 패널이 한 번 크게 터지는 소리 — 치직(electric_arc)만으로는 "팡" 이 안 난다.
+        Sfx.Instance?.Play("impact_blunt", -4f, 0.9f);
+        Sfx.Instance?.Play("metal_clang", -7f, 1.15f);
+        _zapSparkUntil = Time.GetTicksMsec() / 1000.0 + 0.9;
     }
 
     // 전력이 모자라 이 채널이 강제로 꺼졌다 — 레버가 내려간 자리에서 연기 + 스파크 + 푸슈숙/치직.

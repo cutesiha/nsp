@@ -73,7 +73,6 @@ public partial class RepairBalanceTest : Node
         EventLog.Instance.ClearAll();
         GameState.Instance.SetPhase(GamePhase.Live);
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
 
         var ids = _sim.GetActiveEmployeeIds().Take(need).ToList();
         if (!sendFromAfar)

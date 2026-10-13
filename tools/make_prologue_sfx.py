@@ -10,7 +10,8 @@
     footsteps_run.wav  구두를 신고 복도를 뛰는 소리
     rubble_collapse.wav 구조물이 무너지는 소리
     glass_shatter.wav  유리/집기가 박살나는 소리
-    impact_blunt.wav   머리를 둔기로 맞은 듯한 충격음
+    impact_blunt.wav   둔탁한 충격음(구조물 · 몸통)
+    head_impact.wav    머리를 둔기로 맞는 소리 — 뼈가 울리는 둔탁한 "쾅"
     body_fall.wav      사람이 책상에 엎어지는 "퍽" 소리
 """
 import math
@@ -149,6 +150,41 @@ def make_impact(duration=0.55):
     return out
 
 
+# --- 머리를 둔기로 맞는 소리 : 뼈가 울리는 둔탁한 '쾅' ---
+#
+# impact_blunt 는 150Hz 가 순식간에 내려앉는 '쿵' + 1.4kHz 크랙이라, 머리를 맞은 소리가
+# 아니라 멀리서 뭔가 터진 소리로 들렸다(1013 QA 7번 "뭐 이상한 걸로 대체된 거 같은데").
+#
+# 머리 타격음은 세 겹이다. **높은 크랙을 넣지 않는다** — 그게 들어가면 유리/금속이 된다.
+#   ① 저역 쿵    80Hz → 48Hz 로 내려앉는 사인. 몸으로 전해지는 충격.
+#   ② 둔탁한 몸통 450Hz 아래만 남긴 아주 짧은 잡음. 이 겹이 '둔기' 를 만든다.
+#   ③ 두개골 울림 210Hz 짜리 짧은 공명 + 그 뒤로 끌리는 낮은 꼬리(귀가 먹먹해진다).
+def make_head_impact(duration=0.85):
+    n = sec(duration)
+    out = [0.0] * n
+    for i in range(n):
+        t = i / RATE
+        # ① 저역 쿵
+        f = 80.0 * math.exp(-t * 7.0) + 48.0
+        out[i] += 1.0 * math.exp(-t * 10.0) * math.sin(2 * math.pi * f * t)
+        # ③ 두개골 공명
+        out[i] += 0.42 * math.exp(-t * 26.0) * math.sin(2 * math.pi * 210.0 * t)
+
+    # ② 둔탁한 몸통 — 450Hz 아래만. 아주 짧게 때린다.
+    body = lowpass(noise(sec(0.09)), 450)
+    for i, v in enumerate(body):
+        out[i] += v * 1.1 * math.exp(-i / sec(0.016))
+
+    # 꼬리 — 맞은 뒤 머릿속이 먹먹하게 울린다.
+    tail = lowpass(noise(sec(0.45)), 220)
+    for i, v in enumerate(tail):
+        idx = sec(0.03) + i
+        if idx >= n:
+            break
+        out[idx] += v * 0.16 * math.exp(-i / sec(0.17))
+    return out
+
+
 # --- 책상에 엎어지는 소리 : 둔탁한 몸통 충격 + 나무 울림 + 옷 스침 ---
 def make_body_fall(duration=0.9):
     n = sec(duration)
@@ -175,4 +211,5 @@ if __name__ == "__main__":
     write("rubble_collapse.wav", make_collapse())
     write("glass_shatter.wav", make_glass())
     write("impact_blunt.wav", make_impact(), peak=0.95)
+    write("head_impact.wav", make_head_impact(), peak=0.97)
     write("body_fall.wav", make_body_fall(), peak=0.92)

@@ -305,6 +305,28 @@ public partial class Prologue3DDirector : Node
     {
         foreach (var a in _actors) if (IsInstanceValid(a)) a.QueueFree();
         _actors.Clear();
+        foreach (var m in _monsters) if (IsInstanceValid(m.Root)) m.Root.QueueFree();
+        _monsters.Clear();
+    }
+
+    // ── 컷씬에 서는 괴물 ────────────────────────────────────────────────
+    //
+    // 실시간 운영에서 쓰는 MonsterActor 를 그대로 쓴다 — 모델을 따로 두면
+    // "복도에서 본 그것" 과 "프롤로그에서 본 그것" 이 서로 다른 존재가 된다
+    // (MonsterCast 의 규약). 판정은 없고 세우고 재생할 뿐이다.
+    private readonly List<NSP.View.MonsterActor> _monsters = new();
+
+    private NSP.View.MonsterActor SpawnMonster(Node3D parent, string monsterId,
+        Vector3 pos, float yawDeg, float scale = 1f)
+    {
+        var def = NSP.View.MonsterCast.ById(monsterId);
+        if (def == null || parent == null) return null;
+        var m = new NSP.View.MonsterActor();
+        m.Attach(parent);
+        if (!m.Use(def)) { m.Root.QueueFree(); return null; }
+        m.SetPose(pos, yawDeg, scale);
+        _monsters.Add(m);
+        return m;
     }
 
     private CutsceneActor Spawn(Node3D parent, string id, Vector3 pos, float yaw = 0f)
@@ -474,8 +496,17 @@ public partial class Prologue3DDirector : Node
     }
 
     // ── 공용 : 화면 흔들림 ───────────────────────────────────────────────
+    //
+    // 1013 QA 5 · 6번 — "너무 어지러워서 좀 느리게 폭 넓게 흔들리게".
+    // 예전에는 **매 프레임 새 난수**를 카메라 위치에 꽂았다. 그러면 60Hz 백색잡음이
+    // 되어 흔들림이 아니라 지터로 보이고, 눈이 따라갈 수 없어 멀미가 난다.
+    // 지금은 주기가 서로 어긋난 사인 둘을 겹쳐 쓴다 — 1.7Hz 짜리 큰 출렁임 위에
+    // 0.8Hz 짜리 느린 흐름이 얹혀 "느리게 · 폭 넓게" 움직인다. 같은 체감 강도를
+    // 훨씬 낮은 변위로 얻으므로 gain 도 0.22 → 0.16 으로 내렸다.
     private float _shake;
     private float _shakeDecay = 1.4f;
+    private float _shakeT;
+    private const float ShakeGain = 0.16f;
     private Vector3 _camBase, _camLookBase;
 
     public void Shake(float amount, float decay = 1.4f)
@@ -492,9 +523,16 @@ public partial class Prologue3DDirector : Node
         _stage?.TickSurface(d);
         if (_shake <= 0f || _stage == null) return;
         _shake = Mathf.Max(0f, _shake - d * _shakeDecay);
+        _shakeT += d;
         // 카메라 자체를 흔든다 — 화면만 흔드는 것과 달리 공간이 같이 흔들린다.
-        _stage.ShakeOffset(new Vector3(
-            _rng.RandfRange(-1f, 1f), _rng.RandfRange(-1f, 1f), _rng.RandfRange(-0.4f, 0.4f)) * _shake * 0.22f);
+        float t = _shakeT;
+        var sway = new Vector3(
+            Mathf.Sin(t * 11.0f) * 0.62f + Mathf.Sin(t * 4.9f + 1.7f) * 0.44f,
+            Mathf.Sin(t * 9.3f + 0.9f) * 0.55f + Mathf.Sin(t * 3.9f + 2.6f) * 0.42f,
+            Mathf.Sin(t * 7.1f + 2.2f) * 0.30f);
+        _stage.ShakeOffset(sway * _shake * ShakeGain);
+        // 다 잦아들면 카메라를 원래 자리에 정확히 되돌린다(사인은 0 에서 끝나지 않는다).
+        if (_shake <= 0f) _stage.ShakeOffset(Vector3.Zero);
     }
 
     private async Task Wait(double seconds) =>

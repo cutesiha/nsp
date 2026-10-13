@@ -105,6 +105,36 @@ public partial class OpsProfileDef : Resource
     // 이 값이 0 이면 "이상이 난 방 = 범인이 있던 방" 공식이 성립해 추리가 끝난다.
     [Export(PropertyHint.Range, "0,1,0.05")] public float TamperCrossRoomChance = 0.7f;
 
+    // ── 감시 공백 이용(CovertActionSystem) ─────────────────────────────
+    //
+    // 전력은 2포인트뿐이라 LIGHTING · CCTV · BARRIER 를 동시에 켤 수 없다. 관리자가
+    // 귀신을 막으려고 차폐에 전력을 돌리는 순간 감시에 구멍이 뚫리고, 결번 개체는
+    // **그 구멍을 실제로 이용한다**. 아래 값들이 "얼마나 빨리, 얼마나 자주" 를 정한다.
+    //
+    // 어느 것도 "조명이 꺼졌으니 사람이 죽는다" 가 아니다. 전부 실제 위치 · 실제 이동 ·
+    // 실제 체류 시간을 거친다(지시서 §0 · §5).
+
+    // 조명 OFF 를 이용한 은밀 이동을 이 날 쓰는가.
+    [Export] public bool AllowCovertMove = true;
+    // 조명이 이만큼 꺼져 있어야 결번 개체가 "지금이면 움직일 수 있다" 고 판단한다.
+    [Export] public float CovertMoveAfterSeconds = 9f;
+    // 피해자와 같은 방에 도달한 뒤 범행까지 필요한 준비 시간. 조건이 하나라도 깨지면 멈춘다.
+    [Export] public float CovertKillPrepareSeconds = 10f;
+    // 조명이 다시 들어왔을 때 이동을 포기할 확률(나머지는 발각 위험을 안고 계속 간다).
+    [Export(PropertyHint.Range, "0,1,0.05")] public float CovertAbortOnLightChance = 0.5f;
+
+    // ── 봉쇄 계통 교란(귀신 출몰의 원인) ───────────────────────────────
+    // 봉쇄 계통에 손댈 수 있는 작업실. 비워 두면 SabotageTargetRooms 를 쓴다.
+    [Export] public Godot.Collections.Array<string> ContainmentRooms = new();
+    // CCTV 가 이만큼 꺼져 있어야 교란을 시작한다.
+    [Export] public float ContainmentTamperAfterSeconds = 8f;
+    // 실제 조작에 걸리는 시간. 이 동안 그 직원은 **정상 업무를 하지 않는다**(복구량이 준다).
+    [Export] public float ContainmentWorkSeconds = 7f;
+    // 하루 교란 횟수. 0 이면 이 날은 봉쇄 교란을 하지 않는다.
+    [Export] public int ContainmentTampersPerDay = 2;
+    // 한 번 성공할 때 쌓이는 불안정성(0~100 척도).
+    [Export] public float ContainmentInstabilityPerTamper = 18f;
+
     // ── 오늘의 금기 ────────────────────────────────────────────────────
     // 이 날 적용할 금기 id 목록(data/taboos/*.tres). 비어 있으면 그 날은 금기가 없다.
     // DAY 별 차이는 전부 이 데이터에서 나온다 — 코드에 날짜 분기를 넣지 않는다.

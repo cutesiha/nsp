@@ -1072,13 +1072,14 @@ public partial class GuideHologramView : Control
             DrawString(font, new Vector2(16f, 26f), "비상 차폐 잔여 시간", HorizontalAlignment.Left,
                 Size.X - 32f, ViewFont.S(13), Cyan with { A = 0.78f });
 
-            // 120시간에서 아주 천천히 줄어드는 타이머(실제 게임 시간과는 무관한 연출용).
-            double total = 120 * 3600 - _t * 3.0;
-            int h = Mathf.Max(0, (int)(total / 3600));
-            int m = Mathf.Max(0, (int)(total / 60) % 60);
-            int sec = Mathf.Max(0, (int)total % 60);
+            // 바로 옆에서 GUIDE-0 가 "앞으로 {HOURS}시간만 유지됩니다" 라고 말하는 중이다 —
+            // 이 숫자가 그 대사와 **글자 하나까지 같아야** 한다(1013 QA 9번).
+            // 예전에는 120시간을 박아 두고 천천히 깎기까지 해서, 대사가 72시간일 때
+            // 화면에는 119시간이 떠 있었다. 근무일 수는 모드마다 다르므로 설정에서 뽑고,
+            // 줄어들게 하지 않는다(브리핑 동안 숫자가 바뀔 이유가 없다).
+            int h = NSP.Core.GameModes.MaxDays * 24;
             var warn = new Color(1f, 0.72f, 0.30f);
-            DrawString(font, new Vector2(16f, 58f), $"{h:000}:{m:00}:{sec:00}", HorizontalAlignment.Left,
+            DrawString(font, new Vector2(16f, 58f), $"{h:000}:00:00", HorizontalAlignment.Left,
                 Size.X - 32f, ViewFont.S(30), warn);
 
             DrawLine(new Vector2(16f, 74f), new Vector2(Size.X - 16f, 74f), Cyan with { A = 0.3f }, 1f);

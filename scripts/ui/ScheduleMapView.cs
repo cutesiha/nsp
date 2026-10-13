@@ -58,7 +58,9 @@ public partial class ScheduleMapView : Control
     private static readonly Color Ink = new(0.84f, 0.92f, 0.88f);
     private static readonly Color Mint = new(0.46f, 0.90f, 0.80f);
     private static readonly Color Dim = new(0.40f, 0.52f, 0.50f);
-    private static readonly Color Amber = new(0.95f, 0.72f, 0.25f);
+    // 1013 QA 19번 — 근무배치 화면의 노란 글자를 전부 하늘색으로 바꿔 달라는 요청.
+    // 이름은 호출부를 건드리지 않으려고 그대로 둔다 — 값만 하늘색(ChoiceCyan)이다.
+    private static readonly Color Amber = NSP.View.GuideTextMarkup.ChoiceCyan;
     private static readonly Color Alert = new(1f, 0.38f, 0.30f);
     // 관계 표시 — 불편(주황) · 밀접(하트).
     private static readonly Color Warn = new(1f, 0.56f, 0.18f);

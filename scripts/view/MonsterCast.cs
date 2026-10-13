@@ -17,10 +17,16 @@ namespace NSP.View;
 public static class MonsterCast
 {
     // 그 날짜에 나올 수 있는 개체 중 하나. 가중치(MonsterDef.Weight)를 따른다.
+    //
+    // DAY0 는 "하루치 근무를 미리 겪어 보는 가상 시뮬레이션" 이므로 **DAY1 과 같은 후보**를
+    // 쓴다. 예전에는 day=0 으로 들어와 `FirstDay <= 0` 을 만족하는 개체가 하나도 없어
+    // null 이 돌아갔고, 그래서 교육에서 개체가 작업실에 **아예 뜨지 않았다**
+    // (FacilityCctvWorld.UseHauntModel 이 def==null 이면 조용히 포기한다 — 1013 QA 12번).
     public static MonsterDef Pick(int day, RandomNumberGenerator rng = null)
     {
+        int pickDay = Mathf.Max(1, day);
         var pool = MonsterThreatSystem.Monsters
-            .Where(m => m.FirstDay <= day && !string.IsNullOrEmpty(m.ModelPath))
+            .Where(m => m.FirstDay <= pickDay && !string.IsNullOrEmpty(m.ModelPath))
             .ToList();
         if (pool.Count == 0) return null;
 

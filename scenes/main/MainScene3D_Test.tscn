@@ -31,14 +31,14 @@
 [ext_resource type="Script" uid="uid://fppsaeswbeou" path="res://scripts/prologue/TutorialDirector.cs" id="29_tutorialdir"]
 [ext_resource type="Script" uid="uid://b08v5v32yrh8a" path="res://scripts/prologue/GuideSubtitleHud.cs" id="30_guidesub"]
 [ext_resource type="Script" uid="uid://cwncxvvnx1pds" path="res://scripts/prologue/PrologueAdvanceInput.cs" id="31_advinput"]
-[ext_resource type="Script" path="res://scripts/view/StoryCutinHud.cs" id="38_cutinhud"]
-[ext_resource type="Script" path="res://scripts/view/StoryCutinDirector.cs" id="39_cutindir"]
 [ext_resource type="Script" uid="uid://dpgjgx68vc73w" path="res://scripts/view/TitleRoomDirector.cs" id="32_titleroom"]
 [ext_resource type="Script" uid="uid://cjimfhuslq8j8" path="res://scripts/view/ClueHud.cs" id="33_cluehud"]
 [ext_resource type="Script" uid="uid://b4kg6dn61njga" path="res://scripts/view/AdminPad3D.cs" id="34_adminpad"]
 [ext_resource type="Script" uid="uid://dsujspmv5drb0" path="res://scripts/view/PadHintBubble.cs" id="35_padhint"]
 [ext_resource type="Script" uid="uid://ycv3yrqgmada" path="res://scripts/view/PresenceDirector.cs" id="36_presence"]
 [ext_resource type="Script" uid="uid://4f1a061qnnvj" path="res://scripts/view/PosterCamera.cs" id="37_poster"]
+[ext_resource type="Script" uid="uid://ktw63x4pfpwe" path="res://scripts/view/StoryCutinHud.cs" id="38_cutinhud"]
+[ext_resource type="Script" uid="uid://dn3kp66iuyygq" path="res://scripts/view/StoryCutinDirector.cs" id="39_cutindir"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -210,21 +210,18 @@ radial_segments = 6
 rings = 3
 
 [sub_resource type="StandardMaterial3D" id="Mat_MonitorBezel"]
-albedo_color = Color(0.068, 0.070, 0.074, 1)
+albedo_color = Color(0.068, 0.07, 0.074, 1)
 roughness = 0.45
 emission_enabled = true
 emission = Color(0.52, 0.53, 0.55, 1)
 emission_energy_multiplier = 0.01
 
-[sub_resource type="QuadMesh" id="Quad"]
-
 [sub_resource type="StandardMaterial3D" id="Mat_BezelOutline"]
-shading_mode = 0
 cull_mode = 1
+shading_mode = 0
 albedo_color = Color(0.05, 0.13, 0.17, 1)
-emission_enabled = true
-emission = Color(0.26, 0.60, 0.76, 1)
-emission_energy_multiplier = 1.45
+
+[sub_resource type="QuadMesh" id="Quad"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_MonitorStand"]
 albedo_color = Color(0.14, 0.14, 0.152, 1)
@@ -279,7 +276,7 @@ size = Vector3(0.258, 0.022, 0.01)
 [sub_resource type="BoxMesh" id="PadMesh_CradleBack"]
 size = Vector3(0.2064, 0.008, 0.1302)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_gkebq"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mrpvo"]
 albedo_color = Color(0.05, 0.08, 0.08, 1)
 emission_enabled = true
 emission = Color(0.3, 0.95, 1, 1)
@@ -312,7 +309,7 @@ emission_energy_multiplier = 0.6
 
 [sub_resource type="QuadMesh" id="PadMesh_Screen"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_e0to0"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hopqi"]
 albedo_color = Color(0.2, 0.15, 0.05, 1)
 emission_enabled = true
 emission = Color(1, 0.72, 0.25, 1)
@@ -364,7 +361,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Concrete")
 
 [node name="Wall_Left" type="MeshInstance3D" parent="ControlRoom" unique_id=1917158785]
-transform = Transform3D(0.1, 0, 0, 0, 2.7, 0, 0, 0, 3.4, -2.2, 1.35, -0.9)
+transform = Transform3D(0.1, 0, 0, 0, 2.7, 0, 0, 0, 3.4, -2.1775498, 1.4133235, -0.9072385)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_Concrete")
 
@@ -1041,8 +1038,7 @@ transform = Transform3D(0.84, 0, -9.313226e-10, 0, 0.65999997, 0, 1.4901161e-08,
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
-
-[node name="M01_BezelOutline" type="MeshInstance3D" parent="ControlRoom/Monitor01"]
+[node name="M01_BezelOutline" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1459233666]
 transform = Transform3D(0.843, 0, -9.313226e-10, 0, 0.663, 0, 1.4901161e-08, 0, 0.063, 0, 1.1436116, 0)
 cast_shadow = 0
 mesh = SubResource("Box")
@@ -1052,7 +1048,6 @@ surface_material_override/0 = SubResource("Mat_BezelOutline")
 transform = Transform3D(0.7399999, 0, 0, 0, 0.5549999, 0, 2.9802322e-08, 0, 1, -0.00064593554, 1.1436114, 0.04258901)
 mesh = SubResource("Quad")
 script = ExtResource("3_screen")
-
 
 [node name="M01_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=2095575080]
 transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
@@ -1095,8 +1090,7 @@ transform = Transform3D(0.84, 0, 9.313226e-10, 0, 0.65999997, 0, -1.4901161e-08,
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
-
-[node name="M02_BezelOutline" type="MeshInstance3D" parent="ControlRoom/Monitor02"]
+[node name="M02_BezelOutline" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1620025845]
 transform = Transform3D(0.843, 0, 9.313226e-10, 0, 0.663, 0, -1.4901161e-08, 0, 0.063, 0, 1.1436116, 0)
 cast_shadow = 0
 mesh = SubResource("Box")
@@ -1106,7 +1100,6 @@ surface_material_override/0 = SubResource("Mat_BezelOutline")
 transform = Transform3D(0.73999995, 0, 0, 0, 0.55499995, 0, -1.4901161e-08, 0, 1, 2.9802322e-08, 1.1436116, 0.04000002)
 mesh = SubResource("Quad")
 script = ExtResource("3_screen")
-
 
 [node name="M02_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1492429967]
 transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
@@ -1251,7 +1244,7 @@ mesh = SubResource("PadMesh_CradleBack")
 
 [node name="Led" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=1296692488]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09804, 0.0135, 0.061)
-material_override = SubResource("StandardMaterial3D_gkebq")
+material_override = SubResource("StandardMaterial3D_mrpvo")
 mesh = SubResource("PadMesh_Led")
 
 [node name="PadBody" type="Node3D" parent="ControlRoom/AdminPad" unique_id=1590197408]
@@ -1274,7 +1267,7 @@ mesh = SubResource("PadMesh_Screen")
 
 [node name="BadgeLed" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=868969769]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.126, 0.0066, -0.098)
-material_override = SubResource("StandardMaterial3D_e0to0")
+material_override = SubResource("StandardMaterial3D_hopqi")
 mesh = SubResource("PadMesh_BadgeLed")
 
 [node name="GripPoint" type="Marker3D" parent="ControlRoom/AdminPad/PadBody" unique_id=692864851]
@@ -1461,7 +1454,7 @@ script = ExtResource("29_tutorialdir")
 [node name="GuideSubtitleHud" type="CanvasLayer" parent="." unique_id=771100888]
 script = ExtResource("30_guidesub")
 
-[node name="StoryCutinHud" type="CanvasLayer" parent="." unique_id=771100894]
+[node name="StoryCutinHud" type="CanvasLayer" parent="." unique_id=1397481395]
 script = ExtResource("38_cutinhud")
 
 [node name="StoryCutinDirector" type="Node" parent="." unique_id=771100895]

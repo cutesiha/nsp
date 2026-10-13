@@ -108,6 +108,12 @@ public partial class FacilitySimulation : Node
     // 결번 개체가 "언제 어디서" 손을 댈지 정하는 기회 판정(이동·체류 전조를 남긴다).
     private readonly SaboteurPlan _saboteurPlan = new();
     public SaboteurPlan Saboteur => _saboteurPlan;
+
+    // 격리 구역 봉쇄 계통(이상 개체 출몰의 원인) · 감시 공백을 이용한 은밀 행동.
+    private readonly ContainmentSystem _containment = new();
+    public ContainmentSystem Containment => _containment;
+    private readonly CovertActionSystem _covert = new();
+    public CovertActionSystem Covert => _covert;
     // 성격에 따른 정상 직원의 반응 이동 — 결번의 이동과 똑같이 로그에 남는다.
     private readonly EmployeeBehaviorSystem _behavior = new();
     public EmployeeBehaviorSystem Behavior => _behavior;
@@ -123,7 +129,6 @@ public partial class FacilitySimulation : Node
     private readonly HashSet<string> _offPostLogged = new();
     private int _killsToday = 0;
     private bool _cctvWasOperational = true;
-    private bool _powerLossMurderTriggeredThisShift;
     // 조명 전력이 끊긴 채로 흐른 시간. 관리자가 다시 켜면 0 으로 돌아간다.
     private float _darknessSeconds;
     public float DarknessSeconds => _darknessSeconds;
@@ -270,8 +275,9 @@ public partial class FacilitySimulation : Node
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
         _cctvWasOperational = true;
-        _powerLossMurderTriggeredThisShift = false;
         _darknessSeconds = 0f;
+        _containment.Reset();
+        _covert.Reset();
         _surveillanceTargetRoomId = "";
         _forcedSurveillanceRoomId = "";
         _forcedSurveillanceUntil = -1;
@@ -841,6 +847,10 @@ public partial class FacilitySimulation : Node
     {
         if (!_employeeStates.TryGetValue(employeeId, out var emp) || emp.Isolated || !emp.Alive)
             return false;
+        // **관리자가 지시한 이동은 은밀 이동이 아니다.** 조명이 꺼져 있더라도 플레이어가
+        // 직접 보낸 이동은 기록에 남아야 한다 — 그렇지 않으면 자기가 내린 지시의 도착이
+        // 로그에서 사라진다. 은밀 이동은 BeginCovertMove 가 이 뒤에 다시 세운다.
+        emp.CovertMove = false;
         // 의식을 잃은 사람은 배치 지시로도 움직이지 않는다. 옮기려면 사람이 와서 옮겨야 한다.
         if (emp.Incapacitated) return false;
         // 쓰러진 사람이 있는 방으로 보냈다 = 구조하라고 보낸 것이다(§23).
@@ -854,6 +864,34 @@ public partial class FacilitySimulation : Node
             return false;
 
         return BeginPathTo(emp, roomId);
+    }
+
+    // 지금 그 방에 있는 사람의 **위치**를 관리자가 추적할 수 있는가.
+    // 조명 전력이 들어와 있거나, 그 방에 비상등이 있으면 미니맵에 아이콘이 뜬다
+    // (FacilityMinimap.DrawEmployee 와 같은 규칙 — 두 곳이 어긋나면 "보이는데 기록은 없는"
+    //  모순이 생긴다).
+    public bool IsPositionTrackable(string roomId)
+    {
+        if (string.IsNullOrEmpty(roomId)) return true;
+        if (GameState.Instance?.IsConsumerPowered(PowerConsumer.Lighting) ?? true) return true;
+        return _roomDefs.GetValueOrDefault(roomId)?.HasEmergencyLighting ?? false;
+    }
+
+    // 결번 개체의 은밀 이동. **평소 이동과 같은 경로 탐색 · 같은 속도 · 같은 차폐 판정**을 쓴다
+    // (지시서 §3-2 "기존 FacilitySimulation 의 이동·경로 탐색·차폐 판정 구조를 재사용").
+    // 다른 것은 하나뿐 — 도착 기록을 시설 로그에 띄울지를 그 순간의 관측 가능 여부로 정한다.
+    public bool BeginCovertMove(string employeeId, string roomId)
+    {
+        if (!_employeeStates.TryGetValue(employeeId, out var emp)) return false;
+        if (!MoveEmployeeTo(employeeId, roomId)) return false;
+        emp.CovertMove = true;
+        return true;
+    }
+
+    // 은밀 이동이 끝났다(도착했거나 포기했다).
+    public void EndCovertMove(string employeeId)
+    {
+        if (_employeeStates.TryGetValue(employeeId, out var emp)) emp.CovertMove = false;
     }
 
     private bool BeginPathTo(EmployeeState emp, string destinationRoomId)
@@ -1271,8 +1309,10 @@ public partial class FacilitySimulation : Node
         _saboteurDecisionTimer = 0f;
         _killsToday = 0;
         _cctvWasOperational = true;
-        _powerLossMurderTriggeredThisShift = false;
         _darknessSeconds = 0f;
+        _containment.Reset();
+        _covert.Reset();
+        foreach (var e in _employeeStates.Values) e.CovertMove = false;
         _tensionStressTimers.Clear();
         _argumentTimers.Clear();
         // 전날 내려 둔 차폐문이 남아 있으면 안 된다 — 근무는 언제나 전부 열린 상태에서 시작한다.
@@ -1331,7 +1371,6 @@ public partial class FacilitySimulation : Node
         _sabotageActionsToday = 0;
         _saboteurPlan.Reset();
         RepairApprovalSystem.ResetAll();
-        RotationOrderSystem.ResetAll();
         _behavior.Reset();
         _patrolTimers.Clear();
         _patrolSeenAt.Clear();
@@ -1400,11 +1439,14 @@ public partial class FacilitySimulation : Node
         TickActiveTasks(d);
         // 수리 승인 절차(G-2). 게임 시간은 멈추지 않는다 — 미로에 붙잡혀 있는 동안에도 근무는 흐른다.
         RepairApprovalSystem.Tick(d);
-        RotationOrderSystem.Tick(d, this);
         TickLighting();
-        TickPowerLossMurder(d);
+        TickDarkness(d);
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
+        // 봉쇄 계통의 불안정성이 가라앉는다 / 문턱을 넘으면 원인 불명 기록이 남는다.
+        _containment.Tick(d, this);
+        // 감시 공백(조명 OFF · CCTV OFF)을 이용한 은밀 이동 · 봉쇄 교란 · 범행.
+        _covert.Tick(d, this, OpsProfile.Today);
         TickPowerRestoreReveal();
         TickShiftStress(d);
         TickVentilationFault(d);
@@ -1551,49 +1593,38 @@ public partial class FacilitySimulation : Node
         return (_roomStates.GetValueOrDefault(GuardRoomId)?.OccupantEmployeeIds.Count ?? 0) > 0;
     }
 
-    // 조명 전력을 오래 끊어 두면 그 어둠 속에서 살인이 한 번 일어난다.
+    // 어둠이 얼마나 이어졌는가. **이 값만으로는 아무 일도 일어나지 않는다.**
     //
-    // 예전에는 조명이나 CCTV 전력이 끊긴 **그 순간** 바로 사람이 죽었다. 전력을 잠깐
-    // 돌려 쓰는 것조차 즉사로 이어져, 관리자가 전력 패널을 만질 수 없었다.
-    // 지금은 어둠이 BlackoutMurderAfterSeconds 만큼 **이어졌을 때만** 일어난다 —
-    // 잠깐 끄는 것은 판단이고, 오래 끄는 것은 방치다.
-    //
-    // 이 경로만 오늘의 AllowMurder 를 보지 않는다. 다른 날에 살인이 없는 것은 결번 개체가
-    // 그럴 생각이 없어서가 아니라 기회가 없어서이고, 그 기회를 만든 것은 관리자다.
-    private void TickPowerLossMurder(float delta)
+    // 예전에는 여기서 바로 사람이 죽었다(TickPowerLossMurder) — 결번 개체가 실제로 그 방에
+    // 가지도 않았는데, 조명이 18초 꺼졌다는 이유만으로 아무 직원 하나가 사망했다.
+    // 그 경로는 통째로 걷어냈다. 지금 어둠이 하는 일은 하나뿐이다:
+    // **결번 개체에게 움직일 기회를 준다**(CovertActionSystem). 거기서부터는 실제 위치와
+    // 실제 이동과 실제 체류 시간만 본다(지시서 §5).
+    private void TickDarkness(float delta)
     {
-        var dcfg = Config.Instance.Data;
-        // 조명이 살아 있으면 어둠은 없던 일이 된다(다시 처음부터 쌓인다).
-        if (GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting))
-        {
-            _darknessSeconds = 0f;
-            return;
-        }
+        if (GameState.Instance.IsConsumerPowered(PowerConsumer.Lighting)) { _darknessSeconds = 0f; return; }
         _darknessSeconds += delta;
+    }
 
-        if (_powerLossMurderTriggeredThisShift
-            || _killsToday >= dcfg.MurderMaxPerDay)
-            return;
-        if (_darknessSeconds < dcfg.BlackoutMurderAfterSeconds) return;
+    // 지금 살인이 일어날 수 있는 상황인가 — 날짜 규칙 · 하루 한도 · 전체 한도.
+    // **모든 살인 경로가 이 하나를 통과한다**(지시서 §8 "DAY1 AllowMurder 를 무시하는 경로 제거").
+    public bool CanKillNow()
+    {
+        var cfg = Config.Instance.Data;
+        if (!(OpsProfile.Today?.AllowMurder ?? true)) return false;
+        if (_killsToday >= cfg.MurderMaxPerDay) return false;
+        if (GameState.Instance.TotalKills >= cfg.MurderMaxTotal) return false;
+        return true;
+    }
 
-        string saboteurId = GameState.Instance.SaboteurEmployeeId;
-        if (string.IsNullOrEmpty(saboteurId)
-            || !_employeeStates.TryGetValue(saboteurId, out var saboteur)
-            || !saboteur.Alive || saboteur.Isolated)
-            return;
-
-        var candidates = _employeeStates.Values
-            .Where(e => e.EmployeeId != saboteurId && e.Alive && !e.Isolated
-                && !string.IsNullOrEmpty(e.CurrentRoomId) && e.CurrentRoomId != "central_office")
-            .ToList();
-        if (candidates.Count == 0) return;
-
-        // 같은 방의 직원을 우선하되, 배치상 단독 근무 중이어도 전력 사각 사건 자체는 발생시킨다.
-        // 후자의 경우 시체 위치는 희생자의 실제 작업실을 유지해 근무표/인터뷰 기록을 깨지 않는다.
-        var victim = candidates.FirstOrDefault(e => e.CurrentRoomId == saboteur.CurrentRoomId)
-            ?? candidates[_rng.Next(candidates.Count)];
-        _powerLossMurderTriggeredThisShift = true;
-        KillEmployee(victim.EmployeeId, victim.CurrentRoomId);
+    // 결번 개체가 실제로 그 방에 도달해 준비를 마쳤다. 여기서만 사람이 죽는다.
+    public bool CommitCovertKill(string victimId, string roomId)
+    {
+        if (!CanKillNow()) return false;
+        var victim = _employeeStates.GetValueOrDefault(victimId);
+        if (victim is not { Alive: true } || victim.CurrentRoomId != roomId) return false;
+        KillEmployee(victimId, roomId);
+        return true;
     }
 
     private void TickSaboteur(float delta)
@@ -1644,9 +1675,10 @@ public partial class FacilitySimulation : Node
         // 인원수별 배율은 data/ops/*.tres 의 RoomOpsDef.SabotageChance 에 있다.
         float surveillanceMult = RoomStaffing.SabotageChanceMultiplier();
 
-        // ── ⑥ 조건부 살인 : 단둘 + 미감시 + 제3자 없음 → 8초간 범행 시도 ──────────
-        // 조건이 유지되는 동안에만 타이머가 흐르고, 하나라도 깨지면 즉시 중단된다.
-        if (TickKillAttempt(saboteur, others, unwatched, delta)) return;
+        // 살인은 여기서 처리하지 않는다. 같은 방이든 다른 방이든 **하나의 경로**(CovertActionSystem)
+        // 를 쓴다 — 두 군데서 각자 판정하면 같은 근무에 두 번 죽는 일이 생긴다(지시서 §10).
+        // 결번이 범행 동선을 타는 중이면 방해공작은 쉰다. 한 번에 하나만 한다.
+        if (_covert.Phase is not (CovertPhase.Idle or CovertPhase.SeekingTarget)) return;
 
         if (!unwatched) return;   // 감시 중이면 아래 방해공작은 시도하지 않는다
         // 플레이어가 배치해 준 자리에서 충분히 준비했고, 목표 구간에 들어섰을 때만.
@@ -1763,45 +1795,6 @@ public partial class FacilitySimulation : Node
             string.IsNullOrEmpty(alert) ? "⚠ 시설 설비에서 인위적인 손상 흔적이 감지되었습니다!" : alert);
     }
 
-    // ⑥ 조건부 살인. 조건이 계속 유지되는 동안 KillAttemptSeconds 만큼 쌓여야 성공한다.
-    private string _killAttemptVictimId = "";
-    private float _killAttemptTimer;
-    private bool TickKillAttempt(EmployeeState saboteur, List<EmployeeState> others, bool unwatched, float delta)
-    {
-        var cfg = Config.Instance.Data;
-
-        bool alone = others.Count == 1;                       // 단둘 (제3자 없음)
-        bool allowed = _killsToday < cfg.MurderMaxPerDay
-                       && GameState.Instance.TotalKills < cfg.MurderMaxTotal
-                       // 오늘의 운영 규칙이 살인을 허용하는가(DAY1 은 꺼 둔다).
-                       && (OpsProfile.Today?.AllowMurder ?? true);
-
-        if (!alone || !unwatched || !allowed)
-        {
-            _killAttemptVictimId = "";
-            _killAttemptTimer = 0f;
-            return false;
-        }
-
-        string victimId = others[0].EmployeeId;
-        if (_killAttemptVictimId != victimId)
-        {
-            _killAttemptVictimId = victimId;
-            _killAttemptTimer = 0f;
-        }
-
-        // 이 함수는 판정 주기(SaboteurDecisionIntervalSeconds)마다 불리므로 그 간격만큼 쌓는다.
-        _killAttemptTimer += cfg.SaboteurDecisionIntervalSeconds;
-        // 조명이 오래 꺼져 있으면 훨씬 빨리 끝낸다 — 아무도 보고 있지 않다는 것을 안다.
-        float needed = IsDarknessCritical ? cfg.BlackoutKillAttemptSeconds : cfg.KillAttemptSeconds;
-        if (_killAttemptTimer < needed) return false;
-
-        _killAttemptVictimId = "";
-        _killAttemptTimer = 0f;
-        KillEmployee(victimId, saboteur.CurrentRoomId);
-        return true;
-    }
-
     // CCTV가 꺼져 있는(정전/전력 미배분) 동안 벌어진 살인은 그 순간 바로 로그에 남기지 않는다
     // — 관리자는 그 시간 동안 아무것도 볼 수 없었어야 한다. 대신 DiscoveredDead=false 로만
     // 표시해두고, CCTV 전력이 다시 들어오는 순간 TickPowerRestoreReveal 이 "신호 소실" 로 발견한다.
@@ -1883,7 +1876,7 @@ public partial class FacilitySimulation : Node
                     if (!emp.Alive || emp.Isolated || emp.Incapacitated) continue;
                     if (string.IsNullOrEmpty(emp.AssignedRoomId)) continue;
                     // 순환 배치를 지키지 않은 날에는 피로가 빨라진다(G-3).
-                    AddStress(emp.EmployeeId, cfg.ShiftStressAmount * RotationOrderSystem.ShiftStressMultiplier());
+                    AddStress(emp.EmployeeId, cfg.ShiftStressAmount);
                 }
             }
         }
@@ -2066,6 +2059,18 @@ public partial class FacilitySimulation : Node
     private const float CctvObservationSeconds = 3f;
     private string _watchedRoomId = "";
     private float _watchedSeconds;
+    // 같은 방을 **연속해서** 본 시간. _watchedSeconds 는 기록을 남길 때마다 0 으로 돌아가지만
+    // 이쪽은 채널을 돌릴 때까지 계속 쌓인다 — "지금 그 장면을 보고 있는 중인가" 의 근거다.
+    private float _watchedStreak;
+
+    // 관리자가 **지금 이 방을 실제로 관측 중**인가(지시서 §2-2).
+    //
+    // 전원이 켜져 있다는 것만으로는 아니다. 그 방 채널을 띄워 두고, 신호가 살아 있고,
+    // 화면을 알아볼 만큼(3초) 연속으로 보고 있어야 한다. 채널을 휙휙 넘기는 것은 관측이 아니다.
+    public bool IsRoomObservedNow(string roomId) =>
+        !string.IsNullOrEmpty(roomId) && _watchedRoomId == roomId
+        && _watchedStreak >= CctvObservationSeconds
+        && GameState.Instance.IsCctvOperational() && !IsRoomCctvBlocked(roomId);
 
     private void TickCctvObservation(float delta)
     {
@@ -2074,14 +2079,43 @@ public partial class FacilitySimulation : Node
         {
             _watchedRoomId = room;
             _watchedSeconds = 0f;
+            _watchedStreak = 0f;
             return;
         }
 
+        _watchedStreak += delta;
         _watchedSeconds += delta;
         if (_watchedSeconds < CctvObservationSeconds) return;
         _watchedSeconds = 0f;
         NSP.Dialogue.PlayerKnownEvidence.RecordCctvObservation(room, GameState.Instance.DayTimeSeconds,
             GetRoomState(room)?.OccupantEmployeeIds, HasSuspiciousAction(room));
+    }
+
+    // ── 정상 업무 중단 : **CCTV 로 직접 본 경우에만** 조사자료가 된다(지시서 §2) ──
+    //
+    // 내부 시뮬레이션은 결번 개체가 업무를 멈춘 것을 언제나 알고 있다. 그 사실이 시설
+    // 로그나 조사 노트에 저절로 뜨면 안 된다 — 관리자가 그 화면을 보고 있었을 때만
+    // 자료가 생긴다. 보지 않았다면 남는 것은 "복구가 기대보다 덜 됐다" 뿐이다.
+    //
+    // 돌려주는 값은 "관리자가 실제로 봤는가". 호출한 쪽은 이것으로 전조 소비 여부를 정한다.
+    public bool NoteWorkInterruption(string roomId, string employeeId, string what)
+    {
+        var room = _roomStates.GetValueOrDefault(roomId);
+        if (room == null) return false;
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        // 화면에 "그 방에서 누가 설비 쪽에 붙어 있다" 가 뜨는 것은 관측 여부와 무관하다 —
+        // 보고 있지 않으면 아무도 그것을 못 볼 뿐이다.
+        room.SuspiciousActionUntil = now + SuspiciousActionSeconds;
+        room.SuspiciousActorId = employeeId;
+
+        // ① 전원이 켜져 있고 ② 그 방 신호가 살아 있고 ③ 그 방을 3초 이상 보고 있고
+        // ④ 그 사람이 실제로 그 화면 안에 있어야 한다.
+        if (!IsRoomObservedNow(roomId)) return false;
+        if (!room.OccupantEmployeeIds.Contains(employeeId)) return false;
+
+        NSP.Dialogue.PlayerKnownEvidence.RecordCctvAction(roomId, now, room.OccupantEmployeeIds,
+            employeeId, what);
+        return true;
     }
 
     // 경비실에 인원이 충분하면 주기적으로 순찰 기록이 남는다.
@@ -2684,6 +2718,12 @@ public partial class FacilitySimulation : Node
         // (AdvanceToNextWaypoint 는 이 함수 뒤에 불리므로 여기서는 남은 경유지가 그대로 있다.)
         bool passing = emp.PathQueue.Count > 0;
         string previousRoom = emp.CurrentRoomId;
+        // 은밀 이동 중인데 **지금 이 순간** 위치 추적이 끊겨 있으면 시설 로그에 뜨지 않는다.
+        // 판정을 출발 시점이 아니라 도착 시점에 하는 것이 핵심이다 — 관리자가 도중에 조명을
+        // 다시 켜면 그 뒤의 발걸음부터는 그대로 기록된다(지시서 §3-3).
+        bool covert = emp.CovertMove
+                      && !IsPositionTrackable(previousRoom)
+                      && !IsPositionTrackable(emp.TargetRoomId);
         // 중앙 제어실은 관리자 방이다 — 출근 출발점일 뿐이라 '퇴장' 기록은 남기지 않는다.
         if (previousRoom != emp.TargetRoomId && previousRoom == DeployOriginRoomId)
             RemoveOccupant(previousRoom, emp.EmployeeId);
@@ -2691,7 +2731,7 @@ public partial class FacilitySimulation : Node
         {
             RemoveOccupant(previousRoom, emp.EmployeeId);
             EventLog.Instance?.LogEvent(LogEventType.RoomExit, emp.EmployeeId, previousRoom, $"{Codename(emp.EmployeeId)} - {RoomName(previousRoom)} 퇴장",
-                GetOtherOccupants(previousRoom, emp.EmployeeId), passing);
+                GetOtherOccupants(previousRoom, emp.EmployeeId), passing, covert: covert);
 
             LogNeglectIfRoomLeftEmptyMidTask(previousRoom, emp.EmployeeId);
         }
@@ -2703,7 +2743,7 @@ public partial class FacilitySimulation : Node
 
         EventLog.Instance?.LogEvent(LogEventType.RoomEnter, emp.EmployeeId, emp.CurrentRoomId,
             $"{Codename(emp.EmployeeId)} - {RoomName(emp.CurrentRoomId)} {(passing ? "통과" : "입장")}",
-            GetOtherOccupants(emp.CurrentRoomId, emp.EmployeeId), passing);
+            GetOtherOccupants(emp.CurrentRoomId, emp.EmployeeId), passing, covert: covert);
 
         // 방에 들어온 것을 같은 방 동료가 기억할 수 있다 — 증언이 범인 확정표가 되지 않게 섞는 잡음.
         NoteOrdinaryArrival(emp, emp.CurrentRoomId, passing);

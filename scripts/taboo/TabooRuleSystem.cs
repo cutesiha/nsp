@@ -435,6 +435,10 @@ public partial class TabooRuleSystem : Node
                 GameState.Instance.TriggerPowerAccident(Mathf.RoundToInt(stressAmount));
                 EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId,
                     $"⚠ {roomName} 발전 설비 과부하 — 최대 사용 가능 전력 감소");
+                // 설비가 실제로 터지는 소리와 연기. 채널이 강제로 내려갔는지와 무관하게
+                // 사고 자체가 보이고 들려야 한다(1013 QA 10번).
+                RoomEffectStats.PowerEquipmentFailed?.Invoke();
+                RoomEffectStats.LightFlickerRequested?.Invoke();
                 break;
             case TabooConsequenceType.CctvSystemFault:
                 GameState.Instance.SetCctvSystemOffline(true);

@@ -76,10 +76,21 @@ public partial class Day0FlowTest : Node
             GD.Print($"[C] {ev} — 대사 없는 직원 {(missing.Count == 0 ? "없음" : string.Join(", ", missing))}");
             Check($"C {ev} 는 직원 여섯 명 모두에게 대사가 있다", missing.Count == 0);
         }
-        // 복귀 전화 대사에 방 이름이 박혀 있으면 첫 배치 작업실을 바꿀 때마다 거짓말이 된다.
-        string back = DialogueRepository.GetEvent(DialogueRepository.EventTutorialRepairDone, "rabbit")?.Opening ?? "";
+        // 복귀 전화 대사에 이름 · 방이 박혀 있으면 상황이 바뀔 때마다 거짓말이 된다
+        // (1013 QA 14번 — 여우가 쓰러졌는데 "고양이 직원", 코어실로 가면서 "경비실").
+        // 답변(reply)까지 본다 — 방 이름이 박혀 있던 자리가 거기였다.
+        var ev14 = DialogueRepository.GetEvent(DialogueRepository.EventTutorialRepairDone, "rabbit");
+        string back = ev14?.Opening ?? "";
+        string replies = string.Join(" ", (ev14?.Choices ?? new System.Collections.Generic.List<DialogueRepository.Choice>())
+            .Select(c => c.Reply ?? ""));
+        string[] rooms = { "경비실", "정비실", "코어실", "발전실", "저장고", "환기실" };
+        string[] names = { "고양이", "강아지", "여우", "토끼", "양 ", "늑대" };
         Check("C 복귀 전화 대사에 작업실 이름이 박혀 있지 않다",
-            back.Length > 0 && !back.Contains("경비실") && !back.Contains("정비실") && !back.Contains("코어실"));
+            back.Length > 0 && !rooms.Any(r => back.Contains(r) || replies.Contains(r)));
+        Check("C 복귀 전화 대사에 직원 이름이 박혀 있지 않다",
+            back.Length > 0 && !names.Any(n => back.Contains(n)));
+        Check("C 복귀 전화 대사가 치환 토큰을 쓴다",
+            back.Contains("{VICTIM}") && replies.Contains("{BACK_ROOM}"));
 
         // ── D : 안내 대본 ─────────────────────────────────────────────
         GD.Print("");

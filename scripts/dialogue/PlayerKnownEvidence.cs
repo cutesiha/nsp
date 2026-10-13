@@ -107,6 +107,15 @@ public static class PlayerKnownEvidence
         // 그 화면을 볼 때 그 방에서 누군가 설비 쪽에 붙어 있었는가(화면에 그렇게 떴는가).
         // 누가 그랬는지는 남기지 않는다 — 관리자도 화면에서는 "그 방에 그런 움직임이 있었다"까지만 본다.
         public bool SuspiciousAction;
+
+        // ── 화면에서 **사람을 특정해 본** 행동 ───────────────────────────
+        // 위의 SuspiciousAction 과 다르다. 이쪽은 관리자가 그 방을 3초 이상 계속 보고 있었고,
+        // 그 사람이 실제로 화면 안에 있었을 때만 채워진다(지시서 §2-2).
+        // 보지 않았으면 비어 있다 — 그 경우 "누가 업무를 중단했다" 는 자료는 **존재하지 않는다**.
+        public string ActorId = "";
+        // 화면에서 실제로 보인 것까지만 적는다. "봉쇄 장치를 고의로 망가뜨렸다" 같은
+        // 해석은 쓰지 않는다 — 단순 접촉만으로는 확정할 수 없다(지시서 §2-2).
+        public string ActionText = "";
     }
 
     // CCTV 오디오로 들은 두 사람의 대화 한 번(A 가 말하고 B 가 받는다).
@@ -251,6 +260,38 @@ public static class PlayerKnownEvidence
         // 위에서 걸러진 중복 기록(같은 인원 구성)은 여기까지 오지 않는다.
         if (suspiciousAction) NSP.Core.AchievementManager.Instance?.NoteSuspiciousObserved();
     }
+
+    // CCTV 로 **사람을 특정해 본** 행동 한 건.
+    //
+    // RecordCctvObservation 과 따로 두는 이유: 저쪽은 "그 시각 그 방에 누가 있었나" 라는
+    // 인원 기록이고, 이쪽은 "그 사람이 무엇을 하고 있었나" 라는 행동 기록이다.
+    // 행동 기록은 관리자가 실제로 그 장면을 본 경우에만 생긴다 — 그래서 중복 억제를 걸지 않는다
+    // (같은 인원 구성이어도 행동은 매번 다른 사건이다).
+    public static void RecordCctvAction(string roomId, float time, IEnumerable<string> occupants,
+        string actorId, string actionText)
+    {
+        if (string.IsNullOrEmpty(roomId) || string.IsNullOrEmpty(actorId)) return;
+        // 같은 사람의 같은 행동을 몇 초 사이에 두 번 적지 않는다.
+        if (_cctv.Any(o => o.Day == Today && o.RoomId == roomId && o.ActorId == actorId
+                           && o.ActionText == actionText && Mathf.Abs(o.Time - time) < 6f))
+            return;
+        _cctv.Add(new CctvObservation
+        {
+            Day = Today,
+            RoomId = roomId,
+            Time = time,
+            Occupants = occupants != null ? new List<string>(occupants) : new List<string>(),
+            SuspiciousAction = true,
+            ActorId = actorId,
+            ActionText = actionText,
+        });
+        while (_cctv.Count > 200) _cctv.RemoveAt(0);
+        NSP.Core.AchievementManager.Instance?.NoteSuspiciousObserved();
+    }
+
+    // 관리자가 CCTV 로 직접 본 그 사람의 행동들(휴게시간 심문의 근거).
+    public static IReadOnlyList<CctvObservation> CctvActionsOf(string employeeId) =>
+        _cctv.Where(x => x.Day == Today && x.ActorId == employeeId).ToList();
 
     // 그 시각 언저리에 CCTV로 이 직원을 실제로 본 작업실. 없으면 빈 값.
     public static string CctvSeenRoomOf(string employeeId, float aroundTime, float window)

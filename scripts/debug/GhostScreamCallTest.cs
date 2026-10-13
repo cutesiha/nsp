@@ -132,6 +132,31 @@ public partial class GhostScreamCallTest : Node
             }
             Check(ok, $"{id} 의 문의 · 대답이 모두 있다");
         }
+
+        // ── 개체가 흉내 내어 거는 가짜 전화(1013 QA 25번) ──────────────
+        Head("C-2", "가짜 전화 여섯 통 — 토큰 · 더듬는 말 · 두 가지 대답");
+        DialogueRepository.SetCallToken("ROOM", "정비실");
+        DialogueRepository.SetCallToken("OTHER", "고양이");
+        foreach (string id in new[] { "rabbit", "cat", "dog", "fox", "sheep", "wolf" })
+        {
+            var src = DialogueRepository.GetEvent(DialogueRepository.EventGhostFakeCall, id);
+            bool has = src != null && !string.IsNullOrEmpty(src.Opening) && src.Choices.Count == 2
+                       && src.Choices.All(c => !string.IsNullOrEmpty(c.Reply));
+            Check(has, $"{id} 의 가짜 전화 대사가 있다");
+            if (!has) continue;
+            // 방 이름 · 동료 이름은 문장에 박혀 있으면 안 된다 — 토큰으로만 들어간다.
+            Check(src.Opening.Contains("{ROOM}") && src.Opening.Contains("{OTHER}"),
+                $"{id} 의 가짜 전화가 치환 토큰을 쓴다");
+            string filled = DialogueRepository.Fill(src.Opening);
+            Check(filled.Contains("정비실") && filled.Contains("고양이") && !filled.Contains("{"),
+                $"{id} 의 가짜 전화 토큰이 실제 값으로 채워진다");
+            // "주, 주, 주세요" · "까요, 까요, 까요" 처럼 **같은 조각이 쉼표로 반복되는**
+            // 자리가 반드시 있어야 한다. 그 더듬음이 "이 사람이 아니다" 의 신호다.
+            Check(System.Text.RegularExpressions.Regex.IsMatch(filled, @"(\S{1,3}), \1,"),
+                $"{id} 의 가짜 전화에 말이 미끄러지는 부분이 있다");
+            GD.Print($"   {id,-7} \"{filled}\"");
+        }
+        DialogueRepository.CallTokens.Clear();
     }
 
     // ── 단서가 되지 않는다 ──────────────────────────────────────────────

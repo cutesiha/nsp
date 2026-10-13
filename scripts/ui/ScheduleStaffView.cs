@@ -23,7 +23,9 @@ public partial class ScheduleStaffView : Control
     private static readonly Color Ink = new(0.84f, 0.89f, 0.88f);
     private static readonly Color Mint = new(0.46f, 0.90f, 0.80f);
     private static readonly Color Dim = new(0.36f, 0.44f, 0.45f);
-    private static readonly Color Amber = new(0.95f, 0.72f, 0.25f);
+    // 1013 QA 19번 — 근무배치 화면의 노란 글자를 전부 하늘색으로 바꿔 달라는 요청.
+    // 이름은 호출부를 건드리지 않으려고 그대로 둔다 — 값만 하늘색(ChoiceCyan)이다.
+    private static readonly Color Amber = NSP.View.GuideTextMarkup.ChoiceCyan;
     private static readonly Color Err = new(0.92f, 0.28f, 0.24f);
     private static readonly Color Good = new(0.45f, 0.95f, 0.55f);
     // 누를 수 있는 블록의 호버 테두리 — 시작 화면 신원 카드와 같은 하늘색.

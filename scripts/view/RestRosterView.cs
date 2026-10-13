@@ -215,8 +215,20 @@ public partial class RestRosterView : Control
         _summaryFade.TweenCallback(Callable.From(() => _summary.Visible = false));
     }
 
-    private void Select(string employeeId)
+    private void Select(string employeeId) => Select(employeeId, toggle: true);
+
+    // toggle — 같은 아이콘을 다시 누르면 선택을 푸다(1013 QA 24번).
+    // 격리 버튼처럼 "지금 고른 사람을 다시 그리기" 만 하려는 쪽은 toggle: false 로 부른다.
+    private void Select(string employeeId, bool toggle)
     {
+        // 심문 통화가 붙어 있는 동안에는 풀지 않는다 — 오른쪽 CRT 와 조사 노트가
+        // 이 선택을 보고 그리므로, 통화 중에 비우면 화면이 통째로 비어 버린다.
+        if (toggle && !string.IsNullOrEmpty(employeeId) && employeeId == SelectedEmployeeId
+            && PhoneCallHud.Instance?.IsOpen != true)
+        {
+            Deselect();
+            return;
+        }
         SelectedEmployeeId = employeeId;
         var sim = FacilitySimulation.Instance;
         var def = sim?.GetEmployeeDef(employeeId);
@@ -248,6 +260,18 @@ public partial class RestRosterView : Control
         _map?.SetSelected(employeeId);
     }
 
+    // 선택을 푸고 그 직원을 제자리로 돌려보낸다. SetSelected("") 가 아이콘을
+    // 전부 자기 자리(HomeSeat)로 돌려놓는다.
+    private void Deselect()
+    {
+        SelectedEmployeeId = "";
+        _selected.Text = "휴게실 안의 직원 아이콘을 선택하세요.";
+        _isolateBtn.Disabled = true;
+        _isolateBtn.Text = "격리";
+        _map?.SetSelected("");
+        NSP.Core.Sfx.Instance?.Play("relay_click", -10f);
+    }
+
     private void OnIsolatePressed()
     {
         var sim = FacilitySimulation.Instance;
@@ -256,7 +280,7 @@ public partial class RestRosterView : Control
         if (st == null || !st.Alive) return;
         if (st.Isolated) sim.CancelIsolation(SelectedEmployeeId);
         else sim.IsolateEmployee(SelectedEmployeeId);
-        Select(SelectedEmployeeId);
+        Select(SelectedEmployeeId, toggle: false);
         _map?.Refresh();
     }
 

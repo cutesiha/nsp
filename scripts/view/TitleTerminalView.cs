@@ -63,6 +63,12 @@ public partial class TitleTerminalView : Control
     private const float ModeTop = 262f, ModeStep = 96f;
     private const float ModeLeft = 150f, ModeWidth = 500f, ModeHeight = 82f;
 
+    // 근무 유형 선택 화면의 [뒤로] — 오른쪽 아래. 세 유형 뒤에 한 칸 더 붙는
+    // 항목이라 커서 이동 · 호버 · 클릭이 유형 칸과 똑같이 동작한다.
+    public const string ModeBackId = "mode_back";
+    private const string ModeBackLabel = "뒤로";
+    private static Rect2 ModeBackRect() => new(Canvas.X - 190f, 528f, 140f, 44f);
+
     // 메뉴 문구(진엔딩을 본 뒤에는 근무 개시 → 새 근무 시작).
     public static string LabelOf(int i) =>
         MenuItems[i].Id == "start" && EndingState.Last == EndingState.Kind.True ? NewShiftLabel : MenuItems[i].Label;
@@ -198,7 +204,7 @@ public partial class TitleTerminalView : Control
     {
         Mode.Menu => MenuItems.Length,
         Mode.Report => _reportItems.Length,
-        Mode.ModeSelect => ModeItems.Length,
+        Mode.ModeSelect => ModeItems.Length + 1,   // +1 = [뒤로]
         _ => 0,
     };
 
@@ -208,7 +214,11 @@ public partial class TitleTerminalView : Control
         {
             if (CurrentMode == Mode.Menu && Cursor >= 0 && Cursor < MenuItems.Length) return MenuItems[Cursor].Id;
             if (CurrentMode == Mode.Report && Cursor >= 0 && Cursor < _reportItems.Length) return _reportItems[Cursor].Id;
-            if (CurrentMode == Mode.ModeSelect && Cursor >= 0 && Cursor < ModeItems.Length) return ModeItems[Cursor].Id;
+            if (CurrentMode == Mode.ModeSelect)
+            {
+                if (Cursor >= 0 && Cursor < ModeItems.Length) return ModeItems[Cursor].Id;
+                if (Cursor == ModeItems.Length) return ModeBackId;
+            }
             return "";
         }
     }
@@ -252,14 +262,16 @@ public partial class TitleTerminalView : Control
     private string IdOf(int i) => CurrentMode switch
     {
         Mode.Menu => MenuItems[i].Id,
-        Mode.ModeSelect => ModeItems[i].Id,
+        Mode.ModeSelect => i < ModeItems.Length ? ModeItems[i].Id : ModeBackId,
         _ => _reportItems[i].Id,
     };
 
     private Rect2 ItemRect(int i)
     {
         if (CurrentMode == Mode.ModeSelect)
-            return new Rect2(ModeLeft, ModeTop + i * ModeStep, ModeWidth, ModeHeight);
+            return i < ModeItems.Length
+                ? new Rect2(ModeLeft, ModeTop + i * ModeStep, ModeWidth, ModeHeight)
+                : ModeBackRect();
 
         if (CurrentMode == Mode.Menu)
             return new Rect2(ItemLeft, ItemTop + i * ItemStep - 36f, ItemWidth, 46f);
@@ -469,6 +481,15 @@ public partial class TitleTerminalView : Control
                 DrawString(_font, new Vector2(r.Position.X + r.Size.X - 130f, r.Position.Y + 36f), LockedTag,
                     HorizontalAlignment.Right, 118f, ViewFont.S(15), Err with { A = 0.70f });
         }
+
+        // [뒤로] — 오른쪽 아래. 가리키면 칸이 차고 테두리가 밝아진다(호버 효과).
+        bool backOn = Cursor == items.Length;
+        var br = ModeBackRect();
+        if (backOn) DrawRect(br, Mint with { A = 0.14f });
+        DrawRect(br, Mint with { A = backOn ? 0.85f : 0.32f }, false, backOn ? 1.8f : 1.1f);
+        DrawString(_font, new Vector2(br.Position.X, br.Position.Y + 30f),
+            (backOn ? "< " : "") + ModeBackLabel, HorizontalAlignment.Center, br.Size.X,
+            ViewFont.S(19), backOn ? Ink : Dim);
     }
 
     private void DrawReport()

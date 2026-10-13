@@ -301,7 +301,14 @@ public static class InterviewEvidenceBoard
         {
             // 그 화면에 설비 쪽 움직임이 잡혀 있었으면 카드에 그 사실을 싣는다.
             // 누가 그랬는지는 화면도 모른다 — "그 방에 그런 움직임이 있었다"까지만이다.
-            string detail = o.SuspiciousAction ? "설비 쪽에 접근" : "";
+            //
+            // 예외가 하나 있다: 관리자가 그 방을 3초 이상 **직접 지켜보는 동안** 그 사람이
+            // 화면 안에서 한 행동(ActorId/ActionText). 이것만 사람을 특정해 적는다.
+            // 그래도 "봉쇄 장치를 고의로 망가뜨렸다" 로는 쓰지 않는다 — 화면에서 보인 것은
+            // 어디까지나 "업무를 멈추고 설비 쪽으로 갔다" 까지다(지시서 §2-2).
+            string detail = o.ActorId == target && !string.IsNullOrEmpty(o.ActionText)
+                ? o.ActionText
+                : (o.SuspiciousAction ? "설비 쪽에 접근" : "");
             var ev = new InterviewEvidence
             {
                 // 순번을 넣지 않는다 — 시청 기록은 상한을 넘으면 앞에서부터 지워져 순번이 밀린다.

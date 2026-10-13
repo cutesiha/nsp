@@ -40,6 +40,18 @@ public partial class AdminFearDirector : CanvasLayer
     private const string InhaleKey = "breath_close";
     private const string ExhaleKey = "admin_exhale";
 
+    // ── 귀신을 **보고 있는 동안**의 숨소리 ──────────────────────────
+    //
+    // 1013 QA 27번 — 이 자리만은 사용자가 직접 넣은 녹음(man_breath_real)을 쓴다.
+    // 위의 들숨/날숨 조각은 "멀리서 뭔가 다가온다" 의 호흡이고, 이쪽은 **눈앞에 그것이
+    // 있다** 의 호흡이라 소리가 달라야 한다. 크게 틀고, 화면에서 사라지면 페이드로 뺀다.
+    private const string GhostBreathKey = "man_breath_real";
+    private const float GhostBreathDb = 1f;      // 크게 — 이 소리가 그 장면의 중심이다
+    private const float GhostBreathOutDb = -42f; // 페이드가 끝나는 지점
+    private const float GhostBreathFadeSeconds = 1.3f;
+    private bool _ghostBreathOn;
+    private float _ghostBreathDb = GhostBreathOutDb;
+
     // 거리 구간별 BPM. 실제 간격은 60/BPM 초다.
     private const float BpmFar = 78f;
     private const float BpmMid = 104f;
@@ -167,9 +179,47 @@ void fragment() {
     // 깜빡이지 않는다. 0 을 주면 풀린다.
     public void GhostWatch(float amount) => _reachTarget = Mathf.Clamp(amount, 0f, 1f);
 
+    // 귀신 숨소리 루프를 켜고 끈다. 끌 때는 **끊지 않고 서서히** 뺀다 —
+    // 뚝 끊기면 그것이 사라진 것이 아니라 소리가 고장 난 것처럼 들린다.
+    private void TickGhostBreath(float d)
+    {
+        var sfx = Sfx.Instance;
+        if (sfx == null) return;
+        bool want = _reachTarget > 0.01f;
+
+        if (want && !_ghostBreathOn)
+        {
+            _ghostBreathOn = true;
+            _ghostBreathDb = GhostBreathOutDb;
+            sfx.Loop(GhostBreathKey, _ghostBreathDb);
+        }
+        if (!_ghostBreathOn) return;
+
+        float step = (GhostBreathDb - GhostBreathOutDb) / Mathf.Max(0.05f, GhostBreathFadeSeconds) * d;
+        _ghostBreathDb = want
+            ? Mathf.Min(GhostBreathDb, _ghostBreathDb + step * 2.2f)   // 들어올 때는 빠르게
+            : Mathf.Max(GhostBreathOutDb, _ghostBreathDb - step);      // 나갈 때는 천천히
+        sfx.SetLoopVolume(GhostBreathKey, _ghostBreathDb);
+
+        if (!want && _ghostBreathDb <= GhostBreathOutDb + 0.01f)
+        {
+            _ghostBreathOn = false;
+            sfx.StopLoop(GhostBreathKey);
+        }
+    }
+
+    private void StopGhostBreath()
+    {
+        if (!_ghostBreathOn) return;
+        _ghostBreathOn = false;
+        _ghostBreathDb = GhostBreathOutDb;
+        Sfx.Instance?.StopLoop(GhostBreathKey);
+    }
+
     public void ResetAll()
     {
         _level = _target = _reach = _reachTarget = 0f;
+        StopGhostBreath();
         _burst = _burstLevel = 0f;
         _suppressBreath = false;
         StopBreath();
@@ -194,7 +244,7 @@ void fragment() {
         // 근무가 아니면 전부 걷는다 — 보고서 · 휴게시간 · 타이틀에 붉은 화면이 남지 않게.
         if (!live)
         {
-            if (_level > 0f || _breathing || _burst > 0f) ResetAll();
+            if (_level > 0f || _breathing || _burst > 0f || _ghostBreathOn) ResetAll();
             return;
         }
 
@@ -230,6 +280,7 @@ void fragment() {
 
         TickHeart(d);
         TickBreath(d, threat, atDoor);
+        TickGhostBreath(d);
         Apply();
     }
 
@@ -312,12 +363,12 @@ void fragment() {
             _breathPhase -= 1f;
             _exhaled = false;
             // 가빠질수록 조금 높고 급하게 — 소리를 바꾸지 않고 피치만 아주 살짝.
-            Sfx.Instance?.Play(InhaleKey, db, Mathf.Lerp(0.92f, 1.06f, level));
+            if (!_ghostBreathOn) Sfx.Instance?.Play(InhaleKey, db, Mathf.Lerp(0.92f, 1.06f, level));
         }
         else if (!_exhaled && _breathPhase >= InhaleShare)
         {
             _exhaled = true;
-            Sfx.Instance?.Play(ExhaleKey, db - 2f, Mathf.Lerp(0.94f, 1.04f, level));
+            if (!_ghostBreathOn) Sfx.Instance?.Play(ExhaleKey, db - 2f, Mathf.Lerp(0.94f, 1.04f, level));
         }
 
         // 들숨 구간은 0→1 로 차오르고, 날숨 구간은 1→0 으로 빠진다.

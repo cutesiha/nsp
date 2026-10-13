@@ -56,6 +56,11 @@ public class EmployeeState
     public List<string> PathQueue = new();
     public Vector2 Position;
     public bool IsMoving;
+    // 지금 이 이동이 **관리자 지시가 아닌 은밀 이동**인가(결번 개체 전용).
+    // 이동 자체는 평소와 완전히 같은 경로·속도·차폐 판정을 쓴다. 다른 것은 하나뿐이다 —
+    // 도착 기록을 시설 로그에 띄울지 말지를 **그 순간의 관측 가능 여부**로 판정한다
+    // (CovertActionSystem · FacilitySimulation.ArriveAtRoom 참조).
+    public bool CovertMove;
     // 차폐문 때문에 길이 끊겨 멈춰 선 사람이 다시 길을 찾아보기까지 남은 시간(초).
     // 0 이하가 되면 한 번 시도한다 — 문이 열리면 별도 지시 없이 저절로 출발한다.
     public float RerouteTimer;

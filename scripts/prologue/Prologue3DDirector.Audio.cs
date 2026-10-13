@@ -27,12 +27,14 @@ public partial class Prologue3DDirector
     {
         var sfx = Sfx.Instance;
         if (sfx == null) return;
-        if (key == SirenKey && _sirenQuiet) volumeDb = Mathf.Min(volumeDb, SirenQuietDb);
+        // 사이렌이 이미 작아지는 중이라면 음량은 SirenGoQuiet 이 쥐고 있다 —
+        // 여기서 덮어쓰면 페이드가 매 장면 처음으로 되돌아간다(지상 컷은 세 장면이
+        // 모두 SurfaceAmbience 를 부른다).
+        bool sirenOwned = key == SirenKey && _sirenQuiet;
+        if (sirenOwned) volumeDb = SirenQuietDb;
         // 이미 돌고 있다면 컷씬 데이터가 켠 것이다(사이렌). 소유권을 빼앗지 않는다.
         if (!sfx.IsLooping(key)) _sceneLoops.Add(key);
         sfx.Loop(key, volumeDb);
-        // 이미 돌고 있던 사이렌도 내린다 — 소유권과 상관없이 음량은 여기서 정한다.
-        if (key == SirenKey && _sirenQuiet) sfx.SetLoopVolume(key, SirenQuietDb);
     }
 
     // ── 사이렌 ─────────────────────────────────────────────────────────
@@ -42,15 +44,28 @@ public partial class Prologue3DDirector
     // 무너지는 지상도, 사람들이 지르는 소리도, 차폐문 쿠웅도 사이렌 밑에 깔린다.
     // 지상을 본 순간부터는 멀리서 겨우 들리는 정도로 떨어뜨리고, 그 자리를
     // 폭풍우 · 재난음이 대신 채운다.
+    // 1013 QA 3번 — 예전에는 지상 컷에 들어가는 순간 −2dB 에서 −26dB 로 **한 프레임에**
+    // 떨어졌다. 뚝 끊기는 것처럼 들리고, 게다가 거의 안 들릴 만큼 작아졌다.
+    // 지금은 ① 2초에 걸쳐 서서히 내려가고 ② 내려가는 끝값도 "멀리서 아직 울리고 있다"
+    // 가 들리는 정도(−14dB)로 덜 깎는다.
     private const string SirenKey = "siren";
-    private const float SirenQuietDb = -26f;
+    private const float SirenQuietDb = -14f;
+    private const float SirenQuietFade = 2.0f;
     private bool _sirenQuiet;
 
     private void SirenGoQuiet()
     {
         if (_sirenQuiet) return;
         _sirenQuiet = true;
-        Sfx.Instance?.SetLoopVolume(SirenKey, SirenQuietDb);
+        var sfx = Sfx.Instance;
+        if (sfx == null) return;
+        float from = sfx.LoopVolumeDb(SirenKey);
+        if (from <= -199f) return;                       // 돌고 있지 않다
+        if (from <= SirenQuietDb) return;                // 이미 그만큼 작다
+        var t = CreateTween();
+        t.TweenMethod(Callable.From<float>(v => Sfx.Instance?.SetLoopVolume(SirenKey, v)),
+                from, SirenQuietDb, SirenQuietFade)
+            .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
     }
 
     private void StopSceneLoop(string key)
@@ -119,7 +134,7 @@ public partial class Prologue3DDirector
     }
 
     // 대사 · 무전이 그 위에서 들려야 한다. 깔려 있는 줄 알겠지만 말을 덮지는 않는 크기.
-    // 지상 컷부터 사이렌이 −26dB 로 내려가므로, 그 빈자리를 이 두 겹이 메운다.
+    // 지상 컷부터 사이렌이 −14dB 로 서서히 내려가므로, 그 빈자리를 이 두 겹이 메운다.
     private const float StormDb = -12f;
     private const float StormLowDb = -19f;
 

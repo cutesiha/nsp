@@ -108,7 +108,7 @@ public partial class StoryCutinDirector : Node
         _onMonitor = true;
         _prevRightScreen = ctl.RightScreenViewport;
         ctl.SetRightScreen(ctl.StoryViewport);
-        if (focusNow) ctl.FocusMonitor(2, MonitorFocusSeconds);
+        if (focusNow) { ctl.FocusMonitor(2, MonitorFocusSeconds); ctl.SetFocusLocked(true); }
         StoryCutinHud.Instance?.SetRenderTarget(view.StoryLayer);
         return true;
     }
@@ -118,7 +118,11 @@ public partial class StoryCutinDirector : Node
     public void FocusStoryMonitor()
     {
         if (!_onMonitor) return;
-        ControlRoom3DController.Instance?.FocusMonitor(2, MonitorFocusSeconds);
+        var ctl = ControlRoom3DController.Instance;
+        ctl?.FocusMonitor(2, MonitorFocusSeconds);
+        // 스토리가 도는 동안 모니터2 확대는 **고정**이다. 잠글지 않으면
+        // ESC 를 누를 때 일시정지 창 대신 확대가 먼저 풀려 대사가 멀어진다(1013 QA 18번).
+        ctl?.SetFocusLocked(true);
     }
 
     public void ExitMonitor() => LeaveMonitor(null);
@@ -145,6 +149,7 @@ public partial class StoryCutinDirector : Node
         if (ctl == null) return;
         if (_prevRightScreen != null && IsInstanceValid(_prevRightScreen)) ctl.SetRightScreen(_prevRightScreen);
         _prevRightScreen = null;
+        ctl.SetFocusLocked(false);
         ctl.ClearFocus(MonitorFocusSeconds);
     }
 

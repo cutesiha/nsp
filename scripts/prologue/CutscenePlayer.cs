@@ -129,6 +129,10 @@ public partial class CutscenePlayer : Control
     private double _fxTime;
     private double _joltUntil;
     private bool _impactFallStarted;
+    private bool _impactWoozyStarted;
+    // 머리를 맞고 책상에 엎어지기까지의 시간(초). ① 쾅 → ② 헤롱헤롱 → ③ 펍.
+    // 이 컧의 md hold 는 2.6 — 아래 한 바퀴 + 쌍지는 시간(0.55) 이 그 안에 들어야 한다.
+    private const float ImpactFallAt = 1.55f;
     // 자막이 한 글자씩 드러날 때마다 화자 보이스를 울리기 위한 진행도.
     private int _spokenChars;
     private bool _radioOpen;
@@ -204,6 +208,8 @@ public partial class CutscenePlayer : Control
         _index = -1;
         IsWaitingForInput = false;
         _impactFallStarted = false;
+        _impactWoozyStarted = false;
+        DizzyOverlay.Instance?.Clear();
         _image.Visible = false;
         _placeholder.Visible = false;
         _figure.Visible = false;
@@ -289,6 +295,10 @@ public partial class CutscenePlayer : Control
         _slideHold = s.Hold;
         _fx = s.Fx;
         _impactFallStarted = false;
+        _impactWoozyStarted = false;
+        // 컧이 바띀면 만들어 둔 어지러움은 내린다 — 헤롱헤롱 구간에서 클릭으로
+        // 넘어가도 오버레이가 그대로 남지 않게.
+        if (_fx != PrologueScript.SlideFx.Impact) DizzyOverlay.Instance?.Clear();
         _afterFired = false;
         _joltUntil = s.Jolt > 0f ? s.Jolt : 0.0;
         _scare = s.Scare;
@@ -395,10 +405,15 @@ public partial class CutscenePlayer : Control
         }
         if (!string.IsNullOrEmpty(s.Sfx)) Sfx.Instance?.Play(s.Sfx, -5f);
 
-        // 플레이어가 충격을 받는 순간 — 제어실 카메라까지 같이 흔든다.
+        // 플레이어가 머리를 맞는 순간 — 제어실 카메라까지 같이 흔든다.
+        // 소리는 head_impact 다(1013 QA 7번). impact_blunt 는 150Hz 가 순식간에
+        // 내려앉는 '쿵' 이라 머리가 아니라 멀리서 뭔가 터진 것처럼 들렸다 —
+        // head_impact 는 저역 쿵 + 450Hz 아래 둔탁한 몸통 + 두개골 울림 세 겹이다.
         if (_fx == PrologueScript.SlideFx.Impact)
         {
-            Sfx.Instance?.Play("impact_blunt", -1f);
+            Sfx.Instance?.Play("head_impact", 1f);
+            // 바로 밑에 몸통 충격 한 겹 — 머리만 울리면 가볍다.
+            Sfx.Instance?.Play("impact_blunt", -9f, 0.72f);
             ControlRoom3DController.Instance?.ShakeCamera(7.5f, 0.5f);
         }
 
@@ -752,15 +767,49 @@ public partial class CutscenePlayer : Control
                 break;
             }
 
-            // 머리를 세게 맞고 → 책상에 엎어지는 연출.
+            // 머리를 세게 맞고 → 헤롱헤롱 → 책상에 엎어지는 연출.
+            //
+            // 1013 QA 7번 — 예전에는 맞은 지 0.45초 만에 바로 고꾸라졌다. 때린 것과
+            // 쓰러진 것이 한 동작으로 붙어 "뒤통수를 맞았다" 가 읽히지 않았다.
+            // 지금은 세 박자다.
+            //   ① 쾅        0.00~0.35s  머리를 맞는다. 붉은 섬광 + 강한 흔들림.
+            //   ② 헤롱헤롱  0.35~ImpactFallAt  의식이 끊기기 전. 시야가 느리게 크게
+            //               출렁이고 초점이 흐려진다. 아직 쓰러지지 않는다.
+            //   ③ 퍽        ImpactFallAt~     책상으로 무너진다 + 암전.
             case PrologueScript.SlideFx.Impact:
-                // 0.0~0.45s : 강한 충격 흔들림 + 붉은 섬광
-                float hit = Mathf.Max(0f, 1f - t / 0.45f);
+            {
+                float hit = Mathf.Max(0f, 1f - t / 0.35f);
                 offset += new Vector2(Mathf.Sin(t * 88f) * 26f * hit, Mathf.Cos(t * 71f) * 18f * hit);
                 _tint.Color = _tint.Color with { A = 0.45f * hit };
                 _glitch.Amount = 0.3f + 0.7f * hit;
-                // 0.45s~ : 상체가 책상으로 무너지듯 화면이 아래로 내려앉으며 어두워진다
-                if (t > 0.45f)
+
+                // ② 비틀거리는 구간 — 느리고 폭 넓은 출렁임. 빠르게 떨면 '맞은 직후'
+                // 가 아니라 '화면 고장' 으로 보인다.
+                if (t > 0.3f && t < ImpactFallAt)
+                {
+                    float woozy = Mathf.Clamp((t - 0.3f) / 0.35f, 0f, 1f);
+                    // 끝으로 갈수록 더 못 버틴다 — 진폭이 조금씩 커진다.
+                    float grow = 0.75f + 0.55f * ((t - 0.3f) / Mathf.Max(0.1f, ImpactFallAt - 0.3f));
+                    offset += new Vector2(
+                        Mathf.Sin(t * 3.1f) * 34f + Mathf.Sin(t * 1.3f + 0.7f) * 22f,
+                        Mathf.Sin(t * 2.4f + 1.9f) * 18f) * woozy * grow;
+                    _glitch.Amount = Mathf.Max(_glitch.Amount, 0.22f + 0.18f * woozy);
+                    // 화면이 서서히 어두워지며 가라앉는다(완전 암전은 ③ 에서).
+                    _fade.Color = _fade.Color with { A = 0.30f * woozy * grow };
+                    DizzyOverlay.Instance?.SetAmount(0.55f * woozy * grow);
+                    if (!_impactWoozyStarted)
+                    {
+                        _impactWoozyStarted = true;
+                        // 맞은 직후 귀가 먹먹해지고 숨이 가빠진다.
+                        Sfx.Instance?.Play("tinnitus", -11f);
+                        Sfx.Instance?.Play("breath_faint", -9f);
+                        // 몸이 기울기 시작한다 — 느리게, 아주 조금.
+                        ControlRoom3DController.Instance?.ShakeCamera(1.6f, 1.1f);
+                    }
+                }
+
+                // ③ 퍽 — 상체가 책상으로 무너지며 암전.
+                if (t >= ImpactFallAt)
                 {
                     if (!_impactFallStarted)
                     {
@@ -769,11 +818,13 @@ public partial class CutscenePlayer : Control
                         // 시점 자체가 책상으로 빠르게 고꾸라진다(고개가 떨어지듯).
                         ControlRoom3DController.Instance?.CollapseCameraOntoDesk(0.34f);
                     }
-                    float fall = Mathf.Clamp((t - 0.45f) / 0.55f, 0f, 1f);
+                    float fall = Mathf.Clamp((t - ImpactFallAt) / 0.55f, 0f, 1f);
                     offset.Y += fall * fall * 120f;
-                    _fade.Color = _fade.Color with { A = fall };
+                    _fade.Color = _fade.Color with { A = Mathf.Max(0.30f, fall) };
+                    DizzyOverlay.Instance?.SetAmount(0.55f * (1f - fall));
                 }
                 break;
+            }
 
             default:
                 _glitch.Amount = 0.05f;

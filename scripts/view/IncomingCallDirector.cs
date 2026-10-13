@@ -204,7 +204,33 @@ public partial class IncomingCallDirector : Node
 
         string caller = GhostScreamCaller(_ghostCallRoom);
         if (string.IsNullOrEmpty(caller)) return;
-        Enqueue(caller, DialogueRepository.EventGhostScream, "ghostscream:" + _ghostCallRoom, _ghostCallRoom);
+
+        // 1013 QA 25번 — 이 전화는 그 직원이 거는 것이 아니라 **개체가 그 직원을
+        // 흉내 내어** 거는 것이다. 말하는 내용은 그 직원이 지금 실제로 있는 작업실과
+        // 실제로 있는 다른 동료의 이름을 쓴다 — 그래야 처음에는 진짜로 들린다.
+        var sim = FacilitySimulation.Instance;
+        string room = sim?.RoomDisplayName(sim.GetEmployeeState(caller)?.CurrentRoomId ?? "") ?? "";
+        string other = GhostFakeCallSubject(caller);
+        if (string.IsNullOrEmpty(room) || string.IsNullOrEmpty(other)) return;
+        DialogueRepository.SetCallToken("ROOM", room);
+        DialogueRepository.SetCallToken("OTHER", other);
+
+        Enqueue(caller, DialogueRepository.EventGhostFakeCall, "ghostfake:" + _ghostCallRoom, _ghostCallRoom);
+    }
+
+    // 가짜 전화가 "데려와 달라" 고 부르는 다른 직원. 거는 사람 자신은 빼고,
+    // 살아 있고 기절 · 격리가 아닌 사람 중에서 하나.
+    public static string GhostFakeCallSubject(string callerId)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return "";
+        var pool = sim.GetActiveEmployeeIds()
+            .Where(id => id != callerId
+                         && sim.GetEmployeeState(id) is { Alive: true, Isolated: false, Incapacitated: false })
+            .Select(id => sim.GetEmployeeDef(id)?.Codename ?? "")
+            .Where(n => !string.IsNullOrEmpty(n))
+            .ToList();
+        return pool.Count == 0 ? "" : pool[(int)(GD.Randi() % (uint)pool.Count)];
     }
 
     // 비명을 듣고 물어볼 만한 사람 — 살아 있고, 기절·격리가 아니고, 그 방에 없던 직원.
@@ -571,6 +597,18 @@ public partial class IncomingCallDirector : Node
             return;
         }
 
+        // 개체가 흉내 낸 가짜 전화 — **무엇을 고르든 아무도 움직이지 않는다.**
+        // 그 자리에 직원을 보내면 실제 지시가 되어 버리고, 그러면 이건 연출이 아니라
+        // 개체가 관리자를 조종하는 장치가 된다(1013 QA 25번).
+        if (dialogueEvent == DialogueRepository.EventGhostFakeCall)
+        {
+            var incFake = GetIncident(_active.DedupeKey);
+            if (incFake != null) incFake.Closed = true;
+            // 받은 사람은 그 목소리를 들었다 — 그만큼 떨린다.
+            NSP.Ui.AdminFearDirector.Instance?.Burst(0.8f, 3.5f);
+            return;
+        }
+
         // 비명 문의(H-3) — 사실을 말해 주면 그만큼 겁을 먹는다. 그뿐이고 시설은 그대로 돌아간다.
         if (dialogueEvent == DialogueRepository.EventGhostScream)
         {
@@ -640,7 +678,8 @@ public partial class IncomingCallDirector : Node
 
         // 근무 기억용 — "전화드렸는데 안 받으셨어요".
         // 비명 문의(H-3)는 안 받아도 아무 일이 없다. 기록도 남기지 않는다.
-        if (dialogueEvent != DialogueRepository.EventGhostScream)
+        if (dialogueEvent != DialogueRepository.EventGhostScream
+            && dialogueEvent != DialogueRepository.EventGhostFakeCall)
             CallMemoryLog.Record(employeeId, CallRecordKind.Missed, _active?.RoomId ?? "", dialogueEvent);
         // 전화를 안 받은 것도 "확인 지시를 안 한" 것으로 본다 → 다른 직원이 2차로 건다.
         if (_active != null && IsDispatchEvent(_active.DialogueEvent))

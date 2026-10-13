@@ -32,6 +32,14 @@ public static class RoomEffectStats
     // 실내 조명을 한 번 깜빡여 달라는 요청(발전실 출력 저하). 3D 중앙제어실이 받는다.
     public static System.Action LightFlickerRequested;
 
+    // 발전 설비가 과부하로 터졌다 — 중앙제어실 전력 패널이 연기 · 스파크 · 파열음으로 받는다.
+    //
+    // 예전에는 "전력 용량이 줄어 채널 하나가 강제로 내려갈 때"에만 그 연출이 났다.
+    // 그래서 켜 둔 채널이 적으면 발전실 사고가 터져도 화면에서는 아무 일도 일어나지
+    // 않았다(1013 QA 10번 "연기도 팡 하는 소리도 다 사라짐"). 사고 자체를 알리는
+    // 신호가 따로 있어야 한다.
+    public static System.Action PowerEquipmentFailed;
+
     public static void Pulse(string roomId)
     {
         if (!string.IsNullOrEmpty(roomId)) RoomWorked?.Invoke(roomId);

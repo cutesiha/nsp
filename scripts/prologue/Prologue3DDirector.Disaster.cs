@@ -260,9 +260,26 @@ public partial class Prologue3DDirector
         // 토끼 — 출발하자마자 휘청였다가 급히 되잡는다.
         rab.StumbleIn(0.28f, 1.0f);
 
+        // ── 쫓아오는 것 둘 ──────────────────────────────────────────────
+        //
+        // 직원들이 왜 저렇게 달리는지가 이 컷에 **보여야** 한다. 뒤에서 형체(결번자
+        // 형태)와 아기 괴물이 실제로 따라붙는다 — 둘 다 직원보다 빠르게 두어서
+        // 컷이 끝날 즈음 거리가 눈에 띄게 좁혀진다.
+        //
+        // 배치 : 가장 뒤처진 양(z=16)보다 더 뒤. 카메라(z=13)를 0.7초쯤 뒤에 스쳐
+        // 지나가므로, 사람들이 먼저 지나가고 → 그 뒤를 괴물이 지나가는 순서가 된다.
+        // 모델은 로컬 +Z 가 앞이라 −z 로 달리려면 yaw 180 이다.
+        var ghost = SpawnMonster(root, "absentee", new Vector3(-0.55f, 0f, 18.2f), 180f);
+        var baby = SpawnMonster(root, "infant", new Vector3(1.25f, 0f, 16.8f), 180f);
+        ChaseDown(ghost, 6.70f, -16f);
+        ChaseDown(baby, 7.15f, -16f, clipSpeed: 2.0f);
+
         Sfx.Instance?.Play("footsteps_run", -7f);
         // 복도 저편에서 사람들이 질러대는 소리 — 남녀 녹음을 섞어 깔아 둔다.
         ShoutingMix();
+        // 쫓는 것들의 소리. 사람 소리에 묻히지 않을 만큼만, 조금 일그러뜨려서.
+        CutWarp("monster", -4f, 0.88f, "chase_ghost", loop: true);
+        CutWarp("babymonster", -7f, 1.06f, "chase_baby", loop: true, delaySeconds: 0.35f);
         SceneLoop("siren", -4f);
         _ = _stage.MoveCamCut(new Vector3(2.05f, 1.8f, 6f), new Vector3(-0.4f, 1.35f, -12f), 4.2);
 
@@ -298,6 +315,25 @@ public partial class Prologue3DDirector
         await Wait(1.5);
         if (!Alive(gen)) return;
         Sfx.Instance?.Play("footsteps_run", -11f, 0.94f);
+        // 마지막 박자 — 뒤에서 한 번 크게. 쫓기는 중이라는 것을 귀로 못 박는다.
+        Sfx.Instance?.PlayWarped("monster", -1f, 0.74f, "chase_roar");
+        _cutWarps.Add("chase_roar");
+    }
+
+    // 복도를 −z 로 내달리는 괴물 하나. 속도(m/s)로 주면 거리에서 시간을 낸다 —
+    // 직원들의 MoveTo 와 같은 단위라 "누가 더 빠른가" 를 숫자로 비교할 수 있다.
+    // clipSpeed : 가진 클립이 걷기뿐인 개체(아기)를 빠르게 돌려 종종걸음으로 만든다.
+    private void ChaseDown(NSP.View.MonsterActor m, float speed, float toZ, float clipSpeed = 1f)
+    {
+        if (m == null) return;
+        var def = m.Def;
+        string clip = !string.IsNullOrEmpty(def.AnimRun) ? def.AnimRun : def.AnimWalk;
+        m.PlayRole(clip, clipSpeed, 0.1);
+
+        Vector3 start = m.Root.Position;
+        float dist = Mathf.Abs(start.Z - toZ);
+        var t = CreateTween();
+        t.TweenProperty(m.Root, "position", start with { Z = toZ }, dist / Mathf.Max(0.1f, speed));
     }
 
     // ── ⑧ 차폐문 폐쇄 (disaster_06_door_closing) ────────────────────────
@@ -417,7 +453,7 @@ public partial class Prologue3DDirector
 
         foreach (var (pct, wait, shake) in new[]
                  {
-                     (74f, 1.5, 0.3f), (41f, 1.6, 0.8f), (16f, 1.5, 1.5f), (3f, 1.4, 2.4f),
+                     (74f, 1.5, 0.2f), (41f, 1.6, 0.5f), (16f, 1.5, 0.9f), (3f, 1.4, 1.4f),
                  })
         {
             if (!Alive(gen)) return;
@@ -433,7 +469,7 @@ public partial class Prologue3DDirector
         }
         if (!Alive(gen)) return;
         _stage.PrologueCoreOutput(0.6f);
-        Shake(3.0f, 0.9f);
+        Shake(1.7f, 0.8f);
         await Wait(0.7);
     }
 
@@ -472,7 +508,9 @@ public partial class Prologue3DDirector
         GlassBurst(huge: true);
 
         Flash?.Invoke(new Color(0.85f, 0.94f, 1f), 0.09f, 0.22f);
-        Shake(9f, 3.2f);
+        // 1013 QA 5번 — 9 → 5. 매 프레임 난수가 아니라 느린 사인으로 바띀다(§혐들림).
+        // 같은 크기로 두면 카름라가 날아다니는 수준이 된다.
+        Shake(5.0f, 1.7f);
         _stage.PrologueCoreBreach();
         // 터지는 순간 공간 전체가 한 번 밝아졌다가 잦아든다 — 그래야 홀의 크기가 보인다.
         _stage.CoreHallFill(5.5f, new Color(1f, 0.62f, 0.38f));
@@ -491,7 +529,7 @@ public partial class Prologue3DDirector
         if (!Alive(gen)) return;
         // ③ 2차 — 구조물이 무너지는 둔탁한 소리.
         Sfx.Instance?.Play("impact_blunt", -4f);
-        Shake(4.5f, 2.4f);
+        Shake(2.6f, 1.5f);
         await Wait(0.45);
         if (!Alive(gen)) return;
 
@@ -548,7 +586,8 @@ public partial class Prologue3DDirector
         var dir = Spawn(root, "wolf", new Vector3(0f, 0f, -1.05f), 180f);
         dir.PlayClip("talk");
         SceneLoop("alarm", -16f);
-        Shake(0.5f, 0.2f);
+        // 1013 QA 6번 — 이 컧은 대사를 읽히게 해야 한다. 가막은 움지임만 남긴다.
+        Shake(0.26f, 0.22f);
 
         await Wait(2.6);
         if (!Alive(gen)) return;
@@ -591,7 +630,8 @@ public partial class Prologue3DDirector
         StormEnd(2.0f);
         SetBriefingEmergency(0.6f);
         if (_sealLampMat != null) _sealLampMat.EmissionEnergyMultiplier = 3.4f;
-        Shake(1.6f, 1.2f);
+        // 차폐바이 내려앉는 충감 — 짧고 넣은 한 번으로 충분하다(1.6 → 0.85).
+        Shake(0.85f, 1.0f);
         await Wait(1.4);
     }
 

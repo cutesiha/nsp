@@ -383,7 +383,11 @@ public partial class HorrorEventDirector : Node
 
         bool onCall = PhoneCallHud.Instance?.IsOpen == true
                       && Phone3D.Instance?.AnomalyActive == false;
-        if (_warpArmed && onCall) _warp = Mathf.Min(1f, _warp + delta * 0.11f);
+        // 개체가 직원을 흉내 내어 건 전화는 **처음부터 끝까지** 최대로 일그러뜨린다.
+        // 서서히 올라가는 평소의 신호 왜곡과 달리, 이건 신호 문제가 아니라 목소리 자체가
+        // 그 사람의 것이 아니라는 뜻이다(1013 QA 25번).
+        if (PhoneCallHud.Instance?.IsGhostFakeCall == true) _warp = 1f;
+        else if (_warpArmed && onCall) _warp = Mathf.Min(1f, _warp + delta * 0.11f);
         else _warp = Mathf.MoveToward(_warp, 0f, delta * 2.5f);
 
         if (!onCall && _warp <= 0.001f) _warpArmed = false;

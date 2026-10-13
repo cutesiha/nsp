@@ -213,6 +213,7 @@ public partial class PauseMenu : CanvasLayer
         {
             b.MouseEntered += () => t.AddThemeColorOverride("font_color", Colors.White);
             b.MouseExited += () => t.AddThemeColorOverride("font_color", col);
+            MonitorUi.AddFeedback(b);
         }
         return b;
     }

@@ -60,7 +60,12 @@ public partial class AchievementToast : CanvasLayer
     private static readonly Color Body = new(0.66f, 0.80f, 0.86f);
     private static readonly Color IconInk = new(0.55f, 0.95f, 1f);
     // 달성음. assets/audio/sfx/achievement_sfx.mp3
+    //
+    // 음원 자체의 최대치가 −7 dBFS 쯤이라 예전 값(−9dB)으로는 −16 dBFS 로 나갔다 —
+    // 근무 중 깔려 있는 기계음 · 경보에 그대로 묻혀 "소리가 안 난다" 는 말이 나왔다
+    // (1013 QA 17번). +4dB 면 최대치가 −3 dBFS 쯤이라 찢어지지 않으면서 확실히 들린다.
     private const string UnlockSfx = "achievement_sfx";
+    private const float UnlockSfxDb = 4f;
 
     private Control _root;
     private Panel _card;
@@ -228,7 +233,7 @@ public partial class AchievementToast : CanvasLayer
         _card.OffsetBottom = restBottom + RiseDistance * scale;
         _card.Modulate = new Color(1f, 1f, 1f, 0f);
 
-        Sfx.Instance?.Play(UnlockSfx, -9f);
+        Sfx.Instance?.Play(UnlockSfx, UnlockSfxDb);
 
         float fallTop = restTop + FallDistance * scale;
         float fallBottom = restBottom + FallDistance * scale;

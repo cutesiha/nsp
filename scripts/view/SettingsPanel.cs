@@ -321,6 +321,7 @@ public partial class SettingsPanel : CanvasLayer
         b.AddThemeStyleboxOverride("hover", hover);
         b.AddThemeStyleboxOverride("pressed", hover);
         b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+        MonitorUi.AddFeedback(b);
         return b;
     }
 
@@ -351,6 +352,7 @@ public partial class SettingsPanel : CanvasLayer
         close.AddThemeStyleboxOverride("pressed", hover);
         close.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         close.Pressed += Close;
+        MonitorUi.AddFeedback(close);
         return close;
     }
 }

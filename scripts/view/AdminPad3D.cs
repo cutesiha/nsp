@@ -683,12 +683,43 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     {
         if (e is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }) return;
         if (_state != PadState.Stowed) return;
+
+        // 거치대 위 화면에서 누른 자리(논리 좌표). 화면이 꺼져 있거나 화면 밖이면 쓰지 않는다.
+        Vector2 canvasAt = Vector2.Zero;
+        bool onScreen = false;
+        if (StowedLive && camera is Node3D cam3d
+            && ProjectToScreen(cam3d.GlobalPosition, (pos - cam3d.GlobalPosition).Normalized(),
+                out Vector2 suv, out bool sInside) && sInside)
+        {
+            canvasAt = suv * (Vector2)CanvasSize;
+            onScreen = true;
+        }
+
+        // 수리 승인 요청이 떠 있으면 거치대 위에서도 [예] · [아니오] 를 바로 누를 수 있다
+        // (1013 QA 11번). 패드를 들었다 다시 누르게 하면 6초짜리 제한 시간이 그 사이에 다 간다.
+        if (onScreen)
+        {
+            switch (_view.RepairButtonAt(canvasAt))
+            {
+                case "yes":
+                    // 들면서 **동시에** 미로가 시작된다 — 들어 올리는 동안 시계는 아직 안 간다
+                    // (미로는 첫 방향키부터 흐른다).
+                    Sfx.Instance?.Play("relay_click", -3f);
+                    RepairApprovalSystem.Approve();
+                    Open();
+                    GetViewport()?.SetInputAsHandled();
+                    return;
+                case "no":
+                    // 거절 — 패드는 거치대에 그대로 두고 요청만 닫는다.
+                    Sfx.Instance?.Play("switch", -4f, 0.8f);
+                    RepairApprovalSystem.Decline();
+                    GetViewport()?.SetInputAsHandled();
+                    return;
+            }
+        }
+
         // 켜진 홈 화면의 앱 아이콘을 눌렀으면 그 앱을 연 채로 들어 올린다.
-        PadView.Tab? app = null;
-        if (StowedLive && camera is Node3D cam
-            && ProjectToScreen(cam.GlobalPosition, (pos - cam.GlobalPosition).Normalized(), out Vector2 uv, out bool inside)
-            && inside)
-            app = _view.AppAt(uv * (Vector2)CanvasSize);
+        PadView.Tab? app = onScreen ? _view.AppAt(canvasAt) : null;
         Open(app);
         GetViewport()?.SetInputAsHandled();
     }
@@ -820,6 +851,12 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     private bool _repairGlow;
     private static float RepairBeat => 0.5f + 0.5f * Mathf.Sin(Time.GetTicksMsec() / 150f);
 
+    // 패드 **주위**를 통째로 밝히는 등. 화면 밝기만 뛰게 했더니 책상 구석에 있는 패드가
+    // 여전히 눈에 안 들어왔다("다들 승인 요청 뜨는 줄도 모르더라" — 1013 QA 11번).
+    // 거치대 위에 호박색 등을 하나 켜서 **책상 그 구역이 통째로 물들게** 한다.
+    private OmniLight3D _repairLight;
+    private const float RepairLightEnergy = 5.5f;
+
     private void TickRepairGlow(float delta)
     {
         bool want = _powered && RepairApprovalSystem.Current == RepairApprovalSystem.Phase.Asking;
@@ -830,11 +867,36 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
             float baseLevel = _state == PadState.Stowed ? StowedLevel() : 1f;
             _screenMat?.SetShaderParameter("brightness", baseLevel + 0.55f * RepairBeat);
             _repairGlow = true;
+            SetRepairLight(RepairLightEnergy * (0.45f + 0.55f * RepairBeat));
             return;
         }
-        if (!_repairGlow) return;
+        if (!_repairGlow) { SetRepairLight(0f); return; }
         _repairGlow = false;
+        SetRepairLight(0f);
         SetBrightness(_state == PadState.Stowed ? StowedLevel() : (_powered ? 1f : 0f), 0.25f);
+    }
+
+    private void SetRepairLight(float energy)
+    {
+        if (energy <= 0.01f)
+        {
+            if (_repairLight != null && IsInstanceValid(_repairLight)) _repairLight.Visible = false;
+            return;
+        }
+        if (_repairLight == null || !IsInstanceValid(_repairLight))
+        {
+            _repairLight = new OmniLight3D
+            {
+                Name = "RepairCallLight",
+                LightColor = new Color(1f, 0.74f, 0.32f),
+                OmniRange = 1.5f,
+                ShadowEnabled = false,
+                Position = new Vector3(0f, 0.22f, 0.04f),
+            };
+            AddChild(_repairLight);
+        }
+        _repairLight.Visible = true;
+        _repairLight.LightEnergy = energy;
     }
 
     // ── 엔딩 전용 ────────────────────────────────────────────────────────

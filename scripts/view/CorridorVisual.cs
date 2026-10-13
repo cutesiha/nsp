@@ -456,8 +456,12 @@ public sealed class CorridorVisual
         if (seg == null || _leafLeft == null) return;
         float shut = Mathf.Clamp(seg.Shut, 0f, 1f);
         float x = Mathf.Lerp(LeafPocketX, LeafSealX, shut);
-        _leafLeft.Position = new Vector3(-x, 0f, 0f);
-        _leafRight.Position = new Vector3(x, 0f, 0f);
+        // 두드리는 충격 — 두 문짝이 **같이 안쪽으로** 짧게 밀렸다 되돌아온다.
+        // 저쪽에서 뭔가 때리고 있는데 문이 꿈쩍도 않으면 막혀 있는 느낌이 나지 않는다
+        // (1013 QA 23번). 몇 cm 짜리라 문이 열리는 것처럼 보이지는 않는다.
+        float jolt = PoundJolt(time);
+        _leafLeft.Position = new Vector3(-x, 0f, jolt);
+        _leafRight.Position = new Vector3(x, 0f, jolt);
 
         // 구동 중에만 경고등이 돈다. 닫힌 뒤에는 약하게 켜진 채로 남는다.
         float energy = seg.Moving ? 1.4f + Mathf.Sin(time * 11f) * 1.0f : seg.Sealed ? 0.55f : 0f;
@@ -469,6 +473,25 @@ public sealed class CorridorVisual
         _signLabel.Modulate = seg.Sealed ? new Color(0.88f, 0.34f, 0.26f)
             : seg.Moving ? new Color(0.92f, 0.72f, 0.34f)
             : new Color(0.60f, 0.66f, 0.60f);
+    }
+
+    // ── 문을 두드리는 충격 ──────────────────────────────────────────
+    //
+    // 괴물이 차폐문을 때린 순간(MonsterThreatPresenter.OnPounded)에 한 번 걸린다.
+    // 문짝이 중앙제어실 쪽으로 몇 cm 밀렸다가 0.18초에 걸쳐 되돌아온다.
+    private double _poundUntil;
+    private const double PoundSeconds = 0.18;
+    private const float PoundDepth = 0.035f;   // m — 문이 밀리는 깊이
+
+    public void Pound() => _poundUntil = Time.GetTicksMsec() / 1000.0 + PoundSeconds;
+
+    private float PoundJolt(float time)
+    {
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (now >= _poundUntil) return 0f;
+        float k = (float)((_poundUntil - now) / PoundSeconds);
+        // 중앙제어실 쪽(_dir 의 반대)으로 밀린다.
+        return -_dir * PoundDepth * k * Mathf.Sin(k * Mathf.Pi * 2.5f);
     }
 
     // 전력이 나가면 복도도 어두워진다(비상등만 남는 느낌).

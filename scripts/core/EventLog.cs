@@ -23,10 +23,12 @@ public partial class EventLog : Node
     }
 
     public void LogEvent(LogEventType type, string actorEmployeeId, string roomId, string description,
-        IEnumerable<string> witnesses = null, bool passingThrough = false, LogDetail detail = LogDetail.None)
+        IEnumerable<string> witnesses = null, bool passingThrough = false, LogDetail detail = LogDetail.None,
+        bool covert = false)
     {
         var entry = new LogEntry
         {
+            Covert = covert,
             Detail = detail,
             Day = GameState.Instance?.CurrentDay ?? 0,
             GameTimeSeconds = GameState.Instance?.DayTimeSeconds ?? 0f,
