@@ -26,8 +26,19 @@ public partial class MonsterThreatPresenter : Node
     // 발소리 간격 — 멀 때는 뜸하게, 가까울수록 촘촘하게.
     private const float StepFar = 1.5f;
     private const float StepNear = 0.62f;
+    // 그 복도를 CCTV 로 띄워 놓고 있을 때 발소리가 얼마나 더 또렷해지는가.
+    private const float StepWatchBoostDb = 9f;
     private double _nextStep;
     private double _nextDistant;
+
+    // 지금 **그 괴물이 있는 복도**를 CCTV 로 보고 있는가.
+    // (울음 세기와 발소리가 같은 판단을 쓰므로 한 곳에 둔다.)
+    private static bool WatchingCorridor(MonsterThreat t)
+    {
+        var sim = FacilitySimulation.Instance;
+        return sim != null && sim.SurveillanceCorridorId == t.SegmentId
+               && (GameState.Instance?.IsCctvOperational() ?? false) && sim.CctvFeedLive;
+    }
 
     public override void _Ready()
     {
@@ -48,6 +59,9 @@ public partial class MonsterThreatPresenter : Node
         var t = _threats?.Current;
         if (t == null) { StopCorridorCry(); return; }
 
+        // 이 방에 들어왔다 — 여기서부터는 사망 연출이 소리를 전부 가져간다.
+        if (AdminDeathDirector.IsPlaying) { StopCorridorCry(); return; }
+
         double now = Time.GetTicksMsec() / 1000.0;
 
         // 외곽 구역에 있는 동안 — 멀리서 한 번씩. 어디로 올지는 아직 알 수 없다.
@@ -58,11 +72,19 @@ public partial class MonsterThreatPresenter : Node
         }
 
         // 복도를 걸어오는 소리 — **CCTV 가 꺼져 있어도 난다.**
+        //
+        // 그 복도를 **띄워 놓고 보고 있으면** 발소리가 또렷해진다. 뚜벅, 뚜벅 —
+        // 화면 속에서 걸어오는 것과 귀에 들리는 것이 맞아떨어져야, 보고 있는 동안
+        // 거리가 줄어드는 것이 느껴진다. 안 보고 있을 때는 지금처럼 멀찍이 들린다.
         if (t.Phase is ThreatPhase.Approach or ThreatPhase.Retreat && !t.Paused && now >= _nextStep)
         {
             float close = t.Closeness;
-            _nextStep = now + Mathf.Lerp(StepFar, StepNear, close) * (float)GD.RandRange(0.85, 1.15);
-            PlayAt(t.Def.SfxStep, Mathf.Lerp(-28f, -11f, close), Pan(t), Mathf.Lerp(0.92f, 1.04f, close));
+            bool watching = WatchingCorridor(t);
+            // 보고 있으면 걸음도 촘촘하게 — 간격까지 같이 줄여야 "뚜벅뚜벅" 이 된다.
+            float gap = Mathf.Lerp(StepFar, StepNear, close) * (watching ? 0.72f : 1f);
+            _nextStep = now + gap * (float)GD.RandRange(0.85, 1.15);
+            float db = Mathf.Lerp(-28f, -11f, close) + (watching ? StepWatchBoostDb : 0f);
+            PlayAt(t.Def.SfxStep, db, Pan(t), Mathf.Lerp(0.92f, 1.04f, close));
         }
 
         TickCorridorCry(t);
@@ -78,9 +100,13 @@ public partial class MonsterThreatPresenter : Node
     //
     // 음원은 개체별로 다르다(아기 = babymonster, 나머지 = monster). 원음 그대로 쓰지
     // 않고 Warp 버스로 조금 일그러뜨린다 — 그대로 틀면 "녹음을 튼 것" 으로 들린다.
+    //
+    // 세기는 한 번 낮췄다. -2dB 는 **거의 원음 그대로**라 복도를 띄우는 순간 다른 소리가
+    // 전부 묻혔다 — 발소리도, 방 소리도. 이 울음은 "저기 있다" 를 알리는 배경이지
+    // 그 자체가 장면의 주인공이 아니다.
     private const string CryCh = "corridor_cry";
-    private const float CryIdleDb = -17f;
-    private const float CryWatchDb = -2f;
+    private const float CryIdleDb = -24f;
+    private const float CryWatchDb = -12f;
     private string _cryKey = "";
 
     private static string CryKeyFor(MonsterDef def) =>
@@ -88,9 +114,12 @@ public partial class MonsterThreatPresenter : Node
 
     private void TickCorridorCry(MonsterThreat t)
     {
+        // **Breach 는 빠져 있다.** 문을 넘어 이 방으로 들어온 뒤에도 "복도에서 나는 소리"
+        // 를 계속 틀면, 사망 연출의 첫 3초(정적)가 통째로 사라진다. 전에는 여기에
+        // Breach 가 들어 있어서, 연출이 한 번 꺼도 다음 프레임에 다시 켜졌다.
         bool inCorridor = t.Phase is ThreatPhase.Approach or ThreatPhase.AtDoor
-            or ThreatPhase.Pounding or ThreatPhase.Breach or ThreatPhase.Retreat;
-        if (!inCorridor || t.Paused) { StopCorridorCry(); return; }
+            or ThreatPhase.Pounding or ThreatPhase.Retreat;
+        if (!inCorridor || t.Paused || AdminDeathDirector.IsPlaying) { StopCorridorCry(); return; }
 
         var sfx = Sfx.Instance;
         if (sfx == null) return;
@@ -104,10 +133,7 @@ public partial class MonsterThreatPresenter : Node
             sfx.PlayWarped(key, CryIdleDb, key == "babymonster" ? 1.04f : 0.88f, CryCh, loop: true);
         }
 
-        var sim = FacilitySimulation.Instance;
-        bool watching = sim != null && sim.SurveillanceCorridorId == t.SegmentId
-                        && (GameState.Instance?.IsCctvOperational() ?? false) && sim.CctvFeedLive;
-        sfx.FadeWarped(CryCh, watching ? CryWatchDb : CryIdleDb, 0.35f);
+        sfx.FadeWarped(CryCh, WatchingCorridor(t) ? CryWatchDb : CryIdleDb, 0.35f);
     }
 
     private void StopCorridorCry()

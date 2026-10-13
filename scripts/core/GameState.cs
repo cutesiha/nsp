@@ -300,7 +300,12 @@ public partial class GameState : Node
     // 봉쇄 코어 출력 불안정 — 코어 복구 정지 + 주기적으로 복구율 감소.
     public bool CoreOutputUnstable { get; private set; }
 
-    public void SetCctvSystemOffline(bool v) => CctvSystemOffline = v;
+    // **CCTV 는 고장으로 꺼지지 않는다.**
+    //
+    // 이 스위치를 켜면 전력을 줘도 화면이 안 나온다. 금기 계통이 쓰던 것인데 금기는
+    // 없어졌고, 남아 있는 동안 "경비실에 사고가 나면 CCTV 가 고장난다" 로 보였다.
+    // 보는 수단을 빼앗는 고장은 대응할 길이 없어서 재미가 아니라 막힘이 된다.
+    public void SetCctvSystemOffline(bool v) => CctvSystemOffline = false;
     public void SetMaterialsProductionHalted(bool v) => MaterialsProductionHalted = v;
     public void SetVentilationDown(bool v) => VentilationDown = v;
     public void SetMedicalContaminated(bool v) => MedicalContaminated = v;

@@ -6,9 +6,12 @@ namespace NSP.Core;
 // 끝날 때까지 바뀌지 않는다.
 public enum GameMode
 {
-    Competition,   // 대회용 — 3일 근무 · 결번 개체 고정
-    Standard,      // 기본   — 5일 근무 · 결번 개체 무작위
-    Hard,          // 하드   — 아직 없다(자리만)
+    Competition,   // 단기 근무 — 3일 · 결번 개체 고정
+    Standard,      // 정규 근무 — 5일 · 결번 개체 무작위
+    // 하드 — 규칙이 없어 **화면에서 뺐다**(TitleTerminalView.ModeItems).
+    // 값 자체는 남긴다: 저장 · 검사 코드가 이 enum 을 숫자로 쓰는 자리가 있어서,
+    // 지우면 뒤 항목의 번호가 밀린다. IsPlayable 이 계속 false 로 막는다.
+    Hard,
 }
 
 // 모드가 바꾸는 것은 **두 가지뿐**이다: 며칠 도는가, 결번을 누가 맡는가.
@@ -18,16 +21,22 @@ public enum GameMode
 // 타이틀로 돌아가며 씬을 다시 불러도 살아남아야 하고, 저장 파일에는 남지 않는다.
 public static class GameModes
 {
-    // ── 잠금 플래그 (대회 빌드에서 여기 한 줄만 바꾼다) ─────────────────
-    // 대회 제출본에서 기본 모드를 막으려면 StandardUnlocked = false.
-    public const bool StandardUnlocked = true;
+    // ── 잠금 플래그 (여기 한 줄만 바꾼다) ──────────────────────────────
+    //
+    // **정규 근무(5일)는 지금 막아 두었다.** 고를 수 있는 것은 단기 근무뿐이다.
+    // 화면에서 칸을 지우지는 않는다 — 잠긴 채로 보여야 "그런 근무가 있다" 가 전해지고,
+    // 나중에 열 때도 이 한 줄만 true 로 되돌리면 된다.
+    public const bool StandardUnlocked = false;
     // 하드 모드는 규칙 자체가 아직 없다. 해금 로직이 붙을 때까지 항상 false.
     public const bool HardUnlocked = false;
 
     // 대회용에서 반드시 결번이 되는 직원. 화면 · 로그 · 대사 어디에도 드러나지 않는다.
     public const string FixedSaboteurId = "dog";
 
-    public static GameMode Current { get; private set; } = GameMode.Standard;
+    // 처음 값은 **고를 수 있는 것**이어야 한다. 모드 선택 화면을 거치지 않고 들어오는
+    // 길(에디터 F5 의 건너뛰기 · 개발 허브 · 검사 씬)이 여럿인데, 그 자리에서 잠긴
+    // 모드로 시작하면 며칠짜리인지 · 결번이 누구인지가 고를 수 없는 규칙으로 정해진다.
+    public static GameMode Current { get; private set; } = GameMode.Competition;
 
     // 타이틀에서 새 게임을 시작할 때만 부른다. 진행 중에는 바뀌지 않는다.
     public static void Select(GameMode mode)
@@ -108,8 +117,8 @@ public static class GameModes
 
     public static string DisplayName(GameMode mode) => mode switch
     {
-        GameMode.Competition => "대회용 VER",
+        GameMode.Competition => "단기 근무",
         GameMode.Hard => "하드 모드",
-        _ => "기본 모드",
+        _ => "정규 근무",
     };
 }

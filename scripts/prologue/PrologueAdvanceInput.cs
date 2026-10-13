@@ -14,7 +14,15 @@ namespace NSP.Prologue;
 // 전혀 방해가 되지 않는다.
 public partial class PrologueAdvanceInput : Node
 {
-    public override void _Ready() => SetProcessInput(true);
+    public override void _Ready()
+    {
+        SetProcessInput(true);
+        // 「SKIP ≫」 버튼. 대사를 넘기는 입력과 **같은 자리**에 둔다 — 버튼이 하는 일이
+        // 결국 아래 RequestAdvance 를 대신 눌러 주는 것이라, 둘이 떨어져 있으면
+        // 한쪽만 고쳤을 때 서로 어긋난다.
+        if (NSP.View.StorySkipHud.Instance == null)
+            AddChild(new NSP.View.StorySkipHud { Name = "StorySkipHud" });
+    }
 
     public override void _Input(InputEvent e)
     {
@@ -47,6 +55,14 @@ public partial class PrologueAdvanceInput : Node
 
         // 로그 창이 떠 있으면 그쪽 입력이 우선이다.
         if (Day1HistoryOverlay.Instance?.IsWindowOpen == true) return;
+
+        // 「SKIP ≫」 버튼 위를 눌렀으면 비켜 준다.
+        //
+        // 여기(_Input)는 GUI 보다 먼저 돈다. 아래에서 SetInputAsHandled 로 왼쪽 클릭을
+        // 통째로 먹기 때문에, 비켜 주지 않으면 그 버튼은 **떠 있는 내내 눌리지 않는다.**
+        // 하필 버튼이 보이는 조건과 입력을 먹는 조건이 똑같아서 그렇다.
+        if (byClick && e is InputEventMouseButton skipHit
+            && StorySkipHud.Instance?.ContainsPoint(skipHit.GlobalPosition) == true) return;
 
         // 통화창이 떠 있어도 대사는 넘길 수 있어야 한다 — 휴게시간 교육은 통화창을 켜 둔 채
         // 가이드가 계속 말한다. 창 위를 클릭했을 때만 통화창 몫으로 넘긴다.

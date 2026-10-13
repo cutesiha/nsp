@@ -33,7 +33,7 @@ WarningResponseSeconds = 14.0
 WarningRequiredStaff = 2
 WarningStabilizeSeconds = 3.6
 WarningCooldownSeconds = 14.0
-UnstaffedAccidentSeconds = 18.0
+UnstaffedAccidentSeconds = 26.0
 RepairSeconds = 9.0
 RepairMinWorkers = 2
 
@@ -59,7 +59,7 @@ WarningResponseSeconds = 14.0
 WarningRequiredStaff = 2
 WarningStabilizeSeconds = 3.2
 WarningCooldownSeconds = 20.0
-UnstaffedAccidentSeconds = 20.0
+UnstaffedAccidentSeconds = 28.0
 RepairSeconds = 8.0
 RepairMinWorkers = 2
 
@@ -85,7 +85,7 @@ WarningResponseSeconds = 14.0
 WarningRequiredStaff = 1
 WarningStabilizeSeconds = 3.0
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 25.0
+UnstaffedAccidentSeconds = 34.0
 RepairSeconds = 7.0
 RepairMinWorkers = 1
 
@@ -112,7 +112,7 @@ WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
 WarningStabilizeSeconds = 2.5
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 25.0
+UnstaffedAccidentSeconds = 34.0
 RepairSeconds = 6.0
 RepairMinWorkers = 1
 
@@ -139,7 +139,7 @@ WarningResponseSeconds = 13.0
 WarningRequiredStaff = 1
 WarningStabilizeSeconds = 2.4
 WarningCooldownSeconds = 18.0
-UnstaffedAccidentSeconds = 50.0
+UnstaffedAccidentSeconds = 68.0
 RepairSeconds = 6.0
 RepairMinWorkers = 1
 
@@ -186,7 +186,7 @@ ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_d3_0"), Sub
 SaboteurStartSeconds = 22.0
 MaxSabotageActionsPerDay = 3
 AllowMurder = true
-GhostMaxPerDay = 2
+GhostMaxPerDay = 1
 ; 첫 번째는 반드시 나온다(두 번째는 평소대로 추첨). 둘이 들어올 자리를 남겨야 하므로
 ; DAY2 보다 앞당긴다 — 뒤로 밀리면 두 번째가 근무 안에 들어오지 못한다.
 GhostFirstAppearFromSeconds = 24.0

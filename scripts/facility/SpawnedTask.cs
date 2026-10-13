@@ -36,6 +36,14 @@ public class SpawnedTask
     // 아직 아무도 안 간 방의 수리를 승인하라고 묻는 건 말이 안 되고, 관리자가
     // 사람을 보내는 동안 제한 시간만 흘러가 버린다.
     public bool ApprovalRequested;
+
+    // 수리 인원이 방에 들어와 있는데도 승인 요청이 안 뜬 채 흐른 시간.
+    //
+    // 왜 재는가 — 요청은 "필요한 인원이 **멈춰 선** 뒤" 에 뜬다(RepairCrewArrived).
+    // 그 판정이 한 번이라도 어긋나면(방 안에서 자리를 옮기는 중 · 구조를 돕고 온 직후 등)
+    // 요청이 영영 안 떠서 **사고를 고칠 방법이 사라진다.** 실제로 그렇게 막혔다.
+    // 그래서 사람이 다 와 있으면 조금 기다렸다가 그냥 띄운다 — 안전망이다.
+    public float CrewPresentSeconds;
     public SpawnedTaskStatus Status = SpawnedTaskStatus.Active;
     // Completed / Failed 이후 방 카드에 "✓ 완료" · "🚨 실패" 를 잠깐 더 보여주기 위한 잔여 표시 시간.
     public float ResolveDisplayTimer;

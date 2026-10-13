@@ -30,6 +30,8 @@ public partial class AmbientOverlay : CanvasLayer
     private float _noiseSwap;
     private int _noiseIdx;
     private float _extraNoise;
+    // 그것을 보고 있는 동안 **머물러 있는** 노이즈(SetGhostNoise). 저절로 빠지지 않는다.
+    private float _holdNoise;
     private float _clock;
     private float _sceneIntensity = 1f;
 
@@ -130,7 +132,12 @@ public partial class AmbientOverlay : CanvasLayer
         }
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
-        _noiseRect.Modulate = new Color(1f, 1f, 1f, (BaseNoiseAlpha + _extraNoise) * _sceneIntensity);
+        _noiseRect.Modulate = new Color(1f, 1f, 1f,
+            (BaseNoiseAlpha + Mathf.Max(_extraNoise, _holdNoise)) * _sceneIntensity);
+        // 머무는 노이즈도 **스스로 빠진다.** 부르는 쪽(CCTVMonitorView)이 매 프레임 다시
+        // 세워 주므로 보고 있는 동안에는 줄지 않고, 그 화면이 사라지거나 근무가 끝나
+        // 아무도 세워 주지 않으면 알아서 걷힌다 — 붉은 화면이 남는 사고를 막는다.
+        _holdNoise = Mathf.Max(0f, _holdNoise - d * 0.6f);
         // 모서리 어둡게(비네트)는 3D 제어실에서도 거의 그대로 유지한다 — 화면 가장자리가
         // 확실히 죽어야 가운데 책상에 시선이 모인다.
         _vignetteRect.Modulate = new Color(1f, 1f, 1f, Mathf.Lerp(0.92f, 1f, _sceneIntensity));
@@ -180,6 +187,16 @@ public partial class AmbientOverlay : CanvasLayer
     {
         _extraNoise = Mathf.Max(_extraNoise, Mathf.Clamp(amount, 0f, 0.6f));
     }
+
+    // 그것을 보고 있는 동안 **내 화면 전체**에 끼는 회색 노이즈.
+    //
+    // PulseNoise 와 다르다 — 저쪽은 한 번 튀었다 바로 빠지는 값이고, 이쪽은 보고 있는
+    // 내내 **그대로 머문다.** 그래서 매 프레임 덮어쓰고, 줄이고 빼는 일은 부르는 쪽이 한다.
+    //
+    // 모니터 안쪽이 아니라 바깥 화면이다. 모니터에만 끼면 "저 기계가 고장 났다" 로
+    // 읽히지만, 화면 전체에 끼면 **보고 있는 사람 쪽이 이상해진 것**이 된다.
+    // 그래서 세기는 약하게 잡는다 — 짙으면 노이즈가 주인공이 되어 버린다.
+    public void SetGhostNoise(float amount) => _holdNoise = Mathf.Clamp(amount, 0f, 0.35f);
 
     private static ImageTexture BuildNoise()
     {

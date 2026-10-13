@@ -41,6 +41,10 @@ public static class DebugEntryPoint
         public string Accused;
         /// <summary>지목이 정답일 때 근거까지 맞았던 것으로 둘지(GUIDE-0 한 줄 · 등급에만 반영).</summary>
         public bool Proven;
+        /// <summary>이 판을 돌릴 근무 유형. null 이면 지금 골라져 있는 것을 그대로 쓴다.
+        /// 결번 고정 · 근무 일수 · 복도 위협이 전부 여기서 갈리므로, 단기 근무를
+        /// 확인하려면 **StartNewRun 보다 먼저** 세워야 한다(결번을 그때 뽑는다).</summary>
+        public GameMode? Mode;
         public string Label = "";
     }
 

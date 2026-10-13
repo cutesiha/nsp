@@ -191,6 +191,20 @@ public sealed class MonsterActor
         return Mathf.Max(0f, (box.Position.Z + box.Size.Z) * k);
     }
 
+    // **지금 자세에서** 머리 꼭대기가 발에서 얼마나 위인가(Root 배율을 뺀 로컬 단위).
+    //
+    // TargetHeight 로 대신할 수 없다. 그 값은 FitToHeight 가 **차렷 자세**를 재서 맞춘
+    // 키다. 점프스케어 클립은 몸을 숙이거나 웅크리게 만들어서, 같은 모델이라도 그 순간의
+    // 머리 높이는 키의 절반까지 내려간다. 얼굴을 화면 한가운데에 두려면 그때그때 재야 한다.
+    // (실제로 TargetHeight 로 계산했더니 결번자의 얼굴이 화면 아래로 빠져 어깨만 찍혔다.)
+    public float PosedTopY()
+    {
+        if (!IsValid(_sway) || !IsValid(_root)) return _def?.TargetHeight ?? 1f;
+        var box = VisualBounds(_root, _sway);
+        float top = box.Position.Y + box.Size.Y;
+        return top > 0.01f ? top : _def?.TargetHeight ?? 1f;
+    }
+
     private static Aabb VisualBounds(Node3D root, Node n, bool first = true)
     {
         var box = new Aabb();

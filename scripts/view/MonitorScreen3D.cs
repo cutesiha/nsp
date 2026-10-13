@@ -12,12 +12,21 @@ public partial class MonitorScreen3D : MeshInstance3D, IProjectionSurface
 
     public ShaderMaterial ScreenMaterial { get; private set; }
     public SubViewport TargetViewport { get; set; }
-    public Vector2 CanvasSize { get; set; } = new(800, 600);
+
+    // 마우스 레이를 받을 좌표계의 크기 = **지금 이 순간** 뷰포트의 크기.
+    //
+    // 전에는 Configure 에서 한 번 복사해 두었다. 뷰포트 크기가 평생 안 바뀐다는
+    // 전제였는데, 그 전제가 깨지면(품질을 실행 중에 바꾸거나, 안 쓰는 화면의 렌더
+    // 타깃을 놓아 주거나) **화면은 멀쩡한데 클릭만 엉뚱한 곳에 들어간다** — 눈으로는
+    // 원인을 알 수 없는 종류의 고장이다. 그래서 복사하지 않고 그때그때 읽는다.
+    public Vector2 CanvasSize =>
+        TargetViewport != null && GodotObject.IsInstanceValid(TargetViewport)
+            ? TargetViewport.Size
+            : new Vector2(800, 600);
 
     public void Configure(SubViewport viewport)
     {
         TargetViewport = viewport;
-        CanvasSize = viewport.Size;
 
         // 화면에 붙는 프로그램은 단계마다 바뀐다. 그때마다 머티리얼을 새로 만들면
         // 이전 ViewportTexture 가 계속 남으므로, 있으면 재사용하고 텍스처만 갈아 끼운다.

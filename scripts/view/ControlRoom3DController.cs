@@ -444,16 +444,22 @@ public partial class ControlRoom3DController : Node3D
 
     private void ReleaseIdleViewports(double delta)
     {
-        foreach (var s in _surfaces)
+        // **내 화면만** 돈다. 남의 화면(배치표 · 관리자 패드 · 경보 단말)은
+        // 자기가 알아서 켜고 끄므로, 여기서 크기를 줄이면 주인은 그 사실을 모른 채
+        // 2×2 짜리 그림을 띄우게 된다(실제로 근무 배치 화면이 그렇게 깨졌다).
+        foreach (var vp in CrtViewports)
         {
-            var vp = s.Vp;
             if (vp == null || !IsInstanceValid(vp)) continue;
-            if (vp.RenderTargetUpdateMode != SubViewport.UpdateMode.Disabled) continue;
             if (vp.Size == ReleasedSize) continue;
 
             // CCTV 화면은 화면에서 내려가 있어도 스냅샷(증거 사진)의 원본이 된다 —
             // 줄여 두면 2×2 짜리 증거가 남는다. 건드리지 않는다.
             if (vp == _cctvVp) continue;
+
+            // **붙어 있으면 손대지 않는다.** UpdateMode 로 판단하면 안 된다 —
+            // CRT 가 어두운 단계에서는 붙어 있는 화면도 Once 로 한 장만 그리고,
+            // 엔진이 그 뒤 스스로 Disabled 로 내려 놓기 때문에 "안 쓰는 화면" 처럼 보인다.
+            if (BoundToScreen(vp)) { _idleSince[vp] = 0d; continue; }
 
             double t = _idleSince.GetValueOrDefault(vp) + delta;
             _idleSince[vp] = t;
@@ -485,10 +491,28 @@ public partial class ControlRoom3DController : Node3D
         }
     }
 
+    // 이 컨트롤러가 **스스로 켜고 끄는** CRT 프로그램 화면들.
+    //
+    // `_surfaces`(AddScaledView 등록부)와 섞으면 안 된다 — 거기에는 책상 위 배치표나
+    // 관리자 패드처럼 **자기가 알아서 켜고 끄는** 남의 화면도 들어 있다. 그쪽을
+    // 여기서 건드리면 주인이 모르는 사이에 크기가 바뀐다.
+    private SubViewport[] CrtViewports => new[]
+    {
+        _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp,
+        _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp,
+        _scheduleStaffVp, _storyVp, _endingLeftVp, _endingRightVp, _verdictVp, _endingStaffVp,
+    };
+
+    private bool BoundToScreen(SubViewport vp)
+    {
+        foreach (var s in _screens) if (s.TargetViewport == vp) return true;
+        return false;
+    }
+
     private void UpdateActiveViewports()
     {
         bool cctvOnScreen = false, interviewOnScreen = false, storyOnScreen = false;
-        foreach (var vp in new[] { _facilityVp, _cctvVp, _reportVp, _restRosterVp, _interviewVp, _cutsceneVp, _guideVp, _guideFaceVp, _titleStaffVp, _titleTerminalVp, _scheduleMapVp, _scheduleStaffVp, _storyVp, _endingLeftVp, _endingRightVp, _verdictVp, _endingStaffVp })
+        foreach (var vp in CrtViewports)
         {
             if (vp == null) continue;
             bool bound = false;
@@ -675,6 +699,12 @@ public partial class ControlRoom3DController : Node3D
         ReleaseIdleViewports(delta);
 
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+        // 즉사 연출이 도는 동안에는 근무가 멈춘다.
+        //
+        // 단계(GamePhase)로 멈추지 않는 이유 — Result 로 내리면 HUD 가 전부 "근무 끝" 으로
+        // 보고 사라져서, 정적 3초 동안 화면이 텅 빈다. 단계는 Live 로 두고 **시간과
+        // 시뮬레이션만** 세운다. 그래야 화면은 평소 그대로인데 아무 일도 안 일어난다.
+        if (AdminDeathDirector.IsPlaying) return;
         // 관리자 패드를 들고 있는 동안 근무 시간은 멈춘다(시계 · 시뮬레이션 모두).
         if (AdminPad3D.PausesGame) return;
         // 스토리 컷인이 새 규칙을 가르치는 동안도 멈춘다 — 대사를 읽는 사이에 시간이

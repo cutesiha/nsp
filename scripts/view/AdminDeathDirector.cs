@@ -12,15 +12,18 @@ namespace NSP.View;
 // 직원의 죽음이 아니다. 시설 로그에도 추리 자료에도 남지 않고, 엔딩 네 갈래와도 무관하다.
 // 근무는 그 자리에서 끝나고 **다음 날로 넘어가지 않는다**(지시서 §7 · §5-3B).
 //
-// 연출 순서 — 전부 합쳐 2초 남짓이다.
-//   ① 인기척   아주 짧은 정적 + 바로 뒤의 숨소리. 화면이 한 번 꺾이고,
-//              **방이 붉게 물든다** — 차폐가 뚫렸다는 것을 조명이 먼저 말한다
-//   ② 돌진     **3D 모델이 실제로** 달려든다. 알아볼 만한 거리에서 한 번 **멈칫** 하고,
-//              그 정적 끝에 한 호흡으로 **얼굴을 화면에 들이민다**
-//              (정지 이미지를 한 프레임 붙이는 방식이 아니다)
+// 연출 순서 — **뜸을 길게, 손은 짧게.**
+//   ① 정적     3초. 숨소리도 복도의 울음도 끊기고 **아무 일도 일어나지 않는다.**
+//              방 소리만 평소대로 돈다. "갔나?" 하고 생각하게 되는 자리다
+//   ② 팍       0.07초. 어둠 속 3.6m 에서 **렌즈 앞까지 한 번에.** 비명 · 충격음 ·
+//              흔들림 · 붉은 조명이 전부 이 순간에 같이 터진다
+//              (정지 이미지를 한 프레임 붙이는 방식이 아니라 3D 모델이 실제로 온다)
 //   ③ 여진     이명 · 붉게 물든 화면이 잠깐 남는다
 //   ④ 암전     BlinkOverlay 로 화면 전체가 닫힌다
 //   ⑤ 기록     사망 화면 → 타이틀
+//
+// ①의 3초가 이 연출의 전부다. 전에는 여기에 숨소리와 붉은 조명을 깔아 "온다" 를
+// 미리 알려 줬는데, 그러면 눈이 따라갈 준비를 해 버려 정작 들이닥칠 때 놀랄 것이 없었다.
 //
 // 모니터를 확대해 보고 있었더라도 괴물이 **카메라 바로 앞**에 서므로 무엇에 당했는지 보인다.
 public partial class AdminDeathDirector : Node
@@ -30,6 +33,27 @@ public partial class AdminDeathDirector : Node
 
     private MonsterThreat _threat;
     private MonsterActor _actor;
+
+    // 차폐가 뚫린 뒤 **아무 일도 일어나지 않는** 시간.
+    private const double SilenceSeconds = 3.0;
+
+    // 얼굴이 꽂히는 순간의 배율. 1 이면 실제 키 그대로라 "멀리 서 있는 사람" 으로 보인다 —
+    // 조금 키워야 렌즈를 밀고 들어온 느낌이 난다.
+    private const float FaceScale = 1.28f;
+
+    // 그것이 내던 소리를 전부 끊는다. 방 소리(기계 · 환기)는 남긴다 —
+    // 완전한 무음은 "소리가 고장 났다" 로 들리고, 평소 소리가 그대로 도는 쪽이
+    // **아무 일도 없는 것처럼** 느껴져서 더 방심하게 된다.
+    private static void SilenceTheRoom()
+    {
+        var sfx = Sfx.Instance;
+        if (sfx == null) return;
+        sfx.StopLoop("man_breath_real");
+        sfx.StopLoop("breath_faint");
+        foreach (string ch in new[] { "corridor_cry" }) sfx.StopWarped(ch, 0.25f);
+        AdminFearDirector.Instance?.ResetAll();
+        AmbientOverlay.Instance?.SetGhostNoise(0f);
+    }
 
     // 한 판에 한 번만. 이미 죽었으면 두 번째 신호는 무시한다.
     public static void Begin(MonsterThreat t)
@@ -74,35 +98,52 @@ public partial class AdminDeathDirector : Node
         var ctl = ControlRoom3DController.Instance;
         var gs = GameState.Instance;
 
-        // 근무를 그 자리에서 멈춘다. 시뮬레이션 틱 · 패드 · 전화 · 근무 종료 전부 닫힌다.
-        gs?.SetPhase(GamePhase.Result);
-        RepairApprovalSystem.AbortForShiftEnd();
+        // 조작만 닫는다. **단계는 아직 Live 그대로 둔다** —
+        // Result 로 내리면 HUD 가 전부 "근무가 끝났다" 로 보고 사라진다. 3초 동안
+        // 화면이 텅 비면 그건 정적이 아니라 고장으로 보인다. 평소 화면 그대로
+        // 아무 일도 안 일어나는 것이 이 연출의 전부다.
         ctl?.SetInputLocked(true);
         ctl?.SetFocusLocked(true);
 
-        // ── ① 인기척 ───────────────────────────────────────────────
-        // 소리가 먼저다. 보기 전에 **등 뒤에 있다는 것**부터 안다.
-        Sfx.Instance?.Play("breath_close", -3f, 0.92f);
-        AdminFearDirector.Instance?.Burst(1f, 3.5f);
-        ctl?.ShakeCamera(0.9f, 0.35f);
-        BeginRedAlert();
-        await Wait(0.42);
+        // ── ① 정적 ─────────────────────────────────────────────────
+        //
+        // **3초 동안 아무 소리도 나지 않는다.**
+        //
+        // 전에는 여기서 숨소리를 깔고 방을 붉게 물들인 뒤 곧바로 달려들게 했다.
+        // 그러면 "온다" 를 미리 알려 주는 꼴이라 정작 들이닥칠 때 놀랄 것이 없다.
+        // 숨소리도 복도의 울음도 끊고 가만히 둔다 — 플레이어가 **갔나?** 하고
+        // 생각할 때쯤이 가장 무방비한 순간이고, 그 자리를 노린다.
+        //
+        // 화면은 그대로 두고 **소리만** 끊는다(SilenceTheRoom).
+        SilenceTheRoom();
+        await Wait(SilenceSeconds);
 
-        // ── ② 돌진 ─────────────────────────────────────────────────
-        // 비명 · 충격음 · 흔들림은 Charge 안에서, **얼굴이 들이닥치는 바로 그 순간**에
-        // 같이 터진다. 여기서 따로 울리면 소리가 그림보다 한 박자 늦는다.
+        // 여기서부터 근무를 닫는다 — 정적이 끝나고 들이닥치는 순간이다.
+        gs?.SetPhase(GamePhase.Result);
+        RepairApprovalSystem.AbortForShiftEnd();
+
+        // ── ② 팍 ───────────────────────────────────────────────────
+        // 비명 · 충격음 · 흔들림 · 붉은 조명이 **얼굴이 들이닥치는 그 한 프레임**에
+        // 전부 같이 터진다. 조금이라도 먼저 울리면 그게 예고가 된다.
         var cam = GetViewport()?.GetCamera3D();
         if (cam != null) await Charge(cam);
         else await Wait(0.35);
 
-        // ── ③ 여진 ─────────────────────────────────────────────────
-        // 들이민 얼굴은 Charge 가 이미 한 호흡 붙들고 있었다. 여기서는 숨 한 번만 더.
-        await Wait(0.12);
+        // ── ③ 비명 ─────────────────────────────────────────────────
+        //
+        // 얼굴이 박히고 **그 다음에** 비명이 터진다. 같이 울리면 충격음에 묻혀
+        // 들리지 않고, 무엇보다 "당했다" 가 한 박자 뒤에 와야 읽힌다.
+        // 얼굴이 박히고 **1초 뒤** 비명, 그 **1초 뒤** 사망 표시. 셋이 붙어 터지면
+        // 무슨 일이 일어났는지 읽을 틈이 없다.
+        await Wait(1.0);
+        Sfx.Instance?.PlayScream("", -1f);
 
         // ── ④ 암전 ─────────────────────────────────────────────────
+        // 비명에서 사망 화면까지 **정확히 1초.** 그 사이에 화면이 닫힌다.
         var blink = BlinkOverlay.Instance;
-        if (blink != null) await blink.Close(0.45);
-        else await Wait(0.45);
+        if (blink != null) await blink.Close(0.6);
+        else await Wait(0.6);
+        await Wait(0.4);
 
         _actor?.Hide();
         AdminFearDirector.Instance?.ResetAll();
@@ -136,10 +177,17 @@ public partial class AdminDeathDirector : Node
         // 화면 한가운데 온다 — 한 값으로 고정하면 큰 것은 가슴만, 작은 것은 화면
         // 밖으로 빠진다. **키울 때도 같은 비율로** 내려야 한다(안 그러면 몸집이
         // 커지는 만큼 얼굴이 화면 위로 빠져나가 어깨만 남는다).
-        float eye = Mathf.Clamp(def.TargetHeight - 0.16f, 0.52f, 1.80f);
-        // 들이미는 자세는 고개가 조금 내려가 있어 계산대로 세우면 얼굴이 화면 가운데보다
-        // 아래에 걸린다. 그만큼 들어 올린다 — 키에 비례해야 작은 개체가 위로 뜨지 않는다.
-        float faceLift = def.TargetHeight * 0.077f;
+        // 모델은 FitToHeight 가 **실제로 재서** 키를 TargetHeight 에 맞춰 둔다. 즉
+        // 머리 꼭대기가 발에서 정확히 TargetHeight 다. 얼굴 한가운데는 그 92% 쯤이다.
+        // 이 높이를 카메라와 같게 두면 얼굴이 화면 한가운데에 온다.
+        //
+        // 전에는 `TargetHeight - 0.16` 에 보정값(faceLift)을 더하는 식이었다. 키가
+        // 다른 셋에 같은 뺄셈을 쓰니 작은 개체(아기 0.78m · 거미 0.62m)와 큰 개체
+        // (결번자 1.82m)의 결과가 달라져서, 어떤 것은 얼굴이 뜨고 어떤 것은 가슴만 찼다.
+        // 비율로 두면 셋이 같은 자리에 온다.
+        // 아래에서 실제 자세를 재어 다시 넣는다(PosedTopY). 여기 값은 임시다.
+        float eye = def.TargetHeight * 0.88f;
+        const float faceLift = 0f;
 
         // 관리자 자리에서 터지는 짧은 빛. 이게 없으면 "검은 덩어리가 화면을 덮었다"
         // 로만 보이고, 무엇에게 당했는지 끝내 알 수 없다. 가까워질수록 밝아진다.
@@ -167,63 +215,81 @@ public partial class AdminDeathDirector : Node
             flash.GlobalPosition = c.Origin + fwd * 0.12f + c.Basis.X * 0.28f - Vector3.Up * 0.05f;
         }
 
-        const float FarDist = 3.6f;      // 문간의 어둠에서 출발
-        const float HoldDist = 1.45f;    // 무엇인지 알아볼 수 있는 거리
-        // 얼굴이 화면을 채우는 거리. 키에 비례한다 — 작은 개체를 큰 것과 같은 거리에
-        // 세우면 화면 아래쪽 귀퉁이에만 걸린다.
-        //
-        // **더 붙이면 안 된다.** 0.4m 쯤에서 카메라가 모델 안으로 들어가 버려
-        // 뒷면이 잘려 나가고 화면에 아무것도 남지 않는다(가장 중요한 한 컷이 통째로
-        // 비었던 원인이다). 0.6m 도 얼굴이 아니라 뺨 한 면만 가득 찬다.
-        float faceDist = Mathf.Max(0.52f, 0.30f + def.TargetHeight * 0.30f);
+        // 출발 거리. 3초 동안 아무것도 없다가 **여기서 렌즈까지 한 번에** 온다.
+        const float FarDist = 3.6f;
 
+        // 보이지 않는 자리에 세워 두기만 한다 — 어두운 3.6m 지점이라 화면에 걸리지 않는다.
         Pose(FarDist, 1f);
-        // 달려드는 동안은 **달리기** 클립이다. 비명 클립을 처음부터 틀면 웅크렸다
-        // 도는 준비 동작만 보여 주고 끝나 버린다(얼굴 대신 등이 들이닥친다).
-        _actor.PlayRole(Approach(def), 1.35f);
-
-        // ⓐ 달려든다 — 뒤로 갈수록 빨라진다(ease-in). 피할 수 없다는 감각.
-        await Sweep(0.30, u =>
-        {
-            float e = u * u * u;
-            Pose(Mathf.Lerp(FarDist, HoldDist, e), 1f);
-            flash.LightEnergy = Mathf.Lerp(0.06f, 0.75f, e);
-        });
-
-        // ⓑ 멈칫 — 숨 한 번. 제자리에서 아주 조금 떨 뿐이다.
-        //    이 정적이 있어야 바로 다음 한 호흡이 놀란다.
-        await Sweep(0.16, u =>
-        {
-            Pose(HoldDist, 1f, Mathf.Sin(u * 26f) * 1.1f);
-            flash.LightEnergy = 0.75f;
-        });
-
-        // ⓒ 쾅 — 한 호흡에 얼굴을 들이민다.
-        // 소리 · 흔들림 · 붉은 섬광이 **이 순간에** 같이 터져야 "쾅" 으로 읽힌다.
-        // 여기서 비명 클립으로 갈아타되 **앞을 보는 구간부터** 튼다.
+        flash.LightEnergy = 0f;
+        // 비명 클립을 **앞을 보는 구간부터** 튼다. 처음부터 틀면 웅크렸다 도는 준비
+        // 동작만 보여 주고 끝나 버린다(얼굴 대신 등이 들이닥친다).
         if (!string.IsNullOrEmpty(def.AnimJumpscare))
         {
             _actor.PlayRole(def.AnimJumpscare, 1f, 0d);
             if (def.AnimJumpscareAtSeconds > 0f) _actor.SeekRole(def.AnimJumpscareAtSeconds);
         }
+        else _actor.PlayRole(Approach(def), 1.6f);
+
+        // **그 자세의 키를 직접 잰다.** 두 프레임을 흘려 스켈레톤이 그 자세로 자리를
+        // 잡게 한 다음에 재야 한다(세운 프레임에는 아직 차렷 자세다).
+        //
+        // TargetHeight 를 쓰면 안 된다 — 그건 차렷 자세의 키이고, 비명 클립은 몸을
+        // 숙이거나 웅크리게 만들어 그 순간의 머리 높이가 전혀 다르다. 실제로 키 기준으로
+        // 계산했을 때 결번자의 얼굴이 화면 아래로 빠져 어깨만 찍혔다.
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        float top = _actor.PosedTopY();
+        // 잰 키의 이 지점을 **카메라 높이에 맞춘다.** 값이 작을수록 괴물이 위로 올라온다
+        // (발이 원점이라, 적게 내릴수록 몸 전체가 올라간다).
+        //
+        // 0.88(= 머리 꼭대기 바로 아래)로 뒀더니 셋 다 얼굴이 화면 아래쪽에 걸렸다.
+        // 서 있는 자세를 기준으로 하면 맞는 비율이지만, 들이닥치는 자세는 하나같이
+        // 몸을 앞으로 숙이고 있어서 **얼굴이 잰 높이보다 훨씬 아래**에 있다.
+        // 그만큼 더 올린다 — 조금 높게 걸리는 쪽이 낫다. 화면을 내려다보는 각이 되고,
+        // 낮게 걸리면 책상 뒤에서 올라오는 것처럼 보인다.
+        eye = top * 0.72f;
+
+        // 얼굴이 화면을 채우는 거리. 잰 키에 비례한다 — 작은 개체를 큰 것과 같은
+        // 거리에 세우면 화면 귀퉁이에만 걸린다.
+        //
+        // **더 붙이면 안 된다.** 0.4m 쯤에서 카메라가 모델 안으로 들어가 버려
+        // 뒷면이 잘려 나가고 화면에 아무것도 남지 않는다(가장 중요한 한 컷이 통째로
+        // 비었던 원인이다). 전에는 0.84m 였는데, 그 거리에서는 몸통까지 다 들어와
+        // **책상 뒤에 서 있는 것**처럼 보였다.
+        float faceDist = Mathf.Max(0.55f, 0.20f + top * 0.17f);
+        Pose(FarDist, 1f);
+
+        // ⓐ 팍 — **0.07초.** 3.6m 에서 렌즈 앞까지 네 프레임 남짓이다.
+        //
+        // 전에는 달려들기 0.30초 + 멈칫 0.16초를 거쳤다. 그 사이가 있으면 "무언가
+        // 커지고 있다" 를 눈이 따라갈 시간이 생기고, 따라가 버리면 놀라지 않는다.
+        // 지금은 **앞의 3초 정적이 그 멈칫을 대신한다** — 뜸은 이미 충분히 들였으니
+        // 여기서는 볼 틈을 주지 않는다.
+        //
+        // 소리 · 흔들림 · 붉은 조명이 전부 **이 줄에서** 같이 터진다.
         var ctl = ControlRoom3DController.Instance;
-        Sfx.Instance?.PlayGhostScream(2f);
+        BeginRedAlert();
+        // **여기서 비명을 울리지 않는다.** 비명은 1초 뒤 Run 에서 한 번만 난다 —
+        // 들이닥치는 순간에 같이 울리면 "까꿍하자마자 비명" 이 되어 순서가 안 읽힌다.
         Sfx.Instance?.Play("impact_blunt", 0f, 0.86f);
         Sfx.Instance?.Play("tinnitus", -6f);
         ctl?.ShakeCamera(9f, 0.55f);
         ctl?.SetScreenTint(new Color(1.6f, 0.25f, 0.2f));
+        AmbientOverlay.Instance?.PulseNoise(0.5f);
         CCTVMonitorView.Instance?.FlashGlitch(1f);
-        await Sweep(0.06, u =>
+        await Sweep(0.07, u =>
         {
-            float s = Mathf.Lerp(1f, 1.12f, u);
-            Pose(Mathf.Lerp(HoldDist, faceDist, u), s);
-            flash.LightEnergy = Mathf.Lerp(0.75f, 0.95f, u);
+            // 끝으로 갈수록 빨라진다 — 마지막 한 프레임에 얼굴이 꽂히는 느낌.
+            float e = u * u;
+            float s = Mathf.Lerp(1f, FaceScale, e);
+            Pose(Mathf.Lerp(FarDist, faceDist, e), s);
+            flash.LightEnergy = Mathf.Lerp(0.2f, 0.95f, e);
         });
 
         // 얼굴이 박힌 채로 남는다 — 흔들리는 동안에도 계속 화면 한가운데에 붙여 둔다.
         await Sweep(0.42, _ =>
         {
-            Pose(faceDist, 1.12f);
+            Pose(faceDist, FaceScale);
             flash.LightEnergy = 0.95f;
         });
     }
@@ -306,8 +372,9 @@ public partial class AdminDeathDirector : Node
     {
         if (!_redOn) return;
         _redT += delta;
-        // 0.26초 안에 물든다 — 숨소리가 끝나기 전에 방이 이미 붉어야 한다.
-        _red = Mathf.Min(1f, _red + (float)delta / 0.26f);
+        // 0.10초 안에 물든다 — 얼굴이 꽂히는 것과 **같은 순간**이어야 한다.
+        // (전에는 0.26초였다. 그때는 돌진보다 먼저 켜 두는 전조였기 때문이다.)
+        _red = Mathf.Min(1f, _red + (float)delta / 0.10f);
 
         // 비상등은 숨을 쉰다. 고정값으로 켜 두면 조명이 아니라 색필터처럼 보인다.
         if (_emergency != null)

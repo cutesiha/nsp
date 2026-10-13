@@ -50,14 +50,15 @@ public partial class TitleTerminalView : Control
     private const string ModeSub = "SELECT SHIFT PROTOCOL";
     private const string LockedTag = "LOCKED";
 
+    // 하드 모드 칸은 **뺐다.** 규칙이 없는 채로 LOCKED 만 띄워 두면, 고를 수 없는
+    // 줄 하나가 화면에서 자리만 차지하고 "언젠가 열리나?" 하는 기대만 남긴다.
     public static (string Id, GameMode Mode, string Label, string Sub)[] ModeItems =>
         new[]
         {
-            ("mode_comp", GameMode.Competition, "대회용 VER",
+            ("mode_comp", GameMode.Competition, "단기 근무",
                 $"{GameModes.DaysFor(GameMode.Competition)} DAYS  /  SHORT PROTOCOL"),
-            ("mode_std", GameMode.Standard, "기본 모드",
+            ("mode_std", GameMode.Standard, "정규 근무",
                 $"{GameModes.DaysFor(GameMode.Standard)} DAYS  /  STANDARD PROTOCOL"),
-            ("mode_hard", GameMode.Hard, "하드 모드", "ACCESS DENIED"),
         };
 
     private const float ModeTop = 262f, ModeStep = 96f;

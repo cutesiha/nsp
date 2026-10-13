@@ -72,7 +72,15 @@ public partial class PrologueDirector : Node
     {
         if (IsRunning) return;
         IsRunning = true;
-        _ = RunAsync();
+        _ = RunGuarded();
+    }
+
+    // 건너뛰면 RunAsync 가 OperationCanceledException 으로 빠져나온다 — 그건 고장이
+    // 아니라 정상 종료다. 조용히 받는다.
+    private async Task RunGuarded()
+    {
+        try { await RunAsync(); }
+        catch (OperationCanceledException) { }
     }
 
     private async Task RunAsync()
@@ -313,6 +321,23 @@ public partial class PrologueDirector : Node
     // 제어실 전체 화면에서 진행하는 동안 오른쪽 CRT 는 멀리 있다 — 같은 문장을 화면 아래에도 띄운다.
     private static void OnGuideLine(string text) => GuideSubtitleHud.Instance?.SetLine(text);
 
+    // 프롤로그를 **도중에 끝낸다**(화면 오른쪽 위의 SKIP).
+    //
+    // 남은 컷을 빨리 넘기는 것이 아니라 그 자리에서 멈춘다 — 끝까지 본 것과 같은
+    // 마무리(Complete)를 그대로 지나므로, 확대 잠금 · 컷씬 소리 · 3D 연출이 전부
+    // 평소 경로로 정리된다. 그 뒤에 어디로 갈지는 ShiftFlowController 가 정한다.
+    public void Abort()
+    {
+        if (!IsRunning) return;
+        // 돌고 있는 대사 · 컷을 먼저 닫는다. 남겨 두면 배치 화면 위에 자막이 떠 있다.
+        CutscenePlayer.Instance?.Clear();
+        GuideHologramView.Instance?.FinishGuideNow();
+        GuideSubtitleHud.Instance?.SetActive(false);
+        GuideSubtitleHud.Instance?.Clear();
+        GuideFaceView.Instance?.SetShown(false);
+        Complete();
+    }
+
     private void Complete()
     {
         IsRunning = false;
@@ -326,11 +351,25 @@ public partial class PrologueDirector : Node
 
     // --- await 헬퍼 -------------------------------------------------------
 
-    private async Task NextFrame() =>
-        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+    // 기다리는 자리마다 **건너뛰기를 확인한다.** Abort 가 IsRunning 을 내리면 그 다음
+    // await 에서 RunAsync 가 통째로 빠져나간다 — 그러지 않으면 프롤로그는 멈춘 줄 알았는데
+    // 뒤에서 계속 돌면서 배치 화면 위에 컷씬을 다시 띄운다.
+    private void ThrowIfAborted()
+    {
+        if (!IsRunning || !IsInstanceValid(this)) throw new OperationCanceledException();
+    }
 
-    private async Task Wait(double seconds) =>
+    private async Task NextFrame()
+    {
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        ThrowIfAborted();
+    }
+
+    private async Task Wait(double seconds)
+    {
         await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
+        ThrowIfAborted();
+    }
 
     private static Task PlayCutscene(CutscenePlayer player, string id)
     {

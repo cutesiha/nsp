@@ -162,12 +162,21 @@ public partial class DeathShot : Node
         for (int i = 0; i < 1800 && !AdminDeathDirector.IsPlaying; i++) await Frame();
         Ok(AdminDeathDirector.IsPlaying, "침입 — 사망 연출이 시작됐다");
 
-        // 돌진 구간은 **매 프레임** 찍는다. 달려들기 → 멈칫 → 쾅 이 전부 1초 안에
-        // 끝나는데, 시간으로 간격을 두고 찍으면 캡처가 느린 환경에서 통째로 건너뛴다.
-        for (int i = 0; i < 36; i++)
+        // ① 정적 3초 — 여기서는 **아무것도 없어야 한다.** 몇 장만 띄엄띄엄 찍어
+        //    화면이 조용한지(붉지 않은지, 괴물이 안 보이는지)만 확인한다.
+        //    --fixed-fps 30 기준 한 프레임이 1/30초다.
+        for (int i = 0; i < 2; i++)
+        {
+            for (int f = 0; f < 42; f++) await Frame();   // 약 1.4초
+            Shot($"03_정적_{i:00}");
+        }
+
+        // ② 팍 — **매 프레임** 찍는다. 0.07초면 두세 프레임이라 시간으로 간격을 두면
+        //    통째로 건너뛴다. 뒤의 얼굴 고정 구간까지 넉넉히 덮는다.
+        for (int i = 0; i < 18; i++)
         {
             await Frame();
-            Shot($"03_돌진_{i:00}");
+            Shot($"04_팍_{i:00}");
         }
 
         // 기록 화면.

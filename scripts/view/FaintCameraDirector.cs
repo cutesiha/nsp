@@ -129,6 +129,9 @@ public partial class FaintCameraDirector : Node
             if (Time.GetTicksMsec() / 1000.0 - _bedAt >= BedReleaseSeconds) { Release(); return; }
         }
 
+        // 플레이어가 직접 다른 카메라를 골랐으면 강제가 풀려 있다 — 손을 뗀다.
+        // 그러지 않으면 매 프레임 다시 붙들어서 영영 다른 곳을 볼 수 없다.
+        if (FacilitySimulation.Instance?.SurveillanceForced != true) { Release(); return; }
         FacilitySimulation.Instance?.ForceSurveillanceTarget(_held, HoldRenew);
     }
 

@@ -222,57 +222,32 @@ public partial class ShiftFlowController : Node
     // ── 작은 교란 첫 안내 ───────────────────────────────────────────────
     //
     // 증상이 난 방과 원인이 시작된 방이 다른 교란이 **처음** 화면에 나타난 직후 한 줄만.
-    // 하루에 한 번뿐이고, 같은 방에서 난 교란(원격이 아닌 것)은 설명할 것이 없으니 넘긴다.
-    // GUIDE-0 는 범인을 모른다 — "누가 조작했다" 라고 말하지 않는다.
-    private int _crossSignalSaidDay = -1;
-
+    // ── 근무 중에는 GUIDE-0 가 끼어들지 않는다 ──────────────────────────
+    //
+    // 전에는 교란 · 환기 고장 · 첫 방해공작이 날 때마다 GUIDE-0 가 자막으로 한 묶음씩
+    // 읽었다. 가르치려는 뜻이었지만 실제로는 **그 셋이 전부 공포 연출이 터지는 순간**
+    // 이라, 긴장이 오를 때마다 설명이 덮어써서 거슬리기만 했다.
+    //
+    // 설명은 다른 자리에 이미 있다 — 관리자 패드의 지침(언제든 다시 본다)과 DAY0 교육.
+    // 근무 중에 벌어지는 일은 화면과 소리가 말하게 둔다.
+    //
+    // 신호를 **구독은 그대로 둔다.** 다른 쪽(기록 · 통계)이 같은 신호를 쓰고 있고,
+    // 여기서 끊으면 그쪽까지 끊긴다. 읽기만 하지 않는다.
     private void OnTampered(string originRoomId, string affectedRoomId)
     {
-        if (_stage != Stage.Shift || DayFeatures.IsTutorialDay) return;
-        if (originRoomId == affectedRoomId) return;              // 원격이 아니면 설명할 것이 없다
-        int day = GameState.Instance?.CurrentDay ?? 0;
-        if (_crossSignalSaidDay == day) return;
-        _crossSignalSaidDay = day;
-        _ = PlayGuideLines("ops_cross_signal");
     }
 
-    // ── 첫 환기 정지 안내 ───────────────────────────────────────────────
+    // 환기 고장 · 첫 방해공작도 마찬가지다(위 주석). 둘 다 자막을 띄우지 않는다.
     //
-    // 환기실은 "비워 두면 스트레스가 오른다"가 아니다 — **고장이 나야** 오른다
-    // (FacilitySimulation.TickVentilationFault). 그래서 설명도 그 고장이 실제로 난
-    // 뒤에 한 번만 한다(문서 §19 — 상태 변화가 먼저, 설명은 그 다음).
-    // 한 판에 한 번뿐이고, 스트레스가 잠긴 날과 교육일에는 뜨지 않는다.
-    private static bool _ventHintSaid;
+    // 빈 메서드와 빈 Reset 을 남겨 두는 이유 — 부르는 자리가 여럿이고, 나중에 다시
+    // 켜고 싶어질 수 있는 자리다. 지우면 "그런 안내가 있었다" 는 사실 자체가 사라진다.
+    public static void ResetVentFaultNotice() { }
 
-    public static void ResetVentFaultNotice() => _ventHintSaid = false;
+    private void TickVentFaultHint() { }
 
-    private void TickVentFaultHint()
-    {
-        if (_ventHintSaid || _stage != Stage.Shift) return;
-        if (DayFeatures.IsTutorialDay || !DayFeatures.StressEnabled) return;
-        if (GameState.Instance?.VentilationDown != true) return;
-        _ventHintSaid = true;
-        _ = PlayGuideLines("ops_vent_down");
-    }
+    public static void ResetFirstSabotageNotice() { }
 
-    // ── 첫 방해공작 안내 ────────────────────────────────────────────────
-    //
-    // "이건 그냥 고장이 아니다" 를 **처음 한 번만** 말한다(문서 §21). 한 판에 한 번뿐이고,
-    // 교육(DAY0)에는 방해자가 없으므로 뜨지 않는다.
-    //
-    // GUIDE-0 는 범인을 모른다. 누구인지도, 몇 명인지도 말하지 않는다 —
-    // 그 판단은 휴게시간에 관리자가 기록과 진술을 맞대어 직접 한다.
-    private static bool _firstSabotageSaid;
-
-    public static void ResetFirstSabotageNotice() => _firstSabotageSaid = false;
-
-    private void OnSabotaged(string roomId)
-    {
-        if (_stage != Stage.Shift || DayFeatures.IsTutorialDay) return;
-        if (_firstSabotageSaid) return;
-        _firstSabotageSaid = true;
-        _ = PlayGuideLines("ops_first_sabotage");
-    }
+    private void OnSabotaged(string roomId) { }
 
     // ── 시스템 해금 안내 ────────────────────────────────────────────────
     //
@@ -388,6 +363,63 @@ public partial class ShiftFlowController : Node
         // 프롤로그 동안 책상 위는 그대로 두고 두 CRT 만 쓴다.
         PrologueDirector.Instance.Finished += OnPrologueFinished;
         PrologueDirector.Instance.Play();
+    }
+
+    // ── 이야기 건너뛰기 (화면 오른쪽 위의 SKIP) ─────────────────────────
+    //
+    // 한 줄씩 빨리 넘기는 것이 아니다. **그 자리에서 끊고 다음 할 일로 간다.**
+    //
+    //   프롤로그   → DAY1 근무배치. 중간의 DAY0 교육까지 같이 건너뛴다
+    //                (이미 있는 개발용 경로 BootStraightToDay1 과 같은 도착점이다).
+    //   가상 시뮬   → 교육만 끊고 **그 자리의 배치 화면**에 남는다. 화면을 옮기지 않는다 —
+    //                DAY0 은 배치부터가 플레이고, 교육은 그 위에 얹힌 설명일 뿐이다.
+    //   DAY 스토리  → 컷인만 끊는다. 끊은 자리가 곧 근무배치다.
+    //
+    // 건너뛸 것이 없으면 아무 일도 하지 않는다(false).
+    public bool SkipStory()
+    {
+        // ① 스토리 컷인이 돌고 있으면 그것부터. 가장 위에 떠 있는 것이 먼저다.
+        if (StoryCutinDirector.Instance is { IsPlaying: true })
+        {
+            StoryCutinDirector.Instance.Abort();
+            return true;
+        }
+
+        // ② DAY0 교육.
+        if (NSP.Prologue.TutorialDirector.Instance is { IsRunning: true } tut)
+        {
+            tut.Abort();
+            return true;
+        }
+
+        // ③ 프롤로그 — 여기만 **도착점이 다르다.**
+        if (_stage == Stage.Prologue && NSP.Prologue.PrologueDirector.Instance is { IsRunning: true } pro)
+        {
+            if (PrologueDirector.Instance != null)
+                PrologueDirector.Instance.Finished -= OnPrologueFinished;
+            pro.Abort();
+            SkipToDay1FromPrologue();
+            return true;
+        }
+        return false;
+    }
+
+    // 프롤로그를 건너뛴 자리에서 DAY1 배치로 간다.
+    //
+    // EnterSchedule 은 Stage.Title 로 들어와야 StartNewRun(1) 을 돌려 **DAY1 새 게임**을
+    // 연다(그냥 두면 프롤로그가 깔아 둔 DAY0 인 채로 교육 배치에 들어간다). 화면 상태도
+    // BootStraightToDay1 과 똑같이 맞춘다 — 그쪽이 이미 검증된 도착 상태다.
+    private void SkipToDay1FromPrologue()
+    {
+        _stage = Stage.Title;
+        _stressHintShown = false;
+        _ctl?.SetFocusLocked(false);
+        _ctl?.ClearFocus(0.3f);
+        _ctl?.SetLeftScreen(_ctl.FacilityViewport);
+        _ctl?.SetRightScreen(_ctl.CctvViewport);
+        _ctl?.SetScreenBrightness(0.02f);
+        AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
+        EnterSchedule();
     }
 
     private void OnPrologueFinished()

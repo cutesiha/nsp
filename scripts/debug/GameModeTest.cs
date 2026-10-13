@@ -336,9 +336,12 @@ public partial class GameModeTest : Node
         term.ShowModeSelect();
         Ok(term.CurrentMode == TitleTerminalView.Mode.ModeSelect, "근무 유형 선택 화면으로 전환된다");
         Ok(GameModes.IsPlayable(term.SelectedMode), "커서는 고를 수 있는 항목에서 시작한다");
-        Ok(term.MoveCursor(1) && term.MoveCursor(1) && term.SelectedMode == GameMode.Hard,
-            "↓ 로 하드 모드까지 내려갈 수는 있다");
-        Ok(!GameModes.IsPlayable(term.SelectedMode), "다만 하드 모드는 실행 불가로 판정된다");
+        // 하드 모드 칸은 화면에서 뺐다 — 이제 두 칸 뒤는 [뒤로] 다.
+        Ok(TitleTerminalView.ModeItems.Length == 2, "근무 유형은 두 가지뿐이다(단기 · 정규)");
+        Ok(term.MoveCursor(1) && term.SelectedMode == GameMode.Standard, "↓ 한 번 = 정규 근무");
+        Ok(term.MoveCursor(1) && term.SelectedId == TitleTerminalView.ModeBackId,
+            "↓ 한 번 더 = [뒤로]");
+        Ok(!GameModes.IsPlayable(GameMode.Hard), "하드 모드는 값만 남아 있고 고를 수 없다");
         Ok(term.ItemAt(new Vector2(300f, 300f)) == "mode_comp", "첫 칸을 마우스로 집을 수 있다");
         term.ShowMenu();
         Ok(term.CurrentMode == TitleTerminalView.Mode.Menu, "ESC 복귀 = 기존 메뉴 화면");

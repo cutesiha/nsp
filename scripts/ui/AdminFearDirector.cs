@@ -46,11 +46,26 @@ public partial class AdminFearDirector : CanvasLayer
     // 위의 들숨/날숨 조각은 "멀리서 뭔가 다가온다" 의 호흡이고, 이쪽은 **눈앞에 그것이
     // 있다** 의 호흡이라 소리가 달라야 한다. 크게 틀고, 화면에서 사라지면 페이드로 뺀다.
     private const string GhostBreathKey = "man_breath_real";
-    private const float GhostBreathDb = 1f;      // 크게 — 이 소리가 그 장면의 중심이다
-    private const float GhostBreathOutDb = -42f; // 페이드가 끝나는 지점
+    // 한때 1dB(원음 그대로)였다. 그 세기에서는 숨소리가 다른 소리를 전부 덮어서,
+    // 무서운 게 아니라 그냥 시끄러웠다. 들리되 방 소리를 지우지 않는 선으로 내린다.
+    private const float GhostBreathDb = -7f;
+    private const float GhostBreathOutDb = -46f; // 페이드가 끝나는 지점
     private const float GhostBreathFadeSeconds = 1.3f;
     private bool _ghostBreathOn;
     private float _ghostBreathDb = GhostBreathOutDb;
+
+    // ── 숨소리가 도는 동안의 **맥박** ───────────────────────────────
+    //
+    // 붉은 영역이 중앙으로 밀려왔다 물러나기를 **계속** 반복한다. 한 번 조여 오고
+    // 마는 것이 아니다 — 그것을 보고 있는 내내 숨이 붙어 있어야 한다.
+    //
+    // 왜 따로 도는가 — 아래의 들숨/날숨 위상(_breathWave)은 "복도에 뭔가 가까이
+    // 왔을 때" 만 돈다(TickBreath 의 want). CCTV 로 그것을 보고 있을 뿐일 때는
+    // 복도 위협이 없어 그 위상이 0 에 멈춰 있고, 그래서 화면이 가만히 있었다.
+    private const float GhostPulseSeconds = 2.4f;   // 한 번 들이마시고 내쉬는 데 걸리는 시간
+    private const float GhostPulseReach = 0.34f;    // 중앙으로 더 밀고 들어오는 몫
+    private const float GhostPulseEdge = 0.16f;     // 가장자리가 짙어지는 몫
+    private float _ghostPulse;
 
     // 거리 구간별 BPM. 실제 간격은 60/BPM 초다.
     private const float BpmFar = 78f;
@@ -191,9 +206,15 @@ void fragment() {
         {
             _ghostBreathOn = true;
             _ghostBreathDb = GhostBreathOutDb;
+            _ghostPulse = 0f;              // 숨을 **내쉰 자리**에서 시작한다
             sfx.Loop(GhostBreathKey, _ghostBreathDb);
         }
         if (!_ghostBreathOn) return;
+
+        // 소리가 도는 동안에는 맥박도 돈다. 페이드아웃 중에도 멈추지 않는다 —
+        // 소리는 작아지는데 화면만 뚝 멈추면 둘이 따로 논다.
+        _ghostPulse += d / GhostPulseSeconds;
+        if (_ghostPulse >= 1f) _ghostPulse -= 1f;
 
         float step = (GhostBreathDb - GhostBreathOutDb) / Mathf.Max(0.05f, GhostBreathFadeSeconds) * d;
         _ghostBreathDb = want
@@ -240,6 +261,14 @@ void fragment() {
         float d = (float)delta;
         var sim = FacilitySimulation.Instance;
         bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
+
+        // 그것이 **이 방 안에 들어온 순간**부터는 아무 소리도 내지 않는다.
+        // 사망 연출의 첫 3초는 정적이 전부다 — 여기서 숨소리가 계속 돌면 그 정적이 없다.
+        if (NSP.View.AdminDeathDirector.IsPlaying)
+        {
+            if (_level > 0f || _breathing || _burst > 0f || _ghostBreathOn) ResetAll();
+            return;
+        }
 
         // 근무가 아니면 전부 걷는다 — 보고서 · 휴게시간 · 타이틀에 붉은 화면이 남지 않게.
         if (!live)
@@ -394,13 +423,24 @@ void fragment() {
 
         if (_mat == null) return;
         float edge = _level * VignetteMaxEdge;
+        float reach = _reach;
+
+        // 숨소리가 도는 동안 — 붉은 영역이 중앙으로 밀려왔다 물러나기를 되풀이한다.
+        // 코사인이라 양 끝이 느리다: 가장 조여 온 자리에서 한 박자 머물렀다 풀린다.
+        if (_ghostBreathOn)
+        {
+            float w = 0.5f - 0.5f * Mathf.Cos(_ghostPulse * Mathf.Tau);
+            reach = Mathf.Min(1f, reach + w * GhostPulseReach);
+            edge = Mathf.Max(edge, w * GhostPulseEdge);
+        }
+
         // 귀신 관측은 가장자리 세기와 **별도로** 중앙 침범만 만든다.
-        if (_reach > 0.01f) edge = Mathf.Max(edge, 0.26f + _reach * 0.26f);
+        if (reach > 0.01f) edge = Mathf.Max(edge, 0.26f + reach * 0.26f);
         // 숨을 들이마실수록 가장자리가 짙어지고, 내쉬면 다시 열린다.
         // 가운데는 끝까지 읽혀야 하므로 위쪽을 막아 둔다.
         edge = Mathf.Min(0.88f, edge + _breathWave * BreathVignette);
         _mat.SetShaderParameter("edge", edge);
-        _mat.SetShaderParameter("reach", _reach);
+        _mat.SetShaderParameter("reach", reach);
         _veil.Visible = edge > 0.004f;
     }
 }

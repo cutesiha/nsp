@@ -93,8 +93,8 @@ StandingTensionFadeSeconds = 1.2
 ; ── 괴물(귀신) — 작업실 사고와 분리된 두 번째 사고 계통 ────────────────
 ; 등장은 알려주지 않는다. **관측해도 사라지지 않는다** — 작업실에 GhostGraceSeconds
 ; 만큼만 머물다 복도로 걸어 나온다(GhostDispelSeconds 는 더 이상 쓰지 않는다).
-GhostCheckSeconds = 14.0
-GhostAppearChance = 0.34
+GhostCheckSeconds = 20.0
+GhostAppearChance = 0.18
 GhostFirstAppearSeconds = 22.0
 GhostCooldownSeconds = 20.0
 GhostMaxPerDay = 3

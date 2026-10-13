@@ -55,7 +55,15 @@ public partial class AchievementManager : Node
     public override void _EnterTree()
     {
         Instance = this;
-        Load();
+
+        // **에디터에서 돌릴 때(F5 · F6)는 항상 0개부터 시작한다.**
+        //
+        // 도전과제를 확인하려면 "아직 안 깬 상태" 가 매번 필요한데, 기록이 파일에 남아
+        // 있으면 한 번 깬 것은 두 번 다시 볼 수 없다. 그래서 에디터 실행에서는 읽지 않고
+        // 아예 지우고 시작한다. 내보낸 빌드는 평소대로 읽는다 —
+        // OS.HasFeature("editor") 는 거기서 false 다.
+        if (OS.HasFeature("editor")) WipeAll();
+        else Load();
     }
 
     public override void _Ready() => Wire();
@@ -162,6 +170,81 @@ public partial class AchievementManager : Node
             // 디스크에 못 썼다고 런타임이 멈추면 안 된다 — 이번 실행 동안은 메모리에 남아 있다.
             GD.PushWarning($"AchievementManager: 도전과제 저장 실패 — {e.Message}");
         }
+    }
+
+    // ── 기록 통째로 지우기 (개발용) ──────────────────────────────────
+    //
+    // 메모리와 **user:// 파일 둘 다** 지운다 — 처음 켠 것과 같은 상태가 된다.
+    // ClearForTest 와 다르다: 저쪽은 메모리만 비우므로 다음 해금 때 예전 파일이
+    // 그대로 다시 쓰이고, 게임을 껐다 켜면 기록이 되살아난다.
+    //
+    // 에디터에서 F5 · F6 로 돌릴 때마다 도전과제를 처음부터 확인하려고 만들었다.
+    // 부르는 자리는 두 곳 — 개발자 허브의 버튼과, 에디터 실행 중의 F7(아래 _Input).
+    public void WipeAll()
+    {
+        _unlocked.Clear();
+        _counters.Clear();
+        _deferred.Clear();
+        OnRunReset();
+        _loaded = true;                 // 다시 Load 해서 되살아나지 않게
+
+        if (Sandbox) { GD.Print("[도전과제] 샌드박스 실행 — 메모리 기록만 비웠습니다."); return; }
+
+        try
+        {
+            // 파일을 없앤다. 못 없애면 빈 파일로 덮어 같은 결과를 만든다.
+            if (FileAccess.FileExists(StorePath))
+                DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(StorePath));
+            if (FileAccess.FileExists(StorePath)) new ConfigFile().Save(StorePath);
+            GD.Print($"[도전과제] 기록을 초기화했습니다 — {StorePath}");
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning($"AchievementManager: 기록 파일을 지우지 못했습니다 — {e.Message}");
+        }
+    }
+
+    // ── 에디터 실행 중의 초기화 키 ──────────────────────────────────
+    //
+    // **F7.** 내보낸 빌드에는 아예 없다(OS.HasFeature("editor") 로 막는다) —
+    // 플레이어가 실수로 기록을 날리는 일이 없어야 한다.
+    //
+    // 개발자 허브(F6)에는 버튼이 따로 있지만, F5 로 곧장 타이틀을 띄웠을 때는
+    // 그 버튼에 닿을 수 없다. 그 자리를 위한 키다.
+    private const Key WipeKey = Key.F7;
+
+    public override void _Input(InputEvent @event)
+    {
+        if (!OS.HasFeature("editor")) return;
+        if (@event is not InputEventKey { Pressed: true, Echo: false, Keycode: WipeKey }) return;
+        WipeAll();
+        ShowWipeNotice();
+        GetViewport().SetInputAsHandled();
+    }
+
+    // 눌렀다는 것이 **화면에** 보여야 한다 — 에디터 출력창을 보고 있지 않을 때가 많다.
+    private void ShowWipeNotice()
+    {
+        var layer = new CanvasLayer { Layer = 200 };
+        AddChild(layer);
+
+        var label = new Label
+        {
+            Text = "  도전과제 기록 초기화됨 (F7)  ",
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        label.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
+        label.Position = new Vector2(-150f, 28f);
+        label.CustomMinimumSize = new Vector2(300f, 34f);
+        label.AddThemeColorOverride("font_color", new Color(0.62f, 0.95f, 1f));
+        label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f));
+        label.AddThemeConstantOverride("outline_size", 6);
+        layer.AddChild(label);
+
+        var tw = CreateTween();
+        tw.TweenInterval(1.1);
+        tw.TweenProperty(label, "modulate:a", 0f, 0.5);
+        tw.TweenCallback(Callable.From(layer.QueueFree));
     }
 
     // 검사 전용 — 메모리 기록만 비운다(파일은 건드리지 않는다).

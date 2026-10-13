@@ -485,7 +485,11 @@ public partial class FacilitySimulation : Node
     public bool WasDispatchedForRescue(string employeeId, string roomId)
     {
         var st = _employeeStates.GetValueOrDefault(employeeId);
-        return st != null && st.AssignedRoomId == roomId && st.RescueDispatchRoomId == roomId;
+        // **배치방(AssignedRoomId)은 보지 않는다.** 지도에서 "저 방으로 가" 하고 보낸 것은
+        // 배치를 바꾸는 것이 아니라 이동 지시라, 배치방은 원래 작업실 그대로다. 그것까지
+        // 요구하면 쓰러진 사람이 있는 방으로 사람을 보내도 "구조하라고 보낸 것" 으로
+        // 쳐 주지 않아, 아무리 데려다 놔도 의무실로 옮기지 않았다.
+        return st != null && st.RescueDispatchRoomId == roomId;
     }
 
     // 스트레스 구간별 업무 속도 배율. 1~10 정상 / 11~30 주의 / 31~45 위험 / 46+ 기절(0).
@@ -603,9 +607,15 @@ public partial class FacilitySimulation : Node
         return _roomVisualColors.TryGetValue(roomId, out var color) ? color : new Color(0.2f, 0.2f, 0.22f);
     }
 
+    // 관리자가 **직접** 채널을 바꾸면 강제 전환은 그 자리에서 풀린다.
+    //
+    // 전에는 강제 중이면 그냥 무시했다. 그래서 기절 연출이 카메라를 붙들고 있는 동안
+    // 다른 작업실을 아무리 눌러도 화면이 안 바뀌었고, 연출이 어떤 이유로 해제를
+    // 놓치면 **그 근무 내내 CCTV 가 한 방에 묶였다.** 보여 줄 것은 이미 보여 줬다 —
+    // 플레이어가 다른 데를 보겠다고 하면 놓아 준다.
     public void SetSurveillanceTarget(string roomId)
     {
-        if (IsSurveillanceForced()) return;
+        if (IsSurveillanceForced()) EndForcedSurveillance();
         // 관리자가 직접 채널을 바꾼 것 = 금기 ⑧(연속 전환) 판정 대상.
         if (roomId != _surveillanceTargetRoomId)
             TabooRuleSystem.Instance?.NotifyCctvSwitched(roomId);
@@ -626,7 +636,7 @@ public partial class FacilitySimulation : Node
 
     public void SetCorridorSurveillance(string segmentId)
     {
-        if (IsSurveillanceForced()) return;
+        if (IsSurveillanceForced()) EndForcedSurveillance();
         if (_corridors.ById(segmentId) == null) return;
         if (_surveillanceCorridorId != segmentId)
             TabooRuleSystem.Instance?.NotifyCctvSwitched(segmentId);
@@ -661,6 +671,10 @@ public partial class FacilitySimulation : Node
             _surveillanceTargetRoomId = _preForcedSurveillanceRoomId;
         _preForcedSurveillanceRoomId = "";
     }
+
+    // 바깥에서도 강제 전환 여부를 볼 수 있어야 한다 — 연출기가 "플레이어가 가져갔다" 를
+    // 알아채고 손을 떼려면 필요하다(FaintCameraDirector).
+    public bool SurveillanceForced => IsSurveillanceForced();
 
     private bool IsSurveillanceForced()
     {
@@ -1326,6 +1340,11 @@ public partial class FacilitySimulation : Node
             room.TaskGauges.Clear();
             room.CctvDisconnected = false;
             room.CctvBlockedUntil = 0f;
+            // 이 둘도 **반드시** 0 으로 돌린다. DayTimeSeconds 가 날마다 0 에서 다시
+            // 시작하므로, 어제 걸어 둔 "180초까지" 가 남아 있으면 오늘 첫 180초 동안
+            // 그 방이 통째로 막힌 채로 근무가 시작된다(DAY2 부터 사고가 안 고쳐지던 원인).
+            room.MicroFaultUntil = 0f;
+            room.SuspiciousActionUntil = 0f;
             room.InfoDistorted = false;
             room.PowerOn = true;
             room.Locked = false;
@@ -1725,14 +1744,20 @@ public partial class FacilitySimulation : Node
             return;
         }
 
-        // ── ④ CCTV 방해 : 그 작업실 CCTV 를 일정 시간 차단한다 ─────────────
+        // ── ④ 설비 손대기 : 그 작업실 업무가 한동안 헛돈다 ────────────────
+        //
+        // **CCTV 를 끊지 않는다.** 전에는 여기서 그 방의 CCTV 를 몇십 초 막았는데,
+        // 결번은 경비실에 있는 날이 많아 플레이어에게는 "경비실에 사고가 나면 CCTV 를
+        // 못 본다" 로 보였다. 더 나쁜 것은 **볼 수단을 빼앗는 방해**라 대응할 길이
+        // 없다는 점이다 — 보이는데 안 고쳐지는 쪽이 할 일이 생긴다.
+        // 그래서 같은 자리에서 설비를 건드려 업무를 헛돌게 한다(미세 이상).
         var hereState = _roomStates.GetValueOrDefault(here);
         if (hereState != null)
         {
-            hereState.CctvBlockedUntil = GameState.Instance.DayTimeSeconds + cfg.SabotageCctvBlockSeconds;
+            hereState.MicroFaultUntil = GameState.Instance.DayTimeSeconds + MicroFaultSeconds;
             LogSabotage(saboteur, here, others,
-                $"CCTV 신호 교란 — {cfg.SabotageCctvBlockSeconds:0}초간 화면 없음",
-                "⚠ 감시 계통이 인위적으로 차단되었습니다!");
+                $"설비 조작 — {MicroFaultSeconds:0}초간 작업 정체",
+                "⚠ 설비가 원인 불명으로 멈췄습니다!");
         }
 
         // 배치된 직원은 관리자의 재배치 또는 실제 시설 문제(격리/대피) 없이는
@@ -2813,6 +2838,32 @@ public partial class FacilitySimulation : Node
     // 승인 요청을 띄우는 조건이다. 걸어가는 중(IsMoving)은 세지 않는다 — 방을 통과해
     // 지나가는 중인 사람도 OccupantEmployeeIds 에는 들어 있기 때문이다.
     // 일할 수 없는 상태(기절 · 패닉 · 환자 운반 · 괴물 직후 경직)도 빼고 센다.
+    // 안전망이 걸리기까지의 시간. 걸어 들어와 자리를 잡는 데 걸리는 시간보다 넉넉하다.
+    private const float RepairApprovalGraceSeconds = 12f;
+
+    // 수리에 필요한 인원이 그 방에 **들어와 있는가**(멈춰 섰는지는 묻지 않는다).
+    // RepairCrewArrived 보다 느슨한 판정이다 — 안전망 전용.
+    private bool RepairCrewPresent(SpawnedTask st)
+    {
+        var room = _roomStates.GetValueOrDefault(st.RoomId);
+        if (room == null) return false;
+        var taskDef = _taskDefs.GetValueOrDefault(st.TaskId);
+        int need = st.MinWorkersOverride > 0
+            ? st.MinWorkersOverride
+            : Mathf.Max(1, taskDef?.MinWorkersToProgress ?? 1);
+
+        int here = 0;
+        foreach (string id in room.OccupantEmployeeIds)
+        {
+            var e = _employeeStates.GetValueOrDefault(id);
+            if (e is not { Alive: true, Isolated: false, Incapacitated: false }) continue;
+            // 쓰러진 동료를 업고 있는 사람은 수리 인원이 아니다 — 그건 끝까지 예외로 둔다.
+            if (!string.IsNullOrEmpty(e.CarryingVictimId)) continue;
+            here++;
+        }
+        return here >= need;
+    }
+
     private bool RepairCrewArrived(SpawnedTask st)
     {
         var room = _roomStates.GetValueOrDefault(st.RoomId);
@@ -2860,10 +2911,19 @@ public partial class FacilitySimulation : Node
             if (!st.IsRepair && HasActiveRepair(st.RoomId)) { st.Progressing = false; continue; }
             // 승인 요청은 **필요한 인원이 현장에 다 도착한 뒤** 에 뜬다. 1명이면 1명이,
             // 2명이면 2명이 전부 그 방에 들어와 멈춰 선 다음이다(걸어가는 중은 안 센다).
-            if (st.IsRepair && !st.ApprovalRequested && RepairCrewArrived(st))
+            if (st.IsRepair && !st.ApprovalRequested)
             {
-                st.ApprovalRequested = true;
-                RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
+                // 사람이 방에 들어와 있기만 하면 시간을 센다. "멈춰 섰는가" 까지는 보지 않는다.
+                if (RepairCrewPresent(st)) st.CrewPresentSeconds += delta;
+                else st.CrewPresentSeconds = 0f;
+
+                // 제대로 선 것이 확인되면 바로, 아니면 들어와 있는 채로 몇 초가 지나면 그냥.
+                // 뒤쪽이 없으면 판정이 한 번 어긋나는 순간 그 사고는 **영영 못 고친다.**
+                if (RepairCrewArrived(st) || st.CrewPresentSeconds >= RepairApprovalGraceSeconds)
+                {
+                    st.ApprovalRequested = true;
+                    RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
+                }
             }
             // 승인이 떨어지기 전에는 수리에 손을 대지 않는다(G-2). 이것이 없으면 관리자가
             // 요청을 보고 있는 동안 직원들이 알아서 다 고쳐 버려, 승인 절차 자체가 장식이 된다.

@@ -63,6 +63,9 @@ public partial class DeveloperHub : Node
         if (_running != null) CloseRunning();
         DebugEntryPoint.ResetPresentation();
         DebugEntryPoint.Pending = req;
+        // 근무 유형은 **여기서** 세운다. 아래 StartNewRun 이 이 값을 보고 결번을 뽑으므로
+        // 그보다 늦으면 단기 근무인데 결번이 무작위로 뽑히는 판이 된다.
+        if (req.Mode.HasValue) GameModes.ForceSelect(req.Mode.Value);
         DebugEntryPoint.BackupEndingState();
         _menuLayer.Visible = false;
         Log($"진입: {req.Label}");
@@ -273,6 +276,21 @@ public partial class DeveloperHub : Node
                         + "교육 없이 DAY0 조건(방해자 없음 · 직원 일부)만 켠다. "
                         + "DAY5 는 휴게시간이 없어 보고서에서 곧장 엔딩으로 간다."));
 
+        // 위의 DAY 버튼은 **지금 골라져 있는 근무 유형**을 그대로 쓴다. 단기 근무는
+        // 결번이 고정이고 복도 위협이 켜져 있어 확인할 것이 다르므로 전용 버튼을 둔다.
+        var compRow = Row(col);
+        Btn(compRow, "단기 근무 — DAY1 근무배치부터", () => Enter(new DebugEntryPoint.Request
+        {
+            Day = 1,
+            Phase = DebugEntryPoint.Phase.Schedule,
+            Mode = GameMode.Competition,
+            Core = 0f,
+            Label = "단기 근무 DAY1 배치",
+        }), 260);
+        col.AddChild(Hint("타이틀에서 「단기 근무」를 고른 것과 같다 — 3일 · 결번 고정(강아지) · "
+                        + "복도 위협 · 마지막 날 휴게시간까지 전부 그 규칙으로 돈다. "
+                        + "배치표부터 뜨므로 평소처럼 배치하고 근무를 시작하면 된다."));
+
         // ── 최종 ───────────────────────────────────────────────────
         col.AddChild(Title("FINAL", 18));
         var finalRow = Row(col);
@@ -329,6 +347,24 @@ public partial class DeveloperHub : Node
                         + "True · Late 는 조용히 눈을 뜬다. LOOSE 는 복구된 방 그대로 밝되 20초에 "
                         + "한 번 CRT 가 어긋난다. user:// 의 실제 진행 기록은 F10 으로 허브에 "
                         + "돌아오는 순간 원래 값으로 되돌린다."));
+
+        // ── 저장 기록 ──────────────────────────────────────────────
+        col.AddChild(Title("SAVE DATA", 18));
+        var saveRow = Row(col);
+        var wipeBtn = new Button { Text = "도전과제 기록 초기화", CustomMinimumSize = new Vector2(220, 34) };
+        wipeBtn.Pressed += () =>
+        {
+            NSP.Core.AchievementManager.Instance?.WipeAll();
+            // 눌렀다는 것을 버튼 자신이 말한다 — 허브에는 알림창이 없다.
+            wipeBtn.Text = "초기화됨 ✔";
+            var t = wipeBtn.CreateTween();
+            t.TweenInterval(1.4);
+            t.TweenCallback(Callable.From(() => wipeBtn.Text = "도전과제 기록 초기화"));
+        };
+        saveRow.AddChild(wipeBtn);
+        col.AddChild(Hint("user://achievements_v1.cfg 를 지운다 — 처음 켠 것과 같은 상태가 된다. "
+                        + "에디터로 실행 중이라면 허브 밖(F5 로 띄운 타이틀 · 근무 중)에서도 "
+                        + "**F7** 로 같은 일을 할 수 있다. 내보낸 빌드에는 그 키가 없다."));
 
         // ── 프리뷰 ─────────────────────────────────────────────────
         col.AddChild(Title("VISUAL PREVIEW · 기존 테스트 씬", 18));

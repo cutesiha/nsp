@@ -62,8 +62,9 @@ public partial class ModeSelectShot : Node
 
         Press(Key.S);
         await Seconds(0.4);
-        Ok(term?.SelectedMode == GameMode.Hard, "↓ 두 번 = 하드 모드(잠김)");
-        ShotCrt("03_모드선택_하드잠김");
+        // 하드 모드 칸은 화면에서 뺐다 — 정규 근무 다음은 [뒤로] 다.
+        Ok(term?.SelectedId == TitleTerminalView.ModeBackId, "↓ 두 번 = [뒤로]");
+        ShotCrt("03_모드선택_뒤로");
 
         // ④ 잠긴 항목에서 ENTER — 아무 일도 일어나지 않아야 한다.
         Press(Key.Space);

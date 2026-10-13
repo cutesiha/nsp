@@ -192,23 +192,33 @@ public partial class TitleRoomDirector : Node
 
     // --- 전원 투입 ------------------------------------------------------------
 
+    // 부팅 연출을 건너뛰라는 신호. 아래 WaitOn 이 이 값을 보고 기다림을 통째로 넘긴다.
+    //
+    // 왜 필요한가 — 메뉴 줄은 타이핑이 끝나는 순간 **이미 화면에 다 떠 있는데**, 그 뒤로도
+    // 장비가 하나씩 켜지는 연출이 2초 가까이 더 돈다. 그동안 _phase 는 PoweringOn 이라
+    // Activate 가 막혀서, 플레이어 눈에는 "버튼이 다 보이는데 몇 초 동안 눌리지 않는다"
+    // 가 된다. 누르면 그 자리에서 끝낸다 — 연출을 지우는 것이 아니라 **빨리 감는다.**
+    private bool _rushPowerOn;
+
     private async Task PowerOnAsync()
     {
         _phase = Phase.PoweringOn;
+        _rushPowerOn = false;
         _hint.SetSub("");
         Sfx.Instance?.Play("sensor_beep", -8f);       // 삑
 
         // 1) 확대된 화면에서 표제가 한 글자씩 찍히고 메뉴가 한 줄씩 뜬다.
         var term = TitleTerminalView.Instance;
         term?.ShowMenu(true);
-        await Wait(0.18);
-        while (term != null && !term.MenuRevealDone) await NextFrame();
-        await Wait(0.30);
+        await WaitOn(0.18);
+        while (term != null && !term.MenuRevealDone && !_rushPowerOn) await NextFrame();
+        if (_rushPowerOn) term?.ShowMenu(false);      // 타이핑을 그 자리에서 끝낸다
+        await WaitOn(0.30);
 
         // 2) **화면을 축소하지 않는다.** 시작 화면은 모니터1 확대 화면 그대로다 —
         //    표제와 메뉴가 화면을 꽉 채운 채로 선택까지 간다. 제어실 전체는
         //    근무가 시작될 때 처음 보인다.
-        await Wait(0.30);
+        await WaitOn(0.30);
 
         // 3) 그 사이 나머지 장비가 하나씩 켜진다(소리로 들린다).
         Sfx.Instance?.Play("relay_click", -7f);        // 오른쪽 모니터(직원 신원) ON
@@ -217,17 +227,17 @@ public partial class TitleRoomDirector : Node
           .SetTrans(Tween.TransitionType.Sine);
         TitleStaffIdView.Instance?.PowerOn();
 
-        await Wait(0.45);
+        await WaitOn(0.45);
         Sfx.Instance?.Play("switch", -10f);             // 책상 조명 ON
         var lt = CreateTween();
         lt.SetParallel(true);
         if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilBase * 0.34f, 0.7);
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase * 0.45f, 0.7);
 
-        await Wait(0.40);
+        await WaitOn(0.40);
         Sfx.Instance?.Play("relay_click", -12f);        // 관리자 패드 ON
 
-        await Wait(0.35);
+        await WaitOn(0.35);
         _hint.SetSub(MenuHint);
         _phase = Phase.Menu;
     }
@@ -539,6 +549,19 @@ public partial class TitleRoomDirector : Node
             && AchievementArchiveView.Instance is { BarDragging: true } dragged)
         {
             dragged.EndBarDrag();
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
+        // 부팅 중에 누르면 **남은 뜸을 건너뛴다.** 메뉴 줄은 이미 화면에 다 떠 있는데
+        // 장비가 켜지는 연출이 끝날 때까지 눌리지 않아서, 고장으로 보이던 자리다.
+        // 그 클릭은 여기서 먹고 메뉴로는 넘기지 않는다 — 한 번 누른 것이 "건너뛰기 +
+        // 메뉴 선택" 둘로 먹히면 누를 생각도 없던 항목이 실행된다.
+        if (_phase == Phase.PoweringOn && !_rushPowerOn
+            && (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+                || e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space or Key.Enter or Key.KpEnter }))
+        {
+            _rushPowerOn = true;
             GetViewport().SetInputAsHandled();
             return;
         }
@@ -898,6 +921,14 @@ public partial class TitleRoomDirector : Node
 
     private async Task Wait(double seconds) =>
         await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
+
+    // 부팅 연출 전용 기다림 — 플레이어가 눌렀으면(_rushPowerOn) 기다리지 않는다.
+    // 연출의 **순서**는 그대로 간다(소리도 조명도 다 켜진다). 사이의 뜸만 빠진다.
+    private async Task WaitOn(double seconds)
+    {
+        if (_rushPowerOn) return;
+        await Wait(seconds);
+    }
 
     // --- 화면 아래 어두운 공간의 힌트 줄 ------------------------------------------
     private partial class TitleHintHud : CanvasLayer

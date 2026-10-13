@@ -156,21 +156,14 @@ public sealed class CorridorVisual
     //
     // 색은 그 방의 성격에서 가져왔다(코어=냉각, 발전=전기, 저장=화물).
 
-    private static Color LampGlow(CorridorSide side) => side switch
-    {
-        CorridorSide.North => new Color(0.64f, 0.78f, 0.92f),
-        CorridorSide.West => new Color(0.94f, 0.74f, 0.46f),
-        CorridorSide.East => new Color(0.68f, 0.84f, 0.66f),
-        _ => new Color(0.78f, 0.82f, 0.74f),
-    };
+    // **복도 등은 비상등이다 — 셋 다 붉다.**
+    //
+    // 복도마다 색을 달리해 두었었는데(냉각 파랑 · 전기 주황 · 화물 초록), 그건
+    // "평소 조명" 의 발상이다. 복도에 달린 것은 전력이 나가도 꺼지지 않는 비상등이고,
+    // 비상등은 붉다. 복도가 어느 쪽인지는 벽 장식(SideDress)과 바닥 선으로 구분한다.
+    private static Color LampGlow(CorridorSide side) => new(0.92f, 0.22f, 0.16f);
 
-    private static Color LampLight(CorridorSide side) => side switch
-    {
-        CorridorSide.North => new Color(0.68f, 0.80f, 1f),
-        CorridorSide.West => new Color(1f, 0.78f, 0.50f),
-        CorridorSide.East => new Color(0.72f, 0.88f, 0.70f),
-        _ => new Color(0.86f, 0.89f, 0.82f),
-    };
+    private static Color LampLight(CorridorSide side) => new(1f, 0.18f, 0.12f);
 
     private static Color LineColor(CorridorSide side) => side switch
     {
@@ -494,10 +487,14 @@ public sealed class CorridorVisual
         return -_dir * PoundDepth * k * Mathf.Sin(k * Mathf.Pi * 2.5f);
     }
 
-    // 전력이 나가면 복도도 어두워진다(비상등만 남는 느낌).
+    // **복도 조명은 전력을 따라가지 않는다.**
+    //
+    // 여기 달린 것은 평소 조명이 아니라 비상등이다 — 전력이 나가야 켜지는 물건이라,
+    // 조명을 끈다고 복도가 어두워지면 앞뒤가 바뀐다. 전에는 끄면 0.07 까지 떨어져
+    // 복도에서 아무것도 안 보였다. 항상 같은 세기로 둔다.
     public void SetLit(bool lit)
     {
-        foreach (var l in _lamps) l.LightEnergy = lit ? 1.15f : 0.07f;
+        foreach (var l in _lamps) l.LightEnergy = 1.15f;
     }
 
     // ── 재료 ────────────────────────────────────────────────────────
