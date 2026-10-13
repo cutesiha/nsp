@@ -200,3 +200,14 @@ SabotageWindowEndSeconds = 116.0
 MaxReactionMovesPerDay = 2
 ReactionMoveGapSeconds = 26.0
 ReactionStaySeconds = 18.0
+
+; ── 감시 공백 이용 (기본 5일 모드) ─────────────────────────────────────
+AllowCovertMove = true
+CovertMoveAfterSeconds = 9.0
+CovertKillPrepareSeconds = 10.0
+CovertAbortOnLightChance = 0.45
+ContainmentRooms = Array[String](["core_room", "power_room", "maintenance_room", "vent_room"])
+ContainmentTamperAfterSeconds = 8.0
+ContainmentWorkSeconds = 7.0
+ContainmentTampersPerDay = 2
+ContainmentInstabilityPerTamper = 18.0
