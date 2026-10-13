@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using NSP.Facility;
 using NSP.View;
 
 namespace NSP.Debug;
@@ -14,6 +15,8 @@ namespace NSP.Debug;
 //   Z/X/C    전신 / CCTV 거리 / 가까이 시점
 //   L        이름표 켜기/끄기
 //   G        괴물 반응 — 6명이 각자 자기 반응(첫 반응 → 반복)을 동시에 한다 · H 회복
+//   F1~F6    그 직원의 딴짓 ①  ·  SHIFT+F1~F6 딴짓 ②(아래 버튼과 같다)
+//   K        적발(CCTV 발견) 켜기/끄기 — 켜면 반복 중에 발견 반응 → 정리 → 작업 복귀까지 잇는다
 public partial class EmployeeCctvPreview : Node3D
 {
     // 공용 라이브러리(employee_common.tres)에 실제로 들어 있는 애니메이션 전부.
@@ -123,8 +126,126 @@ public partial class EmployeeCctvPreview : Node3D
             + "양 주저앉음 · 토끼 비명 · 고양이 숨기 · 강아지 숨기 · 늑대 대치 · 여우 계속 일함(고개만)";
     }
 
+    // ── 딴짓 12종 검수 ──────────────────────────────────────────────
+    //
+    // 게임과 같은 표(DistractionProfiles)를 읽어 준비 → 자세 잡기 → 반복 → (적발 → 정리) →
+    // 작업 복귀를 순서대로 잇는다. 자리 이동(걸어가기 · 벽 · 바닥 자리 고르기)은 게임의
+    // RoomWorkVisualController 몫이라 여기서는 제자리에서 자세만 본다.
+    private readonly List<(string Clip, float Dur)> _disSteps = new();
+    private DistractionKind _disKind = DistractionKind.None;
+    private int _disStep = -1;
+    private float _disStepT;
+    private float _disT;
+    private bool _disCaught = true;
+    private AnimationPlayer _disAnim;
+    private MeshInstance3D _disPhone;
+    private float _disPhoneShow = -1f, _disPhoneHide;
+    private float _disNoticeFrom, _disNoticeTo;
+
+    private static readonly string[] DisOrder = { "fox", "sheep", "cat", "rabbit", "wolf", "dog" };
+
+    private void PlayDistraction(string employeeId, int slot)
+    {
+        var defs = DistractionCatalog.For(employeeId);
+        if (defs.Count == 0) return;
+        var def = defs[Mathf.Clamp(slot, 0, defs.Count - 1)];
+        var prof = DistractionProfiles.Get(def.Kind);
+        _disAnim = _anims.Find(x => IdOf(x) == employeeId);
+        if (prof == null || _disAnim == null) return;
+
+        _ghostT = -1f;
+        _paused = false;
+        _disKind = def.Kind;
+        _disSteps.Clear();
+        float t = 0f;
+        if (!string.IsNullOrEmpty(prof.PreClip))
+        {
+            _disSteps.Add((prof.PreClip, prof.PreSeconds));
+            t += prof.PreSeconds;
+        }
+        float enterStart = t;
+        _disSteps.Add((prof.EnterClip, prof.EnterSeconds));
+        t += prof.EnterSeconds;
+        float loop = Mathf.Max(4f, Len(prof.LoopClip));
+        _disSteps.Add((prof.LoopClip, loop));
+        t += loop;
+        _disNoticeFrom = t;
+        if (_disCaught)
+        {
+            _disSteps.Add((prof.NoticeClip, Len(prof.NoticeClip)));
+            t += Len(prof.NoticeClip);
+        }
+        _disNoticeTo = t;
+        _disSteps.Add((prof.RecoverClip, Len(prof.RecoverClip)));
+        _disSteps.Add(("work", 3.5f));
+
+        _disPhoneShow = string.IsNullOrEmpty(prof.PhoneHand)
+            ? -1f
+            : (string.IsNullOrEmpty(prof.PreClip) ? enterStart : 0f) + prof.PhoneShowAt;
+        _disPhoneHide = t + prof.PhoneHideAt;
+        if (!string.IsNullOrEmpty(prof.PhoneHand))
+            _disPhone = EmployeePhoneProp.Ensure(_disAnim.GetParent() as Node3D, ref _disPhone, prof.PhoneHand);
+        EmployeePhoneProp.Show(_disPhone, false);
+
+        _disStep = 0;
+        _disStepT = 0f;
+        _disT = 0f;
+        _disAnim.SpeedScale = _speed;
+        _disAnim.Play(_disSteps[0].Clip, 0.1);
+        _disAnim.Seek(0, true);
+        _hint.Text = $"[{def.Code}] {employeeId} · {(_disCaught ? "적발됨" : "적발 안 됨")}   K 적발 전환   Q/E 속도\n"
+                     + string.Join(" > ", _disSteps.ConvertAll(x => x.Clip));
+    }
+
+    private float Len(string clip) =>
+        _disAnim != null && !string.IsNullOrEmpty(clip) && _disAnim.HasAnimation(clip)
+            ? (float)_disAnim.GetAnimation(clip).Length
+            : 1f;
+
+    private void ReplayDistraction()
+    {
+        if (_disKind == DistractionKind.None) return;
+        var def = DistractionCatalog.Get(_disKind);
+        if (def == null) return;
+        PlayDistraction(def.EmployeeId, DistractionCatalog.For(def.EmployeeId).FindIndex(x => x.Kind == _disKind));
+    }
+
+    private void TickDistraction(float delta)
+    {
+        if (_disStep < 0 || _disAnim == null) return;
+        _disT += delta;
+        _disStepT += delta;
+        if (_disStepT >= _disSteps[_disStep].Dur)
+        {
+            _disStep++;
+            _disStepT = 0f;
+            if (_disStep >= _disSteps.Count) { _disStep = -1; return; }
+            // 적발 반응만 짧게 끊어 붙인다 — 나머지는 넉넉한 블렌드.
+            string clip = _disSteps[_disStep].Clip;
+            _disAnim.Play(clip, clip.EndsWith("_notice") ? 0.06 : 0.22);
+            _disAnim.Seek(0, true);
+        }
+
+        // 휴대폰 — 꺼내는 시점과 넣는 시점.
+        if (_disPhoneShow >= 0f)
+            EmployeePhoneProp.Show(_disPhone, _disT >= _disPhoneShow && _disT < _disPhoneHide);
+
+        // 적발 구간에는 고개(Neck)가 카메라를 향한다 — 클립은 Neck 을 쓰지 않는다.
+        var prof = DistractionProfiles.Get(_disKind);
+        var neck = (_disAnim.GetParent() as Node3D)?
+            .GetNodeOrNull<Node3D>("VisualRoot/RigRoot/Hips/Torso/Chest/Neck");
+        if (neck == null || prof == null) return;
+        bool look = _disCaught && _disT >= _disNoticeFrom + prof.NoticeLookDelay && _disT < _disNoticeTo + 0.6f;
+        float want = look ? 0.8f * prof.LookInNotice : 0f;
+        neck.Rotation = neck.Rotation with
+        {
+            Y = Mathf.Lerp(neck.Rotation.Y, want, 1f - Mathf.Exp(-prof.LookRate * delta)),
+        };
+    }
+
     public override void _Process(double delta)
     {
+        if (!_paused) TickDistraction((float)delta);
         if (_ghostT < 0f || _paused) return;
         _ghostT += (float)delta * _speed;
         foreach (var a in _anims)
@@ -204,6 +325,10 @@ public partial class EmployeeCctvPreview : Node3D
             case Key.L: foreach (var l in _labels) l.Visible = !l.Visible; break;
             case Key.G: PlayGhost(false); break;
             case Key.H: PlayGhost(true); break;
+            case Key.K: _disCaught = !_disCaught; ReplayDistraction(); break;
+            case >= Key.F1 and <= Key.F6:
+                PlayDistraction(DisOrder[(int)(k.Keycode - Key.F1)], k.ShiftPressed ? 1 : 0);
+                break;
             case Key.F10: GetTree().ChangeSceneToFile("res://scenes/debug/DeveloperHub.tscn"); break;
         }
     }
@@ -256,6 +381,29 @@ public partial class EmployeeCctvPreview : Node3D
         var recoverBtn = new Button { Text = "회복 H", Position = new Vector2(360, 180) };
         recoverBtn.Pressed += () => PlayGhost(true);
         layer.AddChild(recoverBtn);
+
+        // 딴짓 12종 — 직원마다 두 개씩(위 줄 ① · 아래 줄 ②).
+        var disRow = new HBoxContainer { Position = new Vector2(20, 222) };
+        disRow.AddThemeConstantOverride("separation", 6);
+        layer.AddChild(disRow);
+        var disRowB = new HBoxContainer { Position = new Vector2(20, 258) };
+        disRowB.AddThemeConstantOverride("separation", 6);
+        layer.AddChild(disRowB);
+        foreach (string id in DisOrder)
+        {
+            var defs = DistractionCatalog.For(id);
+            for (int si = 0; si < defs.Count; si++)
+            {
+                int slot = si;
+                string who = id;
+                var db = new Button { Text = defs[si].Code, CustomMinimumSize = new Vector2(98, 32) };
+                db.Pressed += () => PlayDistraction(who, slot);
+                (si == 0 ? disRow : disRowB).AddChild(db);
+            }
+        }
+        var caughtBtn = new Button { Text = "적발 ON/OFF (K)", Position = new Vector2(660, 222) };
+        caughtBtn.Pressed += () => { _disCaught = !_disCaught; ReplayDistraction(); };
+        layer.AddChild(caughtBtn);
 
         var back = new Button { Text = "◀ DEV HUB (F10)", Position = new Vector2(20, 180) };
         back.Pressed += () => GetTree().ChangeSceneToFile("res://scenes/debug/DeveloperHub.tscn");

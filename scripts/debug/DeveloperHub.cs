@@ -31,6 +31,7 @@ public partial class DeveloperHub : Node
         ("DAY2 흐름(Day2FlowTest)", "res://scenes/debug/Day2FlowTest.tscn"),
         ("엔딩 캡처(EndingShot · 커맨드라인)", "res://scenes/debug/EndingShot.tscn"),
         ("괴물 반응 6인(GhostReactionShot)", "res://scenes/debug/GhostReactionShot.tscn"),
+        ("딴짓 12종 검사(DistractionTest)", "res://scenes/debug/DistractionTest.tscn"),
         ("스토리 컷인(StoryCutinTest)", "res://scenes/debug/StoryCutinTest.tscn"),
     };
 

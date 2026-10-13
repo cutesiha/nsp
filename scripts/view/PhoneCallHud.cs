@@ -864,6 +864,11 @@ public partial class PhoneCallHud : CanvasLayer
         _employeeId = employeeId;
         _dialogueEvent = string.IsNullOrEmpty(dialogueEvent) ? DialogueRepository.EventGeneralCall : dialogueEvent;
         _incidentRoomId = incidentRoomId ?? "";
+        _disFollowUp = null;
+        // 관리자가 직접 건 전화가 연결되면 직원끼리 하던 개인 통화는 끊긴다(지시서 §10-3).
+        // 끊긴 기록은 DistractionSystem 이 통화 사건에 남긴다.
+        if (string.IsNullOrEmpty(dialogueEvent) || dialogueEvent == DialogueRepository.EventGeneralCall)
+            FacilitySimulation.Instance?.Distractions?.NotifyManagerCall(employeeId);
         HideIncoming();
         _panel.Visible = true;
         bool interview = _dialogueEvent == LocalInterviewDialogue.EventDay1Interview;
@@ -1015,6 +1020,25 @@ public partial class PhoneCallHud : CanvasLayer
         if (sim?.Rescue?.FindUnmovedVictimIn(room) != null)
             _choices.AddChild(ChoiceButton("기절한 직원을 의무실로 이송하십시오.", OrderFaintTransport));
 
+        // CCTV 로 **직접 목격한** 딴짓만 — 연한 붉은색으로 맨 위에 뜬다(지시서 §11).
+        // 목격하지 않은 행동은 질문 자체가 생기지 않는다. 결번 판정과는 무관한 색이며
+        // 정상 직원(여우·양·고양이·토끼·늑대)에게도 똑같이 나타난다.
+        var dis = sim?.Distractions;
+        var cross = dis?.PendingCrossQuestion(_employeeId);
+        if (cross != null && !string.IsNullOrEmpty(DistractionDialogue.CrossQuestion(_employeeId)))
+            _choices.AddChild(RedChoiceButton(DistractionDialogue.CrossQuestion(_employeeId),
+                () => OnCrossCallQuestion(cross)));
+        if (_disFollowUp != null)
+            _choices.AddChild(RedChoiceButton(DistractionDialogue.FollowUpAsk,
+                () => OnDistractionFollowUp(_disFollowUp)));
+        else
+        {
+            var seen = dis?.LatestUnasked(_employeeId);
+            if (seen != null)
+                _choices.AddChild(RedChoiceButton(DistractionDialogue.Question(seen),
+                    () => OnDistractionQuestion(seen)));
+        }
+
         var qs = DialogueRepository.GeneralQuestions(_employeeId);
         for (int i = 0; i < qs.Count; i++)
         {
@@ -1022,6 +1046,53 @@ public partial class PhoneCallHud : CanvasLayer
             _choices.AddChild(ChoiceButton(qs[i].Question, () => OnGeneralQuestion(idx)));
         }
         AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
+    }
+
+    // --- CCTV 로 목격한 딴짓을 캐묻는다 ------------------------------------
+    //
+    // 질문·대답은 전부 DistractionDialogue 의 지정 대사 그대로다. 사건 식별자 · 목격 시각 ·
+    // 직원 ID · 행동 유형은 DistractionSystem 이 들고 있고, 이 창은 그것을 읽어 묻기만 한다.
+    // 주고받은 말은 기존 통화 기록(DialogueHistory)에 그대로 남는다.
+
+    // 고양이처럼 "누구와 통화했습니까?" 꼬리질문이 남은 사건.
+    private DistractionEvent _disFollowUp;
+
+    private void OnDistractionQuestion(DistractionEvent ev)
+    {
+        ClearChoices();
+        var dis = FacilitySimulation.Instance?.Distractions;
+        string q = DistractionDialogue.Question(ev);
+        string a = DistractionDialogue.Answer(ev);
+        dis?.MarkAsked(ev);
+        // 강아지는 첫 대답에서 이미 상대를 말한다 — 그 순간 고양이에게 교차 질문이 열린다.
+        if (DistractionDialogue.AdmitsPartner(ev.Kind)) dis?.MarkAdmitted(ev);
+        _disFollowUp = DistractionDialogue.HasFollowUp(ev.Kind) ? ev : null;
+        RecordPlayer(q, DialogueConversationType.OutgoingCall);
+        RecordNpc(a, DialogueEntryType.NpcResponse, DialogueConversationType.OutgoingCall);
+        StartTyping("\"" + a + "\"", AfterMode.GeneralQuestions);
+    }
+
+    private void OnDistractionFollowUp(DistractionEvent ev)
+    {
+        ClearChoices();
+        _disFollowUp = null;
+        FacilitySimulation.Instance?.Distractions?.MarkAdmitted(ev);
+        RecordPlayer(DistractionDialogue.FollowUpAsk, DialogueConversationType.OutgoingCall);
+        RecordNpc(DistractionDialogue.FollowUpReply, DialogueEntryType.NpcResponse,
+            DialogueConversationType.OutgoingCall);
+        StartTyping("\"" + DistractionDialogue.FollowUpReply + "\"", AfterMode.GeneralQuestions);
+    }
+
+    // 상대가 먼저 실토한 통화를 확인한다 — 그 사건에 대해 한 번만 물을 수 있다.
+    private void OnCrossCallQuestion(PersonalCallEvent call)
+    {
+        ClearChoices();
+        FacilitySimulation.Instance?.Distractions?.MarkCrossAsked(call, _employeeId);
+        string q = DistractionDialogue.CrossQuestion(_employeeId);
+        string a = DistractionDialogue.CrossAnswer(_employeeId);
+        RecordPlayer(q, DialogueConversationType.OutgoingCall);
+        RecordNpc(a, DialogueEntryType.NpcResponse, DialogueConversationType.OutgoingCall);
+        StartTyping("\"" + a + "\"", AfterMode.GeneralQuestions);
     }
 
     // HUD 는 지시만 전달한다 — 실제 상태 변경은 시뮬레이션이 한다(§46).
@@ -1466,6 +1537,30 @@ public partial class PhoneCallHud : CanvasLayer
         b.AddThemeStyleboxOverride("disabled", off);
         b.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
         b.Pressed += () => onPressed();
+        return b;
+    }
+
+    // CCTV 로 목격한 행동을 지적하는 선택지 — 연한 붉은색. 기존 CRT 톤과 같은 형태에
+    // 색만 바꾼다(경고창이나 화면 전체 효과는 쓰지 않는다 — 지시서 §11-2).
+    private Button RedChoiceButton(string text, System.Action onPressed)
+    {
+        var b = ChoiceButton(text, onPressed);
+        b.AddThemeColorOverride("font_color", DistractionDialogue.Text);
+        b.AddThemeColorOverride("font_hover_color", DistractionDialogue.Hover);
+        b.AddThemeColorOverride("font_pressed_color", DistractionDialogue.Hover);
+        var normal = new StyleBoxFlat
+        {
+            BgColor = DistractionDialogue.Fill with { A = 0.55f },
+            BorderColor = DistractionDialogue.Border with { A = 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+            ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 4, ContentMarginBottom = 4,
+        };
+        var hover = (StyleBoxFlat)normal.Duplicate();
+        hover.BgColor = new Color(0.30f, 0.11f, 0.12f, 0.72f);
+        hover.BorderColor = DistractionDialogue.Hover with { A = 0.85f };
+        b.AddThemeStyleboxOverride("normal", normal);
+        b.AddThemeStyleboxOverride("hover", hover);
+        b.AddThemeStyleboxOverride("pressed", hover);
         return b;
     }
 

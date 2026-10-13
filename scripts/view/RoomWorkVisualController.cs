@@ -13,7 +13,7 @@ namespace NSP.View;
 // 직원 3D 노드의 위치·회전·클립은 **이 클래스 한 곳만** 정한다(FacilityCctvWorld 는 보일지 말지만).
 // 한 프레임의 우선순위:
 //   격리(침대 · 스트랩 · 해제) → 기절 → 괴물 반응 → 괴물 뒤 회복 → 방을 떠남/실제 이동
-//   → 제자리 동작(방해공작) → 저장고 운반 → 작업 자리(의자 앉기/일어나기 포함)
+//   → 제자리 동작(방해공작) → 딴짓 → 저장고 운반 → 작업 자리(의자 앉기/일어나기 포함)
 // 방 안에서 걷는 것은 모두 표현용 이동이다 — RoomId · IsMoving 은 읽기만 한다.
 public sealed partial class RoomWorkVisualController
 {
@@ -74,6 +74,11 @@ public sealed partial class RoomWorkVisualController
         public CarryState Carry;
         // 괴물
         public GhostVisual Ghost;
+        // 딴짓(휴대폰 · 졸기 · 개인 통화 …) — 사건은 시뮬레이션이 쥐고, 여기는 연출 진행만 기억한다.
+        public DisVisual Dis;
+        // 손에 드는 휴대폰 — 캐릭터마다 하나만 만들어 두고 켜고 끈다(사건마다 새로 만들지 않는다).
+        public MeshInstance3D Phone;
+        public bool PhoneOut;
         public Vector3? LastGhostSeen;  // 그날 마지막으로 괴물이 있던 곳(양 후유증 시선)
         public float GlanceT;
         // 화면
@@ -150,6 +155,9 @@ public sealed partial class RoomWorkVisualController
 
         TickCarts(room, roomId, delta);
         BeginGhostFrame(room, roomId, visible);
+        // 이 방에 어떤 딴짓 자리(빈 바닥 · 벽 · 숨을 구석 · 다른 설비)가 있는지 한 번만 재서
+        // 시뮬레이션에 알려 둔다 — 자리가 없는 방에서는 그 딴짓을 아예 고르지 않는다.
+        if (!DistractionPlaces.Known(roomId)) PublishPlacesNow(room, roomId);
         BeginStrapFrame(room, roomId);
         AssignCarriers(roomId, taskId, visible, reactions);
 
@@ -343,7 +351,12 @@ public sealed partial class RoomWorkVisualController
                 continue;
             }
 
-            // ⑦ 저장고 재고 정리 — 운반조는 상자 더미 ↔ 수레를 왕복한다(나머지는 선반 자리로).
+            // ⑦ 딴짓 — 실제로 일어난 사건(DistractionSystem)이 있을 때만 그린다.
+            // 격리·기절·괴물·이동·방해공작보다 뒤, 평상시 작업보다 앞이다(지시서 §13).
+            if (TickDistraction(sim, v.Id, node, anim, actor, spots, taskId, roomId, used, female, delta))
+                continue;
+
+            // ⑧ 저장고 재고 정리 — 운반조는 상자 더미 ↔ 수레를 왕복한다(나머지는 선반 자리로).
             if (actor.Carrier >= 0 && _carts.Count > 0)
             {
                 if (!StandUpFirst(node, anim, actor, female, delta)) continue;
@@ -354,7 +367,7 @@ public sealed partial class RoomWorkVisualController
             }
             HideBox(actor);
 
-            // ⑧ 작업 자리.
+            // ⑨ 작업 자리.
             var spot = PickSpot(spots, taskId, actor.Spot, used);
             if (spot == null)
             {
@@ -488,6 +501,7 @@ public sealed partial class RoomWorkVisualController
     private static void Release(Actor a)
     {
         LeaveSpot(a);
+        ClearDistraction(a);
         a.SeatState = SeatPhase.None;
         a.Seat = null;
         a.CartPhase = 0;

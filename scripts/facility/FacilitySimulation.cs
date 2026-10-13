@@ -111,6 +111,10 @@ public partial class FacilitySimulation : Node
     // 성격에 따른 정상 직원의 반응 이동 — 결번의 이동과 똑같이 로그에 남는다.
     private readonly EmployeeBehaviorSystem _behavior = new();
     public EmployeeBehaviorSystem Behavior => _behavior;
+    // 근무 중의 딴짓(휴대폰 · 졸기 · 개인 통화 …). 방해공작이 아니라 평범한 사람의 행동이며,
+    // 발생·진행·목격 판정은 전부 이쪽이 쥔다(3D 는 그 상태를 그릴 뿐이다).
+    private readonly DistractionSystem _distractions = new();
+    public DistractionSystem Distractions => _distractions;
     private readonly Dictionary<string, float> _patrolTimers = new();
     // 순찰이 각 방을 마지막으로 확인한 시각(고르게 돌기 위한 것).
     private readonly Dictionary<string, float> _patrolSeenAt = new();
@@ -1412,6 +1416,7 @@ public partial class FacilitySimulation : Node
         _isolation.Tick(d);
         _warnings.Tick(d, this);
         _behavior.Tick(d, this);
+        _distractions.Tick(d, this);
         TickGuardPatrol(d);
         TickOffPostRecords(d);
         TickCctvObservation(d);
@@ -2881,7 +2886,8 @@ public partial class FacilitySimulation : Node
                     float baseRate = Config.Instance.Data.BaseTaskWorkRate;
                     // 금기 위반 페널티(업무 속도 감소)가 걸려 있으면 여기서 같이 곱해진다.
                     float tabooPenalty = TabooRuleSystem.Instance?.WorkPenaltyMultiplier ?? 1f;
-                    float crew = (float)workers.Average(w => TechWorkMultiplier(w.EmployeeId) * StressWorkRate(w));
+                    float crew = (float)workers.Average(w => TechWorkMultiplier(w.EmployeeId) * StressWorkRate(w)
+                                                              * _distractions.WorkRateFactor(w.EmployeeId));
                     // 발전이 불안정하면 시설 전체가 느려진다. 다만 수리에는 걸지 않는다 —
                     // 고장 난 방을 고치는 일까지 느려지면 회복 자체가 불가능해진다.
                     float facility = st.IsRepair ? 1f : RoomStaffing.FacilityOutput();
