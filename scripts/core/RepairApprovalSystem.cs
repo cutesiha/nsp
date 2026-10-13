@@ -217,7 +217,16 @@ public static class RepairApprovalSystem
             return;
         }
 
-        if (!succeeded && Active?.Task != null)
+        if (succeeded && Active?.Task != null)
+        {
+            // **풀었으면 수리가 확 빨라진다.** 전에는 성공해도 아무 일이 없어서
+            // "실패하면 느려진다" 뿐이었고, 손으로 미로를 푼 값이 화면에 안 보였다.
+            float bonus = Mathf.Clamp(Config.Instance?.Data?.RepairApproveBonusRate ?? 0.45f, 0f, 0.9f);
+            Active.Task.GaugeRequired *= 1f - bonus;
+            EventLog.Instance?.LogEvent(LogEventType.TaskStart, "", room,
+                $"✓ {Active.RoomName} 수리 승인 완료 — 복구 시간 단축");
+        }
+        else if (Active?.Task != null)
         {
             float rate = Mathf.Max(0f, Config.Instance?.Data?.RepairDenyPenaltyRate ?? 0.5f);
             Active.Task.GaugeRequired *= 1f + rate;

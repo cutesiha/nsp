@@ -100,7 +100,11 @@ public partial class RepairApprovalTest : Node
 
         WalkSolution(m);
         Check(RepairApprovalSystem.LastSucceeded, "성공으로 끝난다");
-        Check(Mathf.Abs(task.GaugeRequired - before) < 0.01f, "수리 시간이 늘지 않는다");
+        // 성공하면 **줄어든다**. 전에는 "늘지 않는다" 였는데, 그러면 미로를 푼 값이
+        // 벌을 면하는 것뿐이라 실패와의 차이가 손에 남지 않았다(RepairApproveBonusRate).
+        float want = before * (1f - (Config.Instance?.Data?.RepairApproveBonusRate ?? 0.45f));
+        Check(Mathf.Abs(task.GaugeRequired - want) < 0.01f,
+            $"성공하면 수리 시간이 줄어든다 ({before:0.0} → {task.GaugeRequired:0.0})");
     }
 
     // ── 승인 → 실패 ─────────────────────────────────────────────────────
