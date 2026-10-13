@@ -426,7 +426,7 @@ public partial class AchievementManager : Node
                 _sim.Isolation.Accepted += OnIsolated;
                 if (_sim.Ghost != null)
                 {
-                    _sim.Ghost.Dispelled += OnDispelled;
+                    _sim.Ghost.Departed += OnDispelled;
                     _sim.Ghost.Struck += OnStruck;
                 }
                 _sim.EmployeeKilled += OnKilled;
@@ -444,7 +444,7 @@ public partial class AchievementManager : Node
                 _sim.Isolation.Accepted -= OnIsolated;
                 if (_sim.Ghost != null)
                 {
-                    _sim.Ghost.Dispelled -= OnDispelled;
+                    _sim.Ghost.Departed -= OnDispelled;
                     _sim.Ghost.Struck -= OnStruck;
                 }
                 _sim.EmployeeKilled -= OnKilled;

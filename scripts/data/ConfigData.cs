@@ -120,7 +120,7 @@ public partial class ConfigData : Resource
     [Export] public float GhostCooldownSeconds = 20f;
     [Export] public int GhostMaxPerDay = 3;
     // 발견하지 못하고 이 시간이 지나면 그 작업실에 사고가 터진다.
-    [Export] public float GhostGraceSeconds = 34f;
+    [Export] public float GhostGraceSeconds = 12f;
     // CCTV 로 이만큼 **연속해서** 봐야 사라진다.
     [Export] public float GhostDispelSeconds = 5f;
     // 화면에서 눈을 떼면 본 시간이 이 속도로 되감긴다(0 이면 즉시 초기화).

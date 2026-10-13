@@ -295,15 +295,14 @@ public partial class MonsterThreatTest : Node
         _sim.ResetForNewShift();
         Ok(_th.Current == null, "새 근무를 시작하면 전날 괴물이 남지 않는다");
 
-        // 기본 모드에서는 아예 돌지 않는다.
-        Head("E", "기본 5일 모드 회귀");
+        // 관측 소멸 폐지(2026-10-13) 이후 기본 모드도 복도 위협을 쓴다 —
+        // 개체는 작업실에 잠깐 머물다 **어느 모드에서나** 복도로 걸어 나온다.
+        Head("E", "기본 5일 모드도 복도 위협을 쓴다");
         StartShift(3, GameMode.Standard);
-        Ok(!GameModes.CorridorThreatsEnabled, "기본 모드는 복도 위협이 꺼져 있다");
-        Tick(120f);
-        Ok(_th.Current == null && _th.SpawnedToday == 0,
-            $"기본 모드로 120초를 돌려도 한 마리도 나오지 않는다 (등장 {_th.SpawnedToday})");
+        Ok(GameModes.CorridorThreatsEnabled, "기본 모드도 복도 위협이 켜져 있다");
+        Ok(!GameModes.GhostDispelEnabled, "기본 모드에서도 관측으로 소멸하지 않는다");
         Ok(_net.Segments.Where(s => !s.PermanentSeal).All(s => s.State == BarrierState.Open),
-            "문도 저절로 움직이지 않는다");
+            "문은 저절로 움직이지 않는다");
 
         GameModes.ForceSelect(GameMode.Competition);
         Head("E", "대회용 하루 일정");

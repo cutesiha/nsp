@@ -308,17 +308,12 @@ public sealed class GhostHauntSystem
             Dispel(sim, cfg, now);
             return;
         }
-        float grace = _graceOverride > 0f ? _graceOverride
-            // 대회용에서 작업실 체류는 **사건의 전부가 아니라 경고 구간**이다. 기본 모드의
-            // 34초를 그대로 쓰면 복도를 걸어와 문 앞에 설 시간이 근무 안에 남지 않아,
-            // 막을 기회조차 없이 근무가 끝나 버린다.
-            : GameModes.GhostWalksToControlRoom ? CompetitionHauntSeconds
-            : cfg.GhostGraceSeconds;
+        // 작업실에 머무는 시간. 교육(ForceAppear)만 따로 받고, 그 밖에는 하나뿐이다.
+        float grace = _graceOverride > 0f ? _graceOverride : cfg.GhostGraceSeconds;
         if (AliveSeconds < grace) return;
 
-        // 머무는 시간이 끝났다. 여기서 두 모드가 갈린다.
-        if (GameModes.GhostWalksToControlRoom) Depart(sim, cfg, now);
-        else Strike(sim, cfg, now);
+        // 머무는 시간이 끝났다 — **언제나 복도로 걸어 나간다**(관측 소멸 폐지).
+        Depart(sim, cfg, now);
     }
 
     // ── 대회용 : 작업실을 떠나 복도로 ───────────────────────────────
@@ -331,8 +326,6 @@ public sealed class GhostHauntSystem
     //   ④ 확률을 통과했을 때
     // 에만 사고가 난다. 사고가 나지 않아도 **목격 기록은 반드시 남는다** —
     // 그래야 휴게시간 증언과 시설 로그가 어긋나지 않는다.
-    // 작업실에 머무는 시간(대회용). 이 뒤에 복도로 나간다.
-    public const float CompetitionHauntSeconds = 20f;
     private const float CompetitionAccidentChance = 0.45f;
     private const float CompetitionAccidentGapSeconds = 55f;
     private float _lastStruckAt = -999f;

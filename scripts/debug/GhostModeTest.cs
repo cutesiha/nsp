@@ -49,11 +49,11 @@ public partial class GhostModeTest : Node
 
     private void SectionA()
     {
-        Head("A", "모드 플래그는 서로 반대다");
+        Head("A", "관측 소멸은 폐지됐다 — 두 모드가 같다");
         GameModes.ForceSelect(GameMode.Standard);
-        Ok(GameModes.GhostDispelEnabled, "기본 모드 — 관측 소멸 가능");
-        Ok(!GameModes.GhostWalksToControlRoom, "기본 모드 — 복도로 걸어오지 않는다");
-        Ok(!GameModes.CorridorThreatsEnabled, "기본 모드 — 복도 위협 자체가 없다");
+        Ok(!GameModes.GhostDispelEnabled, "기본 모드 — **관측해도 소멸하지 않는다**");
+        Ok(GameModes.GhostWalksToControlRoom, "기본 모드 — 복도로 걸어 나온다");
+        Ok(GameModes.CorridorThreatsEnabled, "기본 모드 — 복도 위협이 켜져 있다");
 
         GameModes.ForceSelect(GameMode.Competition);
         Ok(!GameModes.GhostDispelEnabled, "대회용 — **관측해도 소멸하지 않는다**");
@@ -65,22 +65,31 @@ public partial class GhostModeTest : Node
 
     private void SectionB()
     {
-        Head("B", "기본 모드는 예전 그대로다");
+        Head("B", "기본 모드도 작업실에 잠깐 있다가 복도로 나간다");
         GameModes.ForceSelect(GameMode.Standard);
         var g = StartShift();
+        _sim.Threats.NoBreach = true;   // 인계만 본다(문 앞 침입은 다른 절의 몫)
 
         string room = StaffedRoom();
         Ok(g.ForceAppear(room, _sim), $"{_sim.RoomDisplayName(room)} 에 개체를 띄웠다");
 
-        // 계속 지켜본다 → 소멸해야 한다.
+        // 계속 지켜봐도 사라지지 않는다 — 바라보는 것은 위치를 아는 수단일 뿐이다.
         _sim.SetSurveillanceTarget(room);
-        int dispelled = 0;
+        int dispelled = 0, departed = 0;
         g.Dispelled += _ => dispelled++;
-        Ok(g.DispelRatio >= 0f, "관측 게이지가 존재한다");
-        Advance(g, 12f, watchRoom: room);
-        Ok(dispelled == 1, "지켜보면 소멸한다");
-        Ok(!g.Active, "소멸 뒤에는 방에 남지 않는다");
-        Ok(_sim.Threats.Current == null, "**기본 모드에서는 복도로 나가지 않는다**");
+        g.Departed += _ => departed++;
+        Ok(Mathf.IsZeroApprox(g.DispelRatio), "관측 게이지가 0 으로 잠겨 있다");
+
+        float stay = Config.Instance.Data.GhostGraceSeconds;
+        Advance(g, stay * 0.5f, watchRoom: room);
+        Ok(g.Active && dispelled == 0, $"체류 시간({stay:0}초)의 절반을 지켜봐도 그대로 있다");
+
+        Advance(g, stay * 0.6f + 1f, watchRoom: room);
+        Ok(dispelled == 0, "**지켜봐도 소멸하지 않는다**");
+        Ok(departed == 1, "체류가 끝나면 작업실을 떠난다");
+        Ok(!g.Active, "떠난 뒤에는 작업실에 남지 않는다");
+        Ok(_sim.Threats.Current != null, "**기본 모드에서도 복도로 나간다**");
+        _sim.Threats.NoBreach = false;
     }
 
     // ── C. 대회용 — 소멸하지 않는다 ─────────────────────────────────
@@ -97,10 +106,10 @@ public partial class GhostModeTest : Node
 
         int dispelled = 0;
         g.Dispelled += _ => dispelled++;
-        // 소멸 시간(기본 5초)의 세 배를 본다. 체류 시간(20초)보다는 짧게 —
-        // 그보다 오래 보면 "소멸" 이 아니라 "체류가 끝나 떠난 것" 과 섞인다.
-        Advance(g, 16f, watchRoom: room);
-        Ok(dispelled == 0, "**16초를 지켜봐도 소멸하지 않는다**");
+        // 체류 시간보다 **짧게** 본다 — 그보다 오래 보면 "소멸" 이 아니라
+        // "체류가 끝나 떠난 것" 과 섞여 무엇을 본 것인지 알 수 없다.
+        Advance(g, Config.Instance.Data.GhostGraceSeconds * 0.6f, watchRoom: room);
+        Ok(dispelled == 0, "**체류 중에는 지켜봐도 소멸하지 않는다**");
         Ok(Mathf.IsZeroApprox(g.DispelRatio), "관측 게이지가 0 으로 잠겨 있다");
         Ok(g.Active, "개체는 아직 그 방에 있다");
     }

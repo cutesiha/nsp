@@ -68,7 +68,8 @@ public static class GameModes
     // 5일 플레이가 망가지면 안 됩니다").
     //
     // 기본 모드에서도 켜 보려면 이 줄만 true 로 바꾸면 된다.
-    public static bool CorridorThreatsEnabled => Current == GameMode.Competition;
+    // 모든 모드에서 켠다 — 개체는 작업실에 잠깐 있다가 **반드시 복도로 나온다**.
+    public static bool CorridorThreatsEnabled => true;
 
     // 마지막 근무일에도 휴게시간(심문)을 거치는가.
     //
@@ -86,9 +87,12 @@ public static class GameModes
     //
     // 두 줄은 서로 반대여야 한다. 둘 다 켜면 "보면 사라지는데 걸어오기도 하는" 것이
     // 되어 플레이어가 무엇을 해야 하는지 알 수 없다.
-    public static bool GhostDispelEnabled => Current != GameMode.Competition;
+    // 관측 소멸은 **폐지**했다(사용자 지시, 2026-10-13). CCTV 로 지켜본다고 개체가
+    // 사라지지는 않는다 — 어느 모드에서나 작업실에 잠깐 머물다 복도로 걸어 나온다.
+    // 바라보는 것은 이제 "어디 있는지 아는 수단" 일 뿐이다.
+    public static bool GhostDispelEnabled => false;
 
-    public static bool GhostWalksToControlRoom => Current == GameMode.Competition;
+    public static bool GhostWalksToControlRoom => true;
 
     // 무인 방치 사고가 터지기까지의 시간에 곱하는 배율(지시서 §8).
     //

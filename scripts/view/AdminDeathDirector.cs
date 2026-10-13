@@ -13,7 +13,8 @@ namespace NSP.View;
 // 근무는 그 자리에서 끝나고 **다음 날로 넘어가지 않는다**(지시서 §7 · §5-3B).
 //
 // 연출 순서 — 전부 합쳐 2초 남짓이다.
-//   ① 인기척   아주 짧은 정적 + 바로 뒤의 숨소리. 화면이 한 번 꺾인다
+//   ① 인기척   아주 짧은 정적 + 바로 뒤의 숨소리. 화면이 한 번 꺾이고,
+//              **방이 붉게 물든다** — 차폐가 뚫렸다는 것을 조명이 먼저 말한다
 //   ② 돌진     **3D 모델이 실제로** 달려든다. 알아볼 만한 거리에서 한 번 **멈칫** 하고,
 //              그 정적 끝에 한 호흡으로 **얼굴을 화면에 들이민다**
 //              (정지 이미지를 한 프레임 붙이는 방식이 아니다)
@@ -84,6 +85,7 @@ public partial class AdminDeathDirector : Node
         Sfx.Instance?.Play("breath_close", -3f, 0.92f);
         AdminFearDirector.Instance?.Burst(1f, 3.5f);
         ctl?.ShakeCamera(0.9f, 0.35f);
+        BeginRedAlert();
         await Wait(0.42);
 
         // ── ② 돌진 ─────────────────────────────────────────────────
@@ -245,6 +247,86 @@ public partial class AdminDeathDirector : Node
         : !string.IsNullOrEmpty(def.AnimWalk) ? def.AnimWalk
         : def.AnimJumpscare;
 
+    // ── 붉은 비상 조명 ──────────────────────────────────────────────
+    //
+    // 차폐가 뚫려 **이 방 안에** 괴물이 들어온 동안, 중앙제어실이 붉게 물든다.
+    //
+    // 이 방에서 실제로 보이는 광원은 모니터 두 대의 화면빛(주광)과 벽의 비상등뿐이다 —
+    // 천장등 묶음은 평소 숨겨져 있다(ControlRoom3DHorror 주석). 그래서 둘을 같이 돌린다:
+    // 파란 화면빛을 붉은쪽으로 꺾고, 꺼져 있던 비상등을 방 전체에 닿게 켠다.
+    // 화면빛만 붉히면 "모니터가 붉어졌다" 로 읽히고, 비상등만 켜면 벽 한 귀퉁이만 붉다.
+    //
+    // 평소 조명 제어(ControlRoom3DHorror.TickRoomLighting)는 매 프레임 파란색으로
+    // 되돌리므로 먼저 손을 떼게 한다 — 엔딩 연출이 쓰는 것과 같은 스위치다.
+    private static readonly Color AlertRed = new(1f, 0.10f, 0.06f);
+
+    private Light3D[] _roomLights = System.Array.Empty<Light3D>();
+    private float[] _roomEnergy = System.Array.Empty<float>();
+    private Color[] _roomColor = System.Array.Empty<Color>();
+    private OmniLight3D _emergency;
+    private bool _redOn;
+    private float _red;      // 0 → 1, 붉게 물든 정도
+    private double _redT;
+
+    private void BeginRedAlert()
+    {
+        var ctl = ControlRoom3DController.Instance;
+        if (ctl == null) return;
+        ControlRoom3DHorror.ExternalLightingOverride = true;
+
+        _roomLights = new[]
+        {
+            ctl.GetNodeOrNull<Light3D>("ControlRoom/Monitor01/M01_ScreenLight"),
+            ctl.GetNodeOrNull<Light3D>("ControlRoom/Monitor02/M02_ScreenLight"),
+            ctl.GetNodeOrNull<Light3D>("ControlRoom/DeskFillLight"),
+        };
+        _roomEnergy = new float[_roomLights.Length];
+        _roomColor = new Color[_roomLights.Length];
+        for (int i = 0; i < _roomLights.Length; i++)
+        {
+            if (_roomLights[i] == null) continue;
+            _roomEnergy[i] = _roomLights[i].LightEnergy;
+            _roomColor[i] = _roomLights[i].LightColor;
+        }
+
+        _emergency = ctl.GetNodeOrNull<OmniLight3D>("ControlRoom/EmergencyLight");
+        if (_emergency != null)
+        {
+            _emergency.LightColor = AlertRed;
+            // 기본 반경(4)은 등이 붙은 벽만 적신다. 책상과 관리자 자리까지 닿게 넓힌다 —
+            // 이 판은 여기서 끝나고 씬이 통째로 새로 열리므로 되돌릴 필요가 없다.
+            _emergency.OmniRange = 7.6f;
+            _emergency.LightEnergy = 0f;
+            _emergency.Visible = true;
+        }
+        _redOn = true;
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!_redOn) return;
+        _redT += delta;
+        // 0.26초 안에 물든다 — 숨소리가 끝나기 전에 방이 이미 붉어야 한다.
+        _red = Mathf.Min(1f, _red + (float)delta / 0.26f);
+
+        // 비상등은 숨을 쉰다. 고정값으로 켜 두면 조명이 아니라 색필터처럼 보인다.
+        if (_emergency != null)
+        {
+            float pulse = 0.76f + 0.24f * Mathf.Sin((float)_redT * 7.4f);
+            _emergency.LightEnergy = 2.9f * _red * pulse;
+        }
+
+        for (int i = 0; i < _roomLights.Length; i++)
+        {
+            var l = _roomLights[i];
+            if (l == null || !IsInstanceValid(l)) continue;
+            l.LightColor = _roomColor[i].Lerp(AlertRed, _red);
+            // 붉은 빛은 같은 세기로도 더 번져 보인다. 조금 낮춰 들이민 얼굴이
+            // 하얗게 날아가지 않게 둔다(무엇에게 당했는지 보여야 한다).
+            l.LightEnergy = _roomEnergy[i] * Mathf.Lerp(1f, 0.74f, _red);
+        }
+    }
+
     // ── 사망 기록 화면 ──────────────────────────────────────────────
 
     private void ShowRecord()
@@ -304,6 +386,7 @@ public partial class AdminDeathDirector : Node
     private void GoToTitle()
     {
         IsPlaying = false;
+        _redOn = false;
         ControlRoom3DHorror.ExternalLightingOverride = false;
         ControlRoom3DController.Instance?.SetScreenTint(Colors.White);
         ControlRoom3DController.Instance?.SetFocusLocked(false);

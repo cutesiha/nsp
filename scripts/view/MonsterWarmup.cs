@@ -60,12 +60,25 @@ public static class MonsterWarmup
 
     public static void Forget(MonsterActor a) => _actors.Remove(a);
 
-    // 이번 판에서 이미 준비를 마쳤는가.
-    public static bool Done { get; private set; }
+    // **이미 한 번 그려 본** 개체들.
+    //
+    // 전에는 bool 하나였다. 그래서 DAY1 에 한 번 준비하고 나면 영영 다시 돌지 않았고,
+    // DAY2 의 인형(FirstDay 2) · DAY3 의 거미(FirstDay 3)는 **준비를 한 번도 받지 못한 채**
+    // 처음 화면에 뜨는 순간에 비용을 전부 냈다(모델 읽기 + 셰이더 최초 컴파일 + 텍스처 업로드).
+    // 하필 그 순간이 "귀신이 작업실에 보이는" 바로 그 장면이다.
+    // 이제는 개체별로 기억해, 날이 바뀌어 나올 개체가 늘면 그만큼만 더 준비한다.
+    private static readonly HashSet<string> _warmed = new();
+    private static bool _running;
+
+    // 한 번이라도 준비가 돌았는가(새로 생긴 배우에게 모델을 꽂아 줄지 판단한다).
+    public static bool Done => _warmed.Count > 0;
+
+    // 검사용 — 지금까지 몇 종을 그려 봤는가.
+    public static int WarmedCount => _warmed.Count;
 
     public static void Reset()
     {
-        Done = false;
+        _warmed.Clear();
         _actors.Clear();
     }
 
@@ -85,14 +98,16 @@ public static class MonsterWarmup
     // 준비를 시작한다. 이미 했으면 아무 일도 하지 않는다.
     public static async void Run(Node host, int day)
     {
-        if (Done || host == null || !GodotObject.IsInstanceValid(host)) return;
+        if (_running || host == null || !GodotObject.IsInstanceValid(host)) return;
         // 측정용 스위치 — 준비를 **끄고** 돌려 같은 기계에서 A/B 를 잴 수 있게 한다.
         // (노트북은 돌릴수록 느려지므로, 전후 비교는 반드시 같은 조건에서 번갈아 재야 한다.)
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "nowarm") >= 0) return;
-        Done = true;
 
-        var defs = For(day);
+        // 오늘 나올 수 있는 개체 중 **아직 그려 보지 않은 것만**. 날마다 다시 불려도
+        // 이미 끝난 것은 건너뛰므로, DAY2 · DAY3 에 하나씩만 더 치른다.
+        var defs = For(day).FindAll(d => !_warmed.Contains(d.MonsterId));
         if (defs.Count == 0) return;
+        _running = true;
 
         // ── ① 첫 렌더까지 미리 — 작은 오프스크린 뷰포트 ────────────────
         //
@@ -115,7 +130,7 @@ public static class MonsterWarmup
 
         foreach (var def in defs)
         {
-            if (!GodotObject.IsInstanceValid(host)) return;
+            if (!GodotObject.IsInstanceValid(host)) { _running = false; return; }
             if (!ResourceLoader.Exists(def.ModelPath)) continue;
 
             var packed = GD.Load<PackedScene>(def.ModelPath);
@@ -130,6 +145,7 @@ public static class MonsterWarmup
             await host.ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             await host.ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 
+            _warmed.Add(def.MonsterId);
             vp.RemoveChild(inst);
             inst.QueueFree();
             // 다음 개체는 다음 프레임에 — 준비가 끊김을 만들지 않게.
@@ -144,12 +160,13 @@ public static class MonsterWarmup
         // 그래도 배우 하나마다 프레임을 넘긴다.
         foreach (var actor in _actors.ToArray())
         {
-            if (!GodotObject.IsInstanceValid(host)) return;
+            if (!GodotObject.IsInstanceValid(host)) { _running = false; return; }
             foreach (var def in defs)
             {
                 actor?.Preload(def);
                 await host.ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
             }
         }
+        _running = false;
     }
 }

@@ -432,12 +432,14 @@ text: 큰일이군. 비상 차폐를 가동해!
 hold: 7.0
 
 # 암전 + EMERGENCY SEAL — 여기서 사이렌과 지속 흔들림이 멈춘다.
+# {HOURS} = 근무일 × 24. 기본 5일이면 120, 대회용 3일이면 72 — 모드마다 다르므로
+# 숫자를 박지 않는다(CutscenePlayer 가 띄울 때 채운다).
 @slide
 title:
 image:
 imagenote:
 win: 비상 차폐
-winbig: 120:00:00
+winbig: {HOURS}:00:00
 winsub: EMERGENCY SEAL ENGAGED
 # 차폐문이 바닥에 닿는 쿠웅. 폭발음(boom)이 아니라 **수십 톤이 내려앉는 둔탁한 소리**다
 # — 저음이 소리의 90% 인 전용 음원(SlamSfxGen 이 합성한다).

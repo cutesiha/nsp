@@ -481,6 +481,13 @@ public partial class CutscenePlayer : Control
     }
 
     // 비상 경보창 — 제목/부제/항목들/맨 아랫줄. 항목은 한 줄씩 차례로 뜬다.
+    // 비상 차폐 유지 시간은 근무일 수에서 나온다 — 기본 5일 120시간, 대회용 3일 72시간.
+    // GUIDE-0 의 "앞으로 {HOURS}시간만 유지됩니다" 와 **반드시 같은 값**이어야 한다.
+    private static string FillHours(string text) =>
+        string.IsNullOrEmpty(text)
+            ? text
+            : text.Replace("{HOURS}", (GameModes.MaxDays * 24).ToString());
+
     private void SetupAlertBoard(PrologueScript.Slide s)
     {
         bool win = !string.IsNullOrEmpty(s.WinTitle);
@@ -488,7 +495,7 @@ public partial class CutscenePlayer : Control
         if (win)
         {
             _sealWindow.Title = s.WinTitle;
-            _sealWindow.Big = s.WinBig;
+            _sealWindow.Big = FillHours(s.WinBig);
             _sealWindow.Sub = s.WinSub;
             _sealWindow.Reset();
         }

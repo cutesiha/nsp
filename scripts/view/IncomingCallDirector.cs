@@ -153,7 +153,8 @@ public partial class IncomingCallDirector : Node
         }
         if (!_ghostWired && FacilitySimulation.Instance?.Ghost != null)
         {
-            FacilitySimulation.Instance.Ghost.Dispelled += OnGhostDispelled;
+            // 관측 소멸이 없어졌으므로 "작업실을 떠난 순간" 이 방아쇠다.
+            FacilitySimulation.Instance.Ghost.Departed += OnGhostDispelled;
             _ghostWired = true;
         }
         TickGhostScreamCall();
