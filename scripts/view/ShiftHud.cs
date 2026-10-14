@@ -8,7 +8,8 @@ namespace NSP.View;
 //   · 왼쪽 위 구석 : DAY 01 (KMU80 명조)
 //   · 위 가운데    : 봉쇄 코어 복구율 게이지 (DAY1~DAY5 누적, 100% 가 최대)
 //   · 오른쪽 위 구석: 톱니바퀴 — 누르면 ESC 와 같은 일시정지 메뉴가 열린다.
-// 근무 배치 / 시작 화면에서는 숨긴다.
+//   · 그 아래       : 관리자 패드 — 누르면 Tab 과 같다(꺼내기 / 내려놓기). 새 단서 수 뱃지.
+// 근무 배치 / 시작 화면에서는 숨긴다. 휴게시간에는 패드 버튼만 남는다(패드는 휴게시간에도 열린다).
 public partial class ShiftHud : CanvasLayer
 {
     private const float GaugeWidth = 560f;
@@ -16,6 +17,9 @@ public partial class ShiftHud : CanvasLayer
 
     private Label _day;
     private Button _gear;
+    private Button _pad;
+    private PadIcon _padIcon;
+    private Label _padKey;
     private Control _root;
     private CoreGauge _gauge;
 
@@ -31,13 +35,21 @@ public partial class ShiftHud : CanvasLayer
 
     public override void _Process(double delta)
     {
-        // 근무 중에만 보인다(배치·정산·휴게 화면에서는 감춘다).
-        bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
-        if (Visible != live) Visible = live;
+        // 근무 중에만 보인다(배치·정산 화면에서는 감춘다). 휴게시간에는 패드 버튼만.
+        var phase = GameState.Instance?.CurrentPhase;
+        bool live = phase == GamePhase.Live;
+        bool show = live || phase == GamePhase.Rest;
+        if (Visible != show) Visible = show;
+        if (!show) return;
+
+        if (_day.Visible != live) _day.Visible = live;
+        if (_gauge.Visible != live) _gauge.Visible = live;
+        if (_gear.Visible != live) _gear.Visible = live;
+        TickPadButton();
         if (!live) return;
 
         int day = GameState.Instance?.CurrentDay ?? 1;
-        string text = $"DAY {day:00}";
+        string text = DayFeatures.DayLabel(day);
         if (_day.Text != text) _day.Text = text;
 
         _gauge?.SetProgress(GameState.Instance?.CoreProgress ?? 0f);
@@ -98,6 +110,60 @@ public partial class ShiftHud : CanvasLayer
         _gear.AddChild(icon);
         _gear.MouseEntered += () => { icon.Hover = true; icon.QueueRedraw(); };
         _gear.MouseExited += () => { icon.Hover = false; icon.QueueRedraw(); };
+
+        // ── 톱니바퀴 아래 : 관리자 패드(Tab) ──
+        _pad = new Button
+        {
+            Flat = true,
+            TooltipText = "관리자 패드 (Tab)",
+            AnchorLeft = 1f, AnchorRight = 1f,
+            OffsetLeft = -76f, OffsetRight = -24f, OffsetTop = 80f, OffsetBottom = 132f,
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            FocusMode = Control.FocusModeEnum.None,
+        };
+        foreach (string st in new[] { "normal", "hover", "pressed", "focus", "disabled" })
+            _pad.AddThemeStyleboxOverride(st, new StyleBoxEmpty());
+        _pad.Pressed += () => AdminPad3D.Instance?.Toggle();
+        _root.AddChild(_pad);
+
+        _padIcon = new PadIcon { MouseFilter = Control.MouseFilterEnum.Ignore };
+        _padIcon.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _pad.AddChild(_padIcon);
+        _pad.MouseEntered += () => { _padIcon.Hover = true; _padIcon.QueueRedraw(); };
+        _pad.MouseExited += () => { _padIcon.Hover = false; _padIcon.QueueRedraw(); };
+
+        // 단축키 표시 — 아이콘 바로 아래 작게.
+        _padKey = new Label
+        {
+            Text = "Tab",
+            AnchorLeft = 1f, AnchorRight = 1f,
+            OffsetLeft = -76f, OffsetRight = -24f, OffsetTop = 130f, OffsetBottom = 150f,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _padKey.AddThemeFontOverride("font", ViewFont.Default);
+        _padKey.AddThemeFontSizeOverride("font_size", ViewFont.FS(11));
+        _padKey.AddThemeColorOverride("font_color", new Color(0.93f, 0.94f, 0.95f, 0.75f));
+        _padKey.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.85f));
+        _padKey.AddThemeConstantOverride("outline_size", 4);
+        _root.AddChild(_padKey);
+    }
+
+    // 패드 버튼 상태 — 새 단서 수, 들고 있는가, 지금 꺼낼 수 있는가(통화 중이면 흐리게).
+    private void TickPadButton()
+    {
+        var pad = AdminPad3D.Instance;
+        bool usable = pad != null && (pad.IsOpen || pad.CanOpen());
+        int badge = pad?.IsOpen == true ? 0 : ClueBoard.UnseenCount;
+        bool open = pad?.IsOpen == true;
+        if (_pad.Disabled == usable) _pad.Disabled = !usable;
+        if (_padIcon.Badge != badge || _padIcon.Open != open || _padIcon.Usable != usable)
+        {
+            _padIcon.Badge = badge;
+            _padIcon.Open = open;
+            _padIcon.Usable = usable;
+            _padIcon.QueueRedraw();
+        }
     }
 
     // 봉쇄 코어 복구율 게이지. DAY1~DAY5 내내 이어지는 누적 진행도라 근무마다 초기화하지 않는다.
@@ -223,6 +289,62 @@ public partial class ShiftHud : CanvasLayer
 
             Gear(mid + new Vector2(1.5f, 1.5f), shadow, 4.2f);
             Gear(mid, c, 3.4f);
+        }
+    }
+
+    // 관리자 패드 아이콘 — 톱니바퀴와 같은 선 굵기 · 색으로 그린 가로형 태블릿.
+    // 화면 안에 글줄 세 개, 새 단서가 있으면 오른쪽 위에 호박색 뱃지(수).
+    private partial class PadIcon : Control
+    {
+        public bool Hover;
+        public bool Open;       // 들고 있는 중 — 화면을 청록으로 켠다
+        public bool Usable = true;
+        public int Badge;
+
+        private static readonly Color Amber = new(1f, 0.72f, 0.25f);
+        private static readonly Color Screen = new(0.55f, 0.95f, 1f);
+
+        public override void _Draw()
+        {
+            var c = !Usable ? new Color(0.93f, 0.94f, 0.95f, 0.35f)
+                : Hover || Open ? new Color(1f, 0.97f, 0.86f, 1f)
+                : new Color(0.93f, 0.94f, 0.95f, 0.95f);
+            var shadow = new Color(0f, 0f, 0f, 0.55f);
+            Vector2 mid = Size * 0.5f;
+            var body = new Vector2(Size.X * 0.74f, Size.Y * 0.54f);
+
+            void Pad(Vector2 center, Color col, float width, bool lit)
+            {
+                var r = new Rect2(center - body * 0.5f, body);
+                DrawRect(r, col, false, width);
+                // 화면 — 테두리 안쪽. 들고 있으면 켜진 화면처럼 채운다.
+                var screen = r.Grow(-width - 2.5f);
+                if (lit) DrawRect(screen, Screen with { A = 0.28f }, true);
+                // 글줄 세 개(지침 · 단서 · 직원의 목록처럼).
+                for (int i = 0; i < 3; i++)
+                {
+                    float y = screen.Position.Y + screen.Size.Y * (0.25f + 0.25f * i);
+                    float len = screen.Size.X * (i == 2 ? 0.45f : 0.75f);
+                    DrawLine(new Vector2(screen.Position.X + 3f, y), new Vector2(screen.Position.X + 3f + len, y),
+                        lit ? Screen : col, 2f);
+                }
+                // 오른쪽 가장자리의 작은 버튼.
+                DrawCircle(new Vector2(r.End.X - width * 0.5f, center.Y), 1.6f, col);
+            }
+
+            Pad(mid + new Vector2(1.5f, 1.5f), shadow, 4.2f, false);
+            Pad(mid, c, 3.0f, Open);
+
+            if (Badge <= 0 || !Usable) return;
+            var at = new Vector2(mid.X + body.X * 0.5f, mid.Y - body.Y * 0.5f);
+            DrawCircle(at + new Vector2(1f, 1f), 9.5f, shadow);
+            DrawCircle(at, 9f, Amber);
+            var font = ViewFont.Default;
+            int fs = ViewFont.FS(10);
+            string n = Badge > 9 ? "9+" : Badge.ToString();
+            var sz = font.GetStringSize(n, HorizontalAlignment.Left, -1, fs);
+            DrawString(font, at + new Vector2(-sz.X * 0.5f, sz.Y * 0.32f), n, HorizontalAlignment.Left, -1, fs,
+                new Color(0.08f, 0.05f, 0.02f));
         }
     }
 }

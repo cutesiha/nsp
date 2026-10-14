@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "sheep_accent"
+albedo_color = Color(0.66, 0.72, 0.64, 1)
+roughness = 0.8
+metallic = 0.0

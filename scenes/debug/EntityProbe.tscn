@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b2dooj7eilebt"]
+
+[ext_resource type="Script" path="res://scripts/debug/EntityProbe.cs" id="1_probe"]
+
+[node name="EntityProbe" type="Node" unique_id=245665487]
+script = ExtResource("1_probe")

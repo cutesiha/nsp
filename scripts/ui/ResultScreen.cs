@@ -31,6 +31,12 @@ public partial class ResultScreen : Control
         lines.AppendLine($"사보타주 감지: {sabotageEvents}건");
         lines.AppendLine();
         lines.AppendLine(saboteurLine);
+        lines.AppendLine();
+        // 관리자 평가 — 선택 업무를 몇 개나 해냈는가로만 갈린다.
+        // 선택 업무는 게임 성능에 아무 영향도 주지 않고 이 등급에만 반영된다.
+        int score = GameState.Instance.EvaluationScore;
+        lines.AppendLine($"업무평가: {score}점");
+        lines.AppendLine($"관리자 평가 등급: {DayObjectives.Grade(GameState.Instance.CoreProgress, score)}");
 
         GetNode<Label>("Root/ResultLabel").Text = lines.ToString();
         GetNode<Button>("Root/TitleButton").Pressed += OnTitlePressed;

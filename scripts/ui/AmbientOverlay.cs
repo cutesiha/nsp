@@ -30,6 +30,8 @@ public partial class AmbientOverlay : CanvasLayer
     private float _noiseSwap;
     private int _noiseIdx;
     private float _extraNoise;
+    // 그것을 보고 있는 동안 **머물러 있는** 노이즈(SetGhostNoise). 저절로 빠지지 않는다.
+    private float _holdNoise;
     private float _clock;
     private float _sceneIntensity = 1f;
 
@@ -130,7 +132,12 @@ public partial class AmbientOverlay : CanvasLayer
         }
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
-        _noiseRect.Modulate = new Color(1f, 1f, 1f, (BaseNoiseAlpha + _extraNoise) * _sceneIntensity);
+        _noiseRect.Modulate = new Color(1f, 1f, 1f,
+            (BaseNoiseAlpha + Mathf.Max(_extraNoise, _holdNoise)) * _sceneIntensity);
+        // 머무는 노이즈도 **스스로 빠진다.** 부르는 쪽(CCTVMonitorView)이 매 프레임 다시
+        // 세워 주므로 보고 있는 동안에는 줄지 않고, 그 화면이 사라지거나 근무가 끝나
+        // 아무도 세워 주지 않으면 알아서 걷힌다 — 붉은 화면이 남는 사고를 막는다.
+        _holdNoise = Mathf.Max(0f, _holdNoise - d * 0.6f);
         // 모서리 어둡게(비네트)는 3D 제어실에서도 거의 그대로 유지한다 — 화면 가장자리가
         // 확실히 죽어야 가운데 책상에 시선이 모인다.
         _vignetteRect.Modulate = new Color(1f, 1f, 1f, Mathf.Lerp(0.92f, 1f, _sceneIntensity));
@@ -162,11 +169,34 @@ public partial class AmbientOverlay : CanvasLayer
         Sfx.Instance?.Play("flicker", -12f + 8f * strength);
     }
 
+    // 화면 전체가 한 색으로 번쩍인다(점프스케어의 붉은 섬광 등). Flash() 와 같은 사각형을 쓰고,
+    // 끝나면 흰색으로 되돌려 둔다 — 다음 Flash() 가 붉게 뜨면 안 된다.
+    public void FlashColor(Color color, float strength, float seconds)
+    {
+        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        _flash.Color = color with { A = 0f };
+        _flash.Visible = true;
+        var t = CreateTween();
+        t.TweenProperty(_flash, "color:a", strength, 0.02);
+        t.TweenProperty(_flash, "color:a", 0f, Mathf.Max(0.05f, seconds));
+        t.TweenCallback(Callable.From(() => _flash.Color = new Color(1f, 1f, 1f, 0f)));
+    }
+
     // 노이즈를 잠깐 확 끌어올린다(공포 이벤트 중).
     public void PulseNoise(float amount = 0.25f)
     {
         _extraNoise = Mathf.Max(_extraNoise, Mathf.Clamp(amount, 0f, 0.6f));
     }
+
+    // 그것을 보고 있는 동안 **내 화면 전체**에 끼는 회색 노이즈.
+    //
+    // PulseNoise 와 다르다 — 저쪽은 한 번 튀었다 바로 빠지는 값이고, 이쪽은 보고 있는
+    // 내내 **그대로 머문다.** 그래서 매 프레임 덮어쓰고, 줄이고 빼는 일은 부르는 쪽이 한다.
+    //
+    // 모니터 안쪽이 아니라 바깥 화면이다. 모니터에만 끼면 "저 기계가 고장 났다" 로
+    // 읽히지만, 화면 전체에 끼면 **보고 있는 사람 쪽이 이상해진 것**이 된다.
+    // 그래서 세기는 약하게 잡는다 — 짙으면 노이즈가 주인공이 되어 버린다.
+    public void SetGhostNoise(float amount) => _holdNoise = Mathf.Clamp(amount, 0f, 0.35f);
 
     private static ImageTexture BuildNoise()
     {
@@ -195,11 +225,13 @@ public partial class AmbientOverlay : CanvasLayer
             float dx = (x - cx) / maxD;
             float dy = (y - cy) / maxD;
             float d = Mathf.Sqrt(dx * dx + dy * dy);
-            // 중앙은 투명, 바깥·모서리로 갈수록 짙어진다. 시작 지점을 안쪽으로 당기고
-            // 곡선을 완만하게 해서, 모서리는 확실히 어둡되 경계는 티 나지 않게.
-            float a = Mathf.Clamp((d - 0.30f) / 0.62f, 0f, 1f);
+            // 중앙은 투명, 바깥·모서리로 갈수록 짙어진다.
+            // 시작 지점을 바깥으로 물려(0.30 → 0.38) 어두워지는 범위를 줄이고,
+            // 최대 짙기도 조금 낮춘다(0.99 → 0.82) — 모서리는 여전히 죽지만
+            // 화면을 눌러 덮는 느낌은 덜어 낸다.
+            float a = Mathf.Clamp((d - 0.38f) / 0.58f, 0f, 1f);
             a = a * a * (3f - 2f * a);          // smoothstep — 부드러운 감쇠
-            a = Mathf.Pow(a, 1.25f) * 0.99f;
+            a = Mathf.Pow(a, 1.25f) * 0.82f;
             img.SetPixel(x, y, new Color(0f, 0f, 0f, a));
         }
         return ImageTexture.CreateFromImage(img);

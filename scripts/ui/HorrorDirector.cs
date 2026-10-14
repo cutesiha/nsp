@@ -31,7 +31,9 @@ public partial class HorrorDirector : Node
     [Signal] public delegate void Level3StartedEventHandler(bool taboo);
     [Signal] public delegate void ImpactMomentEventHandler();
 
-    private const int MaxLevel3PerShift = 4;
+    // L3 는 실제 금기 위반 · 사망에만 쓴다. 나머지 자리는 PresenceDirector 의 "존재" 연출이 채운다
+    // (설계 문서 16절: 카메라 앞으로 튀어나오는 흔한 점프스케어를 반복하지 않는다).
+    private const int MaxLevel3PerShift = 2;
     private const double Level3CooldownMsec = 15000.0;
     private const double Level2CooldownMsec = 3500.0;
 
@@ -42,6 +44,7 @@ public partial class HorrorDirector : Node
     private ColorRect _deathRed;
     private TextureRect _noise;
     private Label _bigLabel;
+    private NSP.View.MonsterActor _faceActor;
     private Node3D _faceEntity;
     private OmniLight3D _faceLight;
     private bool _faceJumpscarePlaying;
@@ -51,6 +54,16 @@ public partial class HorrorDirector : Node
     private bool _postTabooJumpscarePlayed;
     private double _postTabooJumpscareAt = -1;
     private GamePhase _lastPhase = GamePhase.Prep;
+
+    // ── 방심했을 때의 점프스케어 ──────────────────────────────────────
+    // 아무 일도 일어나지 않는 조용한 구간이 길어지면 한 번 놀래킨다.
+    //
+    // **게임 상태를 전혀 바꾸지 않는다.** 스트레스도 사고도 없고, 놀란 뒤에 확인할 것도
+    // 없다. 순전히 "이 시설은 조용해도 안전하지 않다"만 남기는 연출이다.
+    // 그래서 조용한 시간을 재는 기준은 화면에 뜬 사건뿐이고, 상한(CalmScareMaxPerShift)이 있다.
+    private double _calmSince = -1;
+    private double _lastCalmScareMsec = -1_000_000;
+    private int _calmScareCount;
 
     private int _level3Count;
     private double _lastLevel3Msec = -1_000_000;
@@ -142,41 +155,59 @@ public partial class HorrorDirector : Node
         return ImageTexture.CreateFromImage(img);
     }
 
+    // 카메라 바로 앞에 얼굴을 들이미는 연출의 몸.
+    //
+    // 모델은 매번 다르다 — 그 날 나올 수 있는 세 개체 중에서 뽑는다(MonsterCast).
+    // 늘 같은 얼굴이면 두 번째부터는 놀랍지 않고, 무엇보다 **작업실에서 본 것과 같은
+    // 종류** 여야 "아까 그게 들어왔다" 로 읽힌다.
     private void BuildEntityFaceJumpscare()
     {
         var camera = GetParent()?.GetNodeOrNull<Camera3D>("PlayerSeatRig/Camera3D");
-        var scene = GD.Load<PackedScene>("res://scenes/props/entity.tscn");
-        if (camera == null || scene == null) return;
+        if (camera == null) return;
 
-        _faceEntity = scene.Instantiate<Node3D>();
+        _faceActor = new NSP.View.MonsterActor();
+        _faceActor.Attach(camera);
+        // 연출 전에 미리 읽어 둘 대상으로 등록한다(MonsterWarmup).
+        NSP.View.MonsterWarmup.Register(_faceActor);
+        _faceEntity = _faceActor.Root;
         _faceEntity.Name = "EntityFaceJumpscare";
         _faceEntity.Visible = false;
-        _faceEntity.Position = new Vector3(0f, -0.26f, -0.34f);
-        _faceEntity.RotationDegrees = new Vector3(0f, 180f, 0f);
-        _faceEntity.Scale = Vector3.One * 1.25f;
-        camera.AddChild(_faceEntity);
 
+        // 빛은 **카메라에** 단다. 개체에 달면 모델마다 키가 달라 매번 다른 곳을 비춘다.
         _faceLight = new OmniLight3D
         {
-            Position = new Vector3(0f, 0.24f, 0.24f),
+            Position = new Vector3(0.12f, 0.02f, -0.30f),
             LightColor = new Color(1f, 0.18f, 0.14f),
             LightEnergy = 0f,
             OmniRange = 1.8f,
             ShadowEnabled = false,
         };
-        _faceEntity.AddChild(_faceLight);
+        camera.AddChild(_faceLight);
     }
 
-    // 결번자를 카메라 바로 앞에 한 프레임 만에 켠다. 접근 트윈을 쓰지 않아 예고 없이 튀어나오며,
+    // 개체를 카메라 바로 앞에 한 프레임 만에 켠다. 접근 트윈을 쓰지 않아 예고 없이 튀어나오며,
     // 노출 시간도 약 0.1초로 제한해 형체를 오래 감상하는 연출이 되지 않게 한다.
     public async void PlayEntityFaceJumpscare()
     {
-        if (_faceJumpscarePlaying || _faceEntity == null) return;
+        if (_faceJumpscarePlaying || _faceActor == null) return;
+
+        // 점프스케어 지연 측정의 시작점 — 호출된 순간부터 **화면에 실제로 그려질 때까지**.
+        // (RenderingServer.FramePostDraw 를 기다렸다가 PerfStats.MarkEnd 를 찍는다.)
+        NSP.Debug.PerfStats.MarkBegin("점프스케어(얼굴) 호출→표시");
+
+        var def = NSP.View.MonsterCast.Pick(GameState.Instance?.CurrentDay ?? 1);
+        if (def == null || !_faceActor.Use(def)) return;
         _faceJumpscarePlaying = true;
 
-        _faceEntity.Position = new Vector3(0f, -0.26f, -0.14f);
-        _faceEntity.RotationDegrees = new Vector3(4f, 180f, 9f);
-        _faceEntity.Scale = Vector3.One * 1.72f;
+        // 카메라의 자식이라 **로컬 좌표**다. 모델은 발이 원점이므로 얼굴이 렌즈 높이에
+        // 오도록 키만큼 내린다 — 키가 다른 셋을 한 값으로 세우면 어떤 것은 가슴만 잡힌다.
+        _faceActor.PlayRole(NSP.View.MonsterCast.ScareClip(def), 1f, 0d);
+        float at = NSP.View.MonsterCast.ScareClipAt(def);
+        if (at > 0f) _faceActor.SeekRole(at);
+
+        _faceEntity.Position = new Vector3(0f, -def.TargetHeight * 0.92f, -0.62f);
+        _faceEntity.RotationDegrees = new Vector3(0f, 9f, 0f);
+        _faceEntity.Scale = Vector3.One;
         _faceEntity.Visible = true;
         if (_faceLight != null) _faceLight.LightEnergy = 11f;
 
@@ -186,6 +217,13 @@ public partial class HorrorDirector : Node
         GetParent()?.GetNodeOrNull<SeatedCameraRig>("PlayerSeatRig")?.Shake(4.8f, 0.14f);
         _noise.Modulate = new Color(1f, 1f, 1f, 1f);
         _red.Color = new Color(0.72f, 0f, 0f, 0.56f);
+
+        // 다음 그림이 실제로 그려진 순간 = 플레이어가 그것을 본 순간.
+        if (NSP.Debug.PerfStats.Running)
+        {
+            await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+            NSP.Debug.PerfStats.MarkEnd("점프스케어(얼굴) 호출→표시");
+        }
 
         await Wait(0.105);
         _faceEntity.Visible = false;
@@ -277,6 +315,34 @@ public partial class HorrorDirector : Node
         return false;
     }
 
+    // 지금 시설이 조용한가 — 경고도 사고도 괴물도 통화도 없다.
+    private static bool IsCalm(FacilitySimulation sim)
+    {
+        if (sim.Warnings.Active.Count > 0) return false;
+        if (sim.Ghost is { Active: true }) return false;
+        if (NSP.Core.IncidentTracker.ActiveCount > 0) return false;
+        if (NSP.View.Phone3D.Instance is { IsBusy: true }) return false;
+        return true;
+    }
+
+    private void TickCalmScare(double now, FacilitySimulation sim)
+    {
+        var cfg = NSP.Core.Config.Instance?.Data;
+        if (cfg == null || _faceJumpscarePlaying) return;
+
+        if (!IsCalm(sim)) { _calmSince = -1; return; }
+        if (_calmSince < 0) { _calmSince = now; return; }
+
+        if (_calmScareCount >= cfg.CalmScareMaxPerShift) return;
+        if (now - _lastCalmScareMsec < cfg.CalmScareCooldownSeconds) return;
+        if (now - _calmSince < cfg.CalmScareAfterSeconds) return;
+
+        _calmSince = -1;
+        _lastCalmScareMsec = now;
+        _calmScareCount++;
+        PlayEntityFaceJumpscare();
+    }
+
     public override void _Process(double delta)
     {
         var phase = GameState.Instance?.CurrentPhase ?? GamePhase.Prep;
@@ -285,6 +351,8 @@ public partial class HorrorDirector : Node
             _postTabooJumpscareScheduled = false;
             _postTabooJumpscarePlayed = false;
             _postTabooJumpscareAt = -1;
+            _calmSince = -1;
+            _calmScareCount = 0;
         }
         _lastPhase = phase;
 
@@ -298,10 +366,14 @@ public partial class HorrorDirector : Node
         }
 
         if (_playing || CustomEventActive || phase != GamePhase.Live) return;
+
+        var sim0 = FacilitySimulation.Instance;
+        if (sim0 == null) return;
+        TickCalmScare(nowSeconds, sim0);
+
         if (Time.GetTicksMsec() - _lastLevel2Msec < Level2CooldownMsec) return;
 
-        var sim = FacilitySimulation.Instance;
-        if (sim == null) return;
+        var sim = sim0;
 
         // "터지기 직전" 상태(제한시간 임박 / 금기 홀드 진행) → LEVEL 2 사전 징후.
         // 성능: 매 프레임 도는 검사라 LINQ(클로저/이터레이터 할당) 대신 foreach 로 돈다.

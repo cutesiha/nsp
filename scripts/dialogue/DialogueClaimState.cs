@@ -20,6 +20,12 @@ public sealed class DialogueClaim
     // 이미 언급한 다른 직원(REDIRECT). 두 번째 질문에서 다른 사람으로 갈아타지 않는다.
     public string MentionedSuspectId = "";
 
+    // "설비 근처에는 가지 않았다" — 결번 개체가 이 사건에 대해 대는 단 하나의 반박 가능한 거짓말.
+    // 알리바이와 똑같은 규칙으로 다룬다: 한 번 정하면 그 사건 동안 바뀌지 않는다(Mode/ModeDecided).
+    // 물을 때마다 말이 달라지면 "기록과 맞대어 본다"는 이 게임의 추리가 성립하지 않는다.
+    public bool DeniesEquipmentContact;
+    public bool EquipmentDenialDecided;
+
     public readonly Dictionary<string, int> AskCounts = new();
 
     // 증가시키지 않고 지금까지 몇 번 물었는지만 본다.
@@ -40,6 +46,17 @@ public static class DialogueClaimState
     private static readonly Dictionary<string, DialogueClaim> _claims = new();
     // 직전에 내보낸 문장들(직원별). 같은 문장이 연달아 나오는 것을 막는 데만 쓴다.
     private static readonly Dictionary<string, List<string>> _recent = new();
+    // 이미 입 밖에 낸 근무 기억(같이 있던 사람 · 혼자였다 · 오늘 같이 일한 사람).
+    // 키는 ShiftMemory 가 만든다 — 직원 · 날 · 주제 시각 · 방 · 동료. 같은 이야기를 한 세션에 두 번 하지 않는다.
+    private static readonly HashSet<string> _spokenMemories = new();
+
+    public static bool WasSpoken(string memoryKey) =>
+        !string.IsNullOrEmpty(memoryKey) && _spokenMemories.Contains(memoryKey);
+
+    public static void MarkSpoken(string memoryKey)
+    {
+        if (!string.IsNullOrEmpty(memoryKey)) _spokenMemories.Add(memoryKey);
+    }
 
     private static string Key(string employeeId, int day, string incidentKey) =>
         $"{employeeId}|{day}|{incidentKey}";
@@ -73,7 +90,13 @@ public static class DialogueClaimState
     {
         _claims.Clear();
         _recent.Clear();
+        _spokenMemories.Clear();
         PlayerKnownEvidence.ResetAll();
+        InterviewReplyPlanner.Reset();
+        DialoguePatternMemory.ResetAll();
         DialogueContextBuilder.Invalidate();
+        // 지난 근무의 통화·근무 기억은 새 근무로 넘어오지 않는다(기억은 날짜로도 걸러진다).
+        CallMemoryLog.ResetAll();
+        ShiftMemory.Invalidate();
     }
 }

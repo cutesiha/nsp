@@ -65,6 +65,12 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
     [Export] public Vector3 BeaconOffset = new(0.16f, 0.87f, -0.18f);
     [Export] public Vector3 LedOffset = new(0.44f, 0.6f, 0.04f);
 
+    // 몸체 백라이트 — 모델에 밝게 칠해진 부분(테두리 · 표식)만 아주 약하게 발광시켜 어둠 속에서 형태가 보이게.
+    // 화면은 이미 밝으므로 스위치박스보다 약하게. 0 이면 끔(DeviceBacklight).
+    [Export(PropertyHint.Range, "0,2,0.01")] public float BacklightEnergy = 1.1f;   // Env 의 glow 문턱(0.78)을 넘겨야 빛이 번진다
+    [Export(PropertyHint.Range, "0,1,0.01")] public float BacklightThreshold = 0.35f;
+    [Export] public Color BacklightTint = new(0.75f, 0.9f, 0.95f);
+
     public SubViewport TargetViewport => _screenVp;
 
     // 화면 쿼드에 마우스 레이를 쏴서 센서 화면(SubViewport)의 2D 좌표를 구한다.
@@ -101,6 +107,13 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
     public override void _Ready()
     {
         if (_built) return;
+        // 책상에서 치운 상태(씬에서 visible = false) — 관리자 패드 거치대로 교체되었다.
+        // 화면 뷰포트 · 경광등을 만들지 않고 잠든다. 사고 예고 데이터(AlertSystem)는 패드가 쓴다.
+        if (!Engine.IsEditorHint() && !Visible)
+        {
+            ProcessMode = ProcessModeEnum.Disabled;
+            return;
+        }
         _built = true;
         // 센서 본체만 축소된 GLB 인스턴스이므로, 화면/LED/경광등도 반드시 같은
         // 로컬 좌표계의 자식으로 넣어야 모델 위에 정확히 붙는다.
@@ -113,6 +126,9 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
             BuildScreenQuad(null);
             return;
         }
+
+        // GLB 몸체에만 — 아래에서 만드는 화면 · LED · 경광등은 자체 머티리얼이라 영향 없음.
+        DeviceBacklight.ApplyToTree(GetNodeOrNull("SensorModel"), BacklightThreshold, BacklightTint, BacklightEnergy);
 
         // 표시창(SubViewport 투사). 렌더 해상도 = 논리 캔버스 × UiScale (글자도 같은 배율로 확대).
         var logical = new Vector2I(560, 300);
@@ -308,6 +324,9 @@ public partial class AlertTerminalProp : Node3D, IProjectionSurface
         {
             _beaconLight.LightColor = col;
             _beaconLight.LightEnergy = energy;
+            // 꺼져 있을 때 노드를 숨겨 조명 패스에서 빼 준다.
+            bool beaconOn = energy > 0.01f;
+            if (_beaconLight.Visible != beaconOn) _beaconLight.Visible = beaconOn;
         }
         if (_beaconBulbMat != null)
         {

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ThreatZoneDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 출현 구역 B — 환기 덕트 (VENTILATION SHAFT)
+;
+; 환기실과 이어진 좁은 덕트와 천장 점검구. 기괴한 아기 괴물이 여기서 나온다.
+; 긁는 소리와 작은 충격음으로 먼저 알린다. 서측(발전실 방향) 접근 복도로 들어온다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/ThreatZoneDef.cs" id="1_z"]
+
+[resource]
+script = ExtResource("1_z")
+ZoneId = "zone_vent"
+DisplayName = "환기 덕트"
+CodeName = "VENT SHAFT"
+Kind = 1
+MapAnchor = Vector2(-0.055, 0.84)
+ApproachSegmentIds = PackedStringArray("corridor_west")
+OuterTravelSeconds = 7.0

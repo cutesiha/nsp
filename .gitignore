@@ -1,3 +1,8 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# 여성 헤어 원본 팩 — 117MB 라 GitHub 의 100MB 상한을 넘는다. 디스크에는 남겨 두므로
+# HairAssetBuilder 를 다시 돌려 다른 머리를 뽑을 수 있다. 다만 새로 클론한 곳에는
+# 없으니, 머리를 바꾸려면 이 파일을 다시 받아 같은 자리에 두어야 한다.
+assets/characters/source/female_hair/nv+toufa.obj

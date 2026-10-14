@@ -1,0 +1,29 @@
+[gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
+
+; 핵심부터 짧게 · 항상 툴툴대고 퉁명스럽다("로그 보면 나오잖아요.") · 걱정은 핀잔으로 숨긴다
+; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
+
+[ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
+
+[resource]
+script = ExtResource("1_voice")
+EmployeeId = "cat"
+Formal = false
+Talkativeness = 0.3
+MaxSentences = 2
+QuestionEchoChance = 0.35
+VolunteerInfoChance = 0.25
+BackQuestionChance = 0.2
+ReactionIntensity = 0.15
+HedgeChance = 0.05
+Directness = 0.8
+ExclamationChance = 0.0
+PauseChance = 0.0
+MaxExclamations = 0
+VoiceAxis = "효율 / 짧음 / 퉁명스러움 / 핵심 우선"
+LeadWith = 0
+Confidence = 0.75
+SeparatesFactFromGuess = 0.5
+MentionOthersChance = 0.1
+OfferActionChance = 0.35
+ImpressionChance = 0.3

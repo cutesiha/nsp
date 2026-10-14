@@ -1,0 +1,7 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+[resource]
+resource_name = "dog_accent"
+albedo_color = Color(0.69, 0.54, 0.37, 1)
+roughness = 0.8
+metallic = 0.0

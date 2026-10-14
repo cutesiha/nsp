@@ -63,7 +63,15 @@ public partial class EmployeeDetailCard : PanelContainer
 
         _portrait.Texture = def.FacePortrait;
         _nameLabel.Text = def.Codename;
-        _statsLabel.Text = $"기술: {def.Tech}\n담력: {def.Courage}\n관찰: {def.Observation}\n스트레스: {state.Stress:0}";
+        // V3 초반 단순화: 능력치/스트레스가 잠긴 날에는 그 칸에 "오늘의 기분"만 싣는다.
+        var lines = new System.Collections.Generic.List<string>();
+        if (NSP.Core.DayFeatures.StatsEnabled)
+            lines.Add($"기술: {def.Tech}\n담력: {def.Courage}\n관찰: {def.Observation}");
+        if (NSP.Core.DayFeatures.StressEnabled)
+            lines.Add($"스트레스: {state.Stress:0}");
+        if (lines.Count == 0)
+            lines.Add($"오늘의 기분: {(string.IsNullOrEmpty(state.DailyMood) ? "—" : state.DailyMood)}");
+        _statsLabel.Text = string.Join("\n", lines);
 
         bool actionable = state.Alive && !state.Isolated;
         _callButton.Disabled = !actionable;

@@ -22,16 +22,21 @@ public partial class EventLog : Node
         EmitSignal(SignalName.EntryLogged);
     }
 
-    public void LogEvent(LogEventType type, string actorEmployeeId, string roomId, string description, IEnumerable<string> witnesses = null)
+    public void LogEvent(LogEventType type, string actorEmployeeId, string roomId, string description,
+        IEnumerable<string> witnesses = null, bool passingThrough = false, LogDetail detail = LogDetail.None,
+        bool covert = false)
     {
         var entry = new LogEntry
         {
+            Covert = covert,
+            Detail = detail,
             Day = GameState.Instance?.CurrentDay ?? 0,
             GameTimeSeconds = GameState.Instance?.DayTimeSeconds ?? 0f,
             EventType = type,
             ActorEmployeeId = actorEmployeeId,
             RoomId = roomId,
             Description = description,
+            PassingThrough = passingThrough,
             WitnessEmployeeIds = witnesses?.ToList() ?? new List<string>(),
         };
         Log(entry);

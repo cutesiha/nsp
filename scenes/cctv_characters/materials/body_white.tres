@@ -1,0 +1,8 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+; 작업복 본체 — 전 직원 공용. 직원별로 바뀌지 않는다.
+[resource]
+resource_name = "BodyWhite"
+albedo_color = Color(0.93, 0.935, 0.945, 1)
+roughness = 0.78
+metallic = 0.0

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ThreatZoneDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 출현 구역 C — 배관 · 케이블 통로 (MAINTENANCE CABLE PASSAGE)
+;
+; 저장고와 정비실 사이에 숨은 설비 통로. 거미형 괴물이 여기서 나온다.
+; 벽과 배관을 타고 움직이는 연출을 쓴다. 동측 · 북측 접근 복도로 들어온다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/ThreatZoneDef.cs" id="1_z"]
+
+[resource]
+script = ExtResource("1_z")
+ZoneId = "zone_cable"
+DisplayName = "배관 통로"
+CodeName = "CABLE PASS"
+Kind = 2
+MapAnchor = Vector2(1.055, 0.5)
+ApproachSegmentIds = PackedStringArray("corridor_east", "corridor_north")
+OuterTravelSeconds = 8.0

@@ -9,19 +9,6 @@ public partial class RoomDetailCard : PanelContainer
 {
     public static RoomDetailCard Instance { get; private set; }
 
-    // 3D 배치표 정보 패널(ScheduleBoardUI)도 이 방별 한 줄 설명을 재사용한다.
-    public static readonly System.Collections.Generic.Dictionary<string, string> Descriptions = new()
-    {
-        ["power_room"] = "시설 전력망의 주 공급원입니다. 이 방의 업무 처리량이 전체 전력 여유를 좌우합니다.",
-        ["vent_room"] = "환기 및 생존 유지 설비를 관리합니다. 방치 시 전 직원 스트레스가 상승합니다.",
-        ["maintenance_room"] = "자재를 생산하고 설비 고장을 수리합니다. 코어 수리에 쓸 자재를 여기서 확보해야 합니다.",
-        ["medical_room"] = "직원의 스트레스를 회복시키는 유일한 공간입니다.",
-        ["guard_room"] = "CCTV 감시와 구역 봉쇄 효율을 담당합니다. 인력 배치 시 사보타주 확률이 감소합니다.",
-        ["core_room"] = "봉쇄 코어를 직접 수리합니다. 자재를 소모하며 진행도를 높입니다.",
-        ["storage_room"] = "공용 자재 풀의 저장 상한을 관리합니다.",
-        ["isolation_room"] = "격리된 직원이 수용되는 공간입니다. 직접 배치할 수 없습니다.",
-    };
-
     private Label _nameLabel;
     private Label _descLabel;
     private Button _taskListButton;
@@ -80,14 +67,21 @@ public partial class RoomDetailCard : PanelContainer
         _taskListButton.Visible = true;
         _lockButton.Visible = true;
 
-        var requiredStats = sim.GetRoomTasksInPriorityOrder(_roomId)
-            .Select(t => t.RequiredStat)
-            .Distinct()
-            .Select(StatLabel);
-        string statsLine = string.Join(", ", requiredStats);
-
-        string desc = Descriptions.GetValueOrDefault(_roomId, "");
-        _descLabel.Text = $"{desc}\n요구 능력: {statsLine}\n인원: {sim.GetAssignedCount(_roomId)}/2";
+        // 방 설명은 data/rooms/*.tres 한 곳에만 있다(RoomEffectText 창구로 읽는다).
+        string desc = RoomEffectText.Summary(_roomId);
+        string brief = string.Join("\n", RoomEffectText.Brief(_roomId));
+        if (brief.Length > 0) desc = desc.Length > 0 ? desc + "\n" + brief : brief;
+        // 능력치가 잠긴 날에는 "요구 능력" 줄을 싣지 않는다.
+        string statsLine = "";
+        if (NSP.Core.DayFeatures.StatsEnabled)
+        {
+            var requiredStats = sim.GetRoomTasksInPriorityOrder(_roomId)
+                .Select(t => t.RequiredStat)
+                .Distinct()
+                .Select(StatLabel);
+            statsLine = $"요구 능력: {string.Join(", ", requiredStats)}\n";
+        }
+        _descLabel.Text = $"{desc}\n{statsLine}인원: {sim.GetAssignedCount(_roomId)}/{NSP.Facility.FacilitySimulation.RoomSlotCapacity}";
 
         _lockButton.Text = state.Locked ? "봉쇄 해제" : "구역 봉쇄";
     }

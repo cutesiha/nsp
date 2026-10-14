@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY5 — 봉쇄 장치 점검. 막바지 방해공작 구간(80~104초)과 겹친다.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "lockdown_gear_check"
+SpawnAtSeconds = 86.0
+JitterSeconds = 4.0
+Recurring = false
+RoomId = "guard_room"
+Day = 5

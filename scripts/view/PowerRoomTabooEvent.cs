@@ -19,7 +19,7 @@ namespace NSP.View;
 //  - 금기 판정 / 위반 로그        : TabooRuleSystem (그대로)
 //  - 전력 용량 감소                : GameState.TriggerPowerAccident (TabooRuleSystem.ApplyDeferredConsequence 경유)
 //  - CCTV 강제 전환 / 신호 차단    : FacilitySimulation.SetSurveillanceTarget + CCTVMonitorView
-//  - 3D 발전실 화면 / 결번자 모델  : FacilityCctvWorld (기존 entity.tscn GLB)
+//  - 3D 발전실 화면 / 개체 모델  : FacilityCctvWorld (data/threats 의 세 개체)
 //  - SENSOR 경고                   : AlertSystem (PROTOCOL VIOLATION / POWER SYSTEM ABNORMALITY)
 //  - 스트레스                      : FacilitySimulation.AddStress (연동 지점)
 //  - 공포 연출 억제                : HorrorDirector.CustomEventActive
@@ -81,37 +81,31 @@ public partial class PowerRoomTabooEvent : Node
             if (HorrorDirector.Instance != null) HorrorDirector.Instance.CustomEventActive = true;
 
             // 1. CCTV 강제로 발전실 전환 + 전력/고장과 무관하게 피드 유지.
-            // 결번자 연출이 끝날 때까지 다른 방을 눌러도 발전실 CCTV에서 빠져나갈 수 없다.
+            // 개체 연출이 끝날 때까지 다른 방을 눌러도 발전실 CCTV에서 빠져나갈 수 없다.
             sim?.ForceSurveillanceTarget(RoomId, 14f);
             CCTVMonitorView.Instance?.ForceFeed(26f);
 
             // 2. 발전실 조명 순간 꺼짐 + 발전기 소리 끊김 + CCTV 노이즈.
-            FacilityCctvWorld.Instance?.HauntSpawn(RoomId);
             Sfx.Instance?.Play("power_down", -3f);
             Sfx.Instance?.Play("electric_arc", -6f);
             CCTVMonitorView.Instance?.FlashGlitch(1f);
             CCTVMonitorView.Instance?.Shake(7f, 0.35f);
 
-            // 3. 결번자가 직원 뒤에 소리 없이 서 있음 — 플레이어가 직접 발견할 시간.
-            await Wait(1.1);
+            // 3. 설비가 무너지는 소리 — 아크가 튀고 금속이 부딪친다.
+            //
+            // **여기에 개체는 나오지 않는다.** 전에는 이 자리에서 귀신이 직원 뒤에 서고,
+            // 카메라를 돌아보고, 얼굴을 들이밀고, 웃었다. 그러면 플레이어에게
+            // "발전실 사고 = 귀신" 이라는 엉뚱한 공식이 생긴다 — 이건 금기를 어겨서 난
+            // **전기 사고**이고, 귀신은 그것과 아무 상관이 없다. 개체가 나오는 자리는
+            // GhostHauntSystem 이 따로 정한다.
+            await Wait(0.9);
 
-            // 4. 직원이 이상현상을 인지 — 비명. 결번자가 카메라를 빠르게 돌아봄.
+            // 4. 직원이 비명을 지른다.
             Sfx.Instance?.PlayScream(screamer);
-            FacilityCctvWorld.Instance?.HauntLookAtCamera(0.65f);
-            await Wait(0.78);
+            await Wait(0.7);
 
-            // 5. 결번자가 기괴하게 몸을 뒤틀며 CCTV 바로 앞으로 돌진.
-            FacilityCctvWorld.Instance?.HauntChargeCamera(0.55f);
-            await Wait(0.62);
-
-            // CCTV를 거의 덮은 순간 실제 플레이어 눈앞에도 아주 짧게 튀어나온다.
-            HorrorDirector.Instance?.PlayEntityFaceJumpscare();
-            await Wait(0.30);
-
-            // 카메라를 여러 번 내려친다 — 쾅 쾅 쾅.
             for (int i = 0; i < 3; i++)
             {
-                FacilityCctvWorld.Instance?.HauntLunge();
                 Sfx.Instance?.Play("boom", -2f, 0.9f);
                 Sfx.Instance?.Play("metal_clang", -6f, 0.7f);
                 CCTVMonitorView.Instance?.Shake(11f, 0.3f);
@@ -120,14 +114,9 @@ public partial class PowerRoomTabooEvent : Node
                 await Wait(0.42);
             }
 
-            // 마지막에 결번자 웃음.
-            Sfx.Instance?.PlayEntityLaugh();
-            await Wait(0.7);
-
             // 6. CCTV 완전 차단 — SIGNAL LOST.
             Sfx.Instance?.Play("cctv_cut", -3f);
             CCTVMonitorView.Instance?.ForceSignalLost(4.5f);
-            FacilityCctvWorld.Instance?.HauntEnd();
             sim?.ReleaseForcedSurveillance(RoomId);
         }
         catch (Exception ex)
@@ -150,11 +139,9 @@ public partial class PowerRoomTabooEvent : Node
                 FacilitySimulation.Instance?.AddStress(id, Config.Instance?.Data?.PowerTabooStress ?? 35f, "발전실 금기 이상현상");
 
             await Wait(1.2);
-            if (HorrorDirector.Instance != null)
-            {
-                HorrorDirector.Instance.CustomEventActive = false;
-                HorrorDirector.Instance.SchedulePostTabooJumpscare();
-            }
+            // 끝나고 나서 따로 점프스케어를 예약하지 않는다 — 그것도 "발전실 사고가
+            // 귀신을 부른다" 로 읽히던 자리다.
+            if (HorrorDirector.Instance != null) HorrorDirector.Instance.CustomEventActive = false;
         }
     }
 

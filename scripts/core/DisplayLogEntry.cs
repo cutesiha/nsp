@@ -1,4 +1,4 @@
-using NSP.Data;
+﻿using NSP.Data;
 
 namespace NSP.Core;
 
@@ -6,10 +6,15 @@ namespace NSP.Core;
 // FacilityLogFormatter 가 원본을 해석해 만들어 낸다. 저장되지 않는 표시 전용 데이터다.
 public enum DisplayLogSeverity
 {
-    Normal,   // 운영 기록 — 재배치, 격리, 상황 안내
-    Warning,  // 주의 — 사고 예고, 설비 이상, 자재 부족, 목격
-    Critical, // 위험 — 금기 위반, 전력 손실, 사망, 업무 불능
-    Recovery, // 복구 완료
+    Normal,   // 운영 기록 — 최초 배치, 격리, 순찰, 상황 안내
+    Move,     // 직원 이동 — 어디서 어디로 갔는가(추리의 뼈대)
+    Warning,  // 주의 — 지금 대응하면 막을 수 있는 경고, 자재 부족
+    Critical, // 위험 — 실제 고장, 금기 위반, 전력 손실, 사망
+    Sabotage, // 방해공작 — 다른 무엇보다 먼저 눈에 들어와야 한다
+    Recovery, // 복구 / 안정화 완료
+    // 작업실이 제 일을 해낸 순간 — 그 방의 RoomDef.MapColor 로 쓴다.
+    // 경고(주황)·사고(빨강)와 색이 겹치지 않아야 눈으로 갈라진다.
+    RoomEffect,
 }
 
 public sealed class DisplayLogEntry
@@ -27,4 +32,11 @@ public sealed class DisplayLogEntry
     public string ToRoomId = "";
     // 관리자가 지시한 이동인가(false = 직원이 스스로 움직인 것으로 보인다).
     public bool PlayerOrdered;
+
+    // 이 줄이 특정 작업실의 효과면 그 방 id. 화면이 RoomDef.MapColor 를 찾는 데만 쓴다.
+    public string RoomId = "";
+
+    // 원본 기록의 세부 구분(기절 · 회복 등). 조사 자료가 "이 줄이 무엇인가" 를 문장 해석
+    // 없이 알아내는 데 쓴다 — 문구가 바뀌어도 자료가 사라지지 않는다.
+    public LogDetail Detail;
 }

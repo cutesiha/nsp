@@ -11,6 +11,11 @@ public partial class TitleOverlay : CanvasLayer
     [Signal] public delegate void StartRequestedEventHandler();
     [Signal] public delegate void QuitRequestedEventHandler();
 
+    // 타이틀 화면 2(TitleRoomDirector — 중앙제어실 전체가 타이틀)로 교체하면서
+    // 이 2D 메뉴는 꺼 두었다. 되살리려면 인스펙터에서 이 값을 켜면 된다.
+    // 암전/배너(FadeToBlack / FadeFromBlack / FlashBanner)는 프롤로그가 계속 쓰므로 그대로 둔다.
+    [Export] public bool UseLegacyTitle = false;
+
     private Control _root;
     private VBoxContainer _menu;
     private Label _banner;
@@ -38,6 +43,13 @@ public partial class TitleOverlay : CanvasLayer
     public void ShowTitle()
     {
         Visible = true;
+        if (!UseLegacyTitle)
+        {
+            // 메뉴 패널은 띄우지 않는다 — 제어실 자체가 타이틀이다.
+            _root.Visible = false;
+            _root.MouseFilter = Control.MouseFilterEnum.Ignore;
+            return;
+        }
         _root.Visible = true;
         _root.Modulate = Colors.White;
     }
@@ -52,14 +64,16 @@ public partial class TitleOverlay : CanvasLayer
     }
 
     // 근무 부팅 순간 잠깐 뜨는 "NIGHT SHIFT START" 배너.
-    public void FlashBanner(string text)
+    // fontSize / hold 를 주면 더 크게, 더 오래 띄운다(가상 시뮬레이션 기동 등).
+    public void FlashBanner(string text, int fontSize = 40, double hold = 0.7)
     {
+        _banner.AddThemeFontSizeOverride("font_size", ViewFont.FS(fontSize));
         _banner.Text = text;
         _banner.Visible = true;
         _banner.Modulate = new Color(1f, 1f, 1f, 0f);
         var t = CreateTween();
         t.TweenProperty(_banner, "modulate:a", 1f, 0.18);
-        t.TweenInterval(0.7);
+        t.TweenInterval(hold);
         t.TweenProperty(_banner, "modulate:a", 0f, 0.35);
         t.TweenCallback(Callable.From(() => _banner.Visible = false));
     }

@@ -1,0 +1,276 @@
+{
+  "bases": [
+    {
+      "body_height": 1.81007993221283,
+      "cranium_center": [
+        0.0,
+        1.75755000114441,
+        -0.00582999968901277
+      ],
+      "cranium_size": [
+        0.179669991135597,
+        0.105039998888969,
+        0.200619995594025
+      ],
+      "head_bone": "Head",
+      "scene_path": "res://assets/characters/source/male_base/Superhero_Male_FullBody.gltf",
+      "sex": "male",
+      "skull_center": [
+        0.0,
+        1.71999990940094,
+        0.00450999988242984
+      ],
+      "skull_size": [
+        0.181269988417625,
+        0.180150002241135,
+        0.221309989690781
+      ]
+    },
+    {
+      "body_height": 1.76663994789124,
+      "cranium_center": [
+        0.0,
+        1.71241998672485,
+        -0.0109999999403954
+      ],
+      "cranium_size": [
+        0.177759990096092,
+        0.108459994196892,
+        0.203789994120598
+      ],
+      "head_bone": "Head",
+      "scene_path": "res://assets/characters/source/female_base/Superhero_Female_FullBody.gltf",
+      "sex": "female",
+      "skull_center": [
+        0.0,
+        1.67322993278503,
+        -0.000490000005811453
+      ],
+      "skull_size": [
+        0.177759990096092,
+        0.18682000041008,
+        0.224819988012314
+      ]
+    }
+  ],
+  "hair": [
+    {
+      "area_ratio": 0.601660013198853,
+      "cap_center": [
+        0.0,
+        0.041899997740984,
+        0.000260000000707805
+      ],
+      "cap_size": [
+        0.197089999914169,
+        0.0796899944543839,
+        0.216439992189407
+      ],
+      "id": "M-05",
+      "kind": "hair",
+      "length_class": "short",
+      "mesh_path": "res://assets/characters/hair/male/M-05.res",
+      "name": "M-05 · 짧은 머리 (20cm)",
+      "sex": "male",
+      "size": [
+        0.197089999914169,
+        0.196099996566772,
+        0.216959998011589
+      ],
+      "source_file": "res://assets/characters/source/male_hair/hair.fbx",
+      "source_material": "1.003",
+      "source_node": "5",
+      "source_surface": 0,
+      "tris": 1505,
+      "verts": 867
+    },
+    {
+      "area_ratio": 1.245649933815,
+      "cap_center": [
+        0.00257999985478818,
+        0.0535999983549118,
+        0.00153000000864267
+      ],
+      "cap_size": [
+        0.237810000777245,
+        0.0798999965190887,
+        0.246559992432594
+      ],
+      "id": "F-005",
+      "kind": "hair",
+      "length_class": "short",
+      "mesh_path": "res://assets/characters/hair/female/F-005.res",
+      "name": "F-005 · 짧은 머리 (25cm)",
+      "sex": "female",
+      "size": [
+        0.24295999109745,
+        0.252709984779358,
+        0.249619990587235
+      ],
+      "source_file": "res://assets/characters/source/female_hair/nv+toufa.obj",
+      "source_material": "",
+      "source_node": "samor_1125_20",
+      "source_surface": 0,
+      "tris": 8121,
+      "verts": 16553
+    },
+    {
+      "area_ratio": 1.33548998832703,
+      "cap_center": [
+        0.0,
+        0.156319990754128,
+        0.0161699987947941
+      ],
+      "cap_size": [
+        0.227090001106262,
+        0.0795699954032898,
+        0.256019979715347
+      ],
+      "id": "F-028",
+      "kind": "hair",
+      "length_class": "long",
+      "mesh_path": "res://assets/characters/hair/female/F-028.res",
+      "name": "F-028 · 긴 머리 (49cm)",
+      "sex": "female",
+      "size": [
+        0.403489977121353,
+        0.487229973077774,
+        0.288369983434677
+      ],
+      "source_file": "res://assets/characters/source/female_hair/nv+toufa.obj",
+      "source_material": "",
+      "source_node": "samor_1125_43",
+      "source_surface": 0,
+      "tris": 7280,
+      "verts": 14880
+    },
+    {
+      "area_ratio": 1.4383499622345,
+      "cap_center": [
+        0.0,
+        0.112360000610352,
+        0.000989999971352518
+      ],
+      "cap_size": [
+        0.22639998793602,
+        0.0798899978399277,
+        0.255519986152649
+      ],
+      "id": "F-037",
+      "kind": "hair",
+      "length_class": "medium",
+      "mesh_path": "res://assets/characters/hair/female/F-037.res",
+      "name": "F-037 · 중간 길이 (36cm)",
+      "sex": "female",
+      "size": [
+        0.24431999027729,
+        0.355329990386963,
+        0.257499992847443
+      ],
+      "source_file": "res://assets/characters/source/female_hair/nv+toufa.obj",
+      "source_material": "",
+      "source_node": "samor_1125_52",
+      "source_surface": 0,
+      "tris": 8058,
+      "verts": 16596
+    },
+    {
+      "area_ratio": 1.42548000812531,
+      "cap_center": [
+        0.00496000004932284,
+        0.146870002150536,
+        0.00260000000707805
+      ],
+      "cap_size": [
+        0.243749991059303,
+        0.0798299983143806,
+        0.241269990801811
+      ],
+      "id": "F-066",
+      "kind": "hair",
+      "length_class": "long",
+      "mesh_path": "res://assets/characters/hair/female/F-066.res",
+      "name": "F-066 · 긴 머리 (45cm)",
+      "sex": "female",
+      "size": [
+        0.334910005331039,
+        0.446199983358383,
+        0.246469989418983
+      ],
+      "source_file": "res://assets/characters/source/female_hair/nv+toufa.obj",
+      "source_material": "",
+      "source_node": "samor_1125_81",
+      "source_surface": 0,
+      "tris": 6250,
+      "verts": 12708
+    },
+    {
+      "area_ratio": 1.05762994289398,
+      "cap_center": [
+        0.000139999989187345,
+        0.0674699991941452,
+        0.00221999990753829
+      ],
+      "cap_size": [
+        0.257629990577698,
+        0.0798700004816055,
+        0.271750003099442
+      ],
+      "id": "F-070",
+      "kind": "hair",
+      "length_class": "medium",
+      "mesh_path": "res://assets/characters/hair/female/F-070.res",
+      "name": "F-070 · 중간 길이 (26cm)",
+      "sex": "female",
+      "size": [
+        0.262250006198883,
+        0.264950007200241,
+        0.276189982891083
+      ],
+      "source_file": "res://assets/characters/source/female_hair/nv+toufa.obj",
+      "source_material": "",
+      "source_node": "samor_1125_85",
+      "source_surface": 0,
+      "tris": 7404,
+      "verts": 15020
+    },
+    {
+      "area_ratio": 1.2992799282074,
+      "cap_center": [
+        0.0019699998665601,
+        0.0870199948549271,
+        0.00760999973863363
+      ],
+      "cap_size": [
+        0.220649987459183,
+        0.0790499970316887,
+        0.261429995298386
+      ],
+      "id": "F-104",
+      "kind": "hair",
+      "length_class": "medium",
+      "mesh_path": "res://assets/characters/hair/female/F-104.res",
+      "name": "F-104 · 중간 길이 (29cm)",
+      "sex": "female",
+      "size": [
+        0.260349988937378,
+        0.285970002412796,
+        0.27947998046875
+      ],
+      "source_file": "res://assets/characters/source/female_hair/nv+toufa.obj",
+      "source_material": "",
+      "source_node": "samor_1125_117",
+      "source_surface": 0,
+      "tris": 3676,
+      "verts": 7538
+    }
+  ],
+  "notes": [
+    "FBX 노드 '3' 표면 0(재질 '1.008')은 M-02 과 같은 메시다 — 정점 408개가 정렬 후 1mm 안에서 일치한다(팩 안에 위치만 바꿔 두 번 들어 있다). 번호를 주지 않았다",
+    "FBX 노드 '7' 표면 0(재질 '1.006')은 M-06 과 같은 메시다 — 정점 682개가 정렬 후 1mm 안에서 일치한다(팩 안에 위치만 바꿔 두 번 들어 있다). 번호를 주지 않았다",
+    "여성 팩의 그룹 105개는 격자 칸이 서로 겹치지 않는다. 실측으로 '그룹 하나 = 헤어스타일 하나' 를 확인하고 그대로 분리했다",
+    "Blender 가 이 환경에 설치돼 있지 않아 GLB 변환은 하지 않았다. 분리본은 Godot 네이티브 메시 리소스(.res, 압축)로 저장했다",
+    "고르지 않은 헤어 108개를 지웠다. 남은 것은 M-05, F-005, F-028, F-037, F-066, F-070, F-104 뿐이고, 다른 머리로 바꾸려면 원본 팩으로 HairAssetBuilder 를 다시 돌려야 한다"
+  ],
+  "version": 1
+}

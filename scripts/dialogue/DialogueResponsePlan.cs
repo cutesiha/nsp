@@ -9,6 +9,7 @@ public enum CoreKind
     SelfLocation,       // 사건 당시 내 위치
     IncidentDirect,     // 직접 본 사건
     IncidentIndirect,   // 벽 너머로 알게 된 사건(소리·진동)
+    IncidentLater,      // 그 순간엔 다른 방에 있었고, 그 뒤에 가 보고 알게 된 사건
     NoAnomaly,          // 아는 이상 없음
     SuspiciousSighting, // 실제로 목격한 다른 직원의 행동
     NoSighting,         // 목격 없음
@@ -60,8 +61,19 @@ public sealed class DialogueResponsePlan
     public CoreKind Core = CoreKind.None;
     // 핵심 답변 뒤에 반드시 붙어야 하는 보정 문장(예: 직접 보지는 못했다). 생략 대상이 아니다.
     public bool NeedsIndirectCaveat;
+
+    // 감싸느라 **이번 답에서 꺼내지 않은** 사람. 사실이 사라진 것은 아니다 —
+    // 재석 질문이나 자료 제시로 되찾을 수 있어야 한다는 표시다(검증용).
+    public string WithheldEmployeeId = "";
+
+    // 그 시각의 위치를 끌어낼 기록이 아예 없다. 방 이름을 지어내는 대신 "잘 모르겠다"로
+    // 답해야 한다는 표시 — 빈 RoomId 를 '통로'로 읽어 버리지 않게 하는 구분이다.
+    public bool RoomUnknown;
     // 방해자가 원인을 아는 척하지 않기 위한 보정.
     public bool NeedsUnknownCauseCaveat;
+
+    // 이미 붙는 보정이 없는가. 같은 뜻의 말을 두 번 붙이지 않으려고 본다.
+    public bool CaveatFree => !NeedsIndirectCaveat && !NeedsUnknownCauseCaveat;
 
     public string RoomId = "";          // 핵심 답변에 등장하는 작업실
     public string IncidentRoomId = "";

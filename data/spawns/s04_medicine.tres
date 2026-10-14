@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY4 — 의약품 정리(제한시간 없음). 의무실에 잠깐 사람을 둘지 고르는 거리.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "medicine_sorting"
+SpawnAtSeconds = 16.0
+JitterSeconds = 4.0
+Recurring = false
+RoomId = "medical_room"
+Day = 4

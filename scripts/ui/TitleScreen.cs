@@ -14,7 +14,7 @@ public partial class TitleScreen : Control
     private void OnStartPressed()
     {
         EventLog.Instance.ClearAll();
-        GameState.Instance.AssignRandomSaboteur(FacilitySimulation.Instance.GetEmployeeIds());
+        GameState.Instance.AssignSaboteurForMode(FacilitySimulation.Instance.GetEmployeeIds());
 
         GetTree().ChangeSceneToFile("res://scenes/prologue/PrologueScreen.tscn");
     }

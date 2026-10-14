@@ -1,4 +1,4 @@
-namespace NSP.Data;
+﻿namespace NSP.Data;
 
 public enum GamePhase
 {
@@ -27,9 +27,15 @@ public enum StatType
 public enum PowerConsumer
 {
     CctvWatch,
-    VentRepair, // DAY1 신규 전력 패널(LIGHTING/CCTV/SENSOR)에는 없음 — 2D 백업 화면 호환용으로만 남김.
+    VentRepair, // 전력 패널에 없음 — 2D 백업 화면 호환용으로만 남김(항상 켜진 것으로 취급).
     Lighting,
+    // 관리자 패드. 예전에는 전력 패널의 세 번째 레버였지만, 그 자리를 차폐(BARRIER)가
+    // 가져가면서 **시설 상시 전원**으로 옮겼다 — 항상 켜진 것으로 취급한다.
+    // 이름을 바꾸지 않는 이유: 저장 데이터와 기존 참조(AdminPad3D · AlertTerminalView ·
+    // IncidentBoard)가 전부 이 값을 쓰고 있어, 바꾸면 그 전부를 동시에 건드려야 한다.
     Sensor,
+    // 복도 차폐문 계통. 전력 패널의 세 번째 레버가 이것이다.
+    Barrier,
 }
 
 public enum RoomResourceType
@@ -157,4 +163,35 @@ public enum LogEventType
     PowerCapacityChanged,
     // 자원이 모자라 업무가 멈추거나 다시 돌기 시작한 순간(상태가 바뀔 때 한 번만).
     ResourceShortage,
+    // 불편(Uneasy) 관계인 두 직원이 같은 방에서 언쟁을 벌임(관계 시스템 Phase 1).
+    Argument,
+    // 이상 개체(괴물)를 CCTV 로 끝까지 지켜봐 소멸시킴. 관리자가 잘한 일이다.
+    AnomalyDispelled,
+    // 이상 개체를 끝내 찾지 못해 그 작업실에 사고가 남음.
+    // 설비 고장(TaskFailed)과 **따로 둔다** — 원인이 다르고, 막는 방법도 다르기 때문이다.
+    // 사람이 저지른 일이 아니므로 심문의 주제(DialogueContextBuilder.IsIncident)도 되지 않는다.
+    AnomalyIncident,
+    // 작업실이 실제로 일을 해낸 순간(자재 +1, 코어 +1%, 경비 기록, 환기 재개 등).
+    // 표시 전용이다 — 시뮬레이션은 이 기록을 읽지 않고, 심문 자료도 되지 않는다.
+    // 화면에서는 그 방의 RoomDef.MapColor 로 써서 경고/사고 색과 겹치지 않게 한다.
+    RoomEffect,
+    // 계통 신호가 한 번 흔들렸다 — 고장이 아니다(작은 교란 / MinorTamper 의 결과).
+    // 기록에는 **무슨 일이 났는지만** 남는다. 누가 했는지도, 어디서 시작했는지도 쓰지 않는다 —
+    // 그걸 적는 순간 CCTV 도 심문도 볼 이유가 사라진다.
+    SignalAnomaly,
+    // 이상 개체가 작업실에 나타났다가 **사고 없이** 떠났다(대회용). 직원은 분명히 봤고
+    // 휴게시간에 그렇게 증언하지만, 설비는 멀쩡하다 — 사고(AnomalyIncident)와 구분해야
+    // "봤다는 말은 있는데 기록에는 사고가 없다" 가 모순이 아니라 사실이 된다.
+    AnomalySighting,
+}
+
+// 로그 한 줄의 세부 종류. EventType 만으로는 갈리지 않는 근무 상태 변화를 적는다 —
+// 기절 · 회복은 Neglect, 배치 해제는 TaskEnd 로 남아 표시 문구 말고는 구분이 안 되기 때문이다.
+// 표시 문구는 언제든 바뀔 수 있으므로 판정(대화 쪽 근무 구간)은 문구가 아니라 이 값을 본다.
+public enum LogDetail
+{
+    None,
+    Fainted,        // 기절 — 근무에서 빠짐
+    Recovered,      // 기절 회복 — 근무 복귀
+    Unassigned,     // 관리자가 배치를 해제함
 }

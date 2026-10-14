@@ -6,6 +6,13 @@ namespace NSP.View;
 public partial class HologramFrame : Control
 {
     public Color Accent = new(0.55f, 0.95f, 1f);
+
+    // 이름 띠 — 높이와 좌우 여백은 쓰는 화면이 정한다.
+    // 높이를 글자에서 거꾸로 잡아야 이름이 띠 아래로 삐져나오지 않는다(StoryCutinHud.ApplyScale).
+    // 기본값은 통화창이 쓰던 값 그대로다.
+    public float BandHeight = 30f;
+    public float BandInset = 0f;
+
     private float _time;
 
     public override void _Process(double delta)
@@ -18,8 +25,11 @@ public partial class HologramFrame : Control
     {
         Color a = Accent;
         Vector2 s = Size;
-        DrawRect(new Rect2(0, 0, s.X, 30), new Color(a.R, a.G, a.B, 0.18f));
-        DrawLine(new Vector2(0, 30), new Vector2(s.X, 30), new Color(a.R, a.G, a.B, 0.6f), 1f);
+        float bx = BandInset;
+        float bw = Mathf.Max(0f, s.X - BandInset * 2f);
+        float bh = Mathf.Min(BandHeight, s.Y);
+        DrawRect(new Rect2(bx, 0, bw, bh), new Color(a.R, a.G, a.B, 0.18f));
+        DrawLine(new Vector2(bx, bh), new Vector2(bx + bw, bh), new Color(a.R, a.G, a.B, 0.6f), 1f);
         const float length = 18f;
         Color c = new(a.R, a.G, a.B, 0.9f);
 

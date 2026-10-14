@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="RecoveryProfileDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 2차 5일 — 1차에서 배운 운영을 실제로 요구한다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/RecoveryProfileDef.cs" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+ProfileId = "standard2"
+DisplayName = "2차 복구 · 표준"
+; 1명 80% / 2명 120% / 3명 145%
+CoreStaffCurve = PackedFloat32Array(0, 0.80, 1.20, 1.45, 1.52)
+CoreRateMultiplier = 1.3
+CoreYieldMultiplier = 2.1
+CoreMaterialCostMultiplier = 0.8
+SabotageCoreDamageMultiplier = 1.0
+CoreInstabilityLossMultiplier = 1.0
+CatchupEnabled = true
+CatchupMidThreshold = 14.0
+CatchupHighThreshold = 26.0
+CatchupMidMultiplier = 1.05
+CatchupHighMultiplier = 1.10
+RecommendedByDay = PackedFloat32Array(18, 38, 60, 82, 100)

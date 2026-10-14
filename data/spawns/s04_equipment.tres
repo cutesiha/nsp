@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TaskSpawnDef" load_steps=2 format=3]
+; DAY4 — 설비 고장 수리. 방해공작 기회 구간(48~76초) 끝자락과 겹친다.
+
+[ext_resource type="Script" path="res://scripts/data/TaskSpawnDef.cs" id="1_spawn"]
+
+[resource]
+script = ExtResource("1_spawn")
+TaskId = "equipment_repair"
+SpawnAtSeconds = 74.0
+JitterSeconds = 5.0
+Recurring = false
+RoomId = "maintenance_room"
+Day = 4

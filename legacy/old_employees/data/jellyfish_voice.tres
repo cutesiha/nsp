@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="DialogueVoiceDef" load_steps=2 format=3]
+
+; 조심스럽게 · 확신이 없으면 스스로 낮춘다 · 놀라면 말이 잠깐 막힌다
+; 값은 전부 성향 가중치(0~1). 여기 숫자만 고치면 말투가 바뀐다 — 코드 수정 불필요.
+
+[ext_resource type="Script" path="res://scripts/data/DialogueVoiceDef.cs" id="1_voice"]
+
+[resource]
+script = ExtResource("1_voice")
+EmployeeId = "jellyfish"
+Formal = false
+Talkativeness = 0.45
+MaxSentences = 3
+QuestionEchoChance = 0.15
+VolunteerInfoChance = 0.3
+BackQuestionChance = 0.0
+ReactionIntensity = 0.45
+HedgeChance = 0.6
+Directness = 0.2
+ExclamationChance = 0.0
+PauseChance = 0.45
+MaxExclamations = 0

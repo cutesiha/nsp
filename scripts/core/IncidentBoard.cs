@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Godot;
 using NSP.Data;
@@ -56,6 +56,7 @@ public static class IncidentBoard
         // ② 아직 사고가 아닌 위험 — 센서가 꺼져 있으면 이 예측 정보가 끊긴다.
         if (gs.IsConsumerPowered(PowerConsumer.Sensor))
         {
+            AddOperationWarnings(sim, list);
             AddUnstaffedRisks(sim, list);
             AddTaskRisks(sim, list);
             AddProtocolRisks(sim, list);
@@ -82,6 +83,34 @@ public static class IncidentBoard
         };
     }
 
+    // 지금 대응하면 막을 수 있는 이상 징후(FacilityWarningSystem).
+    // 경고 자체는 사고가 아니다 — 시간 안에 인원을 채우면 아무 일도 일어나지 않는다.
+    private static void AddOperationWarnings(FacilitySimulation sim, List<IncidentDisplayData> list)
+    {
+        foreach (var w in sim.Warnings.Active)
+        {
+            int here = sim.OnDutyCount(w.RoomId);
+            list.Add(new IncidentDisplayData
+            {
+                IncidentId = $"warn:{w.RoomId}",
+                RoomId = w.RoomId,
+                Title = w.Title,
+                State = IncidentState.Warning,
+                CauseText = w.Cause,
+                WarningRemainingSeconds = Mathf.Max(0f, w.Remaining),
+                WarningTotalSeconds = w.Total,
+                ActionHint = here >= w.RequiredStaff
+                    ? $"안정화 작업 중 {w.Work:0.#} / {w.WorkNeeded:0}초"
+                    : $"{w.RequiredStaff}명 필요 · 현재 {here}명 (투입 후 {w.WorkNeeded:0}초 작업)",
+                Severity = AlertSeverity.Critical,
+                RepairWorkers = w.RequiredStaff,
+                StabilizeDoneSeconds = w.Work,
+                StabilizeNeedSeconds = w.WorkNeeded,
+                ConsequenceLines = { w.Consequence },
+            });
+        }
+    }
+
     // 근무자가 없어 사고 타이머가 도는 작업실.
     private static void AddUnstaffedRisks(FacilitySimulation sim, List<IncidentDisplayData> list)
     {
@@ -95,20 +124,29 @@ public static class IncidentBoard
             if (IncidentTracker.HasActive(roomId)) continue;
             if (room.UnstaffedTimer <= 0.05f) continue;
 
-            float limit = def.UnstaffedAccidentSeconds > 0f
-                ? def.UnstaffedAccidentSeconds
-                : cfg?.UnstaffedAccidentSecondsDefault ?? 25f;
+            // 오늘 이 방은 비워 둬도 되는가(0 이하 = 무인 사고 없음).
+            float limit = NSP.Facility.RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
+            if (limit <= 0f) continue;
             float remaining = Mathf.Max(0f, limit - room.UnstaffedTimer);
+            // 근무자가 돌아와 머무는 중이면, 경고가 풀리기까지 얼마나 더 있어야 하는지 보여 준다(G-1).
+            float clearNeed = Mathf.Max(0f, NSP.Core.Config.Instance?.Data?.UnstaffedClearSeconds ?? 0f);
+            bool staying = sim.OnDutyCount(roomId) > 0 && clearNeed > 0f;
+            string hint = staying
+                ? $"배치 유지 — {Mathf.CeilToInt(Mathf.Max(0f, clearNeed - room.UnstaffedClearTimer))}초 남음"
+                : "직원 배치 필요";
 
             list.Add(new IncidentDisplayData
             {
+                StabilizeDoneSeconds = staying ? room.UnstaffedClearTimer : -1f,
+                StabilizeNeedSeconds = staying ? clearNeed : -1f,
                 IncidentId = $"risk:unstaffed:{roomId}",
                 RoomId = roomId,
                 Title = string.IsNullOrEmpty(def.AccidentName) ? "설비 이상" : def.AccidentName,
                 State = remaining <= WarningThreshold ? IncidentState.Warning : IncidentState.Caution,
                 CauseText = "근무자 부재",
                 WarningRemainingSeconds = remaining,
-                ActionHint = "직원 배치 필요",
+                WarningTotalSeconds = limit,
+                ActionHint = hint,
                 Severity = remaining <= WarningThreshold ? AlertSeverity.Critical : AlertSeverity.Warning,
                 RepairWorkers = Mathf.Max(1, def.RepairMinWorkers),
                 ConsequenceLines = { ConsequenceText(def.AccidentConsequence, def.AccidentAmount) },
@@ -137,6 +175,7 @@ public static class IncidentBoard
                     State = remaining <= WarningThreshold ? IncidentState.Warning : IncidentState.Caution,
                     CauseText = "점검 미수행",
                     WarningRemainingSeconds = remaining,
+                    WarningTotalSeconds = taskDef.TimeLimitSeconds,
                     ActionHint = $"업무 처리 · 최소 {Mathf.Max(1, taskDef.MinWorkersToProgress)}명",
                     Severity = remaining <= WarningThreshold ? AlertSeverity.Critical : AlertSeverity.Warning,
                     RepairWorkers = Mathf.Max(1, taskDef.MinWorkersToProgress),
@@ -183,10 +222,13 @@ public static class IncidentBoard
     private static void AddOperationalStatus(FacilitySimulation sim, GameState gs, List<IncidentDisplayData> list)
     {
         var cfg = Config.Instance?.Data;
+        // 스트레스가 잠긴 날에는 이 경고 자체가 의미가 없다(환기실 무인 = 스트레스 상승).
+        if (!DayFeatures.StressEnabled) return;
         foreach (string roomId in sim.GetRoomIds())
         {
             var def = sim.GetRoomDef(roomId);
             if (def == null || def.ManagedResource != RoomResourceType.Stress) continue;
+            if (!sim.IsRoomActive(roomId)) continue;
             if (sim.OnDutyCount(roomId) > 0) continue;
 
             list.Add(new IncidentDisplayData

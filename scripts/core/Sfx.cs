@@ -33,6 +33,7 @@ public partial class Sfx : Node
     // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
     // 최소 간격(Rate Limit)으로 너무 촘촘하게 울리지 않게 한다.
     private AudioStreamPlayer _voicePlayer;
+    private AudioStreamPlayer _voiceRadioPlayer;
     private readonly RandomNumberGenerator _voiceRng = new();
     private readonly Dictionary<string, List<AudioStream>> _voiceVariantCache = new();
     private double _lastVoiceBlipMsec = -10000;
@@ -59,6 +60,11 @@ public partial class Sfx : Node
         _voicePlayer = new AudioStreamPlayer { Bus = GameSettings.BusSfx };
         AddChild(_voicePlayer);
 
+        // 무전 채널 — 같은 보이스 파일을 Radio 버스(대역통과+약한 찌그러짐)로만 흘려보낸다.
+        // 직원별 보이스 파일도, 평소 통화/인터뷰 재생 경로도 전혀 바뀌지 않는다.
+        _voiceRadioPlayer = new AudioStreamPlayer { Bus = GameSettings.BusRadio };
+        AddChild(_voiceRadioPlayer);
+
         for (int i = 0; i < 2; i++)
         {
             int idx = i;
@@ -67,7 +73,171 @@ public partial class Sfx : Node
             AddChild(_music[i]);
         }
 
+
+        // 공포 ambience 채널 — 좌우 패닝이 걸린 Horror 버스로만 흘려보낸다.
+        _horrorPlayer = new AudioStreamPlayer { Bus = GameSettings.BusHorror };
+        AddChild(_horrorPlayer);
+
+        // BGM 더킹용 앰프. 버스 맨 앞에 한 번만 끼운다.
+        int bgmBus = AudioServer.GetBusIndex(GameSettings.BusBgm);
+        if (bgmBus >= 0)
+        {
+            // 이펙트가 하나도 없는 버스에 0번을 물으면 Godot 이 오류를 뱉는다.
+            if (AudioServer.GetBusEffectCount(bgmBus) > 0
+                && AudioServer.GetBusEffect(bgmBus, 0) is AudioEffectAmplify existing) _bgmDuck = existing;
+            else
+            {
+                _bgmDuck = new AudioEffectAmplify { VolumeDb = 0f };
+                AudioServer.AddBusEffect(bgmBus, _bgmDuck, 0);
+            }
+        }
+        BuildFacilityBed();
         GetTree().NodeAdded += OnNodeAdded;
+    }
+
+    // ── 시설 환경음 베드 ────────────────────────────────────────────────
+    //
+    // 중앙제어실의 바닥 소음 두 겹. 음악이 아니라 **시설 그 자체의 소리**라서
+    // 음악 채널과 완전히 분리된 Ambience 버스에서 돈다 — 근무가 시작되며 BGM 이
+    // 페이드아웃돼도 이 소리는 끊기지 않는다.
+    //
+    //   machine_bgm        기계실 울림. 둘 중 앞에 세우는 쪽(더 크게).
+    //   industrial_fan_bgm 환기 송풍. 기계음 뒤에 깔린다.
+    //
+    // 위치를 주지 않는다(2D). 중앙제어실의 바닥 소음은 "어느 쪽에서 난다" 가 아니라
+    // 방 전체에 차 있는 소리라, 고개를 어느 쪽으로 돌려도 똑같이 들려야 한다.
+    // 방향이 느껴져야 하는 소리(배관 · 금속 · 전기)는 ControlRoomAtmosphere 가 3D 로 낸다.
+    private AudioStreamPlayer _bedMachine, _bedFan;
+    private float _bedMachineTgt = AmbienceSilentDb, _bedFanTgt = AmbienceSilentDb;
+    // 베드가 목표 음량까지 기어오르는 속도(dB/초). 느릴수록 단계 전환이 자연스럽다.
+    private const float BedRampDbPerSecond = 9f;
+    public const float AmbienceSilentDb = -60f;
+
+    private void BuildFacilityBed()
+    {
+        _bedMachine = MakeBedPlayer("machine_bgm");
+        _bedFan = MakeBedPlayer("industrial_fan_bgm");
+    }
+
+    private AudioStreamPlayer MakeBedPlayer(string name)
+    {
+        string path = MusicPath(name);
+        if (path.Length == 0)
+        {
+            GD.PushWarning($"Sfx: 시설 환경음 '{name}' 을 찾지 못했습니다(assets/audio/bgm/).");
+            return null;
+        }
+        var stream = GD.Load<AudioStream>(path);
+        MakeLooping(stream);
+        var p = new AudioStreamPlayer
+        {
+            Stream = stream, Bus = GameSettings.BusAmbience, VolumeDb = AmbienceSilentDb,
+        };
+        AddChild(p);
+        // 루프 메타데이터가 어긋난 파일이어도 끊기지 않게 한 겹 더 받쳐 둔다.
+        p.Finished += () => { if (IsInstanceValid(p)) p.Play(); };
+        p.Play();
+        return p;
+    }
+
+    // 두 겹의 목표 음량. ControlRoomAtmosphere 가 게임 단계에 맞춰 매 프레임 넘겨 준다.
+    // 실제 음량은 여기서 천천히 따라간다 — 단계가 바뀔 때 뚝 끊기지 않게.
+    public void SetFacilityBed(float machineDb, float fanDb)
+    {
+        _bedMachineTgt = machineDb;
+        _bedFanTgt = fanDb;
+    }
+
+    // 지금 베드가 실제로 내고 있는 음량(검사용).
+    public float BedMachineDb => _bedMachine?.VolumeDb ?? AmbienceSilentDb;
+    public float BedFanDb => _bedFan?.VolumeDb ?? AmbienceSilentDb;
+    public bool BedPlaying => _bedMachine is { Playing: true } && _bedFan is { Playing: true };
+
+    public override void _Process(double delta)
+    {
+        float step = (float)delta * BedRampDbPerSecond;
+        if (_bedMachine != null)
+            _bedMachine.VolumeDb = Mathf.MoveToward(_bedMachine.VolumeDb, _bedMachineTgt, step);
+        if (_bedFan != null)
+            _bedFan.VolumeDb = Mathf.MoveToward(_bedFan.VolumeDb, _bedFanTgt, step);
+
+        // 더킹 복구 — 말소리가 끊긴 뒤 천천히 제자리로.
+        if (_ambDuck == null) return;
+        _ambDuckHold -= (float)delta;
+        if (_ambDuckHold > 0f) return;
+        _ambDuck.VolumeDb = Mathf.MoveToward(_ambDuck.VolumeDb, 0f, (float)delta * 6f);
+    }
+
+    // ── 더킹 : 환경음이 말을 덮지 않게 ──────────────────────────────────
+    //
+    // 대사 · 전화 음성 · 공포 효과음이 울리는 동안 환경음 버스만 잠깐 누른다.
+    // 전체 음량을 낮추는 게 아니라 **환경음만** 비켜 주는 것이라, 소리가 작아진 느낌
+    // 없이 말이 또렷해진다.
+    private AudioEffectAmplify _ambDuck;
+    private float _ambDuckHold;
+    // 말이 흐르는 동안 환경음을 이만큼 누르고, 글자가 끊긴 뒤 이만큼 더 눌러 둔다.
+    private const float VoiceDuckDb = -7f;
+    private const float VoiceDuckHold = 0.22f;
+    private const float HorrorDuckDb = -10f;
+    private const float HorrorDuckHold = 1.1f;
+
+    private void DuckAmbience(float db, float holdSeconds)
+    {
+        if (_ambDuck == null)
+        {
+            int bus = AudioServer.GetBusIndex(GameSettings.BusAmbience);
+            if (bus < 0) return;
+            // 버스에 이펙트가 하나도 없는데 0번을 물으면 Godot 이 오류를 뱉는다.
+            if (AudioServer.GetBusEffectCount(bus) > 0
+                && AudioServer.GetBusEffect(bus, 0) is AudioEffectAmplify had) _ambDuck = had;
+            else
+            {
+                _ambDuck = new AudioEffectAmplify { VolumeDb = 0f };
+                AudioServer.AddBusEffect(bus, _ambDuck, 0);
+            }
+        }
+        _ambDuck.VolumeDb = Mathf.Min(_ambDuck.VolumeDb, db);
+        _ambDuckHold = Mathf.Max(_ambDuckHold, holdSeconds);
+    }
+
+    // ── 루프 ────────────────────────────────────────────────────────────
+    //
+    // **이것이 환경음이 안 들리던 원인이다.** 가져온 .wav 는 전부 loop_mode=0 으로
+    // 임포트되어 있어서, 코드에서 LoopMode 만 Forward 로 바꾸면 루프 구간이
+    // [0, 0) 인 채로 남는다. 그러면 한 바퀴 돌고 **그대로 멈춘다** — 근무 시작 몇 초
+    // 뒤부터 환풍구도 기계음도 CRT 험도 전부 정지해 있었다(진단에서 재생=X 로 확인).
+    // 구간 끝(LoopEnd)을 파일 길이로 채워 줘야 비로소 돈다.
+    public static void MakeLooping(AudioStream stream)
+    {
+        switch (stream)
+        {
+            case AudioStreamWav wav:
+                wav.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
+                wav.LoopBegin = 0;
+                // 프레임 수는 **길이 × 샘플레이트**로 구한다. 바이트 수로 계산하면
+                // 압축 임포트(QOA · IMA-ADPCM)에서 0 이 나와 루프가 또 비어 버린다 —
+                // 이 프로젝트의 환경음 wav 는 전부 QOA 로 임포트되어 있다.
+                int frames = Mathf.RoundToInt((float)wav.GetLength() * wav.MixRate);
+                if (frames > 0) wav.LoopEnd = frames;
+                break;
+            case AudioStreamOggVorbis ogg: ogg.Loop = true; break;
+            case AudioStreamMP3 mp3: mp3.Loop = true; break;
+        }
+    }
+
+    // 루프 메타데이터가 어긋난 파일이어도 끊기지 않게 하는 안전망.
+    // 끝까지 간 플레이어를 바로 다시 돌린다(아주 짧은 이음매가 생기지만 무음보다 낫다).
+    // 새 음원으로 갈아끼웠을 때 임포트 설정이 또 loop 꺼짐이어도 이쪽이 받아 준다.
+    public static void KeepLooping(AudioStreamPlayer p)
+    {
+        if (p == null) return;
+        p.Finished += () => { if (IsInstanceValid(p) && p.Stream != null) p.Play(); };
+    }
+
+    public static void KeepLooping(AudioStreamPlayer3D p)
+    {
+        if (p == null) return;
+        p.Finished += () => { if (IsInstanceValid(p) && p.Stream != null) p.Play(); };
     }
 
     private void OnMusicFinished(int idx)
@@ -79,8 +249,14 @@ public partial class Sfx : Node
     }
 
     // --- BGM (bgm/ 폴더) — 크로스페이드 ------------------------------------
+
+    // BGM 기본 음량. 음량을 따로 적지 않은 호출(메인 BGM `rest_time` — 근무 배치 ·
+    // 휴게시간)이 전부 이 값으로 울린다. 곡 전체 음량을 바꾸려면 여기 하나만 고친다.
+    // 시작 화면처럼 일부러 더 작게 깔아야 하는 자리는 호출부에서 따로 적는다.
+    public const float MusicDefaultDb = -3.5f;
+
     // 기존 호출 호환: 즉시(짧은 페이드) 루프 재생.
-    public void PlayMusic(string name, float volumeDb = -6f) => CrossfadeMusic(name, 0.15f, true, 0f, volumeDb);
+    public void PlayMusic(string name, float volumeDb = MusicDefaultDb) => CrossfadeMusic(name, 0.15f, true, 0f, volumeDb);
 
     // 현재 곡을 페이드아웃하며 name 을 페이드인한다.
     //  fadeSeconds  : 페이드 길이(아웃/인 동시 = 크로스페이드)
@@ -88,14 +264,13 @@ public partial class Sfx : Node
     //  startSeconds : 이 지점부터 재생 시작
     //  restartIfSame: 같은 곡이어도 처음부터 다시 페이드(씬 전환 체감용)
     public void CrossfadeMusic(string name, float fadeSeconds = 0.8f, bool loop = true,
-                               float startSeconds = 0f, float targetDb = -6f, bool restartIfSame = false)
+                               float startSeconds = 0f, float targetDb = MusicDefaultDb, bool restartIfSame = false)
     {
         if (name == _musicName && !restartIfSame && _music[_musicActive].Playing) return;
 
         // BGM은 용량 때문에 .ogg 로 보관한다(.wav 는 이전 자산 호환용 폴백).
-        string path = $"res://assets/audio/bgm/{name}.ogg";
-        if (!ResourceLoader.Exists(path)) path = $"res://assets/audio/bgm/{name}.wav";
-        if (!ResourceLoader.Exists(path)) { FadeOutMusic(fadeSeconds); return; }
+        string path = MusicPath(name);
+        if (path.Length == 0) { FadeOutMusic(fadeSeconds); return; }
         float fade = Mathf.Max(0.02f, fadeSeconds);
 
         int inIdx = 1 - _musicActive;
@@ -145,6 +320,89 @@ public partial class Sfx : Node
         foreach (var p in _music) if (IsInstanceValid(p)) p.Stop();
     }
 
+
+    // BGM 파일 하나. 용량 때문에 .ogg 로 보관하지만, 받아 온 곡이 .mp3 인 경우도 있다
+    // (스토리 전용 breakroom.mp3). 못 찾으면 빈 문자열.
+    private static string MusicPath(string name)
+    {
+        foreach (string ext in new[] { ".ogg", ".mp3", ".wav" })
+        {
+            string p = $"res://assets/audio/bgm/{name}{ext}";
+            if (ResourceLoader.Exists(p)) return p;
+        }
+        return "";
+    }
+
+    // 그 BGM 파일이 실제로 있는가(검사용).
+    public static bool HasMusic(string name) => MusicPath(name).Length > 0;
+
+    // 지금 울리고 있는 BGM 이름. 스토리가 끝난 뒤 되돌릴 곡을 기억해 두는 데 쓴다.
+    public string CurrentMusic => _musicName;
+
+    // ── 공포 ambience ────────────────────────────────────────────────
+    //
+    // 전용 채널 하나만 쓴다. 공포음은 **겹치지 않는 것이 규칙**이고(§12 — 같은 소리
+    // 연속 재생 금지 · 긴 쿨다운), 채널이 하나면 새 소리가 앞 소리를 자연히 끊는다.
+    // 좌우는 버스의 패너로 준다 — 파일은 전부 모노다.
+    private AudioStreamPlayer _horrorPlayer;
+
+    // 공포음 하나. pan 은 -1(왼쪽) ~ +1(오른쪽).
+    //
+    // **게임 정보음이 아니다.** 이 길로 나가는 소리는 플레이어가 확인해야 할 것을
+    // 알리지 않는다(§13). 전화벨 · 경고음은 여전히 Play() 로 SFX 버스를 쓴다.
+    public void PlayHorror(string key, float volumeDb = -18f, float pan = 0f, float pitch = 1f)
+    {
+        var stream = Load(key);
+        if (stream == null || _horrorPlayer == null) return;
+        GameSettings.SetHorrorPan(pan);
+        // 공포음은 조용한 자리에서 나야 무섭다 — 울리는 동안 시설 소음을 더 깊이 누른다.
+        DuckAmbience(HorrorDuckDb, HorrorDuckHold);
+        _horrorPlayer.Stream = stream;
+        _horrorPlayer.VolumeDb = volumeDb;
+        _horrorPlayer.PitchScale = Mathf.Clamp(pitch, 0.1f, 4f);
+        _horrorPlayer.Play();
+    }
+
+    // 지금 공포음이 울리고 있는가(검사 · 중복 방지용).
+    public bool HorrorPlaying => _horrorPlayer is { Playing: true };
+
+    public void StopHorror()
+    {
+        if (_horrorPlayer != null && IsInstanceValid(_horrorPlayer)) _horrorPlayer.Stop();
+    }
+
+    // ── BGM 더킹 ─────────────────────────────────────────────────────
+    //
+    // 강한 공포음이 울리는 동안 BGM 만 아주 잠깐 내린다(§17).
+    //
+    // 곡 플레이어의 volume_db 를 건드리지 않는다 — 거기는 크로스페이드 트윈이 쓰는
+    // 자리라 둘이 부딪히면 곡이 묻히거나 터진다. 대신 BGM 버스 맨 앞에 앰프 하나를
+    // 두고 그 값만 흔든다. 사용자가 설정한 BGM 볼륨과도 섞이지 않는다.
+    private AudioEffectAmplify _bgmDuck;
+    private Tween _duckTween;
+
+    public void DuckMusic(float db = -3f, float holdSeconds = 0.6f, float fade = 0.12f)
+    {
+        if (_bgmDuck == null) return;
+        float amount = Mathf.Clamp(db, -12f, 0f);
+        _duckTween?.Kill();
+        _duckTween = CreateTween();
+        _duckTween.TweenProperty(_bgmDuck, "volume_db", amount, fade).SetTrans(Tween.TransitionType.Sine);
+        _duckTween.TweenInterval(Mathf.Max(0f, holdSeconds));
+        _duckTween.TweenProperty(_bgmDuck, "volume_db", 0f, Mathf.Max(0.05f, fade * 3f))
+            .SetTrans(Tween.TransitionType.Sine);
+    }
+
+    // 더킹을 즉시 되돌린다(스토리 fail-safe 가 부른다).
+    public void ClearDuck()
+    {
+        _duckTween?.Kill();
+        _duckTween = null;
+        if (_bgmDuck != null) _bgmDuck.VolumeDb = 0f;
+    }
+
+    // 지금 BGM 이 눌려 있는 양(dB · 검사용).
+    public float DuckDb => _bgmDuck?.VolumeDb ?? 0f;
     public override void _ExitTree()
     {
         var tree = GetTree();
@@ -158,15 +416,77 @@ public partial class Sfx : Node
             b.Pressed += () => Play("click", -8f);
     }
 
+    // 효과음 파일 하나. 확장자는 넣어 준 순서대로 찾는다 — 새로 넣는 소리가 .ogg 여도
+    // 코드에서는 파일 이름만 쓰면 된다.
+    private static readonly string[] SfxExtensions = { ".wav", ".ogg", ".mp3" };
+
+
+    // 이 키의 소리 파일이 실제로 있는가. 없는 키로 Play 를 부르면 아무 일도 일어나지 않아
+    // "효과음이 안 난다"가 된다 — 검사(QaFixTest)가 그걸 먼저 잡는다.
+    public bool Has(string key) => Load(key) != null;
+
     private AudioStream Load(string key)
     {
         if (_cache.TryGetValue(key, out var s)) return s;
-        string path = key == "electrical_background"
-            ? "res://assets/audio/electrical_noise2_[cut_3sec].mp3"
-            : $"res://assets/audio/sfx/{key}.wav";
-        s = ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;
+        if (key == "electrical_background")
+        {
+            const string bg = "res://assets/audio/electrical_noise2_[cut_3sec].mp3";
+            s = ResourceLoader.Exists(bg) ? GD.Load<AudioStream>(bg) : null;
+            _cache[key] = s;
+            return s;
+        }
+        foreach (string ext in SfxExtensions)
+        {
+            string path = $"res://assets/audio/sfx/{key}{ext}";
+            if (!ResourceLoader.Exists(path)) continue;
+            s = GD.Load<AudioStream>(path);
+            break;
+        }
         _cache[key] = s;
         return s;
+    }
+
+    // ── 괴물의 비명 ───────────────────────────────────────────────────
+    // 두 녹음 중 하나를 무작위로, **아주 크게**, 울리는 버스로 내보낸다.
+    // 이 소리 하나가 "지금 저 방에 그것이 있다"를 알려 주는 유일한 신호라서
+    // 다른 효과음과 같은 크기면 묻힌다.
+    private static readonly string[] GhostScreams =
+    {
+        "귀신비명1_CCTV_괴기", "귀신비명2_CCTV_괴기",
+    };
+
+    // 비명은 전용 재생기를 쓴다. 공용 풀을 빌리면 다음 효과음이 끼어들며 소리가 잘리고,
+    // 울림 버스가 그 재생기에 그대로 남는다.
+    private AudioStreamPlayer _screamPlayer;
+
+    // volumeDb 기본값이 크다. 이 소리는 "지금 저 방에 그것이 있다"를 알려 주는 유일한
+    // 신호라 다른 효과음과 같은 크기면 묻힌다. 버스 쪽 리미터가 찢어지는 것을 막는다.
+    public void PlayGhostScream(float volumeDb = 15f)
+    {
+        string key = GhostScreams[(int)(GD.Randi() % (uint)GhostScreams.Length)];
+        var stream = Load(key);
+        if (stream == null) { Play("alert_beep3", 2f); return; }
+
+        if (_screamPlayer == null)
+        {
+            _screamPlayer = new AudioStreamPlayer { Bus = GameSettings.BusScream };
+            AddChild(_screamPlayer);
+        }
+        _screamPlayer.Stream = stream;
+        _screamPlayer.VolumeDb = volumeDb;
+        _screamPlayer.PitchScale = (float)GD.RandRange(0.92, 1.05);
+        _screamPlayer.Play();
+    }
+
+    // 벽 너머로 새어 나오는 정도의 기척.
+    //
+    // 전용 비명 버스(Scream)를 쓰지 않는다. 그쪽은 "존나 크게" 나가도록 버스 +10dB 에
+    // 리미터 프리게인 +12dB 가 걸려 있어서, 재생기 볼륨을 아무리 낮춰도 도로 끌어올려진다.
+    // 여기서는 평범한 효과음 버스로, 낮은 피치(먹먹하게)로 작게 흘린다.
+    public void PlayGhostScreamDistant(float volumeDb = -20f)
+    {
+        string key = GhostScreams[(int)(GD.Randi() % (uint)GhostScreams.Length)];
+        Play(key, volumeDb, (float)GD.RandRange(0.80, 0.90));
     }
 
     public void Play(string key, float volumeDb = 0f, float pitch = 1f)
@@ -203,7 +523,17 @@ public partial class Sfx : Node
     // res://assets/audio/sfx_voice_{employeeId}_01.wav, _02, _03... 처럼 variant가
     // 여러 개 있으면 매번 그중 하나를 무작위로 골라 같은 글자에도 완전히 같은 소리가
     // 반복되지 않게 한다(variant가 없는 캐릭터는 voice_{employeeId}.wav 단일 파일로 폴백).
-    public void PlayVoiceBlip(string employeeId, char c)
+    // radio: true 면 같은 보이스를 무전 버스로 흘린다(프롤로그 대재난 무전 전용).
+    // 기본값이 false 라 기존 호출부(전화/인터뷰)의 동작은 한 글자도 바뀌지 않는다.
+    // pitchMul: 1 보다 작으면 그만큼 낮고 굵은 목소리가 된다(관리자 = 0.6 — ManagerVoicePitch).
+    // ── 통화 신호 왜곡(지시서 §6-2 ①) ────────────────────────────────
+    //
+    // 0 = 정상, 1 = 완전히 비틀림. **소리만** 바뀐다 — 대사 내용도, 통화 기록도,
+    // 증거 카드도 한 글자 건드리지 않는다. 결번자 신원을 오판하게 만들 수 있는
+    // 거짓 공식 증거를 만들지 않기 위해서다. 통화가 끝나면 0 으로 되돌린다.
+    public float VoiceWarp;
+
+    public void PlayVoiceBlip(string employeeId, char c, bool radio = false, float pitchMul = 1f)
     {
         if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
 
@@ -213,11 +543,26 @@ public partial class Sfx : Node
         var variants = LoadVoiceVariants(employeeId);
         if (variants.Count == 0) return;
 
+        var player = radio ? _voiceRadioPlayer : _voicePlayer;
+        if (player == null) return;
+
+        // 신호가 비틀리는 중이면 가끔 한 음절이 통째로 사라진다(§6-2 ①).
+        if (VoiceWarp > 0f && _voiceRng.Randf() < VoiceWarp * 0.22f) return;
+
         _lastVoiceBlipMsec = now;
-        _voicePlayer.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
+        // 말하는 동안 시설 소음만 살짝 비켜 준다 — 전화 · 인터뷰 · 컷인 전부 이 길을 탄다.
+        DuckAmbience(VoiceDuckDb, VoiceDuckHold);
+        player.Stream = variants[_voiceRng.RandiRange(0, variants.Count - 1)];
         float semitones = _voiceRng.RandfRange(-VoicePitchVariationSemitones, VoicePitchVariationSemitones);
-        _voicePlayer.PitchScale = Mathf.Pow(2f, semitones / 12f);
-        _voicePlayer.Play();
+        float warp = 1f;
+        if (VoiceWarp > 0f)
+        {
+            float w = Mathf.Clamp(VoiceWarp, 0f, 1f);
+            // 서서히 낮아지고, 재생 속도가 불안하게 흔들린다.
+            warp = Mathf.Lerp(1f, 0.58f, w) * (1f + _voiceRng.RandfRange(-0.14f, 0.14f) * w);
+        }
+        player.PitchScale = Mathf.Clamp(Mathf.Pow(2f, semitones / 12f) * pitchMul * warp, 0.1f, 4f);
+        player.Play();
     }
 
     private List<AudioStream> LoadVoiceVariants(string employeeId)
@@ -245,9 +590,13 @@ public partial class Sfx : Node
     }
 
     // 대사 스킵/즉시 완성 시 트레일링 블립을 바로 끊는다.
-    public void StopVoiceBlip() => _voicePlayer?.Stop();
+    public void StopVoiceBlip()
+    {
+        _voicePlayer?.Stop();
+        _voiceRadioPlayer?.Stop();
+    }
 
-    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 결번자 웃음 -------------
+    // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 개체 웃음 -------------
     private readonly Dictionary<string, AudioStream> _employeeScreamStreams = new();
     private AudioStream _laughStream, _jumpscareToneStream;
 
@@ -264,14 +613,14 @@ public partial class Sfx : Node
         PlayGenerated(scream, volumeDb, _voiceRng.RandfRange(0.97f, 1.03f));
     }
 
-    // 결번자 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
+    // 개체 웃음 — 낮은 기음의 하강하는 톤 버스트("허 허 허") + 서브하모닉 왜곡.
     public void PlayEntityLaugh(float volumeDb = -4f)
     {
         _laughStream ??= BuildLaugh();
         PlayGenerated(_laughStream, volumeDb, _voiceRng.RandfRange(0.94f, 1.03f));
     }
 
-    // 결번자가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
+    // 개체가 플레이어 시야를 덮을 때의 짧고 날카로운 전자음.
     public void PlayJumpscareTone(float volumeDb = -1f)
     {
         _jumpscareToneStream ??= BuildJumpscareTone();
@@ -320,15 +669,15 @@ public partial class Sfx : Node
     private static AudioStreamWav BuildEmployeeScream(string employeeId)
     {
         const int rate = 22050;
-        // 낮고 절제된 올빼미/까마귀, 날카로운 고양이, 떨리는 해파리,
-        // 밝고 높은 토끼, 중간 톤의 여우로 기존 음성 인상을 유지한다.
+        // 낮고 거친 늑대, 따뜻한 중간 톤의 강아지, 날카로운 고양이, 떨리는 양,
+        // 밝고 높은 토끼, 중간 톤의 여우.
         (float startHz, float peakHz, float duration, float rough, float vibrato, float fall) profile = employeeId switch
         {
-            "owl" => (310f, 610f, 0.86f, 0.18f, 24f, 0.72f),
+            "dog" => (400f, 780f, 0.80f, 0.16f, 30f, 0.68f),
             "cat" => (510f, 970f, 0.68f, 0.25f, 38f, 0.60f),
-            "jellyfish" => (560f, 1040f, 0.94f, 0.22f, 46f, 0.78f),
+            "sheep" => (570f, 1060f, 0.96f, 0.22f, 48f, 0.80f),
             "rabbit" => (590f, 1120f, 0.78f, 0.17f, 42f, 0.66f),
-            "crow" => (250f, 540f, 0.82f, 0.34f, 28f, 0.70f),
+            "wolf" => (240f, 520f, 0.80f, 0.34f, 24f, 0.70f),
             "fox" => (430f, 820f, 0.84f, 0.20f, 32f, 0.68f),
             _ => (460f, 860f, 0.78f, 0.25f, 36f, 0.66f),
         };
@@ -353,7 +702,7 @@ public partial class Sfx : Node
             float glottal = Mathf.Sin(ph) + 0.46f * Mathf.Sin(ph * 2.03f)
                 + 0.20f * Mathf.Sin(ph * 3.01f) + 0.08f * Mathf.Sin(ph * 4.97f);
             breath = Mathf.Lerp(breath, rng.RandfRange(-1f, 1f), 0.34f);
-            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "jellyfish" ? 17f : 11f) * Mathf.Tau);
+            float tremble = 0.86f + 0.14f * Mathf.Sin(t * (employeeId == "sheep" ? 17f : 11f) * Mathf.Tau);
             float attack = Mathf.Min(1f, t * 34f);
             float release = Mathf.Pow(Mathf.Max(0f, 1f - t), 0.42f);
             float env = attack * release * tremble;
@@ -412,6 +761,25 @@ public partial class Sfx : Node
         p.Play();
         _loops[key] = p;
     }
+
+    // 돌고 있는 루프의 볼륨만 바꾼다(엔딩 경고음이 점점 커지는 연출).
+    public void SetLoopVolume(string key, float volumeDb)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p)) p.VolumeDb = volumeDb;
+    }
+
+    // 돌고 있는 루프의 음량(dB). 돌고 있지 않으면 -200 — 검사 · 진단용이다.
+    public float LoopVolumeDb(string key) =>
+        _loops.TryGetValue(key, out var p) && IsInstanceValid(p) ? p.VolumeDb : -200f;
+
+    // 돌고 있는 루프의 피치만 바꾼다(엔딩에서 환풍기가 느려지다 멈추는 연출).
+    public void SetLoopPitch(string key, float pitch)
+    {
+        if (_loops.TryGetValue(key, out var p) && IsInstanceValid(p))
+            p.PitchScale = Mathf.Max(0.01f, pitch);
+    }
+
+    public bool IsLooping(string key) => _loops.ContainsKey(key);
 
     public void StopLoop(string key)
     {

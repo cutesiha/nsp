@@ -35,10 +35,45 @@ public partial class EmployeeDef : Resource
     // 코드에 하드코딩하지 않고 캐릭터 데이터에서 관리한다.
     [Export] public float IncomingCallPatienceSeconds = 5f;
 
+    // 이 직원이 근무에 나오는 날. DAY0(교육)에는 0 인 직원만 나온다.
+    // 데이터만 바꾸면 되므로 튜토리얼 인원 구성은 코드를 고치지 않고 조정할 수 있다.
+    [Export] public int UnlockDay = 1;
+
     [Export] public string StartRoomId = "";
     [Export] public Color IconColor = new Color(0.7f, 0.7f, 0.7f);
     [Export] public Texture2D StandingImage;
     [Export] public Texture2D FacePortrait;
+
+    // 모니터2 의 신원 확인 화면이 쓰는 증명사진(정사각). 시작 화면의 직원 카드와
+    // 근무 배치의 직원 블록 6개가 이 그림을 쓴다. 비어 있으면 FacePortrait 로 떨어진다.
+    [Export] public Texture2D IdPhoto;
+    // 근무 배치에서 직원 블록을 고르면 왼쪽에 크게 뜨는 상반신(3:4). 잘라 쓰지 않고
+    // 비율 그대로 칸에 넣는다. 비어 있으면 StandingImage 를 예전 방식으로 잘라 쓴다.
+    [Export] public Texture2D SchedulePortrait;
+
+    // 휴게시간 심문 스탠딩 일러의 중앙 발광(nsp_crt_glow_standing.gdshader 의 glow_amt / glow_center).
+    // 원화마다 밝기가 달라 흰 옷 캐릭터는 같은 세기에서도 빛이 과하게 번진다 — 캐릭터별로 낮춘다.
+    // glow_center 는 원화 UV 기준(0=위, 1=아래). y 를 줄이면 빛이 위로, 늘리면 아래로 간다.
+    [Export(PropertyHint.Range, "0,3,0.05")] public float StandingGlowAmt = 0.9f;
+    [Export] public Vector2 StandingGlowCenter = new(0.5f, 0.46f);
+    // 휴게 CCTV 스탠딩을 위로 올리는 양(px). 키 작은 직원의 얼굴이 화면 가운데 쪽에 오게.
+    [Export] public float InterviewPortraitLift = 0f;
+
+    // ── 관리자 패드 · 직원 탭(인사 기록) ─────────────────────────────────
+    // 코드네임 뒤 신원은 비밀이다 — 성별은 "(추정)" 톤으로 적는다.
+    // 추리에 영향을 주는 정보(누가 방해자인지 가리키는 말)는 넣지 않는다.
+    [ExportGroup("관리자 패드 인사 기록")]
+    [Export] public string Gender = "";
+    // 한 줄 성격 요약 — 관리자가 보는 인사 기록의 문체.
+    [Export] public string ShortProfileLine = "";
+    // 본인이 직접 써 낸 자기소개 한 문장(그 사람 말투 그대로).
+    [Export] public string SelfIntroLine = "";
+    [Export] public string FavoriteFood = "";
+    [Export] public string DislikedFood = "";
+    // 초상(FacePortrait)에서 머리 한가운데의 자리(UV, 0~1). 패드 직원 카드가 이 점을 칸 가운데에 둔다.
+    [Export] public Vector2 PortraitFocus = new(0.5f, 0.43f);
+    // 귀 끝~턱이 초상 높이에서 차지하는 비율. 카드 칸 높이에 이만큼이 꼭 맞게 들어간다.
+    [Export(PropertyHint.Range, "0.3,1,0.01")] public float PortraitHeadSpan = 0.74f;
 
     public int GetStat(StatType stat) => stat switch
     {

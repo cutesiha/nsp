@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ThreatZoneDef" load_steps=2 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 출현 구역 A — 외곽 대피 통로 (OUTER EVACUATION PASSAGE)
+;
+; 시설 외부와 이어진 폐쇄된 피난 통로. 인간형(결번자 형태) 괴물이 여기서 나온다.
+; 직원은 들어갈 수 없다 — 작업실이 아니라서 배치표에도, 길찾기에도 없다.
+;
+; 북측(코어실 방향)과 동측(저장고 방향) 접근 복도로 들어올 수 있다.
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/ThreatZoneDef.cs" id="1_z"]
+
+[resource]
+script = ExtResource("1_z")
+ZoneId = "zone_evacuation"
+DisplayName = "외곽 대피 통로"
+CodeName = "OUTER EVAC"
+Kind = 0
+MapAnchor = Vector2(0.5, -0.055)
+ApproachSegmentIds = PackedStringArray("corridor_north", "corridor_east")
+OuterTravelSeconds = 10.0
