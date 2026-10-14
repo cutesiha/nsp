@@ -92,6 +92,19 @@ public partial class ScheduleMapView : Control
     private Vector2 _mouse = new(-100f, -100f);
     private bool _dragging;
 
+    // 배치를 거부한 이유를 아래 상태 줄에 몇 초만 띄운다(사망 · 격리 · 기절).
+    // 거부만 하고 조용히 있으면 플레이어에게는 조작이 먹지 않는 고장으로 보인다.
+    private const float RefusalSeconds = 3.2f;
+    private string _refusal = "";
+    private float _refusalAge = RefusalSeconds;
+
+    private void Refuse(string text)
+    {
+        _refusal = text;
+        _refusalAge = 0f;
+        Sfx.Instance?.Play("alert_beep3", -9f, 0.85f);
+    }
+
     public override void _Ready()
     {
         Instance = this;
@@ -128,6 +141,7 @@ public partial class ScheduleMapView : Control
     public override void _Process(double delta)
     {
         _t += (float)delta;
+        _refusalAge += (float)delta;
         var sim = FacilitySimulation.Instance;
         ComputeLayout(sim);
         // 동실 거부(Refuse) 쌍이 한 방에 있으면 근무를 시작할 수 없다 — 버튼도 붉게 죽인다.
@@ -266,6 +280,10 @@ public partial class ScheduleMapView : Control
         var sim = FacilitySimulation.Instance;
         if (sim == null || !IsAssignable(sim, roomId)) return false;
         var st = sim.GetEmployeeState(employeeId);
+        // 죽은 직원은 배치 대상이 아니다. AssignToRoom 도 같은 규칙이라 전에도 배치는
+        // 되지 않았지만, 여기서 걸러 주지 않으면 화면이 아무 말도 하지 않아
+        // **"끌어다 놓아도 아무 일도 안 일어나는 고장"** 으로 보였다.
+        if (st != null && !st.Alive) return false;
         if (st != null && st.Isolated) return false;            // 격리 중에는 배치할 수 없다
         // 기절한 직원은 회복 전까지 의무실 밖으로 못 나간다(AssignToRoom 도 같은 규칙).
         if (sim.MustStayInMedical(employeeId) && roomId != FacilitySimulation.MedicalRoomIdPublic) return false;
@@ -651,6 +669,18 @@ public partial class ScheduleMapView : Control
 
     private void DrawChip(Rect2 chip, EmployeeDef def, string name, string emp, int fontSize)
     {
+        // 사망자가 아직 어느 방에 적혀 있는 경우(근무 중 사망) — 칩에도 ✕ 를 둔다.
+        if (FacilitySimulation.Instance?.GetEmployeeState(emp)?.Alive == false)
+        {
+            DrawRect(chip, new Color(0.18f, 0.05f, 0.06f, 0.95f));
+            DrawRect(new Rect2(chip.Position, new Vector2(3f, chip.Size.Y)), Alert);
+            DrawRect(chip, Alert with { A = 0.8f }, false, 1.4f);
+            DrawLine(chip.Position, chip.End, Alert with { A = 0.55f }, 1.6f);
+            DrawString(_font, chip.Position + new Vector2(7f, chip.Size.Y * 0.5f + fontSize * 0.42f),
+                name + " ✕", HorizontalAlignment.Left, chip.Size.X - 9f, Fs(fontSize), Dim);
+            return;
+        }
+
         bool dragged = _dragging && _dragEmp == emp;
         bool selected = emp == SelectedEmployeeId || emp == FocusEmployeeId;
         bool hot = emp == _hoverEmp && !dragged;
@@ -682,19 +712,23 @@ public partial class ScheduleMapView : Control
             bool assigned = !string.IsNullOrEmpty(st.AssignedRoomId);
             bool selected = emp == SelectedEmployeeId || emp == FocusEmployeeId;
             bool dragged = _dragging && _dragEmp == emp;
-            bool hot = emp == _hoverEmp && !dragged && !st.Isolated;
-            // 격리된 직원 — 오늘 근무에 넣을 수 없다. 칸 전체를 붉게 칠해 구분한다.
-            DrawRect(card, st.Isolated
+            // 사망 — 격리와 같은 "오늘 근무에 넣을 수 없는 칸"이다. 다만 격리는 되돌릴 수
+            // 있고 사망은 아니라, 글자까지 끝까지 못 박아 둔다(아래 sub).
+            bool dead = !st.Alive;
+            bool benched = dead || st.Isolated;
+            bool hot = emp == _hoverEmp && !dragged && !benched;
+            // 넣을 수 없는 직원 — 칸 전체를 붉게 칠해 구분한다.
+            DrawRect(card, benched
                 ? new Color(0.20f, 0.05f, 0.06f, 0.95f)
                 : hot ? new Color(0.07f, 0.15f, 0.16f, 0.95f)
                 : new Color(0.05f, 0.11f, 0.11f, dragged ? 0.4f : 0.95f));
             DrawRect(new Rect2(card.Position, new Vector2(3f, card.Size.Y)),
-                st.Isolated ? Alert : def.IconColor);
+                benched ? Alert : def.IconColor);
             // 마우스를 올리면 테두리가 하늘색으로 — 시작 화면 신원 카드와 같은 규칙.
-            DrawRect(card, st.Isolated ? Alert with { A = 0.85f }
+            DrawRect(card, benched ? Alert with { A = 0.85f }
                     : hot ? Cyan
                     : selected ? Ink : Mint with { A = assigned ? 0.18f : 0.45f },
-                false, st.Isolated || selected || hot ? 1.8f : 1f);
+                false, benched || selected || hot ? 1.8f : 1f);
 
             // 얼굴.
             float ps = Mathf.Min(h - 8f, 38f);
@@ -703,19 +737,27 @@ public partial class ScheduleMapView : Control
             if (def.FacePortrait != null) DrawContained(def.FacePortrait, face);
             else DrawCircle(face.GetCenter(), ps * 0.34f, def.IconColor);
             DrawRect(face, Dim with { A = 0.6f }, false, 1f);
+            if (dead)
+            {
+                DrawLine(face.Position, face.End, Alert with { A = 0.9f }, 2f);
+                DrawLine(new Vector2(face.Position.X, face.End.Y), new Vector2(face.End.X, face.Position.Y),
+                    Alert with { A = 0.9f }, 2f);
+            }
 
             float tx = face.End.X + 8f;
             DrawString(_font, new Vector2(tx, card.Position.Y + h * 0.5f - 2f), def.Codename,
-                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(14), assigned ? Ink with { A = 0.7f } : Ink);
+                HorizontalAlignment.Left, card.End.X - tx - 4f, Fs(14),
+                dead ? Dim : assigned ? Ink with { A = 0.7f } : Ink);
 
             // 기분은 모니터 2 가 맡는다 — 여기는 "지금 어디에 있는가" 만.
-            // 다만 배치할 수 없는 사람(기절 · 격리)과 스트레스 구간은 여기서도 바로 보여야 한다(F-2).
-            string sub = st.Incapacitated ? "기절 · 의무실에서 회복 필요"
+            // 다만 배치할 수 없는 사람(사망 · 기절 · 격리)과 스트레스 구간은 여기서도 바로 보여야 한다(F-2).
+            string sub = dead ? "■ 사망 · 배치 불가"
+                : st.Incapacitated ? "기절 · 의무실에서 회복 필요"
                 : st.Isolated ? "[격리] · 근무 불가"
                 : assigned ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
                 : "미배치";
-            var subCol = st.Incapacitated || st.Isolated ? Alert : assigned ? Mint : Amber;
-            if (NSP.Core.DayFeatures.StressEnabled && !st.Incapacitated && !st.Isolated)
+            var subCol = dead || st.Incapacitated || st.Isolated ? Alert : assigned ? Mint : Amber;
+            if (NSP.Core.DayFeatures.StressEnabled && !dead && !st.Incapacitated && !st.Isolated)
             {
                 string band = sim.StressBandName(st);
                 if (band != "정상")
@@ -732,8 +774,12 @@ public partial class ScheduleMapView : Control
     private void DrawFooter(FacilitySimulation sim)
     {
         var roster = sim.GetActiveEmployeeIds();
-        int total = roster.Count;
-        int placed = roster.Count(id => !string.IsNullOrEmpty(sim.GetEmployeeState(id)?.AssignedRoomId));
+        // **사망자는 편성 대상이 아니다.** 머릿수에 넣어 두면 아무리 배치해도 "미배치 1명"
+        // 이 남아, 다 했는데도 덜 한 것처럼 보인다.
+        int dead = roster.Count(id => sim.GetEmployeeState(id)?.Alive == false);
+        int total = roster.Count - dead;
+        int placed = roster.Count(id => sim.GetEmployeeState(id) is { Alive: true } s
+                                        && !string.IsNullOrEmpty(s.AssignedRoomId));
         int missing = total - placed;
         bool core = CoreStaffed(sim);
         var refused = RefusedPairs(sim);
@@ -741,12 +787,18 @@ public partial class ScheduleMapView : Control
             .SelectMany(r => RoomPairs(sim, r)).Where(p => p.Band == PairBand.Uneasy).ToList();
 
         // 거부 > 코어 미배치 > 인원 순. 불편 쌍은 시작을 막지 않으므로 인원 줄 위에 따로 싣는다.
-        string status = refused.Count > 0
+        // 지시를 거부한 직후에는 그 이유를 먼저 띄운다 — 조작이 먹지 않는 것처럼 보이지 않게.
+        string deadNote = dead > 0 ? $"  ·  사망 {dead}명" : "";
+        string status = _refusalAge < RefusalSeconds && _refusal.Length > 0
+            ? "■ " + _refusal
+            : refused.Count > 0
             ? "✕ " + PairText(sim, refused[0].A, refused[0].B, PairBand.Refuse) + (refused.Count > 1 ? $" 외 {refused.Count - 1}건" : "")
             : !core
                 ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
-                : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
-        Color statusCol = refused.Count > 0 ? Alert : !core || missing > 0 ? Amber : Mint;
+                : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명{deadNote}"
+                              : $"{placed} / {total} 배치 완료{deadNote}";
+        Color statusCol = _refusalAge < RefusalSeconds && _refusal.Length > 0 ? Alert
+            : refused.Count > 0 ? Alert : !core || missing > 0 ? Amber : Mint;
         DrawRect(new Rect2(24f, Canvas.Y - 104f, Canvas.X - 48f, 1f), Mint with { A = 0.16f });
         if (uneasy.Count > 0)
         {
@@ -839,6 +891,18 @@ public partial class ScheduleMapView : Control
 
         if (emp != null)
         {
+            // 죽은 직원은 집히지 않는다 — 집을 수 있게 두면 끌어다 놓아도 아무 일이
+            // 일어나지 않아, 조작이 먹지 않는 것처럼 보인다. 이유를 적고 돌려보낸다.
+            var pst = sim.GetEmployeeState(emp);
+            if (pst is { Alive: false })
+            {
+                Refuse($"{sim.GetEmployeeDef(emp)?.Codename ?? emp} 생체 신호 소실 — 배치할 수 없습니다");
+                SelectedEmployeeId = "";
+                FocusEmp(emp);
+                AcceptEvent();
+                return;
+            }
+
             // 누른 순간에는 끌기만 준비한다. 손을 뗄 때 끌지 않았으면 클릭(선택)으로 본다.
             _dragEmp = emp;
             _pressPos = mb.Position;
@@ -902,6 +966,16 @@ public partial class ScheduleMapView : Control
             FocusRoomId = room;
             FocusEmployeeId = "";
             return;
+        }
+        // 왜 안 들어갔는지 한 줄 남긴다(기절 · 격리 · 오늘 쓰지 않는 구역).
+        if (room != null)
+        {
+            var st = sim.GetEmployeeState(emp);
+            string name = sim.GetEmployeeDef(emp)?.Codename ?? emp;
+            if (st is { Isolated: true }) Refuse($"{name} 격리 중 — 근무에 투입할 수 없습니다");
+            else if (sim.MustStayInMedical(emp)) Refuse($"{name} 기절 — 회복 전까지 의무실을 벗어날 수 없습니다");
+            else if (!IsAssignable(sim, room))
+                Refuse($"{sim.GetRoomDef(room)?.DisplayName ?? room} — 오늘 배치할 수 없는 구역입니다");
         }
         // 배치가 안 됐으면 고른 상태로 남겨 둔다 — 작업실을 한 번 더 누르면 들어간다.
         SelectedEmployeeId = emp;

@@ -180,8 +180,11 @@ public partial class ScheduleStaffView : Control
     {
         var roster = sim.GetActiveEmployeeIds();
         Header("STAFF IDENTIFICATION", "제7지하시설 · 야간근무 편성");
-        DrawString(_font, new Vector2(Canvas.X - 200f, 70f), $"{roster.Count} / {roster.Count}",
-            HorizontalAlignment.Right, 152f, Fs(16), Dim);
+        // 머릿수는 **투입할 수 있는 인원 / 편성 인원**이다. 사망자가 섞인 날에는
+        // 분자가 줄어든다 — 그 차이가 곧 "오늘 한 명이 비어 있다"는 사실이다.
+        int alive = roster.Count(id => sim.GetEmployeeState(id)?.Alive != false);
+        DrawString(_font, new Vector2(Canvas.X - 200f, 70f), $"{alive} / {roster.Count}",
+            HorizontalAlignment.Right, 152f, Fs(16), alive < roster.Count ? Err : Dim);
 
         // 카드 아래에 스트레스 한 줄이 더 들어간다(F-2) — 그만큼 칸을 키운다.
         const float left = 82f, top = 126f, w = 208f, h = 186f, gx = 16f, gy = 10f;
@@ -200,19 +203,25 @@ public partial class ScheduleStaffView : Control
             DrawRect(r, hot ? Cyan : (assigned ? Mint : Dim) with { A = assigned ? 0.6f : 0.4f },
                 false, hot ? 2.4f : 1.2f);
             var face = new Rect2(r.Position.X + (w - 72f) * 0.5f, r.Position.Y + 14f, 72f, 72f);
-            // 근무에서 빠진 사람(기절 · 격리)은 얼굴부터 흐리게 — 배치할 수 없는 카드다.
-            bool benched = st.Incapacitated || st.Isolated;
+            // 근무에서 빠진 사람(사망 · 기절 · 격리)은 얼굴부터 흐리게 — 배치할 수 없는 카드다.
+            bool dead = !st.Alive;
+            bool benched = dead || st.Incapacitated || st.Isolated;
             Portrait(def, face, benched);
+            // 사망자는 증명사진 위에 ✕ 를 그어 둔다. 어제까지 멀쩡했던 얼굴이 그대로
+            // 남아 있으면, 플레이어는 그 사람을 오늘도 배치할 수 있는 줄 안다.
+            if (dead) StrikeOut(face);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 112f), def.Codename,
                 HorizontalAlignment.Center, w, Fs(19), benched ? Dim : Ink);
             // ⑭ 이 화면은 "기분"을 맡는다 — 배치 상태는 왼쪽 지도의 대기 인원 카드가 보여 준다.
             string mood = sim.GetDailyMood(roster[i]);
-            string where = st.Incapacitated ? "기절 · 의무실에서 회복 필요"
+            string where = dead ? "■ 사망 · 신호 소실"
+                : st.Incapacitated ? "기절 · 의무실에서 회복 필요"
                 : st.Isolated ? "[격리] · 근무 불가"
                 : "기분: " + (string.IsNullOrEmpty(mood) ? "—" : mood);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 138f), where,
                 HorizontalAlignment.Center, w, Fs(13), benched ? Err : Amber);
-            DrawStressLine(sim, st, new Vector2(r.Position.X, r.Position.Y + 162f), w);
+            // 죽은 사람의 스트레스를 띄우면 아직 살아 있는 사람처럼 읽힌다.
+            if (!dead) DrawStressLine(sim, st, new Vector2(r.Position.X, r.Position.Y + 162f), w);
         }
         Footer("직원 블록을 누르면 상세 정보가 표시됩니다.", Dim);
     }
@@ -225,7 +234,9 @@ public partial class ScheduleStaffView : Control
         var st = sim.GetEmployeeState(id);
         if (def == null || st == null) { DrawRosterGrid(sim); return; }
 
-        Header("STAFF IDENTIFICATION  ·  " + id.ToUpperInvariant(), "시설 직원 신원 확인됨.");
+        bool dead = !st.Alive;
+        Header("STAFF IDENTIFICATION  ·  " + id.ToUpperInvariant(),
+            dead ? "■ 생체 신호 소실 — 근무 편성에서 제외됨." : "시설 직원 신원 확인됨.");
 
         // 초상 — 전용 그림(SchedulePortrait)은 3:4 로 그려 둔 것이라 칸도 3:4 로 잡고 그대로 넣는다.
         // 없으면 예전처럼 스탠딩 원화의 상반신을 잘라 채운다.
@@ -241,6 +252,7 @@ public partial class ScheduleStaffView : Control
             else if (tex != null) Contain(tex, box.Grow(-8f));
             else DrawCircle(box.GetCenter(), 50f, def.IconColor);
         }
+        if (dead) StrikeOut(box);
 
         float x = 334f, y = 156f;
         DrawRect(new Rect2(x, y - 22f, 4f, 30f), def.IconColor);
@@ -249,27 +261,38 @@ public partial class ScheduleStaffView : Control
         // 경영 리워크: 특성 · 능력치는 싣지 않는다(EmployeeDef 필드는 남아 있음).
         // 항목 이름이 너무 흐려 읽히지 않았다 — 본문보다 한 단계만 어둡게 한다.
         var label = Ink with { A = 0.75f };
-        DrawString(_font, new Vector2(x, y), "오늘의 기분", HorizontalAlignment.Left, 440f, Fs(14), label);
+        // 죽은 사람에게는 "오늘의 기분" 이 없다 — 그 자리에 상태를 적는다.
+        // (어제의 기분이 그대로 남아 있으면 아직 출근한 사람처럼 읽힌다.)
+        DrawString(_font, new Vector2(x, y), dead ? "생체 신호" : "오늘의 기분",
+            HorizontalAlignment.Left, 440f, Fs(14), label);
         y += 30f;
         string mood = sim.GetDailyMood(id);
-        DrawString(_font, new Vector2(x, y), string.IsNullOrEmpty(mood) ? "—" : mood,
-            HorizontalAlignment.Left, 440f, Fs(24), Amber);
+        DrawString(_font, new Vector2(x, y),
+            dead ? "소실 — 응답 없음" : string.IsNullOrEmpty(mood) ? "—" : mood,
+            HorizontalAlignment.Left, 440f, Fs(24), dead ? Err : Amber);
         y += 38f;
 
         string room = st.AssignedRoomId;
         DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, Fs(14), label);
         y += 30f;
         DrawString(_font, new Vector2(x, y),
-            st.Isolated ? "격리실 · 근무 불가" : st.Incapacitated ? "기절 · 의무실에서 회복 필요" : string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
+            dead ? "직원 사망 · 배치 불가"
+            : st.Isolated ? "격리실 · 근무 불가"
+            : st.Incapacitated ? "기절 · 의무실에서 회복 필요"
+            : string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
             HorizontalAlignment.Left, 440f, Fs(22),
-            st.Isolated ? Err : string.IsNullOrEmpty(room) ? Amber : Mint);
+            dead || st.Isolated ? Err : string.IsNullOrEmpty(room) ? Amber : Mint);
         y += 52f;
 
-        DrawRemark(sim, id, x, y);
+        // 죽은 사람의 "오늘의 한마디" 는 띄우지 않는다.
+        if (!dead) DrawRemark(sim, id, x, y);
 
         bool selected = ScheduleMapView.Instance?.SelectedEmployeeId == id;
-        Footer(selected ? $"{def.Codename} 선택됨 — 배치할 작업실을 누르십시오." : $"{def.Codename}   시설 직원 신원 확인됨.",
-            selected ? Mint : Ink);
+        if (dead)
+            Footer($"{def.Codename}   생체 신호 소실 — 이 직원은 배치할 수 없습니다.", Err);
+        else
+            Footer(selected ? $"{def.Codename} 선택됨 — 배치할 작업실을 누르십시오." : $"{def.Codename}   시설 직원 신원 확인됨.",
+                selected ? Mint : Ink);
     }
 
     // 오늘의 한마디 — 하루에 한 줄(FacilitySimulation.GetDailyRemark). 한 글자씩 찍히고,
@@ -439,6 +462,15 @@ public partial class ScheduleStaffView : Control
     }
 
     // ── 공통 ─────────────────────────────────────────────────────────────
+
+    // 사망 표시 — 사진 위에 붉은 ✕.
+    private void StrikeOut(Rect2 box)
+    {
+        var ink = Err with { A = 0.9f };
+        DrawLine(box.Position, box.End, ink, 2.6f);
+        DrawLine(new Vector2(box.Position.X, box.End.Y), new Vector2(box.End.X, box.Position.Y), ink, 2.6f);
+        DrawRect(box, ink, false, 1.6f);
+    }
 
     private void Portrait(EmployeeDef def, Rect2 box, bool dim = false)
     {

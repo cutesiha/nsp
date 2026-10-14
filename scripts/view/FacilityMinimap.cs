@@ -73,6 +73,17 @@ public partial class FacilityMinimap : Control
             ?? new Color(0.6f, 0.8f, 0.75f);
     }
 
+    // 지시를 받아 줄 수 없는 직원을 집었다 — 그 방 위에 이유를 한 번 띄우고 짧게 거부음.
+    // 같은 사람을 계속 눌러도 글자가 쌓이지 않게, 같은 방의 거부 말풍선은 하나만 둔다.
+    private void Refuse(string roomId, string text)
+    {
+        if (string.IsNullOrEmpty(roomId) || !Layout.ContainsKey(roomId)) return;
+        _popups.RemoveAll(p => p.RoomId == roomId && p.Text == text);
+        _popups.Add((roomId, text, 0f));
+        FlashRoom(roomId, new Color(0.9f, 0.3f, 0.28f));
+        NSP.Core.Sfx.Instance?.Play("alert_beep3", -8f, 0.85f);
+    }
+
     // 환기 재개처럼 시설 전체에 걸리는 효과 — 근무 중인 방들을 한꺼번에 물들인다.
     public void FlashAllRooms(Color ink)
     {
@@ -862,6 +873,22 @@ public partial class FacilityMinimap : Control
         if (NSP.Taboo.TabooRuleSystem.Instance?.IsTrackingLost(id) == true) return;
 
         Vector2 p = IconPos(sim, id);
+
+        // 생체 신호가 끊긴 직원 — 아이콘을 ✕ 로 바꾸고 이름 아래에 그 사실을 적는다.
+        //
+        // 전에는 옅은 회색 점이었다. 그래서 **DAY2 부터 사람이 죽기 시작하면
+        // (data/ops/day1.tres AllowMurder=false → day2 true) 플레이어는 그 직원이 죽은 줄
+        // 모른 채 계속 끌어다 놓으려 했고, 지시만 조용히 거부돼 "재배치가 안 되는 버그"
+        // 로 보였다.** 죽은 사람은 죽은 것으로 보여야 한다.
+        //
+        // 발견되기 전(정전 중의 죽음)에는 표시하지 않는다 — 관리자는 아직 모른다.
+        // 전력이 돌아오는 순간 TickPowerRestoreReveal 이 발견으로 돌린다.
+        if (!st.Alive && st.DiscoveredDead)
+        {
+            DrawDeadIcon(p, def.Codename);
+            return;
+        }
+
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
         // 쓰러졌다 — 빨간색. 처음 한두 초는 원래 색과 번갈아 깜빡이고,
         // 그 뒤에는 의무실에서 깨어날 때까지 계속 빨간 상태로 남는다(§4).
@@ -898,6 +925,22 @@ public partial class FacilityMinimap : Control
                 new Color(0.9f, 0.5f, 0.9f));
     }
 
+    // 사망 표시. 지도에서 한눈에 "이 사람은 없다" 가 읽혀야 한다.
+    private static readonly Color DeadInk = new(0.86f, 0.26f, 0.24f);
+
+    private void DrawDeadIcon(Vector2 p, string codename)
+    {
+        float k = EmpDotRadius * 0.66f;
+        DrawCircle(p, EmpDotRadius, new Color(0.11f, 0.05f, 0.06f, 0.95f));
+        DrawCircle(p, EmpDotRadius, DeadInk with { A = 0.85f }, false, 1.8f);
+        DrawLine(p + new Vector2(-k, -k), p + new Vector2(k, k), DeadInk, 2.6f);
+        DrawLine(p + new Vector2(-k, k), p + new Vector2(k, -k), DeadInk, 2.6f);
+        DrawString(_font, p + new Vector2(-30f, EmpDotRadius + 12f), codename, HorizontalAlignment.Center,
+            60f, ViewFont.S(11), new Color(0.78f, 0.72f, 0.70f));
+        DrawString(_font, p + new Vector2(-40f, EmpDotRadius + 23f), "[신호 소실]", HorizontalAlignment.Center,
+            80f, ViewFont.S(9), DeadInk);
+    }
+
     private static string Clock(float s)
     {
         int t = Mathf.CeilToInt(Mathf.Max(0f, s));
@@ -925,7 +968,20 @@ public partial class FacilityMinimap : Control
                 _lastDragPos = mb.Position;
                 _dragging = false;
             }
-            else OnEmployeeSelected?.Invoke(empHit);
+            else
+            {
+                // **왜 안 되는지 그 자리에서 말해 준다.** 거부만 하고 아무 말도 하지 않으면
+                // (죽은 직원 · 격리된 직원) 플레이어에게는 조작이 먹지 않는 고장으로 보인다.
+                if (st is { Alive: false })
+                    Refuse(st.CurrentRoomId, st.DiscoveredDead
+                        ? $"■ {sim.GetEmployeeDef(empHit)?.Codename ?? empHit} 생체 신호 소실\n지시할 수 없습니다"
+                        // 아직 발견되지 않은 죽음 — 죽었다고 알려 주지 않는다. 사실만 말한다.
+                        : $"{sim.GetEmployeeDef(empHit)?.Codename ?? empHit} 응답 없음\n지시가 전달되지 않습니다");
+                else if (st is { Isolated: true })
+                    Refuse(st.CurrentRoomId,
+                        $"{sim.GetEmployeeDef(empHit)?.Codename ?? empHit} 격리 중\n근무에 투입할 수 없습니다");
+                OnEmployeeSelected?.Invoke(empHit);
+            }
             AcceptEvent();
             return;
         }
@@ -1135,10 +1191,23 @@ public partial class FacilityMinimap : Control
         if (emp.AssignedRoomId == roomId) return;
         // 근무 중 재배치는 근무표 정원(RoomSlotCapacity)에 묶이지 않는다.
         // 사고가 나면 한 방에 셋을 몰아넣어야 할 때가 있고, 그게 이 게임의 조작이다.
-        if (!sim.IsRoomActive(roomId)) return;
+        if (!sim.IsRoomActive(roomId))
+        {
+            Refuse(emp.CurrentRoomId, $"{sim.GetRoomDef(roomId)?.DisplayName ?? roomId}\n오늘 사용하지 않는 구역입니다");
+            return;
+        }
 
         // ClearAssignment 없이 바로 재배치 — AssignToRoom 이 이동까지 처리한다.
-        sim.AssignToRoom(_dragEmp, roomId);
+        if (!sim.AssignToRoom(_dragEmp, roomId))
+        {
+            // 거부된 이유를 그 자리에서 말해 준다(봉쇄 · 제한 구역 · 기절).
+            string why =
+                emp.Incapacitated ? "기절 — 다른 직원이 와서 옮겨야 합니다"
+                : sim.GetRoomState(roomId)?.Locked == true ? "봉쇄된 구역입니다"
+                : sim.GetRoomDef(roomId)?.IsRestricted == true ? "제한 구역입니다"
+                : "지금은 보낼 수 없습니다";
+            Refuse(emp.CurrentRoomId, $"{sim.GetEmployeeDef(_dragEmp)?.Codename ?? _dragEmp}\n{why}");
+        }
         OnEmployeeSelected?.Invoke(_dragEmp);
     }
 
