@@ -27,9 +27,6 @@ uniform float phosphor_center : hint_range(0.0, 1.0) = 0.35;
 uniform float phosphor_cut : hint_range(0.0, 0.3) = 0.045;
 // 노이즈 배율 — 코드가 넣는 noise_strength(평소 0.02~0.035, 공포 연출 때 크게)에 곱한다.
 uniform float noise_scale : hint_range(0.0, 1.0) = 0.35;
-// 화면 바탕 검정 누르기 — 이 밝기 이하는 완전 검정으로. 전역 아날로그 필터(analog_vhs)가
-// 어두운 회색을 기기 몸체 색(청회색)으로 살리기 때문에, 화면 바탕은 여기서 먼저 검정으로 눌러 둔다.
-uniform float black_crush : hint_range(0.0, 0.4) = 0.12;
 
 float rand(vec2 co) {
 	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
@@ -46,7 +43,6 @@ void fragment() {
 	vec2 src = mix(region_min, region_max, uv);
 	vec3 col = texture(screen_tex, src).rgb;
 	// 바탕 판정은 원본 픽셀로(노이즈 · 스캔라인이 섞이기 전) — 경계가 흔들리지 않게.
-	col = max(col - vec3(black_crush), vec3(0.0)) / (1.0 - black_crush);
 	float raw_lum = dot(col, vec3(0.299, 0.587, 0.114));
 
 	// 스캔라인
