@@ -56,6 +56,12 @@ glow_hdr_scale = 2.4
 fog_enabled = true
 fog_light_color = Color(0.04, 0.04, 0.06, 1)
 fog_density = 0.018
+ssao_enabled = true
+ssao_radius = 0.35
+ssao_intensity = 4.0
+ssao_power = 2.0
+ssao_detail = 0.5
+ssao_light_affect = 0.6
 
 [sub_resource type="BoxMesh" id="Box"]
 
@@ -217,9 +223,10 @@ emission = Color(0.52, 0.53, 0.55, 1)
 emission_energy_multiplier = 0.01
 
 [sub_resource type="StandardMaterial3D" id="Mat_BezelOutline"]
+transparency = 1
 cull_mode = 1
 shading_mode = 0
-albedo_color = Color(0.05, 0.13, 0.17, 1)
+albedo_color = Color(0.05, 0.09, 0.6, 0.6)
 
 [sub_resource type="QuadMesh" id="Quad"]
 
@@ -228,8 +235,8 @@ albedo_color = Color(0.14, 0.14, 0.152, 1)
 metallic = 0.6
 roughness = 0.3
 emission_enabled = true
-emission = Color(0.52, 0.53, 0.55, 1)
-emission_energy_multiplier = 0.01
+emission = Color(0.09, 0.149, 0.184, 1)
+emission_energy_multiplier = 0.25
 
 [sub_resource type="TorusMesh" id="DialRing"]
 inner_radius = 0.018
@@ -1039,7 +1046,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
 [node name="M01_BezelOutline" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1459233666]
-transform = Transform3D(0.843, 0, -9.313226e-10, 0, 0.663, 0, 1.4901161e-08, 0, 0.063, 0, 1.1436116, 0)
+transform = Transform3D(0.866, 0, -9.313226e-10, 0, 0.686, 0, 1.4901161e-08, 0, 0.07, 0, 1.1436116, 0)
 cast_shadow = 0
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_BezelOutline")
@@ -1091,7 +1098,7 @@ mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_MonitorBezel")
 
 [node name="M02_BezelOutline" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1620025845]
-transform = Transform3D(0.843, 0, 9.313226e-10, 0, 0.663, 0, -1.4901161e-08, 0, 0.063, 0, 1.1436116, 0)
+transform = Transform3D(0.866, 0, 9.313226e-10, 0, 0.686, 0, -1.4901161e-08, 0, 0.07, 0, 1.1436116, 0)
 cast_shadow = 0
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_BezelOutline")

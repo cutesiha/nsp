@@ -415,6 +415,13 @@ public static class GameSettings
     public static void ApplyEnvironmentQuality(Godot.Environment env)
     {
         if (env == null) return;
+
+        // 접촉 그림자(SSAO) — 기기가 책상 · 서로 맞닿는 곳만 진하게 어두워진다. 높음 · 보통에서만 켠다.
+        // 씬마다 원래 켰는지를 Environment 자체에 적어 두고, 품질을 다시 올리면 그대로 되살린다.
+        if (!env.HasMeta("nsp_wants_ssao")) env.SetMeta("nsp_wants_ssao", env.SsaoEnabled);
+        env.SsaoEnabled = (bool)env.GetMeta("nsp_wants_ssao")
+            && (_quality == Quality.High || _quality == Quality.Medium);
+
         _sceneWantsGlow ??= env.GlowEnabled;
         env.GlowEnabled = _sceneWantsGlow.Value && QualityLevels[(int)_quality].Glow;
         if (!env.GlowEnabled) return;
