@@ -109,6 +109,9 @@ public partial class ReassignUiProbe : Node
         await Drag(ctl, map, helper, acc);
         await Seconds(22);
         Check(sim.GetEmployeeState(helper)?.CurrentRoomId == acc, "② 산 직원은 사고 난 방으로 이동한다");
+        // 시신이 발견된 상태(정전이 아니었거나 전력이 복구된 뒤)의 지도를 찍는다.
+        sim.GetEmployeeState(victim).DiscoveredDead = true;
+        await Seconds(0.6);
         Shot(ctl.FacilityViewport, "shift_map_dead");
 
         // ── 이튿날 배치 ───────────────────────────────────────────────
