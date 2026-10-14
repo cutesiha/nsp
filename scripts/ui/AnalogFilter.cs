@@ -64,6 +64,7 @@ public partial class AnalogFilter : CanvasLayer
 
     public override void _Process(double delta)
     {
+        if (AmbientOverlay.Instance != null) AmbientOverlay.Instance.BaseNoiseScale = Enabled ? 0f : 1f;
         if (_mat == null || !Enabled) return;
 
         // 공포 연출이 AmbientOverlay 의 노이즈를 끌어올리면(PulseNoise · SetGhostNoise · 정전)

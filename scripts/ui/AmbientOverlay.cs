@@ -17,6 +17,11 @@ public partial class AmbientOverlay : CanvasLayer
     // 모든 씬에서 확실히 보이도록 — 밝은 배경(타이틀/스케줄)에서도 지글거림이 남는 수치.
     private const float BaseNoiseAlpha = 0.12f;
 
+    // 평소 깔리는 지글거림의 배율. 아날로그 필터(AnalogFilter)가 켜져 있으면 0 — 필터가 레퍼런스에 맞춘
+    // 입자를 따로 얹으므로, 여기 노이즈까지 겹치면 검정 · 청회색 면이 지저분해진다.
+    // 공포 연출이 끌어올리는 노이즈(PulseNoise · SetGhostNoise)는 그대로 나온다.
+    public float BaseNoiseScale { get; set; } = 1f;
+
     private TextureRect _vignetteRect;
     private TextureRect _centerGlow;
     private TextureRect _noiseRect;
@@ -136,7 +141,7 @@ public partial class AmbientOverlay : CanvasLayer
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
         _noiseRect.Modulate = new Color(1f, 1f, 1f,
-            (BaseNoiseAlpha + Mathf.Max(_extraNoise, _holdNoise)) * _sceneIntensity);
+            (BaseNoiseAlpha * BaseNoiseScale + Mathf.Max(_extraNoise, _holdNoise)) * _sceneIntensity);
         // 머무는 노이즈도 **스스로 빠진다.** 부르는 쪽(CCTVMonitorView)이 매 프레임 다시
         // 세워 주므로 보고 있는 동안에는 줄지 않고, 그 화면이 사라지거나 근무가 끝나
         // 아무도 세워 주지 않으면 알아서 걷힌다 — 붉은 화면이 남는 사고를 막는다.

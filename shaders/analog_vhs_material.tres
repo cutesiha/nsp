@@ -6,14 +6,16 @@
 [resource]
 shader = ExtResource("1_vhs")
 shader_parameter/lut_tex = ExtResource("2_lut")
-shader_parameter/lut_size = 17.0
+shader_parameter/lut_size = 33.0
 shader_parameter/lut_amount = 1.0
 shader_parameter/grain = 0.6
+shader_parameter/grain_bright_lo = 0.25
+shader_parameter/grain_bright_hi = 0.55
+shader_parameter/grain_dark_blue = 1.0
 shader_parameter/grain_px = 1.0
 shader_parameter/grain_fps = 24.0
 shader_parameter/grain_color_split = 0.1
-shader_parameter/grain_min = 0.01
-shader_parameter/grain_full = 0.08
+shader_parameter/grain_rgb = Vector3(0.1, 1, 1)
 shader_parameter/aberration = 0.0008
 shader_parameter/scanline = 0.0
 shader_parameter/vignette = 0.2
