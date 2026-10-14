@@ -335,18 +335,12 @@ public static class GameSettings
     // '높음' 으로 돌아오면 그대로 되살린다.
     private static bool? _sceneWantsGlow;
 
-    // 3D 렌더 배율 상한. 1.0 으로 올리면 예전처럼 원래 해상도로 그린다.
-    public const float AnalogMaxScale3D = 0.75f;
-
     private static void ApplyQuality()
     {
         if (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null) return;
         var level = QualityLevels[(int)_quality];
 
-        // 아날로그 호러 룩 — 3D 는 일부러 조금 낮은 해상도로 그린다. 로우폴리 모서리가 칼같이
-        // 서지 않고, AnalogFilter 의 번짐 · 그레인과 합쳐져 "녹화 화면" 이 된다. 덤으로 빨라진다.
-        // 모니터 · 문서 SubViewport 는 따로 그려지므로 화면 안 글자는 여기 영향을 받지 않는다.
-        tree.Root.Scaling3DScale = Mathf.Min(level.Scale, AnalogMaxScale3D);
+        tree.Root.Scaling3DScale = level.Scale;
         // 그림자 — 해상도와 부드러움을 같이 내린다. 이 방의 그림자는 모니터 스포트라이트
         // 둘이 전부라, 낮음에서도 완전히 끄지는 않는다(끄면 기기 앞뒤 구분이 사라진다).
         tree.Root.PositionalShadowAtlasSize = level.ShadowAtlas;

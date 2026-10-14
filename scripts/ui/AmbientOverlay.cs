@@ -254,7 +254,7 @@ public partial class AmbientOverlay : CanvasLayer
             float d = Mathf.Sqrt(dx * dx + dy * dy);
             float a = Mathf.Clamp(1f - d / 0.7f, 0f, 1f);
             a = Mathf.Pow(a, 2.2f);
-            img.SetPixel(x, y, new Color(0.85f, 0.62f, 0.42f, a)); // 살짝 앰버 빛 — 화면 톤(앰버 + 청록)에 맞춘다
+            img.SetPixel(x, y, new Color(0.55f, 0.65f, 0.82f, a)); // 살짝 파란 빛
         }
         return ImageTexture.CreateFromImage(img);
     }

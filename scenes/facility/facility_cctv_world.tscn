@@ -7,11 +7,11 @@ background_mode = 1
 background_color = Color(0.01, 0.01, 0.014, 1)
 ambient_light_source = 2
 ambient_light_color = Color(0.3, 0.33, 0.4, 1)
-ambient_light_energy = 0.1
+ambient_light_energy = 0.18
 tonemap_mode = 2
 fog_enabled = true
 fog_light_color = Color(0.03, 0.03, 0.045, 1)
-fog_density = 0.03
+fog_density = 0.012
 
 [node name="FacilityCctvWorld" type="Node3D"]
 script = ExtResource("1_script")

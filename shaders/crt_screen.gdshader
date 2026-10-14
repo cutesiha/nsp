@@ -9,10 +9,10 @@ uniform sampler2D screen_tex : source_color, filter_linear, hint_default_black;
 uniform vec2 region_min = vec2(0.0, 0.0);
 uniform vec2 region_max = vec2(1.0, 1.0);
 
-uniform float scanline_strength : hint_range(0.0, 1.0) = 0.12;
+uniform float scanline_strength : hint_range(0.0, 1.0) = 0.06;
 uniform float vignette_strength : hint_range(0.0, 1.0) = 0.20;
 uniform float noise_strength : hint_range(0.0, 0.5) = 0.016;
-uniform float flicker_strength : hint_range(0.0, 1.0) = 0.035;
+uniform float flicker_strength : hint_range(0.0, 1.0) = 0.02;
 uniform float h_distortion : hint_range(0.0, 1.0) = 0.0;   // 공포 연출 시 코드에서 끌어올림
 uniform float brightness : hint_range(0.0, 2.0) = 1.0;      // 정전/암전 시 0 쪽으로
 uniform float tint_r : hint_range(0.0, 2.0) = 1.0;
@@ -26,7 +26,7 @@ uniform float phosphor_center : hint_range(0.0, 1.0) = 0.35;
 // 바탕빛은 UI 가 없는 검정 바탕에만 깐다 — 이 밝기(휘도)를 넘는 패널 · 선 · 글자는 원래 색 그대로 위에 올라간다.
 uniform float phosphor_cut : hint_range(0.0, 0.3) = 0.045;
 // 노이즈 배율 — 코드가 넣는 noise_strength(평소 0.02~0.035, 공포 연출 때 크게)에 곱한다.
-uniform float noise_scale : hint_range(0.0, 1.0) = 0.6;
+uniform float noise_scale : hint_range(0.0, 1.0) = 0.35;
 
 float rand(vec2 co) {
 	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
