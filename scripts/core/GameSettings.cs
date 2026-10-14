@@ -140,6 +140,7 @@ public static class GameSettings
         EnsureRadioBus();
         EnsureIntercomBus();
         EnsureScreamBus();
+        EnsureAnalogSfxChain();
         EnsureHorrorBus();
         EnsureAmbienceBus();
     }
@@ -299,6 +300,72 @@ public static class GameSettings
             PostGain = -1f,
         });
         AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter { CutoffHz = 3200f });
+    }
+
+    // ── 시설 장비를 거쳐 나온 소리 (아날로그 호러) ───────────────────────
+    //
+    // 게임의 **모든 소리**가 1970~90년대 지하 연구시설의 장비를 통해 들린다.
+    // 효과음 파일을 한 개도 바꾸지 않고, 그것들이 지나는 길에 장비의 성질을 입힌다
+    // — 그래야 새 소리를 넣을 때마다 따로 손볼 필요가 없다.
+    //
+    // SFX 버스 하나에만 건다. 그 아래로 환경음 · 공포음 · 무전 · 인터폰 · 비명이
+    // 전부 흘러들어오므로 한 번에 같은 성질을 받고, **음악(BGM)은 받지 않는다** —
+    // 음악까지 좁히면 그냥 고장 난 스피커가 된다.
+    //
+    // 다섯 겹, 전부 약하게. 하나씩은 "들릴 듯 말 듯" 이지만 겹치면 소리의 출처가
+    // 바뀐다 — 게임이 내는 소리가 아니라 **그 방의 장비가 내는 소리**가 된다.
+    //
+    //   ① 저역 깎기   작은 스피커는 바닥 울림을 못 낸다
+    //   ② 테이프 흔들림 감은 테이프가 고르게 돌지 않는다 — 아날로그 호러의 핵심
+    //   ③ 비트 깎기   낡은 디지털 · 자기 녹음의 거친 결
+    //   ④ 고역 깎기   공기감 · 반짝임이 없다
+    //   ⑤ 짧은 잔향   콘크리트 지하실
+    //
+    // 세기를 바꾸려면 아래 숫자만 고친다. 전부 0 으로 두면 예전 소리 그대로다.
+    private const string AnalogChainMark = "nsp_analog_chain";
+
+    private static void EnsureAnalogSfxChain()
+    {
+        int idx = AudioServer.GetBusIndex(BusSfx);
+        if (idx < 0) return;
+        // 두 번 걸지 않는다 — EnsureBuses 는 여러 번 불릴 수 있다.
+        for (int i = 0; i < AudioServer.GetBusEffectCount(idx); i++)
+            if (AudioServer.GetBusEffect(idx, i) is { } fx && fx.HasMeta(AnalogChainMark)) return;
+
+        void Add(AudioEffect fx)
+        {
+            fx.SetMeta(AnalogChainMark, true);
+            AudioServer.AddBusEffect(idx, fx);
+        }
+
+        // ① 작은 스피커 — 바닥이 없다.
+        Add(new AudioEffectHighPassFilter { CutoffHz = 115f, Resonance = 0.4f });
+
+        // ② 테이프 흔들림(wow). 느리고 아주 얕게 — 빠르거나 깊으면 "고장" 으로 들린다.
+        var wow = new AudioEffectChorus { VoiceCount = 2, Wet = 0.12f, Dry = 1f };
+        // 두 겹의 주기가 서로 안 맞아떨어져야 흔들림이 규칙으로 들리지 않는다.
+        wow.SetVoiceDelayMs(0, 14f); wow.SetVoiceRateHz(0, 0.35f);
+        wow.SetVoiceDepthMs(0, 1.4f); wow.SetVoiceLevelDb(0, -3f);
+        wow.SetVoiceDelayMs(1, 21f); wow.SetVoiceRateHz(1, 0.21f);
+        wow.SetVoiceDepthMs(1, 1.0f); wow.SetVoiceLevelDb(1, -6f);
+        Add(wow);
+
+        // ③ 비트를 깎는다 — 자기 녹음 · 낡은 디지털의 거친 결.
+        //    Drive 를 올리면 금방 지저분해진다. 알아듣는 데 지장 없는 선까지만.
+        Add(new AudioEffectDistortion
+        {
+            Mode = AudioEffectDistortion.ModeEnum.Lofi,
+            Drive = 0.14f, PreGain = 0f, PostGain = -1f,
+        });
+
+        // ④ 공기감을 덜어낸다.
+        Add(new AudioEffectLowPassFilter { CutoffHz = 8600f, Resonance = 0.3f });
+
+        // ⑤ 콘크리트 지하실. 젖은 정도를 아주 낮게 둔다 — 높이면 경고음이 뭉개진다.
+        Add(new AudioEffectReverb
+        {
+            RoomSize = 0.42f, Damping = 0.62f, Wet = 0.085f, Dry = 1f, Spread = 0.7f,
+        });
     }
 
     // 작업실 인터폰 — 벽에 붙은 낡은 스피커.

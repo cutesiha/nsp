@@ -33,7 +33,7 @@ public partial class FacilityMonitorView : Control
     private RichTextLabel _inspector;
     private TextureRect _face;
     // 인스펙터 얼굴 썸네일 한 변(1:1).
-    private const float FaceSize = 72f;
+    private const float FaceSize = 112f;
     // 밝기는 CrtArt 한 곳에서 정한다(모니터에 올리는 원화 전부가 같은 값을 쓴다).
     private ColorRect _faceBack;
     private Button _isolateBtn;
@@ -307,9 +307,9 @@ public partial class FacilityMonitorView : Control
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
             MouseFilter = MouseFilterEnum.Ignore,
-            Modulate = NSP.View.CrtArt.Tint,
             Visible = false,
         };
+        NSP.View.CrtArt.Apply(_face);
         insPanel.AddChild(_face);
 
         _inspector = new RichTextLabel

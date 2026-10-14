@@ -89,6 +89,9 @@ public partial class EmployeeStandingPortrait : Control
         };
         AddChild(_portrait);
         BuildMaterial();
+        // 전용 스탠딩 셰이더(Config.StandingShaderPath)가 꺼져 있으면 CRT 원화 보정을 건다.
+        // 켜져 있으면 그쪽이 이미 톤을 잡으므로 건드리지 않는다.
+        if (_portrait.Material == null) CrtArt.Apply(_portrait);
         Modulate = new Color(1, 1, 1, 0);
     }
 
@@ -207,8 +210,7 @@ public partial class EmployeeStandingPortrait : Control
         // 화자/청자 밝기 위에 **모니터 원화 공통 톤**을 한 번 더 곱한다(CrtArt).
         // 원화가 밝은 파스텔이라 그냥 올리면 CRT 발광 → 번짐(Glow) → LUT 를 지나며
         // 실루엣 둘레에 흰 테가 생기고 얼굴이 한 덩어리로 날아간다.
-        var t = CrtArt.Tint;
-        _portrait.Modulate = new Color(_dim * t.R, _dim * t.G, _dim * t.B, 1f);
+        _portrait.Modulate = new Color(_dim, _dim, _dim, 1f);
     }
 
     private void Refresh(bool force)

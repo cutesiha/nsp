@@ -99,11 +99,11 @@ public partial class InterviewCCTVView : Control
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.Scale,
             MouseFilter = MouseFilterEnum.Ignore,
-            // CRT 발광 · 번짐 · LUT 를 지나며 날아가지 않게 조금 눌러서 올린다(CrtArt).
-            Modulate = NSP.View.CrtArt.Tint,
         };
         _portraitBox.AddChild(_portrait);
         BuildStandingMaterial();
+        // 전용 스탠딩 셰이더가 꺼져 있으면 CRT 원화 보정을 건다(CrtArt).
+        if (_portrait.Material == null) NSP.View.CrtArt.Apply(_portrait);
 
         _stateLabel = Lbl("왼쪽 BREAK ROOM 에서 직원을 선택하세요", 20, new Color(0.8f, 0.85f, 0.8f));
         _stateLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y / 2f - 16f);
