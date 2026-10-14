@@ -129,7 +129,7 @@ public static class Achievements
         // D. 근무 평가
         Add(GradeS, "완벽한 근무!", "최종 관리자 평가 S등급을 받으세요.", "★");
         Add(GradeA, "이 구역의 에이스", "최종 관리자 평가 A등급을 받으세요.", "★");
-        Add(GradeLowest, "쓸모없는 관리자", "최종 관리자 평가 D등급을 받으세요.", "★", hidden: true);
+        Add(GradeLowest, "쓸모없는 관리자", "최종 관리자 평가 F등급을 받으세요.", "★", hidden: true);
 
         // E. 특수 / 엔딩
         Add(TutorialCore100, "이게 연습이라고?", "가상 시뮬레이션에서 봉쇄 코어를 100% 복구하세요.", "◆", hidden: true);

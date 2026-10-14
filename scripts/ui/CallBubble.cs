@@ -161,7 +161,7 @@ public partial class CallBubble : Control
             if (shouldShow != _typedChars)
             {
                 for (int i = _typedChars; i < shouldShow; i++)
-                    Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i]);
+                    Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i], Sfx.VoiceChannel.Intercom);
                 _typedChars = shouldShow;
                 _characterLabel.Text = _fullText[.._typedChars];
             }

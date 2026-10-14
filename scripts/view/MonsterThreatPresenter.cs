@@ -53,14 +53,40 @@ public partial class MonsterThreatPresenter : Node
         if (Instance == this) Instance = null;
     }
 
+    // 그 단계에서 시설 소음을 얼마나 빼는가(0 = 평소, 1 = 문 앞).
+    //
+    // 외곽 구역에서는 아직 빼지 않는다 — 어디로 올지도 모르는 단계에서 방이 조용해지면
+    // "무슨 일이 생겼다" 가 너무 일찍 새어 나간다. 복도에 들어선 뒤부터 빠지기 시작한다.
+    private static float DrainFor(MonsterThreat t) => t.Phase switch
+    {
+        ThreatPhase.Approach => 0.30f + t.Closeness * 0.70f,
+        ThreatPhase.AtDoor or ThreatPhase.Pounding => 1f,
+        ThreatPhase.Retreat => 0.25f,
+        _ => 0f,
+    };
+
     public override void _Process(double delta)
     {
         if (!_wired) Wire();
         var t = _threats?.Current;
-        if (t == null) { StopCorridorCry(); return; }
+        if (t == null)
+        {
+            StopCorridorCry();
+            ControlRoomAtmosphere.Instance?.SetThreatDrain(0f);
+            return;
+        }
 
         // 이 방에 들어왔다 — 여기서부터는 사망 연출이 소리를 전부 가져간다.
-        if (AdminDeathDirector.IsPlaying) { StopCorridorCry(); return; }
+        if (AdminDeathDirector.IsPlaying)
+        {
+            StopCorridorCry();
+            ControlRoomAtmosphere.Instance?.SetThreatDrain(0f);
+            return;
+        }
+
+        // 다가온 만큼 시설 소음이 물러난다(지시서 §5). 판정은 건드리지 않는다 —
+        // 들리는 크기만 바뀐다.
+        ControlRoomAtmosphere.Instance?.SetThreatDrain(DrainFor(t));
 
         double now = Time.GetTicksMsec() / 1000.0;
 

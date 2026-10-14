@@ -59,13 +59,17 @@ public partial class EndingDirector
         await Wait(1.0);
 
         // ③ GUIDE-0 — sneer 가 아니라 normal. 유일하게 사무적이지 않은 순간이다.
+        // 얼굴은 왼쪽(모니터1), 말은 오른쪽(모니터2). 카운트다운이 끝나 꺼졌던 오른쪽
+        // 화면을 GUIDE-0 이 다시 켜고 그 위에 말한다 — 같은 화면에 두면 얼굴창이 대사를 덮는다.
         Sfx.Instance?.Play("window_open", -10f);
         ShowGuide("normal");
-        await Wait(0.9);
         left?.Clear();
-        await GuideSpeakAt(left, 1.1f, "관리자님의 판단은 옳았습니다.");
+        right?.Clear();
+        _ctl?.SetScreenBrightnessFor("02", 1f);
+        await Wait(0.9);
+        await GuideSpeakAt(right, 1.1f, "관리자님의 판단은 옳았습니다.");
         await Wait(1.5);
-        await GuideSpeakAt(left, 1.1f,
+        await GuideSpeakAt(right, 1.1f,
             "다만, 시간이 부족했습니다.",
             "영구 봉쇄 절차를 개시합니다. 권한 확인이 필요합니다.");
         await Wait(1.0);

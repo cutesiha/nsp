@@ -998,7 +998,7 @@ public partial class PhoneCallHud : CanvasLayer
         {
             for (int i = _shownChars; i < shown; i++)
             {
-                Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i]);
+                Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i], Sfx.VoiceChannel.Intercom);
                 EmployeeMouthAnimator.NoticeCharacter(_fullText[i]);
             }
             _shownChars = shown;

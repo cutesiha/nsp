@@ -91,7 +91,42 @@ public partial class FloatingPopupLayer : Control
         Spawn(pos, text, lifetime);
 
         if (Cues.TryGetValue(entry.EventType, out var cue))
-            NSP.Core.Sfx.Instance?.Play(cue.Key, cue.Db);
+            PlayCue(cue.Key, cue.Db);
+    }
+
+    // ── 경고가 겹칠 때 (지시서 §4) ─────────────────────────────────────
+    //
+    // 사건은 한 번에 여러 건이 터진다 — 방해공작 한 번에 작업 세 개가 뜨는 식이다.
+    // 그때마다 같은 소리를 그대로 포개면 음량이 몇 배로 치솟아 "경보" 가 아니라
+    // 그냥 시끄러운 소음이 된다.
+    //
+    // 두 가지만 건다. **무엇이 울릴지는 바꾸지 않는다** — 어떤 사건이 어떤 소리를
+    // 내는지는 플레이어가 익히는 정보라, 소리를 빼 버리면 사건을 놓친다.
+    //   ① 같은 소리는 아주 짧은 간격 안에 두 번 울리지 않는다(완전히 겹친 중복)
+    //   ② 연달아 터지면 뒤로 갈수록 작아진다. 첫 소리가 가장 크다
+    private const double SameCueGapMsec = 90;    // 이 안에 들어온 같은 소리는 버린다
+    private const double BurstWindowMsec = 420;  // 이 안에 겹친 것을 한 묶음으로 본다
+    private const float BurstStepDb = 4.5f;      // 한 겹 늘 때마다 깎는 양
+    private const float BurstMaxCutDb = 13.5f;   // 아무리 겹쳐도 이보다 더는 안 깎는다
+
+    private static readonly Dictionary<string, double> _lastCueMsec = new();
+    private static double _burstStartMsec = -10000;
+    private static int _burstCount;
+
+    private static void PlayCue(string key, float db)
+    {
+        double now = Time.GetTicksMsec();
+
+        // ① 같은 소리가 거의 동시에 두 번 — 뒤엣것은 들리지도 않고 음량만 올린다.
+        if (_lastCueMsec.TryGetValue(key, out double last) && now - last < SameCueGapMsec) return;
+        _lastCueMsec[key] = now;
+
+        // ② 한 묶음 안에서 몇 번째인가.
+        if (now - _burstStartMsec > BurstWindowMsec) { _burstStartMsec = now; _burstCount = 0; }
+        float cut = Mathf.Min(BurstMaxCutDb, _burstCount * BurstStepDb);
+        _burstCount++;
+
+        NSP.Core.Sfx.Instance?.Play(key, db - cut);
     }
 
     // "⚠ 새 작업 발생 / 🔧 발전기 점검 / 0:20" 형태의 방 위 팝업.

@@ -12,10 +12,12 @@ namespace NSP.Debug;
 //
 //   godot --path . res://scenes/debug/StorySkipProbe.tscn -- <저장 폴더>
 //
-// 확인하는 것
-//   ① 프롤로그가 도는 동안 버튼이 화면에 떠 있는가
-//   ② 눌렀을 때 **DAY1 근무배치**까지 가는가 (DAY0 교육을 건너뛰고)
-//   ③ 건너뛴 뒤에 프롤로그가 뒤에서 계속 돌고 있지 않은가
+// 확인하는 것 — SKIP 은 **한 단계씩** 건너뛴다(사용자 지시 2026-10-14).
+//   ① 프롤로그 SKIP  → 가상 시뮬(DAY0 교육)이 시작된다
+//   ② 가상 시뮬 SKIP → DAY1 스토리가 뜬다
+//   ③ DAY 스토리 SKIP → 실제 DAY1 근무배치
+//   ④ 그리고 **남은 비트가 카메라 화면 전체에 뜨지 않는다** — 스킵한 뒤 한참을 두고
+//      봐도 컷인이 다시 살아나지 않아야 한다(모니터 밖으로 튀어나오던 버그).
 public partial class StorySkipProbe : Node
 {
     private string _dir = "";
@@ -58,32 +60,59 @@ public partial class StorySkipProbe : Node
         Ok(btn != null, "버튼 노드를 찾았다");
         ClickAt(btn);
 
-        // 배치 화면까지 간다.
+        // ── ① 프롤로그 SKIP → 가상 시뮬(DAY0) ──────────────────────────
         bool reached = await WaitUntil(() =>
-            GameState.Instance?.CurrentPhase == GamePhase.Schedule, 900);
-        Ok(reached, "근무배치 화면까지 갔다");
-        Ok(GameState.Instance?.CurrentDay == 1,
-            $"DAY1 이다 (지금 DAY {GameState.Instance?.CurrentDay})");
+            GameState.Instance?.CurrentPhase == GamePhase.Schedule, 1200);
+        Ok(reached, "배치 화면까지 갔다");
         Ok(PrologueDirector.Instance?.IsRunning != true, "프롤로그가 뒤에서 계속 돌지 않는다");
-        Ok(TutorialDirector.Instance?.IsRunning != true, "DAY0 교육도 시작되지 않았다");
+        Ok(GameState.Instance?.CurrentDay == 0,
+            $"DAY0(가상 시뮬) 이다 — DAY1 로 건너뛰지 않았다 (지금 DAY {GameState.Instance?.CurrentDay})");
 
-        // 프롤로그를 건너뛰고 닿은 DAY1 배치에서는 **그 날의 스토리**가 이어서 돈다.
-        // 버튼은 그대로 있어야 하고, 한 번 더 누르면 그 컷인도 끊겨야 한다.
-        await Frames(60);
-        Shot("02_건너뛴_뒤");
-        bool dayStory = await WaitUntil(() => StoryCutinDirector.Instance is { IsPlaying: true }, 600);
-        Ok(dayStory, "DAY1 스토리 컷인이 이어서 뜬다");
-        // 창의 _Process 가 한 번 돌아야 버튼이 다시 켜진다 — 같은 프레임에 보면 꺼져 있다.
+        bool tutorial = await WaitUntil(() => TutorialDirector.Instance is { IsRunning: true }, 1500);
+        Ok(tutorial, "가상 시뮬이 시작됐다");
+        await Frames(10);
+        Shot("02_가상시뮬");
+
+        // ── ② 가상 시뮬 SKIP → DAY1 ───────────────────────────────────
+        Ok(StorySkipHud.Instance?.ButtonVisible == true, "가상 시뮬 동안에도 SKIP 버튼이 있다");
+        ClickAt(StorySkipHud.Instance?.FindChild("StorySkipButton", true, false) as Button);
+
+        bool day1 = await WaitUntil(() => GameState.Instance?.CurrentDay == 1
+            && GameState.Instance?.CurrentPhase == GamePhase.Schedule, 1200);
+        Ok(day1, $"DAY1 로 넘어갔다 (지금 DAY {GameState.Instance?.CurrentDay})");
+        Ok(TutorialDirector.Instance?.IsRunning != true, "가상 시뮬이 뒤에서 계속 돌지 않는다");
+
+        bool dayStory = await WaitUntil(() => StoryCutinDirector.Instance is { IsPlaying: true }, 1200);
+        Ok(dayStory, "DAY1 스토리 컷인이 뜬다");
         await Frames(3);
-        Ok(StorySkipHud.Instance?.ButtonVisible == true, "그 컷인 동안에도 SKIP 버튼이 있다");
+        Shot("03_DAY1_스토리");
 
-        ClickAt(hud?.FindChild("StorySkipButton", true, false) as Button);
+        // ── ③ DAY 스토리 SKIP → 실제 근무배치 ──────────────────────────
+        Ok(StorySkipHud.Instance?.ButtonVisible == true, "그 컷인 동안에도 SKIP 버튼이 있다");
+        ClickAt(StorySkipHud.Instance?.FindChild("StorySkipButton", true, false) as Button);
         bool cutStopped = await WaitUntil(() => StoryCutinDirector.Instance?.IsPlaying != true, 600);
-        Ok(cutStopped, "한 번 더 누르면 DAY 스토리도 끊긴다");
-        await Frames(45);
-        Shot("03_스토리_건너뛴_뒤");
+        Ok(cutStopped, "DAY 스토리가 끊긴다");
+
+        // ── ④ 남은 비트가 되살아나지 않는가 ────────────────────────────
+        //
+        // 여기가 이번에 고친 버그다. 예전에는 끊긴 뒤 다음 비트가 그대로 이어 재생됐고,
+        // 그때는 이미 모니터에서 나온 뒤라 대사와 스탠딩이 **카메라 화면 전체**에 떴다.
+        bool cameBack = false;
+        bool hudCameBack = false;
+        for (int i = 0; i < 240; i++)
+        {
+            await Frame();
+            if (StoryCutinDirector.Instance is { IsPlaying: true }) cameBack = true;
+            if (StoryCutinHud.Instance?.IsShown == true) hudCameBack = true;
+        }
+        Ok(!cameBack, "끊은 뒤 남은 비트가 다시 재생되지 않는다");
+        Ok(!hudCameBack, "스토리 창이 화면 전체에 다시 뜨지 않는다");
+        Ok(StoryCutinDirector.Instance?.Skipped == true, "SKIP 표시가 남아 있다");
+
+        Shot("04_스토리_건너뛴_뒤");
         Ok(GameState.Instance?.CurrentPhase == GamePhase.Schedule,
             "그 자리가 실제 근무배치다");
+        Ok(GameState.Instance?.CurrentDay == 1, "DAY1 이다");
 
         Done();
     }

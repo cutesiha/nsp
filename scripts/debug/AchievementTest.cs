@@ -430,23 +430,24 @@ public partial class AchievementTest : Node
     {
         Head("G", "평가 등급 · 엔딩 · 하루 무사고");
 
-        // 등급 — 실제로 받은 등급 하나만. 계산은 DayObjectives.Grade 를 그대로 쓴다.
-        (float core, int score, string grade, string id, string label)[] cases =
+        // 등급 — 실제로 받은 등급 하나만. 계산은 DayObjectives.FinalGrade 를 그대로 쓴다.
+        //   진엔딩만 S~C 로 나뉘고, 나머지 엔딩은 전부 F 다.
+        (EndingState.Kind kind, int missed, int incidents, string grade, string id, string label)[] cases =
         {
-            (100f, 5, "S", Achievements.GradeS, "S → 완벽한 근무!"),
-            (100f, 3, "A", Achievements.GradeA, "A → 이 구역의 에이스"),
-            (100f, 1, "B", "", "B → 해당 업적 없음"),
-            (40f, 0, "D", Achievements.GradeLowest, "D → 쓸모없는 관리자"),
-            (40f, 4, "C", "", "C → 해당 업적 없음"),
+            (EndingState.Kind.True, 0, 0, "S", Achievements.GradeS, "S → 완벽한 근무!"),
+            (EndingState.Kind.True, 1, 0, "A", Achievements.GradeA, "A → 이 구역의 에이스"),
+            (EndingState.Kind.True, 2, 0, "B", "", "B → 해당 업적 없음"),
+            (EndingState.Kind.Loose, 0, 0, "F", Achievements.GradeLowest, "F(지목 실패) → 쓸모없는 관리자"),
+            (EndingState.Kind.Bad, 0, 0, "F", Achievements.GradeLowest, "F(둘 다 실패) → 쓸모없는 관리자"),
         };
         foreach (var c in cases)
         {
             Wipe();
             GameState.Instance.ResetRun(5);
-            GameState.Instance.AddCoreProgress(c.core, "검사");
-            GameState.Instance.AddEvaluation(c.score);
-            Ok(DayObjectives.Grade(c.core, c.score) == c.grade, $"등급 계산 {c.core:0}%/{c.score}점 = {c.grade}");
-            _m.NoteEnding(EndingState.Kind.Loose);
+            for (int d = 0; d < c.missed; d++) GameState.Instance.RecordShiftObjectives(1);
+            GameState.Instance.AddShiftTotals(0, c.incidents);
+            Ok(DayObjectives.FinalGrade(c.kind) == c.grade, $"등급 계산 {c.kind} · 미달성 {c.missed}일 = {c.grade}");
+            _m.NoteEnding(c.kind);
             int got = new[] { Achievements.GradeS, Achievements.GradeA, Achievements.GradeLowest }
                 .Count(x => _m.IsUnlocked(x));
             bool want = !string.IsNullOrEmpty(c.id);

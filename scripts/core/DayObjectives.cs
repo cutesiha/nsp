@@ -219,14 +219,56 @@ public static class DayObjectives
     // 엔딩 · 최종 기록 · 평가 등급이 전부 이 하나를 본다.
     public static bool CoreRecovered(float coreProgress) => coreProgress >= FinalCoreTarget - 0.001f;
 
-    // 근무를 전부 마친 뒤의 관리자 평가 등급.
-    // 선택 업무는 성능 보상을 주지 않는다 — 오직 이 등급에만 반영된다.
-    public static string Grade(float coreProgress, int evaluationScore)
+    // ── 관리자 평가 등급 ────────────────────────────────────────────
+    //
+    // **진엔딩(코어 복구 + 범인 지목 정확)일 때만** S · A · B · C 로 나뉜다.
+    // 나머지 세 엔딩 — 복구는 했지만 지목 실패 / 지목은 맞혔지만 복구 실패 / 둘 다 실패 —
+    // 은 근무를 얼마나 잘했든 전부 F 다. 엔딩의 두 축을 놓친 근무를 등급으로 구제하지 않는다.
+    //
+    // 진엔딩 안에서는 나쁜 쪽부터 본다(조건이 겹치면 더 낮은 등급이 이긴다).
+    //   C  사망 1명 이상 **그리고** 사고 6건 이상 **그리고** 업무 미달성 1일 이상 — 셋 다
+    //   B  업무 미달성 2일 이상, 또는 사고 6건 이상, 또는 사망 2명 이상
+    //   A  업무 미달성 1일, 또는 사망 1명, 또는 사고 5건 이상
+    //   S  사망 0 · 업무 미달성 0 · 사고 4건 이하
+    //
+    // 금기 위반은 등급에 들어가지 않는다(금기 계통 자체가 빠졌다).
+    // 예전 등급은 코어 + 업무 점수로만 매겨 D 까지 있었다 — D 는 F 로 바뀌었다.
+    public static string Grade(bool trueEnding, int deaths, int missedDays, int incidents)
     {
-        if (!CoreRecovered(coreProgress)) return evaluationScore >= 3 ? "C" : "D";
-        if (evaluationScore >= 5) return "S";
-        if (evaluationScore >= 3) return "A";
-        return evaluationScore >= 1 ? "B" : "C";
+        if (!trueEnding) return "F";
+        if (deaths >= 1 && incidents >= 6 && missedDays >= 1) return "C";
+        if (missedDays >= 2 || incidents >= 6 || deaths >= 2) return "B";
+        if (missedDays == 1 || deaths == 1 || incidents >= 5) return "A";
+        return "S";
+    }
+
+    // 지금 게임 상태 그대로의 등급. 성적표와 도전과제가 **같은 값**을 보도록 여기서만 센다.
+    public static string FinalGrade(EndingState.Kind kind)
+    {
+        var gs = GameState.Instance;
+        return Grade(kind == EndingState.Kind.True, DeadEmployees(),
+                     gs?.MissedRequiredDays ?? 0, gs?.TotalIncidents ?? 0);
+    }
+
+    // 지금 상태 그대로 끝내면 어느 엔딩인가. EndingDirector 와 **같은 두 축**으로 가른다 —
+    // 코어를 복구했는가 · 최종 보고서의 지목이 맞았는가. 엔딩 연출을 거치지 않는
+    // 화면(예전 결과 화면)이 등급을 낼 때 쓴다.
+    public static EndingState.Kind KindFromState()
+    {
+        var gs = GameState.Instance;
+        bool recovered = CoreRecovered(Mathf.Min(gs?.CoreProgress ?? 0f, 100f));
+        bool caught = gs?.WasCaught ?? false;
+        return recovered
+            ? (caught ? EndingState.Kind.True : EndingState.Kind.Loose)
+            : (caught ? EndingState.Kind.Late : EndingState.Kind.Bad);
+    }
+
+    // 근무 기간 동안 죽은 직원 수.
+    public static int DeadEmployees()
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return 0;
+        return sim.GetActiveEmployeeIds().Count(id => sim.GetEmployeeState(id)?.Alive == false);
     }
 
     public static void Reload()

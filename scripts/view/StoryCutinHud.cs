@@ -721,7 +721,9 @@ public partial class StoryCutinHud : CanvasLayer
                     if (_managerLine)
                         Sfx.Instance?.PlayVoiceBlip(ManagerVoiceId, _fullText[i],
                             pitchMul: ManagerVoicePitch);
-                    else Sfx.Instance?.PlayVoiceBlip(_speakerVoiceId, _fullText[i]);
+                    // GUIDE-0 는 눈앞의 사람이 아니라 시설 스피커로 말한다(지시서 §6).
+                    else Sfx.Instance?.PlayVoiceBlip(_speakerVoiceId, _fullText[i],
+                        _speakerVoiceId == "guide0" ? Sfx.VoiceChannel.Radio : Sfx.VoiceChannel.Direct);
                     EmployeeMouthAnimator.NoticeCharacter(_fullText[i]);
                 }
                 _shownChars = shown;

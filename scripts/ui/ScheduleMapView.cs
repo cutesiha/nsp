@@ -831,7 +831,7 @@ public partial class ScheduleMapView : Control
         if (src.X <= 0f || src.Y <= 0f) return;
         float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
         var dst = src * k;
-        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false);
+        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false, NSP.View.CrtArt.Tint);
     }
 
     private void DrawDashedLine(Vector2 a, Vector2 b, Color col, float width, float dash)

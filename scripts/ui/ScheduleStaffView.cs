@@ -515,7 +515,7 @@ public partial class ScheduleStaffView : Control
         // 원본 밖으로 나가지 않게 민다(배율은 그대로 둔다 — 밀기만 한다).
         left = Mathf.Clamp(left, 0f, Mathf.Max(0f, tex.GetWidth() - srcW));
         top = Mathf.Clamp(top, 0f, Mathf.Max(0f, tex.GetHeight() - srcH));
-        DrawTextureRectRegion(tex, box, new Rect2(left, top, srcW, srcH));
+        DrawTextureRectRegion(tex, box, new Rect2(left, top, srcW, srcH), modulate: NSP.View.CrtArt.Tint);
     }
 
     // 원화에서 위에서부터 이만큼만 보여준다(0.5 = 상반신). 얼굴 크기는 이 값 하나로 조절한다.
@@ -547,7 +547,7 @@ public partial class ScheduleStaffView : Control
         float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
         var dst = src * k;
         DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false,
-            tint ?? Colors.White);
+            tint ?? NSP.View.CrtArt.Tint);
     }
 
     private static string RoomName(FacilitySimulation sim, string roomId) =>

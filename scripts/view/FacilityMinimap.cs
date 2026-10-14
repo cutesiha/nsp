@@ -148,25 +148,35 @@ public partial class FacilityMinimap : Control
         }
     }
 
-    // 지금 이 직원 아이콘을 무슨 색으로 그릴 것인가. 기절 상태면 빨강(깜빡이는 동안은 번갈아).
-    private Color? FaintTint(string employeeId, FacilitySimulation sim)
+    // ── 아이콘 색 규칙 ──────────────────────────────────────────────
+    //
+    // **아이콘 속은 언제나 그 직원의 고유색이다.** 지도에서 누가 누구인지 가려 주는
+    // 유일한 단서가 색이기 때문이다.
+    //
+    // 예전에는 위험 구간 · 기절이면 아이콘을 통째로 구간 색(주황 · 빨강)으로 칠해 두었다.
+    // 그러자 주황색 여우 옆에서 하얀 양이 주황으로 바뀌어, 둘 중 누가 여우인지
+    // 헷갈리는 일이 실제로 났다. 상태 색은 이제 **깜빡이는 동안에만** 아이콘을 덮고,
+    // 그 뒤로 이어지는 상태는 아이콘 **바깥 테두리**로만 남긴다.
+
+    // 기절 — 처음 몇 번은 빨강과 고유색을 오간다(그 동안만 속을 칠한다).
+    private Color? FaintBlinkTint(string employeeId, FacilitySimulation sim)
     {
         var st = sim?.GetEmployeeState(employeeId);
         if (st == null || !st.Incapacitated) { _faintBlink.Remove(employeeId); return null; }
-
-        var red = new Color(1f, 0.16f, 0.14f);
-        if (!_faintBlink.TryGetValue(employeeId, out float age)) return red;
-        if (age >= FaintBlinkSeconds) return red;
-        // 깜빡임 — 원래 색과 빨강을 빠르게 오간다.
-        return (int)(age / FaintBlinkSeconds * FaintBlinkCount * 2f) % 2 == 0 ? red : (Color?)null;
+        if (!_faintBlink.TryGetValue(employeeId, out float age) || age >= FaintBlinkSeconds) return null;
+        return (int)(age / FaintBlinkSeconds * FaintBlinkCount * 2f) % 2 == 0 ? FaintRed : (Color?)null;
     }
 
-    // 위험 · 기절 구간의 직원은 고유색 대신 구간 색으로 그린다(정상 · 주의는 그대로).
-    // 기절은 FaintTint 가 따로 맡으므로 여기서는 손대지 않는다.
-    private static Color? StressTint(NSP.Facility.EmployeeState st, FacilitySimulation sim)
+    private static readonly Color FaintRed = new(1f, 0.16f, 0.14f);
+
+    // 깜빡임이 끝난 뒤에도 이어지는 상태 — 테두리 색으로만 알린다(속은 고유색 그대로).
+    //   기절 : 의무실에서 깨어날 때까지 빨간 테두리
+    //   위험 : 구간 색 테두리
+    private static Color? StateRing(NSP.Facility.EmployeeState st, FacilitySimulation sim)
     {
-        if (st == null || sim == null || !NSP.Core.DayFeatures.StressEnabled) return null;
-        if (!st.Alive || st.Incapacitated) return null;
+        if (st == null || sim == null || !st.Alive) return null;
+        if (st.Incapacitated) return FaintRed;
+        if (!NSP.Core.DayFeatures.StressEnabled) return null;
         string band = sim.StressBandName(st);
         return band == "위험" ? FacilitySimulation.StressBandColor(band) : null;
     }
@@ -702,7 +712,7 @@ public partial class FacilityMinimap : Control
 
         if (def.IsCoreRoom)
             DrawString(_font, new Vector2(box.Position.X, box.Position.Y - 14f),
-                $"CORE {sim.CoreProgressPreview():0.0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
+                $"CORE {Mathf.Min(100f, sim.CoreProgressPreview()):0.0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
                 new Color(0.5f, 0.8f, 1f));
 
         // 「출력 100% 불안정」 · 「효율 80%」 같은 운영 수치 줄은 **여기서 그리지 않는다**.
@@ -890,13 +900,11 @@ public partial class FacilityMinimap : Control
         }
 
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
-        // 쓰러졌다 — 빨간색. 처음 한두 초는 원래 색과 번갈아 깜빡이고,
-        // 그 뒤에는 의무실에서 깨어날 때까지 계속 빨간 상태로 남는다(§4).
-        // 위험 구간 이상이면 아이콘을 구간 색으로 물들인다 — 지도만 봐도 누가 한계인지 보인다(F-2).
-        var stress = StressTint(st, sim);
-        if (stress.HasValue) c = stress.Value;
-        var faint = FaintTint(id, sim);
+        // 쓰러졌다 — 처음 몇 번만 빨강과 고유색을 오간다. 그 뒤는 테두리(StateRing)가 맡는다.
+        var faint = FaintBlinkTint(id, sim);
         if (faint.HasValue) c = faint.Value;
+        // 깜빡임이 끝난 뒤에도 남는 상태(기절 · 위험) — 속은 건드리지 않고 테두리로만.
+        var ring = StateRing(st, sim);
 
         // 스트레스 구간이 방금 올라갔다 — 아이콘이 점멸하고 위에 붉은 ! 가 같이 깜빡인다.
         bool stressBeat = false;
@@ -913,6 +921,9 @@ public partial class FacilityMinimap : Control
             DrawCircle(p, EmpDotRadius + 5f, c with { A = 0.55f }, false, 3f);
         DrawCircle(p, EmpDotRadius, c);
         DrawCircle(p, EmpDotRadius, new Color(0f, 0f, 0f, 0.7f), false, 1.6f);
+        // 이어지는 상태 테두리 — 깜빡이는 동안은 그쪽이 더 크게 그려지므로 생략한다.
+        if (ring.HasValue && !stressBeat)
+            DrawCircle(p, EmpDotRadius + 3f, ring.Value, false, 2.6f);
         if (stressBeat)
             DrawString(_font, p + new Vector2(-14f, -EmpDotRadius - 6f), "!", HorizontalAlignment.Center,
                 28f, ViewFont.S(20), new Color(1f, 0.26f, 0.22f));

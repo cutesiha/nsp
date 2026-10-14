@@ -33,7 +33,9 @@ public partial class FacilityMonitorView : Control
     private RichTextLabel _inspector;
     private TextureRect _face;
     // 인스펙터 얼굴 썸네일 한 변(1:1).
-    private const float FaceSize = 72f;
+    private const float FaceSize = 112f;
+    // 밝기는 CrtArt 한 곳에서 정한다(모니터에 올리는 원화 전부가 같은 값을 쓴다).
+    private ColorRect _faceBack;
     private Button _isolateBtn;
     private Label _notice;
     private double _noticeUntil;
@@ -281,6 +283,23 @@ public partial class FacilityMonitorView : Control
 
         // 직원을 고르면 설명 위에 얼굴(스탠딩 원화에서 머리만 잘라낸 FacePortrait)을 1:1 로 띄운다.
         // 방을 고르면 숨는다 — 그때는 설명이 이 자리까지 올라와 쓰던 높이를 그대로 쓴다.
+        // 원화는 밝은 파스텔(하늘색 · 연보라 · 흰 바탕)이다. 그대로 올리면 CRT 발광과
+        // 전역 LUT 를 지나면서 **한 덩어리로 날아가** 누구 얼굴인지 알아볼 수 없다
+        // — 화면에서 가장 밝은 자리가 되어 번짐까지 먹는다.
+        //
+        // 그래서 얼굴 뒤에 어두운 판을 깔고, 그림 자체는 조금 눌러서 올린다.
+        // 검은 선화는 원래 어두워서 거의 그대로 남고 **연한 면만 내려가** 대비가 산다.
+        var faceBack = new ColorRect
+        {
+            Position = new Vector2(10, 30),
+            Size = new Vector2(FaceSize, FaceSize),
+            Color = NSP.View.CrtArt.Backing,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        insPanel.AddChild(faceBack);
+        _faceBack = faceBack;
+
         _face = new TextureRect
         {
             Position = new Vector2(10, 30),
@@ -290,6 +309,7 @@ public partial class FacilityMonitorView : Control
             MouseFilter = MouseFilterEnum.Ignore,
             Visible = false,
         };
+        NSP.View.CrtArt.Apply(_face);
         insPanel.AddChild(_face);
 
         _inspector = new RichTextLabel
@@ -585,6 +605,8 @@ public partial class FacilityMonitorView : Control
         _faceCache = tex;
         _face.Texture = tex;
         _face.Visible = tex != null;
+        // 어두운 받침도 얼굴과 함께 여닫는다 — 방을 고른 자리에 검은 칸만 남으면 안 된다.
+        if (_faceBack != null) _faceBack.Visible = tex != null;
 
         // 방을 고르면 격리 버튼이 숨으므로 그 자리까지 설명이 내려올 수 있다.
         // (직원을 고르면 y 328 의 격리 버튼 위에서 끊어야 한다.)

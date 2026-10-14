@@ -432,8 +432,14 @@ public partial class EndingDirector : Node
     private async Task GuideSpeak(EndingMonitorView view, params string[] lines) =>
         await GuideSpeakAt(view, 1f, lines);
 
+    // 자리 규칙: **얼굴창은 모니터1(왼쪽), 대사는 모니터2(오른쪽).**
+    // 얼굴창은 CRT 한가운데에 크게 뜨기 때문에 같은 화면에 대사를 찍으면 글자가
+    // 통째로 얼굴 뒤로 들어간다(배드 · 레이트에서 실제로 그랬다). 그래서 말하는 순간
+    // 얼굴을 **말하는 화면의 반대쪽**으로 보내 둔다 — 어느 엔딩이 어느 화면에 말하든
+    // 둘이 겹치지 않는다.
     private async Task GuideSpeakAt(EndingMonitorView view, float slow, params string[] lines)
     {
+        if (view != null) PlaceGuide(onRight: view == EndingMonitorView.Left);
         _guideTalking = true;
         GuideMouthAnimator.StartTalking();
         view?.SetBlockCenter(true);
@@ -459,7 +465,7 @@ public partial class EndingDirector : Node
         if (_guideTalking)
         {
             GuideMouthAnimator.NoticeCharacter(c);
-            Sfx.Instance?.PlayVoiceBlip("guide0", c);
+            Sfx.Instance?.PlayVoiceBlip("guide0", c, Sfx.VoiceChannel.Radio);
             return;
         }
         if (char.IsWhiteSpace(c)) return;

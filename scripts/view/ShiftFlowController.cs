@@ -385,31 +385,37 @@ public partial class ShiftFlowController : Node
             return true;
         }
 
-        // ② DAY0 교육.
+        // ② DAY0 가상 시뮬 — 교육을 접고 **DAY1 로 건너간다.**
+        //
+        // Abort 는 GUIDE-0 의 안내만 멈춘다. 그대로 두면 교육용으로 열어 둔 DAY0 배치
+        // 화면에 남아, 건너뛴 사람이 할 일 없는 하루를 그대로 치러야 한다.
         if (NSP.Prologue.TutorialDirector.Instance is { IsRunning: true } tut)
         {
             tut.Abort();
+            SkipToDay1();
             return true;
         }
 
-        // ③ 프롤로그 — 여기만 **도착점이 다르다.**
+        // ③ 프롤로그 — **가상 시뮬로 넘긴다.**
+        //
+        // 예전에는 여기서 DAY1 까지 한 번에 건너뛰었다. 그러면 SKIP 한 번에 가상 시뮬이
+        // 통째로 사라져, 건너뛸 기회조차 없이 안 본 것이 된다. 프롤로그를 정상 종료와
+        // 같은 길(Finished → OnPrologueFinished → DAY0)로 끝내 두면, 이어서 뜨는
+        // 가상 시뮬에서 SKIP 을 한 번 더 눌러 DAY1 로 갈 수 있다.
         if (_stage == Stage.Prologue && NSP.Prologue.PrologueDirector.Instance is { IsRunning: true } pro)
         {
-            if (PrologueDirector.Instance != null)
-                PrologueDirector.Instance.Finished -= OnPrologueFinished;
             pro.Abort();
-            SkipToDay1FromPrologue();
             return true;
         }
         return false;
     }
 
-    // 프롤로그를 건너뛴 자리에서 DAY1 배치로 간다.
+    // 지금 어디에 있든 DAY1 배치로 간다(가상 시뮬 건너뛰기).
     //
     // EnterSchedule 은 Stage.Title 로 들어와야 StartNewRun(1) 을 돌려 **DAY1 새 게임**을
-    // 연다(그냥 두면 프롤로그가 깔아 둔 DAY0 인 채로 교육 배치에 들어간다). 화면 상태도
+    // 연다(그냥 두면 DAY0 인 채로 교육 배치에 들어간다). 화면 상태도
     // BootStraightToDay1 과 똑같이 맞춘다 — 그쪽이 이미 검증된 도착 상태다.
-    private void SkipToDay1FromPrologue()
+    private void SkipToDay1()
     {
         _stage = Stage.Title;
         _stressHintShown = false;

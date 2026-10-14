@@ -142,6 +142,7 @@ public partial class FacilityCctvWorld : Node3D
             // 방 씬은 room_base 한 벌을 공유해서 그대로 띄우면 아홉 방이 같은 상자로 보인다.
             // 마감(재질 · 구조 · 소품 · 조명)은 씬이 아니라 여기서 얹는다(RoomDressing).
             RoomDressing.Apply(roomId, inst);
+            BrightenForCctv(inst);
             _rooms[roomId] = inst;
         }
 
@@ -594,6 +595,41 @@ public partial class FacilityCctvWorld : Node3D
         _entityHideAt = -1;
         if (_entity != null) _entity.Visible = false;
         RestoreRoomLights();
+    }
+
+    // ── CCTV 로 볼 때의 방 밝기 ──────────────────────────────────────
+    //
+    // 방 씬의 조명은 **방 안에 서서 보는** 밝기로 맞춰져 있다. 그런데 이 월드의 그림은
+    // 거기서 끝나지 않는다 — 작은 뷰포트로 줄고, CRT 유리(비네팅 · 스캔라인)를 지나고,
+    // 전역 아날로그 LUT 까지 거친다. 그 세 겹을 지나고 나면 직원이 무엇을 하고 있는지
+    // 분간이 안 된다. CCTV 는 추리에 필요한 정보를 얻는 도구라 **보이는 것이 먼저다.**
+    //
+    // 그래서 이 월드에 올리는 방만 조명을 올린다. 방 씬 자체는 건드리지 않는다 —
+    // 같은 씬을 쓰는 다른 화면(휴게실 · 격리실 연출)의 분위기가 같이 밝아지면 안 된다.
+    //
+    // 어둡게 하는 연출(DimRoomLights)은 그대로 산다. 저쪽은 **지금 값에 곱하므로**
+    // 올려 둔 밝기에서 같은 비율로 어두워진다.
+    private const float CctvLightBoost = 1.9f;
+    // 그림자 쪽이 통째로 검게 뭉개지지 않도록 방마다 아주 약한 채움등을 하나 더 둔다.
+    private const float CctvFillEnergy = 0.55f;
+
+    private static void BrightenForCctv(Node3D room)
+    {
+        foreach (var n in room.FindChildren("*", "Light3D", true, false))
+            if (n is Light3D l) l.LightEnergy *= CctvLightBoost;
+
+        // 천장등 하나로는 책상 밑 · 벽 쪽이 검게 남는다. 방 가운데 위쪽에 넓고 약한
+        // 채움등을 하나 더 둔다 — 그림자를 만들지 않아(shadow off) 값도 거의 안 든다.
+        var fill = new OmniLight3D
+        {
+            LightEnergy = CctvFillEnergy,
+            LightColor = new Color(0.78f, 0.84f, 1f),
+            OmniRange = 12f,
+            ShadowEnabled = false,
+            Position = new Vector3(0f, 2.2f, 0f),
+        };
+        fill.Name = "CctvFill";
+        room.AddChild(fill);
     }
 
     private void DimRoomLights(string roomId, float factor)
