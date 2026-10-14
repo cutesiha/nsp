@@ -379,14 +379,13 @@ public partial class AchievementManager : Node
     // DayObjectives.Grade 그대로 쓰고 여기서 새로 만들지 않는다.
     public void NoteEnding(EndingState.Kind kind)
     {
-        var gs = GameState.Instance;
-        string grade = DayObjectives.Grade(gs?.CoreProgress ?? 0f, gs?.EvaluationScore ?? 0);
+        string grade = DayObjectives.FinalGrade(kind);
         // S 를 받았다고 A 까지 주지 않는다 — 실제로 받은 등급 하나만.
         switch (grade)
         {
             case "S": Unlock(Achievements.GradeS); break;
             case "A": Unlock(Achievements.GradeA); break;
-            case "D": Unlock(Achievements.GradeLowest); break;
+            case "F": Unlock(Achievements.GradeLowest); break;
         }
         // 다른 실패 엔딩(Late · Loose)을 Bad 로 뭉치지 않는다.
         if (kind == EndingState.Kind.True) Unlock(Achievements.TrueEnding);

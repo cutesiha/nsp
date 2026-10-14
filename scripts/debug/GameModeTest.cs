@@ -168,17 +168,16 @@ public partial class GameModeTest : Node
         Ok(DayObjectives.For(4) == null || DayObjectives.For(4).Day == 4,
             "대회용에 DAY4 전용 목표는 없다(쓰이지도 않는다)");
 
-        // 평가 등급 — 계산 규칙(선택 업무 점수 구간)은 그대로다. 기준점만 모드를 따른다.
-        GameModes.ForceSelect(GameMode.Standard);
-        Ok(DayObjectives.Grade(100f, 5) == "S" && DayObjectives.Grade(100f, 3) == "A"
-           && DayObjectives.Grade(100f, 0) == "C" && DayObjectives.Grade(92f, 5) == "C"
-           && DayObjectives.Grade(92f, 0) == "D",
-            "기본 모드 등급표가 예전과 한 칸도 다르지 않다 (S/A/C/C/D)");
-
+        // 평가 등급 — 모드와 무관하게 같은 규칙이다(진엔딩만 S~C, 나머지는 F).
+        // 모드가 바꾸는 것은 "복구했는가" 의 기준점(FinalCoreTarget)뿐이다.
+        foreach (var mode in new[] { GameMode.Standard, GameMode.Competition })
+        {
+            GameModes.ForceSelect(mode);
+            Ok(DayObjectives.Grade(true, 0, 0, 0) == "S" && DayObjectives.Grade(true, 0, 1, 0) == "A"
+               && DayObjectives.Grade(false, 0, 0, 0) == "F",
+                $"{mode} — 진엔딩 S/A · 그 밖은 F");
+        }
         GameModes.ForceSelect(GameMode.Competition);
-        Ok(DayObjectives.Grade(comp, 5) == "S" && DayObjectives.Grade(comp, 3) == "A",
-            "대회용도 목표를 채우면 S · A 가 나온다");
-        Ok(DayObjectives.Grade(comp - 1f, 5) == "C", "목표에 못 미치면 예전처럼 C 아래로");
 
         MeasureCompetitionCore();
     }

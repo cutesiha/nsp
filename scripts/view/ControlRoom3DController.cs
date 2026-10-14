@@ -60,6 +60,16 @@ public partial class ControlRoom3DController : Node3D
     public const float DocumentSupersample = 1.45f;
     public const float DocumentMinRenderScale = 0.85f;
 
+    // 캐릭터 얼굴을 들여다보는 화면(스토리 컷인 · 휴게 심문)도 바닥을 깔아 둔다.
+    //
+    // 품질을 낮추면 CRT 화면이 0.58배로 줄어드는데, 거기서는 **입 모양과 외곽선처럼
+    // 얇은 선이 먼저 사라진다.** 그 둘은 이 게임에서 "지금 누가 무슨 말을 하는가" 를
+    // 읽는 수단이라 뭉개지면 안 된다("말할 때만 얼굴이 안 보인다" 는 지적).
+    //
+    // 상시 비용이 아니다 — 스토리와 심문이 떠 있는 동안만 쓰이고, 끝나면
+    // ReleaseIdleViewports 가 도로 내려놓는다.
+    public const float FaceMinRenderScale = 0.85f;
+
     // 논리 캔버스 크기 → 실제 SubViewport 렌더 해상도.
     // superSample / minRenderScale 은 문서처럼 특별히 선명해야 하는 표면만 쓴다.
     public static float SurfaceScale(float superSample = 1f, float minRenderScale = 0f) =>
@@ -283,7 +293,8 @@ public partial class ControlRoom3DController : Node3D
         AddScaledView(_restRosterVp, new RestRosterView(), MonitorCanvasSize);
 
         _interviewVp = MakeViewport();
-        AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize);
+        AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize,
+            minRenderScale: FaceMinRenderScale);
         // 휴게시간에도 교육이 이어진다 — 여기에도 같은 얼굴창을 얹는다.
         _interviewVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
@@ -311,7 +322,8 @@ public partial class ControlRoom3DController : Node3D
 
         // DAY1~5 메인 스토리 — 모니터2 안에서 휴게실 3D + 스탠딩 + 대사를 합성한다.
         _storyVp = MakeViewport();
-        AddScaledView(_storyVp, new StoryMonitorView(), MonitorCanvasSize);
+        AddScaledView(_storyVp, new StoryMonitorView(), MonitorCanvasSize,
+            minRenderScale: FaceMinRenderScale);
 
         _scheduleStaffVp = MakeViewport();
         AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);

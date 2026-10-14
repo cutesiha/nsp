@@ -34,8 +34,16 @@ public partial class EmployeeStandingPortrait : Control
     public float LiftFraction { get; set; }
 
     // 말하지 않는 쪽은 살짝 눌러 둔다 — 누가 말하는지 한눈에 보이게.
-    private const float ListenDim = 0.55f;
-    private const float SpeakDim = 1f;
+    // 듣는 쪽 / 말하는 쪽의 밝기.
+    //
+    // 말하는 쪽을 1.0(최대)으로 두었더니 **말할 때만** 얼굴이 날아갔다 — CRT 발광 ·
+    // 번짐 · 전역 LUT 를 지나며 연한 면이 통째로 흰색이 되어, 외곽선도 눈도 입 모양도
+    // 사라졌다. 듣는 쪽(0.55)은 멀쩡했던 이유가 그것이다.
+    //
+    // 말하는 쪽도 천장에 닿지 않게 내린다. 둘의 **비율**은 그대로 두어
+    // "지금 누가 말하는가" 는 예전처럼 한눈에 보인다.
+    private const float ListenDim = 0.48f;
+    private const float SpeakDim = 0.86f;
 
     // 혼자 뜨는 화면(전화)에서는 명암을 나누지 않는다 — 나눌 상대가 없다.
     public bool AlwaysLit { get; set; }
