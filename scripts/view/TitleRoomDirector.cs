@@ -50,6 +50,10 @@ public partial class TitleRoomDirector : Node
     //   True : 아주 약한 아침빛 · 정상 색 · CRT 노이즈 감소 · 같은 곡의 조용한 버전
     //   Loose: True 와 똑같이 밝다. 20초에 한 번 0.2초짜리 노이즈가 튀는 것만 다르다 —
     //          조용한데 가끔 어긋난다.
+    // 처음 켠 타이틀에서 자리 → 왼쪽 단말기로 다가가는 데 걸리는 시간(초).
+    // 0 에 가까울수록 켜자마자 모니터가 화면을 가득 메운다. 방을 보여 주고 싶으면 늘린다.
+    private const float StartZoomSeconds = 1.6f;
+
     public static float EndingScreenNoise => EndingState.Last switch
     {
         EndingState.Kind.Bad => 0.06f,
@@ -173,9 +177,17 @@ public partial class TitleRoomDirector : Node
         TitleStaffIdView.Instance.PowerOff();
         TitleTerminalView.Instance.ShowStandby();
 
-        // 게임 시작 순간부터 왼쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
-        // 엔딩 뒤에 다시 눈을 뜬 경우만 예외 — 방 전체(붉은 CRT · 비상등 / 아침빛)가 먼저 보여야 한다.
-        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, 0.01f);
+        // 타이틀은 왼쪽 CRT 확대 화면이다 — 다만 **즉시 그 자리에 두지는 않는다.**
+        //
+        // 예전에는 0.01초, 사실상 순간이동이었다. 그러면 게임을 켜자마자 모니터 하나가
+        // 화면을 가득 메운 채로 떠서 여기가 어디인지 알 수 없고, 이어서 프롤로그가
+        // 시작돼도 "이미 확대돼 있던 화면" 이라 들어가는 느낌이 전혀 없다.
+        //
+        // 자리에 앉은 시야에서 **천천히 단말기로 다가간다.** 방(두 CRT · 전화기 · 책상)이
+        // 먼저 한 박자 보이고 나서 글자를 읽을 크기가 된다.
+        // 엔딩 뒤에 다시 눈을 뜬 경우는 그대로 예외다 — 방 전체(붉은 CRT · 비상등 /
+        // 아침빛)를 충분히 보여 줘야 하므로 여기서 당기지 않는다.
+        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, StartZoomSeconds);
 
         // 대기 화면의 안내는 단말기 자체에 "[ PRESS ANY KEY ]" 로 떠 있다 — 겹쳐 쓰지 않는다.
         _hint.SetLine("");

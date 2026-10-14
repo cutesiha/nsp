@@ -459,7 +459,7 @@ public partial class EndingDirector : Node
         if (_guideTalking)
         {
             GuideMouthAnimator.NoticeCharacter(c);
-            Sfx.Instance?.PlayVoiceBlip("guide0", c);
+            Sfx.Instance?.PlayVoiceBlip("guide0", c, Sfx.VoiceChannel.Radio);
             return;
         }
         if (char.IsWhiteSpace(c)) return;

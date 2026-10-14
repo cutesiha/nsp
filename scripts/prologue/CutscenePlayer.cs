@@ -645,7 +645,8 @@ public partial class CutscenePlayer : Control
         {
             char c = _text.Text[_spokenChars];
             _spokenChars++;
-            Sfx.Instance?.PlayVoiceBlip(voice, c, _slide.Radio);
+            Sfx.Instance?.PlayVoiceBlip(voice, c,
+                _slide.Radio ? Sfx.VoiceChannel.Radio : Sfx.VoiceChannel.Direct);
         }
     }
 

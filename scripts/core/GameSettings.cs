@@ -18,6 +18,10 @@ public static class GameSettings
     // 무전/인터컴 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     // 기존 직원 보이스를 그대로 통과시키되 대역만 좁혀 "무전기에서 나오는 소리"로 만든다.
     public const string BusRadio = "Radio";
+    // 작업실 인터폰 전용. 무전(Radio)과 **일부러 다르게** 들려야 한다 —
+    // GUIDE-0 는 시설의 기계 비서라 좁고 차갑게, 직원 전화는 벽에 붙은 낡은 인터폰이라
+    // 조금 더 넓고 먹먹하게. 같은 필터를 쓰면 누가 말하는지 귀로 구분되지 않는다.
+    public const string BusIntercom = "Intercom";
     public const string BusScream = "Scream";
     // 공포 ambience 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     //
@@ -134,6 +138,7 @@ public static class GameSettings
             AudioServer.SetBusSend(idx, BusMaster);
         }
         EnsureRadioBus();
+        EnsureIntercomBus();
         EnsureScreamBus();
         EnsureHorrorBus();
         EnsureAmbienceBus();
@@ -296,6 +301,27 @@ public static class GameSettings
         AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter { CutoffHz = 3200f });
     }
 
+    // 작업실 인터폰 — 벽에 붙은 낡은 스피커.
+    //
+    //   저역 깎기(통 울림 제거) → 고역 깎기(좁은 스피커) → 아주 짧은 잔향(벽에 붙은 상자)
+    // 무전(Radio)보다 **대역이 넓고 찌그러짐이 없다.** 진술을 알아듣는 데 방해가 되면
+    // 안 되기 때문이다(지시서 §6) — 통화는 추리에 필요한 정보를 듣는 자리다.
+    private static void EnsureIntercomBus()
+    {
+        if (AudioServer.GetBusIndex(BusIntercom) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusIntercom);
+        AudioServer.SetBusSend(idx, BusSfx);
+
+        AudioServer.AddBusEffect(idx, new AudioEffectHighPassFilter { CutoffHz = 420f });
+        AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter { CutoffHz = 4200f });
+        AudioServer.AddBusEffect(idx, new AudioEffectReverb
+        {
+            RoomSize = 0.18f, Damping = 0.75f, Wet = 0.12f, Dry = 1f, Spread = 0.2f,
+        });
+    }
+
     private static void ApplyAudio()
     {
         EnsureBuses();
@@ -426,7 +452,13 @@ public static class GameSettings
         env.GlowEnabled = _sceneWantsGlow.Value && QualityLevels[(int)_quality].Glow;
         if (!env.GlowEnabled) return;
 
-        // 1~7 단계. 숫자가 클수록 넓고 흐리게 퍼지며 그만큼 비싸다.
+        // 숫자가 클수록 넓고 흐리게 퍼지며 그만큼 비싸다.
+        //
+        // **인덱스는 0 부터다.** 인스펙터가 "Glow Levels 1~7" 로 보여 주는 것과 달리
+        // SetGlowLevel 이 받는 번호는 0~6 이고, 7 을 넣으면 매 씬 전환마다
+        // "p_level = 7 is out of bounds" 가 찍힌다. 아래 번호는 지금 화면에 실제로
+        // 걸려 있던 단계 그대로 두고, 범위 밖이라 애초에 먹지 않던 한 줄만 걷어냈다
+        // — 보정해 둔 색감이 바뀌면 안 되기 때문이다.
         bool wide = _quality == Quality.High;
         env.SetGlowLevel(1, 1f);
         env.SetGlowLevel(2, 1f);
@@ -434,7 +466,6 @@ public static class GameSettings
         env.SetGlowLevel(4, 0.85f);
         env.SetGlowLevel(5, wide ? 0.55f : 0f);
         env.SetGlowLevel(6, 0f);
-        env.SetGlowLevel(7, 0f);
     }
 
     // --- 저장 / 불러오기 ---------------------------------------------------

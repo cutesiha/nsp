@@ -12,13 +12,13 @@ namespace NSP.Ui;
 // 질감을 받고, ESC 메뉴(120) · 경보(122) · 설정(130) 은 필터 위에 또렷하게 뜬다.
 //
 // 값 조절: shaders/analog_vhs_material.tres 를 인스펙터에서 열면 슬라이더로 바로 바뀐다.
-// 전/후 비교: F7 로 켜고 끈다.
+// 전/후 비교: F8 로 켜고 끈다(F7 은 도전과제 초기화라 겹치면 안 된다).
 public partial class AnalogFilter : CanvasLayer
 {
     public static AnalogFilter Instance { get; private set; }
 
     private const string MaterialPath = "res://shaders/analog_vhs_material.tres";
-    private const Key ToggleKey = Key.F7;
+    private const Key ToggleKey = Key.F8;
 
     private ColorRect _rect;
     private ShaderMaterial _mat;

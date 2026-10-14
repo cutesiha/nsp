@@ -26,7 +26,7 @@ uniform float phosphor_center : hint_range(0.0, 1.0) = 0.35;
 // 바탕빛은 UI 가 없는 검정 바탕에만 깐다 — 이 밝기(휘도)를 넘는 패널 · 선 · 글자는 원래 색 그대로 위에 올라간다.
 uniform float phosphor_cut : hint_range(0.0, 0.3) = 0.045;
 // 노이즈 배율 — 코드가 넣는 noise_strength(평소 0.02~0.035, 공포 연출 때 크게)에 곱한다.
-uniform float noise_scale : hint_range(0.0, 1.0) = 0.35;
+uniform float noise_scale : hint_range(0.0, 1.0) = 0.26;
 // 화면 바탕 검정 누르기(선형 밝기) — 이 값 이하는 완전 검정으로. 전역 아날로그 필터(analog_vhs)는
 // 아주 어두운 회색 UI 바탕을 청회색으로 띄우므로, 바탕만 살짝 눌러 둔다. 0.01 정도면 글자 · 지도 · CCTV 는 남는다.
 uniform float black_crush : hint_range(0.0, 0.1) = 0.0;

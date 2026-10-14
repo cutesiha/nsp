@@ -680,7 +680,7 @@ public partial class GuideHologramView : Control
             _spokenChars++;
             // 입은 글자마다 모양을 바꾸지 않는다 — 문장부호에서 잠깐 다물 때만 쓴다.
             GuideMouthAnimator.NoticeCharacter(c);
-            if (!string.IsNullOrEmpty(voice)) Sfx.Instance?.PlayVoiceBlip(voice, c);
+            if (!string.IsNullOrEmpty(voice)) Sfx.Instance?.PlayVoiceBlip(voice, c, Sfx.VoiceChannel.Radio);
         }
     }
 

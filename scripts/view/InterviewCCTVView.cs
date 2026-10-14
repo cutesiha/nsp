@@ -99,6 +99,8 @@ public partial class InterviewCCTVView : Control
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.Scale,
             MouseFilter = MouseFilterEnum.Ignore,
+            // CRT 발광 · 번짐 · LUT 를 지나며 날아가지 않게 조금 눌러서 올린다(CrtArt).
+            Modulate = NSP.View.CrtArt.Tint,
         };
         _portraitBox.AddChild(_portrait);
         BuildStandingMaterial();

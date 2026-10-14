@@ -8,7 +8,7 @@ namespace NSP.View;
 // 기획 레퍼런스에서 손으로 칠한 것들을 장면에 붙인다(붓 자국은 따라 그리지 않고 깔끔하게 다듬었다).
 //   - 이 노드(풀스크린 사각형) : 전화기 뒤 · 옆 책상의 검은 그림자, 어두운 베젤 · 패드 받침, 청회색 책상 뒤쪽
 //   - "analog_ink" 그룹(모니터 앞면 사각형) : 두 모니터 베젤 모서리를 따라 그은 남색 외곽선
-// 둘 다 AnalogFilter 와 함께 F7 로 켜고 꺼진다. 방 조명(모니터 빛 · 책상 보조등)이 꺼지면 같이 사라진다
+// 둘 다 AnalogFilter 와 함께 F8 로 켜고 꺼진다. 방 조명(모니터 빛 · 책상 보조등)이 꺼지면 같이 사라진다
 // — 정전 연출에서 칠만 혼자 빛나면 안 된다.
 //
 // 칠 텍스처는 레퍼런스와 기본 시점 렌더를 비교해 만든다(scripts/debug/AnalogLookShot.cs 로 렌더).
@@ -30,7 +30,7 @@ public partial class AnalogPaint : MeshInstance3D
     private Light3D[] _lights = System.Array.Empty<Light3D>();
     private bool _enabled = true;
 
-    // F7 과 별개로 칠만 끄고 켤 때(비교 촬영용).
+    // F8 과 별개로 칠만 끄고 켤 때(비교 촬영용).
     public bool Enabled
     {
         get => _enabled;

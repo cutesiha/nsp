@@ -53,6 +53,27 @@ public static class EndingState
     {
         if (_loaded) return;
         _loaded = true;
+
+        // **에디터에서 돌릴 때는 지난 판의 엔딩을 들고 오지 않는다.**
+        //
+        // F5 는 "처음부터 해 보는" 버튼이다. 그런데 한 번 배드엔딩을 보고 나면 그 뒤로
+        // 켤 때마다 타이틀이 붉은 CRT · "복구 실패 기록이 존재합니다" 로 떴다 — 매번
+        // 그 판의 뒤끝에서 시작하는 셈이라, 처음 켠 사람이 보는 화면을 확인할 수가 없다.
+        // 도전과제를 F5 마다 비우는 것과 같은 이유다(AchievementManager).
+        //
+        // **내보낸 빌드에는 해당하지 않는다** — 플레이어에게는 시설이 지난 밤을
+        // 기억하는 것이 이 타이틀의 전부다. 지우는 것은 에디터에서 돌릴 때뿐이다.
+        //
+        // 이번 판에서 엔딩을 본 뒤 타이틀로 돌아가는 길은 그대로다 — 아래에서 파일만
+        // 비우고 _loaded 를 세워 두므로, 그 뒤의 Record() 는 평소처럼 기록된다.
+        if (OS.HasFeature("editor"))
+        {
+            _last = Kind.None;
+            PendingWake = Kind.None;
+            if (FileAccess.FileExists(Path)) DirAccess.RemoveAbsolute(Path);
+            return;
+        }
+
         var cfg = new ConfigFile();
         if (cfg.Load(Path) != Error.Ok) return;
         // 예전 저장 파일(True=1 / Bad=2)도 그대로 읽힌다. 모르는 값이면 None 으로 둔다.

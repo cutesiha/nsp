@@ -204,7 +204,11 @@ public partial class EmployeeStandingPortrait : Control
 
         float want = AlwaysLit || EmployeeMouthAnimator.Speaker == _employeeId ? SpeakDim : ListenDim;
         _dim = Mathf.MoveToward(_dim, want, (float)delta * 2.6f);
-        _portrait.Modulate = new Color(_dim, _dim, _dim, 1f);
+        // 화자/청자 밝기 위에 **모니터 원화 공통 톤**을 한 번 더 곱한다(CrtArt).
+        // 원화가 밝은 파스텔이라 그냥 올리면 CRT 발광 → 번짐(Glow) → LUT 를 지나며
+        // 실루엣 둘레에 흰 테가 생기고 얼굴이 한 덩어리로 날아간다.
+        var t = CrtArt.Tint;
+        _portrait.Modulate = new Color(_dim * t.R, _dim * t.G, _dim * t.B, 1f);
     }
 
     private void Refresh(bool force)
