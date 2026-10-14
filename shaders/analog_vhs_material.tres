@@ -1,0 +1,19 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://shaders/analog_vhs.gdshader" id="1_vhs"]
+
+[resource]
+shader = ExtResource("1_vhs")
+shader_parameter/black_crush = 0.04
+shader_parameter/contrast = 1.25
+shader_parameter/saturation = 1.3
+shader_parameter/shadow_tint = Color(0.85, 0.75, 0.95, 1)
+shader_parameter/highlight_tint = Color(1, 0.86, 0.68, 1)
+shader_parameter/tint_amount = 1.0
+shader_parameter/color_levels = 24.0
+shader_parameter/aberration = 0.0012
+shader_parameter/bleed = 0.0012
+shader_parameter/grain = 0.05
+shader_parameter/scanline = 0.08
+shader_parameter/vignette = 0.35
+shader_parameter/tracking = 0.0

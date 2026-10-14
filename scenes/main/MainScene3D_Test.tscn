@@ -44,18 +44,21 @@
 background_mode = 1
 background_color = Color(0.015, 0.015, 0.02, 1)
 ambient_light_source = 2
-ambient_light_color = Color(0.34, 0.36, 0.44, 1)
-ambient_light_energy = 0.07
+ambient_light_color = Color(0.3, 0.2, 0.34, 1)
+ambient_light_energy = 0.05
 tonemap_mode = 2
 glow_enabled = true
 glow_intensity = 0.75
 glow_strength = 1.05
-glow_bloom = 0.07
-glow_hdr_threshold = 0.78
+glow_bloom = 0.12
+glow_hdr_threshold = 0.68
 glow_hdr_scale = 2.4
 fog_enabled = true
-fog_light_color = Color(0.04, 0.04, 0.06, 1)
-fog_density = 0.018
+fog_light_color = Color(0.02, 0.015, 0.025, 1)
+fog_density = 0.035
+adjustment_enabled = true
+adjustment_contrast = 1.1
+adjustment_saturation = 1.15
 
 [sub_resource type="BoxMesh" id="Box"]
 
@@ -1070,7 +1073,7 @@ outline_size = 0
 
 [node name="M01_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor01" unique_id=1720985211]
 transform = Transform3D(-1.0002681, 7.450581e-09, 0, 0, 0.9510808, 0.30894205, 0, 0.3090249, -0.95133567, -2.9802322e-08, 1.1436116, 0.07000005)
-light_color = Color(0.5, 0.8, 1, 1)
+light_color = Color(0.4, 0.9, 0.8, 1)
 light_energy = 3.0
 light_specular = 0.1
 shadow_enabled = true
@@ -1122,7 +1125,7 @@ outline_size = 0
 
 [node name="M02_ScreenLight" type="SpotLight3D" parent="ControlRoom/Monitor02" unique_id=1957949341]
 transform = Transform3D(-1.0002681, -7.450581e-09, 0, 0, 0.9510808, 0.30894205, 0, 0.3090249, -0.95133567, 2.9802322e-08, 1.1436116, 0.07000005)
-light_color = Color(0.5, 0.8, 1, 1)
+light_color = Color(0.4, 0.9, 0.8, 1)
 light_energy = 3.0
 light_specular = 0.1
 shadow_enabled = true
@@ -1369,8 +1372,8 @@ surface_material_override/0 = SubResource("Mat_EmergencyRed")
 
 [node name="DeskFillLight" type="SpotLight3D" parent="ControlRoom" unique_id=1845022731]
 transform = Transform3D(1, 0, 0, 0, 0.9415, 0.337, 0, -0.337, 0.9415, 0, 1.05, 0.25)
-light_color = Color(0.72, 0.82, 0.92, 1)
-light_energy = 0.08
+light_color = Color(1, 0.6, 0.3, 1)
+light_energy = 0.35
 light_specular = 0.15
 spot_range = 1.5
 spot_attenuation = 1.6

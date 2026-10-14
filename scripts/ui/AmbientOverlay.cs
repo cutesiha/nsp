@@ -114,6 +114,9 @@ public partial class AmbientOverlay : CanvasLayer
 
     }
 
+    // 지금 화면이 얼마나 흔들리고 있는가(0~약 1). AnalogFilter 가 이 값으로 VHS 트래킹을 끌어올린다.
+    public float Disturbance => Mathf.Max(Mathf.Max(_extraNoise, _holdNoise), _shutdownT * 0.25f);
+
     // 전력 0 → SHUT DOWN 표시 on/off.
     public void SetShutdown(bool on) => _shutdown = on;
 
@@ -251,7 +254,7 @@ public partial class AmbientOverlay : CanvasLayer
             float d = Mathf.Sqrt(dx * dx + dy * dy);
             float a = Mathf.Clamp(1f - d / 0.7f, 0f, 1f);
             a = Mathf.Pow(a, 2.2f);
-            img.SetPixel(x, y, new Color(0.55f, 0.65f, 0.82f, a)); // 살짝 파란 빛
+            img.SetPixel(x, y, new Color(0.85f, 0.62f, 0.42f, a)); // 살짝 앰버 빛 — 화면 톤(앰버 + 청록)에 맞춘다
         }
         return ImageTexture.CreateFromImage(img);
     }

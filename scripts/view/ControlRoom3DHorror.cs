@@ -75,7 +75,8 @@ public partial class ControlRoom3DHorror : Node
         _impactBlackUntil = System.Math.Max(_impactBlackUntil, Time.GetTicksMsec() / 1000.0 + 0.12);
     }
 
-    private static readonly Color LightBlue = new(0.5f, 0.65f, 1f);
+    // 평상시/정전 비상등 색. 예전 청색(0.5, 0.65, 1) 대신 나트륨 앰버 — 화면 톤을 앰버 + 청록 두 색으로 묶는다.
+    private static readonly Color LightBlue = new(1f, 0.55f, 0.25f);
     private static readonly Color LightRed = new(1f, 0.055f, 0.025f);
 
     public override void _Process(double delta)
