@@ -137,7 +137,7 @@ public partial class ScheduleScreen : Control
             bool atRisk = TabooRuleSystem.Instance.IsRoomAtTabooRisk(roomId);
 
             var row = new VBoxContainer();
-            var roomNameLabel = new Label { Text = $"{(atRisk ? "⚠ " : "")}{roomDef.DisplayName}" };
+            var roomNameLabel = new Label { Text = $"{(atRisk ? "▲ " : "")}{roomDef.DisplayName}" };
             roomNameLabel.AddThemeFontSizeOverride("font_size", 19);
             row.AddChild(roomNameLabel);
 

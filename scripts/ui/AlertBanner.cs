@@ -40,7 +40,7 @@ public partial class AlertBanner : Label
         var e = EventLog.Instance.GetAllEntries().LastOrDefault();
         if (e == null || !Messages.TryGetValue(e.EventType, out var msg)) return;
         Sfx.Instance?.PlayScaryWarning(-5f);
-        Flash($"⚠ {msg} ⚠");
+        Flash($"▲ {msg} ▲");
     }
 
     public void Flash(string message)

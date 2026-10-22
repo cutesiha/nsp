@@ -127,7 +127,7 @@ public partial class RepairFrequencyTest : Node
     // 고장이 난 원인 — 로그 문구가 원인별로 다르다(FacilitySimulation 참조).
     private static string Classify(string d)
     {
-        if (string.IsNullOrEmpty(d) || !d.StartsWith("🚨")) return null;
+        if (string.IsNullOrEmpty(d) || !d.StartsWith("●")) return null;
         if (d.Contains("무인 방치")) return "무인 방치";
         if (d.Contains("이상 개체 접촉")) return "이상 개체";
         if (d.Contains("대응 실패")) return "경고 실패";

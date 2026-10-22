@@ -153,7 +153,10 @@ public partial class PhoneCallHud : CanvasLayer
         _root = new VBoxContainer();
         _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // 창 테두리(홀로그램 모서리)와 글자가 붙지 않게 안쪽 여백.
-        _root.OffsetLeft = 24; _root.OffsetTop = 10; _root.OffsetRight = -24; _root.OffsetBottom = -10;
+        _root.OffsetLeft = 24; _root.OffsetTop = NameBandPad; _root.OffsetRight = -24; _root.OffsetBottom = -10;
+        // 이름띠 — 맨 윗줄(▶ 이름)을 위아래 여백이 같게 감싼다. 30px 로 고정돼 있을 때는
+        // 이름 글자가 띠 아랫선을 가로질러 절반쯤 띠 밑으로 내려가 있었다.
+        _frame.BandHeight = Mathf.Round(NameBandPad * 2f + _font.GetHeight(Fz(19)));
         _root.AddThemeConstantOverride("separation", 10);
         _panel.AddChild(_root);
 
@@ -437,6 +440,9 @@ public partial class PhoneCallHud : CanvasLayer
     // 예전에는 심문 UI 가 MONITOR 01 안(SubViewport)에 있어서 그때만 ViewFont.S 를 썼는데,
     // 1.5차에서 창을 밖으로 되돌린 뒤에도 그 분기가 남아 심문 선택지만 작게 나오고 있었다.
     private int Fz(int px) => ViewFont.FS(px);
+
+    // 이름띠 안에서 이름 줄 위 · 아래 여백(같은 값). 이름 다음 줄은 VBox 간격(10)만큼 띠 아래에 선다.
+    private const float NameBandPad = 7f;
 
     // 선택한 자료 한 칸. 누르면 그 자료의 선택이 풀린다.
     private Button SlotButton(int index)

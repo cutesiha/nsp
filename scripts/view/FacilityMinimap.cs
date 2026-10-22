@@ -202,7 +202,7 @@ public partial class FacilityMinimap : Control
         if (!string.IsNullOrEmpty(text)) _popups.Add((e.RoomId, text, 0f));
     }
 
-    // 완료 기록("✓ 코어 수리 완료 · 코어 +1% · 📦 자재 -2")에서 결과 부분만 짧게 뽑는다.
+    // 완료 기록("✓ 코어 수리 완료 · 코어 +1% · 자재 -2")에서 결과 부분만 짧게 뽑는다.
     // 결과가 적혀 있지 않은 업무는 "완료"만 띄운다. (미니맵 글꼴에 없는 그림 문자는 뺀다.)
     private static string PopupText(string desc)
     {
@@ -212,7 +212,7 @@ public partial class FacilityMinimap : Control
         var outp = new List<string>();
         foreach (var raw in parts.Skip(1))
         {
-            string p = raw.Replace("📦", "").Replace("⚡", "").Replace("⚠", "").Trim();
+            string p = raw.Replace("■", "").Replace("▲", "").Trim();
             if (p.StartsWith("코어 +")) p = "코어 복구 +" + p.Substring("코어 +".Length);
             if (p.Length > 0) outp.Add(p);
         }
@@ -690,7 +690,7 @@ public partial class FacilityMinimap : Control
                 if (!st.Recurring)
                 {
                     DrawString(_font, new Vector2(box.Position.X, y + 10f),
-                        $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
+                        $"△ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
                         st.Remaining < 8f ? new Color(1f, 0.4f, 0.3f) : new Color(0.9f, 0.8f, 0.4f));
                     y += 13f;
                 }
@@ -711,7 +711,7 @@ public partial class FacilityMinimap : Control
         }
 
         if (TabooRuleSystemAtRisk(roomId))
-            DrawString(_font, box.Position + new Vector2(0f, -4f), "⚠", HorizontalAlignment.Center, box.Size.X, ViewFont.S(14),
+            DrawString(_font, box.Position + new Vector2(0f, -4f), "▲", HorizontalAlignment.Center, box.Size.X, ViewFont.S(14),
                 new Color(1f, 0.75f, 0.2f));
 
         if (def.IsCoreRoom)
@@ -792,7 +792,7 @@ public partial class FacilityMinimap : Control
         // 밝은 글자를 얹어 양쪽 배경에서 모두 읽히게 한다.
         string text = here >= need && risk.StabilizeNeedSeconds > 0f
             ? $"안정화 {risk.StabilizeDoneSeconds:0.#}/{risk.StabilizeNeedSeconds:0}s"
-            : $"⚠ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
+            : $"▲ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
         var at = new Vector2(bar.Position.X, bar.Position.Y + 12f);
         DrawString(_font, at + new Vector2(1f, 1f), text, HorizontalAlignment.Center,
             bar.Size.X, ViewFont.S(10), new Color(0.08f, 0.05f, 0f, 0.9f));

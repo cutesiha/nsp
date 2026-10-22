@@ -68,7 +68,7 @@ public static class InterviewScenarioTest
         Incident(LogEventType.TaskFailed, Power, At(12));          // 그 순간 토끼는 경비실
         Log(LogEventType.Relocation, "rabbit", Power, At(29));     // 관리자 지시
         Move("rabbit", Guard, Power, At(30));
-        Log(LogEventType.TaskStart, "rabbit", Power, At(31));      // 🔧 로 시작해야 수리로 읽힌다
+        Log(LogEventType.TaskStart, "rabbit", Power, At(31));      // ▣ 로 시작해야 수리로 읽힌다
         Move("rabbit", Power, Guard, At(60));                      // 다시 경비실로
         MarkRepair(At(31));
         ShiftMemory.Invalidate();
@@ -205,12 +205,12 @@ public static class InterviewScenarioTest
         GameState.Instance.ResetRun(1);   // 뒤 검사들이 DAY1 을 기준으로 돌게 되돌린다
     }
 
-    // 방금 남긴 업무 시작 기록을 수리(🔧)로 바꾼다 — FacilityLogFormatter 와 같은 규약이다.
+    // 방금 남긴 업무 시작 기록을 수리(▣)로 바꾼다 — FacilityLogFormatter 와 같은 규약이다.
     private static void MarkRepair(float at)
     {
         var e = EventLog.Instance.GetAllEntries()
             .LastOrDefault(x => x.EventType == LogEventType.TaskStart && Mathf.IsEqualApprox(x.GameTimeSeconds, at));
-        if (e != null) e.Description = "🔧 " + e.Description + " / 설비 고장 수리 시작";
+        if (e != null) e.Description = "▣ " + e.Description + " / 설비 고장 수리 시작";
     }
 
     // ── 3차-A : 놀러 가고 싶다는 전화가 잦으면 근무 태만을 따질 수 있다 ──────────

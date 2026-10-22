@@ -113,7 +113,7 @@ public partial class TutorialDialogueProbe : Node
             EventType = type,
             ActorEmployeeId = actor,
             RoomId = room,
-            Description = (repair ? "🔧 " : "") + $"(진단 {type} {room} {at:0.0})" + (done ? " / 설비 수리 완료" : ""),
+            Description = (repair ? "▣ " : "") + $"(진단 {type} {room} {at:0.0})" + (done ? " / 설비 수리 완료" : ""),
         });
     }
 }

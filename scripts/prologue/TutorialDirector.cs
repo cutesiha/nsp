@@ -1029,7 +1029,7 @@ public partial class TutorialDirector : Node
     {
         if (_sabotageDemoOn) return;
         _sabotageDemoOn = true;
-        NSP.Ui.FacilityAlertHud.Instance?.ShowCriticalAlert("⚠ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
+        NSP.Ui.FacilityAlertHud.Instance?.ShowCriticalAlert("▲ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
         CCTVMonitorView.Instance?.SetDemoError(true);
     }
 
@@ -1113,16 +1113,21 @@ public partial class TutorialDirector : Node
     // 않는 쪽을 고른다. 돌려주는 사각형은 아이콘 로컬 좌표다(동그라미 또는 이름까지 포함).
     private (TutorialArrow.Side, Rect2) ClearSideForRestIcon(RestRosterView rest, Control icon)
     {
-        var circle = new Rect2(Vector2.Zero, new Vector2(icon.Size.X, icon.Size.X));
+        var circle = rest.EmployeeIconCircleOf(TutorialEmployeeId);
+        if (circle.Size == Vector2.Zero) circle = new Rect2(Vector2.Zero, new Vector2(icon.Size.X, icon.Size.X));
         var whole = new Rect2(Vector2.Zero, icon.Size);
         const float Len = 100f, Half = 16f;   // 화살 길이(촉 + 몸통 + 둥둥 폭)를 화면 논리 단위로
         Vector2 c = circle.GetCenter();
+        // 이름이 붙은 쪽(뒷줄 = 위, 앞줄 = 아래)으로 세울 때는 이름까지 넘어서 선다.
+        bool nameAbove = circle.Position.Y > 0.5f;
+        var top = nameAbove ? whole : circle;
+        var bottom = nameAbove ? circle : whole;
         var options = new (TutorialArrow.Side Side, Rect2 Target, Rect2 Swept)[]
         {
             (TutorialArrow.Side.Right, circle, new Rect2(circle.End.X, c.Y - Half, Len, Half * 2f)),
             (TutorialArrow.Side.Left, circle, new Rect2(circle.Position.X - Len, c.Y - Half, Len, Half * 2f)),
-            (TutorialArrow.Side.Above, circle, new Rect2(c.X - Half, circle.Position.Y - Len, Half * 2f, Len)),
-            (TutorialArrow.Side.Below, whole, new Rect2(c.X - Half, whole.End.Y, Half * 2f, Len)),
+            (TutorialArrow.Side.Above, top, new Rect2(c.X - Half, top.Position.Y - Len, Half * 2f, Len)),
+            (TutorialArrow.Side.Below, bottom, new Rect2(c.X - Half, bottom.End.Y, Half * 2f, Len)),
         };
         var sim = FacilitySimulation.Instance;
         var others = new System.Collections.Generic.List<Rect2>();

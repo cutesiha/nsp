@@ -287,7 +287,7 @@ public partial class GameState : Node
         // (숨은 '가까이 있다' 의 신호다. 어둠과 섞으면 둘 다 뜻을 잃는다 — 지시서 §7-2).
         if (delta < 0) NSP.Ui.AdminFearDirector.Instance?.PowerOutage(6f);
         EventLog.Instance?.LogEvent(LogEventType.PowerCapacityChanged, "", "",
-            delta < 0 ? $"⚠ 전력 {before} → {after} [{-delta} 감소]"
+            delta < 0 ? $"▲ 전력 {before} → {after} [{-delta} 감소]"
                       : $"✓ 전력 {before} → {after} [{delta} 증가]");
         // 전력 손실은 대개 발전실 사고의 결과다 — 가장 최근 사고에 결과 줄로 붙인다.
         if (delta < 0) IncidentTracker.AddConsequence("", $"전력 {before} → {after}");

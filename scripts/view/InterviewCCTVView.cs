@@ -211,6 +211,9 @@ public partial class InterviewCCTVView : Control
     // 직원 한 명의 발광 값. 흰 옷처럼 밝은 원화는 EmployeeDef 에서 낮춰 둔다.
     private void ApplyStandingGlow(NSP.Data.EmployeeDef def)
     {
+        // CRT 원화 보정을 쓰는 동안은 직원마다 머티리얼을 고른다(늑대 가면 칸 보정 — CrtArt.MaterialFor).
+        if (_standingMat == null && def != null && NSP.View.CrtArt.MaterialFor(def) is { } art)
+            _portrait.Material = art;
         if (_standingMat == null || def == null) return;
         StopTension();
         _baseGlowAmt = def.StandingGlowAmt;

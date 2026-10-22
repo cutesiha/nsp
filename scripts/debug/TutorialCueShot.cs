@@ -121,7 +121,7 @@ public partial class TutorialCueShot : Node
         await Seconds(1.0);
 
         // ⑤ 방해공작 시연.
-        FacilityAlertHud.Instance?.ShowCriticalAlert("⚠ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
+        FacilityAlertHud.Instance?.ShowCriticalAlert("▲ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
         CCTVMonitorView.Instance?.SetDemoError(true);
         await Seconds(0.35);
         Shot("13_sabotage_alert");

@@ -376,7 +376,7 @@ imagenote: 코어실 · 출력이 한 자리까지 떨어진다
 gauge: 봉쇄 코어 출력
 gaugesteps: 41, 16, 3
 gaugesub: CORE OUTPUT CRITICAL
-gaugealert: ⚠ 치명적 출력 저하
+gaugealert: ▲ 치명적 출력 저하
 hold: 4.0
 fx: alert
 
@@ -392,7 +392,7 @@ noskip: 4.6
 gauge: 봉쇄 코어 출력
 gaugesteps: 3, 0
 gaugesub: CORE OUTPUT LOST
-gaugealert: ⚠ 봉쇄 실패
+gaugealert: ▲ 봉쇄 실패
 shake: 0
 hold: 6.0
 

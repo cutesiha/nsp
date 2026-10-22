@@ -41,6 +41,22 @@ public static class CrtArt
         return _shared;
     }
 
+    // 직원 스탠딩용 — 가면 칸 보정(StandingMaskLift)이 켜진 직원은 그 값을 넣은 자기 머티리얼을,
+    // 나머지는 공용 머티리얼을 쓴다. 직원마다 한 장만 만들어 재사용한다.
+    private static readonly System.Collections.Generic.Dictionary<string, ShaderMaterial> _perEmployee = new();
+
+    public static ShaderMaterial MaterialFor(NSP.Data.EmployeeDef def)
+    {
+        var shared = Material();
+        if (shared == null || def == null || def.StandingMaskLift <= 0f) return shared;
+        if (_perEmployee.TryGetValue(def.EmployeeId, out var m) && GodotObject.IsInstanceValid(m)) return m;
+        m = (ShaderMaterial)shared.Duplicate();
+        m.SetShaderParameter("mask_lift", def.StandingMaskLift);
+        m.SetShaderParameter("mask_rect", def.StandingMaskRect);
+        _perEmployee[def.EmployeeId] = m;
+        return m;
+    }
+
     // 원화를 올리는 TextureRect 하나를 CRT 용으로 맞춘다.
     public static void Apply(TextureRect rect)
     {

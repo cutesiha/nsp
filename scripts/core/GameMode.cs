@@ -110,10 +110,19 @@ public static class GameModes
     // 초기값은 1.0**, 즉 지금 당장은 아무것도 바뀌지 않는다. 실제 플레이로 과부하가
     // 확인되면 아래 상수 한 줄(1.10~1.25 권장)만 올리면 되고, 기본 5일 모드는
     // 어떤 경우에도 1.0 을 유지한다.
-    public const float CompetitionUnstaffedAccidentScale = 1.0f;
+    // 2026-10-22 — 단기 근무에서 빈 방 사고가 너무 잦다는 플레이 피드백으로 1.6 으로 올렸다
+    // (비워 둔 방이 사고로 번지기까지 60% 더 오래 버틴다).
+    public const float CompetitionUnstaffedAccidentScale = 1.6f;
 
     public static float UnstaffedAccidentScale =>
         Current == GameMode.Competition ? CompetitionUnstaffedAccidentScale : 1f;
+
+    // 아무도 없는 작업실에 무작위 경고(주황)가 뜰 확률에 곱하는 배율. 단기 근무만 낮춘다 —
+    // 정해진 시각에 뜨는 학습용 경고는 건드리지 않는다(FacilityWarningSystem.TickRandom).
+    public const float CompetitionUnstaffedWarningScale = 0.55f;
+
+    public static float UnstaffedWarningScale =>
+        Current == GameMode.Competition ? CompetitionUnstaffedWarningScale : 1f;
 
     public static string DisplayName(GameMode mode) => mode switch
     {

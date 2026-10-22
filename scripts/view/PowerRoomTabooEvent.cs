@@ -134,7 +134,7 @@ public partial class PowerRoomTabooEvent : Node
                 "발전기 점검 완료 필요", 2);
             TabooRuleSystem.Instance?.ApplyDeferredConsequence(tabooId, RoomId);
             EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", RoomId,
-                "⚠ POWER SYSTEM ABNORMALITY — 전력 용량 제한 (CAPACITY LIMITED)");
+                "▲ POWER SYSTEM ABNORMALITY — 전력 용량 제한 (CAPACITY LIMITED)");
             foreach (var id in occupants)
                 FacilitySimulation.Instance?.AddStress(id, Config.Instance?.Data?.PowerTabooStress ?? 35f, "발전실 금기 이상현상");
 

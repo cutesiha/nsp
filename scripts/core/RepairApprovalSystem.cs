@@ -231,8 +231,8 @@ public static class RepairApprovalSystem
             float rate = Mathf.Max(0f, Config.Instance?.Data?.RepairDenyPenaltyRate ?? 0.5f);
             Active.Task.GaugeRequired *= 1f + rate;
             EventLog.Instance?.LogEvent(LogEventType.Neglect, "", room,
-                approved ? $"⚠ {Active.RoomName} 수리 승인 절차 실패 — 수리 시간 증가"
-                         : $"⚠ {Active.RoomName} 수리 미승인 — 수리 시간 증가");
+                approved ? $"▲ {Active.RoomName} 수리 승인 절차 실패 — 수리 시간 증가"
+                         : $"▲ {Active.RoomName} 수리 미승인 — 수리 시간 증가");
         }
         // 결과를 귀로도 알린다. 미로는 패드 화면 안에서 끝나므로, 소리가 없으면
         // 풀었는지 틀렸는지 글자를 읽어야만 안다.

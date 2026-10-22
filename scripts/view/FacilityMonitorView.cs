@@ -634,7 +634,7 @@ public partial class FacilityMonitorView : Control
         sb.Append($"    코어 복구 1%당 {NSP.Facility.RoomStaffing.CoreMaterialCostPerPercent()} 소모");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
         if (taboos is { Count: > 0 })
-            sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
+            sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "▲ " + t.Description)));
         string protocol = sb.ToString();
         if (_protocol.Text != protocol) _protocol.Text = protocol;
 
@@ -751,12 +751,12 @@ public partial class FacilityMonitorView : Control
             // 실제 수치로 적고 있어, 같은 말을 고정 문장으로 한 번 더 할 자리가 없다.
             // 역할 설명은 배치 화면의 작업실 칸과 패드 지침 4장이 맡는다.
             //
-            // 짧은 요약 — 무인 위험 · 사고 수리 인원 두 줄. ⚠ 줄만 호박색으로 쓴다.
+            // 짧은 요약 — 무인 위험 · 사고 수리 인원 두 줄. ▲ 줄만 호박색으로 쓴다.
             string desc = "";
             var briefSb = new System.Text.StringBuilder();
             foreach (string line in NSP.Ui.RoomEffectText.Brief(_selRoom, compact: true))
                 briefSb.Append($"[font_size={ViewFont.S(14)}]" +
-                               $"[color={(line.StartsWith('⚠') ? "#ffc040" : "#8fa8a0")}]" +
+                               $"[color={(line.StartsWith('▲') ? "#ffc040" : "#8fa8a0")}]" +
                                $"{Escape(line)}[/color][/font_size]\n");
 
 
@@ -837,7 +837,7 @@ public partial class FacilityMonitorView : Control
         if (tier == RoomDangerTier.Failure)
         {
             string cause = RoomStatusText.GetFailureCause(roomId);
-            var sb = new StringBuilder("\n\n[color=#ff4444]🚨 고장 발생[/color]");
+            var sb = new StringBuilder("\n\n[color=#ff4444]● 고장 발생[/color]");
             if (!string.IsNullOrEmpty(cause)) sb.Append($"\n[color=#ff8a8a]{cause} — 수리 전까지 복구되지 않습니다.[/color]");
             if (task is { IsRepair: true })
                 sb.Append($"\n[color=#ff8a8a]수리 진행도 : {Mathf.Clamp(task.Ratio, 0f, 1f) * 100f:0}%[/color]");
@@ -848,7 +848,7 @@ public partial class FacilityMonitorView : Control
         if (task is { Recurring: false, Status: SpawnedTaskStatus.Active } && task.TimeLimitSeconds < float.MaxValue)
         {
             string col = tier == RoomDangerTier.Unstable ? "#ff9933" : "#dddd55";
-            string head = tier == RoomDangerTier.Unstable ? "❗ 고장 임박" : "⚠ 고장 위험";
+            string head = tier == RoomDangerTier.Unstable ? "▲ 고장 임박" : "▲ 고장 위험";
             return $"\n\n[color={col}]{head} — {Clock(task.Remaining)} 뒤 고장[/color]";
         }
         return "";

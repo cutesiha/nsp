@@ -399,7 +399,7 @@ public partial class PadView : Control
         _banner.Visible = a != null && Current == Tab.Home;
         if (a == null) return;
         string when = string.IsNullOrEmpty(a.Countdown) ? "" : $"   ·   {a.Countdown}";
-        _bannerText.Text = $"⚠  {a.SubLabel}  ·  {a.Headline}{when}";
+        _bannerText.Text = $"▲  {a.SubLabel}  ·  {a.Headline}{when}";
         // 거치대 위에서는 크게 점멸한다(관리자가 패드를 집어 들 이유). 든 동안은 급한 예고만 은은하게.
         float a01 = IsStowed ? (Mathf.PosMod(_blink, 1f) < 0.62f ? 1f : 0.3f)
                   : a.Severity == AlertSeverity.Critical ? 0.75f + 0.25f * Mathf.Sin(_blink * 8f) : 1f;
@@ -1440,7 +1440,7 @@ public partial class PadView : Control
         _lockTime.Text = gs?.CurrentPhase == GamePhase.Rest ? "휴게시간" : DialogueClock.Text(gs?.DayTimeSeconds ?? 0f);
         var a = CurrentAlert();
         bool on = a != null && Mathf.PosMod(_blink, 1f) < 0.62f;
-        _lockAlert.Text = a != null ? "⚠" : "";
+        _lockAlert.Text = a != null ? "▲" : "";
         _lockAlert.Visible = on;
         _lockAlertSub.Text = a == null ? "" : $"{a.SubLabel} · {a.Headline}  {a.Countdown}";
         _lockClues.Text = ClueBoard.UnseenCount > 0 ? $"새 단서 {ClueBoard.UnseenCount}건" : "";

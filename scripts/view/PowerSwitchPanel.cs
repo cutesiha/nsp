@@ -611,7 +611,7 @@ public partial class PowerSwitchPanel : Node3D
             string why = "복도망을 찾지 못했습니다";
             ok = net != null && net.LeverToggle(out why);
             if (!ok)
-                NSP.Ui.FacilityAlertHud.Instance?.Notify("⚠ 차폐 — " + why, NSP.Ui.NoticeLevel.Warning);
+                NSP.Ui.FacilityAlertHud.Instance?.Notify("▲ 차폐 — " + why, NSP.Ui.NoticeLevel.Warning);
             else if (net.SealedCount > 0)
                 // 무엇이 닫히는지 한 줄로 알린다 — 레버는 책상 위에 있고 문은 지도에 있다.
                 NSP.Ui.FacilityAlertHud.Instance?.Notify(

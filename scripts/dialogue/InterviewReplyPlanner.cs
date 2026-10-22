@@ -1146,8 +1146,8 @@ public static class InterviewReplyPlanner
             .FirstOrDefault();
         if (start == null) return ("none", "");
 
-        // 수리 업무는 원문에 🔧 표식이 붙는다(FacilityLogFormatter 와 같은 규약).
-        if ((start.Description ?? "").StartsWith("🔧")) return ("repair", "수리");
+        // 수리 업무는 원문에 ▣ 표식이 붙는다(FacilityLogFormatter 와 같은 규약).
+        if ((start.Description ?? "").StartsWith("▣")) return ("repair", "수리");
 
         // 업무 이름을 못 집어내면 "무슨 업무였는지는 말하지 않는다" 로 떨어진다.
         // 빈 이름을 그대로 넘기면 {task} 자리가 비어 문장 후보가 통째로 사라진다.

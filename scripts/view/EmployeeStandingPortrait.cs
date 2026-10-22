@@ -133,6 +133,10 @@ public partial class EmployeeStandingPortrait : Control
             _mat.SetShaderParameter("glow_amt", def.StandingGlowAmt);
             _mat.SetShaderParameter("glow_center", def.StandingGlowCenter);
         }
+        // CRT 원화 보정을 쓰는 동안은 직원마다 머티리얼을 고른다 — 가면 칸 보정이 켜진
+        // 직원(늑대)만 자기 값을 쓰고, 나머지는 예전과 같은 공용 머티리얼이다.
+        else if (_mat == null && def != null && CrtArt.MaterialFor(def) is { } art)
+            _portrait.Material = art;
         Refresh(force: true);
     }
 

@@ -1009,8 +1009,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private static string Marker(DisplayLogSeverity severity) => severity switch
     {
         DisplayLogSeverity.Move => "→",
-        DisplayLogSeverity.Warning => "⚠",
-        DisplayLogSeverity.Critical => "⚠",
+        DisplayLogSeverity.Warning => "▲",
+        DisplayLogSeverity.Critical => "▲",
         DisplayLogSeverity.Sabotage => "■",
         DisplayLogSeverity.Recovery => "✓",
         DisplayLogSeverity.RoomEffect => "◆",

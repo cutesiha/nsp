@@ -223,7 +223,7 @@ public partial class MainStoryTest : Node
         ResetWorld();
         var log = EventLog.Instance;
         log.LogEvent(NSP.Data.LogEventType.AnomalyDispelled, "", "power_room",
-            "👁 발전실 — 관측으로 이상 개체 소멸", witnesses: new[] { "cat" });   // 고양이만 그 방에 있었다
+            "○ 발전실 — 관측으로 이상 개체 소멸", witnesses: new[] { "cat" });   // 고양이만 그 방에 있었다
         SetDay(2);
 
         var cast = StoryRoleCast.ForDay(2);
@@ -247,7 +247,7 @@ public partial class MainStoryTest : Node
         // 본 사람이 아무도 없으면(기록에 목격자가 없으면) 목격담은 뜨지 않는다.
         ResetWorld();
         EventLog.Instance.LogEvent(NSP.Data.LogEventType.AnomalyDispelled, "", "power_room",
-            "👁 발전실 — 관측으로 이상 개체 소멸");
+            "○ 발전실 — 관측으로 이상 개체 소멸");
         SetDay(2);
         Check("H 본 사람이 없으면 목격담 비트가 생략된다", !StoryBeatSelector.IsPlayable(beat, 2));
         ResetWorld();

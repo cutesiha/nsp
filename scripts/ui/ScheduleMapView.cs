@@ -797,7 +797,7 @@ public partial class ScheduleMapView : Control
             : refused.Count > 0
             ? "✕ " + PairText(sim, refused[0].A, refused[0].B, PairBand.Refuse) + (refused.Count > 1 ? $" 외 {refused.Count - 1}건" : "")
             : !core
-                ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
+                ? "▲ 코어실에 최소 1명의 직원을 배치해야 합니다."
                 : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명{deadNote}"
                               : $"{placed} / {total} 배치 완료{deadNote}";
         Color statusCol = _refusalAge < RefusalSeconds && _refusal.Length > 0 ? Alert
@@ -806,7 +806,7 @@ public partial class ScheduleMapView : Control
         if (uneasy.Count > 0)
         {
             var u = uneasy[0];
-            string warn = "⚠ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
+            string warn = "▲ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
             DrawString(_font, new Vector2(24f, Canvas.Y - 80f), warn, HorizontalAlignment.Left, 520f, Fs(11), Warn);
         }
         DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 520f,

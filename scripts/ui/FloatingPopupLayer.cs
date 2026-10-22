@@ -47,12 +47,12 @@ public partial class FloatingPopupLayer : Control
     // ApplyTaskEffect) 여기선 나머지 타입만 짧은 배지로 매핑한다 — 상세 문장은 LogPanel에만.
     private static readonly Dictionary<LogEventType, string> Badges = new()
     {
-        [LogEventType.TabooViolation] = "❗ 금기 위반",
-        [LogEventType.Neglect] = "⚠ 자리 이탈",
-        [LogEventType.TaskFailed] = "🚨 작업 실패",
-        [LogEventType.Sabotage] = "🚨 이상 발생",
-        [LogEventType.PowerOutage] = "⚡ 전력 이상",
-        [LogEventType.CctvDisconnect] = "📹 CCTV 끊김",
+        [LogEventType.TabooViolation] = "▲ 금기 위반",
+        [LogEventType.Neglect] = "▲ 자리 이탈",
+        [LogEventType.TaskFailed] = "● 작업 실패",
+        [LogEventType.Sabotage] = "● 이상 발생",
+        [LogEventType.PowerOutage] = "■ 전력 이상",
+        [LogEventType.CctvDisconnect] = "■ CCTV 끊김",
     };
 
     private readonly List<Label> _active = new();
@@ -129,20 +129,20 @@ public partial class FloatingPopupLayer : Control
         NSP.Core.Sfx.Instance?.Play(key, db - cut);
     }
 
-    // "⚠ 새 작업 발생 / 🔧 발전기 점검 / 0:20" 형태의 방 위 팝업.
+    // "▲ 새 작업 발생 / ▣ 발전기 점검 / 0:20" 형태의 방 위 팝업.
     private static string BuildTaskSpawnedText(string roomId)
     {
         var sim = FacilitySimulation.Instance;
         var st = sim?.GetPrimarySpawnedTask(roomId);
         var task = st != null ? sim.GetTaskDef(st.TaskId) : null;
-        if (task == null) return "⚠ 새 작업 발생";
+        if (task == null) return "▲ 새 작업 발생";
 
         string icon = RoomStatusText.WorkIcon(sim.GetRoomDef(roomId)?.ManagedResource ?? RoomResourceType.None);
         if (st.Recurring)
-            return $"⚙ 상시 업무\n{icon} {task.DisplayName}";
+            return $"□ 상시 업무\n{icon} {task.DisplayName}";
 
         int s = Mathf.CeilToInt(st.Remaining);
-        return $"⚠ 새 작업 발생\n{icon} {task.DisplayName}\n{s / 60:0}:{s % 60:00}";
+        return $"▲ 새 작업 발생\n{icon} {task.DisplayName}\n{s / 60:0}:{s % 60:00}";
     }
 
     public void Spawn(Vector2 worldPos, string text, float lifetime = LifetimeSeconds)

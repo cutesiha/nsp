@@ -270,7 +270,7 @@ public partial class DialogueSampleDump : Node
         CallMemoryLog.RecordAt(1, At(41), "wolf", CallRecordKind.Reported, Power, DialogueRepository.EventAccidentNearby);
         CallMemoryLog.RecordAt(1, At(42), "wolf", CallRecordKind.OrderedGo, Power, DialogueRepository.EventAccidentNearby);
         Move("wolf", Guard, Power, At(45));
-        Log(LogEventType.TaskStart, "wolf", Power, At(46), $"🔧 늑대 발전실 도착 / {repairGen} 시작", new[] { "dog" });
+        Log(LogEventType.TaskStart, "wolf", Power, At(46), $"▣ 늑대 발전실 도착 / {repairGen} 시작", new[] { "dog" });
         Log(LogEventType.TaskComplete, "", Power, At(60), $"✓ 발전실 — '{repairGen}' 수리 완료 · 기능 복구");
         Log(LogEventType.TaskFailed, "", Maint, At(70), witnesses: new[] { "rabbit", "cat" });
         CallMemoryLog.RecordAt(1, At(71), "sheep", CallRecordKind.Missed, Maint, DialogueRepository.EventAccidentNearby);

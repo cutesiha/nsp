@@ -203,7 +203,7 @@ public partial class ScheduleBoardUI : Control
         {
             AddLabel(_form, "오늘의 금기", new Vector2(DocLeft, 96), 16, InkRed, _serif);
             var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
-            string tabooText = taboos == null || taboos.Count == 0 ? "특이사항 없음" : "⚠ " + string.Join("   ⚠ ", taboos.Select(t => t.Description));
+            string tabooText = taboos == null || taboos.Count == 0 ? "특이사항 없음" : "▲ " + string.Join("   ▲ ", taboos.Select(t => t.Description));
             var tabooLbl = AddLabel(_form, tabooText, new Vector2(DocLeft, 122), 19, InkRed, _body);
             // 금기 문구는 왼쪽 단 안에서 두 줄까지 접힌다 — 오른쪽 서류받침을 침범하지 않게.
             tabooLbl.CustomMinimumSize = new Vector2(DocRight - DocLeft, 56);
@@ -310,7 +310,7 @@ public partial class ScheduleBoardUI : Control
         bool coreStaffed = roster.Any(id => sim.GetEmployeeState(id)?.AssignedRoomId == "core_room");
 
         string statusText = !coreStaffed
-            ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
+            ? "▲ 코어실에 최소 1명의 직원을 배치해야 합니다."
             : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
         var status = AddLabel(_form, statusText,
             new Vector2(DocLeft, CanvasSize.Y - 54), 16, !coreStaffed || missing > 0 ? InkRed : Ink, _body);
@@ -428,11 +428,11 @@ public partial class ScheduleBoardUI : Control
         }
 
         // 방 설명 — 문장은 data/rooms/*.tres 한 곳에만 있다(RoomEffectText 창구).
-        // 종이 배치표는 좁으므로 핵심 역할 한 문장 + ⚠ 로 시작하는 위험 줄만 싣는다.
+        // 종이 배치표는 좁으므로 핵심 역할 한 문장 + ▲ 로 시작하는 위험 줄만 싣는다.
         // (사고 수리 인원은 이미 위에 호박색 한 줄로 그렸다.)
         string desc = NSP.Ui.RoomEffectText.Summary(roomId);
         foreach (string line in NSP.Ui.RoomEffectText.Brief(roomId, compact: true))
-            if (line.StartsWith('⚠')) { desc += "\n" + line; break; }
+            if (line.StartsWith('▲')) { desc += "\n" + line; break; }
         // 능력 목록이 두 줄로 늘어난 만큼 설명이 쓸 수 있는 높이가 줄어든다.
         var d = AddLabel(_info, desc, new Vector2(px, y), wrapped ? 13 : 14, Ink, _body);
         // 줄바꿈을 먼저 켜야 한다. 끄고 폭을 주면 Label 의 최소 폭이 "한 줄 전체 길이"라
@@ -589,9 +589,9 @@ public partial class ScheduleBoardUI : Control
 
     private static string StatIcon(StatType s) => s switch
     {
-        StatType.Tech => "🔧",
-        StatType.Courage => "🛡",
-        StatType.Observation => "🔍",
+        StatType.Tech => "▣",
+        StatType.Courage => "■",
+        StatType.Observation => "●",
         _ => "",
     };
 

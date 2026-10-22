@@ -11,7 +11,7 @@ namespace NSP.Ui;
 // 화면 위에만 얹히므로, 연출이 도는 동안에도 시뮬레이션은 그대로 흐른다.
 //
 // 다른 이벤트에서도 그대로 쓸 수 있다:
-//     FacilityAlertHud.Instance?.ShowCriticalAlert("⚠ ...");
+//     FacilityAlertHud.Instance?.ShowCriticalAlert("▲ ...");
 //     FacilityAlertHud.Instance?.ShowCoreLoss(2.5f);
 // 시스템 알림의 중요도. 색과 표시 시간만 달라진다.
 public enum NoticeLevel { Info, Warning, Critical }
