@@ -88,6 +88,26 @@ public partial class PerfProbeRun : Node
         _notes.Add($"- 조명(OmniLight3D+SpotLight3D): {CountLights(root)}개 · 그림자 켠 것 {CountShadowLights(root)}개");
         _notes.Add($"- 보이는 MeshInstance3D: {CountVisibleMeshes(root)}개");
 
+        // ── 창 크기 (인자에 window 를 주면 이것만 재고 끝낸다) ──────────────
+        //
+        // 이 기계는 **픽셀을 채우는 속도**에 막혀 있다. 그러면 가장 큰 지렛대는
+        // 설정이 아니라 창 크기다 — 영상으로 찍을 해상도를 정하는 데 쓴다.
+        //
+        // 긴 측정은 노트북이 달아올라 기준선 자체가 흔들린다(한 번은 45ms → 86ms 까지
+        // 널뛰었다). 그래서 이것만 따로 짧게 돌릴 수 있게 해 두었다.
+        bool onlyWindow = System.Array.IndexOf(args, "window") >= 0;
+        if (onlyWindow)
+        {
+            var win0 = DisplayServer.WindowGetSize();
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1024, 576) })
+                await Probe($"⑯ 창 {win0.X}×{win0.Y} → {size.X}×{size.Y}",
+                    () => DisplayServer.WindowSetSize(size),
+                    () => DisplayServer.WindowSetSize(win0));
+            await Write(outPath);
+            GetTree().Quit();
+            return;
+        }
+
         // ② CCTV 3D 월드(두 번째 렌더 패스).
         if (cctvVp != null)
         {
@@ -201,6 +221,65 @@ public partial class PerfProbeRun : Node
             () => GameSettings.GraphicsQuality = GameSettings.Quality.VeryLow,
             () => GameSettings.GraphicsQuality = q0);
         _notes.Add($"- ⑪ 뒤 되돌린 품질: {GameSettings.QualityLabel} · CRT 렌더 배율 {ControlRoom3DController.RenderScale:0.00}");
+
+        // ── 아날로그 호러 비주얼 세 겹 ─────────────────────────────────
+        //
+        // 셋 다 "화면을 한 번 더 그리는" 종류라, 픽셀을 메우는 속도가 느린 내장 GPU
+        // 에서 가장 먼저 의심해야 하는 것들이다. **어느 겹이 비싼지**를 가른다.
+
+        // ⑫ 전역 VHS 필터 — 화면 전체(창 해상도)를 한 번 더 읽어 다시 그린다.
+        var filter = NSP.Ui.AnalogFilter.Instance;
+        if (filter != null)
+        {
+            bool on0 = filter.Enabled;
+            await Probe("⑫ 전역 아날로그 필터(VHS) OFF",
+                () => filter.Enabled = false, () => filter.Enabled = on0);
+            _notes.Add($"- ⑫ 측정 시작 시 필터는 {(on0 ? "켜짐" : "꺼짐")} 상태였다");
+        }
+        else _notes.Add("- `AnalogFilter.Instance` 가 없어 ⑫를 건너뛰었다");
+
+        // ⑬ 손그림 칠 — 풀스크린 사각형 + 모니터 앞면 잉크 사각형.
+        var paint = AnalogPaint.Instance;
+        if (paint != null)
+        {
+            bool p0 = paint.Visible;
+            await Probe("⑬ 손그림 칠(AnalogPaint) OFF",
+                () => paint.Visible = false, () => paint.Visible = p0);
+        }
+        else _notes.Add("- `AnalogPaint.Instance` 가 없어 ⑬을 건너뛰었다");
+
+        // ⑭ CCTV 영상 셰이더 — 영상 사각형(736×452) 하나에만 걸린다. 표본 최대 4개.
+        var cctv = CCTVMonitorView.Instance;
+        var feedTex = Field<TextureRect>(cctv, "_bgTex");
+        if (feedTex != null)
+        {
+            var m0 = feedTex.Material;
+            await Probe("⑭ CCTV 영상 아날로그 셰이더 OFF",
+                () => feedTex.Material = null, () => feedTex.Material = m0);
+            _notes.Add($"- ⑭ 영상 셰이더: {(m0 == null ? "없음" : "걸려 있음")} · 영상 크기 {feedTex.Size}");
+        }
+        else _notes.Add("- CCTV `_bgTex` 를 찾지 못해 ⑭를 건너뛰었다");
+
+        // ⑮ 세 겹을 한꺼번에 — 아날로그 비주얼 전체가 차지하는 몫.
+        if (filter != null || paint != null || feedTex != null)
+        {
+            bool f0 = filter?.Enabled ?? false;
+            bool pv0 = paint?.Visible ?? false;
+            var fm0 = feedTex?.Material;
+            await Probe("⑮ 아날로그 비주얼 세 겹 전부 OFF (합계)",
+                () =>
+                {
+                    if (filter != null) filter.Enabled = false;
+                    if (paint != null) paint.Visible = false;
+                    if (feedTex != null) feedTex.Material = null;
+                },
+                () =>
+                {
+                    if (filter != null) filter.Enabled = f0;
+                    if (paint != null) paint.Visible = pv0;
+                    if (feedTex != null) feedTex.Material = fm0;
+                });
+        }
 
         _notes.Add("");
         _notes.Add("### 그림자를 켠 광원");

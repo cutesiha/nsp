@@ -175,6 +175,14 @@ public partial class GameState : Node
         return true;
     }
 
+    // 교육 시연 전용 — 용량을 보지 않고 그 채널을 켜거나 끈다. GUIDE-0 가 "③ Barrier" 를 설명하며
+    // 차폐 레버를 직접 올려 보이는 자리(발전실 사고로 2/2 를 다 쓰고 있을 때)에서만 쓴다.
+    // 끝나면 같은 함수로 되돌린다. 플레이어 조작(TryTogglePower)의 규칙은 그대로다.
+    public void ForceConsumerPower(PowerConsumer consumer, bool on)
+    {
+        if (_switchOn.ContainsKey(consumer)) _switchOn[consumer] = on;
+    }
+
     // 용량이 줄어든 뒤에도 여전히 켜진 채널 수가 새 용량을 넘으면 우선순위대로 강제로 끈다.
     private void ShedToCapacity()
     {
@@ -279,7 +287,7 @@ public partial class GameState : Node
         // (숨은 '가까이 있다' 의 신호다. 어둠과 섞으면 둘 다 뜻을 잃는다 — 지시서 §7-2).
         if (delta < 0) NSP.Ui.AdminFearDirector.Instance?.PowerOutage(6f);
         EventLog.Instance?.LogEvent(LogEventType.PowerCapacityChanged, "", "",
-            delta < 0 ? $"⚠ 전력 {before} → {after} [{-delta} 감소]"
+            delta < 0 ? $"▲ 전력 {before} → {after} [{-delta} 감소]"
                       : $"✓ 전력 {before} → {after} [{delta} 증가]");
         // 전력 손실은 대개 발전실 사고의 결과다 — 가장 최근 사고에 결과 줄로 붙인다.
         if (delta < 0) IncidentTracker.AddConsequence("", $"전력 {before} → {after}");

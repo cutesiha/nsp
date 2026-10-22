@@ -356,45 +356,74 @@ public partial class ScheduleStaffView : Control
         if (def == null) { DrawRosterGrid(sim); return; }
         bool assignable = ScheduleMapView.IsAssignable(sim, roomId);
 
-        Header("ROOM  -  " + def.DisplayName, assignable ? "배치 가능 작업실" : !sim.IsRoomActive(roomId)
-            ? "비활성 — " + ScheduleMapView.LockedLabel(def) : "제한 구역 — 배치할 수 없음");
+        Header("ROOM   " + def.DisplayName, assignable ? "배치 가능 작업실" : !sim.IsRoomActive(roomId)
+            ? $"비활성 ({ScheduleMapView.LockedLabel(def)})" : "제한 구역, 배치할 수 없음");
 
         float x = 56f, y = 150f;
         if (!assignable)
         {
-            y = DrawSummary(roomId, x, y);
-            DrawBrief(roomId, x, y + 6f);
+            y = DrawSummary(roomId, x, y) + 8f;
+            DrawInfoTable(RoomEffectText.InfoRows(roomId), x, y);
             Footer("이 작업실에는 직원을 배치할 수 없습니다.", Dim);
             return;
         }
 
-        y = DrawSummary(roomId, x, y) + 10f;
+        y = DrawSummary(roomId, x, y) + 8f;
         var here = ScheduleMapView.AssignedTo(sim, roomId);
-        var ops = OpsProfile.Room(roomId);
-        if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
-        {
-            DrawString(_font, new Vector2(x, y), $"인원별 효과   (현재 {here.Count}명)", HorizontalAlignment.Left,
-                680f, Fs(18), Mint);
-            y += 32f;
-            foreach (string line in ops.RoleNote.Split(" / ").Take(4))
-            {
-                DrawString(_font, new Vector2(x + 8f, y), "· " + line.Trim(), HorizontalAlignment.Left, 680f,
-                    Fs(17), Ink);
-                y += 28f;
-            }
-        }
-        else
-        {
-            DrawString(_font, new Vector2(x, y),
-                $"권장 인원   {ScheduleMapView.RecommendedHeadcount(sim, roomId)}명   (현재 {here.Count}명)",
-                HorizontalAlignment.Left, 680f, Fs(18), Mint);
-            y += 32f;
-        }
-        DrawBrief(roomId, x, y + 10f);
+        DrawString(_font, new Vector2(x, y + Fs(18)),
+            $"권장 인원   {ScheduleMapView.RecommendedHeadcount(sim, roomId)}명   (현재 {here.Count}명)",
+            HorizontalAlignment.Left, 680f, Fs(18), Mint);
+        y += Fs(18) + 16f;
+        // 권장 인원 아래 — 기능 · 인원별 효과 · 무인 사고 · 수리 인원을 한 장의 표로.
+        DrawInfoTable(RoomEffectText.InfoRows(roomId), x, y);
 
         string who = here.Count == 0 ? "배치된 직원 없음"
-            : "배치 : " + string.Join(" · ", here.Select(e => sim.GetEmployeeDef(e)?.Codename ?? e));
+            : "배치 : " + string.Join(", ", here.Select(e => sim.GetEmployeeDef(e)?.Codename ?? e));
         Footer(who, here.Count == 0 ? Amber : Ink);
+    }
+
+    // 작업실 정보 표 — 왼쪽 칸 = 항목, 오른쪽 칸 = 내용. 아래 Footer 선(506) 위까지만 쓴다.
+    // 줄이 많으면 줄 높이를 줄여 넣는다(그래도 넘치면 뒤쪽 줄을 덜어 낸다).
+    private void DrawInfoTable(System.Collections.Generic.List<RoomEffectText.InfoRow> rows, float x, float y)
+    {
+        if (rows.Count == 0) return;
+        const float Width = 688f, LabelWidth = 150f, Bottom = 496f;
+        int fs = Fs(14);
+        float headH = fs + 14f;
+        float rowH = Mathf.Clamp((Bottom - y - headH) / rows.Count, fs + 10f, fs + 18f);
+        int fit = Mathf.Max(1, Mathf.FloorToInt((Bottom - y - headH) / rowH));
+        if (rows.Count > fit) rows = rows.GetRange(0, fit);
+
+        float h = headH + rowH * rows.Count;
+        var box = new Rect2(x, y, Width, h);
+        DrawRect(box, new Color(0.03f, 0.07f, 0.08f, 0.85f));
+
+        // 머리 줄.
+        DrawRect(new Rect2(x, y, Width, headH), Mint with { A = 0.14f });
+        float ascent = _font.GetAscent(fs), lineH = _font.GetHeight(fs);
+        float BaseY(float top, float hgt) => top + (hgt - lineH) * 0.5f + ascent;
+        DrawString(_font, new Vector2(x + 14f, BaseY(y, headH)), "항목", HorizontalAlignment.Left, LabelWidth - 20f, fs, Mint);
+        DrawString(_font, new Vector2(x + LabelWidth + 14f, BaseY(y, headH)), "내용", HorizontalAlignment.Left,
+            Width - LabelWidth - 24f, fs, Mint);
+
+        float top = y + headH;
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var r = rows[i];
+            if (i % 2 == 1) DrawRect(new Rect2(x, top, Width, rowH), Mint with { A = 0.045f });
+            var labelCol = r.Warn ? Amber : Mint with { A = 0.85f };
+            var valueCol = r.Warn ? Amber : Ink with { A = 0.92f };
+            DrawString(_font, new Vector2(x + 14f, BaseY(top, rowH)), r.Label, HorizontalAlignment.Left,
+                LabelWidth - 20f, fs, labelCol);
+            DrawString(_font, new Vector2(x + LabelWidth + 14f, BaseY(top, rowH)), r.Value, HorizontalAlignment.Left,
+                Width - LabelWidth - 24f, fs, valueCol);
+            DrawLine(new Vector2(x, top), new Vector2(x + Width, top), Mint with { A = 0.22f }, 1f);
+            top += rowH;
+        }
+
+        // 바깥 테두리 · 가운데 세로선.
+        DrawRect(box, Mint with { A = 0.55f }, false, 1.5f);
+        DrawLine(new Vector2(x + LabelWidth, y), new Vector2(x + LabelWidth, y + h), Mint with { A = 0.35f }, 1f);
     }
 
     // 작업실 설명 — 문장은 data/rooms/*.tres 에만 있고, RoomEffectText 창구로 읽는다.
@@ -411,17 +440,6 @@ public partial class ScheduleStaffView : Control
         DrawMultilineString(_font, new Vector2(x, y), desc, HorizontalAlignment.Left, 688f, fs,
             2, Ink with { A = 0.92f }, TextServer.LineBreakFlag.WordBound | TextServer.LineBreakFlag.Mandatory);
         return y + Mathf.Min(2, para.GetLineCount()) * (fs + 8f);
-    }
-
-    // 짧은 요약 — 기능 · 무인 위험 · 사고 수리 인원. ⚠ 로 시작하는 줄만 호박색으로 쓴다.
-    private void DrawBrief(string roomId, float x, float y)
-    {
-        foreach (string line in RoomEffectText.Brief(roomId))
-        {
-            DrawString(_font, new Vector2(x + 8f, y), line, HorizontalAlignment.Left, 680f, Fs(16),
-                line.StartsWith('⚠') ? Amber : Ink with { A = 0.86f });
-            y += 26f;
-        }
     }
 
     // ── 적합도 비교 ──────────────────────────────────────────────────────
@@ -515,7 +533,7 @@ public partial class ScheduleStaffView : Control
         // 원본 밖으로 나가지 않게 민다(배율은 그대로 둔다 — 밀기만 한다).
         left = Mathf.Clamp(left, 0f, Mathf.Max(0f, tex.GetWidth() - srcW));
         top = Mathf.Clamp(top, 0f, Mathf.Max(0f, tex.GetHeight() - srcH));
-        DrawTextureRectRegion(tex, box, new Rect2(left, top, srcW, srcH));
+        DrawTextureRectRegion(tex, box, new Rect2(left, top, srcW, srcH), modulate: NSP.View.CrtArt.Tint);
     }
 
     // 원화에서 위에서부터 이만큼만 보여준다(0.5 = 상반신). 얼굴 크기는 이 값 하나로 조절한다.
@@ -547,7 +565,7 @@ public partial class ScheduleStaffView : Control
         float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
         var dst = src * k;
         DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false,
-            tint ?? Colors.White);
+            tint ?? NSP.View.CrtArt.Tint);
     }
 
     private static string RoomName(FacilitySimulation sim, string roomId) =>

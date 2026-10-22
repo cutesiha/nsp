@@ -204,7 +204,7 @@ public static class FacilityLogFormatter
     }
 
     // 업무를 시작했다는 것은 배치가 끝났다는 뜻이다(이동 없이 제자리 근무한 직원 포함).
-    // 평상시 업무 시작은 숨기고, 사고 복구 작업(🔧)만 운영 기록으로 남긴다.
+    // 평상시 업무 시작은 숨기고, 사고 복구 작업(▣)만 운영 기록으로 남긴다.
     private static DisplayLogEntry MarkDeployed(LogEntry e, BuildState s)
     {
         string id = e.ActorEmployeeId;
@@ -215,17 +215,17 @@ public static class FacilityLogFormatter
             s.Deployed.Add(id);
             if (!s.LastRoom.ContainsKey(id)) s.LastRoom[id] = e.RoomId;
         }
-        if (!(e.Description ?? "").StartsWith("🔧")) return null;
+        if (!(e.Description ?? "").StartsWith("▣")) return null;
         return Row(e, $"{Codename(id)} | {RoomName(e.RoomId)} 수리 시작", DisplayLogSeverity.Normal, id);
     }
 
     // --- 경고 / 사고 ----------------------------------------------------
 
-    // 상시 업무(⚙)는 계속 도는 기록이라 숨긴다. 남는 것은 "지금 대응하면 막을 수 있는" 경고뿐.
+    // 상시 업무(□)는 계속 도는 기록이라 숨긴다. 남는 것은 "지금 대응하면 막을 수 있는" 경고뿐.
     private static DisplayLogEntry TaskSpawned(LogEntry e)
     {
         string d = e.Description ?? "";
-        if (d.StartsWith("⚙")) return null;
+        if (d.StartsWith("□")) return null;
         return Row(e, Pipe(d), DisplayLogSeverity.Warning);
     }
 
@@ -236,7 +236,7 @@ public static class FacilityLogFormatter
         string d = e.Description ?? "";
         if (d.Contains("안정화 성공"))
             return Row(e, Pipe(d).Replace("안정화 성공", "안정화 완료"), DisplayLogSeverity.Recovery);
-        if (d.Contains("기능 복구") || d.Contains("⚡"))
+        if (d.Contains("기능 복구") || d.Contains("■"))
             return Row(e, Pipe(d), DisplayLogSeverity.Recovery);
         // 경비 순찰 — "그 시각 그 방에 누가 있었나"는 심문에서 그대로 근거가 된다.
         // 경비실이 만들어 낸 기록이므로 방 효과 색(경비실 색)으로 쓴다.
@@ -248,7 +248,7 @@ public static class FacilityLogFormatter
             if (patrol != null) patrol.RoomId = e.RoomId;
             return patrol;
         }
-        if (d.Contains("⚠"))
+        if (d.Contains("▲"))
             return Row(e, Pipe(d), DisplayLogSeverity.Warning);
         return null;
     }
@@ -366,8 +366,8 @@ public static class FacilityLogFormatter
 
     // 원문의 상태 표식은 화면에서 중요도 아이콘으로 다시 붙이므로 여기서 떼어낸다.
     private static string Strip(string value) =>
-        (value ?? "").Replace("⚠", "").Replace("🚨", "").Replace("✓", "")
-            .Replace("⚙", "").Replace("🔧", "").Replace("🛡", "").Trim();
+        (value ?? "").Replace("▲", "").Replace("●", "").Replace("✓", "")
+            .Replace("□", "").Replace("▣", "").Trim();
 
     private static string Codename(string employeeId)
     {

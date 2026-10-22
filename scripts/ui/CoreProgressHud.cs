@@ -26,8 +26,9 @@ public partial class CoreProgressHud : Control
 
         // 확정값이 아니라 "지금 차오르는 중"까지 포함해 보여준다 — 숫자가 계속 움직여야
         // 코어실에 사람을 더 넣은 효과가 즉시 눈에 보인다.
-        float shown = NSP.Facility.FacilitySimulation.Instance?.CoreProgressPreview()
-                      ?? GameState.Instance.CoreProgress;
+        // 100 을 넘겨 보여 주지 않는다 — 다 찬 뒤에 남은 게이지 몫이 얹혀 100.x 가 떴었다.
+        float shown = Mathf.Min(100f, NSP.Facility.FacilitySimulation.Instance?.CoreProgressPreview()
+                                      ?? GameState.Instance.CoreProgress);
         float progress = Mathf.Clamp(shown / 100f, 0f, 1f);
         float fillWidth = Size.X * progress;
         _fill.Size = new Vector2(fillWidth, _background.Size.Y);

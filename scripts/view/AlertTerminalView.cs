@@ -301,7 +301,7 @@ public partial class AlertTerminalView : Control
         else if (d.WarningRemainingSeconds >= 0f) sub += "   발생 대기";
 
         var severity = d.IsOperational ? AlertSeverity.Notice : d.Severity;
-        Show(InFailureFlash && d.State == IncidentState.Active ? "⚠ 사고 발생" : "경고 단말기",
+        Show(InFailureFlash && d.State == IncidentState.Active ? "▲ 사고 발생" : "경고 단말기",
             stateWord, d.Title, sub, string.Join("\n", lines),
             SeverityColor(severity), severity);
     }
@@ -322,7 +322,7 @@ public partial class AlertTerminalView : Control
     {
         CurrentSeverity = severity;
         _head.Text = head;
-        _head.AddThemeColorOverride("font_color", head.StartsWith("⚠") ? Crit : Dim);
+        _head.AddThemeColorOverride("font_color", head.StartsWith("▲") ? Crit : Dim);
         _status.Text = status;
         _status.AddThemeColorOverride("font_color", color);
         _title.Text = title;

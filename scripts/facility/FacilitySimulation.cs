@@ -431,7 +431,7 @@ public partial class FacilitySimulation : Node
 
         st.Incapacitated = true;
         EventLog.Instance?.LogEvent(LogEventType.Neglect, st.EmployeeId, st.CurrentRoomId,
-            $"🚨 {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — {RoomName(st.CurrentRoomId)}에서 기절",
+            $"● {Codename(st.EmployeeId)} 스트레스 {st.Stress:0} — {RoomName(st.CurrentRoomId)}에서 기절",
             detail: LogDetail.Fainted);
 
         // **여기서 의무실로 보내지 않는다.**
@@ -1589,8 +1589,8 @@ public partial class FacilitySimulation : Node
         });
 
         string desc = def.Recurring
-            ? $"⚙ {RoomName(roomId)} · '{taskDef.DisplayName}' 상시 업무 시작"
-            : $"⚠ {RoomName(roomId)}에 '{taskDef.DisplayName}' 업무 발생 (제한 {FormatClock(taskDef.TimeLimitSeconds)})";
+            ? $"□ {RoomName(roomId)} · '{taskDef.DisplayName}' 상시 업무 시작"
+            : $"▲ {RoomName(roomId)}에 '{taskDef.DisplayName}' 업무 발생 (제한 {FormatClock(taskDef.TimeLimitSeconds)})";
         EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", roomId, desc);
     }
 
@@ -1714,7 +1714,7 @@ public partial class FacilitySimulation : Node
         {
             GameState.Instance.TriggerPowerAccident(cfg.SabotagePowerLoss);
             LogSabotage(saboteur, here, others, $"전력 계통 이상 — 최대 전력 -{cfg.SabotagePowerLoss} (원인 불명)",
-                "⚠ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
+                "▲ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
             return;
         }
 
@@ -1723,7 +1723,7 @@ public partial class FacilitySimulation : Node
         {
             GameState.Instance.AddMaterials(-cfg.SabotageMaterialLoss);
             LogSabotage(saboteur, here, others, $"자재 {cfg.SabotageMaterialLoss}개 분실 (기록 없음)",
-                "⚠ 시설 자재가 기록 없이 사라졌습니다!");
+                "▲ 시설 자재가 기록 없이 사라졌습니다!");
             return;
         }
 
@@ -1738,7 +1738,7 @@ public partial class FacilitySimulation : Node
             // 원인도 대책도 다르다. 화면에 뜨는 문구는 그대로다(로그는 LogSabotage 가 쓴다).
             GameState.Instance.AddCoreProgress(-loss, blackoutChaos ? "정전 혼란" : "복구 작업 방해");
             LogSabotage(saboteur, here, others, $"봉쇄 코어 복구율 -{loss:0}% (원인 불명)",
-                "⚠ 봉쇄 코어 복구율이 비정상적으로 감소했습니다!");
+                "▲ 봉쇄 코어 복구율이 비정상적으로 감소했습니다!");
             // 깎인 양을 게이지 아래에 잠깐 띄운다 — "내가 쌓은 게 줄었다"가 보여야 한다.
             NSP.Ui.FacilityAlertHud.Instance?.ShowCoreLoss(loss);
             return;
@@ -1757,7 +1757,7 @@ public partial class FacilitySimulation : Node
             hereState.MicroFaultUntil = GameState.Instance.DayTimeSeconds + MicroFaultSeconds;
             LogSabotage(saboteur, here, others,
                 $"설비 조작 — {MicroFaultSeconds:0}초간 작업 정체",
-                "⚠ 설비가 원인 불명으로 멈췄습니다!");
+                "▲ 설비가 원인 불명으로 멈췄습니다!");
         }
 
         // 배치된 직원은 관리자의 재배치 또는 실제 시설 문제(격리/대피) 없이는
@@ -1806,7 +1806,7 @@ public partial class FacilitySimulation : Node
         // 로그의 실행자(actor)는 시스템 진실이라 그대로 남지만, 목격자 목록에는
         // "사람을 특정한 사람" 만 들어간다. 대사·전화·심문은 이 목록만 본다.
         EventLog.Instance?.LogEvent(LogEventType.Sabotage, actor.EmployeeId, roomId,
-            $"⚠ {RoomName(roomId)} — {what}", identified);
+            $"▲ {RoomName(roomId)} — {what}", identified);
 
         // 눈치만 챈 사람들은 "이상한 일이 있었다" 까지만 기억한다(실행자 없음).
         var onlyNoticed = noticed.Where(id => !identified.Contains(id)).ToList();
@@ -1817,7 +1817,7 @@ public partial class FacilitySimulation : Node
         // 로그만 남기면 다른 화면을 보고 있을 때 그냥 지나간다 — 화면 전체로 알린다.
         // 연출은 HUD 가 알아서 돌고, 시뮬레이션은 여기서 멈추지 않는다.
         NSP.Ui.FacilityAlertHud.Instance?.ShowCriticalAlert(
-            string.IsNullOrEmpty(alert) ? "⚠ 시설 설비에서 인위적인 손상 흔적이 감지되었습니다!" : alert);
+            string.IsNullOrEmpty(alert) ? "▲ 시설 설비에서 인위적인 손상 흔적이 감지되었습니다!" : alert);
     }
 
     // CCTV가 꺼져 있는(정전/전력 미배분) 동안 벌어진 살인은 그 순간 바로 로그에 남기지 않는다
@@ -1843,7 +1843,7 @@ public partial class FacilitySimulation : Node
 
         var def = _employeeDefs.GetValueOrDefault(victimId);
         EventLog.Instance?.LogEvent(LogEventType.Death, victimId, roomId,
-            $"⚠ {def?.Codename ?? victimId} 활동 중단 확인. 발견 당시 목격자 없음.");
+            $"▲ {def?.Codename ?? victimId} 활동 중단 확인. 발견 당시 목격자 없음.");
         SpreadPanic(victimId, roomId);
     }
 
@@ -1864,7 +1864,7 @@ public partial class FacilitySimulation : Node
                 var def = _employeeDefs.GetValueOrDefault(emp.EmployeeId);
                 var roomDef = _roomDefs.GetValueOrDefault(emp.CurrentRoomId);
                 EventLog.Instance?.LogEvent(LogEventType.Death, emp.EmployeeId, emp.CurrentRoomId,
-                    $"⚠ LIFE SIGNAL LOST — {def?.Codename ?? emp.EmployeeId} 신호 소실. " +
+                    $"▲ LIFE SIGNAL LOST — {def?.Codename ?? emp.EmployeeId} 신호 소실. " +
                     $"{roomDef?.DisplayName ?? emp.CurrentRoomId}에서 발견, 목격자 없음.");
                 // 정전 중에 벌어진 죽음도 **발견된 이 순간**부터 퍼진다.
                 // 아무도 몰랐던 동안에는 아무도 무너지지 않는다.
@@ -2073,7 +2073,7 @@ public partial class FacilitySimulation : Node
             GameState.Instance.AddCoreProgress(
                 -cfg.CoreUnstableCoreLoss * RecoveryProfile.InstabilityLossMultiplier, "코어 출력 불안정");
             EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", CoreRoomId,
-                $"🚨 봉쇄 코어 출력 불안정 — 복구율 -{cfg.CoreUnstableCoreLoss:0}%");
+                $"● 봉쇄 코어 출력 불안정 — 복구율 -{cfg.CoreUnstableCoreLoss:0}%");
         }
     }
 
@@ -2592,9 +2592,9 @@ public partial class FacilitySimulation : Node
         if (HasActiveRepair(roomId)) return;
 
         EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-            $"🚨 {RoomName(roomId)} — {title} 대응 실패, 고장 발생");
+            $"● {RoomName(roomId)} — {title} 대응 실패, 고장 발생");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
-            $"⚠ {RoomName(roomId)} 기능이 정지되었습니다.", NSP.Ui.NoticeLevel.Warning);
+            $"▲ {RoomName(roomId)} 기능이 정지되었습니다.", NSP.Ui.NoticeLevel.Warning);
         IncidentTracker.Open(roomId, def.AccidentName, "경고 시간 내 대응 실패",
             "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
         TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
@@ -2606,9 +2606,9 @@ public partial class FacilitySimulation : Node
     private void TriggerRoomAccident(string roomId, RoomDef def, int minWorkersOverride = 0)
     {
         EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-            $"🚨 {RoomName(roomId)} — {def.AccidentName} (무인 방치)");
+            $"● {RoomName(roomId)} — {def.AccidentName} (무인 방치)");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
-            $"⚠ {RoomName(roomId)}에 {def.AccidentName} 사고가 발생했습니다.", NSP.Ui.NoticeLevel.Warning);
+            $"▲ {RoomName(roomId)}에 {def.AccidentName} 사고가 발생했습니다.", NSP.Ui.NoticeLevel.Warning);
         // 먼저 사고를 열어 둔다 — 뒤이어 적용되는 시설 손실이 이 사고의 결과로 묶인다.
         IncidentTracker.Open(roomId, def.AccidentName, "장시간 근무자 부재",
             "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
@@ -2631,9 +2631,9 @@ public partial class FacilitySimulation : Node
         if (HasActiveRepair(roomId)) return;
 
         EventLog.Instance?.LogEvent(LogEventType.AnomalyIncident, "", roomId,
-            $"🚨 {RoomName(roomId)} — {def.AccidentName} (이상 개체 접촉)", witnesses: witnesses);
+            $"● {RoomName(roomId)} — {def.AccidentName} (이상 개체 접촉)", witnesses: witnesses);
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
-            $"⚠ {RoomName(roomId)}에서 원인 불명의 손상이 발생했습니다.", NSP.Ui.NoticeLevel.Critical);
+            $"▲ {RoomName(roomId)}에서 원인 불명의 손상이 발생했습니다.", NSP.Ui.NoticeLevel.Critical);
         IncidentTracker.Open(roomId, def.AccidentName, "이상 개체 접촉",
             "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
         TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
@@ -2683,9 +2683,9 @@ public partial class FacilitySimulation : Node
         {
             TabooRuleSystem.Instance?.ApplyRoomConsequence(activeTask.NeglectConsequenceType, roomId, activeTask.NeglectConsequenceAmount);
             EventLog.Instance?.LogEvent(LogEventType.Sabotage, actorEmployeeId, roomId,
-                $"☣ {roomDef?.DisplayName ?? roomId} — 설비에 사람 손을 탄 흔적이 있다. 사고가 아니다.", witnesses);
+                $"※ {roomDef?.DisplayName ?? roomId} — 설비에 사람 손을 탄 흔적이 있다. 사고가 아니다.", witnesses);
             // 센서에는 범인을 절대 넘기지 않는다 — "누가" 가 아니라 "사고가 아니다" 까지만.
-            IncidentTracker.Anomaly(roomId, "☣ 방해공작 흔적", "설비 손상 — 고의 조작 정황");
+            IncidentTracker.Anomaly(roomId, "※ 방해공작 흔적", "설비 손상 — 고의 조작 정황");
             Sabotaged?.Invoke(roomId);
         }
         else
@@ -2694,9 +2694,9 @@ public partial class FacilitySimulation : Node
             if (st != null)
                 st.Gauge = Mathf.Max(0f, st.Gauge - Config.Instance.Data.SabotageTaskGaugeLoss);
             EventLog.Instance?.LogEvent(LogEventType.Sabotage, actorEmployeeId, roomId,
-                $"☣ {roomDef?.DisplayName ?? roomId} — '{activeTask.DisplayName}' 기록이 사람 손에 되돌려져 있다.", witnesses);
+                $"※ {roomDef?.DisplayName ?? roomId} — '{activeTask.DisplayName}' 기록이 사람 손에 되돌려져 있다.", witnesses);
             // 설비가 망가지지 않은 유형이라도 흔적은 남는다 — 센서에서 확인할 수 있어야 한다.
-            IncidentTracker.Anomaly(roomId, "☣ 방해공작 흔적",
+            IncidentTracker.Anomaly(roomId, "※ 방해공작 흔적",
                 $"'{activeTask.DisplayName}' 진행 기록 조작");
             Sabotaged?.Invoke(roomId);
         }
@@ -2791,7 +2791,7 @@ public partial class FacilitySimulation : Node
 
         string taskName = _taskDefs.GetValueOrDefault(st.TaskId)?.DisplayName ?? st.TaskId;
         EventLog.Instance?.LogEvent(LogEventType.Neglect, departingEmployeeId, roomId,
-            $"⚠ {Codename(departingEmployeeId)} - {RoomName(roomId)} '{taskName}' 미완료 상태로 이탈");
+            $"▲ {Codename(departingEmployeeId)} - {RoomName(roomId)} '{taskName}' 미완료 상태로 이탈");
     }
 
     // 오늘 근무자인가 — 근무표에 배치된 직원만 실제로 일하고, 전화를 받고, 인원수에 잡힌다.
@@ -2956,7 +2956,7 @@ public partial class FacilitySimulation : Node
                 st.MaterialsBlockedLogged = blockedByMaterials;
                 EventLog.Instance?.LogEvent(LogEventType.ResourceShortage, "", st.RoomId,
                     blockedByMaterials
-                        ? $"⚠ {RoomName(st.RoomId)} — 자재 부족으로 '{taskDef.DisplayName}' 정지 (자재 {GameState.Instance.Materials})"
+                        ? $"▲ {RoomName(st.RoomId)} — 자재 부족으로 '{taskDef.DisplayName}' 정지 (자재 {GameState.Instance.Materials})"
                         : $"✓ {RoomName(st.RoomId)} — 자재 확보, '{taskDef.DisplayName}' 재개");
             }
 
@@ -2966,10 +2966,10 @@ public partial class FacilitySimulation : Node
                 foreach (var w in workers)
                 {
                     if (!st.StartedWorkerIds.Add(w.EmployeeId)) continue;
-                    // 🔧 = 사고 복구 작업. 평상시 업무 시작과 달리 관리자에게도 보여야 하므로
+                    // ▣ = 사고 복구 작업. 평상시 업무 시작과 달리 관리자에게도 보여야 하므로
                     // 표식을 남긴다(시설 로그 화면이 이 표식으로 수리 시작을 골라낸다).
                     EventLog.Instance?.LogEvent(LogEventType.TaskStart, w.EmployeeId, st.RoomId,
-                        $"{(st.IsRepair ? "🔧 " : "")}{Codename(w.EmployeeId)} {RoomName(st.RoomId)} 도착 / {taskDef.DisplayName} 시작",
+                        $"{(st.IsRepair ? "▣ " : "")}{Codename(w.EmployeeId)} {RoomName(st.RoomId)} 도착 / {taskDef.DisplayName} 시작",
                         workers.Where(x => x.EmployeeId != w.EmployeeId).Select(x => x.EmployeeId));
                 }
 
@@ -3056,7 +3056,7 @@ public partial class FacilitySimulation : Node
             // 제한시간 초과 — 고장 발생. 업무는 사라지지 않고 "수리" 업무로 전환되어
             // 담당 직원이 완료해야 기능이 복구된다.
             EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", st.RoomId,
-                $"🚨 {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 고장 발생");
+                $"● {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 고장 발생");
             // 수리 규격은 업무가 아니라 **그 방**이 정한다(코어실·발전실만 2명).
             var roomDef = _roomDefs.GetValueOrDefault(st.RoomId);
             int repairWorkers = RoomStaffing.RepairMinWorkers(st.RoomId, roomDef);
@@ -3080,7 +3080,7 @@ public partial class FacilitySimulation : Node
         {
             st.Status = SpawnedTaskStatus.Failed;
             EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", st.RoomId,
-                $"🚨 {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 처리 실패");
+                $"● {RoomName(st.RoomId)} — '{taskDef.DisplayName}' 제한시간 초과, 처리 실패");
         }
         st.ResolveDisplayTimer = Config.Instance.Data.ResolvedTaskDisplaySeconds;
     }
@@ -3094,7 +3094,7 @@ public partial class FacilitySimulation : Node
                 // FAIL-03: 정비 설비가 고장 나 있으면 생산이 멈춘다(수리 완료 전까지).
                 if (GameState.Instance.MaterialsProductionHalted)
                 {
-                    badge += " · ⚠ 설비 고장 — 생산 정지";
+                    badge += " · ▲ 설비 고장 — 생산 정지";
                     break;
                 }
                 // 난이도 표의 생산 배율. 소수점이 버려지지 않게 올림으로 센다
@@ -3103,7 +3103,7 @@ public partial class FacilitySimulation : Node
                     task.EffectAmount * RecoveryProfile.MaterialProductionMultiplier));
                 GameState.Instance.AddMaterials(made);
                 MaterialProbe?.Invoke(made, "produced");
-                badge += $" · 📦 자재 +{made}";
+                badge += $" · 자재 +{made}";
                 // 표시: HUD 자재 숫자가 한 번 튀고 · 미니맵 정비실이 밝아진다(로그에는 남기지 않는다).
                 RoomEffectStats.MaterialsToday += made;
                 RoomEffectStats.Pulse(roomId);
@@ -3114,7 +3114,7 @@ public partial class FacilitySimulation : Node
                 if (GameState.Instance.CoreOutputUnstable)
                 {
                     CoreGainProbe?.Invoke(task.EffectAmount * RecoveryProfile.YieldMultiplier, "CoreBreakdown");
-                    badge += " · ⚠ 코어 출력 불안정 — 복구 정지";
+                    badge += " · ▲ 코어 출력 불안정 — 복구 정지";
                     break;
                 }
                 // 저장고 인원이 자재 소모량을 바꾼다(비워 두면 낭비가 늘어난다).
@@ -3126,7 +3126,7 @@ public partial class FacilitySimulation : Node
                 // 난이도 표의 CoreYieldMultiplier 가 그 값이다.
                 float got = task.EffectAmount * RecoveryProfile.YieldMultiplier;
                 GameState.Instance.AddCoreProgress(got, task.DisplayName);
-                badge += $" · 코어 +{got:0.#}% · 📦 자재 -{consumed}";
+                badge += $" · 코어 +{got:0.#}% · 자재 -{consumed}";
                 // 표시: 코어 게이지 옆 "+1%" · 미니맵 코어실 점멸 · 오늘 복구량 집계.
                 RoomEffectStats.CoreUpToday += task.EffectAmount;
                 RoomEffectStats.Pulse(roomId);
@@ -3138,14 +3138,14 @@ public partial class FacilitySimulation : Node
                 GameState.Instance.AddMaterialsCap((int)task.EffectAmount);
                 int gained = GameState.Instance.MaterialsCap - before;
                 badge += gained > 0
-                    ? $" · 📦 자재 한도 +{gained} (→ {GameState.Instance.MaterialsCap})"
+                    ? $" · 자재 한도 +{gained} (→ {GameState.Instance.MaterialsCap})"
                     : $" · 자재 한도 최대치({GameState.Instance.MaterialsCap})";
                 break;
             case TaskEffectType.ReduceStress:
                 // 의료 장비 오염(사고) 중에는 치료가 불가능하다.
                 if (GameState.Instance.MedicalContaminated)
                 {
-                    badge += " · ⚠ 의료 장비 오염 — 치료 불가";
+                    badge += " · ▲ 의료 장비 오염 — 치료 불가";
                     break;
                 }
                 // 치료 대상 = 이 방(의무실)에 있는 직원. 감소에는 담력 배율을 걸지 않는다.
@@ -3162,7 +3162,7 @@ public partial class FacilitySimulation : Node
                 if (hadAccident) AchievementManager.Instance?.NotePowerRestored();
                 // 발전실 사고(금기 이상현상 포함)는 전력이 정상으로 돌아온 시점에 해결된다.
                 IncidentTracker.Resolve(roomId);
-                badge += " · ⚡ 전력 정상 복구";
+                badge += " · ■ 전력 정상 복구";
                 break;
         }
         EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", roomId, badge);

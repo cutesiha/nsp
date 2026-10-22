@@ -12,10 +12,10 @@ namespace NSP.Ui;
 //
 //  ▮ 이상 현황
 //   ▶ 금기 위반 발생            ← 순간 알림, 8초 뒤 사라짐
-//   ⚡ 최대 전력 감소 — 발전기 점검 필요   ← 미해결 상태. 해결(발전기 점검 완료)될 때까지 안 사라짐
-//   📹 CCTV 전력 차단
-//   🔒 정비실 봉쇄 중            ← 봉쇄 해제하면 사라짐
-//   ⏳ 발전실 사고까지 8초        ← 카운트다운. 완료/실패 시 사라짐
+//   ■ 최대 전력 감소 — 발전기 점검 필요   ← 미해결 상태. 해결(발전기 점검 완료)될 때까지 안 사라짐
+//   ■ CCTV 전력 차단
+//   ■ 정비실 봉쇄 중            ← 봉쇄 해제하면 사라짐
+//   △ 발전실 사고까지 8초        ← 카운트다운. 완료/실패 시 사라짐
 public partial class RedEventLog : CanvasLayer
 {
     private const int MaxFlash = 5;
@@ -162,11 +162,11 @@ public partial class RedEventLog : CanvasLayer
         var warn = new Color(1f, 0.3f, 0.16f);
 
         if (gs.IsPowerAccidentActive())
-            yield return ("pwr_cap", "⚡ 최대 전력 감소 — 발전기 점검 필요", warn);
+            yield return ("pwr_cap", "■ 최대 전력 감소 — 발전기 점검 필요", warn);
         if (!gs.IsConsumerPowered(PowerConsumer.CctvWatch))
-            yield return ("pwr_cctv", "📹 CCTV 전력 차단", warn);
+            yield return ("pwr_cctv", "■ CCTV 전력 차단", warn);
         if (!gs.IsConsumerPowered(PowerConsumer.Lighting))
-            yield return ("pwr_light", "💡 조명 전력 차단", warn);
+            yield return ("pwr_light", "□ 조명 전력 차단", warn);
 
         foreach (var rid in sim.GetRoomIds())
         {
@@ -176,17 +176,17 @@ public partial class RedEventLog : CanvasLayer
             string name = rd.DisplayName;
 
             if (rs.Locked)
-                yield return ($"lock:{rid}", $"🔒 {name} 봉쇄 중", warn);
+                yield return ($"lock:{rid}", $"■ {name} 봉쇄 중", warn);
             if (!rs.PowerOn)
-                yield return ($"pout:{rid}", $"⚡ {name} 정전", warn);
+                yield return ($"pout:{rid}", $"■ {name} 정전", warn);
             if (rs.CctvDisconnected)
-                yield return ($"ccut:{rid}", $"📹 {name} CCTV 단절", warn);
+                yield return ($"ccut:{rid}", $"■ {name} CCTV 단절", warn);
 
             var st = sim.GetPrimarySpawnedTask(rid);
             if (st is { Status: SpawnedTaskStatus.Failed })
             {
                 string taskName = sim.GetTaskDef(st.TaskId)?.DisplayName ?? st.TaskId;
-                yield return ($"fail:{rid}", $"🚨 {name} '{taskName}' 처리 실패", new Color(1f, 0.15f, 0.15f));
+                yield return ($"fail:{rid}", $"● {name} '{taskName}' 처리 실패", new Color(1f, 0.15f, 0.15f));
             }
         }
     }
@@ -235,7 +235,7 @@ public partial class RedEventLog : CanvasLayer
             live.Add(st.TaskId);
             string room = sim.GetRoomDef(st.RoomId)?.DisplayName ?? st.RoomId;
             int secs = Mathf.CeilToInt(st.Remaining);
-            string txt = $"⏳ {room} 사고까지 {secs}초";
+            string txt = $"△ {room} 사고까지 {secs}초";
 
             if (!_cdLabels.TryGetValue(st.TaskId, out var lbl))
             {

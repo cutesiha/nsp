@@ -10,6 +10,10 @@ public partial class MonitorScreen3D : MeshInstance3D, IProjectionSurface
     // QuadMesh UV 세로가 뒤집혀 보이면 에디터에서 켠다.
     [Export] public bool FlipV = false;
 
+    // 화면 바탕 검정 누르기(crt_screen 의 black_crush, 선형 밝기). 아날로그 필터 아래에서 어두운 UI 바탕이
+    // 회색으로 뜨지 않게 바탕만 살짝 누른다. CCTV 처럼 장면이 밝은 화면은 조금 더 눌러 어두운 방처럼 보이게 한다.
+    [Export(PropertyHint.Range, "0,0.1,0.001")] public float BlackCrush = 0.01f;
+
     public ShaderMaterial ScreenMaterial { get; private set; }
     public SubViewport TargetViewport { get; set; }
 
@@ -38,6 +42,7 @@ public partial class MonitorScreen3D : MeshInstance3D, IProjectionSurface
         ScreenMaterial.SetShaderParameter("screen_tex", viewport.GetTexture());
         ScreenMaterial.SetShaderParameter("region_min", Vector2.Zero);
         ScreenMaterial.SetShaderParameter("region_max", Vector2.One);
+        ScreenMaterial.SetShaderParameter("black_crush", BlackCrush);
         MaterialOverride = ScreenMaterial;
     }
 

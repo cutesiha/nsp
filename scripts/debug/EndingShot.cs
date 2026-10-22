@@ -116,10 +116,14 @@ public partial class EndingShot : Node
             "bad" => new[] { (3.0, "0_intro"), (8.0, "1_pad"), (13.0, "2_warning"), (18.0, "3_guide"), (22.0, "4_bulkhead"), (28.0, "5_door"), (38.0, "6_banner") },
             _ => new[] { (12.0, "1_core100"), (26.0, "2_verdict"), (44.0, "3_restraint"), (56.0, "4_bars"), (68.0, "5_corehall"), (80.0, "6_montage"), (94.0, "7_lights"), (106.0, "8_rest"), (118.0, "9_rest2"), (132.0, "10_guide"), (148.0, "11_banner") },
         };
-        // 인자에 sweep 을 더하면 4초마다 통째로 찍는다(연출 길이를 맞출 때 쓴다).
+        // 인자에 sweep 을 더하면 일정 간격으로 통째로 찍는다(연출 길이를 맞출 때 쓴다).
+        // 넷째 인자 간격(초) · 다섯째 끝 시각 · 여섯째 시작 시각 — 짧은 순간을 잡을 때.
         if (args.Length > 2 && args[2] == "sweep")
         {
-            for (double at = 6.0; at <= 176.0; at += 8.0)
+            double step = args.Length > 3 && double.TryParse(args[3], out var st) ? st : 8.0;
+            double end = args.Length > 4 && double.TryParse(args[4], out var en) ? en : 176.0;
+            double from = args.Length > 5 && double.TryParse(args[5], out var fr) ? fr : 6.0;
+            for (double at = from; at <= end; at += step)
             {
                 await Until(at);
                 Save(dir, $"{mode}_t{at:00}.png");

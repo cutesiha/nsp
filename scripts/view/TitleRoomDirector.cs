@@ -50,6 +50,10 @@ public partial class TitleRoomDirector : Node
     //   True : 아주 약한 아침빛 · 정상 색 · CRT 노이즈 감소 · 같은 곡의 조용한 버전
     //   Loose: True 와 똑같이 밝다. 20초에 한 번 0.2초짜리 노이즈가 튀는 것만 다르다 —
     //          조용한데 가끔 어긋난다.
+    // 처음 켠 타이틀에서 자리 → 왼쪽 단말기로 다가가는 데 걸리는 시간(초).
+    // 0 에 가까울수록 켜자마자 모니터가 화면을 가득 메운다. 방을 보여 주고 싶으면 늘린다.
+    private const float StartZoomSeconds = 1.6f;
+
     public static float EndingScreenNoise => EndingState.Last switch
     {
         EndingState.Kind.Bad => 0.06f,
@@ -92,7 +96,8 @@ public partial class TitleRoomDirector : Node
     // Archive   = 도전과제 기록실을 보는 중. 메뉴 입력과 완전히 분리해 두어
     //             기록을 넘기다가 「근무 개시」가 실수로 실행되지 않게 한다.
     // ModeSelect = 근무 유형(대회용 / 기본 / 하드)을 고르는 중. 마찬가지로 분리한다.
-    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, ModeSelect, Done }
+    // Settings  = 환경 설정을 모니터1 화면 안에서 보는 중. 마우스는 그 화면으로 넘긴다.
+    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, ModeSelect, Settings, Done }
     private Phase _phase = Phase.Off;
 
     // 기록실 · 근무 유형 선택을 보는 동안의 조작 안내.
@@ -173,9 +178,17 @@ public partial class TitleRoomDirector : Node
         TitleStaffIdView.Instance.PowerOff();
         TitleTerminalView.Instance.ShowStandby();
 
-        // 게임 시작 순간부터 왼쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
-        // 엔딩 뒤에 다시 눈을 뜬 경우만 예외 — 방 전체(붉은 CRT · 비상등 / 아침빛)가 먼저 보여야 한다.
-        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, 0.01f);
+        // 타이틀은 왼쪽 CRT 확대 화면이다 — 다만 **즉시 그 자리에 두지는 않는다.**
+        //
+        // 예전에는 0.01초, 사실상 순간이동이었다. 그러면 게임을 켜자마자 모니터 하나가
+        // 화면을 가득 메운 채로 떠서 여기가 어디인지 알 수 없고, 이어서 프롤로그가
+        // 시작돼도 "이미 확대돼 있던 화면" 이라 들어가는 느낌이 전혀 없다.
+        //
+        // 자리에 앉은 시야에서 **천천히 단말기로 다가간다.** 방(두 CRT · 전화기 · 책상)이
+        // 먼저 한 박자 보이고 나서 글자를 읽을 크기가 된다.
+        // 엔딩 뒤에 다시 눈을 뜬 경우는 그대로 예외다 — 방 전체(붉은 CRT · 비상등 /
+        // 아침빛)를 충분히 보여 줘야 하므로 여기서 당기지 않는다.
+        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, StartZoomSeconds);
 
         // 대기 화면의 안내는 단말기 자체에 "[ PRESS ANY KEY ]" 로 떠 있다 — 겹쳐 쓰지 않는다.
         _hint.SetLine("");
@@ -356,14 +369,77 @@ public partial class TitleRoomDirector : Node
         }
     }
 
+    // 환경 설정 — 근무 개시 · 기록 열람처럼 **모니터1 단말기 화면 안에서** 연다.
+    // 화면 위에 따로 뜨는 창이면 시작 화면에서 혼자 튄다. 모니터 화면을 못 찾을 때만 예전처럼 창으로.
     private void OpenSettings()
     {
         if (_settings == null || !IsInstanceValid(_settings))
         {
-            _settings = new SettingsPanel();
+            var host = _ctl?.TitleTerminalViewport?.GetChildOrNull<Control>(0);
+            _settings = host != null ? new SettingsPanel(host) : new SettingsPanel();
+            _settings.Closed += OnSettingsClosed;
             AddChild(_settings);
         }
         _settings.Open();
+        Sfx.Instance?.Play("window_open", -8f);
+        _ctl?.FocusMonitor(1, 0.5f);   // 기록 열람과 같은 자리 — 글자를 읽을 크기로 당긴다
+        _hint.SetLine("");
+        _hint.SetSub("ESC 뒤로");
+        _phase = Phase.Settings;
+        _settingsPressed = false;
+    }
+
+    private void OnSettingsClosed()
+    {
+        if (_phase != Phase.Settings) return;
+        Sfx.Instance?.Play("relay_click", -8f);
+        // 확대는 풀지 않는다 — 타이틀은 처음부터 끝까지 모니터1 확대 화면이다.
+        TitleTerminalView.Instance?.ShowMenu();
+        _hint.SetSub(MenuHint);
+        _phase = Phase.Menu;
+    }
+
+    // 설정 화면은 모니터1 의 SubViewport 안에 있다 — 화면을 가리킨 마우스를 그 좌표로 넘긴다
+    // (게임 중 모니터 조작과 같은 방식: ControlRoom3DController.Forward).
+    private bool _settingsPressed;
+    private Vector2 _settingsLastPos;
+
+    private void ForwardToSettings(InputEvent e)
+    {
+        var vp = _ctl?.TitleTerminalViewport;
+        if (_camera == null) _camera = GetViewport().GetCamera3D();
+        if (vp == null || _camera == null || e is not InputEventMouse m) return;
+        MonitorScreen3D screen = null;
+        foreach (var s in _ctl.Screens)
+            if (s.TargetViewport == vp) { screen = s; break; }
+        if (screen == null) return;
+
+        Vector3 o = _camera.ProjectRayOrigin(m.Position);
+        Vector3 d = _camera.ProjectRayNormal(m.Position);
+        // 슬라이더를 끄는 중에는 화면 밖으로 나가도 가장자리에 붙여 계속 넘긴다.
+        bool hit = screen.TryProjectRay(o, d, clamp: _settingsPressed, out Vector2 cp);
+        switch (e)
+        {
+            case InputEventMouseButton mb:
+                if (!hit && mb.Pressed) return;
+                if (mb.ButtonIndex == MouseButton.Left) _settingsPressed = mb.Pressed;
+                vp.PushInput(new InputEventMouseButton
+                {
+                    ButtonIndex = mb.ButtonIndex, Pressed = mb.Pressed, DoubleClick = mb.DoubleClick,
+                    Position = cp, GlobalPosition = cp, ButtonMask = mb.ButtonMask,
+                }, true);
+                break;
+            case InputEventMouseMotion mm:
+                if (!hit) return;
+                vp.PushInput(new InputEventMouseMotion
+                {
+                    Position = cp, GlobalPosition = cp,
+                    Relative = cp - _settingsLastPos, ButtonMask = mm.ButtonMask,
+                }, true);
+                break;
+        }
+        _settingsLastPos = cp;
+        GetViewport().SetInputAsHandled();
     }
 
     // 근무 개시 — 예/아니오 확인 대신 **근무 유형을 고른다.** 고르는 행위가 곧 확인이고,
@@ -453,6 +529,11 @@ public partial class TitleRoomDirector : Node
     private void Finish()
     {
         AchievementArchiveView.Instance?.Close();
+        if (_settings != null && IsInstanceValid(_settings) && _settings.IsOpen)
+        {
+            _phase = Phase.Done;   // OnSettingsClosed 가 메뉴로 되돌리지 않게 먼저 닫아 둔다
+            _settings.Close();
+        }
         _phase = Phase.Done;
         IsRunning = false;
         SetProcess(false);
@@ -465,7 +546,12 @@ public partial class TitleRoomDirector : Node
     public override void _UnhandledInput(InputEvent e)
     {
         if (_phase is Phase.Off or Phase.Done or Phase.PoweringOn) return;
-        if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
+        if (_phase == Phase.Settings)
+        {
+            if (e is InputEventMouseButton or InputEventMouseMotion) ForwardToSettings(e);
+            return;
+        }
+        if (_settings != null && IsInstanceValid(_settings) && _settings.IsOpen) return;
 
         if (e is InputEventMouseMotion mm) { _mouse = mm.Position; _mouseMoved = true; return; }
 

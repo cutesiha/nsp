@@ -102,6 +102,8 @@ public partial class InterviewCCTVView : Control
         };
         _portraitBox.AddChild(_portrait);
         BuildStandingMaterial();
+        // 전용 스탠딩 셰이더가 꺼져 있으면 CRT 원화 보정을 건다(CrtArt).
+        if (_portrait.Material == null) NSP.View.CrtArt.Apply(_portrait);
 
         _stateLabel = Lbl("왼쪽 BREAK ROOM 에서 직원을 선택하세요", 20, new Color(0.8f, 0.85f, 0.8f));
         _stateLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y / 2f - 16f);
@@ -209,6 +211,9 @@ public partial class InterviewCCTVView : Control
     // 직원 한 명의 발광 값. 흰 옷처럼 밝은 원화는 EmployeeDef 에서 낮춰 둔다.
     private void ApplyStandingGlow(NSP.Data.EmployeeDef def)
     {
+        // CRT 원화 보정을 쓰는 동안은 직원마다 머티리얼을 고른다(늑대 가면 칸 보정 — CrtArt.MaterialFor).
+        if (_standingMat == null && def != null && NSP.View.CrtArt.MaterialFor(def) is { } art)
+            _portrait.Material = art;
         if (_standingMat == null || def == null) return;
         StopTension();
         _baseGlowAmt = def.StandingGlowAmt;

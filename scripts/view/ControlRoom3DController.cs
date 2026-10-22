@@ -25,6 +25,12 @@ public partial class ControlRoom3DController : Node3D
     [Export] public NodePath PowerPanelPath = "ControlRoom/PowerSwitchPanel";
     [Export] public float DeskPropFocusDistance = 0.46f;
     [Export] public Vector3 DeskPropFocusOffset = new(0f, 0.10f, 0f);
+    // 전력 스위치 기기 확대 — **위에서 내려다본다.** 기기 정면(Basis.Z)으로만 다가가면 카메라가
+    // 기기 높이에 머물러 살짝 올려다보는 시점이 됐다. 앉은 자리에서 고개를 숙여 들여다보듯
+    // 정면 방향에서 이만큼 위로 들어 올린 자리에 선다.
+    [Export] public float PowerPanelFocusElevationDeg = 44f;
+    [Export] public float PowerPanelFocusDistance = 0.36f;
+    [Export] public Vector3 PowerPanelFocusOffset = new(0f, 0.075f, 0f);
 
     // 1920x1080 화면에 맞춰 CRT/배치표/단말기의 모든 텍스트·UI를 같은 배율로 키운다.
     // 레이아웃 코드는 손대지 않고, View 를 이 배율로 스케일한 프레임 안에 넣어 통째로 확대한다.
@@ -59,6 +65,16 @@ public partial class ControlRoom3DController : Node3D
     // (근무 배치 단계에서만 그려지는 뷰포트라 상시 비용이 아니다.)
     public const float DocumentSupersample = 1.45f;
     public const float DocumentMinRenderScale = 0.85f;
+
+    // 캐릭터 얼굴을 들여다보는 화면(스토리 컷인 · 휴게 심문)도 바닥을 깔아 둔다.
+    //
+    // 품질을 낮추면 CRT 화면이 0.58배로 줄어드는데, 거기서는 **입 모양과 외곽선처럼
+    // 얇은 선이 먼저 사라진다.** 그 둘은 이 게임에서 "지금 누가 무슨 말을 하는가" 를
+    // 읽는 수단이라 뭉개지면 안 된다("말할 때만 얼굴이 안 보인다" 는 지적).
+    //
+    // 상시 비용이 아니다 — 스토리와 심문이 떠 있는 동안만 쓰이고, 끝나면
+    // ReleaseIdleViewports 가 도로 내려놓는다.
+    public const float FaceMinRenderScale = 0.85f;
 
     // 논리 캔버스 크기 → 실제 SubViewport 렌더 해상도.
     // superSample / minRenderScale 은 문서처럼 특별히 선명해야 하는 표면만 쓴다.
@@ -283,7 +299,8 @@ public partial class ControlRoom3DController : Node3D
         AddScaledView(_restRosterVp, new RestRosterView(), MonitorCanvasSize);
 
         _interviewVp = MakeViewport();
-        AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize);
+        AddScaledView(_interviewVp, new InterviewCCTVView(), MonitorCanvasSize,
+            minRenderScale: FaceMinRenderScale);
         // 휴게시간에도 교육이 이어진다 — 여기에도 같은 얼굴창을 얹는다.
         _interviewVp.GetChild<Control>(0)?.AddChild(new NSP.Prologue.GuideCornerFace());
 
@@ -311,7 +328,8 @@ public partial class ControlRoom3DController : Node3D
 
         // DAY1~5 메인 스토리 — 모니터2 안에서 휴게실 3D + 스탠딩 + 대사를 합성한다.
         _storyVp = MakeViewport();
-        AddScaledView(_storyVp, new StoryMonitorView(), MonitorCanvasSize);
+        AddScaledView(_storyVp, new StoryMonitorView(), MonitorCanvasSize,
+            minRenderScale: FaceMinRenderScale);
 
         _scheduleStaffVp = MakeViewport();
         AddScaledView(_scheduleStaffVp, new ScheduleStaffView(), MonitorCanvasSize);
@@ -929,6 +947,7 @@ public partial class ControlRoom3DController : Node3D
         var node = ResolveTarget(t);
         if (node == null) return;
         if (_focusedNode == node) { Unfocus(); return; }
+        if (t == GameSettings.ZoomTarget.PowerPanel) { FocusPowerPanelNode(node, 0.32f); return; }
 
         _focusedNode = node;
         _focusedScreen = node as MonitorScreen3D;
@@ -953,6 +972,31 @@ public partial class ControlRoom3DController : Node3D
     }
 
     public void ClearFocus(float seconds = 0.3f) => Unfocus(seconds);
+
+    // 교육 연출용 — 전력 스위치 기기를 확대한다(숫자키 확대와 같은 자리 · 같은 각도).
+    // 확대된 동안의 레버 클릭은 평소처럼 TryInteractRay 가 받는다(_focusedNode 가 기기다).
+    public void FocusPowerPanel(float seconds = 0.45f) =>
+        FocusPowerPanelNode(ResolveTarget(GameSettings.ZoomTarget.PowerPanel), seconds);
+
+    public bool IsPowerPanelFocused => IsFocusedPowerPanel();
+    public bool IsMonitorFocused(int index) =>
+        _focusedNode != null && _focusedNode == ResolveTarget(
+            index == 2 ? GameSettings.ZoomTarget.Monitor2 : GameSettings.ZoomTarget.Monitor1);
+
+    private void FocusPowerPanelNode(Node3D node, float seconds)
+    {
+        if (node == null) return;
+        _focusedNode = node;
+        _focusedScreen = null;
+        Vector3 center = node.GlobalPosition + PowerPanelFocusOffset;
+        // 기기가 바라보는 수평 방향에서 위로 들어 올린다 — 기기를 돌려 놓아도 같은 각도로 내려다본다.
+        Vector3 front = node.GlobalTransform.Basis.Z;
+        front.Y = 0f;
+        front = front.LengthSquared() < 0.0001f ? Vector3.Back : front.Normalized();
+        float el = Mathf.DegToRad(Mathf.Clamp(PowerPanelFocusElevationDeg, 0f, 80f));
+        Vector3 normal = (front * Mathf.Cos(el) + Vector3.Up * Mathf.Sin(el)).Normalized();
+        _rig?.FocusOnScreen(center, normal, PowerPanelFocusDistance, seconds);
+    }
 
     // 엔딩 연출 — 책상 위 아무 물건이나 카메라를 내린다(관리자 패드 · 수화기 · 전원 스위치).
     // 확대 대상 목록(ZoomTarget)에 없는 노드도 받는다. distance 가 0 이하면 책상 기기 기본값.

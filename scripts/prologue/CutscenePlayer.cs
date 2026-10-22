@@ -645,7 +645,8 @@ public partial class CutscenePlayer : Control
         {
             char c = _text.Text[_spokenChars];
             _spokenChars++;
-            Sfx.Instance?.PlayVoiceBlip(voice, c, _slide.Radio);
+            Sfx.Instance?.PlayVoiceBlip(voice, c,
+                _slide.Radio ? Sfx.VoiceChannel.Radio : Sfx.VoiceChannel.Direct);
         }
     }
 
@@ -1148,8 +1149,8 @@ public partial class CutscenePlayer : Control
             DrawString(font, ControlBar.Position + new Vector2(14f, 30f), "▶",
                 HorizontalAlignment.Left, 24f, ViewFont.S(18), new Color(0.80f, 0.86f, 0.90f));
             // 재생 시간 표기와 겹치지 않게 오른쪽 끝으로 붙인다.
-            DrawString(font, ControlBar.Position + new Vector2(Size.X - 52f, 30f), "🔊",
-                HorizontalAlignment.Left, 30f, ViewFont.S(15), new Color(0.60f, 0.66f, 0.70f));
+            DrawString(font, ControlBar.Position + new Vector2(Size.X - 60f, 30f), "VOL",
+                HorizontalAlignment.Left, 44f, ViewFont.S(15), new Color(0.60f, 0.66f, 0.70f));
 
             var track = new Rect2(ControlBar.Position + new Vector2(44f, 20f), new Vector2(ControlBar.Size.X - 216f, 6f));
             DrawRect(track, new Color(0.20f, 0.23f, 0.27f));

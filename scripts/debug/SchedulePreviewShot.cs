@@ -87,7 +87,7 @@ public partial class SchedulePreviewShot : Node
         await Frames(3);
         typeof(FacilityMonitorView).GetMethod("SelectRoom", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
             ?.Invoke(mon, new object[] { "maintenance_room" });
-        NSP.Ui.FacilityAlertHud.Instance?.Notify("⚠ 발전실 사고 위험 — 근무자 부재", NSP.Ui.NoticeLevel.Warning);
+        NSP.Ui.FacilityAlertHud.Instance?.Notify("▲ 발전실 사고 위험 — 근무자 부재", NSP.Ui.NoticeLevel.Warning);
         await Frames(4);
         Save(monVp, dir, "monitor1_room.png");
         monVp.QueueFree();

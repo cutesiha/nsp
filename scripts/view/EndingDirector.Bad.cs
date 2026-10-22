@@ -77,12 +77,14 @@ public partial class EndingDirector
         await AwaitTyping(right, 0.8);
 
         // ③ GUIDE-0 — horrorface 의 자리.
+        // 얼굴은 왼쪽(모니터1), 말은 오른쪽(모니터2). 같은 화면에 두면 얼굴창이 대사를 덮는다.
         left?.Clear();
         Sfx.Instance?.Play("window_open", -10f);
         GuideCornerFace.SetAlarmTint(true);
         ShowGuide("sneer");
         await Wait(1.0);
-        await GuideSpeak(left, "최종 복구에 실패했습니다.", "야간 근무 기록을 종료합니다.");
+        right?.Clear();
+        await GuideSpeak(right, "최종 복구에 실패했습니다.", "야간 근무 기록을 종료합니다.");
 
         // 두 번째 줄이 끝나는 순간 — 노이즈가 치솟고 그 1프레임에 얼굴이 바뀐다.
         _ctl?.SetScreenNoise(0.9f);

@@ -107,8 +107,8 @@ public partial class TaskPriorityPopup : Control
     private static string StatusText(SpawnedTask st) => st.Status switch
     {
         SpawnedTaskStatus.Completed => "✓ 완료",
-        SpawnedTaskStatus.Failed => "🚨 실패",
-        _ => st.Recurring ? "상시" : $"⏱ {Mathf.CeilToInt(st.Remaining)}초",
+        SpawnedTaskStatus.Failed => "● 실패",
+        _ => st.Recurring ? "상시" : $"△ {Mathf.CeilToInt(st.Remaining)}초",
     };
 
     private static StyleBoxFlat RowStyle()

@@ -153,7 +153,10 @@ public partial class PhoneCallHud : CanvasLayer
         _root = new VBoxContainer();
         _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         // 창 테두리(홀로그램 모서리)와 글자가 붙지 않게 안쪽 여백.
-        _root.OffsetLeft = 24; _root.OffsetTop = 10; _root.OffsetRight = -24; _root.OffsetBottom = -10;
+        _root.OffsetLeft = 24; _root.OffsetTop = NameBandPad; _root.OffsetRight = -24; _root.OffsetBottom = -10;
+        // 이름띠 — 맨 윗줄(▶ 이름)을 위아래 여백이 같게 감싼다. 30px 로 고정돼 있을 때는
+        // 이름 글자가 띠 아랫선을 가로질러 절반쯤 띠 밑으로 내려가 있었다.
+        _frame.BandHeight = Mathf.Round(NameBandPad * 2f + _font.GetHeight(Fz(19)));
         _root.AddThemeConstantOverride("separation", 10);
         _panel.AddChild(_root);
 
@@ -295,6 +298,7 @@ public partial class PhoneCallHud : CanvasLayer
             // 화면 한가운데에 남아 MONITOR 를 계속 가렸다 — 접는 이유가 그건데.
             _panel.AnchorTop = _panel.AnchorBottom;
             _panel.OffsetTop = _panel.OffsetBottom - CollapsedHeight;
+            KeepCollapsedBarClearOfIcons();
         }
         else
         {
@@ -304,6 +308,20 @@ public partial class PhoneCallHud : CanvasLayer
         if (_root != null) _root.Visible = !on;
         if (_barName != null) _barName.Visible = on;
         if (_collapseBtn != null) _collapseBtn.Text = on ? "▲ 펼치기" : "▼ 접기";
+    }
+
+    // 접은 막대가 오른쪽 아래 로그 · 대화 기록 버튼(위층 CanvasLayer)과 겹치면 그 버튼이
+    // 클릭을 먼저 가져가 「▲ 펼치기」 가 눌리지 않는다. 겹치면 버튼 바로 위로 비켜 선다.
+    // 펼칠 때는 접기 전 자리(_openOffset*)로 돌아가므로 펼친 창의 위치는 그대로다.
+    private void KeepCollapsedBarClearOfIcons()
+    {
+        var icons = Day1HistoryOverlay.Instance?.IconsGlobalRect() ?? new Rect2();
+        if (icons.Size == Vector2.Zero) return;
+        var bar = _panel.GetGlobalRect();
+        if (!bar.Intersects(icons)) return;
+        float lift = bar.End.Y - icons.Position.Y + 8f;
+        _panel.OffsetTop -= lift;
+        _panel.OffsetBottom -= lift;
     }
 
     // MONITOR 01 이 "대화창 펼치기" 를 눌렀거나 슬롯이 바뀌었을 때 — 선택지가 달라졌으니 편다.
@@ -422,6 +440,9 @@ public partial class PhoneCallHud : CanvasLayer
     // 예전에는 심문 UI 가 MONITOR 01 안(SubViewport)에 있어서 그때만 ViewFont.S 를 썼는데,
     // 1.5차에서 창을 밖으로 되돌린 뒤에도 그 분기가 남아 심문 선택지만 작게 나오고 있었다.
     private int Fz(int px) => ViewFont.FS(px);
+
+    // 이름띠 안에서 이름 줄 위 · 아래 여백(같은 값). 이름 다음 줄은 VBox 간격(10)만큼 띠 아래에 선다.
+    private const float NameBandPad = 7f;
 
     // 선택한 자료 한 칸. 누르면 그 자료의 선택이 풀린다.
     private Button SlotButton(int index)
@@ -998,7 +1019,7 @@ public partial class PhoneCallHud : CanvasLayer
         {
             for (int i = _shownChars; i < shown; i++)
             {
-                Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i]);
+                Sfx.Instance?.PlayVoiceBlip(_employeeId, _fullText[i], Sfx.VoiceChannel.Intercom);
                 EmployeeMouthAnimator.NoticeCharacter(_fullText[i]);
             }
             _shownChars = shown;

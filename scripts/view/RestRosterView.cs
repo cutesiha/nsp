@@ -99,7 +99,7 @@ public partial class RestRosterView : Control
         title.Position = new Vector2(18, 10);
         AddChild(title);
 
-        var sub = MakeLabel("휴게실 상단 감시 · 인터뷰 대상 선택", 13, Dim);
+        var sub = MakeLabel("휴게실 상단 감시 / 인터뷰 대상 선택", 13, Dim);
         sub.Position = new Vector2(20, 36);
         AddChild(sub);
 
@@ -109,6 +109,8 @@ public partial class RestRosterView : Control
         _summary.Position = new Vector2(300, 14);
         _summary.Size = new Vector2(484, 24);
         _summary.HorizontalAlignment = HorizontalAlignment.Right;
+        // 길어도 칸 밖(모니터 오른쪽 끝)으로 삐져나가지 않는다 — 글자를 줄이고(ShowShiftSummary), 그래도 넘치면 자른다.
+        _summary.ClipText = true;
         _summary.Visible = false;
         AddChild(_summary);
 
@@ -169,6 +171,11 @@ public partial class RestRosterView : Control
     }
 
     // DAY0 교육 중에는 다음 날로 넘어가지 못하게 잠근다(TutorialDirector 가 제어).
+    // 휴게실 지도 위 그 직원의 동그란 아이콘(교육 화살표가 가리킨다). 아이콘 원은 위쪽 정사각형이다.
+    public Control EmployeeIconOf(string employeeId) => _map?.IconOf(employeeId);
+    // 그 아이콘의 얼굴 동그라미(아이콘 로컬 좌표). 뒷줄은 이름이 위에 붙어 동그라미가 아래로 비켜 있다.
+    public Rect2 EmployeeIconCircleOf(string employeeId) => _map?.CircleRectOf(employeeId) ?? new Rect2();
+
     public void SetNextEnabled(bool enabled, string lockedText = "")
     {
         if (_nextBtn == null) return;
@@ -206,7 +213,11 @@ public partial class RestRosterView : Control
             parts.Add($"스트레스 최고 {RoomEffectStats.StressPeakToday:0}");
 
         _summaryFade?.Kill();
-        _summary.Text = "오늘 방별 성과 — " + string.Join(" · ", parts);
+        string text = "오늘 방별 성과 ▶ " + string.Join("  /  ", parts);
+        int fs = ViewFont.S(15);
+        while (fs > ViewFont.S(10) && _font.GetStringSize(text, HorizontalAlignment.Left, -1, fs).X > _summary.Size.X) fs--;
+        _summary.AddThemeFontSizeOverride("font_size", fs);
+        _summary.Text = text;
         _summary.Visible = true;
         _summary.Modulate = new Color(1f, 1f, 1f, 1f);
         _summaryFade = CreateTween();
@@ -318,20 +329,39 @@ public partial class RestRosterView : Control
         public event Action<string> EmployeeSelected;
 
         private const float WallThickness = 16f;
-        private const float IconSize = 100f;
+        private const float IconSize = 84f;
+        private const float NameHeight = 18f;
 
         private readonly List<EmployeeIcon> _icons = new();
         private string _selectedId = "";
 
-        // 휴게실 안 자리(아이콘 중심). 방 안에 흩어져 있는 느낌으로 배치한다.
-        private static readonly Vector2[] Seats =
-        {
-            new(150, 108), new(330, 92),  new(500, 120),
-            new(142, 260), new(322, 274), new(498, 250),
-        };
+        // ── 오른쪽 CRT 의 3D 휴게실(room_rest.tscn)을 위에서 내려다본 축척 ──
+        //
+        // 두 화면이 "같은 방" 으로 읽혀야 한다. 그래서 가구 · 자리를 3D 좌표에서 그대로 옮긴다.
+        //   가로 1m = 99px, 세로 1m = 58px. 3D 원점(테이블 가운데)이 Origin 이다.
+        //   방 안쪽은 x 16~612(6m), 그 오른쪽 칸막이 너머가 인터뷰 대기칸이다.
+        private static readonly Vector2 Origin = new(314f, 200f);
+        private const float PxPerMeterX = 99f, PxPerMeterZ = 58f;
+        private const float RoomRight = 612f;      // 방 오른쪽 벽(칸막이) 안쪽 면
+        private const float PartitionWidth = 16f;
+        private const float DoorHalf = 38f;        // 칸막이 문 폭의 절반
+        private static Vector2 P(float x, float z) => Origin + new Vector2(x * PxPerMeterX, z * PxPerMeterZ);
 
-        // 오른쪽 문 앞 = 인터뷰 대기 위치.
-        private Vector2 InterviewSpot => new(Size.X - 108f, Size.Y * 0.5f);
+        // 긴 테이블 3.2m × 1.15m(room_rest.tscn 의 TableTop).
+        private static Rect2 TableRect => new(P(-1.6f, -0.575f), new Vector2(3.2f * PxPerMeterX, 1.15f * PxPerMeterZ));
+
+        // 자리(아이콘 동그라미 중심). 3D 의 Seat1~6 과 같은 순서 — 0~2 = 뒷줄(위), 3~5 = 앞줄(아래), 왼쪽부터.
+        // x 는 3D 의 -1.05 / 0 / 1.05m, y 는 테이블 위 · 아래 변에 붙여 앉힌다.
+        private static Vector2 SeatCenter(int seat)
+        {
+            float x = P((seat % 3 - 1) * 1.05f, 0f).X;
+            var t = TableRect;
+            float y = seat < 3 ? t.Position.Y - 4f - IconSize * 0.5f : t.End.Y + 4f + IconSize * 0.5f;
+            return new Vector2(x, y);
+        }
+
+        // 칸막이 문 너머 = 인터뷰 대기 위치.
+        private Vector2 InterviewSpot => new((RoomRight + PartitionWidth + Size.X - WallThickness) * 0.5f, Origin.Y);
 
         public void Populate(FacilitySimulation sim)
         {
@@ -352,11 +382,12 @@ public partial class RestRosterView : Control
                 var def = sim.GetEmployeeDef(id);
                 if (def == null) continue;
 
+                const int seatCount = 6;
                 int seat = rest?.SeatOf(id) ?? -1;
-                if (seat < 0 || seat >= Seats.Length || !taken.Add(seat))
+                if (seat < 0 || seat >= seatCount || !taken.Add(seat))
                 {
-                    while (next < Seats.Length && taken.Contains(next)) next++;
-                    if (next >= Seats.Length) break;
+                    while (next < seatCount && taken.Contains(next)) next++;
+                    if (next >= seatCount) break;
                     seat = next;
                     taken.Add(seat);
                 }
@@ -364,10 +395,12 @@ public partial class RestRosterView : Control
                 var icon = new EmployeeIcon
                 {
                     EmployeeId = id,
-                    Size = new Vector2(IconSize, IconSize + 18f),
-                    HomeSeat = Seats[seat],
+                    Size = new Vector2(IconSize, IconSize + NameHeight),
+                    // 뒷줄은 이름을 동그라미 위에 둔다 — 아래에 두면 이름이 테이블 위로 올라앉는다.
+                    NameAbove = seat < 3,
+                    HomeSeat = SeatCenter(seat),
                 };
-                icon.Position = icon.HomeSeat - icon.Size * 0.5f;
+                icon.Position = icon.HomeSeat - icon.CircleCenter;
                 icon.Clicked += id2 => EmployeeSelected?.Invoke(id2);
                 AddChild(icon);
                 _icons.Add(icon);
@@ -378,6 +411,23 @@ public partial class RestRosterView : Control
         public void Refresh()
         {
             foreach (var icon in _icons) icon.QueueRedraw();
+        }
+
+        public Control IconOf(string employeeId)
+        {
+            foreach (var icon in _icons)
+                if (icon.EmployeeId == employeeId && IsInstanceValid(icon)) return icon;
+            return null;
+        }
+
+        // 그 아이콘의 얼굴 동그라미 자리(아이콘 로컬). 이름은 뒷줄이면 위, 앞줄이면 아래에 붙는다.
+        public Rect2 CircleRectOf(string employeeId)
+        {
+            foreach (var icon in _icons)
+                if (icon.EmployeeId == employeeId && IsInstanceValid(icon))
+                    return new Rect2(icon.CircleCenter - new Vector2(icon.Size.X, icon.Size.X) * 0.5f,
+                        new Vector2(icon.Size.X, icon.Size.X));
+            return new Rect2();
         }
 
         public void SetSelected(string employeeId)
@@ -401,65 +451,100 @@ public partial class RestRosterView : Control
             DrawRect(new Rect2(0, 0, w, h), new Color(0.115f, 0.125f, 0.145f));           // 벽 몸통
             DrawRect(new Rect2(0, 0, w, h), new Color(0.30f, 0.35f, 0.40f), false, 2f);   // 바깥선
 
-            var floor = new Rect2(WallThickness, WallThickness, w - WallThickness * 2f, h - WallThickness * 2f);
-            DrawRect(floor, new Color(0.055f, 0.075f, 0.082f));                            // 바닥
-            DrawRect(floor, new Color(0.22f, 0.28f, 0.31f), false, 1.5f);                  // 걸레받이
+            // 방 바닥(칸막이 왼쪽)과 인터뷰 대기칸(칸막이 오른쪽).
+            var floor = new Rect2(WallThickness, WallThickness, RoomRight - WallThickness, h - WallThickness * 2f);
+            var booth = new Rect2(RoomRight + PartitionWidth, WallThickness,
+                w - WallThickness - (RoomRight + PartitionWidth), h - WallThickness * 2f);
+            DrawRect(floor, new Color(0.055f, 0.075f, 0.082f));
+            DrawRect(booth, new Color(0.045f, 0.060f, 0.068f));
 
-            // 바닥 타일 격자 — 위에서 내려다본 느낌을 준다.
+            // 바닥 타일 격자 — 위에서 내려다본 느낌을 준다(방 안에만).
             var grid = new Color(1f, 1f, 1f, 0.030f);
             for (float x = floor.Position.X + 54f; x < floor.End.X; x += 54f)
                 DrawLine(new Vector2(x, floor.Position.Y), new Vector2(x, floor.End.Y), grid, 1f);
             for (float y = floor.Position.Y + 54f; y < floor.End.Y; y += 54f)
                 DrawLine(new Vector2(floor.Position.X, y), new Vector2(floor.End.X, y), grid, 1f);
+            DrawRect(floor, new Color(0.22f, 0.28f, 0.31f), false, 1.5f);                  // 걸레받이
 
-            // 중앙 휴게 테이블(윗면 + 테두리).
-            var table = new Rect2(w * 0.5f - 96f, h * 0.5f - 46f, 192f, 92f);
+            var labelFont = ViewFont.Default;
+            int labelSize = ViewFont.S(11);
+            var steelEdge = new Color(0.40f, 0.42f, 0.46f);
+
+            // ── 뒷벽(위) : 왼쪽 사물함 · 오른쪽 조리대 ──
+            // 사물함 3D x -2.6 ~ -1.0m, 조리대 0.25 ~ 1.55m.
+            var lockers = new Rect2(new Vector2(P(-2.6f, 0f).X, WallThickness), new Vector2(1.6f * PxPerMeterX, 34f));
+            DrawRect(lockers, new Color(0.15f, 0.15f, 0.17f));
+            for (int i = 1; i < 4; i++)
+            {
+                float x = lockers.Position.X + lockers.Size.X * i / 4f;
+                DrawLine(new Vector2(x, lockers.Position.Y + 3f), new Vector2(x, lockers.End.Y - 3f), steelEdge with { A = 0.5f }, 1f);
+            }
+            DrawRect(lockers, steelEdge, false, 1.5f);
+            DrawLabel("LOCKER", lockers, labelFont, labelSize, new Color(0.68f, 0.70f, 0.74f));
+
+            var counter = new Rect2(new Vector2(P(0.25f, 0f).X, WallThickness), new Vector2(1.3f * PxPerMeterX, 38f));
+            DrawRect(counter, new Color(0.20f, 0.17f, 0.13f));
+            DrawRect(counter, new Color(0.40f, 0.33f, 0.24f), false, 1.5f);
+            // 정수통(오른쪽 끝) — 동그라미 하나.
+            DrawCircle(new Vector2(counter.End.X - 14f, counter.Position.Y + counter.Size.Y * 0.5f), 7f,
+                new Color(0.40f, 0.55f, 0.62f));
+            DrawLabel("COUNTER", new Rect2(counter.Position, counter.Size - new Vector2(26f, 0f)), labelFont, labelSize,
+                new Color(0.72f, 0.62f, 0.48f));
+
+            // ── 왼쪽 벽 : 공지판 · 시계 ──
+            var notice = new Rect2(new Vector2(WallThickness, P(0f, 0.1f).Y), new Vector2(7f, 1.0f * PxPerMeterZ));
+            DrawRect(notice, new Color(0.30f, 0.25f, 0.19f));
+            for (int i = 0; i < 4; i++)
+                DrawRect(new Rect2(notice.Position + new Vector2(1.5f, 6f + i * 13f), new Vector2(4f, 8f)),
+                    new Color(0.70f, 0.68f, 0.62f));
+            DrawCircle(new Vector2(WallThickness + 5f, P(0f, -1.2f).Y), 6f, new Color(0.50f, 0.52f, 0.54f));
+
+            // ── 오른쪽 : 휴지통 · 간이 수납 ──
+            DrawCircle(P(2.35f, -1.3f), 11f, new Color(0.30f, 0.31f, 0.32f));
+            DrawArc(P(2.35f, -1.3f), 11f, 0f, Mathf.Tau, 24, steelEdge, 1.2f);
+            var side = new Rect2(P(2.05f, 1.11f), new Vector2(0.5f * PxPerMeterX, 0.38f * PxPerMeterZ));
+            DrawRect(side, new Color(0.20f, 0.17f, 0.13f));
+            DrawRect(side, new Color(0.40f, 0.33f, 0.24f), false, 1.2f);
+
+            // ── 가운데 긴 테이블(3.2m × 1.15m) + 위에 놓인 컵 · 종이(가운데 TABLE 글자를 피해 양 끝에) ──
+            var table = TableRect;
             DrawRect(table, new Color(0.20f, 0.17f, 0.13f));
             DrawRect(table, new Color(0.34f, 0.28f, 0.19f), false, 2f);
-            DrawString(ViewFont.Default, table.Position + new Vector2(0, table.Size.Y * 0.5f + 5f),
-                "TABLE", HorizontalAlignment.Center, table.Size.X, ViewFont.S(12),
-                new Color(0.45f, 0.40f, 0.32f));
+            foreach (var (x, z, r) in new[] { (-1.15f, -0.2f, 4.5f), (0.95f, 0.22f, 3.5f), (1.3f, -0.25f, 4f) })
+                DrawCircle(P(x, z), r, new Color(0.58f, 0.56f, 0.52f));
+            DrawRect(new Rect2(P(-0.85f, 0.12f), new Vector2(0.2f * PxPerMeterX, 0.14f * PxPerMeterZ)),
+                new Color(0.62f, 0.60f, 0.55f));
+            DrawLabel("TABLE", table, labelFont, ViewFont.S(12), new Color(0.45f, 0.40f, 0.32f));
 
-            // 왼쪽 벽 붙박이 — 커피/구급.
-            var coffee = new Rect2(WallThickness + 2f, 44f, 30f, 108f);
-            DrawRect(coffee, new Color(0.10f, 0.22f, 0.24f));
-            DrawRect(coffee, new Color(0.30f, 0.55f, 0.58f), false, 1.5f);
-            DrawStringRotated("COFFEE / MED", coffee.Position + new Vector2(21f, 12f), new Color(0.55f, 0.78f, 0.80f));
-
-            // 아래 벽 붙박이 — 사물함.
-            var locker = new Rect2(w * 0.5f - 84f, h - WallThickness - 30f, 168f, 28f);
-            DrawRect(locker, new Color(0.17f, 0.13f, 0.20f));
-            DrawRect(locker, new Color(0.45f, 0.36f, 0.55f), false, 1.5f);
-            DrawString(ViewFont.Default, locker.Position + new Vector2(0, 19f), "LOCKER",
-                HorizontalAlignment.Center, locker.Size.X, ViewFont.S(12), new Color(0.68f, 0.58f, 0.80f));
-
-            // 오른쪽 벽의 인터뷰실 출입문 — 선택한 직원이 이 앞으로 간다.
-            float doorH = 120f;
-            var door = new Rect2(w - WallThickness - 3f, h * 0.5f - doorH * 0.5f, WallThickness + 3f, doorH);
+            // ── 칸막이 + 문 : 고른 직원이 이 문을 지나 인터뷰 대기칸으로 간다 ──
             bool open = !string.IsNullOrEmpty(_selectedId);
-            DrawRect(door, open ? new Color(0.16f, 0.34f, 0.30f) : new Color(0.10f, 0.13f, 0.15f));
-            DrawRect(door, open ? new Color(0.45f, 0.95f, 0.80f) : new Color(0.34f, 0.40f, 0.44f), false, 2f);
-            DrawStringRotated("INTERVIEW", new Vector2(w - 30f, h * 0.5f - 44f),
-                open ? new Color(0.55f, 1f, 0.88f) : new Color(0.45f, 0.52f, 0.56f));
+            var wallCol = new Color(0.115f, 0.125f, 0.145f);
+            float doorTop = Origin.Y - DoorHalf, doorBottom = Origin.Y + DoorHalf;
+            DrawRect(new Rect2(RoomRight, WallThickness, PartitionWidth, doorTop - WallThickness), wallCol);
+            DrawRect(new Rect2(RoomRight, doorBottom, PartitionWidth, h - WallThickness - doorBottom), wallCol);
+            var doorway = new Rect2(RoomRight, doorTop, PartitionWidth, doorBottom - doorTop);
+            DrawRect(doorway, open ? new Color(0.16f, 0.34f, 0.30f) : new Color(0.08f, 0.10f, 0.12f));
+            DrawRect(doorway, open ? new Color(0.45f, 0.95f, 0.80f) : new Color(0.34f, 0.40f, 0.44f), false, 1.5f);
+            DrawRect(booth, new Color(0.22f, 0.28f, 0.31f), false, 1.5f);
+
+            var boothInk = open ? new Color(0.55f, 1f, 0.88f) : new Color(0.45f, 0.52f, 0.56f);
+            DrawLabel("INTERVIEW", new Rect2(booth.Position + new Vector2(0f, 8f), new Vector2(booth.Size.X, 20f)),
+                labelFont, labelSize, boothInk);
 
             // 문 앞 대기 표시.
-            Vector2 spot = InterviewSpot;
-            DrawArc(spot, 44f, 0f, Mathf.Tau, 40,
+            DrawArc(InterviewSpot, IconSize * 0.5f + 4f, 0f, Mathf.Tau, 40,
                 open ? new Color(0.45f, 0.95f, 0.80f, 0.55f) : new Color(0.35f, 0.42f, 0.46f, 0.30f), 1.5f);
         }
 
-        // 세로쓰기 대신 글자 사이를 벌려 벽에 붙은 라벨처럼 보이게 한다.
-        private void DrawStringRotated(string text, Vector2 at, Color col)
+        // 그 칸 한가운데에 가로로 한 줄. 칸보다 길면 글자 크기를 줄여 칸 안에 넣는다 —
+        // 예전에는 세로로 늘어놓은 글자가 칸 밖으로 튀어나왔다.
+        private void DrawLabel(string text, Rect2 box, Font font, int size, Color col)
         {
-            var f = ViewFont.Default;
-            int fs = ViewFont.S(11);
-            float y = at.Y;
-            foreach (char c in text)
-            {
-                if (c != ' ' && c != '/')
-                    DrawString(f, new Vector2(at.X, y), c.ToString(), HorizontalAlignment.Center, 20f, fs, col);
-                y += fs * 0.95f;
-            }
+            int fs = size;
+            while (fs > 8 && font.GetStringSize(text, HorizontalAlignment.Left, -1, fs).X > box.Size.X - 8f) fs--;
+            float ascent = font.GetAscent(fs), height = font.GetHeight(fs);
+            var baseline = new Vector2(box.Position.X, box.Position.Y + (box.Size.Y - height) * 0.5f + ascent);
+            DrawString(font, baseline, text, HorizontalAlignment.Center, box.Size.X, fs, col);
         }
 
         // 동물 얼굴 아이콘 하나. 기존 미니맵의 고유색(IconColor)을 테두리로 유지하면서,
@@ -470,8 +555,14 @@ public partial class RestRosterView : Control
             public event Action<string> Clicked;
 
             public string EmployeeId = "";
+            // 자리 = 얼굴 동그라미의 중심(지도 좌표).
             public Vector2 HomeSeat;
             public bool Selected;
+            // 이름을 동그라미 위에 쓴다(테이블 뒷줄). 앞줄은 아래.
+            public bool NameAbove;
+
+            // 아이콘 안에서 얼굴 동그라미 중심. 이름 줄만큼 위아래로 비켜 있다.
+            public Vector2 CircleCenter => new(Size.X * 0.5f, (NameAbove ? Size.Y - Size.X : 0f) + Size.X * 0.5f);
 
             private bool _hover;
             private Tween _move;
@@ -485,7 +576,7 @@ public partial class RestRosterView : Control
 
             public void MoveTo(Vector2 center)
             {
-                Vector2 target = center - Size * 0.5f;
+                Vector2 target = center - CircleCenter;
                 if (Position.DistanceTo(target) < 0.5f) return;
                 _move?.Kill();
                 _move = CreateTween();
@@ -511,8 +602,11 @@ public partial class RestRosterView : Control
 
                 bool alive = st?.Alive ?? false;
                 float d = Size.X;
-                Vector2 c = new(d * 0.5f, d * 0.5f);
+                Vector2 c = CircleCenter;
                 float r = d * 0.5f - 4f;
+                // 이름 줄의 글자 기준선 · 상태 줄(응답 없음 등)의 기준선.
+                float nameBase = NameAbove ? c.Y - d * 0.5f - 4f : d + 13f;
+                float statusBase = c.Y + d * 0.5f + 1f;
 
                 Color accent = alive ? def.IconColor : new Color(0.30f, 0.32f, 0.34f);
 
@@ -550,17 +644,17 @@ public partial class RestRosterView : Control
 
                 // 코드네임 + 상태.
                 var nameCol = alive ? new Color(0.95f, 0.95f, 0.86f) : new Color(0.55f, 0.55f, 0.58f);
-                DrawString(ViewFont.Default, new Vector2(-14f, d + 13f), def.Codename,
+                DrawString(ViewFont.Default, new Vector2(-14f, nameBase), def.Codename,
                     HorizontalAlignment.Center, d + 28f, ViewFont.S(17), nameCol);
 
                 if (st is { Alive: false })
-                    DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "응답 없음",
+                    DrawString(ViewFont.Default, new Vector2(-14f, statusBase), "응답 없음",
                         HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.9f, 0.35f, 0.35f));
                 else if (st is { Isolated: true })
-                    DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[격리]",
+                    DrawString(ViewFont.Default, new Vector2(-14f, statusBase), "[격리]",
                         HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.88f, 0.52f, 0.9f));
                 else if (st is { Incapacitated: true })
-                    DrawString(ViewFont.Default, new Vector2(-14f, d + 1f), "[기절]",
+                    DrawString(ViewFont.Default, new Vector2(-14f, statusBase), "[기절]",
                         HorizontalAlignment.Center, d + 28f, ViewFont.S(11), new Color(0.95f, 0.62f, 0.3f));
 
                 // "진술 흔들림 ×n" · "해명 ×n" 배지는 그리지 않는다(F-5).

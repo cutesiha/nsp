@@ -44,6 +44,9 @@ public partial class ScheduleMapView : Control
     // 클릭으로 배치 대상으로 고른 직원(다음에 누르는 작업실로 들어간다).
     public string SelectedEmployeeId { get; private set; } = "";
     public string DraggingEmployeeId => _dragging ? _dragEmp : "";
+    // 지금 손에 쥔 직원 — 누르고 있거나(끌기 직전 포함) 클릭으로 골라 둔 직원.
+    // 교육 화살표가 "집어 들었으면 놓을 곳을 가리킨다" 를 판단할 때 쓴다.
+    public string HeldEmployeeId => !string.IsNullOrEmpty(_dragEmp) ? _dragEmp : SelectedEmployeeId;
 
     // ── 화면 배치(모니터 논리 좌표 800 × 600) ────────────────────────────
     private static readonly Vector2 Canvas = new(800f, 600f);
@@ -794,7 +797,7 @@ public partial class ScheduleMapView : Control
             : refused.Count > 0
             ? "✕ " + PairText(sim, refused[0].A, refused[0].B, PairBand.Refuse) + (refused.Count > 1 ? $" 외 {refused.Count - 1}건" : "")
             : !core
-                ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
+                ? "▲ 코어실에 최소 1명의 직원을 배치해야 합니다."
                 : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명{deadNote}"
                               : $"{placed} / {total} 배치 완료{deadNote}";
         Color statusCol = _refusalAge < RefusalSeconds && _refusal.Length > 0 ? Alert
@@ -803,7 +806,7 @@ public partial class ScheduleMapView : Control
         if (uneasy.Count > 0)
         {
             var u = uneasy[0];
-            string warn = "⚠ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
+            string warn = "▲ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
             DrawString(_font, new Vector2(24f, Canvas.Y - 80f), warn, HorizontalAlignment.Left, 520f, Fs(11), Warn);
         }
         DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 520f,
@@ -831,7 +834,7 @@ public partial class ScheduleMapView : Control
         if (src.X <= 0f || src.Y <= 0f) return;
         float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
         var dst = src * k;
-        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false);
+        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false, NSP.View.CrtArt.Tint);
     }
 
     private void DrawDashedLine(Vector2 a, Vector2 b, Color col, float width, float dash)

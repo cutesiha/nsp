@@ -121,7 +121,9 @@ public static class PrologueScript
 
     // --- GUIDE-0 --------------------------------------------------------
     // 한 beat = 화면에 한 번 표시되는 단위. 대사 한 줄이거나, 초상 교체/아이콘/노이즈 지시다.
-    public enum GuideBeatKind { Line, Portrait, Icons, Noise, Panel }
+    // Cue — 바로 다음 대사 줄에 연출을 건다(교육 진행자가 이름을 보고 무엇을 할지 정한다).
+    //        Value = "이름" 또는 "이름 | 글자"(그 글자가 찍히는 순간에 건다).
+    public enum GuideBeatKind { Line, Portrait, Icons, Noise, Panel, Cue }
 
     public sealed class GuideBeat
     {
@@ -543,6 +545,7 @@ public static class PrologueScript
             case "line": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Line, Value = Unescape(value) }); return true;
             case "icons": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Icons, Value = value }); return true;
             case "fx": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Noise, Value = value }); return true;
+            case "cue": g.Beats.Add(new GuideBeat { Kind = GuideBeatKind.Cue, Value = value }); return true;
             default: return false;
         }
     }

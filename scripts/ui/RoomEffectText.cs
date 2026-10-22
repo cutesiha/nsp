@@ -33,12 +33,12 @@ public static class RoomEffectText
     // 방을 고른 화면에 띄우는 짧은 요약. 네 줄을 넘기지 않는다(문서 31절).
     //
     //   data/rooms/*.tres 의 BriefLines
-    // + "⚠ 비워 두면 N초 뒤 사고"      ← 오늘의 운영 규칙에서 읽는다
-    // + "⚙ 사고 수리 N명"              ← 같은 창구(RoomStaffing)에서 읽는다
+    // + "▲ 비워 두면 N초 뒤 사고"      ← 오늘의 운영 규칙에서 읽는다
+    // + "□ 사고 수리 N명"              ← 같은 창구(RoomStaffing)에서 읽는다
     //
     // 뒤 두 줄은 날마다 값이 달라지므로 데이터 문장에 적지 않고 여기서 만든다.
     //
-    // compact = true 면 계산 줄(⚠ · ⚙)만 돌려준다. 좁은 칸 — 근무 중 방 카드와 종이
+    // compact = true 면 계산 줄(▲ · □)만 돌려준다. 좁은 칸 — 근무 중 방 카드와 종이
     // 배치표 — 에서 쓴다. 그 두 화면에는 Headline · Idle · 인원별 효과가 이미 붙어 있어
     // 기능 줄까지 실으면 아래 "상태 / 진행 / 직원" 이 칸 밖으로 밀려난다.
     public const int BriefMaxLines = 4;
@@ -55,19 +55,88 @@ public static class RoomEffectText
         if (!def.IsRestricted)
         {
             float unstaffed = RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
-            if (unstaffed > 0f) computed.Add($"⚠ 비워 두면 {unstaffed:0}초 뒤 사고");
+            if (unstaffed > 0f) computed.Add($"▲ 비워 두면 {unstaffed:0}초 뒤 사고");
             int crew = RoomStaffing.RepairMinWorkers(roomId, def);
-            computed.Add(crew >= 2 ? $"⚙ 사고 수리 {crew}명 — 혼자서는 못 고친다" : $"⚙ 사고 수리 {crew}명");
+            computed.Add(crew >= 2 ? $"□ 사고 수리 {crew}명, 혼자서는 못 고친다" : $"□ 사고 수리 {crew}명");
         }
 
         int room = compact ? 0 : Mathf.Max(0, BriefMaxLines - computed.Count);
-        foreach (string l in def.BriefLines)
+        foreach (var row in BriefDataRows(def))
         {
             if (lines.Count >= room) break;
-            if (!string.IsNullOrWhiteSpace(l)) lines.Add(l.Trim());
+            lines.Add(row.Label.Length > 0 ? $"{row.Label}  {row.Value}" : row.Value);
         }
         lines.AddRange(computed);
         return lines;
+    }
+
+    // ── 작업실 정보 표 ──────────────────────────────────────────────
+    //
+    // 근무배치 화면에서 방을 고르면 권장 인원 아래에 뜨는 표의 한 줄(항목 · 내용).
+    // 문장을 늘어놓지 않고 표로 보여 준다 — 긴 작대기 · 가운데 점 · 그림 기호로 이어 붙인
+    // 줄이 AI 가 만든 안내문처럼 보였다(사용자 지시 2026-10-22). 그래서 이 표의 글에는
+    // 그런 기호를 쓰지 않는다. Warn = 주의해야 할 줄(색을 바꿔 쓴다).
+    public readonly record struct InfoRow(string Label, string Value, bool Warn);
+
+    // data/rooms/*.tres 의 BriefLines 는 "항목|내용" 한 줄씩이다.
+    private static System.Collections.Generic.IEnumerable<InfoRow> BriefDataRows(RoomDef def)
+    {
+        foreach (string raw in def.BriefLines)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string l = raw.Trim();
+            int bar = l.IndexOf('|');
+            string label = bar < 0 ? "" : l[..bar].Trim();
+            string value = bar < 0 ? l : l[(bar + 1)..].Trim();
+            yield return new InfoRow(label, value, label is "주의" or "고장");
+        }
+    }
+
+    // 표 전체 — 기능 설명(데이터) + 오늘의 운영 규칙(무인 사고 · 수리 인원) + 인원별 효과.
+    public static System.Collections.Generic.List<InfoRow> InfoRows(string roomId)
+    {
+        var rows = new System.Collections.Generic.List<InfoRow>();
+        var def = FacilitySimulation.Instance?.GetRoomDef(roomId);
+        if (def == null) return rows;
+        rows.AddRange(BriefDataRows(def));
+        if (def.IsRestricted) return rows;
+
+        // 인원별 효과(OpsProfile.RoleNote). "0명 발전 중단 · 시설 전체 35% / 1명 ..." 를
+        // 인원 수마다 한 줄로 가른다.
+        var ops = OpsProfile.Room(roomId);
+        if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
+            foreach (string part in ops.RoleNote.Split(" / "))
+                rows.AddRange(RoleNoteRows(part));
+
+        float unstaffed = RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
+        if (unstaffed > 0f) rows.Add(new InfoRow("무인 사고", $"비워 두면 {unstaffed:0}초 뒤 사고", true));
+        int crew = RoomStaffing.RepairMinWorkers(roomId, def);
+        rows.Add(new InfoRow("사고 수리", crew >= 2 ? $"{crew}명 필요, 혼자서는 못 고친다" : $"{crew}명", false));
+        return rows;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex HeadCount =
+        new(@"^(\d+명(?:\s*이상)?)(?:이면)?\s+(.+)$");
+
+    // RoleNote 한 덩어리 → 표의 줄. "1명 기준의 62% · 2명 100%" 처럼 인원이 둘 섞여 있으면 두 줄이 된다.
+    private static System.Collections.Generic.IEnumerable<InfoRow> RoleNoteRows(string part)
+    {
+        string label = "";
+        var values = new System.Collections.Generic.List<string>();
+        foreach (string piece in part.Split(new[] { " · ", " — " }, System.StringSplitOptions.RemoveEmptyEntries))
+        {
+            string p = piece.Trim();
+            var m = HeadCount.Match(p);
+            if (m.Success)
+            {
+                if (values.Count > 0) { yield return new InfoRow(label.Length > 0 ? label : "역할", string.Join(", ", values), false); values.Clear(); }
+                label = m.Groups[1].Value;
+                values.Add(m.Groups[2].Value.Trim());
+            }
+            else values.Add(p);
+        }
+        if (values.Count > 0)
+            yield return new InfoRow(label.Length > 0 ? label : "역할", string.Join(", ", values), false);
     }
 
     // ── (a) 핵심 수치 ────────────────────────────────────────────────

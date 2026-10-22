@@ -34,8 +34,16 @@ public partial class EmployeeStandingPortrait : Control
     public float LiftFraction { get; set; }
 
     // 말하지 않는 쪽은 살짝 눌러 둔다 — 누가 말하는지 한눈에 보이게.
-    private const float ListenDim = 0.55f;
-    private const float SpeakDim = 1f;
+    // 듣는 쪽 / 말하는 쪽의 밝기.
+    //
+    // 말하는 쪽을 1.0(최대)으로 두었더니 **말할 때만** 얼굴이 날아갔다 — CRT 발광 ·
+    // 번짐 · 전역 LUT 를 지나며 연한 면이 통째로 흰색이 되어, 외곽선도 눈도 입 모양도
+    // 사라졌다. 듣는 쪽(0.55)은 멀쩡했던 이유가 그것이다.
+    //
+    // 말하는 쪽도 천장에 닿지 않게 내린다. 둘의 **비율**은 그대로 두어
+    // "지금 누가 말하는가" 는 예전처럼 한눈에 보인다.
+    private const float ListenDim = 0.48f;
+    private const float SpeakDim = 0.86f;
 
     // 혼자 뜨는 화면(전화)에서는 명암을 나누지 않는다 — 나눌 상대가 없다.
     public bool AlwaysLit { get; set; }
@@ -89,6 +97,9 @@ public partial class EmployeeStandingPortrait : Control
         };
         AddChild(_portrait);
         BuildMaterial();
+        // 전용 스탠딩 셰이더(Config.StandingShaderPath)가 꺼져 있으면 CRT 원화 보정을 건다.
+        // 켜져 있으면 그쪽이 이미 톤을 잡으므로 건드리지 않는다.
+        if (_portrait.Material == null) CrtArt.Apply(_portrait);
         Modulate = new Color(1, 1, 1, 0);
     }
 
@@ -122,6 +133,10 @@ public partial class EmployeeStandingPortrait : Control
             _mat.SetShaderParameter("glow_amt", def.StandingGlowAmt);
             _mat.SetShaderParameter("glow_center", def.StandingGlowCenter);
         }
+        // CRT 원화 보정을 쓰는 동안은 직원마다 머티리얼을 고른다 — 가면 칸 보정이 켜진
+        // 직원(늑대)만 자기 값을 쓰고, 나머지는 예전과 같은 공용 머티리얼이다.
+        else if (_mat == null && def != null && CrtArt.MaterialFor(def) is { } art)
+            _portrait.Material = art;
         Refresh(force: true);
     }
 
@@ -204,6 +219,9 @@ public partial class EmployeeStandingPortrait : Control
 
         float want = AlwaysLit || EmployeeMouthAnimator.Speaker == _employeeId ? SpeakDim : ListenDim;
         _dim = Mathf.MoveToward(_dim, want, (float)delta * 2.6f);
+        // 화자/청자 밝기 위에 **모니터 원화 공통 톤**을 한 번 더 곱한다(CrtArt).
+        // 원화가 밝은 파스텔이라 그냥 올리면 CRT 발광 → 번짐(Glow) → LUT 를 지나며
+        // 실루엣 둘레에 흰 테가 생기고 얼굴이 한 덩어리로 날아간다.
         _portrait.Modulate = new Color(_dim, _dim, _dim, 1f);
     }
 

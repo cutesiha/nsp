@@ -205,7 +205,10 @@ public sealed class FacilityWarningSystem
             if (now < at) continue;
             _nextCheckAt[ops.RoomId] = now + period;
 
-            float chance = OpsProfile.Curve(ops.WarningChance, sim.OnDutyCount(ops.RoomId), 0f) * facilityMult;
+            int onDuty = sim.OnDutyCount(ops.RoomId);
+            float chance = OpsProfile.Curve(ops.WarningChance, onDuty, 0f) * facilityMult;
+            // 빈 방은 모드 배율을 한 번 더 받는다(단기 근무만 낮다 — GameModes.UnstaffedWarningScale).
+            if (onDuty == 0) chance *= GameModes.UnstaffedWarningScale;
             if (chance <= 0f || _rng.NextDouble() >= chance) continue;
 
             Raise(ops, sim, ops.WarningRequiredStaff, ops.WarningResponseSeconds, scheduled: false);
@@ -243,10 +246,10 @@ public sealed class FacilityWarningSystem
         Raised++;
 
         EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", w.RoomId,
-            $"⚠ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 " +
+            $"▲ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 " +
             $"{w.RequiredStaff}명 투입 후 {w.WorkNeeded:0}초 작업 필요");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
-            $"⚠ {sim.RoomDisplayName(w.RoomId)}에서 " +
+            $"▲ {sim.RoomDisplayName(w.RoomId)}에서 " +
             NSP.Dialogue.KoreanParticle.Subject(w.Title) + " 감지되었습니다.", NSP.Ui.NoticeLevel.Warning);
         Sfx.Instance?.Play("alert_beep3", -8f);
         // 경고 단계에서는 직원이 스스로 움직이지 않는다 — 누구를 보낼지는 관리자가 정한다.
