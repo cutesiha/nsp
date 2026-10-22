@@ -23,6 +23,29 @@ public partial class SettingsPanel : CanvasLayer
     private GameSettings.ZoomTarget? _awaitingKey;
     private readonly System.Collections.Generic.Dictionary<GameSettings.ZoomTarget, Button> _keyButtons = new();
 
+    // ── 모니터 안에 띄우기 ─────────────────────────────────────────────
+    //
+    // 시작 화면에서는 「근무 개시 · 기록 열람 · 시스템 종료」 가 전부 모니터1 단말기 안에서
+    // 열리는데, 설정만 화면 위에 따로 창으로 떠서 혼자 튀었다. 시작 화면이 부를 때는 이 창을
+    // **모니터1 의 화면(SubViewport) 안에** 그린다 — 기록 열람과 같은 자리다.
+    // 마우스는 그 화면 위를 가리킨 좌표로 TitleRoomDirector 가 밀어 넣어 준다.
+    // 키 입력(ESC · 키 재지정)은 이 노드가 그대로 받는다(이 노드 자체는 바깥 트리에 있다).
+    // 일시정지 메뉴에서 열 때는 예전 그대로 화면 위 창이다(host 없이 만든다).
+    private readonly Control _host;
+    private bool Embedded => _host != null;
+    // 모니터 안 글자는 화면 프레임이 통째로 키우므로 S, 화면 위 창은 FS 를 쓴다.
+    private int Fz(int px) => Embedded ? ViewFont.S(px) : ViewFont.FS(px);
+
+    public SettingsPanel() { }
+
+    // host = 모니터 화면 안의 논리 캔버스(800 × 600) 프레임.
+    public SettingsPanel(Control host) { _host = host; }
+
+    public event System.Action Closed;
+
+    public bool IsOpen => _root != null && GodotObject.IsInstanceValid(_root) && _root.Visible
+                          && (Embedded || Visible);
+
     public override void _Ready()
     {
         // 일시정지 창(120)보다 위 — 거기서 열었을 때 가려지면 클릭조차 안 된다.
@@ -30,7 +53,14 @@ public partial class SettingsPanel : CanvasLayer
         Visible = false;
         _body = ViewFont.Default;
         _serif = _body;   // 홀로그램 창은 로그 창처럼 본문 글꼴 하나로 통일한다
-        BuildUI();
+        if (Embedded) BuildEmbeddedUI();
+        else BuildUI();
+    }
+
+    public override void _ExitTree()
+    {
+        // 모니터 안에 붙여 둔 화면은 이 노드의 자식이 아니다 — 같이 치운다.
+        if (Embedded && _root != null && GodotObject.IsInstanceValid(_root)) _root.QueueFree();
     }
 
     public void Open()
@@ -46,12 +76,14 @@ public partial class SettingsPanel : CanvasLayer
         _awaitingKey = null;
         GameSettings.Save();
         Visible = false;
+        if (Embedded && _root != null) _root.Visible = false;
+        Closed?.Invoke();
     }
 
     // 키 재지정 대기 중에는 다음 키 입력을 가로챈다.
     public override void _Input(InputEvent e)
     {
-        if (!Visible) return;
+        if (!IsOpen) return;
 
         if (e is InputEventKey { Pressed: true, Echo: false } k)
         {
@@ -126,32 +158,8 @@ public partial class SettingsPanel : CanvasLayer
 
         // ── 화면 ──
         vb.AddChild(Section("화 면"));
-        var fsRow = Row();
-        fsRow.AddChild(Lbl("전체화면", 21, Ink, _body, 240f));
-        var fsBtn = DocButton(GameSettings.Fullscreen ? "켜짐" : "꺼짐", 140f);
-        fsBtn.Pressed += () =>
-        {
-            GameSettings.Fullscreen = !GameSettings.Fullscreen;
-            fsBtn.Text = GameSettings.Fullscreen ? "켜짐" : "꺼짐";
-            GameSettings.Save();
-        };
-        fsRow.AddChild(fsBtn);
-        vb.AddChild(fsRow);
-
-        var qRow = Row();
-        qRow.AddChild(Lbl("그래픽 품질", 21, Ink, _body, 240f));
-        var qBtn = DocButton(GameSettings.QualityLabel, 140f);
-        qBtn.TooltipText = "낮음에서는 빛 번짐이 꺼집니다.";
-        qBtn.Pressed += () =>
-        {
-            // 그 자리에서 바뀐다 — 재시작하지 않는다.
-            int next = ((int)GameSettings.GraphicsQuality + 1) % GameSettings.QualityLevels.Length;
-            GameSettings.GraphicsQuality = (GameSettings.Quality)next;
-            qBtn.Text = GameSettings.QualityLabel;
-            GameSettings.Save();
-        };
-        qRow.AddChild(qBtn);
-        vb.AddChild(qRow);
+        vb.AddChild(FullscreenRow(240f, 140f));
+        vb.AddChild(QualityRow(240f, 140f));
 
         vb.AddChild(Rule());
 
@@ -175,6 +183,134 @@ public partial class SettingsPanel : CanvasLayer
         close.Pressed += Close;
         bottom.AddChild(close);
         sheet.AddChild(bottom);
+    }
+
+    // 모니터1 안(800 × 600)에 들어가는 판. 세로로 다 쌓으면 넘치므로 두 단으로 나눈다 —
+    // 왼쪽 = 음량 · 화면, 오른쪽 = 조작키. 단말기 화면 전체를 덮어 뒤의 메뉴가 비치지 않게 한다.
+    private void BuildEmbeddedUI()
+    {
+        _root = new Control
+        {
+            Name = "SettingsScreen",
+            Position = Vector2.Zero,
+            Size = new Vector2(800f, 600f),
+            MouseFilter = Control.MouseFilterEnum.Stop,
+            Visible = false,
+        };
+        _host.AddChild(_root);
+
+        _root.AddChild(new ColorRect
+        {
+            Color = new Color(0.02f, 0.05f, 0.06f, 1f),
+            Size = new Vector2(800f, 600f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        });
+        var sheet = new Panel
+        {
+            Position = new Vector2(14f, 12f),
+            Size = new Vector2(772f, 576f),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        sheet.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+        {
+            BgColor = WindowBg,
+            BorderColor = Cyan with { A = 0.55f },
+            BorderWidthLeft = 1, BorderWidthTop = 1, BorderWidthRight = 1, BorderWidthBottom = 1,
+        });
+        _root.AddChild(sheet);
+        var frame = new HologramFrame { Accent = Cyan, MouseFilter = Control.MouseFilterEnum.Ignore };
+        frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        sheet.AddChild(frame);
+
+        var title = Lbl("SYSTEM CONFIG  /  환경 설정", 24, Cyan, _body);
+        title.Position = new Vector2(30f, 18f);
+        sheet.AddChild(title);
+        var hint = Lbl("ESC  뒤로", 14, InkDim, _body);
+        hint.Position = new Vector2(600f, 24f);
+        hint.Size = new Vector2(140f, 24f);
+        hint.HorizontalAlignment = HorizontalAlignment.Right;
+        sheet.AddChild(hint);
+        var rule = Rule();
+        rule.Position = new Vector2(30f, 60f);
+        rule.Size = new Vector2(712f, 1f);
+        sheet.AddChild(rule);
+
+        // ── 왼쪽 단 : 음량 · 화면 ──
+        var left = new VBoxContainer { Position = new Vector2(30f, 66f), Size = new Vector2(372f, 420f) };
+        left.AddThemeConstantOverride("separation", 6);
+        sheet.AddChild(left);
+        left.AddChild(Section("음 량"));
+        left.AddChild(Slider("MASTER", () => GameSettings.MasterVolume, v => GameSettings.MasterVolume = v, 112f, 176f, 58f));
+        left.AddChild(Slider("BGM", () => GameSettings.BgmVolume, v => GameSettings.BgmVolume = v, 112f, 176f, 58f));
+        left.AddChild(Slider("SFX", () => GameSettings.SfxVolume, v => GameSettings.SfxVolume = v, 112f, 176f, 58f));
+        left.AddChild(Section("화 면"));
+        left.AddChild(FullscreenRow(150f, 150f));
+        left.AddChild(QualityRow(150f, 150f));
+
+        // ── 오른쪽 단 : 조작키 ──
+        var right = new VBoxContainer { Position = new Vector2(424f, 66f), Size = new Vector2(318f, 420f) };
+        right.AddThemeConstantOverride("separation", 6);
+        sheet.AddChild(right);
+        right.AddChild(Section("조 작 키"));
+        var how = Lbl("항목을 누른 뒤 원하는 키를 입력하세요.", 13, InkDim, _body);
+        how.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        how.CustomMinimumSize = new Vector2(318f, 0f);
+        right.AddChild(how);
+        foreach (var (target, label) in GameSettings.ZoomTargets)
+            right.AddChild(KeyRow(target, label, 184f, 120f));
+        var fixedKeys = new HFlowContainer();
+        fixedKeys.AddThemeConstantOverride("h_separation", 14);
+        fixedKeys.AddThemeConstantOverride("v_separation", 6);
+        fixedKeys.CustomMinimumSize = new Vector2(318f, 0f);
+        fixedKeys.AddChild(KeyChip("L", "로그"));
+        fixedKeys.AddChild(KeyChip("D", "대화 기록"));
+        fixedKeys.AddChild(KeyChip("ESC", "일시정지"));
+        right.AddChild(fixedKeys);
+
+        // ── 아래 버튼 ──
+        var reset = DocButton("조작키 초기화", 190f);
+        reset.Position = new Vector2(30f, 506f);
+        reset.Size = new Vector2(190f, 44f);
+        reset.Pressed += () => { GameSettings.ResetKeysToDefault(); RefreshKeyButtons(); GameSettings.Save(); };
+        sheet.AddChild(reset);
+        var close = DocButton("뒤로", 170f);
+        close.Position = new Vector2(572f, 506f);
+        close.Size = new Vector2(170f, 44f);
+        close.Pressed += Close;
+        sheet.AddChild(close);
+    }
+
+    private Control FullscreenRow(float labelW, float btnW)
+    {
+        var row = Row();
+        row.AddChild(Lbl("전체화면", Embedded ? 18 : 21, Ink, _body, labelW));
+        var fsBtn = DocButton(GameSettings.Fullscreen ? "켜짐" : "꺼짐", btnW);
+        fsBtn.Pressed += () =>
+        {
+            GameSettings.Fullscreen = !GameSettings.Fullscreen;
+            fsBtn.Text = GameSettings.Fullscreen ? "켜짐" : "꺼짐";
+            GameSettings.Save();
+        };
+        row.AddChild(fsBtn);
+        return row;
+    }
+
+    private Control QualityRow(float labelW, float btnW)
+    {
+        var row = Row();
+        row.AddChild(Lbl("그래픽 품질", Embedded ? 18 : 21, Ink, _body, labelW));
+        var qBtn = DocButton(GameSettings.QualityLabel, btnW);
+        qBtn.TooltipText = "낮음에서는 빛 번짐이 꺼집니다.";
+        qBtn.Pressed += () =>
+        {
+            // 그 자리에서 바뀐다 — 재시작하지 않는다.
+            int next = ((int)GameSettings.GraphicsQuality + 1) % GameSettings.QualityLevels.Length;
+            GameSettings.GraphicsQuality = (GameSettings.Quality)next;
+            qBtn.Text = GameSettings.QualityLabel;
+            GameSettings.Save();
+        };
+        row.AddChild(qBtn);
+        return row;
     }
 
     private HBoxContainer Row()
@@ -202,22 +338,23 @@ public partial class SettingsPanel : CanvasLayer
     {
         var l = new Label { Text = text, MouseFilter = Control.MouseFilterEnum.Ignore, VerticalAlignment = VerticalAlignment.Center };
         l.AddThemeFontOverride("font", font);
-        l.AddThemeFontSizeOverride("font_size", ViewFont.FS(size));
+        l.AddThemeFontSizeOverride("font_size", Fz(size));
         l.AddThemeColorOverride("font_color", col);
         if (minWidth > 0f) l.CustomMinimumSize = new Vector2(minWidth, 0);
         return l;
     }
 
     // 음량 한 줄: 이름 + 슬라이더 + 퍼센트.
-    private Control Slider(string label, System.Func<float> get, System.Action<float> set)
+    private Control Slider(string label, System.Func<float> get, System.Action<float> set,
+        float labelW = 260f, float sliderW = 360f, float pctW = 76f)
     {
         var row = Row();
-        row.AddChild(Lbl(label, 21, Ink, _body, 260f));
+        row.AddChild(Lbl(label, Embedded ? 18 : 21, Ink, _body, labelW));
 
         var s = new HSlider
         {
             MinValue = 0, MaxValue = 100, Step = 1, Value = Mathf.Round(get() * 100f),
-            CustomMinimumSize = new Vector2(360, 30),
+            CustomMinimumSize = new Vector2(sliderW, 30),
             SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
         };
         var grabber = new StyleBoxFlat { BgColor = Cyan, CornerRadiusTopLeft = 2, CornerRadiusTopRight = 2, CornerRadiusBottomLeft = 2, CornerRadiusBottomRight = 2 };
@@ -226,7 +363,7 @@ public partial class SettingsPanel : CanvasLayer
         s.AddThemeStyleboxOverride("grabber_area_highlight", (StyleBoxFlat)grabber.Duplicate());
         row.AddChild(s);
 
-        var pct = Lbl($"{(int)s.Value}%", 20, InkDim, _body, 76f);
+        var pct = Lbl($"{(int)s.Value}%", Embedded ? 17 : 20, InkDim, _body, pctW);
         row.AddChild(pct);
 
         s.ValueChanged += v =>
@@ -238,11 +375,11 @@ public partial class SettingsPanel : CanvasLayer
         return row;
     }
 
-    private Control KeyRow(GameSettings.ZoomTarget target, string label)
+    private Control KeyRow(GameSettings.ZoomTarget target, string label, float labelW = 260f, float btnW = 160f)
     {
         var row = Row();
-        row.AddChild(Lbl(label, 21, Ink, _body, 260f));
-        var b = DocButton(GameSettings.KeyName(GameSettings.GetKey(target)), 160f);
+        row.AddChild(Lbl(label, Embedded ? 17 : 21, Ink, _body, labelW));
+        var b = DocButton(GameSettings.KeyName(GameSettings.GetKey(target)), btnW);
         b.Pressed += () =>
         {
             _awaitingKey = target;
@@ -303,7 +440,7 @@ public partial class SettingsPanel : CanvasLayer
     {
         var b = new Button { Text = text, CustomMinimumSize = new Vector2(minWidth, 40) };
         b.AddThemeFontOverride("font", _body);
-        b.AddThemeFontSizeOverride("font_size", ViewFont.FS(19));
+        b.AddThemeFontSizeOverride("font_size", Fz(19));
         b.AddThemeColorOverride("font_color", Cyan);
         b.AddThemeColorOverride("font_hover_color", Colors.White);
         b.AddThemeColorOverride("font_pressed_color", Colors.White);
@@ -336,7 +473,7 @@ public partial class SettingsPanel : CanvasLayer
             TooltipText = "닫기",
         };
         close.AddThemeFontOverride("font", _body);
-        close.AddThemeFontSizeOverride("font_size", ViewFont.FS(22));
+        close.AddThemeFontSizeOverride("font_size", Fz(22));
         close.AddThemeColorOverride("font_color", Cyan);
         close.AddThemeColorOverride("font_hover_color", Colors.White);
         var normal = new StyleBoxFlat

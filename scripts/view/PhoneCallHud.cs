@@ -295,6 +295,7 @@ public partial class PhoneCallHud : CanvasLayer
             // 화면 한가운데에 남아 MONITOR 를 계속 가렸다 — 접는 이유가 그건데.
             _panel.AnchorTop = _panel.AnchorBottom;
             _panel.OffsetTop = _panel.OffsetBottom - CollapsedHeight;
+            KeepCollapsedBarClearOfIcons();
         }
         else
         {
@@ -304,6 +305,20 @@ public partial class PhoneCallHud : CanvasLayer
         if (_root != null) _root.Visible = !on;
         if (_barName != null) _barName.Visible = on;
         if (_collapseBtn != null) _collapseBtn.Text = on ? "▲ 펼치기" : "▼ 접기";
+    }
+
+    // 접은 막대가 오른쪽 아래 로그 · 대화 기록 버튼(위층 CanvasLayer)과 겹치면 그 버튼이
+    // 클릭을 먼저 가져가 「▲ 펼치기」 가 눌리지 않는다. 겹치면 버튼 바로 위로 비켜 선다.
+    // 펼칠 때는 접기 전 자리(_openOffset*)로 돌아가므로 펼친 창의 위치는 그대로다.
+    private void KeepCollapsedBarClearOfIcons()
+    {
+        var icons = Day1HistoryOverlay.Instance?.IconsGlobalRect() ?? new Rect2();
+        if (icons.Size == Vector2.Zero) return;
+        var bar = _panel.GetGlobalRect();
+        if (!bar.Intersects(icons)) return;
+        float lift = bar.End.Y - icons.Position.Y + 8f;
+        _panel.OffsetTop -= lift;
+        _panel.OffsetBottom -= lift;
     }
 
     // MONITOR 01 이 "대화창 펼치기" 를 눌렀거나 슬롯이 바뀌었을 때 — 선택지가 달라졌으니 편다.

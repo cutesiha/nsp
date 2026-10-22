@@ -132,6 +132,16 @@ public partial class CCTVMonitorView : Control
         _stateLabel.HorizontalAlignment = HorizontalAlignment.Center;
         AddChild(_stateLabel);
 
+        // 교육 시연용 오류 표시(SetDemoError). 평소에는 꺼져 있다.
+        _errorLabel = Lbl("ERROR!\nSIGNAL CORRUPTED", 48, new Color(1f, 0.22f, 0.18f));
+        _errorLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y / 2 - 70);
+        _errorLabel.Size = new Vector2(Frame.Size.X, 140);
+        _errorLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        _errorLabel.VerticalAlignment = VerticalAlignment.Center;
+        _errorLabel.AddThemeConstantOverride("outline_size", 8);
+        _errorLabel.Visible = false;
+        AddChild(_errorLabel);
+
         _recLabel = Lbl("● REC", 18, new Color(0.95f, 0.25f, 0.2f));
         _recLabel.Position = new Vector2(44, 24);
         AddChild(_recLabel);
@@ -322,6 +332,48 @@ public partial class CCTVMonitorView : Control
     // 공포/이상현상 훅 — ControlRoom3DHorror 가 호출.
     public void FlashGlitch(float amount = 1f) => _glitch = Mathf.Max(_glitch, Mathf.Clamp(amount, 0f, 1f));
 
+    // ── 교육 시연 : 방해공작으로 망가진 화면 ──────────────────────────────
+    //
+    // 가상 시뮬레이션에서 GUIDE-0 가 "괴물이 시설을 방해하는 경우도 있습니다. 방금처럼요." 를
+    // 말하는 동안만 켠다. 실제 근무의 방해공작은 이렇게 화면을 망가뜨리지 않는다 — 보여 주기용이다.
+    // 영상 위에 굵은 노이즈가 치직거리고 붉은 ERROR! 가 깜빡인다. 끄면 그 자리에서 원래대로.
+    private bool _demoError;
+    private Label _errorLabel;
+    private double _nextDemoCrackle;
+
+    public bool DemoErrorOn => _demoError;
+
+    public void SetDemoError(bool on)
+    {
+        if (_demoError == on) return;
+        _demoError = on;
+        if (_errorLabel != null) _errorLabel.Visible = on;
+        if (!on) return;
+        _glitch = 1f;
+        Shake(5f, 0.45f);
+        _nextDemoCrackle = 0;
+        Sfx.Instance?.Play("cctv_cut", -6f, 0.8f);
+        Sfx.Instance?.Play("noise", -8f);
+    }
+
+    private void TickDemoError(float d)
+    {
+        if (!_demoError) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        // 노이즈는 늘 두껍게, 그 위에 가끔 크게 튄다.
+        _glitch = Mathf.Max(_glitch, 0.7f + 0.3f * _rng.Randf());
+        _noise.Modulate = new Color(1, 1, 1, 0.55f + 0.35f * _rng.Randf());
+        _tint.Color = new Color(0.38f, 0.02f, 0.02f, 0.30f + 0.15f * _rng.Randf());
+        if (_errorLabel != null)
+            _errorLabel.Modulate = new Color(1, 1, 1, _rng.Randf() < 0.12f ? 0.25f : 1f);
+        if (now >= _nextDemoCrackle)
+        {
+            _nextDemoCrackle = now + _rng.RandfRange(0.35f, 0.8f);
+            Shake(_rng.RandfRange(2f, 5f), 0.18f);
+            Sfx.Instance?.Play("cctv_cut", -14f, _rng.RandfRange(0.7f, 1.2f));
+        }
+    }
+
     // ── 아날로그 질감 ──────────────────────────────────────────────────
 
     // 셰이더가 없으면(파일 누락 · 임포트 전) 그냥 머티리얼 없이 돈다 — 예전 화면 그대로다.
@@ -397,7 +449,8 @@ public partial class CCTVMonitorView : Control
         }
 
         bool feed = UpdateFeed(d, sim, roomId);
-        TickFeedShader(d, feed, _feedUnstable);
+        TickDemoError(d);
+        TickFeedShader(d, feed, _feedUnstable || _demoError);
         // 전환하는 짧은 순간에는 노이즈 레이어도 같이 두꺼워진다. 상태(신호 없음 ·
         // 손실 · 정상)마다 값이 다르므로 각자 정한 값 **위에** 얹는다.
         if (_switchT > 0f)

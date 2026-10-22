@@ -169,6 +169,9 @@ public partial class RestRosterView : Control
     }
 
     // DAY0 교육 중에는 다음 날로 넘어가지 못하게 잠근다(TutorialDirector 가 제어).
+    // 휴게실 지도 위 그 직원의 동그란 아이콘(교육 화살표가 가리킨다). 아이콘 원은 위쪽 정사각형이다.
+    public Control EmployeeIconOf(string employeeId) => _map?.IconOf(employeeId);
+
     public void SetNextEnabled(bool enabled, string lockedText = "")
     {
         if (_nextBtn == null) return;
@@ -378,6 +381,13 @@ public partial class RestRosterView : Control
         public void Refresh()
         {
             foreach (var icon in _icons) icon.QueueRedraw();
+        }
+
+        public Control IconOf(string employeeId)
+        {
+            foreach (var icon in _icons)
+                if (icon.EmployeeId == employeeId && IsInstanceValid(icon)) return icon;
+            return null;
         }
 
         public void SetSelected(string employeeId)

@@ -175,6 +175,14 @@ public partial class GameState : Node
         return true;
     }
 
+    // 교육 시연 전용 — 용량을 보지 않고 그 채널을 켜거나 끈다. GUIDE-0 가 "③ Barrier" 를 설명하며
+    // 차폐 레버를 직접 올려 보이는 자리(발전실 사고로 2/2 를 다 쓰고 있을 때)에서만 쓴다.
+    // 끝나면 같은 함수로 되돌린다. 플레이어 조작(TryTogglePower)의 규칙은 그대로다.
+    public void ForceConsumerPower(PowerConsumer consumer, bool on)
+    {
+        if (_switchOn.ContainsKey(consumer)) _switchOn[consumer] = on;
+    }
+
     // 용량이 줄어든 뒤에도 여전히 켜진 채널 수가 새 용량을 넘으면 우선순위대로 강제로 끈다.
     private void ShedToCapacity()
     {

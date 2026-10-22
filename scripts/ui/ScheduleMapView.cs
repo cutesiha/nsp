@@ -44,6 +44,9 @@ public partial class ScheduleMapView : Control
     // 클릭으로 배치 대상으로 고른 직원(다음에 누르는 작업실로 들어간다).
     public string SelectedEmployeeId { get; private set; } = "";
     public string DraggingEmployeeId => _dragging ? _dragEmp : "";
+    // 지금 손에 쥔 직원 — 누르고 있거나(끌기 직전 포함) 클릭으로 골라 둔 직원.
+    // 교육 화살표가 "집어 들었으면 놓을 곳을 가리킨다" 를 판단할 때 쓴다.
+    public string HeldEmployeeId => !string.IsNullOrEmpty(_dragEmp) ? _dragEmp : SelectedEmployeeId;
 
     // ── 화면 배치(모니터 논리 좌표 800 × 600) ────────────────────────────
     private static readonly Vector2 Canvas = new(800f, 600f);

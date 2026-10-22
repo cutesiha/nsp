@@ -27,6 +27,11 @@ public partial class FacilityMonitorView : Control
     private FacilityMinimap _minimap;
     // 검사 전용 — 그려진 지도를 픽셀로 확인할 때 쓴다.
     public FacilityMinimap MinimapForTest => _minimap;
+    // 교육 화살표가 가리키는 자리 — 지도 위 작업실 상자와 「근무 종료」 버튼.
+    public FacilityMinimap Minimap => _minimap;
+    public Control EndShiftButton => _endBtn;
+    // 「근무 종료」 를 눌러 확인 창이 떠 있는가.
+    public bool EndShiftConfirmOpen => _endShiftConfirmation?.Visible == true;
     private Label _clock;
     private Label _protocol;
     private Label _alertLine;

@@ -1336,7 +1336,7 @@ script = ExtResource("15_powerpanel")
 transform = Transform3D(0.24000011, 0, -1.4901161e-08, 0, 0.24000007, 0, 1.4901161e-08, 0, 0.24000011, 0.02287203, 0, 0.06186104)
 
 [node name="CapacityLabel" type="Label3D" parent="ControlRoom/PowerSwitchPanel" unique_id=352968916]
-transform = Transform3D(1, 0, 0, 0, 0.9702957, 0.2419219, 0, -0.2419219, 0.9702957, 0.022872, 0.22348, 0.101381)
+transform = Transform3D(1, 0, 0, 0, 0.9335804, 0.3583679, 0, -0.3583679, 0.9335804, 0.022872, 0.1788, 0.07986)
 pixel_size = 0.00042
 modulate = Color(0.55, 0.85, 0.65, 1)
 text = "POWER 3 / 3"

@@ -264,6 +264,10 @@ public partial class FacilityMinimap : Control
     private Rect2 BoxOf(string roomId) =>
         new(CenterOf(roomId) - BoxSize * 0.5f, BoxSize);
 
+    // 작업실 상자 자리(이 지도의 로컬 좌표). 지도에 없는 방이면 빈 사각형 — 교육 화살표가 쓴다.
+    public Rect2 RoomBoxOf(string roomId) =>
+        Layout.ContainsKey(roomId ?? "") ? BoxOf(roomId) : new Rect2();
+
     // --- draw ---------------------------------------------------------
 
     public override void _Draw()

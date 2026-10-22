@@ -97,7 +97,7 @@ public partial class AchievementShot : Node
         Ok(TitleTerminalView.Instance?.CurrentMode == TitleTerminalView.Mode.Menu, "메뉴 화면이 다시 떴다");
         Shot("04_복귀");
 
-        // ⑥ 달성 팝업 — 오른쪽 아래.
+        // ⑥ 달성 팝업 — 왼쪽 아래.
         m?.Unlock(Achievements.GhostDispelled);
         for (int i = 0; i < 300 && AchievementToast.Instance?.IsShowing != true; i++) await Frame();
         var toast = AchievementToast.Instance;
