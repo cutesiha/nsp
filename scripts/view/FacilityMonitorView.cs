@@ -547,7 +547,8 @@ public partial class FacilityMonitorView : Control
         // 필수 업무를 끝내기 전에는 근무를 끝낼 수 없다는 걸 버튼 모양으로 보여준다.
         if (_endBtn != null)
         {
-            bool can = DayObjectives.CanEndShift;
+            // 교육은 GUIDE-0 가 근무 종료를 지시한 뒤에만(그 전에 끝내면 교육이 끊긴다).
+            bool can = DayObjectives.CanEndShift && !NSP.Prologue.TutorialDirector.BlocksEndShift;
             if (_endBtn.Disabled == can) _endBtn.Disabled = !can;
         }
         UpdateProtocol();

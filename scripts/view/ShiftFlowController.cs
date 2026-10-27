@@ -539,6 +539,8 @@ public partial class ShiftFlowController : Node
         // 패드가 손에 올라오는 동안 말풍선이 따라 올라온다.
         await ToSignal(tree.CreateTimer(0.35), SceneTreeTimer.SignalName.Timeout);
         if (!IsInstanceValid(this) || _stage != Stage.Schedule) return;
+        // 그 사이 패드를 벌써 내려놓았으면 띄우지 않는다 — 말풍선은 패드 위에 붙는 것이다.
+        if (AdminPad3D.Instance?.IsOpen != true) return;
         PadHintBubble.Show("근무 지침은 패드에서 다시 확인할 수 있습니다.", 2f);
     }
 
@@ -627,6 +629,8 @@ public partial class ShiftFlowController : Node
     private void RequestEndShift()
     {
         if (_stage != Stage.Shift) return;
+        // 교육 중에는 GUIDE-0 가 근무 종료를 지시한 뒤에만 끝난다 — 업무 창 · 모니터1 어느 버튼이든.
+        if (NSP.Prologue.TutorialDirector.BlocksEndShift) return;
         _stage = Stage.Ending;
         EndShiftSequence();
     }

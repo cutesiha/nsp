@@ -56,9 +56,9 @@ public partial class TutorialDirector : Node
     [Export] public float SituationWaitSeconds = 5f;
     // 근무 시작 안내가 다 찍힌 뒤 첫 전화(자재 부족)가 울리기까지 기다리는 최대 시간.
     // 짧게 둔다 — "직원들이 복구 작업을 하고 있습니다" 다음에 한참 아무 일도 없으면 늘어진다.
-    [Export] public float FirstCallWaitSeconds = 1.6f;
-    // 그래도 안내가 다 찍히자마자 벨이 울리지는 않게 — 근무 화면을 한숨 볼 틈은 둔다.
-    [Export] public float FirstCallMinDelaySeconds = 1.0f;
+    // 안내("직원들이 시설 복구 작업을 하고 있습니다")가 다 찍힌 뒤 정확히 이만큼 지나 벨이 울린다.
+    // 그때까지 자재가 저절로 바닥나지 않았으면 교육이 바닥낸다(2026-10-27 — 1.5초로 고정).
+    [Export] public float FirstCallDelaySeconds = 1.5f;
     // 정비실에 사람을 넣은 뒤 자재가 실제로 들어오기까지 기다려 주는 최대 시간.
     [Export] public float MaterialsArriveWaitSeconds = 3f;
     // 교육용 사고가 나는 작업실. 배치한 방과 달라야 토끼가 실제로 옮겨 간 기록이 남고,
@@ -69,8 +69,15 @@ public partial class TutorialDirector : Node
     // 같은 방이면 "고장 난 곳만 보면 된다"로 배우게 된다.
     // DAY0 에 처음부터 열려 있는 작업실은 코어실 · 경비실 · 발전실 셋이다(RoomDef.UnlockDay).
     [Export] public string AnomalyRoomId = "guard_room";
-    // 근무 시작 후 교육용 사고가 나기까지의 시간.
-    [Export] public float IncidentDelaySeconds = 8f;
+    // 저장고 안내를 넘긴 뒤 교육용 사고가 나기까지의 시간. 길면 "아무 일도 안 일어난다" 로 읽힌다
+    // (8초였을 때 화면을 눌러 봐야 사고가 나는 것처럼 보였다 — 2026-10-27).
+    [Export] public float IncidentDelaySeconds = 1.5f;
+    // 한 명만 보내면 되는 방(정비실 · 저장고)에서 화살표로 짚을 직원. 그 직원을 옮길 수 없으면
+    // 코어실 밖의 다른 직원을 짚는다(PickOneMover).
+    [Export] public string MaterialsMoverId = "fox";
+    [Export] public string StorageMoverId = "cat";
+    // 정비실이 자재를 만들 때마다 화면 위 자재 숫자를 하늘색 테두리로 잠깐 짚는 시간.
+    [Export] public float MaterialsFlashSeconds = 1.2f;
     // 개체가 나타날 방은 "혼자 근무 중인 직원의 방" 을 먼저 고른다 — 이 직원이 먼저 후보다.
     [Export] public string LoneWorkerPreferredId = "cat";
 
@@ -80,6 +87,11 @@ public partial class TutorialDirector : Node
     // 판정 상자를 넓힌다(Phone3D) — 평소에는 띠를 누른 클릭이 전화기로 새지 않는다.
     public bool PhoneInvited => IsRunning && _phoneInvited;
     private bool _phoneInvited;
+
+    // 교육 중에는 GUIDE-0 가 근무 종료를 지시한 뒤에만 근무를 끝낼 수 있다. 업무 창 「근무 종료」 ·
+    // 모니터1 「근무 종료」 둘 다 이 값을 본다 — 교육 도중에 끝나면 남은 단계가 통째로 끊긴다.
+    public static bool BlocksEndShift => Instance is { IsRunning: true, _endShiftInvited: false };
+    private bool _endShiftInvited;
 
     private ShiftFlowController _flow;
     private GuideHologramView _guide;
@@ -103,6 +115,7 @@ public partial class TutorialDirector : Node
         // 교육 도중 씬이 내려가도(개발 허브 복귀 등) 정적 후크가 다음 씬에 남지 않게 한다.
         IsRunning = false;
         InterviewSession.Asked -= OnInterviewAsked;
+        RoomEffectStats.MaterialsGained -= OnMaterialsGained;
         LocalDialogueGenerator.ScriptedAnswerOverride = null;
         if (Instance == this) Instance = null;
     }
@@ -176,6 +189,8 @@ public partial class TutorialDirector : Node
         LocalDialogueGenerator.ScriptedAnswerOverride = ScriptedAnswer;
         // 심문에서 무엇을 물었는지 듣는다 — 진행 조건 판정에만 쓴다.
         InterviewSession.Asked += OnInterviewAsked;
+        // 정비실이 자재를 만들 때마다 화면 위 자재 숫자를 잠깐 짚는다.
+        RoomEffectStats.MaterialsGained += OnMaterialsGained;
 
         // ── STEP 1 : 직원 확인 ────────────────────────────────────────
         TutorialTelemetry.Step("1 직원 확인");
@@ -370,10 +385,8 @@ public partial class TutorialDirector : Node
         if (gs == null) return;
 
         int cost = Mathf.Max(1, Config.Instance?.Data?.MaterialsPerCoreGauge ?? 2);
-        // 근무 시작 안내 바로 뒤에 전화가 와야 한다 — 저절로 바닥나기를 오래 기다리지 않는다.
-        // 다만 안내가 다 찍히자마자 울리면 숨 돌릴 틈이 없다 — 최소 FirstCallMinDelaySeconds 는 둔다.
-        await Wait(FirstCallMinDelaySeconds);
-        await UntilOrAfter(() => gs.Materials < cost, Mathf.Max(0f, FirstCallWaitSeconds - FirstCallMinDelaySeconds));
+        // 근무 시작 안내가 다 찍힌 뒤 1.5초 — 그때 벨이 울리고, 그 다음 대사가 이어진다.
+        await Wait(FirstCallDelaySeconds);
         if (gs.Materials >= cost) gs.AddMaterials(-gs.Materials);
 
         // 전화를 거는 사람은 그 멈춘 자리에 있는 직원이다(없으면 교육 대상인 토끼).
@@ -394,7 +407,7 @@ public partial class TutorialDirector : Node
         // 둘째 줄("정비실을 열었습니다")이 뜨면 꺼진다 — 그때부터 봐야 할 곳은 작업실이다.
         HintMaterialsFor(2);
         // 둘째 줄(배치 지시)이 뜨면 정비실 옆과 옮길 직원 옆에 화살표가 선다(cue: arrow). 배치하는 순간 다음으로.
-        ArmArrow(() => RoomArrowAim(MaterialsRoomId), () => PointAtMovers(sim, MaterialsRoomId, 1));
+        ArmArrow(() => RoomArrowAim(MaterialsRoomId), () => PointAtOneMover(sim, MaterialsRoomId, MaterialsMoverId));
         await SayAct("tut_materials", () => AnyoneAssignedTo(sim, MaterialsRoomId));
         HideArrow();
 
@@ -429,7 +442,7 @@ public partial class TutorialDirector : Node
         sim.OpenRoomMidShift(StorageRoomId);
         NSP.View.FacilityMonitorView.HighlightRoomNumber(StorageRoomId);
         // "직원을 배치해 보십시오" 에서 기다린다 — 저장고에 사람을 넣는 순간 다음 대사.
-        ArmArrow(() => RoomArrowAim(StorageRoomId), () => PointAtMovers(sim, StorageRoomId, 1));
+        ArmArrow(() => RoomArrowAim(StorageRoomId), () => PointAtOneMover(sim, StorageRoomId, StorageMoverId, MaterialsRoomId));
         await SayAct("tut_storage", () => AnyoneAssignedTo(sim, StorageRoomId));
         HideArrow();
         await Say("tut_storage_done");
@@ -617,6 +630,9 @@ public partial class TutorialDirector : Node
         IsRunning = false;
         _materialsHintLines = 0;
         _phoneInvited = false;
+        _endShiftInvited = false;
+        _materialsFlashGen++;
+        RoomEffectStats.MaterialsGained -= OnMaterialsGained;
         HideArrow();
         StopLeverDemos();
         StopSabotageDemo();
@@ -661,6 +677,36 @@ public partial class TutorialDirector : Node
         NSP.View.FacilityMonitorView.HighlightMaterials(true);
     }
 
+    // 정비실이 자재를 만들었다 — 화면 위 「자재 N / M」 을 하늘색 테두리로 잠깐 짚었다가 끈다.
+    // 안내 줄이 테두리를 켜 둔 동안(HintMaterialsFor)에는 그쪽이 끈다 — 여기서는 건드리지 않는다.
+    //
+    // 교육은 5배속이라 자재가 0.6초마다 들어온다 — 들어올 때마다 켜면 테두리가 꺼질 틈이 없다.
+    // 한 번 짚으면 MaterialsFlashGapSeconds 동안은 다시 켜지 않는다. 보관함이 가득 차 숫자가
+    // 그대로인 동안에는 짚지 않는다(넘치는 자재는 버려지고 있다).
+    private const double MaterialsFlashGapSeconds = 4.0;
+    private int _materialsFlashGen;
+    private double _materialsFlashNext;
+
+    private void OnMaterialsGained()
+    {
+        if (!IsRunning || _materialsHintLines > 0) return;
+        var gs = GameState.Instance;
+        if (gs == null || gs.Materials >= gs.MaterialsCap) return;
+        double now = Time.GetTicksMsec() / 1000.0;
+        if (now < _materialsFlashNext) return;
+        _materialsFlashNext = now + MaterialsFlashGapSeconds;
+        NSP.View.FacilityMonitorView.HighlightMaterials(true);
+        _ = EndMaterialsFlash(++_materialsFlashGen);
+    }
+
+    private async Task EndMaterialsFlash(int gen)
+    {
+        try { await Wait(MaterialsFlashSeconds); }
+        catch (OperationCanceledException) { return; }
+        if (gen == _materialsFlashGen && _materialsHintLines == 0)
+            NSP.View.FacilityMonitorView.HighlightMaterials(false);
+    }
+
     private void OnGuideLine(string text)
     {
         GuideSubtitleHud.Instance?.SetLine(text);
@@ -694,6 +740,8 @@ public partial class TutorialDirector : Node
     // 교육 중에는 **절대 죽지 않는다**(MonsterThreatSystem.NoBreach). 자동으로 문을 닫아 주지도
     // 않는다 — 플레이어가 직접 올려야 다음으로 간다.
     private const string BarrierLessonSegment = "corridor_west";
+    // 교육용 개체가 복도를 걸어오는 시간 배율(데이터 10초 × 2 = 20초) — 다가오는 것이 화면에 보이게.
+    private const float BarrierLessonApproachScale = 2f;
 
     // 개체가 나타날 작업실 · 나타났는가(cue: ghost_noise 가 띄운다).
     private string _ghostRoom = "";
@@ -732,9 +780,17 @@ public partial class TutorialDirector : Node
         var threat = sim.Threats.ForceSpawn("absentee", BarrierLessonSegment);
         if (threat == null) { CleanUpBarrierLesson(sim); return; }
         threat.OriginRoomId = room;
+        // "서측 복도로 진입했습니다" 가 곧바로 사실이어야 한다 — 출현 구역에서 복도 입구까지 걷는
+        // 시간(10초)을 건너뛰고 지금 복도에 들어선다. 걸음은 늦춰서, 복도 CCTV 를 띄우고
+        // "개체가 접근 중입니다" 를 읽는 동안 실제로 다가오는 것이 보이게 한다(2026-10-27).
+        threat.OuterSeconds = 0.05f;
+        threat.ApproachScale = BarrierLessonApproachScale;
 
         // ── 6-3. 복도 CCTV 확인 ────────────────────────────────────────
+        // 지도의 서측 복도 네모 위에 화살표 — 그 복도 CCTV 를 띄우는 순간 걷는다.
+        ArmArrow(() => CorridorArrowAim(BarrierLessonSegment));
         await SayAct("tut_barrier_corridor", () => sim.SurveillanceCorridorId == BarrierLessonSegment);
+        HideArrow();
 
         // ── 6-4~6-5. 접근 · 차폐 조작 ──────────────────────────────────
         // 전력이 없으면 아무리 설명해도 문이 내려가지 않는다. 그럴 때만 한 번 짚어 준다.
@@ -756,7 +812,8 @@ public partial class TutorialDirector : Node
             }
             await NextFrame();
         }
-        // 차폐 성공 — 확대를 풀어 제어실 전체로 돌아온다.
+        // 차폐 성공 — 레버 화살표를 걷고 확대를 풀어 제어실 전체로 돌아온다.
+        TutorialArrow.ClearAlso(CueArrowKey("zoom_switch_hold"));
         _holdSwitchZoom = false;
         if (Ctl?.IsPowerPanelFocused == true || Ctl?.IsMonitorFocused(2) == true) Ctl?.ClearFocus(0.45f);
 
@@ -767,7 +824,10 @@ public partial class TutorialDirector : Node
         await Until(() => threat.Phase is ThreatPhase.Retreat or ThreatPhase.Finished);
 
         // ── 6-7. 차폐 해제 ─────────────────────────────────────────────
+        // "이제 차폐를 해제하십시오" — 세 번째(BARRIER) 레버 위에 화살표, 문이 다 열리면 걷는다.
+        ArmArrow(() => LeverAim(PowerConsumer.Barrier));
         await SayAct("tut_barrier_retreat", () => !west.Sealed && !west.Moving);
+        HideArrow();
         await Say("tut_barrier_done");
 
         // 교육이 남긴 것을 전부 지운다 — 임시 괴물 · 차폐 · 공포 상태가 DAY1 로 넘어가면 안 된다.
@@ -815,6 +875,7 @@ public partial class TutorialDirector : Node
     private void CleanUpBarrierLesson(FacilitySimulation sim)
     {
         _holdSwitchZoom = false;
+        TutorialArrow.ClearAlso(CueArrowKey("zoom_switch_hold"));
         _ghostRoom = "";
         if (sim == null) return;
         if (sim.Ghost?.Active == true) sim.Ghost.ForceDepart(sim, notify: false);
@@ -831,15 +892,30 @@ public partial class TutorialDirector : Node
     // ── 휴게시간 · 기록 비교 교육 ───────────────────────────────────────
     private async Task RunRestLesson()
     {
-        // 「근무 종료」 둘레를 밝히고 옆에 화살표를 세운다 — 말로만 알려 주면 작은 버튼 하나를
-        // 못 찾는다(1013 QA 15번). 버튼을 누르는 순간 화살표는 사라진다.
-        NSP.View.FacilityMonitorView.HighlightEndShift(true);
-        ArmArrow(EndShiftArrowAim);
-        await SayAct("tut_endshift", () => FacilityMonitorView.Instance?.EndShiftConfirmOpen == true
-                                           || GameState.Instance?.CurrentPhase != GamePhase.Live);
+        // 근무는 실제 근무와 같은 자리 — 오른쪽 아래 「T 업무」 창에서 끝낸다(2026-10-27).
+        // 「T 업무」 버튼 위에 화살표 → 창을 열면 그 안의 「근무 종료」 옆으로 옮겨 간다 →
+        // 누르는 순간 사라진다. 이 단계 전에는 근무 종료가 막혀 있다(BlocksEndShift).
+        _endShiftInvited = true;
+        // 화면 아래 자막 띠가 「T 업무」 버튼 윗부분을 덮는다 — 이 단계 동안만 띠를 위로 올린다.
+        GuideSubtitleHud.Instance?.SetTopAligned(true);
+        bool endRequested = false;
+        void OnEndRequested() => endRequested = true;
+        var overlay = Day1HistoryOverlay.Instance;
+        if (overlay != null) overlay.EndShiftRequested += OnEndRequested;
+        try
+        {
+            ArmArrow(EndShiftArrowAim);
+            await SayAct("tut_endshift", () => endRequested
+                                               || FacilityMonitorView.Instance?.EndShiftConfirmOpen == true
+                                               || GameState.Instance?.CurrentPhase != GamePhase.Live);
+        }
+        finally
+        {
+            if (overlay != null && IsInstanceValid(overlay)) overlay.EndShiftRequested -= OnEndRequested;
+        }
         HideArrow();
+        GuideSubtitleHud.Instance?.SetTopAligned(false);
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Rest);
-        NSP.View.FacilityMonitorView.HighlightEndShift(false);
         // 교육이 끝나기 전에는 다음 날로 넘어갈 수 없다.
         RestRosterView.Instance?.SetNextEnabled(false, "교육 진행 중...");
 
@@ -891,13 +967,18 @@ public partial class TutorialDirector : Node
             // 이 단계의 화살표를 지금 띄운다(무엇을 가리킬지는 단계가 ArmArrow 로 정해 둔다).
             case "arrow": ShowArmedArrow(); break;
 
-            // 스위치 기기 확대 — 다음 줄로 넘어가면 풀린다.
-            case "zoom_switch": Ctl?.FocusPowerPanel(0.55f); break;
+            // 스위치 기기 확대 — 다음 줄로 넘어가면 풀린다. 「POWER n / m」 옆에 화살표.
+            case "zoom_switch":
+                Ctl?.FocusPowerPanel(0.55f);
+                TutorialArrow.PointAlso(CueArrowKey(name), PowerLabelAim);
+                break;
             // 확대를 한 번 풀고 스위치 기기로 다시 붙는다. 차폐가 닫힐 때까지 유지한다.
+            // 세 번째(BARRIER) 레버 위에 화살표 — 차폐가 닫히면 걷는다(RunBarrierLesson).
             case "zoom_switch_hold":
                 _holdSwitchZoom = true;
                 _guide?.HoldTyping(0.95);
                 _ = ZoomSwitchAfterUnfocus();
+                TutorialArrow.PointAlso(CueArrowKey(name), () => LeverAim(PowerConsumer.Barrier));
                 break;
             case "zoom_monitor1": Ctl?.FocusMonitor(1, 0.45f); break;
             // 모니터2 를 먼저 당긴 뒤 글자가 찍힌다.
@@ -908,11 +989,20 @@ public partial class TutorialDirector : Node
             case "zoom_pad": OpenPadForApproval(); break;
             case "zoom_clear": Ctl?.ClearFocus(0.45f); break;
 
-            // 스위치 기기 시연 — 레버를 실제로 내렸다 올린다(두 번).
-            case "flick_lighting": StartLeverFlick(PowerConsumer.Lighting); break;
-            case "flick_cctv": StartLeverFlick(PowerConsumer.CctvWatch); break;
+            // 스위치 기기 시연 — 레버를 실제로 내렸다 올린다(두 번). 그 줄의 레버 위에만 화살표.
+            case "flick_lighting":
+                StartLeverFlick(PowerConsumer.Lighting);
+                TutorialArrow.PointAlso(CueArrowKey(name), () => LeverAim(PowerConsumer.Lighting));
+                break;
+            case "flick_cctv":
+                StartLeverFlick(PowerConsumer.CctvWatch);
+                TutorialArrow.PointAlso(CueArrowKey(name), () => LeverAim(PowerConsumer.CctvWatch));
+                break;
             // 복도 CCTV 를 띄우고 차폐 레버를 올려 문이 닫히는 것을 보여 준다.
-            case "demo_barrier": StartBarrierDemo(); break;
+            case "demo_barrier":
+                StartBarrierDemo();
+                TutorialArrow.PointAlso(CueArrowKey(name), () => LeverAim(PowerConsumer.Barrier));
+                break;
             // 발전실 방해공작 경보 + CCTV 오류 화면. 경보가 먼저 뜨고 글자가 따라온다.
             case "demo_sabotage":
                 StartSabotageDemo();
@@ -928,6 +1018,8 @@ public partial class TutorialDirector : Node
     // (화살표 · 패드 · 차폐용 확대는 그 단계가 행동을 확인한 뒤에 직접 걷는다.)
     private void OnCueEnded(string name)
     {
+        // 그 줄에만 서는 화살표(POWER 글자 · 레버 하나). 차폐용 레버 화살표는 문이 닫힐 때 걷는다.
+        if (name != "zoom_switch_hold") TutorialArrow.ClearAlso(CueArrowKey(name));
         switch (name)
         {
             case "zoom_switch":
@@ -1104,8 +1196,9 @@ public partial class TutorialDirector : Node
 
     private static string MoverKey(string employeeId) => "emp:" + employeeId;
 
-    // 배치 화면 — 아직 배치표에 놓지 않은 직원(토끼 제외 — 고양이 · 여우) 카드 옆마다.
-    // 놓는 순간 그 카드가 대기 인원에서 빠지므로 그 화살표만 사라진다.
+    // 배치 화면 — 아직 배치하지 않은 직원(토끼 제외 — 고양이 · 여우) 카드 옆마다.
+    // 카드는 배치한 뒤에도 명단에 남아 있으므로(아래 줄만 "→ 방" 으로 바뀐다) 배치 여부로 거른다 —
+    // 놓는 순간 그 직원의 화살표만 사라진다. 전원을 놓으면 「근무 시작」 옆에 화살표가 선다.
     private void PointAtUnplacedRoster()
     {
         var sim = FacilitySimulation.Instance;
@@ -1117,9 +1210,59 @@ public partial class TutorialDirector : Node
             TutorialArrow.PointAlso(MoverKey(captured), () =>
             {
                 var map = NSP.Ui.ScheduleMapView.Instance;
-                return map == null ? null : TutorialArrow.BesideOnMonitor(map, map.RosterCardOf(captured));
+                if (map == null || IsPlaced(sim, captured)) return null;
+                return TutorialArrow.BesideOnMonitor(map, map.RosterCardOf(captured));
             });
         }
+        TutorialArrow.PointAlso("start", () =>
+        {
+            var map = NSP.Ui.ScheduleMapView.Instance;
+            if (map == null || !sim.GetActiveEmployeeIds().All(id => IsPlaced(sim, id))) return null;
+            return TutorialArrow.BesideOnMonitor(map, map.StartButtonRect);
+        });
+    }
+
+    private static bool IsPlaced(FacilitySimulation sim, string employeeId) =>
+        !string.IsNullOrEmpty(sim?.GetEmployeeState(employeeId)?.AssignedRoomId);
+
+    // 근무 중 지도 — 한 명만 보내면 되는 방(정비실 · 저장고). 정해 둔 직원(preferredId) 아이콘 위에
+    // 하나만 세운다. 그 직원을 옮길 수 없으면(이미 그 방 · 코어실 · 방금 다른 교육 방에 보낸 직원)
+    // 코어실 밖의 다른 직원을 짚는다. 그 방에 누구든 놓는 순간 단계가 끝나 화살표가 걷힌다.
+    private void PointAtOneMover(FacilitySimulation sim, string roomId, string preferredId, params string[] avoidRoomIds)
+    {
+        if (sim == null) return;
+        foreach (string id in sim.GetActiveEmployeeIds())
+        {
+            string captured = id;
+            TutorialArrow.PointAlso(MoverKey(captured), () =>
+            {
+                if (PickOneMover(sim, roomId, preferredId, avoidRoomIds) != captured) return null;
+                var map = FacilityMonitorView.Instance?.Minimap;
+                return map == null ? null
+                    : TutorialArrow.BesideOnMonitor(map, map.EmployeeIconOf(captured), TutorialArrow.Side.Above);
+            });
+        }
+    }
+
+    private string PickOneMover(FacilitySimulation sim, string roomId, string preferredId, string[] avoidRoomIds)
+    {
+        if (AssignedCount(sim, roomId) > 0) return "";
+        bool Free(string id, bool allowAvoided)
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null || !st.Alive || st.Incapacitated || st.Isolated) return false;
+            if (string.IsNullOrEmpty(st.AssignedRoomId) || st.AssignedRoomId == roomId) return false;
+            if (st.AssignedRoomId == AssignRoomId) return false;
+            return allowAvoided || !avoidRoomIds.Contains(st.AssignedRoomId);
+        }
+        foreach (bool allowAvoided in new[] { false, true })
+        {
+            if (!string.IsNullOrEmpty(preferredId) && Free(preferredId, allowAvoided)) return preferredId;
+            foreach (string id in sim.GetActiveEmployeeIds())
+                if (Free(id, allowAvoided)) return id;
+        }
+        // 코어실 밖에 아무도 없으면 코어실에서 한 명(남는 사람이 있을 때만).
+        return PickMovers(sim, roomId, 1).FirstOrDefault() ?? "";
     }
 
     // 근무 중 지도 — 그 작업실로 옮길 직원 아이콘 위에서 아래를 가리킨다(작업실 옆 화살표와 함께).
@@ -1212,12 +1355,42 @@ public partial class TutorialDirector : Node
         return TutorialArrow.BesideOnMonitor(map, map.RoomBoxOf(roomId));
     }
 
-    // 「근무 종료」 버튼 오른쪽에서 가리킨다(모니터 오른쪽 테두리 너머에 선다).
+    // 근무 종료 — 업무 창이 닫혀 있으면 오른쪽 아래 「T 업무」 버튼 위(아래를 가리킨다),
+    // 열려 있으면 그 창의 「근무 종료」 버튼 왼쪽에서 가리킨다.
     private static TutorialArrow.Aim? EndShiftArrowAim()
     {
-        var btn = FacilityMonitorView.Instance?.EndShiftButton;
-        if (btn == null) return null;
-        return TutorialArrow.BesideOnMonitor(btn, new Rect2(Vector2.Zero, btn.Size));
+        var overlay = Day1HistoryOverlay.Instance;
+        if (overlay == null) return null;
+        if (overlay.IsObjectivesOpen && overlay.ObjectivesEndButton is { } end)
+            return TutorialArrow.BesideOnScreen(end, new Rect2(Vector2.Zero, end.Size), TutorialArrow.Side.Left);
+        var btn = overlay.ObjectivesButton;
+        return btn == null ? null
+            : TutorialArrow.BesideOnScreen(btn, new Rect2(Vector2.Zero, btn.Size), TutorialArrow.Side.Above);
+    }
+
+    // 대사 줄 연출(cue)마다 따로 세우는 곁 화살의 이름 — 앞 줄 화살이 다음 줄 화살을 지우지 않게.
+    private static string CueArrowKey(string cue) => "cue:" + cue;
+
+    // 스위치 기기의 그 레버 꼭대기 바로 위에서 아래를 가리킨다.
+    private static TutorialArrow.Aim? LeverAim(PowerConsumer channel)
+    {
+        var top = PowerSwitchPanel.Instance?.LeverTopGlobal(channel);
+        return top == null ? null : TutorialArrow.AtWorld(top.Value, TutorialArrow.Side.Above, gapPx: 2f);
+    }
+
+    // 「POWER n / m」 글자 왼쪽에서 그 글자를 가리킨다.
+    private static TutorialArrow.Aim? PowerLabelAim()
+    {
+        var left = PowerSwitchPanel.Instance?.CapacityLabelLeftGlobal();
+        return left == null ? null : TutorialArrow.AtWorld(left.Value, TutorialArrow.Side.Left);
+    }
+
+    // 근무 중 지도 — 그 복도 구간의 하늘색 네모 위에서 아래를 가리킨다.
+    private static TutorialArrow.Aim? CorridorArrowAim(string segmentId)
+    {
+        var map = FacilityMonitorView.Instance?.Minimap;
+        return map == null ? null
+            : TutorialArrow.BesideOnMonitor(map, map.CorridorBoxOf(segmentId), TutorialArrow.Side.Above);
     }
 
     // 휴게시간 — 토끼를 아직 안 골랐으면 토끼 아이콘, 골랐으면 책상 위 전화기(위에서 아래로).

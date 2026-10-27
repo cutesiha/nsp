@@ -97,6 +97,14 @@ public partial class TutorialCueShot : Node
         await Seconds(0.9);
         Shot("03b_arrow_movers");
         TutorialArrow.Clear();
+        // 서측 복도 하늘색 네모 위(교육 "서측 복도로 진입했습니다") · 오른쪽 아래 T 업무 버튼 위(근무 종료).
+        TutorialArrow.PointAlso("corridor", () => TutorialArrow.BesideOnMonitor(fm.Minimap,
+            fm.Minimap.CorridorBoxOf("corridor_west"), TutorialArrow.Side.Above));
+        TutorialArrow.PointAlso("tasks", () => Day1HistoryOverlay.Instance?.ObjectivesButton is { } tb
+            ? TutorialArrow.BesideOnScreen(tb, new Rect2(Vector2.Zero, tb.Size), TutorialArrow.Side.Above) : null);
+        await Seconds(0.9);
+        Shot("03c_arrow_corridor_tasks");
+        TutorialArrow.Clear();
         TutorialArrow.PointAt(() => TutorialArrow.BesideOnMonitor(fm.Minimap, fm.Minimap.RoomBoxOf("power_room")));
         TutorialArrow.PointAt(() => TutorialArrow.BesideOnMonitor(fm.Minimap, fm.Minimap.RoomBoxOf("guard_room")));
         await Seconds(0.9);
@@ -119,6 +127,19 @@ public partial class TutorialCueShot : Node
         GameState.Instance.TriggerPowerAccident(1);
         await Seconds(1.2);
         Shot("09_power_focus_accident");
+        // 교육 화살표 — POWER 글자 옆 · 레버 셋 위.
+        var panel = PowerSwitchPanel.Instance;
+        TutorialArrow.PointAlso("power", () => panel?.CapacityLabelLeftGlobal() is { } p
+            ? TutorialArrow.AtWorld(p, TutorialArrow.Side.Left) : null);
+        foreach (var ch in new[] { PowerConsumer.Lighting, PowerConsumer.CctvWatch, PowerConsumer.Barrier })
+        {
+            var c = ch;
+            TutorialArrow.PointAlso("lever" + (int)c, () => panel?.LeverTopGlobal(c) is { } p
+                ? TutorialArrow.AtWorld(p, TutorialArrow.Side.Above, gapPx: 2f) : null);
+        }
+        await Seconds(0.9);
+        Shot("09b_power_arrows");
+        TutorialArrow.Clear();
 
         // ④ 레버 시연 — 조명을 내린 순간 / 차폐 시연.
         PowerSwitchPanel.DemoSet(PowerConsumer.Lighting, false);

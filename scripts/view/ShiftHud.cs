@@ -45,6 +45,8 @@ public partial class ShiftHud : CanvasLayer
         if (_day.Visible != live) _day.Visible = live;
         if (_gauge.Visible != live) _gauge.Visible = live;
         if (_gear.Visible != live) _gear.Visible = live;
+        // 「SKIP ≫」 이 오른쪽 위 모서리를 쓰는 동안에는 톱니 · 패드 아이콘이 그 아래로 내려간다.
+        SetCornerDrop(StorySkipHud.Instance?.ButtonVisible == true ? StorySkipHud.CornerHeight : 0f);
         TickPadButton();
         if (!live) return;
 
@@ -53,6 +55,18 @@ public partial class ShiftHud : CanvasLayer
         if (_day.Text != text) _day.Text = text;
 
         _gauge?.SetProgress(GameState.Instance?.CoreProgress ?? 0f);
+    }
+
+    // 오른쪽 위 아이콘 묶음(톱니 · 패드 · Tab 글자)을 아래로 내리는 양. 바뀔 때만 다시 놓는다.
+    private float _cornerDrop = -1f;
+
+    private void SetCornerDrop(float drop)
+    {
+        if (Mathf.IsEqualApprox(drop, _cornerDrop)) return;
+        _cornerDrop = drop;
+        _gear.OffsetTop = 18f + drop; _gear.OffsetBottom = 70f + drop;
+        _pad.OffsetTop = 80f + drop; _pad.OffsetBottom = 132f + drop;
+        _padKey.OffsetTop = 130f + drop; _padKey.OffsetBottom = 150f + drop;
     }
 
     private void BuildUI()

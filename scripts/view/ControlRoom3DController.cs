@@ -28,8 +28,9 @@ public partial class ControlRoom3DController : Node3D
     // 전력 스위치 기기 확대 — **위에서 내려다본다.** 기기 정면(Basis.Z)으로만 다가가면 카메라가
     // 기기 높이에 머물러 살짝 올려다보는 시점이 됐다. 앉은 자리에서 고개를 숙여 들여다보듯
     // 정면 방향에서 이만큼 위로 들어 올린 자리에 선다.
-    [Export] public float PowerPanelFocusElevationDeg = 44f;
-    [Export] public float PowerPanelFocusDistance = 0.36f;
+    // 2026-10-27 — "너무 가깝고 너무 위에서 본다" 는 지적으로 44° · 0.36 → 32° · 0.44 로 물렸다.
+    [Export] public float PowerPanelFocusElevationDeg = 32f;
+    [Export] public float PowerPanelFocusDistance = 0.44f;
     [Export] public Vector3 PowerPanelFocusOffset = new(0f, 0.075f, 0f);
 
     // 1920x1080 화면에 맞춰 CRT/배치표/단말기의 모든 텍스트·UI를 같은 배율로 키운다.

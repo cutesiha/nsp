@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="DayPlanDef" load_steps=4 format=3]
+
+; ════════════════════════════════════════════════════════════════════════
+; 가상 시뮬레이션(DAY0 교육) 오늘의 업무.
+;
+; 교육에서도 오른쪽 아래 「T 업무」 블록이 떠야 한다 — 실제 근무와 같은 자리에서 근무를 끝내는
+; 법을 배운다(TutorialDirector 의 근무 종료 단계가 이 창의 「근무 종료」 를 가리킨다).
+; 단기 · 정규 근무 공통이다(competition 폴더에 day0 이 없으면 이 파일을 쓴다).
+;
+; 둘 다 교육 흐름 안에서 저절로 채워지는 것만 둔다 — 교육이 근무 종료를 지시했는데 업무가
+; 안 끝나 버튼이 잠겨 있으면 교육이 그 자리에서 멈춘다.
+;   · 발전실 정상 가동 : 교육용 발전실 사고를 고치면 채워진다(근무 종료 단계는 그 뒤다).
+;   · 직원 전원 생존   : 교육에서는 아무도 죽지 않는다.
+; 선택 업무는 두지 않는다(선택 업무는 업무평가 점수가 된다 — 교육이 점수를 남기면 안 된다).
+; MaxShiftSeconds 는 0 — 교육은 시간이 다 돼도 근무가 끝나지 않는다(ShiftFlowController).
+; ════════════════════════════════════════════════════════════════════════
+
+[ext_resource type="Script" path="res://scripts/data/DayPlanDef.cs" id="1_plan"]
+[ext_resource type="Script" path="res://scripts/data/DayObjectiveDef.cs" id="2_obj"]
+
+[sub_resource type="Resource" id="obj_power"]
+script = ExtResource("2_obj")
+ObjectiveId = "tut_power"
+DisplayText = "발전실 정상 가동"
+Type = 4
+TargetValue = 0.0
+Required = true
+TargetRooms = Array[String](["power_room"])
+
+[sub_resource type="Resource" id="obj_alive"]
+script = ExtResource("2_obj")
+ObjectiveId = "tut_alive"
+DisplayText = "직원 전원 생존"
+Type = 6
+TargetValue = 0.0
+Required = true
+TargetRooms = Array[String]([])
+
+[resource]
+script = ExtResource("1_plan")
+Day = 0
+Note = "가상 시뮬레이션 — 업무 목록 창에서 근무를 끝내는 법을 익힌다."
+MaxShiftSeconds = 0.0
+Objectives = Array[ExtResource("2_obj")]([SubResource("obj_power"), SubResource("obj_alive")])

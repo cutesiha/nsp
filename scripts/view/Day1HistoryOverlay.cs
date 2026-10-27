@@ -38,6 +38,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 오늘의 업무 창에서 "근무 종료" 를 눌렀을 때. ShiftFlowController 가 받는다.
     public event System.Action EndShiftRequested;
 
+    // 교육 화살표가 가리킬 자리 — 오른쪽 아래 「T 업무」 버튼과, 업무 창 안의 「근무 종료」.
+    public Control ObjectivesButton => _objButton;
+    public Control ObjectivesEndButton => _objEndBtn;
+
     private WindowMode _mode;
     private Control _root;
     private Control _icons;
@@ -587,7 +591,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         bool live = gs?.CurrentPhase == GamePhase.Live;
 
         // 버튼은 근무 중 + 오늘 업무가 등록된 날에만. 닫혀 있어도 진행도(1/2)는 읽힌다.
-        // (가상 시뮬레이션 교육일에는 업무 데이터가 없으므로 버튼도 뜨지 않는다.)
+        // (가상 시뮬레이션도 업무 데이터 data/objectives/day0.tres 가 있어 같은 버튼이 뜬다.)
         bool show = live && DayObjectives.Today != null;
         if (_objButton != null && _objButton.Visible != show) _objButton.Visible = show;
 
@@ -642,10 +646,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
             RebuildObjectiveRows(lines);
         }
 
-        bool can = DayObjectives.CanEndShift;
+        // 교육은 GUIDE-0 가 근무 종료를 지시한 뒤에만 끝낼 수 있다(그 전에 끝내면 교육이 끊긴다).
+        bool tutorialHold = NSP.Prologue.TutorialDirector.BlocksEndShift;
+        bool can = DayObjectives.CanEndShift && !tutorialHold;
         if (_objEndBtn.Disabled == can) _objEndBtn.Disabled = !can;
-        _objHint.Text = can
-            ? "필수 업무 완료 — 더 일하거나, 지금 근무를 마칠 수 있습니다."
+        _objHint.Text = tutorialHold ? "교육 안내에 따라 근무를 종료하십시오."
+            : can ? "필수 업무 완료 — 더 일하거나, 지금 근무를 마칠 수 있습니다."
             : "필수 업무를 완료해야 근무를 종료할 수 있습니다.";
     }
 

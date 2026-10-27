@@ -105,7 +105,7 @@ public partial class FacilityCctvWorld : Node3D
     private double _camShakeUntil = -1;
     private float _camShakeStrength;
     private bool _hauntActive;
-    private readonly List<(Light3D light, float energy)> _dimmedLights = new();
+    private readonly List<(Light3D light, float energy, Color color)> _dimmedLights = new();
 
     // ── 괴물(GhostHauntSystem) 표현 ────────────────────────────────────
     // 판정은 전부 시뮬레이션이 한다. 여기서는 "그 방을 보고 있을 때 무엇이 보이는가"만 만든다.
@@ -142,9 +142,15 @@ public partial class FacilityCctvWorld : Node3D
             // 방 씬은 room_base 한 벌을 공유해서 그대로 띄우면 아홉 방이 같은 상자로 보인다.
             // 마감(재질 · 구조 · 소품 · 조명)은 씬이 아니라 여기서 얹는다(RoomDressing).
             RoomDressing.Apply(roomId, inst);
-            BrightenForCctv(inst);
+            // 휴게실(스토리 · 심문 화면)은 예전 밝기 그대로 — 작업실 · 복도 CCTV 만 더 밝혔다.
+            if (roomId == InterviewRoomId) BrightenForCctv(inst, RestLightBoost, RestFillEnergy);
+            else BrightenForCctv(inst, CctvLightBoost, CctvFillEnergy);
             _rooms[roomId] = inst;
         }
+
+        _env = GetNodeOrNull<WorldEnvironment>("WorldEnvironment")?.Environment;
+        if (_env != null)
+            _brightEnv = (_env.AmbientLightEnergy, _env.TonemapExposure, _env.FogLightColor);
 
         BuildCorridors();
         BuildEntity();
@@ -442,7 +448,11 @@ public partial class FacilityCctvWorld : Node3D
         // 메인 스토리는 배치 단계에 모니터2 안에서 돌기 때문에 단계만 봐서는 알 수 없다.
         bool interview = GameState.Instance?.CurrentPhase == GamePhase.Rest
                          || StoryCutinDirector.ShowsRestRoom;
-        if (interview != _interviewMode) ApplyCameraMode(interview);
+        if (interview != _interviewMode)
+        {
+            ApplyCameraMode(interview);
+            ApplyRestLook(interview);
+        }
 
         // 복도를 보고 있으면 작업실 대신 그쪽을 띄운다. 직원 · 괴물 갱신은 건너뛴다 —
         // 복도에 사람이 서 있는 연출은 PHASE B 에서 붙는다.
@@ -536,7 +546,7 @@ public partial class FacilityCctvWorld : Node3D
         _camShakeUntil = Time.GetTicksMsec() / 1000.0 + seconds;
     }
 
-    // 개체가 직원들 뒤(카메라에서 먼 코너)에 소리 없이 나타난다. 방 조명도 확 낮춘다.
+    // 개체가 직원들 뒤(카메라에서 먼 코너)에 소리 없이 나타난다. 방 조명이 붉게 바뀐다.
     public void HauntSpawn(string roomId)
     {
         _hauntActive = true;
@@ -544,7 +554,7 @@ public partial class FacilityCctvWorld : Node3D
         _entity.Visible = true;
         _entity.Position = new Vector3(-1.6f, EntityFloorOriginY, -1.7f);
         _entity.LookAt(_entity.GlobalPosition + new Vector3(1f, 0f, 1f), Vector3.Up); // 카메라 반대쪽(방 안쪽)을 봄
-        DimRoomLights(roomId, 0.25f);
+        RedRoomLights(roomId, 0.85f);
     }
 
     // 천천히 CCTV 카메라를 바라본다.
@@ -629,22 +639,41 @@ public partial class FacilityCctvWorld : Node3D
     // 그래서 이 월드에 올리는 방만 조명을 올린다. 방 씬 자체는 건드리지 않는다 —
     // 같은 씬을 쓰는 다른 화면(휴게실 · 격리실 연출)의 분위기가 같이 밝아지면 안 된다.
     //
-    // 어둡게 하는 연출(DimRoomLights)은 그대로 산다. 저쪽은 **지금 값에 곱하므로**
-    // 올려 둔 밝기에서 같은 비율로 어두워진다.
+    // 개체 연출(RedRoomLights)은 그대로 산다. 저쪽은 **지금 값에서** 색만 붉게 바꾼다.
     private const float CctvLightBoost = 2.3f;
     // 그림자 쪽이 통째로 검게 뭉개지지 않도록 방마다 아주 약한 채움등을 하나 더 둔다.
     private const float CctvFillEnergy = 0.85f;
+    // 휴게실(스토리 · 심문 화면)은 2026-10-27 밝기 상향 전 값 그대로 둔다 — 거기까지 밝아지니
+    // 휴게실 장면의 분위기가 날아갔다(사용자 피드백). 조명 배율 · 채움등 · 환경광 · 노출 모두 예전 값.
+    private const float RestLightBoost = 1.9f;
+    private const float RestFillEnergy = 0.55f;
+    private const float RestAmbientEnergy = 0.18f;
+    private const float RestExposure = 1.0f;
+    private static readonly Color RestFogLight = new(0.03f, 0.03f, 0.045f);
 
-    private static void BrightenForCctv(Node3D room)
+    // 이 월드의 환경(작업실 · 복도용 밝은 값은 facility_cctv_world.tscn 에 있다).
+    private Godot.Environment _env;
+    private (float Ambient, float Exposure, Color Fog) _brightEnv;
+
+    // 휴게실을 비추는 동안만 환경광 · 노출을 예전 값으로 내린다(작업실 · 복도로 돌아오면 다시 밝게).
+    private void ApplyRestLook(bool rest)
+    {
+        if (_env == null) return;
+        _env.AmbientLightEnergy = rest ? RestAmbientEnergy : _brightEnv.Ambient;
+        _env.TonemapExposure = rest ? RestExposure : _brightEnv.Exposure;
+        _env.FogLightColor = rest ? RestFogLight : _brightEnv.Fog;
+    }
+
+    private static void BrightenForCctv(Node3D room, float boost, float fillEnergy)
     {
         foreach (var n in room.FindChildren("*", "Light3D", true, false))
-            if (n is Light3D l) l.LightEnergy *= CctvLightBoost;
+            if (n is Light3D l) l.LightEnergy *= boost;
 
         // 천장등 하나로는 책상 밑 · 벽 쪽이 검게 남는다. 방 가운데 위쪽에 넓고 약한
         // 채움등을 하나 더 둔다 — 그림자를 만들지 않아(shadow off) 값도 거의 안 든다.
         var fill = new OmniLight3D
         {
-            LightEnergy = CctvFillEnergy,
+            LightEnergy = fillEnergy,
             LightColor = new Color(0.78f, 0.84f, 1f),
             OmniRange = 12f,
             ShadowEnabled = false,
@@ -654,22 +683,30 @@ public partial class FacilityCctvWorld : Node3D
         room.AddChild(fill);
     }
 
-    private void DimRoomLights(string roomId, float factor)
+    // 개체가 있는 방의 조명을 **붉게만** 바꾼다. 어둡게 하지 않는다 — 예전에는 세기를 0.45 · 0.25 · 0.18 배로
+    // 깎아 정작 개체가 잘 안 보였다(2026-10-27 사용자 지적). 붉은빛은 같은 세기라도 덜 밝아 보이므로
+    // 붉어지는 만큼 세기를 조금 올려 방 밝기를 지킨다. redness 0 = 원래 색, 1 = 가장 붉게.
+    private static readonly Color HauntLightColor = new(1f, 0.30f, 0.26f);
+    private const float HauntLightCompensation = 0.7f;
+
+    private void RedRoomLights(string roomId, float redness)
     {
         RestoreRoomLights();
         if (!_rooms.TryGetValue(roomId, out var room)) return;
+        float k = Mathf.Clamp(redness, 0f, 1f);
         foreach (var l in room.FindChildren("*", "Light3D", true, false))
             if (l is Light3D light)
             {
-                _dimmedLights.Add((light, light.LightEnergy));
-                light.LightEnergy *= factor;
+                _dimmedLights.Add((light, light.LightEnergy, light.LightColor));
+                light.LightColor = light.LightColor.Lerp(HauntLightColor, k);
+                light.LightEnergy *= 1f + HauntLightCompensation * k;
             }
     }
 
     private void RestoreRoomLights()
     {
-        foreach (var (light, energy) in _dimmedLights)
-            if (IsInstanceValid(light)) light.LightEnergy = energy;
+        foreach (var (light, energy, color) in _dimmedLights)
+            if (IsInstanceValid(light)) { light.LightEnergy = energy; light.LightColor = color; }
         _dimmedLights.Clear();
     }
 
@@ -866,8 +903,8 @@ public partial class FacilityCctvWorld : Node3D
             _entity.Scale = Vector3.One * EntityScale;
             _entity.RotationDegrees = Vector3.Zero;
             _ghost.Reset(GhostSpot((int)(GD.Randi() % (uint)GhostSpots.Length)));
-            // 그 방만 어두워진다 — 화면을 돌리다 "여기만 이상하다"가 먼저 눈에 들어와야 한다.
-            DimRoomLights(target, 0.45f);
+            // 그 방만 붉어진다 — 화면을 돌리다 "여기만 이상하다"가 먼저 눈에 들어와야 한다.
+            RedRoomLights(target, 0.7f);
         }
         if (_entity == null) return;
 
@@ -1051,7 +1088,7 @@ public partial class FacilityCctvWorld : Node3D
 
         Sfx.Instance?.PlayGhostScream();
         CCTVMonitorView.Instance?.FlashGlitch(0.8f);
-        DimRoomLights(_shownRoom, 0.18f);
+        RedRoomLights(_shownRoom, 1f);
 
         // ① 설비를 두 번 들이받는다 — 있는 동작(머리 박기 · 덮침)을 이어 쓴다.
         for (int i = 0; i < 2; i++)

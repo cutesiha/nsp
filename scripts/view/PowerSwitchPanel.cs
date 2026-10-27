@@ -173,6 +173,21 @@ public partial class PowerSwitchPanel : Node3D
         }
     }
 
+    // ── 교육 화살표가 가리킬 자리(TutorialDirector) ─────────────────────
+    // 그 레버 꼭대기(월드 좌표). 레버가 없으면 null.
+    public Vector3? LeverTopGlobal(PowerConsumer channel) =>
+        _tips.TryGetValue(channel, out var tip) && IsInstanceValid(tip) ? tip.GlobalPosition : null;
+
+    // 「POWER n / m」 글자의 왼쪽 끝 가운데(월드 좌표) — 글자 옆에서 가리킨다.
+    public Vector3? CapacityLabelLeftGlobal()
+    {
+        if (_capacityLabel == null || !IsInstanceValid(_capacityLabel) || !_capacityLabel.IsVisibleInTree()) return null;
+        var box = _capacityLabel.GetAabb();
+        if (box.Size.X <= 0f) return _capacityLabel.GlobalPosition;
+        var leftMid = box.Position + new Vector3(0f, box.Size.Y * 0.5f, box.Size.Z * 0.5f);
+        return _capacityLabel.GlobalTransform * leftMid;
+    }
+
     public override void _ExitTree()
     {
         if (!Engine.IsEditorHint())

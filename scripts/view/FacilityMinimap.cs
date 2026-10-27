@@ -570,6 +570,20 @@ public partial class FacilityMinimap : Control
             DrawLine(a + dir * t, a + dir * (t + dash), col, 1.1f);
     }
 
+    private static readonly Color CorridorBoxSky = new(0.58f, 0.90f, 1f);
+
+    private static Rect2 CorridorBox(Vector2 door) => new(door - new Vector2(13f, 13f), new Vector2(26f, 26f));
+
+    // 그 복도 구간의 하늘색 네모 자리(이 지도의 로컬 좌표). 지도에 없으면 빈 사각형 — 교육 화살표가 쓴다.
+    public Rect2 CorridorBoxOf(string segmentId)
+    {
+        var seg = FacilitySimulation.Instance?.Corridors?.ById(segmentId ?? "");
+        if (seg == null || !Layout.ContainsKey(seg.RoomA) || !Layout.ContainsKey(seg.RoomB)) return new Rect2();
+        Vector2 pa = CenterOf(seg.RoomA), pb = CenterOf(seg.RoomB);
+        var elbow = CorridorElbow.Compute(pa, pb, CenterOf(FacilitySimulation.DeployOriginRoomId));
+        return CorridorBox(DoorPoint(pa, elbow, pb));
+    }
+
     // 차폐문 — 통로 한가운데의 작은 셔터. 상태 글자와 카메라 표시가 함께 붙는다.
     private void DrawBarrierMarker(CorridorSegment seg, Vector2 a, Vector2? elbow, Vector2 b, bool selected)
     {
@@ -602,10 +616,11 @@ public partial class FacilityMinimap : Control
         if (seg.Sealed)
             DrawLine(mid - across * half, mid + across * half, LaneSealed, 3.2f);
 
-        // 고른 구간은 가는 사각 테두리로 표시한다(레버가 무엇을 제어하는지).
-        if (selected)
-            DrawRect(new Rect2(mid - new Vector2(13f, 13f), new Vector2(26f, 26f)),
-                HoverCyan with { A = 0.85f }, false, 1.2f);
+        // 차폐할 수 있는 세 구간은 늘 밝은 하늘색 네모로 테를 두른다 — 작은 CRT 에서 문 마커만으로는
+        // 어디가 복도 구간인지 거의 안 보였다(2026-10-27). 고른 구간(레버가 제어하는 곳)은 더 굵고 진하게.
+        var box = CorridorBox(mid);
+        DrawRect(box, CorridorBoxSky with { A = selected ? 0.24f : 0.12f });
+        DrawRect(box, CorridorBoxSky with { A = selected ? 1f : 0.85f }, false, selected ? 2.6f : 1.8f);
 
         // 카메라가 붙은 구간이라는 작은 점 하나는 늘 찍는다. 글자는 아래 조건에서만.
         if (!string.IsNullOrEmpty(seg.CctvCameraId))
