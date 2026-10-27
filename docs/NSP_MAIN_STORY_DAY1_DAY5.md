@@ -472,8 +472,8 @@ group: true
 min: 2
 
 say?: sheep | bad | L | 저... 오, 오늘도 일해야 하죠? 손이 계, 계속 떨리는데... 
-say?: dog | bad | R | 어제부터 계속 그러지 않았어요? 너무 심하면 의무실 잠시 들러요.
-say?: cat | bad | L | 저기요. 당신만 힘든가요? 뭔 의무실이에요. 마지막 날이니까 일이나 제대로 하세요.
+say?: dog | bad | R | 어제부터 계속 그러지 않았어요? 너무 심하면 잠깐이라도 쉬었다 해요.
+say?: cat | bad | L | 저기요. 당신만 힘든가요? 쉬긴 뭘 쉬어요. 마지막 날이니까 일이나 제대로 하세요.
 say?: rabbit | bad | R | 고양이 씨! 그래도 꼭 그렇게 말해야 돼요? 
 say?: cat | bad | L | 그럼 뭐라고 해야 하는데요. 제가 틀린 말 했나요?
 say?: wolf | normal | R | 싸울 힘이 있다면 아껴 두십시오. 근무가 시작되면 필요합니다.
@@ -486,14 +486,14 @@ say?: rabbit | normal | L | 하긴, 그건 그래요. 저도 제가 이 정도�
 
 ```text
 @choice d3_priority
-option: 상태가 나쁜 직원은 바로 의무실로 보내겠습니다. 무리하지 마세요. | d3_priority_health
+option: 상태가 나쁜 직원은 바로 쉬게 하겠습니다. 무리하지 마세요. | d3_priority_health
 option: 코어 복구를 멈출 수는 없습니다. 마지막까지 버텨봅시다. | d3_priority_core
 option: 이렇게 나약하니 파멸의 길로 빠지는 겁니다. 코어 복구나 하세요. | d3_priority_balance
 
 @branch d3_priority_health
 say?: dog | smile | L | 감사합니다. 그런 말 들으니 도움이 되네요.
 say?: sheep | normal | R | ...그, 그러면 저도 조금은... 무리해 볼게요...
-say?: cat | normal | L | 대신 의무실까지 망가지게 두진 마세요.
+say?: cat | normal | L | 대신 쉬는 사람 몫까지 일이 밀리게 두진 마세요.
 say?: wolf | normal | R | 합리적입니다.
 say?: fox | smile | L | 오늘은 쓰러지기 전에 편히 누울 수 있겠네요~
 @endbranch

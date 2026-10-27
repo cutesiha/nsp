@@ -89,19 +89,23 @@ public partial class StaffTimelineView : Control
 
     // ── 사고 줄 고르기 (headless 검사 대상) ────────────────────────────
     //
-    // 세로선이 되는 줄은 사고뿐이다. 경고(Warning) · 안정화(Recovery) 는 띠에 뜨지 않는다 —
-    // 화면이 선으로 가득 차면 정작 봐야 할 순간이 묻힌다.
+    // 세로선이 되는 줄은 **작업실 사고와 방해공작** 뿐이다. 경고(Warning) · 안정화(Recovery) 는
+    // 물론, 같은 붉은 줄이라도 금기 · 정전 · 용량 감소 · 사망 · 기절 같은 줄은 띠에 뜨지 않는다 —
+    // 선마다 "○○실 사고 / ○○실 방해공작" 라벨이 붙으므로, 선이 많아지면 정작 봐야 할 순간이 묻힌다.
+    // (발전실 사고는 사고 줄과 정전 · 용량 감소 줄이 같이 찍힌다 — 선은 사고 줄 하나만 선다.)
     public static List<int> IncidentRowIndices(IReadOnlyList<DisplayLogEntry> rows)
     {
         var found = new List<int>();
         if (rows == null) return found;
         for (int i = 0; i < rows.Count; i++)
-        {
-            var s = rows[i]?.Severity;
-            if (s is DisplayLogSeverity.Critical or DisplayLogSeverity.Sabotage) found.Add(i);
-        }
+            if (IsIncidentRow(rows[i])) found.Add(i);
         return found;
     }
+
+    private static bool IsIncidentRow(DisplayLogEntry r) =>
+        r != null && (r.Severity == DisplayLogSeverity.Sabotage
+                      || (r.Severity == DisplayLogSeverity.Critical
+                          && r.SourceEventType is LogEventType.TaskFailed or LogEventType.AnomalyIncident));
 
     // ── 입력 ───────────────────────────────────────────────────────────
     private readonly List<string> _employees = new();
@@ -147,12 +151,15 @@ public partial class StaffTimelineView : Control
         _segments = BuildSegments(_employees, _rows, _dayLength);
         _incidents.Clear();
         _incidents.AddRange(IncidentRowIndices(_rows));
+        _incidentTexts.Clear();
+        foreach (int i in _incidents) _incidentTexts.Add(IncidentTitle(_rows[i]));
+        _labelsFor = -Vector2.One;
         QueueRedraw();
     }
 
     // 직원 수에 맞는 최소 높이(기본 글자 크기 기준).
     public static float PreferredHeight(int employeeCount, int incidentCount) =>
-        BaseAxisH + BaseHeadH + Mathf.Max(1, employeeCount) * 16f;
+        BaseAxisH + (incidentCount > 0 ? BaseLabelH + BaseTipH : BaseTipH) + Mathf.Max(1, employeeCount) * 16f;
 
     // ── 치수 ───────────────────────────────────────────────────────────
     //
@@ -163,15 +170,24 @@ public partial class StaffTimelineView : Control
     private float K => FontPx / 12f;
 
     private const float BaseAxisH = 13f;    // 맨 위 시각 눈금
-    // 눈금과 띠 사이 — 사고 선의 삼각 머리가 들어갈 만큼만 띄운다.
-    private const float BaseHeadH = 12f;
-    private const float BaseNameW = 46f;    // 왼쪽 코드네임 칸
+    // 눈금과 띠 사이 — 사고 라벨 줄(겹치면 최대 MaxLabelLanes 줄) + 삼각 머리 자리.
+    // 사고가 없는 날은 라벨 줄을 비우고 그만큼 띠가 굵어진다.
+    private const float BaseLabelH = 12f;
+    private const float BaseTipH = 6f;
+    private const int MaxLabelLanes = 2;
+    // 왼쪽 코드네임 칸. 좁힐수록 띠가 길어진다(코드네임은 두 글자까지 줄여 쓴다).
+    private const float BaseNameW = 40f;
     private const float PadR = 6f;
-    private const float RowGap = 2f;
+    // 줄 사이 틈 — 1px 이면 직원 띠가 서로 구분되면서 띠 몫이 가장 크다.
+    private const float RowGap = 1f;
 
     private float AxisH => BaseAxisH * K;
-    private float HeadH => BaseHeadH * K;
+    private float HeadH => (LabelLanes * BaseLabelH + BaseTipH) * K;
     private float NameW => BaseNameW * K;
+    // 사고 선 굵기 — 띠 색 위에서도 확실히 보이고, 손으로 누를 수 있을 만큼.
+    private float LineW => Mathf.Max(3f, 1.7f * K);
+    private float LineHitHalf => Mathf.Max(6f, 3f * K);
+    private int LabelFs => Mathf.RoundToInt(8.5f * K);
 
     private float TrackX => NameW;
     private float TrackW => Mathf.Max(10f, Size.X - NameW - PadR);
@@ -182,12 +198,73 @@ public partial class StaffTimelineView : Control
     private float TimeOf(float x) => Mathf.Clamp((x - TrackX) / Mathf.Max(1f, TrackW), 0f, 1f) * _dayLength;
     private float RowTop(int i) => BandTop + i * RowH;
 
+    // ── 사고 라벨 자리 ─────────────────────────────────────────────────
+    //
+    // 선마다 그 위에 "○○실 사고 / ○○실 방해공작" 을 단다. 가까운 사고끼리 라벨이 겹치면
+    // 한 줄 위로 올린다(최대 MaxLabelLanes 줄 — 그래도 겹치면 가장 먼저 비는 줄에 쓴다).
+    // 라벨 자리는 크기나 자료가 바뀔 때만 다시 잡는다.
+    private readonly List<string> _incidentTexts = new();
+    private readonly List<Rect2> _labelRects = new();
+    private int _labelLanes;
+    private Vector2 _labelsFor = -Vector2.One;
+
+    private int LabelLanes
+    {
+        get { LayoutLabels(); return _labelLanes; }
+    }
+
+    private void LayoutLabels()
+    {
+        if (_labelsFor == Size) return;
+        _labelsFor = Size;
+        _labelRects.Clear();
+        _labelLanes = 0;
+        _font ??= ViewFont.Default;
+        if (_incidents.Count == 0 || _font == null) return;
+
+        int fs = LabelFs;
+        float padX = 4f * K;
+        var laneEnds = new List<float>();
+        var lefts = new float[_incidents.Count];
+        var widths = new float[_incidents.Count];
+        var lanes = new int[_incidents.Count];
+        foreach (int n in Enumerable.Range(0, _incidents.Count).OrderBy(n => _rows[_incidents[n]].Timestamp))
+        {
+            float w = _font.GetStringSize(_incidentTexts[n], HorizontalAlignment.Left, -1f, fs).X + padX * 2f;
+            float x = XOf(_rows[_incidents[n]].Timestamp);
+            float left = Mathf.Clamp(x - w * 0.5f, TrackX, Mathf.Max(TrackX, TrackX + TrackW - w));
+            int lane = laneEnds.FindIndex(end => end + 3f <= left);
+            if (lane < 0)
+            {
+                if (laneEnds.Count < MaxLabelLanes) { lane = laneEnds.Count; laneEnds.Add(0f); }
+                else lane = laneEnds.IndexOf(laneEnds.Min());
+            }
+            laneEnds[lane] = left + w;
+            lefts[n] = left;
+            widths[n] = w;
+            lanes[n] = lane;
+        }
+        _labelLanes = laneEnds.Count;
+
+        // 첫 줄이 띠 바로 위다(선이 가장 짧게 닿는다). 겹친 라벨은 그 위 줄로 올라간다.
+        float lh = BaseLabelH * K;
+        float bottom = AxisH + _labelLanes * lh;
+        for (int n = 0; n < _incidents.Count; n++)
+            _labelRects.Add(new Rect2(lefts[n], bottom - (lanes[n] + 1) * lh + 1f, widths[n], lh - 2f));
+    }
+
+    public override void _Notification(int what)
+    {
+        if (what == NotificationResized) _labelsFor = -Vector2.One;
+    }
+
     // ── 그리기 ─────────────────────────────────────────────────────────
     public override void _Draw()
     {
         _font ??= ViewFont.Default;
         if (_employees.Count == 0) return;
 
+        LayoutLabels();
         DrawAxis();
         DrawBands();
         DrawIncidentLines();
@@ -271,13 +348,15 @@ public partial class StaffTimelineView : Control
         }
     }
 
-    // 사고는 띠를 관통하는 세로선 하나다. 글자는 쓰지 않는다 —
-    // 띠 위에 "23:47 · 정비실 · 고장" 같은 줄이 사고 수만큼 쌓이면 정작 띠가 안 보인다.
-    // 무슨 사고인지는 선을 누르거나(아래 목록이 그 줄로 내려간다) 올려 두면(툴팁) 읽는다.
+    // 사고는 띠를 관통하는 굵은 세로선이고, 그 위에 "○○실 사고 / ○○실 방해공작" 라벨이 선다.
+    // 시각까지는 적지 않는다 — 가로축 눈금이 이미 말해 준다(올려 두면 툴팁에 시각까지 뜬다).
+    // 선이나 라벨을 누르면 아래 목록이 그 줄로 내려간다(조사 노트에서는 그 사고 카드를 고른다).
     private void DrawIncidentLines()
     {
         float top = BandTop;
         float bottom = BandTop + _employees.Count * RowH;
+        float tip = BaseTipH * K;
+        int fs = LabelFs;
 
         for (int n = 0; n < _incidents.Count; n++)
         {
@@ -285,13 +364,27 @@ public partial class StaffTimelineView : Control
             float x = XOf(row.Timestamp);
             var col = IncidentColor(row);
             bool hot = _hover.Kind == 2 && _hover.Index == n;
+            var label = n < _labelRects.Count ? _labelRects[n] : new Rect2(x, top - tip, 0f, 0f);
 
-            DrawLine(new Vector2(x, top - 3f), new Vector2(x, bottom), col, hot ? 3f : 2f);
-            // 선이 띠 색에 묻히지 않게 위쪽에 작은 삼각 머리를 단다.
+            // 선은 라벨 밑에서 띠 바닥까지. 띠 색에 묻히지 않게 어두운 테두리를 먼저 깐다.
+            float w = LineW + (hot ? 1.5f : 0f);
+            var from = new Vector2(x, label.End.Y);
+            var to = new Vector2(x, bottom);
+            DrawLine(from, to, new Color(0f, 0f, 0f, 0.55f), w + 2f);
+            DrawLine(from, to, hot ? col.Lightened(0.25f) : col, w);
+            // 띠 바로 위의 삼각 머리 — 선이 어느 시각에 꽂히는지 한눈에 보이게.
+            float hw = Mathf.Max(5f, 2.6f * K);
             DrawColoredPolygon(new[]
             {
-                new Vector2(x - 5f, top - 11f), new Vector2(x + 5f, top - 11f), new Vector2(x, top - 2f),
+                new Vector2(x - hw, top - tip), new Vector2(x + hw, top - tip), new Vector2(x, top - 1f),
             }, col);
+
+            if (label.Size.X <= 0f) continue;
+            DrawRect(label, new Color(0.04f, 0.05f, 0.06f, hot ? 0.96f : 0.88f));
+            DrawRect(label, col with { A = hot ? 1f : 0.75f }, false, 1f);
+            DrawString(_font, new Vector2(label.Position.X + 4f * K, label.Position.Y + label.Size.Y * 0.5f + fs * 0.36f),
+                _incidentTexts[n], HorizontalAlignment.Left, label.Size.X - 6f * K, fs,
+                hot ? Colors.White : col.Lightened(0.3f));
         }
     }
 
@@ -371,9 +464,20 @@ public partial class StaffTimelineView : Control
         }
 
         float bottom = BandTop + _employees.Count * RowH;
-        if (pos.Y >= BandTop - 8f && pos.Y <= bottom)
+        // 라벨을 눌러도 선을 누른 것과 같다.
+        for (int n = 0; n < _incidents.Count && n < _labelRects.Count; n++)
+            if (_labelRects[n].Grow(2f).HasPoint(pos)) return (2, n, "");
+        if (pos.Y >= AxisH && pos.Y <= bottom)
+        {
+            int best = -1;
+            float bestGap = LineHitHalf;
             for (int n = 0; n < _incidents.Count; n++)
-                if (Mathf.Abs(pos.X - XOf(_rows[_incidents[n]].Timestamp)) <= 4f) return (2, n, "");
+            {
+                float gap = Mathf.Abs(pos.X - XOf(_rows[_incidents[n]].Timestamp));
+                if (gap <= bestGap) { best = n; bestGap = gap; }
+            }
+            if (best >= 0) return (2, best, "");
+        }
 
         if (pos.X >= TrackX && pos.Y >= BandTop && pos.Y < bottom)
         {
@@ -430,10 +534,16 @@ public partial class StaffTimelineView : Control
     // 띠와 카드가 다른 방을 가리키면 추리가 어긋난다.
     private static string IncidentRoom(DisplayLogEntry r) => InterviewEvidenceBoard.IncidentRoomOf(r);
 
-    // "23:47 · 정비실 · 방해공작"
-    private static string IncidentLabel(DisplayLogEntry r) =>
-        ClockText(r.Timestamp) + " · " + RoomName(IncidentRoom(r)) + " · "
-        + (r.Severity == DisplayLogSeverity.Sabotage ? "방해공작" : "고장");
+    // 선 위 라벨 — "정비실 사고" / "발전실 방해공작". 방을 모르면 종류만 쓴다.
+    private static string IncidentTitle(DisplayLogEntry r)
+    {
+        string kind = r.Severity == DisplayLogSeverity.Sabotage ? "방해공작" : "사고";
+        string room = IncidentRoom(r);
+        return string.IsNullOrEmpty(room) ? kind : RoomName(room) + " " + kind;
+    }
+
+    // 툴팁 — "23:47 · 정비실 사고"
+    private static string IncidentLabel(DisplayLogEntry r) => ClockText(r.Timestamp) + " · " + IncidentTitle(r);
 
     // 근무 초 → 22:00~04:00 벽시계 숫자. 환산은 DialogueClock 한 곳에서만 한다
     // (SaboteurPlan.Clock 과 같은 식이다). 띠는 숫자 표기를 쓴다 — 가로축 눈금과 맞춰야 한다.

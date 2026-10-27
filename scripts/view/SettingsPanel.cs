@@ -222,21 +222,28 @@ public partial class SettingsPanel : CanvasLayer
         frame.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         sheet.AddChild(frame);
 
+        // 머리띠(HologramFrame 의 띠)를 제목 글자 높이에서 거꾸로 잡는다. 기본 30px 띠는
+        // 제목 한가운데를 가로질러, 띠 아랫선 · 아래 구분선 · 글자가 서로 어긋나 보였다.
+        // 위아래 여백을 똑같이 두고 제목 · 힌트를 띠 안 세로 가운데에 앉힌다
+        // (PhoneCallHud · StoryCutinHud 의 이름띠와 같은 방식). 띠 아랫선이 곧 구분선이다.
+        const float headPad = 10f;
+        float titleH = Mathf.Ceil(_body.GetHeight(Fz(24)));
+        frame.BandHeight = Mathf.Round(headPad * 2f + titleH);
+
         var title = Lbl("SYSTEM CONFIG  /  환경 설정", 24, Cyan, _body);
-        title.Position = new Vector2(30f, 18f);
+        title.Position = new Vector2(30f, headPad);
+        title.Size = new Vector2(560f, titleH);
         sheet.AddChild(title);
         var hint = Lbl("ESC  뒤로", 14, InkDim, _body);
-        hint.Position = new Vector2(600f, 24f);
-        hint.Size = new Vector2(140f, 24f);
+        hint.Position = new Vector2(600f, headPad);
+        hint.Size = new Vector2(140f, titleH);
         hint.HorizontalAlignment = HorizontalAlignment.Right;
         sheet.AddChild(hint);
-        var rule = Rule();
-        rule.Position = new Vector2(30f, 60f);
-        rule.Size = new Vector2(712f, 1f);
-        sheet.AddChild(rule);
+        // 본문은 띠 아래에서 시작한다(띠가 글꼴 따라 커져도 겹치지 않게).
+        float bodyTop = Mathf.Max(66f, frame.BandHeight + 6f);
 
         // ── 왼쪽 단 : 음량 · 화면 ──
-        var left = new VBoxContainer { Position = new Vector2(30f, 66f), Size = new Vector2(372f, 420f) };
+        var left = new VBoxContainer { Position = new Vector2(30f, bodyTop), Size = new Vector2(372f, 420f) };
         left.AddThemeConstantOverride("separation", 6);
         sheet.AddChild(left);
         left.AddChild(Section("음 량"));
@@ -248,7 +255,7 @@ public partial class SettingsPanel : CanvasLayer
         left.AddChild(QualityRow(150f, 150f));
 
         // ── 오른쪽 단 : 조작키 ──
-        var right = new VBoxContainer { Position = new Vector2(424f, 66f), Size = new Vector2(318f, 420f) };
+        var right = new VBoxContainer { Position = new Vector2(424f, bodyTop), Size = new Vector2(318f, 420f) };
         right.AddThemeConstantOverride("separation", 6);
         sheet.AddChild(right);
         right.AddChild(Section("조 작 키"));

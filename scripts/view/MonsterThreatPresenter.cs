@@ -254,6 +254,11 @@ public partial class MonsterThreatPresenter : Node
     private void OnPounded(MonsterThreat t)
     {
         PlayAt(t.Def.SfxPound, -4f, Pan(t), (float)GD.RandRange(0.92, 1.08));
+        // 개체마다의 소리(노크 · 배관 · 쇳소리)만으로는 "무언가 벽을 친다" 가 안 들렸다 —
+        // 둔탁한 충격음을 한 겹 더 깐다. 패닝 플레이어(PlayHorror)는 하나를 여럿이 나눠 써서
+        // 다른 공포음에 끊기므로, 이 겹은 일반 효과음 풀로 낸다(끊기지 않는다).
+        Sfx.Instance?.Play("impact_blunt", -2f, (float)GD.RandRange(0.64, 0.74));
+        Sfx.Instance?.Play("head_impact", -8f, (float)GD.RandRange(0.70, 0.80));
         // 문짝이 그 충격에 짧게 밀렸다 돌아온다 — "막혀 있다" 가 눈으로 보여야 한다.
         FacilityCctvWorld.Instance?.PoundCorridorDoor(t.SegmentId);
         // 문과 장치가 미세하게 흔들린다. 과한 파괴 연출은 쓰지 않는다.

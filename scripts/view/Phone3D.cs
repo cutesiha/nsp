@@ -256,8 +256,9 @@ public partial class Phone3D : Node3D
     // 받침(본체)을 눌러도 안 집혀서 벨이 끊길 때까지 몇 번씩 헛클릭하게 된다.
     // 그래서 DAY1~5 에서는 본체까지 덮도록 넓힌다.
     //
-    // **가상 시뮬(DAY0)은 기존 범위 그대로다.** 교육은 "수화기를 든다" 를 가르치는 자리라,
-    // 아무 데나 눌러도 집히면 무엇을 눌렀는지가 안 남는다.
+    // **가상 시뮬(DAY0)은 평소 기존 범위 그대로다.** 교육은 "수화기를 든다" 를 가르치는 자리라,
+    // 아무 데나 눌러도 집히면 무엇을 눌렀는지가 안 남는다. 다만 전화를 받으라고 하는 동안
+    // (벨 · 휴게시간 첫 통화 지시)에는 넓힌다 — 그때 헛클릭하면 교육이 거기서 막힌다.
     [Export] public Vector3 WideClickSize = new(0.46f, 0.26f, 0.48f);
     // 넓힌 상자는 받침까지 닿도록 조금 내려 앉힌다(위쪽은 수화기를 그대로 덮는다).
     [Export] public float WideClickDrop = 0.02f;
@@ -284,11 +285,26 @@ public partial class Phone3D : Node3D
         }
     }
 
-    // 오늘 넓은 범위를 쓰는가. 교육일(DAY0)만 좁은 기본값을 쓴다.
+    // 가상 시뮬에서 지금 "전화를 받으라" 고 하는 중인가 — 벨이 울리는 중이거나,
+    // 교육이 수화기를 들라고 지시하고 있다(휴게시간 첫 통화).
+    private bool TutorialInvitesPhone =>
+        _state == PhoneState.Ringing || NSP.Prologue.TutorialDirector.Instance?.PhoneInvited == true;
+
+    // 가상 시뮬 — 자막 띠 가운데가 책상 위 전화기를 덮고 있다. 대사를 넘기려고 띠를 누른
+    // 클릭이 전화기까지 내려가 통화가 열리던 자리다. 전화를 받으라고 할 때가 아니면
+    // 띠 위의 클릭은 전화기가 받지 않는다(실제 근무 DAY1~ 는 그대로).
+    private bool TutorialSubtitleCoversClick()
+    {
+        if (!NSP.Core.DayFeatures.IsTutorialDay || TutorialInvitesPhone) return false;
+        var vp = GetViewport();
+        return vp != null && NSP.Prologue.GuideSubtitleHud.Instance?.ContainsPoint(vp.GetMousePosition()) == true;
+    }
+
+    // 오늘 넓은 범위를 쓰는가. 교육일(DAY0)은 전화를 받으라고 할 때만 넓힌다.
     private void ApplyClickRange()
     {
         if (_clickBox == null || _clickShape == null) return;
-        bool wide = !NSP.Core.DayFeatures.IsTutorialDay;
+        bool wide = !NSP.Core.DayFeatures.IsTutorialDay || TutorialInvitesPhone;
         if (_wideNow == wide) return;
         // 수화기를 들고 있는 동안에는 재지 않는다 — 수화기가 손에 가 있으면 부피가
         // 책상 절반으로 번진다. 내려놓은 다음 프레임에 다시 잰다.
@@ -358,6 +374,8 @@ public partial class Phone3D : Node3D
         if (ControlRoom3DController.Instance?.IsInputLocked == true) return;
         // 관리자 패드를 든 동안에는 수화기를 집지 않는다 — 패드를 내려놓고 받는다.
         if (AdminPad3D.Instance?.IsOpen == true) return;
+        // 가상 시뮬 — 자막 띠를 누른 클릭은 대사 몫이다.
+        if (TutorialSubtitleCoversClick()) return;
 
         if (_state == PhoneState.Idle) StartOutgoing();
         else if (_state == PhoneState.Ringing) PickUp();

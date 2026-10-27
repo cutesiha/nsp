@@ -261,6 +261,8 @@ public partial class ShiftFlowController : Node
         var cfg = Config.Instance?.Data;
         if (gs == null || cfg == null || DayFeatures.IsTutorialDay) return;
         if (gs.CurrentDay != cfg.StressUnlockDay) return;
+        // 단기 근무에는 스트레스가 없다 — 열릴 것이 없으니 안내도 하지 않는다.
+        if (!DayFeatures.StressEnabled) return;
         if (!_unlockSaid.Add($"stress|{gs.CurrentDay}")) return;
         _ = PlayGuideLines("unlock_stress");
     }

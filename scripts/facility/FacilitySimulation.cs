@@ -426,6 +426,8 @@ public partial class FacilitySimulation : Node
     // 46~50 = 기절. 근무에서 빠지고 의무실로 옮겨졌다가, 회복 시간이 지나면 복귀한다.
     private void CheckFaint(EmployeeState st)
     {
+        // 단기 근무에는 스트레스도, 그로 인한 기절도 없다(검사용 강제 기절 TriggerTutorialFaint 포함).
+        if (!GameModes.StressSystemEnabled) return;
         var cfg = Config.Instance.Data;
         if (st.Incapacitated || st.Stress < cfg.StressFaintFrom || !st.Alive) return;
 
@@ -976,16 +978,25 @@ public partial class FacilitySimulation : Node
     // (코어실↔경비실처럼 대각선으로 두 칸 떨어진 방까지 한 번에 잇는다) 그 지름길 때문에
     // "바로 옆 방으로 보냈는데 엉뚱한 방을 들렀다 가는" 경로가 나왔다.
     // 데이터가 한쪽 방에만 적혀 있을 수 있어(예: 의무실 → 정비실) 반대편 목록도 함께 본다.
-    private IEnumerable<string> Neighbors(string roomId)
-    {
-        var own = _roomDefs.GetValueOrDefault(roomId)?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
-        return own
-            .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId))
-            .Distinct()
+    private IEnumerable<string> Neighbors(string roomId) =>
+        LinkedRoomIds(roomId)
             // 차폐문이 내려온 간선은 길이 아니다. **방을 잠그는 것(SetRoomLocked)과 다르다** —
             // 방은 멀쩡히 쓸 수 있고 그 한 통로만 못 지나간다. 그래서 우회로가 있으면
             // 돌아가고, 없으면 안전한 쪽에서 기다린다.
             .Where(n => _corridors.IsPassable(roomId, n));
+
+    // 통로로 이어진 방(양방향, 차폐문 무시). 길찾기 · 근무 중 미니맵 · 배치 지도가 같은 목록을 쓴다.
+    // 단기 근무에서 빠진 방(환기실 · 의무실)은 없는 방이다 — 그 방으로도, 그 방을 거쳐서도 가지
+    // 않고, 그 방을 거쳐야만 닿던 곳은 GameModes.BypassLinksOf 가 바로 잇는다(정비실 ↔ 격리실).
+    public IEnumerable<string> LinkedRoomIds(string roomId)
+    {
+        if (GameModes.IsRoomRemoved(roomId)) return Enumerable.Empty<string>();
+        var own = _roomDefs.GetValueOrDefault(roomId)?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
+        return own
+            .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId))
+            .Concat(GameModes.BypassLinksOf(roomId))
+            .Distinct()
+            .Where(n => !GameModes.IsRoomRemoved(n));
     }
 
     // 작업실 개체 → 복도 개체. 다음 단계를 띄우지 못해도(이미 하나가 돌고 있거나
@@ -1004,13 +1015,7 @@ public partial class FacilitySimulation : Node
     // 차폐문을 **무시한** 방 연결. 괴물이 어느 복도로 들어올지 고를 때 쓴다 —
     // 문을 내렸다고 해서 괴물이 다른 방에서 생겨나지는 않기 때문이다(길이 막힐 뿐이다).
     // 직원 길찾기는 여전히 Neighbors()(차폐 반영)를 쓴다.
-    public IEnumerable<string> RoomNeighborsIgnoringBarriers(string roomId)
-    {
-        var own = _roomDefs.GetValueOrDefault(roomId)?.ConnectedRoomIds ?? new Godot.Collections.Array<string>();
-        return own
-            .Concat(_roomDefs.Values.Where(o => o.ConnectedRoomIds.Contains(roomId)).Select(o => o.RoomId))
-            .Distinct();
-    }
+    public IEnumerable<string> RoomNeighborsIgnoringBarriers(string roomId) => LinkedRoomIds(roomId);
 
     // 복도망 — 방 그래프 위에 얹힌 차폐문 · 카메라 메타데이터.
     private readonly CorridorNet _corridors = new();

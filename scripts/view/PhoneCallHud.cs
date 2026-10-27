@@ -405,6 +405,8 @@ public partial class PhoneCallHud : CanvasLayer
             if (_session == null) return;
             _session.Toggle(id);
             OnEvidencePicked();
+            // 띠에서 누른 자료(사고 세로선이면 그 사고 카드)가 아래 목록에 보이게 굴린다.
+            _ = ScrollNotesTo(id);
         };
 
         // 보기 — 기본은 지금 심문 중인 직원의 자료다. 다른 직원 자료는 아예 뜨지 않는다
@@ -646,6 +648,22 @@ public partial class PhoneCallHud : CanvasLayer
             AddEvidenceRow(ev, InterviewEvidenceDisplay.DetailLine(ev), null, 1, near);
     }
 
+    private const string EvidenceRowMeta = "evidence_id";
+
+    // 목록을 다시 그린 다음 프레임에 그 자료의 줄을 찾아 보이게 한다. 묶음 카드 안에 접혀 있으면 줄이 없다 — 그대로 둔다.
+    private async System.Threading.Tasks.Task ScrollNotesTo(string evidenceId)
+    {
+        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+        if (_evidenceList == null || _console == null || string.IsNullOrEmpty(evidenceId)) return;
+        foreach (Node c in _evidenceList.GetChildren())
+            if (c is Control row && !row.IsQueuedForDeletion()
+                && (string)row.GetMeta(EvidenceRowMeta, "") == evidenceId)
+            {
+                _console.ScrollListTo(row);
+                return;
+            }
+    }
+
     // 원본 자료 한 장 — ★ 와 선택 버튼.
     private void AddEvidenceRow(InterviewEvidence ev, string line1, string line2, int indent,
         System.Collections.Generic.HashSet<string> near)
@@ -658,6 +676,7 @@ public partial class PhoneCallHud : CanvasLayer
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 3);
         _evidenceList.AddChild(row);
+        row.SetMeta(EvidenceRowMeta, ev.Id ?? "");
         if (indent > 0) row.AddChild(new Control { CustomMinimumSize = new Vector2(22 * indent, 0) });
 
         // ★ — 플레이어가 직접 찍는 메모(= 관리자 패드의 단서). 게임이 중요도를 정하지 않는다.
@@ -1081,7 +1100,7 @@ public partial class PhoneCallHud : CanvasLayer
             int idx = i;
             _choices.AddChild(ChoiceButton(qs[i].Question, () => OnGeneralQuestion(idx)));
         }
-        AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
+        AddTail(ChoiceButton("통화를 종료한다.", CloseCall), endsCall: true);
     }
 
     // --- CCTV 로 목격한 딴짓을 캐묻는다 ------------------------------------
@@ -1204,7 +1223,7 @@ public partial class PhoneCallHud : CanvasLayer
         }
 
         // ④ 세션을 끝내는 유일한 버튼.
-        AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall));
+        AddTail(InterviewChoiceButton("통화를 종료한다.", CloseCall), endsCall: true);
     }
 
     // 카드 본문을 선택지 라벨에 넣을 만큼만 자른다.
@@ -1246,12 +1265,14 @@ public partial class PhoneCallHud : CanvasLayer
             var ask = InterviewChoiceButton($"[{Short(one?.Body, 10)}]로 묻는다.", OnAskWithEvidence);
             TintAction(ask, tint);
             _choices.AddChild(ask);
+            _evidenceActionBtn = ask;
             return;
         }
 
         var b = InterviewChoiceButton("두 자료를 함께 제시한다.", OnConfront);
         TintAction(b, tint);
         _choices.AddChild(b);
+        _evidenceActionBtn = b;
     }
 
     // 지금 심문 중인 직원의 고유색(배치표 · 미니맵과 같은 색).
@@ -1377,6 +1398,7 @@ public partial class PhoneCallHud : CanvasLayer
             // 묻는 질문과 따지는 질문을 색으로 가른다 — 모순 제시 버튼과 같은 붉은색.
             if (q.IsConfront) TintAction(b, new Color(1f, 0.45f, 0.38f));
             _choices.AddChild(b);
+            _firstIntentBtn ??= b;
         }
         AddTail(InterviewChoiceButton("자료를 내려놓고 다른 질문을 한다.", () =>
         {
@@ -1524,7 +1546,7 @@ public partial class PhoneCallHud : CanvasLayer
     private void BuildEndOnly()
     {
         ClearChoices();
-        AddTail(ChoiceButton("통화를 종료한다.", CloseCall));
+        AddTail(ChoiceButton("통화를 종료한다.", CloseCall), endsCall: true);
     }
 
     private static void TintAction(Button b, Color c)
@@ -1642,6 +1664,8 @@ public partial class PhoneCallHud : CanvasLayer
 
     private void ClearChoices()
     {
+        _evidenceActionBtn = null;
+        _firstIntentBtn = null;
         foreach (var box in new Control[] { _choices, _tail })
         {
             if (box == null) continue;
@@ -1650,10 +1674,31 @@ public partial class PhoneCallHud : CanvasLayer
     }
 
     // 목록의 맨 아래 한 줄. 조사 자료 버튼 두 칸보다 항상 아래에 놓인다.
-    private void AddTail(Button b)
+    // endsCall = 「통화를 종료한다.」 인가(교육 화살표가 "끊는 버튼" 과 "돌아가는 버튼" 을 가른다).
+    private void AddTail(Button b, bool endsCall = false)
     {
+        b.SetMeta(EndsCallMeta, endsCall);
         _tail.AddChild(b);
     }
+
+    private const string EndsCallMeta = "ends_call";
+
+    // ── 교육 화살표가 가리킬 자리(TutorialDirector) ─────────────────────
+    // 고른 자료로 하는 행동(「[자료]로 묻는다.」 · 「두 자료를 함께 제시한다.」). 없으면 null.
+    private Button _evidenceActionBtn;
+    public Control EvidenceActionChoice =>
+        IsInstanceValid(_evidenceActionBtn) && _evidenceActionBtn.IsInsideTree() ? _evidenceActionBtn : null;
+
+    // 자료로 물을 질문 목록이 떠 있으면 그 첫 질문. 없으면 null.
+    private Button _firstIntentBtn;
+    public Control FirstIntentChoice =>
+        IsInstanceValid(_firstIntentBtn) && _firstIntentBtn.IsInsideTree() ? _firstIntentBtn : null;
+
+    // 맨 아래 한 줄(통화를 종료한다 / 다른 질문을 한다). 없으면 null.
+    public Control TailChoice =>
+        _tail?.GetChildCount() > 0 && _tail.GetChild(0) is Control c && !c.IsQueuedForDeletion() ? c : null;
+
+    public bool TailEndsCall => TailChoice is { } c && c.HasMeta(EndsCallMeta) && (bool)c.GetMeta(EndsCallMeta);
 
     private void CloseCall()
     {

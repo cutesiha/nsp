@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="PadManualDef" load_steps=43 format=3]
+[gd_resource type="Resource" script_class="PadManualDef" load_steps=44 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/PadManualDef.cs" id="1_manual"]
 [ext_resource type="Script" path="res://scripts/data/PadManualChapterDef.cs" id="2_chapter"]
@@ -126,27 +126,39 @@ Lines = PackedStringArray("충분히 의심되는 직원은 격리실로 보낼 
 
 [sub_resource type="Resource" id="page_21"]
 script = ExtResource("3_page")
+StressOnly = true
 ImagePath = "res://assets/pad/manual/staff_app.png"
 Title = "스트레스"
 Lines = PackedStringArray("사고, 개체, 불편한 동료는 스트레스를 올립니다.", "구간은 정상 → 주의 → 위험 → 기절 순입니다.", "주의 구간에 든 직원부터 눈여겨보십시오.")
 
 [sub_resource type="Resource" id="page_22"]
 script = ExtResource("3_page")
+StressOnly = true
 ImagePath = "res://assets/pad/manual/medical.png"
 Title = "기절과 의무실"
 Lines = PackedStringArray("스트레스가 한계를 넘으면 직원이 쓰러집니다.", "동료가 의무실 침대로 옮겨야 회복됩니다.", "의무실은 스트레스가 높은 직원도 회복시킵니다.")
 
 [sub_resource type="Resource" id="page_23"]
 script = ExtResource("3_page")
+StressOnly = true
 ImagePath = "res://assets/pad/manual/vent.png"
 Title = "환기실"
 Lines = PackedStringArray("환기실은 공조를 유지해 스트레스 상승을 억제합니다.", "환기실을 비우면 직원들의 스트레스가 더 빨리 오릅니다.")
 
 [sub_resource type="Resource" id="page_24"]
 script = ExtResource("3_page")
+StressOnly = true
 ImagePath = "res://assets/pad/manual/staff_app.png"
 Title = "관계"
 Lines = PackedStringArray("사이가 아주 나쁜 두 사람은 같은 방을 거부합니다.", "불편한 사이를 같이 두면 일이 느려지고,", "긴장과 말다툼으로 스트레스가 쌓입니다.", "직원 앱에서 누구와 사이가 좋은지 확인하십시오.")
+
+; 단기 근무(스트레스 없음)에서 page_24 대신 싣는다 — 스트레스 언급만 뺐다.
+[sub_resource type="Resource" id="page_24_nostress"]
+script = ExtResource("3_page")
+NoStressOnly = true
+ImagePath = "res://assets/pad/manual/staff_app.png"
+Title = "관계"
+Lines = PackedStringArray("사이가 아주 나쁜 두 사람은 같은 방을 거부합니다.", "불편한 사이를 같이 두면 일이 느려지고,", "긴장이 쌓이면 말다툼이 벌어지기도 합니다.", "직원 앱에서 누구와 사이가 좋은지 확인하십시오.")
 
 [sub_resource type="Resource" id="room_core"]
 script = ExtResource("3_page")
@@ -180,12 +192,14 @@ Lines = PackedStringArray("시설을 감시하고 직원의 재석 기록을 남
 
 [sub_resource type="Resource" id="room_vent"]
 script = ExtResource("3_page")
+StressOnly = true
 ImagePath = "res://assets/pad/manual/vent.png"
 Title = "환기실"
 Lines = PackedStringArray("공조를 유지해 직원의 스트레스 상승을 억제합니다.", "비워 두는 것만으로 스트레스가 오르지는 않습니다.", "환기가 고장 나면 전 직원 스트레스가 계속 오릅니다.", "경고가 뜨면 사람을 보내 고장을 막으십시오.")
 
 [sub_resource type="Resource" id="room_medical"]
 script = ExtResource("3_page")
+StressOnly = true
 ImagePath = "res://assets/pad/manual/medical.png"
 Title = "의무실"
 Lines = PackedStringArray("기절한 직원은 이곳 침대에 눕혀야 깨어납니다.", "스스로 움직이지 못하니 동료를 보내 옮기십시오.", "진료는 방 안 직원의 스트레스를 낮춥니다.", "고장 나면 회복이 두 배로 느려지고 진료도 멈춥니다.")
@@ -236,7 +250,8 @@ Pages = Array[Resource]([SubResource("page_17"), SubResource("page_18"), SubReso
 script = ExtResource("2_chapter")
 Title = "직원 관리"
 IconPath = "res://assets/pad/manual/medical.png"
-Pages = Array[Resource]([SubResource("page_21"), SubResource("page_22"), SubResource("page_23"), SubResource("page_24")])
+IconPathNoStress = "res://assets/pad/manual/staff_app.png"
+Pages = Array[Resource]([SubResource("page_21"), SubResource("page_22"), SubResource("page_23"), SubResource("page_24"), SubResource("page_24_nostress")])
 
 [resource]
 script = ExtResource("1_manual")

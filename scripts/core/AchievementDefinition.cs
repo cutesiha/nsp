@@ -105,14 +105,19 @@ public static class Achievements
         Add(FirstInterview, "취조를 시작하지", "휴게시간에 직원을 심문하세요.", "◇");
 
         // B. 실수 / 시설 관리
+        // 기절은 스트레스가 있는 근무(정규 근무)에만 있다 — 단기 근무에는 스트레스가 없다.
+        // 그 근무를 고를 수 없는 동안은 기절 과제를 목록에서 뺀다(얻을 길이 없는 과제가 남으면
+        // 수집률이 영영 다 차지 않는다). 「오늘은 무사히」도 기절을 말하지 않는다.
+        bool faintPossible = GameModes.IsPlayable(GameMode.Standard);
         Add(MazeFailOnce, "하찮은 관리자!", "수리 승인 퍼즐에 실패하세요.", "△");
         Add(MazeFailThree, "부러진 손가락", "수리 승인 퍼즐에 누적 3회 실패하세요.", "△");
         Add(RepairRequestIgnored, "모른 척하기도 업무입니다", "수리 승인 요청을 거절하거나 방치하세요.", "△");
-        Add(FirstFaint, "부주의한 관리자", "근무 중 직원을 기절까지 몰아붙이세요.", "△");
+        if (faintPossible) Add(FirstFaint, "부주의한 관리자", "근무 중 직원을 기절까지 몰아붙이세요.", "△");
         Add(WarningNeglected, "경고는 장식인가요?", "사전 경고를 방치해 설비를 고장 내세요.", "△");
         Add(PowerRestored, "다시 켜진 불빛", "발전기 사고로 줄어든 전력을 수리로 복구하세요.", "△");
         Add(FirstFacilityRepair, "고쳐 쓰면 그만", "고장 난 작업실 설비를 수리 완료하세요.", "△");
-        Add(SafeShift, "오늘은 무사히", "사망도 기절도 없이 하루 근무를 마치세요.", "△");
+        Add(SafeShift, "오늘은 무사히",
+            faintPossible ? "사망도 기절도 없이 하루 근무를 마치세요." : "사망자 없이 하루 근무를 마치세요.", "△");
 
         // C. 직원 / 이상현상 / 추리
         Add(MissedCallOnce, "무심한 관리자", "직원의 전화를 받지 않거나 거절하세요.", "○");

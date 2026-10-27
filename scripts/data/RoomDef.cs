@@ -29,6 +29,8 @@ public partial class RoomDef : Resource
     [Export] public Vector2 MapPosition = Vector2.Zero;
     // 띠 시간표(StaffTimelineView)에서 이 작업실을 나타내는 색. 그리기 전용이다 —
     // 어떤 판정도 이 값을 읽지 않는다. 비워 두면 통로와 같은 어두운 회색으로 그려진다.
+    // 색상은 방마다 다르게 두되 채도 · 밝기는 눌러 둔다 — 원색이 나란히 서면 어두운 시설
+    // 화면에서 띠만 알록달록 떠 보인다(2026-10-27 요청으로 전부 한 톤 낮췄다).
     [Export] public Color MapColor = new(0.30f, 0.33f, 0.36f);
     [Export] public bool IsCoreRoom = false;
     [Export] public bool IsRestricted = false;

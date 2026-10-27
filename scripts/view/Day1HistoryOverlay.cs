@@ -392,7 +392,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 띠 높이. 창의 본문(제목 아래 ~ 바닥, 566px)의 40% — 나머지 60% 가 텍스트 목록이다.
     // 텍스트가 열 줄 넘게 늘어서면 "누가 언제 어디" 가 안 읽힌다는 게 이 띠를 만든 이유지만,
     // 반반(280)으로 나누니 정작 목록이 너무 짧아졌다는 지적이 있었다.
-    private const float LogBandH = 226f;
+    // 2026-10-27 — 사고 선마다 라벨 줄이 생기고 "띠를 더 크게" 요청이 있어 226 → 262 로 올렸다.
+    private const float LogBandH = 262f;
 
     // 오늘 근무에 나온 직원만 띠에 올린다(배치표 · 휴게 명단과 같은 명단).
     private void RefreshLogBand()

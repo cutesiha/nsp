@@ -308,9 +308,10 @@ public partial class ScheduleMapView : Control
     // ── 좌표 ─────────────────────────────────────────────────────────────
 
     // 지도에 올릴 방: MapPosition 이 있는 방 전부(잠긴 방도 어둡게 보여 준다).
+    // 단기 근무에서 빠진 방(환기실 · 의무실)은 잠긴 칸으로도 그리지 않는다 — 없는 방이다.
     private static List<RoomDef> MapRooms(FacilitySimulation sim) =>
         sim.GetRoomIds().Select(sim.GetRoomDef)
-            .Where(d => d != null && d.MapPosition != Vector2.Zero)
+            .Where(d => d != null && d.MapPosition != Vector2.Zero && !GameModes.IsRoomRemoved(d.RoomId))
             .ToList();
 
     // MapPosition 전체를 지도 영역에 맞춰 늘린다(칸이 영역 밖으로 나가지 않게 반 칸씩 여백).
@@ -394,7 +395,8 @@ public partial class ScheduleMapView : Control
             if (def == null) continue;
 
             // 통로(실선) — 직원이 실제로 다니는 길. 근무 중 미니맵과 같은 직각 꺾임 규칙.
-            foreach (var other in def.ConnectedRoomIds)
+            // 길찾기와 같은 목록을 쓴다(단기 근무의 정비실 ↔ 격리실 직통로 포함).
+            foreach (var other in sim.LinkedRoomIds(roomId))
             {
                 if (!_cells.TryGetValue(other, out var oc) || !seen.Add(Key("c", roomId, other))) continue;
                 Vector2 a = cell.GetCenter(), b = oc.GetCenter();

@@ -14,7 +14,8 @@ namespace NSP.View;
 // 실제 대화는 여기서 굴리지 않는다. 기존대로 책상 위 전화기를 들면 PhoneCallHud 가 뜬다.
 public partial class InterviewCCTVView : Control
 {
-    private static readonly Rect2 Frame = new(28, 56, 744, 460);
+    // CCTV 화면(CCTVMonitorView)과 같이 조금 아래로 내려 앉힌다(+18).
+    private static readonly Rect2 Frame = new(28, 74, 744, 460);
 
     private Font _font;
     private TextureRect _roomFeed;      // 3D 사이드뷰 배경
@@ -144,15 +145,15 @@ public partial class InterviewCCTVView : Control
         AddChild(_statusLabel);
 
         var title = Lbl("INTERVIEW", 17, new Color(0.72f, 0.86f, 0.9f));
-        title.Position = new Vector2(Frame.Position.X + 4f, 24f);
+        title.Position = new Vector2(Frame.Position.X + 4f, 42f);
         AddChild(title);
 
         _recLabel = Lbl("● REC", 16, new Color(0.95f, 0.35f, 0.28f));
-        _recLabel.Position = new Vector2(Frame.Position.X + 132f, 25f);
+        _recLabel.Position = new Vector2(Frame.Position.X + 132f, 43f);
         AddChild(_recLabel);
 
         _clock = Lbl("--:--", 16, new Color(0.75f, 0.85f, 0.8f));
-        _clock.Position = new Vector2(Frame.End.X - 224f, 25f);
+        _clock.Position = new Vector2(Frame.End.X - 224f, 43f);
         _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);

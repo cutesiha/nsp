@@ -37,7 +37,8 @@ public static class DayFeatures
     public static bool AutoCallsEnabled => Day >= 1;
 
     public static bool StatsEnabled => Day >= (Cfg?.StatsUnlockDay ?? 2);
-    public static bool StressEnabled => Day >= (Cfg?.StressUnlockDay ?? 2);
+    // 단기 근무에는 스트레스가 아예 없다(GameModes.StressSystemEnabled).
+    public static bool StressEnabled => GameModes.StressSystemEnabled && Day >= (Cfg?.StressUnlockDay ?? 2);
     public static bool TaboosEnabled => Day >= (Cfg?.TabooUnlockDay ?? 2);
 
     // 능력치가 잠겨 있으면 실제 수치 대신 "보통"으로 읽는다.
@@ -62,6 +63,8 @@ public static class DayFeatures
     public static void ClearForcedRooms() => _forcedOpenRooms.Clear();
 
     // 오늘 이 작업실을 쓰는가(배치 / 업무 발생 / 무인 사고 / 지도 표시 판정의 단일 창구).
+    // 단기 근무에서 빠진 방(환기실 · 의무실)은 날짜 · 교육 예외와 상관없이 언제나 아니다.
     public static bool IsRoomActive(RoomDef def) =>
-        def == null || Day >= def.UnlockDay || _forcedOpenRooms.Contains(def.RoomId);
+        def == null || (!GameModes.IsRoomRemoved(def.RoomId)
+                        && (Day >= def.UnlockDay || _forcedOpenRooms.Contains(def.RoomId)));
 }

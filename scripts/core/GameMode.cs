@@ -124,6 +124,32 @@ public static class GameModes
     public static float UnstaffedWarningScale =>
         Current == GameMode.Competition ? CompetitionUnstaffedWarningScale : 1f;
 
+    // ── 단기 근무에는 스트레스가 없다(2026-10-27 사용자 지시) ───────────────
+    //
+    // 수치 자체가 없다 — 오르지도, 화면에 뜨지도 않는다. 스트레스가 원인이던 것도 같이 사라진다:
+    // 기절 · 의무실 이송, 환기실을 비웠을 때 · 환기 고장 · 근무 피로 · 사고 · 개체 · 관계 · 패닉으로
+    // 오르던 스트레스, 스트레스 구간에 따른 작업 효율 감소.
+    // 스트레스를 다루던 두 방(환기실 · 의무실)도 시설에서 통째로 빠진다 — 배치 · 지도 · 업무 ·
+    // 사고 · 방해공작 · 관리자 패드 지침 어디에도 나오지 않는다.
+    //
+    // 정규 근무(5일)는 예전 그대로다. 판정은 DayFeatures.StressEnabled / IsRoomActive 두 창구가 이
+    // 값을 보고, 그 창구를 거치지 않는 지도 · 길찾기 · 지침만 IsRoomRemoved 를 직접 본다.
+    public static bool StressSystemEnabled => Current != GameMode.Competition;
+
+    public static bool RemovesRooms => Current == GameMode.Competition;
+
+    public static bool IsRoomRemoved(string roomId) =>
+        RemovesRooms && (roomId is "vent_room" or "medical_room");
+
+    // 빠진 방을 거쳐야만 닿던 방을 바로 잇는 통로. 격리실은 원래 의무실을 거쳐 들어갔다
+    // (중앙제어실 → 저장고 → 정비실 → 의무실 → 격리실) — 단기 근무에서는 정비실에서 바로 들어간다.
+    public static System.Collections.Generic.IEnumerable<string> BypassLinksOf(string roomId)
+    {
+        if (Current != GameMode.Competition) yield break;
+        if (roomId == "maintenance_room") yield return "isolation_room";
+        else if (roomId == "isolation_room") yield return "maintenance_room";
+    }
+
     public static string DisplayName(GameMode mode) => mode switch
     {
         GameMode.Competition => "단기 근무",

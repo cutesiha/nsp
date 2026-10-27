@@ -38,7 +38,8 @@ StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
 IdPhoto = ExtResource("4_idphoto")
 SchedulePortrait = ExtResource("5_schedule")
-InterviewPortraitLift = 40.0
+InterviewPortraitLift = 52.0
+StoryPortraitLift = 0.03
 StandingGlowAmt = 0.65
 StandingGlowCenter = Vector2(0.5, 0.58)
 

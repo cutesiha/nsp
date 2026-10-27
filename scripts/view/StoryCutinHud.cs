@@ -158,6 +158,7 @@ public partial class StoryCutinHud : CanvasLayer
         // 모니터2 안에서는 원화가 살짝 아래로 내려앉아 보인다 — 크기는 그대로 두고
         // 자리만 조금 올린다.
         _left.LiftFraction = _right.LiftFraction = onMonitor ? MonitorPortraitLift : 0f;
+        _left.ApplyEmployeeLift = _right.ApplyEmployeeLift = onMonitor;
     }
 
     // 모니터2 안에서 스탠딩을 올리는 양(자리 높이 비율). 작게 — 0.04 면 영상 높이의 4%.

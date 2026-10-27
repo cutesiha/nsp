@@ -248,8 +248,30 @@ public partial class FacilityCctvWorld : Node3D
                 seg.RoomA == FacilitySimulation.DeployOriginRoomId);
             node.Position = new Vector3(120f + i * 40f, 0f, 0f);
             AddChild(node);
+            BrightenCorridorForCctv(node);
             _corridors[seg.Id] = vis;
             i++;
+        }
+    }
+
+    // 복도는 붉은 비상등뿐이라 CCTV 로 보면 벽과 바닥이 통째로 검게 묻혔다(BrightenForCctv 는
+    // 작업실에만 건다). 비상등은 그대로 두고, 천장 쪽에 그림자 없는 옅은 채움등 세 개를 깐다 —
+    // 복도 길이(16m)를 따라 고르게. 비상등과 마찬가지로 전력과 상관없이 늘 켜져 있다.
+    private const float CctvCorridorFillEnergy = 0.75f;
+
+    private static void BrightenCorridorForCctv(Node3D corridor)
+    {
+        foreach (float z in new[] { -5.2f, 0f, 5.2f })
+        {
+            corridor.AddChild(new OmniLight3D
+            {
+                Name = "CctvCorridorFill",
+                LightEnergy = CctvCorridorFillEnergy,
+                LightColor = new Color(0.80f, 0.86f, 1f),
+                OmniRange = 7f,
+                ShadowEnabled = false,
+                Position = new Vector3(0f, 2.3f, z),
+            });
         }
     }
 
@@ -609,9 +631,9 @@ public partial class FacilityCctvWorld : Node3D
     //
     // 어둡게 하는 연출(DimRoomLights)은 그대로 산다. 저쪽은 **지금 값에 곱하므로**
     // 올려 둔 밝기에서 같은 비율로 어두워진다.
-    private const float CctvLightBoost = 1.9f;
+    private const float CctvLightBoost = 2.3f;
     // 그림자 쪽이 통째로 검게 뭉개지지 않도록 방마다 아주 약한 채움등을 하나 더 둔다.
-    private const float CctvFillEnergy = 0.55f;
+    private const float CctvFillEnergy = 0.85f;
 
     private static void BrightenForCctv(Node3D room)
     {
@@ -874,15 +896,20 @@ public partial class FacilityCctvWorld : Node3D
         ShakeCamera(degrees, kind == GhostImpactKind.Floor ? 0.12f : 0.08f);
 
         // 효과음은 여기 한 곳에서만 난다. 전용 녹음(ghost_head_hit_wall / _metal / _floor)이
-        // 생기면 이 표의 이름만 바꾸면 된다. 지금은 있는 소리를 작게 빌려 쓴다 —
-        // 머리를 박는 소리지 폭발음이 아니므로 낮게, 피치를 내려 묵직하게.
+        // 생기면 이 표의 이름만 바꾸면 된다. 지금은 있는 소리를 빌려 쓴다 —
+        // 머리를 박는 소리지 폭발음이 아니므로 피치를 내려 묵직하게.
+        //
+        // 예전에는 -14dB 의 먼 충격음 하나뿐이라 근무 소음 밑에 묻혀 들리지 않았다(2026-10-27
+        // 플레이 피드백). 머리 충격음(head_impact)을 앞에 세우고 둔탁한 충격음을 밑에 깐다.
         (string Key, float Db, double PitchLo, double PitchHi) sfx = kind switch
         {
-            GhostImpactKind.Wall => ("impact_blunt", -14f, 0.74, 0.88),
-            GhostImpactKind.Machine => ("pipe_knock", -15f, 0.80, 0.95),
-            _ => ("impact_blunt", -12f, 0.60, 0.72),
+            GhostImpactKind.Wall => ("impact_blunt", -4f, 0.70, 0.82),
+            GhostImpactKind.Machine => ("pipe_knock", -9f, 0.80, 0.95),
+            _ => ("impact_blunt", -3f, 0.60, 0.72),
         };
         Sfx.Instance?.Play(sfx.Key, sfx.Db, (float)GD.RandRange(sfx.PitchLo, sfx.PitchHi));
+        Sfx.Instance?.Play("head_impact", kind == GhostImpactKind.Floor ? -5f : -4f,
+            (float)GD.RandRange(0.82, 0.96));
     }
 
     // 디버그 — 정해진 동작을 그 자리에서 강제로 재생한다.

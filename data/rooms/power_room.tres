@@ -13,7 +13,7 @@ AdjacentRoomIds = Array[String](["guard_room", "vent_room"])
 MapPosition = Vector2(90, 170)
 UnlockDay = 0
 ; 띠 시간표에서 이 방을 나타내는 색 — 발전실 주황
-MapColor = Color(0.92, 0.66, 0.22, 1)
+MapColor = Color(0.72, 0.58, 0.32, 1)
 IsCoreRoom = false
 ManagedResource = 1
 AccidentName = "발전기 과열"

@@ -63,6 +63,9 @@ public partial class EmployeeDef : Resource
     [Export] public Vector4 StandingMaskRect = Vector4.Zero;
     // 휴게 CCTV 스탠딩을 위로 올리는 양(px). 키 작은 직원의 얼굴이 화면 가운데 쪽에 오게.
     [Export] public float InterviewPortraitLift = 0f;
+    // 모니터2 스토리 컷인에서 이 직원만 더 올리는 양(스탠딩 자리 높이 비율 — 0.03 이면 3%).
+    // 여자 직원(토끼 · 고양이 · 양)만 아주 살짝 올린다(2026-10-27 요청).
+    [Export] public float StoryPortraitLift = 0f;
 
     // ── 관리자 패드 · 직원 탭(인사 기록) ─────────────────────────────────
     // 코드네임 뒤 신원은 비밀이다 — 성별은 "(추정)" 톤으로 적는다.

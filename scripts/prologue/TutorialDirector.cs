@@ -57,6 +57,8 @@ public partial class TutorialDirector : Node
     // 근무 시작 안내가 다 찍힌 뒤 첫 전화(자재 부족)가 울리기까지 기다리는 최대 시간.
     // 짧게 둔다 — "직원들이 복구 작업을 하고 있습니다" 다음에 한참 아무 일도 없으면 늘어진다.
     [Export] public float FirstCallWaitSeconds = 1.6f;
+    // 그래도 안내가 다 찍히자마자 벨이 울리지는 않게 — 근무 화면을 한숨 볼 틈은 둔다.
+    [Export] public float FirstCallMinDelaySeconds = 1.0f;
     // 정비실에 사람을 넣은 뒤 자재가 실제로 들어오기까지 기다려 주는 최대 시간.
     [Export] public float MaterialsArriveWaitSeconds = 3f;
     // 교육용 사고가 나는 작업실. 배치한 방과 달라야 토끼가 실제로 옮겨 간 기록이 남고,
@@ -73,6 +75,11 @@ public partial class TutorialDirector : Node
     [Export] public string LoneWorkerPreferredId = "cat";
 
     public bool IsRunning { get; private set; }
+
+    // 교육이 지금 "수화기를 들라" 고 하고 있는가. 그동안만 전화기가 자막 띠 위의 클릭도 받고
+    // 판정 상자를 넓힌다(Phone3D) — 평소에는 띠를 누른 클릭이 전화기로 새지 않는다.
+    public bool PhoneInvited => IsRunning && _phoneInvited;
+    private bool _phoneInvited;
 
     private ShiftFlowController _flow;
     private GuideHologramView _guide;
@@ -186,8 +193,11 @@ public partial class TutorialDirector : Node
         // 배치가 맞았다. 그 방 카드의 "지금 무엇을 만들고 있는가" 줄을 한 번 짚어 준다.
         NSP.View.FacilityMonitorView.HighlightRoomNumber(AssignRoomId);
         // "남은 직원도 배치한 뒤 근무 시작" — 지시다. 클릭을 기다리지 않는다.
+        // 남은 직원(고양이 · 여우) 카드 옆마다 화살표 — 그 직원을 놓는 순간 그 화살표만 사라진다.
+        PointAtUnplacedRoster();
         await SayAct("tut_assign_rest", () => GameState.Instance?.CurrentPhase == GamePhase.Live);
         await Until(() => GameState.Instance?.CurrentPhase == GamePhase.Live);
+        HideArrow();
 
         // 근무 화면 전환은 ShiftFlowController.EnterShift 가 이미 끝냈다(왼쪽=시설 / 오른쪽=CCTV).
         // "직원들이 시설 복구 작업을 하고 있습니다" — 다 찍히면 클릭 없이 곧바로 다음(전화)으로 간다.
@@ -305,15 +315,21 @@ public partial class TutorialDirector : Node
         if (string.IsNullOrEmpty(caller)) return;
 
         bool firstRing = true;
-        while (PhoneCallHud.Instance?.IsOpen != true)
+        // 다시 걸기 전의 빈틈에도 "받으라" 는 지시는 이어진다(벨이 잠깐 멈춰도 띠 위 클릭을 받는다).
+        _phoneInvited = true;
+        try
         {
-            if (!firstRing) TutorialTelemetry.Count("전화 재발신");
-            firstRing = false;
-            RingTutorialCall(caller, dialogueEvent, roomId);
-            // 벨이 울리는 동안(또는 다시 걸기 전) 잠깐 기다린다.
-            await Wait(1.0);
-            ThrowIfAborted();
+            while (PhoneCallHud.Instance?.IsOpen != true)
+            {
+                if (!firstRing) TutorialTelemetry.Count("전화 재발신");
+                firstRing = false;
+                RingTutorialCall(caller, dialogueEvent, roomId);
+                // 벨이 울리는 동안(또는 다시 걸기 전) 잠깐 기다린다.
+                await Wait(1.0);
+                ThrowIfAborted();
+            }
         }
+        finally { _phoneInvited = false; }
     }
 
     // 심문에서 플레이어가 던진 질문. 교육 진행 조건만 본다(대사에는 관여하지 않는다).
@@ -355,7 +371,9 @@ public partial class TutorialDirector : Node
 
         int cost = Mathf.Max(1, Config.Instance?.Data?.MaterialsPerCoreGauge ?? 2);
         // 근무 시작 안내 바로 뒤에 전화가 와야 한다 — 저절로 바닥나기를 오래 기다리지 않는다.
-        await UntilOrAfter(() => gs.Materials < cost, FirstCallWaitSeconds);
+        // 다만 안내가 다 찍히자마자 울리면 숨 돌릴 틈이 없다 — 최소 FirstCallMinDelaySeconds 는 둔다.
+        await Wait(FirstCallMinDelaySeconds);
+        await UntilOrAfter(() => gs.Materials < cost, Mathf.Max(0f, FirstCallWaitSeconds - FirstCallMinDelaySeconds));
         if (gs.Materials >= cost) gs.AddMaterials(-gs.Materials);
 
         // 전화를 거는 사람은 그 멈춘 자리에 있는 직원이다(없으면 교육 대상인 토끼).
@@ -375,8 +393,8 @@ public partial class TutorialDirector : Node
         // "자재가 필요합니다" 를 말하는 동안 화면 위 자재 숫자를 하늘색 테두리로 가리킨다.
         // 둘째 줄("정비실을 열었습니다")이 뜨면 꺼진다 — 그때부터 봐야 할 곳은 작업실이다.
         HintMaterialsFor(2);
-        // 둘째 줄(배치 지시)이 뜨면 정비실 옆에 화살표가 선다(cue: arrow). 배치하는 순간 다음으로.
-        ArmArrow(() => RoomArrowAim(MaterialsRoomId));
+        // 둘째 줄(배치 지시)이 뜨면 정비실 옆과 옮길 직원 옆에 화살표가 선다(cue: arrow). 배치하는 순간 다음으로.
+        ArmArrow(() => RoomArrowAim(MaterialsRoomId), () => PointAtMovers(sim, MaterialsRoomId, 1));
         await SayAct("tut_materials", () => AnyoneAssignedTo(sim, MaterialsRoomId));
         HideArrow();
 
@@ -411,7 +429,7 @@ public partial class TutorialDirector : Node
         sim.OpenRoomMidShift(StorageRoomId);
         NSP.View.FacilityMonitorView.HighlightRoomNumber(StorageRoomId);
         // "직원을 배치해 보십시오" 에서 기다린다 — 저장고에 사람을 넣는 순간 다음 대사.
-        ArmArrow(() => RoomArrowAim(StorageRoomId));
+        ArmArrow(() => RoomArrowAim(StorageRoomId), () => PointAtMovers(sim, StorageRoomId, 1));
         await SayAct("tut_storage", () => AnyoneAssignedTo(sim, StorageRoomId));
         HideArrow();
         await Say("tut_storage_done");
@@ -454,9 +472,9 @@ public partial class TutorialDirector : Node
         // 시연이 무엇을 바꿔 두었든 여기서 원래대로(줄을 넘기며 이미 돌려놓았지만 한 번 더).
         StopLeverDemos();
 
-        // "직원 2명을 발전실로 옮겨 수리하십시오" — 발전실 옆 화살표, 필요한 인원을 보내면 다음으로.
+        // "직원 2명을 발전실로 옮겨 수리하십시오" — 발전실 옆 + 옮길 직원 옆 화살표, 필요한 인원을 보내면 다음으로.
         // 플레이어가 토끼가 아닌 다른 직원을 보내도 교육이 멈추지 않는다.
-        ArmArrow(() => RoomArrowAim(AccidentRoomId));
+        ArmArrow(() => RoomArrowAim(AccidentRoomId), () => PointAtMovers(sim, AccidentRoomId, need));
         await SayAct("tut_relocate",
             () => AssignedCount(sim, AccidentRoomId) >= need || sim?.HasRepairPending(AccidentRoomId) == false,
             RoomVars(AccidentRoomId));
@@ -598,6 +616,7 @@ public partial class TutorialDirector : Node
         TutorialTelemetry.End(_reachedEnd);
         IsRunning = false;
         _materialsHintLines = 0;
+        _phoneInvited = false;
         HideArrow();
         StopLeverDemos();
         StopSabotageDemo();
@@ -827,8 +846,13 @@ public partial class TutorialDirector : Node
         // "토끼 직원을 선택한 뒤, 수화기를 들어 통화해 보십시오" — 토끼 아이콘 옆 화살표,
         // 토끼를 고르면 전화기 위에서 아래를 가리킨다. 수화기를 드는 순간 사라진다.
         ArmArrow(RestCallArrowAim);
-        await SayAct("tut_rest", () => PhoneCallHud.Instance?.IsOpen == true
-                                       && PhoneCallHud.Instance.CurrentEmployeeId == TutorialEmployeeId);
+        _phoneInvited = true;
+        try
+        {
+            await SayAct("tut_rest", () => PhoneCallHud.Instance?.IsOpen == true
+                                           && PhoneCallHud.Instance.CurrentEmployeeId == TutorialEmployeeId);
+        }
+        finally { _phoneInvited = false; }
         HideArrow();
         // 심문 대화창이 화면 아래 절반을 차지한다(일반 통화와 같은 자리) —
         // 지시문도 얼굴창도 위로 올라가야 가리지 않는다. 대화창을 접어도 이 자리는 그대로 둔다.
@@ -837,15 +861,22 @@ public partial class TutorialDirector : Node
 
         // "숫자 키 '1'" 줄에서 모니터1 을 확대한다(cue: zoom_monitor1).
         // 이동 기록으로 물으면 통과. 옮긴 기록이 아예 없는 판이면 아무 질문이나 하면 된다.
+        // 지시 줄이 뜨면 조사 노트 목록 위 → 자료를 고르면 대화창의 「[자료]로 묻는다.」 위에 화살표.
+        ArmArrow(AskEvidenceArrowAim);
         await SayAct("tut_ask_where", () => _rabbitAskedWithEvidence
                           || (string.IsNullOrEmpty(_rabbitOriginRoomName) && _rabbitAskedAnything));
+        HideArrow();
         // 토끼가 실제로 방을 옮긴 기록이 있을 때만 "기록과 진술이 다르다"고 말한다.
         if (!string.IsNullOrEmpty(_rabbitOriginRoomName))
             await SayAct("tut_contradiction", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
         // D 를 눌러 대화 기록을 **실제로 연 뒤에만** "통화를 종료하라"는 다음 줄이 뜬다.
         await SayAct("tut_dialogue_log", () => Day1HistoryOverlay.Instance?.IsDialogueOpen == true);
         // "통화를 종료해보십시오" 가 뜨는 순간 확대를 푼다(cue: zoom_clear).
+        // 「통화를 종료한다.」 옆 화살표 — 자료 질문 목록이 떠 있으면 먼저 「…다른 질문을 한다.」 옆.
+        // 통화가 끝날 때까지 따라다니다 끊는 순간 사라진다.
+        ArmArrow(EndCallArrowAim);
         await SayAct("tut_end_call", () => PhoneCallHud.Instance?.IsOpen != true);
+        HideArrow();
         if (Ctl?.IsMonitorFocused(1) == true) Ctl?.ClearFocus(0.45f);
     }
 
@@ -1045,20 +1076,122 @@ public partial class TutorialDirector : Node
     // 이 단계에서 띄울 화살표. 대본의 cue: arrow 줄이 뜨는 순간 실제로 뜬다 — cue 가 없는
     // 대본이면 지시 줄이 다 찍혀 행동을 기다리기 시작할 때 뜬다(SayAct).
     private Func<TutorialArrow.Aim?> _armedArrow;
+    // 주 화살과 같이 띄울 곁 화살(옮길 직원 옆 등). 주 화살이 뜨는 순간 함께 뜬다.
+    private Action _armedExtras;
 
-    private void ArmArrow(Func<TutorialArrow.Aim?> aim) => _armedArrow = aim;
+    private void ArmArrow(Func<TutorialArrow.Aim?> aim, Action extras = null)
+    {
+        _armedArrow = aim;
+        _armedExtras = extras;
+    }
 
     private void ShowArmedArrow()
     {
-        if (_armedArrow == null) return;
-        TutorialArrow.PointAt(_armedArrow);
+        if (_armedArrow != null) TutorialArrow.PointAt(_armedArrow);
+        _armedExtras?.Invoke();
         _armedArrow = null;
+        _armedExtras = null;
     }
 
     private void HideArrow()
     {
         _armedArrow = null;
+        _armedExtras = null;
         TutorialArrow.Clear();
+    }
+
+    // ── 곁 화살 — 옮길 직원 ──────────────────────────────────────────
+
+    private static string MoverKey(string employeeId) => "emp:" + employeeId;
+
+    // 배치 화면 — 아직 배치표에 놓지 않은 직원(토끼 제외 — 고양이 · 여우) 카드 옆마다.
+    // 놓는 순간 그 카드가 대기 인원에서 빠지므로 그 화살표만 사라진다.
+    private void PointAtUnplacedRoster()
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null) return;
+        foreach (string id in sim.GetActiveEmployeeIds())
+        {
+            if (id == TutorialEmployeeId) continue;
+            string captured = id;
+            TutorialArrow.PointAlso(MoverKey(captured), () =>
+            {
+                var map = NSP.Ui.ScheduleMapView.Instance;
+                return map == null ? null : TutorialArrow.BesideOnMonitor(map, map.RosterCardOf(captured));
+            });
+        }
+    }
+
+    // 근무 중 지도 — 그 작업실로 옮길 직원 아이콘 위에서 아래를 가리킨다(작업실 옆 화살표와 함께).
+    // 누구를 가리킬지는 매 프레임 다시 고른다 — 한 명을 옮기면 그 화살표는 사라지고 남은 몫만 남는다.
+    private void PointAtMovers(FacilitySimulation sim, string roomId, int need)
+    {
+        if (sim == null) return;
+        foreach (string id in sim.GetActiveEmployeeIds())
+        {
+            string captured = id;
+            TutorialArrow.PointAlso(MoverKey(captured), () =>
+            {
+                if (!PickMovers(sim, roomId, need).Contains(captured)) return null;
+                var map = FacilityMonitorView.Instance?.Minimap;
+                return map == null ? null
+                    : TutorialArrow.BesideOnMonitor(map, map.EmployeeIconOf(captured), TutorialArrow.Side.Above);
+            });
+        }
+    }
+
+    // 그 작업실로 옮기라고 가리킬 직원들. 코어실 인원은 남겨 두고 나머지를 가리킨다.
+    // 나머지로 모자라면 코어실에 한 명은 남긴 채 거기서 빼 오고, 그래도 모자라면(전원이 코어실)
+    // 코어실 직원을 가리킨다. 코어실에서 빼 올 때는 토끼가 먼저다 — 휴게시간 교육의
+    // "옮긴 기록" 이 토끼에게 남는다.
+    private System.Collections.Generic.List<string> PickMovers(FacilitySimulation sim, string roomId, int need)
+    {
+        var picks = new System.Collections.Generic.List<string>();
+        int missing = need - AssignedCount(sim, roomId);
+        if (sim == null || missing <= 0) return picks;
+
+        var core = new System.Collections.Generic.List<string>();
+        foreach (string id in sim.GetActiveEmployeeIds())
+        {
+            var st = sim.GetEmployeeState(id);
+            if (st == null || !st.Alive || st.Incapacitated || st.Isolated) continue;
+            if (string.IsNullOrEmpty(st.AssignedRoomId) || st.AssignedRoomId == roomId) continue;
+            if (st.AssignedRoomId == AssignRoomId) core.Add(id);
+            else picks.Add(id);
+        }
+        if (picks.Count >= missing) return picks;
+
+        core.Sort((a, b) => (a == TutorialEmployeeId ? 0 : 1).CompareTo(b == TutorialEmployeeId ? 0 : 1));
+        int fromCore = Mathf.Min(missing - picks.Count, Mathf.Max(core.Count - 1, 0));
+        if (picks.Count + fromCore < missing) fromCore = Mathf.Min(missing - picks.Count, core.Count);
+        picks.AddRange(core.Take(fromCore));
+        return picks;
+    }
+
+    // 휴게시간 심문 — 자료를 아직 안 골랐으면 조사 노트 목록 위(아래를 가리킨다).
+    // 고르면 대화창의 「[자료]로 묻는다.」 위, 그걸 눌러 질문 목록이 뜨면 첫 질문 위.
+    private static TutorialArrow.Aim? AskEvidenceArrowAim()
+    {
+        var hud = PhoneCallHud.Instance;
+        if (hud?.IsOpen != true) return null;
+        var choice = hud.FirstIntentChoice ?? hud.EvidenceActionChoice;
+        var onChoice = choice == null ? null
+            : TutorialArrow.BesideOnScreen(choice, new Rect2(Vector2.Zero, choice.Size), TutorialArrow.Side.Above);
+        if (onChoice != null) return onChoice;
+        var console = RestInterviewConsole.Instance;
+        if (console == null || !console.Visible) return null;
+        return TutorialArrow.BesideOnMonitor(console, console.EvidenceListRect, TutorialArrow.Side.Above);
+    }
+
+    // 통화 끝내기 — 대화창 맨 아래 한 줄(「통화를 종료한다.」, 자료 질문 중이면 「…다른 질문을 한다.」)의
+    // 왼쪽에서 가리킨다. 글자가 왼쪽 정렬이라 왼쪽에 서야 글자 바로 옆이다.
+    private static TutorialArrow.Aim? EndCallArrowAim()
+    {
+        var hud = PhoneCallHud.Instance;
+        if (hud?.IsOpen != true) return null;
+        var tail = hud.TailChoice;
+        return tail == null ? null
+            : TutorialArrow.BesideOnScreen(tail, new Rect2(Vector2.Zero, tail.Size), TutorialArrow.Side.Left);
     }
 
     // 배치 화면 — 토끼 카드 옆 → 토끼를 누르거나 끌기 시작하면 코어실 옆.

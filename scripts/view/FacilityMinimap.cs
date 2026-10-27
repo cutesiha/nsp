@@ -26,8 +26,18 @@ public partial class FacilityMinimap : Control
     // 직원 아이콘 반지름. 클릭 판정(EmployeeAt)도 이 값을 따라간다.
     private const float EmpDotRadius = 10f;
 
+    // 지금 지도에 올리는 방. 단기 근무에서 빠진 방(환기실 · 의무실)은 상자도 통로도 그리지 않는다
+    // (GameModes.IsRoomRemoved). 판마다 모드가 정해지므로 모드별로 한 번만 만들어 둔다.
+    private static Dictionary<string, Vector2> Layout =>
+        NSP.Core.GameModes.RemovesRooms
+            ? _shortLayout ??= FullLayout.Where(kv => !NSP.Core.GameModes.IsRoomRemoved(kv.Key))
+                                         .ToDictionary(kv => kv.Key, kv => kv.Value)
+            : FullLayout;
+
+    private static Dictionary<string, Vector2> _shortLayout;
+
     // 방 배치 (미니맵 정규화 좌표). 사용자 스케치의 구조.
-    private static readonly Dictionary<string, Vector2> Layout = new()
+    private static readonly Dictionary<string, Vector2> FullLayout = new()
     {
         ["core_room"] = new(0.50f, 0.13f),
         ["power_room"] = new(0.17f, 0.32f),
@@ -268,6 +278,16 @@ public partial class FacilityMinimap : Control
     public Rect2 RoomBoxOf(string roomId) =>
         Layout.ContainsKey(roomId ?? "") ? BoxOf(roomId) : new Rect2();
 
+    // 직원 아이콘(동그라미) 자리(이 지도의 로컬 좌표). 지도에 그려지지 않는 직원이면 빈 사각형 — 교육 화살표가 쓴다.
+    public Rect2 EmployeeIconOf(string employeeId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var st = sim?.GetEmployeeState(employeeId ?? "");
+        if (st == null || !st.Alive || string.IsNullOrEmpty(st.AssignedRoomId)) return new Rect2();
+        Vector2 p = IconPos(sim, employeeId);
+        return new Rect2(p - Vector2.One * EmpDotRadius, Vector2.One * EmpDotRadius * 2f);
+    }
+
     // --- draw ---------------------------------------------------------
 
     public override void _Draw()
@@ -351,13 +371,14 @@ public partial class FacilityMinimap : Control
         var net = sim.Corridors;
         Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
 
-        foreach (var roomId in Layout.Keys)
+        var layout = Layout;
+        foreach (var roomId in layout.Keys)
         {
-            var def = sim.GetRoomDef(roomId);
-            if (def == null) continue;
-            foreach (var other in def.ConnectedRoomIds)
+            if (sim.GetRoomDef(roomId) == null) continue;
+            // 길찾기와 같은 목록 — 단기 근무의 정비실 ↔ 격리실 직통로도 여기서 그려진다.
+            foreach (var other in sim.LinkedRoomIds(roomId))
             {
-                if (!Layout.ContainsKey(other)) continue;
+                if (!layout.ContainsKey(other)) continue;
                 string key = string.CompareOrdinal(roomId, other) < 0 ? roomId + "|" + other : other + "|" + roomId;
                 if (!seen.Add(key)) continue;
 

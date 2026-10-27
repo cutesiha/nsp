@@ -14,7 +14,9 @@ public partial class CCTVMonitorView : Control
 {
     public static CCTVMonitorView Instance { get; private set; }
 
-    private static readonly Rect2 Frame = new(32, 60, 736, 452);
+    // 화면 판(모니터2) 안에서 조금 아래로 내려 앉힌다(2026-10-27 요청).
+    // 위의 REC · 시계 · 아래 카메라 이름도 같은 만큼(+18) 같이 내려갔다.
+    private static readonly Rect2 Frame = new(32, 78, 736, 452);
 
     private Font _font;
     private TextureRect _bgTex;
@@ -143,11 +145,11 @@ public partial class CCTVMonitorView : Control
         AddChild(_errorLabel);
 
         _recLabel = Lbl("● REC", 18, new Color(0.95f, 0.25f, 0.2f));
-        _recLabel.Position = new Vector2(44, 24);
+        _recLabel.Position = new Vector2(44, 42);
         AddChild(_recLabel);
 
         _camLabel = Lbl("", 22, new Color(0.78f, 0.90f, 0.84f));
-        _camLabel.Position = new Vector2(44, 504);
+        _camLabel.Position = new Vector2(44, 522);
         AddChild(_camLabel);
 
         // 같은 방 두 사람의 대화 자막(관계 시스템 Phase 2) — 상태 줄 바로 위.
@@ -159,7 +161,7 @@ public partial class CCTVMonitorView : Control
         AddChild(_overheard);
 
         _clock = Lbl("--:--", 18, new Color(0.75f, 0.85f, 0.8f));
-        _clock.Position = new Vector2(536, 24);
+        _clock.Position = new Vector2(536, 42);
         _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);
@@ -569,7 +571,7 @@ public partial class CCTVMonitorView : Control
 
         bool red = state?.RedAlertLighting == true;
         _feedUnstable = red;
-        _tint.Color = red ? new Color(0.5f, 0.03f, 0.03f, 0.35f) : new Color(0, 0, 0, 0.12f);
+        _tint.Color = red ? new Color(0.5f, 0.03f, 0.03f, 0.35f) : new Color(0, 0, 0, 0.05f);
         _noise.Modulate = new Color(1, 1, 1, (red ? 0.14f : 0.06f) + _glitch * 0.55f);
 
         RebuildEmployees(sim, state);
@@ -634,7 +636,7 @@ public partial class CCTVMonitorView : Control
         _bgPlaceholder.Visible = !hasFeed;
 
         _feedUnstable = seg.Sealed || seg.Moving;
-        _tint.Color = seg.Sealed ? new Color(0.42f, 0.05f, 0.04f, 0.15f) : new Color(0, 0, 0, 0.12f);
+        _tint.Color = seg.Sealed ? new Color(0.42f, 0.05f, 0.04f, 0.15f) : new Color(0, 0, 0, 0.05f);
         _noise.Modulate = new Color(1, 1, 1, 0.06f + _glitch * 0.55f);
 
         // 화면 아래 한 줄 — 이 문이 지금 어떤 상태인가.

@@ -24,7 +24,8 @@ public partial class PadManualDef : Resource
     {
         var list = new System.Collections.Generic.List<PadManualChapterDef>();
         foreach (var r in Chapters)
-            if (r is PadManualChapterDef c) list.Add(c);
+            // 이번 판에 보여 줄 페이지가 하나도 없는 챕터는 통째로 뺀다(PadManualPageDef.ShownNow).
+            if (r is PadManualChapterDef c && c.PageList().Count > 0) list.Add(c);
         return list;
     }
 }

@@ -14,7 +14,7 @@ namespace NSP.Debug;
 //   godot --path . res://scenes/debug/TutorialCueShot.tscn -- <저장 폴더>
 //
 // 교육 흐름을 처음부터 돌리지 않고, 교육이 쓰는 연출만 그 자리에서 하나씩 켜고 찍는다.
-//   ① 배치 화면 화살표(토끼 카드 → 코어실)     ② 근무 화면 화살표(작업실 · 근무 종료 · 전화기)
+//   ① 배치 화면 화살표(토끼 카드 → 코어실 · 남은 직원 카드)   ② 근무 화면 화살표(작업실 · 옮길 직원 · 근무 종료 · 전화기)
 //   ③ 스위치 기기 확대 각도 · POWER 글자 자리    ④ 레버 시연 · 차폐 시연
 //   ⑤ 방해공작 시연(경보 + CCTV ERROR)           ⑥ 휴게실 토끼 아이콘 화살표
 public partial class TutorialCueShot : Node
@@ -57,6 +57,16 @@ public partial class TutorialCueShot : Node
         await Seconds(0.9);
         Shot("02_arrow_core");
         TutorialArrow.Clear();
+        // 곁 화살 — 남은 직원 카드마다(교육 "남은 직원도 배치" 단계).
+        foreach (string id in new[] { "cat", "fox" })
+        {
+            string captured = id;
+            TutorialArrow.PointAlso("emp:" + captured,
+                () => TutorialArrow.BesideOnMonitor(map, map.RosterCardOf(captured)));
+        }
+        await Seconds(0.9);
+        Shot("02b_arrow_roster_rest");
+        TutorialArrow.Clear();
 
         var roster = sim.GetActiveEmployeeIds().ToList();
         string[] rooms = { "core_room", "core_room", "guard_room", "power_room", "core_room", "guard_room" };
@@ -77,6 +87,17 @@ public partial class TutorialCueShot : Node
         TutorialArrow.PointAt(() => TutorialArrow.BesideOnMonitor(fm.Minimap, fm.Minimap.RoomBoxOf("power_room")));
         await Seconds(0.9);
         Shot("03_arrow_room_power");
+        // 곁 화살 — 옮길 직원 아이콘 위(교육 "발전실로 옮겨 수리" 단계).
+        foreach (string id in roster.Take(3))
+        {
+            string captured = id;
+            TutorialArrow.PointAlso("emp:" + captured, () => TutorialArrow.BesideOnMonitor(fm.Minimap,
+                fm.Minimap.EmployeeIconOf(captured), TutorialArrow.Side.Above));
+        }
+        await Seconds(0.9);
+        Shot("03b_arrow_movers");
+        TutorialArrow.Clear();
+        TutorialArrow.PointAt(() => TutorialArrow.BesideOnMonitor(fm.Minimap, fm.Minimap.RoomBoxOf("power_room")));
         TutorialArrow.PointAt(() => TutorialArrow.BesideOnMonitor(fm.Minimap, fm.Minimap.RoomBoxOf("guard_room")));
         await Seconds(0.9);
         Shot("04_arrow_room_guard");

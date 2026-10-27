@@ -33,6 +33,9 @@ public partial class EmployeeStandingPortrait : Control
     // 크기는 그대로 두고 자리만 올리는 값이다.
     public float LiftFraction { get; set; }
 
+    // 켜 두면 직원마다의 추가 높이(EmployeeDef.StoryPortraitLift)를 LiftFraction 에 더한다(모니터2 스토리 컷인).
+    public bool ApplyEmployeeLift { get; set; }
+
     // 말하지 않는 쪽은 살짝 눌러 둔다 — 누가 말하는지 한눈에 보이게.
     // 듣는 쪽 / 말하는 쪽의 밝기.
     //
@@ -240,7 +243,9 @@ public partial class EmployeeStandingPortrait : Control
         _lastTex = tex;
         _lastBox = Size;
         _portrait.Texture = tex;
-        var (size, pos) = StandingPortraitLayout.Place(tex, Size, TopMargin, Zoom, Size.Y * LiftFraction);
+        float lift = LiftFraction + (ApplyEmployeeLift
+            ? FacilitySimulation.Instance?.GetEmployeeDef(_employeeId)?.StoryPortraitLift ?? 0f : 0f);
+        var (size, pos) = StandingPortraitLayout.Place(tex, Size, TopMargin, Zoom, Size.Y * lift);
         _portrait.Size = size;
         _portrait.Position = pos;
     }

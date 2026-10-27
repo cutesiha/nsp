@@ -707,7 +707,7 @@ line: ③ Barrier: 복도의 격벽을 닫아 괴물의 접근을 막습니다.
 @guide tut_relocate
 portrait: normal
 cue: arrow
-line: 직원 2명을 {ROOM}로 옮겨 수리하십시오.
+line: 이제 직원 2명을 {ROOM}로 옮겨 수리하십시오.
 # 큰 설비는 혼자 못 고친다(문서 §17). 수리 막대가 "현재/필요 인원"을 직접 보여 주므로
 # 숫자는 되풀이하지 않고 규칙만 한 줄로 말한다.
 

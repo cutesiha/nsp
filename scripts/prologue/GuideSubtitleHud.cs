@@ -164,6 +164,10 @@ public partial class GuideSubtitleHud : CanvasLayer
     public bool HasChoices => _choices != null && _choices.GetChildCount() > 0;
     public bool IsActive => _active;
 
+    // 그 화면 좌표가 지금 떠 있는 자막 블록 위인가(띠 아래 책상 위 전화기가 클릭을 가로채지 않게).
+    public bool ContainsPoint(Vector2 screenPosition) =>
+        Visible && _panel != null && _panel.GetGlobalRect().HasPoint(screenPosition);
+
     // text 는 원고 그대로 — 강조 명령(`/0~/6`)이 들어 있을 수 있다.
     public void SetLine(string text)
     {
