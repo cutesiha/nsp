@@ -21,13 +21,14 @@ public partial class EndingDirector
         string accused = GameState.Instance?.FinalAccusedId ?? "";
 
         // ① 조회 — 끝나자마자 **즉시** 경보. 여유를 주지 않는다.
-        PadOpen("신원 조회 중");
+        await QueryOpen("신원 조회 중");
         for (int i = 0; i < 2; i++) { Sfx.Instance?.Play("key_type", -18f); await Wait(0.16); }
-        PadPush(string.IsNullOrEmpty(accused) ? "▸ 지정 없음 · 격리 미집행" : "▸ 정상 등록 인원입니다",
-            string.IsNullOrEmpty(accused) ? EndingMonitorView.Tone.Normal : EndingMonitorView.Tone.Good);
-        await PadWait();
+        if (string.IsNullOrEmpty(accused))
+            QueryPush("▸ 지정 없음 · 격리 미집행", EndingMonitorView.Tone.Normal);
+        else
+            QueryPush("▸ 해당 직원은 괴물이 아니었습니다", EndingMonitorView.Tone.Good, 34);
+        await QueryWait();
         Sfx.Instance?.Play("alert_beep3", -2f);
-        AdminPad3D.Instance?.FlashBadgeLed(PadRed, 3.0f, 0.3f, 1.2f);
         await Wait(0.5);
 
         // ② 차폐 붕괴 — 두 모니터가 **동시에** 켜지며 붉어진다.
@@ -96,10 +97,6 @@ public partial class EndingDirector
         _ctl?.SetScreenBrightness(0f);
         _ctl?.SetScreenNoise(0f);
         HideGuide();
-        // 책상 위 패드도 함께 죽는다 — 이 방에서 켜져 있는 것이 하나도 남지 않아야 한다.
-        EndingPadConsole.Instance?.Close();
-        AdminPad3D.Instance?.SetBadgeLed(PadRed, 0f);
-        AdminPad3D.Instance?.SetEndingMode(false);
         await Wait(0.6);
 
         // ④ 격벽 개방 — 오른쪽 모니터에만. 아래에서 위로 올라간다 = 지상으로 향한다.

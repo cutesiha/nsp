@@ -1256,6 +1256,11 @@ public partial class PadView : Control
         return card;
     }
 
+    // 직원 얼굴 아이콘 · 스탠딩 일러가 그려지는 칸. 전역 아날로그 필터(LUT · 입자)가 이 칸에서는
+    // 훨씬 약하게 걸린다 — 낮은 품질에서 일러가 청록 덩어리로 뭉개져 누가 누군지 안 보였다
+    // (2026-10-28 요청: 아이콘 · 일러만). 칸의 화면 위치는 AdminPad3D.ArtScreenRects 가 잰다.
+    public const string ArtGroup = "pad_employee_art";
+
     // 초상을 머리 크기(EmployeeDef.PortraitHeadSpan)가 칸 높이에 꼭 맞게 키우고, PortraitFocus 를 칸 가운데에 둔다.
     // 초상 배경이 투명이라 좌우 여백은 카드 바탕색과 이어진다. 위아래는 빈 띠가 생기지 않게 막는다.
     public static TextureRect FacePortrait(EmployeeDef def, Vector2 box)
@@ -1265,6 +1270,7 @@ public partial class PadView : Control
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
             MouseFilter = MouseFilterEnum.Ignore,
         };
+        rect.AddToGroup(ArtGroup);
         var src = def?.FacePortrait ?? def?.StandingImage;
         if (src == null) return rect;
         Vector2 img = src.GetSize();
@@ -1305,6 +1311,7 @@ public partial class PadView : Control
             Texture = def?.StandingImage ?? def?.FacePortrait, Position = new Vector2(10, 8), Size = new Vector2(324, bodyH - 16),
             MouseFilter = MouseFilterEnum.Ignore,
         };
+        art.AddToGroup(ArtGroup);
         _appBody.AddChild(art);
 
         var scroll = new ScrollContainer

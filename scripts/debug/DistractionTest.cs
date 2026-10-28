@@ -214,16 +214,26 @@ public partial class DistractionTest : Node
         var phases = new List<string>();
         float jump = 0f;
         Vector3? last = null;
+        float distractedAt = -1f, noticedAt = -1f;
         for (int i = 0; i < 60 * 30 && ev.Running; i++)
         {
             Track(world, "fox", seq, ref jump, ref last);
-            if (phases.Count == 0 || phases[^1] != ev.Phase.ToString()) phases.Add(ev.Phase.ToString());
+            if (phases.Count == 0 || phases[^1] != ev.Phase.ToString())
+            {
+                phases.Add(ev.Phase.ToString());
+                float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+                if (ev.Phase == DistractionPhase.Distracted) distractedAt = now;
+                if (ev.Phase == DistractionPhase.Noticed) noticedAt = now;
+            }
             await Frame();
         }
         Log($"FOX_01 단계: {string.Join(">", phases)}");
         Log($"FOX_01 클립: {string.Join(">", seq)}");
         Check(ev.HasBeenObserved, "보고 있는 방 — 목격됨");
         Check(ev.HasReactedToCctv, "적발 반응 재생됨");
+        // 보자마자 놀라지 않는다 — 딴짓을 4~5초 보여 준 뒤에 알아챈다.
+        Check(distractedAt >= 0f && noticedAt - distractedAt >= 3.8f,
+            $"딴짓을 충분히 보여 준 뒤 놀란다({noticedAt - distractedAt:0.0}s)");
         Check(ds.WitnessedTodayOf("fox").Count == 1, "같은 사건을 한 번만 집계");
         Check(phases.Contains("Noticed") && phases.Contains("Recovering") && phases.Contains("Returning"),
             "적발 → 정리 → 복귀 단계가 모두 지나갔다");
@@ -721,6 +731,15 @@ public partial class DistractionTest : Node
         var flow = DebugEntryPoint.FindFlow(GetTree());
         DebugEntryPoint.Call(flow, "EnterShift");
         for (int i = 0; i < 900 && GameState.Instance?.CurrentPhase != GamePhase.Live; i++) await Frame();
+        // 둘째 날부터는 근무 시작에 메인 스토리가 돌며 근무 시간을 멈춰 둔다 — 검사에는 넘길 사람이
+        // 없으니 끊는다. 안 끊으면 그날 일으킨 딴짓이 진입 단계에 멈춘 채 남는다.
+        // 해금 안내가 패드를 꺼내 두면 근무 시간이 멈춘다(AdminPad3D.PausesGame) — 그것도 내려놓는다.
+        for (int i = 0; i < 120; i++)
+        {
+            if (StoryCutinDirector.Instance is { IsPlaying: true } story) story.Abort();
+            if (AdminPad3D.Instance is { IsOpen: true } pad) pad.Close();
+            await Frame();
+        }
         // 모두 자리에 도착할 때까지.
         for (int i = 0; i < 60 * 40; i++)
         {

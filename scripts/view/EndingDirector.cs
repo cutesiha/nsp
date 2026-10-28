@@ -11,7 +11,7 @@ namespace NSP.View;
 // 방 안에서 일이 벌어지고 당신이 그 안에 있다.**
 // 그래서 엔딩은 두 모니터를 한 번 완전히 꺼 버리고 시작한다. 게임 시작 이래 두 화면이
 // 동시에 꺼지는 것은 처음이고, 그 순간 플레이어는 5일 만에 처음으로 "방" 을 본다.
-// 신원 조회도 큰 화면이 아니라 손 앞의 작은 패드에서 한다.
+// 신원 조회는 그 어둠 속에서 모니터2 하나만 다시 켜서 한다.
 //
 // 엔딩은 네 갈래다 — 코어 100% 복구 × 최종 보고서의 지목.
 //
@@ -139,7 +139,6 @@ public partial class EndingDirector : Node
         GuideMouthAnimator.Reset();
         GuideMouthAnimator.ExternallyDriven = false;
         AdminPad3D.Instance?.SetEndingMode(false);
-        EndingPadConsole.Instance?.Close();
         foreach (var k in new[] { "machinery_loop", "drone_loop", "vent_loop", "alarm", "siren" })
             Sfx.Instance?.StopLoop(k);
     }
@@ -191,8 +190,7 @@ public partial class EndingDirector : Node
     // ── 공통 도입 (네 엔딩 전부, 약 15초) ─────────────────────────────────
     //
     // 두 모니터를 **차례로** 끈다. 게임 내내 이 방의 빛은 두 화면이었고, 그것이 꺼지는
-    // 순간 플레이어는 처음으로 천장등 아래의 방을 본다. 그다음 눈이 가는 곳은
-    // 큰 화면이 아니라 책상 위에서 혼자 켜지는 작은 패드 하나다.
+    // 순간 플레이어는 처음으로 천장등 아래의 방을 본다.
     private async Task CommonIntro()
     {
         Sfx.Instance?.Loop("machinery_loop", MachineryDb);
@@ -227,50 +225,46 @@ public partial class EndingDirector : Node
         Sfx.Instance?.SetLoopVolume("drone_loop", DroneDb - 8f);
         await Wait(1.3);
 
-        // ④ 정적.
+        // ④ 정적. 여기서 패드로 내려가지 않는다 — 예전에는 패드를 확대했다가 TRUE 가
+        // 곧바로 모니터1 로 되돌아와, 아무것도 하지 않는 확대 · 복귀가 한 번 끼었다.
         await Wait(1.0);
-
-        // ⑤ 책상 위 패드의 배지 표시등이 켜진다.
-        var pad = AdminPad3D.Instance;
-        pad?.SetEndingMode(true);
-        pad?.SetBadgeLed(PadBlue, 2.6f);
-        Sfx.Instance?.Play("sensor_beep", -16f);
-        var console = EndingPadConsole.Instance;
-        if (console != null)
-        {
-            console.Open("");
-            console.CharTyped += OnCharTyped;
-        }
-        await Wait(0.5);
-
-        // ⑥ 카메라가 패드로 내려간다 — 신원 조회는 손 앞 작은 화면에서 한다.
-        if (pad?.BodyNode != null) _ctl?.FocusProp(pad.BodyNode, 1.4f);
-        await Wait(1.7);
     }
 
     // 문을 돌아볼 때 눈을 이만큼 옮긴다 — 두 CRT 가 눈앞을 가려서, 고개만 돌리면 문이
     // 모니터 뒤에 완전히 숨는다. 의자에 기대 화면 위로 올려다보는 자세다.
     protected static readonly Vector3 DoorEyeOffset = new(0f, 0.45f, 0.25f);
 
-    protected static readonly Color PadBlue = new(0.25f, 0.70f, 1f);
-    protected static readonly Color PadRed = new(1f, 0.22f, 0.16f);
-    protected static readonly Color PadGreen = new(0.3f, 1f, 0.55f);
+    // ── 신원 조회 — 모니터2 ──────────────────────────────────────────────
+    //
+    // 조회 결과는 모니터2 에 띄운다. 책상 위 패드는 작아서 "괴물이었는가" 한 줄이
+    // 잘 읽히지 않았다(2026-10-28 요청). 결과를 읽는 동안만 모니터2 로 다가간다.
+    private EndingMonitorView Query => EndingMonitorView.Right;
 
-    // ── 패드 신원 조회 ───────────────────────────────────────────────────
-
-    private EndingPadConsole Pad => EndingPadConsole.Instance;
-
-    private void PadOpen(string header) => Pad?.Open(header);
-
-    private void PadPush(string text, EndingMonitorView.Tone tone = EndingMonitorView.Tone.Normal,
-        int size = 30, double charTime = 0) => Pad?.Push(text, tone, size, charTime);
-
-    private async Task PadWait(double after = 0)
+    // 모니터1 은 끈 채로 두고 모니터2 만 켠다.
+    private async Task QueryOpen(string header)
     {
-        int guard = 0;
-        while (Pad is { Typing: true } && guard++ < 3000) await NextFrame();
-        if (after > 0) await Wait(after);
+        var q = Query;
+        HookTyping(q);
+        q?.Clear(header, "IDENTITY CHECK");
+        _ctl?.SetRightScreen(_ctl.EndingRightViewport);
+        // 전역 밝기가 0 이면 뷰포트가 그리기를 멈춘다(UpdateActiveViewports) —
+        // 전역을 1 로 올리고 두 화면은 각자 따로 끈다. 같은 프레임이라 번쩍이지 않는다.
+        _ctl?.SetScreenBrightness(1f);
+        _ctl?.SetScreenBrightnessFor("01", 0f);
+        _ctl?.SetScreenBrightnessFor("02", 0f);
+        await Wait(0.25);
+        _ctl?.SetScreenBrightnessFor("02", 1f);
+        _ctl?.SetScreenNoise(0.05f);
+        Sfx.Instance?.Play("crt_on", -8f);
+        SetLights(0.45f, 0.2f);
+        _ctl?.FocusMonitor(2, 1.2f);
+        await Wait(1.0);
     }
+
+    private void QueryPush(string text, EndingMonitorView.Tone tone = EndingMonitorView.Tone.Normal,
+        int size = 30, double charTime = 0) => Query?.Push(text, tone, size, charTime: charTime);
+
+    private Task QueryWait(double after = 0) => AwaitTyping(Query, after);
 
     // ── 복구 완료 (TRUE ⑤ · LOOSE ②) ───────────────────────────────────
     //

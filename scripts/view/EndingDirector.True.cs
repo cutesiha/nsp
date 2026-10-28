@@ -54,8 +54,6 @@ public partial class EndingDirector
         HookTyping(left);
 
         // 왼쪽 화면만 켠다. 방은 어두운 채로 둔다 — 조명은 아직이다.
-        _ctl?.ClearFocus(0.8f);
-        await Wait(0.4);
         _ctl?.SetLeftScreen(_ctl.EndingLeftViewport);
         _ctl?.SetScreenBrightness(1f);
         _ctl?.SetScreenBrightnessFor("02", 0f);
@@ -91,25 +89,23 @@ public partial class EndingDirector
         Sfx.Instance?.SetLoopVolume("drone_loop", DroneDb - 16f);
         await Wait(0.6);
 
-        // 다시 화면을 끄고 패드로 돌아간다 — 조회는 손 앞에서 한다.
+        // 모니터1 을 끈다 — 조회는 모니터2 에서 한다.
         _ctl?.SetScreenBrightnessFor("01", 0f);
         Sfx.Instance?.Play("power_down", -14f);
         SetLights(0f, 0f);
-        var pad = AdminPad3D.Instance;
-        if (pad?.BodyNode != null) _ctl?.FocusProp(pad.BodyNode, 1.1f);
-        await Wait(1.0);
+        await Wait(0.8);
     }
 
-    // ── ② 신원 조회 — 패드 화면 ──────────────────────────────────────────
+    // ── ② 신원 조회 — 모니터2 ────────────────────────────────────────────
     // LATE 도 같은 조회를 쓴다(그쪽은 그 뒤에 경보가 바로 울린다).
     private async Task IdentityQueryFailed()
     {
-        PadOpen("신원 조회 중");
+        await QueryOpen("신원 조회 중");
         for (int i = 0; i < 3; i++) { Sfx.Instance?.Play("key_type", -18f); await Wait(0.18); }
-        PadPush("▸ 사번 대조 ...", EndingMonitorView.Tone.Dim);
-        await PadWait(0.8);
-        PadPush("▸ 일치하는 인사 기록 없음", EndingMonitorView.Tone.Bad);
-        await PadWait();
+        QueryPush("▸ 사번 대조 ...", EndingMonitorView.Tone.Dim);
+        await QueryWait(0.8);
+        QueryPush("▸ 일치하는 인사 기록 없음", EndingMonitorView.Tone.Bad);
+        await QueryWait();
 
         // 1.2초 정적 — 모든 앰비언트가 한순간 멀어진다.
         Sfx.Instance?.SetLoopVolume("machinery_loop", MachineryDb - 20f);
@@ -118,9 +114,9 @@ public partial class EndingDirector
         await Wait(1.2);
 
         // 한 글자씩 느리게.
-        PadPush("▸ 해당 사번은 결번입니다", EndingMonitorView.Tone.Bad, 34, charTime: 0.11);
-        await PadWait();
-        AdminPad3D.Instance?.FlashBadgeLed(PadRed, 3.4f, 0.55f);
+        QueryPush("▸ 해당 직원은 괴물이었습니다", EndingMonitorView.Tone.Bad, 34, charTime: 0.11);
+        await QueryWait();
+        _ctl?.ShakeMonitor("02", 0.6f, 0.35f);
         Sfx.Instance?.Play("sensor_beep", -6f);
         await Wait(1.4);
     }
@@ -130,8 +126,9 @@ public partial class EndingDirector
     {
         // 조회가 끝나면 곧바로 암전한다(§2).
         await Fade(_black, 1f, 1.1f);
-        EndingPadConsole.Instance?.Close();
-        AdminPad3D.Instance?.SetBadgeLed(PadRed, 0f);
+        // 암전 밑에서 조회 화면을 지우고 끈다 — 나중에 모니터2 를 다시 켤 때 남아 있지 않게.
+        Query?.Clear();
+        _ctl?.SetScreenBrightnessFor("02", 0f);
         _ctl?.SetScreenNoise(0f);
         Sfx.Instance?.StopLoop("machinery_loop");
         Sfx.Instance?.StopLoop("drone_loop");
@@ -224,13 +221,26 @@ public partial class EndingDirector
         Sfx.Instance?.Play("boom", -9f, 0.8f);
         await Wait(0.5);
 
-        // ⑤ 중심부 빛이 차오른다 — 저음의 충전음이 같이 올라간다.
-        _stage.CoreCharge(5.8f, 2.4);
-        Sfx.Instance?.Play("intro_machine", -8f);
-        await Wait(2.6);
-        Sfx.Instance?.Play("task_done", -8f);
+        // ⑤ 사방의 빛이 코어로 빨려 들어간다 — 흩어진 음들이 한 화음으로 조여들고,
+        //    쓸려 들어가는 바람 소리와 충전음이 끝에서 한 점으로 모인다(core_gather).
+        //    코어는 아직 반쯤만 밝아진다 — 다 차는 것은 터지는 순간이다.
+        const double gather = 3.1;
+        _stage.CoreGather(gather);
+        _stage.CoreCharge(2.2f, gather);
+        Sfx.Instance?.Play("core_gather", -3f);
+        Sfx.Instance?.Play("intro_machine", -13f);
+        await Wait(gather);
+
+        // ⑥ 다 모인 빛이 터진다 — 둥근 저음 한 번, 그리고 샤랄라 하고 반짝이며 복구가 끝난다.
+        _stage.CoreBurst();
+        _stage.CoreCharge(5.8f, 0.35);
+        Sfx.Instance?.Play("core_bloom", -2f);
+        Sfx.Instance?.Play("core_shimmer", -4f);
         Sfx.Instance?.SetLoopVolume("drone_loop", DroneDb - 14f);
-        await Wait(1.6);
+        await Flash(_white, 0.5f, 0.07f, 0.9f);
+        await Wait(1.2);
+        Sfx.Instance?.Play("task_done", -12f);
+        await Wait(1.1);
     }
 
     // ── ⑥ 시설 재가동 몽타주 ─────────────────────────────────────────────

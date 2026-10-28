@@ -20,24 +20,23 @@ public partial class EndingDirector
         var gs = GameState.Instance;
         string accused = gs?.FinalAccusedId ?? "";
 
-        // ① 조회 — 여기서 **아무 강조도 하지 않는다.** 평범한 확인음 하나로 지나간다.
-        PadOpen("신원 조회 중");
+        // ① 조회 — 지목한 직원이 괴물이 아니었다는 것만 알린다. 경보도 강조도 없이 지나간다.
+        await QueryOpen("신원 조회 중");
         for (int i = 0; i < 3; i++) { Sfx.Instance?.Play("key_type", -18f); await Wait(0.18); }
         if (string.IsNullOrEmpty(accused))
         {
-            PadPush("▸ 지정 없음 · 격리 미집행", EndingMonitorView.Tone.Normal);
-            await PadWait();
+            QueryPush("▸ 지정 없음 · 격리 미집행", EndingMonitorView.Tone.Normal);
+            await QueryWait();
         }
         else
         {
-            PadPush("▸ 인사 기록 확인", EndingMonitorView.Tone.Dim);
-            await PadWait(0.8);
-            PadPush("▸ 정상 등록 인원입니다", EndingMonitorView.Tone.Good);
-            await PadWait(0.3);
-            PadPush("▸ 격리 이송 완료", EndingMonitorView.Tone.Normal);
-            await PadWait();
+            QueryPush("▸ 인사 기록 확인", EndingMonitorView.Tone.Dim);
+            await QueryWait(0.8);
+            QueryPush("▸ 해당 직원은 괴물이 아니었습니다", EndingMonitorView.Tone.Good, 34);
+            await QueryWait(0.3);
+            QueryPush("▸ 격리 이송 완료", EndingMonitorView.Tone.Normal);
+            await QueryWait();
         }
-        AdminPad3D.Instance?.FlashBadgeLed(PadGreen, 2.4f, 0.8f, 0.6f);
         Sfx.Instance?.Play("sensor_beep", -16f);
         await Wait(1.4);
 

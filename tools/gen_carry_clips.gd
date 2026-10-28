@@ -278,6 +278,14 @@ func fmt(v: float) -> String:
 	return s
 
 
+func _unwrap(a: float, ref: float) -> float:
+	while a - ref > PI:
+		a -= TAU
+	while a - ref <= -PI:
+		a += TAU
+	return a
+
+
 func emit(c: Clip) -> String:
 	var keys: Array = c.keys.duplicate()
 	keys.sort_custom(func(a, b): return a[0] < b[0])
@@ -304,10 +312,16 @@ func emit(c: Clip) -> String:
 	for i in ORDER.size():
 		var joint: String = ORDER[i]
 		var vals := PackedStringArray()
+		var prev = null
 		for k in keys:
 			var val: Vector3 = k[1][joint]
 			if joint != "VR":
 				val = Vector3(deg_to_rad(val.x), deg_to_rad(val.y), deg_to_rad(val.z))
+				# 손 위치 역산(reach)은 360° 근처 각도(330° = -30°)를 내놓기도 한다. 값 트랙은 성분별
+				# 선형 보간이라 그대로 두면 팔이 한 바퀴 돈다 — 첫 키는 (-π, π] 로, 다음 키는 직전 키 쪽으로 편다.
+				var ref: Vector3 = Vector3.ZERO if prev == null else prev
+				val = Vector3(_unwrap(val.x, ref.x), _unwrap(val.y, ref.y), _unwrap(val.z, ref.z))
+				prev = val
 			vals.append("Vector3(%s, %s, %s)" % [fmt(val.x), fmt(val.y), fmt(val.z)])
 		lines.append('tracks/%d/type = "value"' % i)
 		lines.append("tracks/%d/imported = false" % i)

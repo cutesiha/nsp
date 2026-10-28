@@ -18,8 +18,8 @@ public partial class EndingDirector
     {
         // ① 조회 — TRUE 와 같다. 다만 끝나자마자 경보 단말기가 운다.
         await IdentityQueryFailed();
-        PadPush("▸ 격리 이송 완료", EndingMonitorView.Tone.Normal, 26);
-        await PadWait(0.4);
+        QueryPush("▸ 격리 이송 완료", EndingMonitorView.Tone.Normal, 26);
+        await QueryWait(0.4);
 
         for (int i = 0; i < 3; i++) { Sfx.Instance?.Play("alert_beep3", -4f); await Wait(0.45); }
         var sensor = _ctl?.GetNodeOrNull<Node3D>("ControlRoom/AlertTerminal");
@@ -116,9 +116,6 @@ public partial class EndingDirector
         _ctl?.ClearFocus(1.0f);
         await Wait(0.8);
         _ctl?.SetScreenBrightness(0f);
-        EndingPadConsole.Instance?.Close();
-        AdminPad3D.Instance?.SetBadgeLed(PadRed, 0f);
-        AdminPad3D.Instance?.SetEndingMode(false);
         Sfx.Instance?.Play("relay_click", -13f);
         await Wait(0.8);
         SetLights(0f, 0f);

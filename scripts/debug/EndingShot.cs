@@ -103,6 +103,9 @@ public partial class EndingShot : Node
             GetTree().Quit();
             return;
         }
+        // DAY1 배치에서 곧장 엔딩으로 건너뛰므로, 그날 스토리 컷인이 모니터2 를 확대한 채 돌고 있다.
+        // 실제 게임은 최종 보고서 제출 뒤라 스토리가 없다 — 같은 상태로 맞춘다.
+        StoryCutinDirector.Instance?.Abort();
         typeof(ShiftFlowController).GetMethod("StartEnding", BindingFlags.NonPublic | BindingFlags.Instance)
             ?.Invoke(flow, null);
         _start = Time.GetTicksMsec() / 1000.0;

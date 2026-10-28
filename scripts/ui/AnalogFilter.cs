@@ -73,5 +73,18 @@ public partial class AnalogFilter : CanvasLayer
         float k = Mathf.Clamp((float)delta * (target > _tracking ? 12f : 1.5f), 0f, 1f);
         _tracking = Mathf.Lerp(_tracking, target, k);
         _mat.SetShaderParameter("tracking", _tracking);
+
+        // 관리자 패드 속 직원 얼굴 아이콘 · 일러 칸 — 그 칸에서만 색 보정 · 입자를 덜 건다.
+        var pad = NSP.View.AdminPad3D.Instance;
+        int n = pad != null && IsInstanceValid(pad) ? pad.ArtScreenRects(_protect) : 0;
+        if (n > 0 || _protectCount > 0)
+        {
+            _mat.SetShaderParameter("protect_rects", _protect);
+            _mat.SetShaderParameter("protect_count", n);
+            _protectCount = n;
+        }
     }
+
+    private readonly Vector4[] _protect = new Vector4[12];
+    private int _protectCount;
 }

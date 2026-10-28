@@ -184,8 +184,6 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         _view = new PadView();
         ControlRoom3DController.AddScaledView(_vp, _view, CanvasSize,
             ControlRoom3DController.DocumentSupersample, ControlRoom3DController.DocumentMinRenderScale);
-        // 엔딩의 신원 조회 콘솔 — 평소 패드 UI 위에 덮는 한 장(평소에는 숨어 있다).
-        _vp.GetChild<Control>(0)?.AddChild(new EndingPadConsole());
 
         if (HasAuthoredParts()) AdoptAuthoredParts(_vp.GetTexture());
         else { BuildCradle(); BuildBody(_vp.GetTexture()); }
@@ -979,6 +977,50 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
         float u = canvasPos.X / Mathf.Max(1f, _vp.Size.X);
         float v = canvasPos.Y / Mathf.Max(1f, _vp.Size.Y);
         return _screen.GlobalTransform * new Vector3(u - 0.5f, 0.5f - v, 0f);
+    }
+
+    // 패드 화면 속 직원 얼굴 아이콘 · 스탠딩 일러(PadView.ArtGroup)가 지금 **창 화면**의 어디에
+    // 보이는가 — 칸마다 (왼쪽 위 x, y, 오른쪽 아래 x, y), 창 기준 0~1. 채운 개수를 돌려준다.
+    // 전역 아날로그 필터(AnalogFilter)가 이 칸에서는 색 보정 · 입자를 약하게 건다.
+    public int ArtScreenRects(Vector4[] into)
+    {
+        if (into == null || _screen == null || _vp == null || !IsInsideTree() || !_screen.IsVisibleInTree()) return 0;
+        var cam = GetViewport()?.GetCamera3D();
+        if (cam == null) return 0;
+        Vector2 win = GetViewport().GetVisibleRect().Size;
+        if (win.X < 1f || win.Y < 1f) return 0;
+
+        int n = 0;
+        foreach (var node in GetTree().GetNodesInGroup(PadView.ArtGroup))
+        {
+            if (n >= into.Length) break;
+            if (node is not Control c || !c.IsVisibleInTree() || !_vp.IsAncestorOf(c)) continue;
+            Rect2 r = ClippedRect(c);
+            if (r.Size.X < 2f || r.Size.Y < 2f) continue;
+
+            float x0 = float.MaxValue, y0 = float.MaxValue, x1 = float.MinValue, y1 = float.MinValue;
+            bool behind = false;
+            foreach (var p in new[] { r.Position, new Vector2(r.End.X, r.Position.Y), r.End, new Vector2(r.Position.X, r.End.Y) })
+            {
+                Vector3 w = ScreenPointWorld(p);
+                if (cam.IsPositionBehind(w)) { behind = true; break; }
+                Vector2 s = cam.UnprojectPosition(w) / win;
+                x0 = Mathf.Min(x0, s.X); y0 = Mathf.Min(y0, s.Y);
+                x1 = Mathf.Max(x1, s.X); y1 = Mathf.Max(y1, s.Y);
+            }
+            if (behind || x1 <= 0f || y1 <= 0f || x0 >= 1f || y0 >= 1f) continue;
+            into[n++] = new Vector4(x0, y0, x1, y1);
+        }
+        return n;
+    }
+
+    // 실제로 보이는 부분 — 카드 · 목록이 잘라 내는(ClipContents) 바깥은 뺀다.
+    private static Rect2 ClippedRect(Control c)
+    {
+        Rect2 r = c.GetGlobalRect();
+        for (var p = c.GetParent() as Control; p != null; p = p.GetParent() as Control)
+            if (p.ClipContents) r = r.Intersection(p.GetGlobalRect());
+        return r;
     }
 
     // 화면을 눌렀다 — 반응은 화면(UI) 안에서만 한다.

@@ -53,6 +53,15 @@ public partial class EndingStageShot : Node
             stage.CoreReset();
             stage.SetCam(new Vector3(0f, 2.2f, 17f), new Vector3(0f, 8f, -3f), 60f);
             await Seconds(0.5); Shot(dir, "c1_dark");
+            // 빛이 사방에서 코어로 모여드는 중 — 트루엔딩 ⑤.
+            stage.SetCam(new Vector3(0f, 3.4f, 11.0f), new Vector3(0f, 8.2f, -3f), 60f);
+            stage.CoreGather(2.4);
+            stage.CoreCharge(2.2f, 2.4);
+            await Seconds(1.6); Shot(dir, "c1b_gather");
+            await Seconds(0.8);
+            stage.CoreBurst();
+            await Seconds(0.15); Shot(dir, "c1c_burst");
+            stage.SetCam(new Vector3(0f, 2.2f, 17f), new Vector3(0f, 8f, -3f), 60f);
             for (int i = 0; i < 10; i++) stage.CoreFloorLamp(i);
             stage.CoreAlignRings(1.0);
             stage.CoreClamp(0.8);

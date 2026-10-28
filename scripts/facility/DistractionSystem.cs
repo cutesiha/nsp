@@ -50,7 +50,8 @@ public sealed class DistractionEvent
     public bool Aborted;               // 더 높은 상태(기절·격리·괴물 등)에 끊겼다
     public string AbortReason = "";    // 무엇에 끊겼는가(검수·QA 용)
     public int Serial;                 // 표현 계층이 "같은 사건인가" 를 가리는 번호
-    public float SeenSeconds;          // 지금 연속으로 보이고 있는 시간(목격 판정용)
+    public float SeenSeconds;          // 지금 연속으로 보이고 있는 시간(목격 · 적발 반응 판정용)
+    public float ReactAfter;           // 이만큼 연속으로 보여 준 뒤에 CCTV 를 알아채고 놀란다
 
     public bool Running => Phase is not (DistractionPhase.None or DistractionPhase.Done);
     public DistractionDef Def => DistractionCatalog.Get(Kind);
@@ -107,6 +108,11 @@ public sealed class DistractionSystem
 
     // 관측이 성립하기까지 연속으로 보여야 하는 시간(초). 채널을 휙 넘기는 것은 관측이 아니다.
     private const float ObserveSeconds = 0.55f;
+    // 목격은 위 시간이면 기록되지만, **놀라는 것은** 딴짓하는 모습을 이만큼 연속으로 보여 준 뒤다.
+    // 예전에는 목격과 동시에 놀라서, 채널을 돌리자마자 1~2초 만에 일하는 자세로 돌아가
+    // 무엇을 하고 있었는지 읽을 틈이 없었다(2026-10-28 요청 — 4~5초는 보여야 눈치챈다).
+    private const float ReactMinSeconds = 4f;
+    private const float ReactMaxSeconds = 5f;
     // 이만큼 끊기면 "보던 것을 멈췄다" 로 본다(한두 프레임의 공백은 무시).
     private const float SeenGraceSeconds = 0.3f;
 
@@ -238,7 +244,10 @@ public sealed class DistractionSystem
                     if (e.PhaseElapsed >= def.EnterSeconds) Advance(e, DistractionPhase.Distracted);
                     break;
                 case DistractionPhase.Distracted:
-                    if (e.PhaseElapsed >= e.DistractLimit) Advance(e, DistractionPhase.Recovering);
+                    // 관리자가 지금 보고 있으면 정해 둔 시간이 지나도 그만두지 않는다 —
+                    // 조용히 일로 돌아가 버리면 "봤는데 놀라지 않았다" 가 된다. 곧(최대 5초) 놀란다.
+                    if (e.PhaseElapsed >= e.DistractLimit && !BeingWatched(id, e))
+                        Advance(e, DistractionPhase.Recovering);
                     break;
                 case DistractionPhase.Noticed:
                     if (e.PhaseElapsed >= def.NoticeSeconds) Advance(e, DistractionPhase.Recovering);
@@ -285,18 +294,26 @@ public sealed class DistractionSystem
         if (!_active.TryGetValue(employeeId, out var e)) return;
         if (e.Phase != DistractionPhase.Distracted) return;   // 자리 잡는 중·정리하는 중은 아니다
         _seenGrace[employeeId] = SeenGraceSeconds;
-        if (e.HasBeenObserved) return;
         e.SeenSeconds += delta;
-        if (e.SeenSeconds < ObserveSeconds) return;
 
-        e.HasBeenObserved = true;
-        e.ObservedAt = GameState.Instance?.DayTimeSeconds ?? 0f;
-        WitnessedToday++;
-        // 적발 — 즉시 개인별 반응으로 넘어간다.
-        Advance(e, DistractionPhase.Noticed);
-        // 통화를 목격한 것만으로는 "상대가 누구" 를 알 수 없다 — 교차 질문은 직원이
-        // 전화로 직접 말한 뒤에야(MarkAdmitted) 열린다.
+        if (!e.HasBeenObserved && e.SeenSeconds >= ObserveSeconds)
+        {
+            e.HasBeenObserved = true;
+            e.ObservedAt = GameState.Instance?.DayTimeSeconds ?? 0f;
+            WitnessedToday++;
+            // 통화를 목격한 것만으로는 "상대가 누구" 를 알 수 없다 — 교차 질문은 직원이
+            // 전화로 직접 말한 뒤에야(MarkAdmitted) 열린다.
+        }
+
+        // 적발 — 딴짓을 충분히 보여 준 뒤에 개인별 반응(놀람)으로 넘어간다.
+        // 중간에 채널을 돌리면 연속 시간이 끊기고, 다시 보면 처음부터 센다.
+        if (e.HasBeenObserved && e.SeenSeconds >= e.ReactAfter)
+            Advance(e, DistractionPhase.Noticed);
     }
+
+    // 관리자가 지금 이 딴짓을 화면으로 보고 있는가(한두 프레임의 공백은 본 것으로 친다).
+    private bool BeingWatched(string employeeId, DistractionEvent e) =>
+        e.SeenSeconds > 0f && _seenGrace.ContainsKey(employeeId);
 
     // 표현 계층이 적발 반응을 실제로 재생했다.
     public void NoteReacted(string employeeId)
@@ -568,8 +585,20 @@ public sealed class DistractionSystem
         // 목격이 모자랄 때는 **자리를 옮기지 않는** 딴짓을 조금 더 자주 고른다 —
         // 걸어가는 시간이 없어 더 빨리 화면에 드러난다. 보지 않은 것을 봤다고 하지는 않는다.
         if (hurry && def.Place == DistractionPlace.AtSpot) w *= 1.6f;
+        w *= KindBoost(def.Kind);
         return w;
     }
+
+    // 눈에 띄고 재미있는데 잘 안 나오던 딴짓을 더 자주 고른다(2026-10-28 요청 —
+    // 열 번 넘게 해도 여우가 바닥에 눕는 것도, 고양이 ↔ 강아지 통화도 한 번을 못 봤다).
+    //   · 여우 눕기 : 빈 바닥이 필요해 고를 수 있는 방이 적고, 서두를 때는 제자리 딴짓(×1.6)에 밀렸다
+    //   · 개인 통화 : 두 사람이 동시에 조건을 맞춰야 하고, 짝 보정(Fairness 두 번)으로 더 깎였다
+    private static float KindBoost(DistractionKind kind) => kind switch
+    {
+        DistractionKind.FoxFloorVideo => 6f,
+        DistractionKind.CatCall or DistractionKind.DogCall => 4.5f,
+        _ => 1f,
+    };
 
     // 같은 사람이 매일 걸리지 않게 하는 보정 — 어제 걸렸거나 오늘 이미 한 번 했으면 덜 뽑는다.
     private float Fairness(string id)
@@ -638,6 +667,7 @@ public sealed class DistractionSystem
             StartedAt = now,
             Phase = DistractionPhase.Entering,
             DistractLimit = _rng.RandfRange(def.DistractMinSeconds, def.DistractMaxSeconds),
+            ReactAfter = _rng.RandfRange(ReactMinSeconds, ReactMaxSeconds),
             Serial = ++_serial,
         };
         _events.Add(e);

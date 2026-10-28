@@ -1704,7 +1704,13 @@ public partial class FacilitySimulation : Node
         // 결번이 범행 동선을 타는 중이면 방해공작은 쉰다. 한 번에 하나만 한다.
         if (_covert.Phase is not (CovertPhase.Idle or CovertPhase.SeekingTarget)) return;
 
-        if (!unwatched) return;   // 감시 중이면 아래 방해공작은 시도하지 않는다
+        // 감시 중이면 아래 방해공작은 시도하지 않는다. 단기 근무에서 준비를 마치고 오래 기다린
+        // 날의 첫 번째는 예외다 — 보고 있어도 저지른다(SaboteurPlan.Impatient).
+        if (!unwatched && !_saboteurPlan.Impatient)
+        {
+            _saboteurPlan.NoteBlocked("CCTV 감시 중");
+            return;
+        }
         // 플레이어가 배치해 준 자리에서 충분히 준비했고, 목표 구간에 들어섰을 때만.
         // 여기서 다시 주사위를 굴리지 않는다 — DAY1 의 핵심 사건이 운으로 사라지면 안 된다.
         // 경비실 인원의 억제력은 "준비 시간이 길어진다"로 이미 반영되어 있다(SaboteurPlan).

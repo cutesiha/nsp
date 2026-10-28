@@ -248,15 +248,21 @@ public partial class EndingOffender : Node3D
     }
 
     // side = +1 이면 캐릭터의 왼팔. 팔은 로컬 -Y 로 뻗어 있으므로 Z 회전이 좌우 벌림이다.
+    //
+    // **부호 주의.** 왼어깨는 로컬 -X 에 있고, 이 뼈대에서 왼팔을 바깥으로 벌리는 쪽은 Z **음수**다
+    // (EmployeeCctvAnimator · CutsceneActor 도 같은 규칙). 예전에는 +로 돌려서 두 팔이 가슴 앞을
+    // 가로질러 X 자로 엇갈려 있었다. 팔꿈치도 X 음수 = 뒤로 꺾이는 쪽이었다 — 앞으로 굽힌다.
     private static void Arm(Node3D shoulder, Node3D upper, Node3D lower, float side, float pull, float shake)
     {
         if (shoulder == null) return;
-        // 기본 68° — 팔이 거의 수평으로 당겨져 있다. 당기면 78° 까지 올라간다.
-        float spread = Mathf.Lerp(68f, 78f, pull);
-        shoulder.RotationDegrees = new Vector3(shake * 0.6f, 0f, side * spread);
-        if (upper != null) upper.RotationDegrees = new Vector3(-12f + pull * 10f, 0f, side * (4f + pull * 6f));
-        // 팔꿈치는 구속재 때문에 거의 펴진 채다 — 당겨도 조금밖에 굽지 않는다.
-        if (lower != null) lower.RotationDegrees = new Vector3(-16f + pull * 12f, 0f, 0f);
+        // 사슬이 바닥의 무게추 쪽(옆 · 약간 아래)으로 팔을 끌어내리고 있다.
+        // 축 늘어지면 60°, 당기면 사슬이 팽팽해지며 72° 까지 들린다.
+        float spread = Mathf.Lerp(60f, 72f, pull);
+        shoulder.RotationDegrees = new Vector3(shake * 0.6f, 0f, -side * spread);
+        // 무게추는 몸보다 조금 앞에 있다 — 팔도 몸통 옆선보다 살짝 앞으로 나온다.
+        if (upper != null) upper.RotationDegrees = new Vector3(10f - pull * 4f, 0f, -side * (3f + pull * 5f));
+        // 힘이 빠지면 팔꿈치가 앞으로 살짝 굽고, 당길 때는 거의 펴진다.
+        if (lower != null) lower.RotationDegrees = new Vector3(18f - pull * 12f, 0f, 0f);
     }
 
     private void UpdateChains()

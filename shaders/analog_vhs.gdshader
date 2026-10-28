@@ -41,6 +41,14 @@ uniform float vignette : hint_range(0.0, 1.5) = 0.2;
 // 공포 연출 때 코드(AnalogFilter.cs)가 0 → 1 로 끌어올린다.
 uniform float tracking : hint_range(0.0, 1.0) = 0.0;
 
+// 관리자 패드 속 직원 얼굴 아이콘 · 스탠딩 일러가 보이는 칸(이 사각형의 UV 0~1,
+// xy = 왼쪽 위 · zw = 오른쪽 아래). AnalogFilter.cs 가 매 프레임 채운다.
+// 이 칸 안에서는 LUT · 입자를 protect_amount 만큼 덜 건다 — 낮은 품질에서 일러가
+// 청록 덩어리로 뭉개져 누가 누군지 안 보였다(2026-10-28).
+uniform vec4 protect_rects[12];
+uniform int protect_count = 0;
+uniform float protect_amount : hint_range(0.0, 1.0) = 0.85;
+
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -67,6 +75,17 @@ float grain_weight(vec3 c) {
 	return max(lit, pure * grain_dark_blue);
 }
 
+float protect_mask(vec2 p) {
+	float m = 0.0;
+	for (int i = 0; i < 12; i++) {
+		if (i >= protect_count) break;
+		vec4 r = protect_rects[i];
+		vec2 d = min(p - r.xy, r.zw - p);   // 칸 안이면 둘 다 양수
+		m = max(m, step(0.0, min(d.x, d.y)));
+	}
+	return m;
+}
+
 void fragment() {
 	vec2 uv = SCREEN_UV;
 	float t = TIME;
@@ -84,15 +103,18 @@ void fragment() {
 		texture(screen_tex, uv).g,
 		texture(screen_tex, uv - vec2(ab, 0.0)).b);
 
+	// 패드 속 직원 일러 칸 — 색 보정 · 입자를 덜 건다.
+	float keep = protect_count > 0 ? protect_mask(UV) * protect_amount : 0.0;
+
 	// 색 — LUT
-	vec3 m = mix(src, lut_lookup(src), lut_amount);
+	vec3 m = mix(src, lut_lookup(src), lut_amount * (1.0 - keep));
 
 	// 입자 노이즈
 	vec2 cell = floor(FRAGCOORD.xy / grain_px);
 	float frame = floor(t * grain_fps);
 	vec2 seed = cell + vec2(frame * 17.13, frame * 7.71);
 	vec3 r = mix(vec3(hash(seed)), vec3(hash(seed + 31.7), hash(seed + 57.3), hash(seed + 91.1)), grain_color_split);
-	float gw = clamp(grain * grain_weight(m) + tracking * 0.3, 0.0, 1.0);
+	float gw = clamp(grain * grain_weight(m) * (1.0 - keep) + tracking * 0.3, 0.0, 1.0);
 	vec3 col = mix(m, step(r, m), gw * grain_rgb);
 
 	// 스캔라인 · 비네트

@@ -424,6 +424,133 @@ public partial class EndingCutsceneStage
 
     public float CoreAuraLevel => _coreAura;
 
+    // ── 엔딩 : 빛이 모였다가 터진다 ─────────────────────────────────────
+    //
+    // 코어가 그냥 밝아지기만 하면 "전등을 켰다" 로 보인다. 다시 물리는 순간은 **사방의 빛이
+    // 한 점으로 빨려 들어갔다가** 터져야 한다. 효과음(core_gather → core_bloom · core_shimmer)과
+    // 같은 박자다 — 모이는 동안 빛 알갱이가 코어로 쏟아지고, 옅은 빛 껍질이 조여든다.
+    private GpuParticles3D _gatherMotes;
+    private MeshInstance3D _gatherShell;
+    private ShaderMaterial _gatherShellMat;
+    private Tween _gatherTween;
+
+    private const float GatherFrom = 11f;   // 알갱이가 출발하는 구의 반지름(m)
+
+    // 빛 껍질 — 가장자리만 빛난다(프레넬). 통짜 반투명 구는 화면 전체를 뿌옇게 덮고,
+    // 터질 때는 테두리가 딱딱한 원판으로 보였다.
+    private const string GatherShellShader = @"
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+uniform vec3 tint = vec3(0.66, 0.86, 1.0);
+uniform float intensity = 0.0;
+void fragment() {
+	float f = 1.0 - abs(dot(normalize(NORMAL), normalize(VIEW)));
+	float a = pow(f, 4.0) * intensity;
+	ALBEDO = tint * a;
+	ALPHA = clamp(a, 0.0, 1.0);
+}";
+
+    private void ShellIntensity(float v) => _gatherShellMat?.SetShaderParameter("intensity", v);
+
+    public void CoreGather(double seconds)
+    {
+        EnsureGather();
+        if (_gatherMotes == null) return;
+        _gatherMotes.Restart();
+        _gatherMotes.Emitting = true;
+
+        _gatherShell.Visible = true;
+        _gatherShell.Scale = Vector3.One * 12.5f;
+        ShellIntensity(0f);
+        _gatherTween?.Kill();
+        _gatherTween = CreateTween().SetParallel(true);
+        // 처음엔 느리게, 끝으로 갈수록 급하게 조인다 — 소리의 크레셴도와 같은 모양.
+        _gatherTween.TweenProperty(_gatherShell, "scale", Vector3.One * 3.45f, seconds)
+            .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.In);
+        _gatherTween.TweenMethod(Callable.From<float>(ShellIntensity), 0.15f, 1.6f, seconds)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+    }
+
+    // 다 모인 빛이 한 번에 바깥으로 퍼진다.
+    public void CoreBurst()
+    {
+        if (_gatherMotes != null) _gatherMotes.Emitting = false;
+        if (_gatherShell == null) return;
+        _gatherTween?.Kill();
+        _gatherTween = CreateTween().SetParallel(true);
+        _gatherTween.TweenProperty(_gatherShell, "scale", Vector3.One * 9f, 1.0)
+            .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.Out);
+        _gatherTween.TweenMethod(Callable.From<float>(ShellIntensity), 2.2f, 0f, 1.0)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        _gatherTween.Chain().TweenCallback(Callable.From(() => _gatherShell.Visible = false));
+    }
+
+    private void EnsureGather()
+    {
+        if (_gatherMotes != null || _setCore == null) return;
+        var at = CoreCenter;
+        // 구 표면에서 출발해 중심으로 끌려간다(반지름 방향 가속이 음수). 코어(반지름 3.2)에
+        // 닿을 즈음 수명이 끝나 구 안으로 사라진다 — 반대쪽으로 튀어나가지 않는다.
+        var mat = new ParticleProcessMaterial
+        {
+            EmissionShape = ParticleProcessMaterial.EmissionShapeEnum.SphereSurface,
+            EmissionSphereRadius = GatherFrom,
+            Gravity = Vector3.Zero,
+            InitialVelocityMin = 0f,
+            InitialVelocityMax = 0.3f,
+            RadialAccelMin = -17f,
+            RadialAccelMax = -14f,
+            ScaleMin = 0.7f,
+            ScaleMax = 1.4f,
+        };
+        // 알갱이는 점이 아니라 **꼬리를 끄는 빛줄기**다 — 멈춘 화면에서도 "빨려 들어간다" 가 읽힌다.
+        _gatherMotes = new GpuParticles3D
+        {
+            Name = "CoreGatherMotes",
+            Position = at,
+            Amount = 260,
+            Lifetime = 1.05,
+            Emitting = false,
+            ProcessMaterial = mat,
+            TrailEnabled = true,
+            TrailLifetime = 0.22,
+            // 화면 밖에서 출발하는 알갱이가 많다 — 경계 상자를 넉넉히 잡아야 잘려 보이지 않는다.
+            VisibilityAabb = new Aabb(Vector3.One * -GatherFrom * 1.2f, Vector3.One * GatherFrom * 2.4f),
+            DrawPass1 = new RibbonTrailMesh
+            {
+                Shape = RibbonTrailMesh.ShapeEnum.Cross,
+                Size = 0.08f,
+                Sections = 4,
+                SectionLength = 0.25f,
+                SectionSegments = 2,
+            },
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = new Color(0.80f, 0.93f, 1f, 0.9f),
+                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
+                BlendMode = BaseMaterial3D.BlendModeEnum.Add,
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+                UseParticleTrails = true,
+                CullMode = BaseMaterial3D.CullModeEnum.Disabled,
+                DisableReceiveShadows = true,
+            },
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
+        _setCore.AddChild(_gatherMotes);
+
+        _gatherShellMat = new ShaderMaterial { Shader = new Shader { Code = GatherShellShader } };
+        _gatherShell = new MeshInstance3D
+        {
+            Name = "CoreGatherShell",
+            Position = at,
+            Mesh = new SphereMesh { Radius = 1f, Height = 2f, RadialSegments = 24, Rings = 14 },
+            MaterialOverride = _gatherShellMat,
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            Visible = false,
+        };
+        _setCore.AddChild(_gatherShell);
+    }
+
     // 설비는 멈춰 있지 않다 — 보조 링이 천천히 돌고, 헤일로가 숨 쉬듯 뛴다.
     // 폭발 뒤에는 CoreAura(0) 이 걸려 전부 꺼진다.
     private void TickCoreRig(float delta)

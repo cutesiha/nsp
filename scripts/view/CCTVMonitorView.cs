@@ -504,6 +504,17 @@ public partial class CCTVMonitorView : Control
         }
         bool forceFeed = now < _forceFeedUntil;
 
+        // 근무가 끝났다(근무 결과 정산 · 최종 보고서). 왼쪽 CRT 가 보고서로 바뀌는 동안
+        // 오른쪽에 방금까지 보던 작업실이 그대로 살아 있으면 근무가 안 끝난 것처럼 보인다 —
+        // 방을 골라 두었는지 · 전력이 들어와 있는지에 따라 떴다 안 떴다 했다.
+        if (GameState.Instance?.CurrentPhase == GamePhase.Settlement)
+        {
+            ShowState("SHIFT COMPLETE\n감시 기록 종료", darken: 0.95f);
+            _camLabel.Text = "";
+            _noise.Modulate = new Color(1, 1, 1, 0.08f);
+            return false;
+        }
+
         // 복도 카메라 — 작업실이 아니라 통로를 비춘다.
         // 전력 · 감시 설비 고장 규칙은 작업실과 **똑같이** 적용된다(복도만 계속 보이면 안 된다).
         string corridorId = sim?.SurveillanceCorridorId ?? "";
