@@ -14,6 +14,10 @@ public partial class ShiftHud : CanvasLayer
 {
     private const float GaugeWidth = 560f;
     private const float GaugeHeight = 34f;
+    // 봉쇄 불안정 게이지 — 코어 게이지 바로 아래, 더 짧고 얇게. 상단 배너(98px~)보다 위에서 끝난다.
+    private const float ContainmentWidth = 300f;
+    private const float ContainmentHeight = 18f;
+    private const float ContainmentGap = 6f;
 
     private Label _day;
     private Button _gear;
@@ -22,6 +26,7 @@ public partial class ShiftHud : CanvasLayer
     private Label _padKey;
     private Control _root;
     private CoreGauge _gauge;
+    private ContainmentGauge _containment;
 
     public override void _Ready()
     {
@@ -44,6 +49,7 @@ public partial class ShiftHud : CanvasLayer
 
         if (_day.Visible != live) _day.Visible = live;
         if (_gauge.Visible != live) _gauge.Visible = live;
+        if (!live && _containment.Visible) _containment.Visible = false;
         if (_gear.Visible != live) _gear.Visible = live;
         // 「SKIP ≫」 이 오른쪽 위 모서리를 쓰는 동안에는 톱니 · 패드 아이콘이 그 아래로 내려간다.
         SetCornerDrop(StorySkipHud.Instance?.ButtonVisible == true ? StorySkipHud.CornerHeight : 0f);
@@ -55,6 +61,23 @@ public partial class ShiftHud : CanvasLayer
         if (_day.Text != text) _day.Text = text;
 
         _gauge?.SetProgress(GameState.Instance?.CoreProgress ?? 0f);
+        TickContainmentGauge();
+    }
+
+    // 봉쇄 불안정은 결번이 있는 실제 근무에서만 뜻이 있다 — 교육(DAY0)에서는 숨긴다.
+    private void TickContainmentGauge()
+    {
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        bool show = sim != null && DayFeatures.AutoIncidentsEnabled;
+        if (_containment.Visible != show) _containment.Visible = show;
+        if (!show) return;
+
+        // 그날 두 번째 이상 개체가 나올 수 있는 선. 하루 한 번만 나오는 날에는 눈금을 찍지 않는다.
+        var ops = OpsProfile.Today;
+        int maxGhosts = ops?.GhostMaxPerDay ?? -1;
+        if (maxGhosts < 0) maxGhosts = Config.Instance?.Data?.GhostMaxPerDay ?? 1;
+        float mark = maxGhosts > 1 ? Mathf.Max(0f, ops?.GhostExtraNeedsInstability ?? 0f) : 0f;
+        _containment.Set(sim.Containment?.Instability ?? 0f, mark);
     }
 
     // 오른쪽 위 아이콘 묶음(톱니 · 패드 · Tab 글자)을 아래로 내리는 양. 바뀔 때만 다시 놓는다.
@@ -102,6 +125,17 @@ public partial class ShiftHud : CanvasLayer
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         _root.AddChild(_gauge);
+
+        // ── 그 아래 : 봉쇄 불안정 게이지 ──
+        float containTop = 18f + GaugeHeight + ContainmentGap;
+        _containment = new ContainmentGauge
+        {
+            AnchorLeft = 0.5f, AnchorRight = 0.5f,
+            OffsetLeft = -ContainmentWidth / 2f, OffsetRight = ContainmentWidth / 2f,
+            OffsetTop = containTop, OffsetBottom = containTop + ContainmentHeight,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        _root.AddChild(_containment);
 
         // ── 오른쪽 위 구석 : 톱니바퀴(ESC 메뉴) ──
         _gear = new Button
@@ -272,6 +306,75 @@ public partial class ShiftHud : CanvasLayer
         public override void _Draw()
         {
             DrawRect(new Rect2(Vector2.Zero, Size), Border, false, 1.6f);
+        }
+    }
+
+    // 봉쇄 불안정 게이지(ContainmentSystem.Instability, 0~100). 근무마다 0 에서 시작한다.
+    //
+    // 결번 개체가 풀려 있는 동안 저절로 차오르고, CCTV 공백을 노린 교란이 있으면 한 번에 튄다.
+    // 결번을 격리하면 내려가기 시작하고 이상 개체도 더는 나오지 않는다. 그날 두 번째 개체가
+    // 나올 수 있는 선(GhostExtraNeedsInstability)에는 눈금을 찍고, 그 선을 넘으면 막대가 붉어진다.
+    private partial class ContainmentGauge : Control
+    {
+        private static readonly Color Empty = new(0.17f, 0.15f, 0.14f, 0.86f);
+        private static readonly Color Calm = new(0.92f, 0.64f, 0.26f);
+        private static readonly Color Danger = new(0.94f, 0.25f, 0.17f);
+        private static readonly Color Border = new(0.80f, 0.72f, 0.62f, 0.55f);
+        private static readonly Color Tick = new(1f, 0.95f, 0.88f, 0.9f);
+        // 눈금 너머(두 번째 개체가 나올 수 있는 구간)의 빈 바탕.
+        private static readonly Color DangerZone = new(0.42f, 0.08f, 0.06f, 0.75f);
+
+        private Label _label;
+        private float _value = -1f;
+        private float _mark = -1f;
+
+        public override void _Ready()
+        {
+            _label = new Label
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                MouseFilter = MouseFilterEnum.Ignore,
+            };
+            _label.SetAnchorsPreset(LayoutPreset.FullRect);
+            _label.AddThemeFontOverride("font", ViewFont.Default);
+            _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(12));
+            _label.AddThemeColorOverride("font_color", new Color(0.98f, 0.96f, 0.92f));
+            _label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
+            _label.AddThemeConstantOverride("outline_size", 4);
+            AddChild(_label);
+            Set(0f, 0f);
+        }
+
+        public void Set(float percent, float mark)
+        {
+            float p = Mathf.Clamp(percent, 0f, 100f);
+            // 소수점 아래의 흔들림마다 다시 그리지 않는다.
+            if (Mathf.Abs(p - _value) < 0.05f && Mathf.IsEqualApprox(mark, _mark)) return;
+            _value = p;
+            _mark = mark;
+            _label.Text = $"봉쇄 불안정 {p:0}%";
+            QueueRedraw();
+        }
+
+        public override void _Draw()
+        {
+            var r = new Rect2(Vector2.Zero, Size);
+            DrawRect(r, Empty, true);
+            float markX = Size.X * _mark / 100f;
+            // 눈금 너머를 어둡게 붉힌다 — 글자가 가운데를 덮어도 "여기부터 위험" 이 읽힌다.
+            if (_mark > 0f) DrawRect(new Rect2(markX, 0f, Size.X - markX, Size.Y), DangerZone, true);
+            float filled = Size.X * _value / 100f;
+            bool over = _mark > 0f && _value >= _mark;
+            if (filled > 0.5f) DrawRect(new Rect2(0f, 0f, filled, Size.Y), over ? Danger : Calm, true);
+            DrawRect(r, Border, false, 1.2f);
+            if (_mark <= 0f) return;
+            // 눈금은 막대 바깥 위아래의 작은 삼각형으로 찍는다(안쪽 글자에 가리지 않게).
+            const float tw = 4.5f, th = 5f;
+            DrawColoredPolygon(new[] { new Vector2(markX - tw, -th - 1f), new Vector2(markX + tw, -th - 1f),
+                new Vector2(markX, -1f) }, Tick);
+            DrawColoredPolygon(new[] { new Vector2(markX + tw, Size.Y + th + 1f), new Vector2(markX - tw, Size.Y + th + 1f),
+                new Vector2(markX, Size.Y + 1f) }, Tick);
         }
     }
 

@@ -262,9 +262,13 @@ public partial class SaboteurClueTest : Node
         Check(_sim.Saboteur.Phase != SaboteurPhase.Preparing && _sim.Saboteur.CancelCount > 0,
             "C 재배치하면 준비가 취소된다");
 
-        Advance(20f);
+        // 새 자리에서는 준비를 처음부터 다시 채운다 — 자리 잡기(SabotageSettleSeconds)와 최소 준비
+        // (SabotagePrepareMinSeconds)를 다 채우기 전에는 손대지 못한다. 예전에는 20초를 기다렸는데,
+        // DAY1 에도 방해공작이 한 번은 일어나게 된 뒤(막판 강행 포함)로는 그 안에 다시 준비를 마칠 수 있다.
+        // 재배치는 "막는" 수단이 아니라 "다시 처음부터 하게 만드는" 수단이다.
+        Advance(Mathf.Max(0f, ops.SabotageSettleSeconds + ops.SabotagePrepareMinSeconds - 6f));
         Check(!_sim.Saboteur.HasActed && _sim.Saboteur.Phase != SaboteurPhase.Done,
-            "D 대상이 아닌 새 자리에서는 방해공작이 일어나지 않는다");
+            "D 재배치한 새 자리에서는 준비를 처음부터 다시 채운다(곧바로 손대지 못한다)");
     }
 
     // --- Test E~I : 전조 --------------------------------------------------
@@ -274,16 +278,15 @@ public partial class SaboteurClueTest : Node
         var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
         GD.Print($"\n[E~I] 방해공작 {acted.Count}회 · 전조 평균 {Avg(acted, r => r.Precursors):0.0}개 · " +
                  $"단서 경로 평균 {Avg(acted, r => r.CluePaths):0.0}개");
-        // DAY1 의 실제 방해공작은 **드물다**. 하루 한 번 반드시 남는 쪽은 작은 교란(MinorTamper)
-        // 이고, 그건 Day1RhythmTest 가 따로 본다.
+        // DAY1 에도 실제 방해공작이 **한 번은** 일어난다(2026-10-28 — 예전에는 "드물다" 였다).
+        // 단기 근무는 사흘뿐이라 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다. 손댄 고장은
+        // 시간이 지나 드러나고, 혼자 있던 방에서 손댔으면 다른 방에서 터진다(FacilitySimulation).
         //
-        // 이 검사의 관리자 대역은 경고가 뜰 때마다 사람을 빌려 보낸다 — 그 재배치 하나하나가
-        // 결번 개체의 준비를 깨므로(SaboteurPlan.CancelCount), 여기서는 발생률이 설정값보다
-        // 크게 낮게 나온다(손 놓은 판 ~33% vs 여기 ~8%). **그게 의도다** — 배치가 곧 방어다.
-        // 이 숫자가 낮다고 SabotageChancePerDay 를 올리면 손 놓은 판이 그만큼 과해진다.
+        // 이 검사의 관리자 대역은 경고가 뜰 때마다 사람을 빌려 보낸다 — 결번을 옮기면 준비가 깨지므로
+        // (SaboteurPlan.CancelCount) 손 놓은 판보다 조금 낮게 나올 수 있다. 배치는 여전히 방어다.
         float hardRate = acted.Count * 100f / Mathf.Max(1, runs.Count);
-        Check(hardRate is > 0f and <= 60f,
-            $"방해공작이 드물게 일어난다 ({hardRate:0}% · 개입하지 않는 판은 Day1RhythmTest 기준 30% 안팎)");
+        Check(hardRate >= 50f,
+            $"DAY1 에도 방해공작이 일어난다 ({hardRate:0}% · 기준 50% 이상)");
         Check(runs.All(r => r.Tampered), "작은 교란은 모든 근무에서 남는다");
         Check(acted.All(r => r.Precursors >= 1), "E 방해공작 전에 전조가 최소 1개 생긴다");
         Check(acted.All(r => r.PrepareAt >= 0f && r.PrepareAt < r.SabotageAt),

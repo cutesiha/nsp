@@ -122,11 +122,18 @@ public sealed class GhostHauntSystem
     {
         // 교육일(DAY0)에는 스스로 나오지 않는다. 튜토리얼이 정해진 시점에 직접 부른다.
         if (!DayFeatures.AutoIncidentsEnabled) return;
+        // 이상 개체는 직원으로 둔갑한 결번 개체가 **불러오는** 것이다. 결번을 격리했거나 결번이
+        // 죽었으면 부를 자가 없다 — 첫 등장 보장까지 포함해 더는 스스로 나오지 않는다.
+        // (힌트가 아니라 설정 그대로다. 교육의 ForceAppear 는 이 길을 거치지 않는다.)
+        if (sim.IsSaboteurNeutralized()) return;
         // 오늘의 운영 규칙이 한도를 정해 두었으면 그것을 쓰고, 없을 때만 전역 기본값을 쓴다.
         int max = OpsProfile.Today?.GhostMaxPerDay ?? -1;
         if (max < 0) max = cfg.GhostMaxPerDay;
         if (AppearedToday >= max) return;
         if (now < _cooldownUntil) return;
+        // 두 번째부터는 봉쇄가 충분히 흔들려 있어야 한다 — 화면의 봉쇄 불안정 게이지 눈금이 그 선이다.
+        float extraNeed = OpsProfile.Today?.GhostExtraNeedsInstability ?? 0f;
+        if (AppearedToday > 0 && extraNeed > 0f && (sim.Containment?.Instability ?? 0f) < extraNeed) return;
         // 보장 구간이 열려 있으면 전역 최소 시각(GhostFirstAppearSeconds)보다 먼저 나올 수 있다.
         if (now < cfg.GhostFirstAppearSeconds && !(AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt))
             return;

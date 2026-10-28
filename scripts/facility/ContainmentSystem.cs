@@ -18,6 +18,10 @@ namespace NSP.Facility;
 //   · 격리 구역 봉쇄 시스템 — 개체가 **밖으로 나오지 못하게** 하는 시설의 근본 장치(이 파일)
 //   · 관리자 복도 차폐문   — 이미 나온 개체가 **중앙제어실에 못 들어오게** 하는 방어(CorridorNet)
 //
+// 교란과 별개로, 결번이 풀려 있는 동안에는 봉쇄가 **저절로** 조금씩 흔들린다(그날의
+// OpsProfileDef.ContainmentDriftPerSecond). 결번을 격리하면 그 흔들림도, 이상 개체 출몰도 멈춘다.
+// 이 값은 근무 HUD 의 「봉쇄 불안정」 게이지로 관리자에게 그대로 보인다(ShiftHud).
+//
 // 그리고 인과를 1:1 로 묶지 않는다. 교란 직후에만 개체가 나오면 "출몰 = 방금 누가 손댔다"
 // 가 되어 추리가 공식이 된다. 불안정성은 **천천히 가라앉는 저수지**라서, 한참 전의 교란이
 // 지금의 출몰 확률로 남아 있을 수 있다(지시서 §1).
@@ -43,6 +47,8 @@ public sealed class ContainmentSystem
     // 가라앉는 속도(초당). 근무 하나(150초) 동안 절반쯤 가라앉는다 —
     // 한 번 교란하면 그 영향이 근무 내내 어느 정도 남는다.
     private const float DecayPerSecond = 0.22f;
+    // 부르는 자(결번)가 사라진 뒤의 감쇠 배율 — 게이지가 눈에 보이게 내려가야 "멎었다" 가 읽힌다.
+    private const float SettleMultiplierWithoutSummoner = 4f;
 
     // 시설 기록(원인 불명)을 남기는 문턱. 넘을 때마다 한 번씩.
     private static readonly float[] Thresholds = { 25f, 50f, 75f };
@@ -77,9 +83,17 @@ public sealed class ContainmentSystem
     {
         if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
         if (_reportCooldown > 0f) _reportCooldown -= delta;
+
+        // 결번 개체가 근무 중인 한 봉쇄는 저절로 흔들린다 — 그 개체가 이상 개체를 불러오고 있다.
+        // 감시와 상관없이 쌓이므로 어느 방을 보고 있는지로 범인을 가려낼 수는 없다.
+        // 결번을 격리하면(또는 죽으면) 멈추고, 남은 흔들림은 평소의 네 배 빠르기로 가라앉는다.
+        bool summonerGone = sim?.IsSaboteurNeutralized() ?? false;
+        if (!summonerGone && DayFeatures.AutoIncidentsEnabled)
+            Instability = Mathf.Min(100f, Instability + Mathf.Max(0f, OpsProfile.Today?.ContainmentDriftPerSecond ?? 0f) * delta);
         if (Instability <= 0f) return;
 
-        Instability = Mathf.Max(0f, Instability - DecayPerSecond * delta);
+        float decay = DecayPerSecond * (summonerGone ? SettleMultiplierWithoutSummoner : 1f);
+        Instability = Mathf.Max(0f, Instability - decay * delta);
 
         // 문턱을 넘으면 시설에 **원인 불명의** 기록이 남는다.
         //

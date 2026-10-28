@@ -86,13 +86,13 @@ Lines = PackedStringArray("작업실 업무를 방치하면 설비가 고장 납
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/cctv_power.png"
 Title = "방해공작"
-Lines = PackedStringArray("누군가 일부러 설비를 망가뜨리기도 합니다.", "시스템은 범인의 신원을 알려주지 않습니다.", "그 순간 CCTV로 보고 있었다면 화면이 단서가 됩니다.")
+Lines = PackedStringArray("누군가 일부러 설비를 망가뜨리기도 합니다.", "손댄 뒤 한참 지나, 다른 방에서 고장이 드러나기도 합니다.", "고장 전에 CCTV에 잡힌 설비 쪽 움직임이 단서가 됩니다.", "시스템은 범인의 신원을 알려주지 않습니다.")
 
 [sub_resource type="Resource" id="page_15"]
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/anomaly.png"
 Title = "이상 개체"
-Lines = PackedStringArray("정체불명의 개체는 경고 없이 작업실에 나타납니다.", "패드 알림에도 잡히지 않습니다.", "CCTV를 직접 돌려 찾으십시오.")
+Lines = PackedStringArray("정체불명의 개체는 경고 없이 작업실에 나타납니다.", "패드 알림에도 잡히지 않습니다. CCTV를 직접 돌려 찾으십시오.", "화면 위 「봉쇄 불안정」이 높을수록 자주 나타납니다.")
 
 [sub_resource type="Resource" id="page_16"]
 script = ExtResource("3_page")

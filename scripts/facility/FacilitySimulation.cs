@@ -277,6 +277,7 @@ public partial class FacilitySimulation : Node
         _cctvWasOperational = true;
         _darknessSeconds = 0f;
         _containment.Reset();
+        _pendingSabotage.Clear();
         _covert.Reset();
         _surveillanceTargetRoomId = "";
         _forcedSurveillanceRoomId = "";
@@ -575,6 +576,19 @@ public partial class FacilitySimulation : Node
         string saboteurId = GameState.Instance.SaboteurEmployeeId;
         if (string.IsNullOrEmpty(saboteurId)) return false;
         return _employeeStates.GetValueOrDefault(saboteurId)?.Isolated ?? false;
+    }
+
+    // 결번 개체가 더는 아무것도 할 수 없는가 — 격리됐거나 죽었다.
+    //
+    // 귀신은 결번이 **불러오는** 것이라 이 값이 참이면 이상 개체가 스스로 나오지 않고,
+    // 봉쇄 계통도 더 흔들리지 않는다(GhostHauntSystem · ContainmentSystem). 결번이 아직
+    // 정해지지 않은 판(검사 씬 등)은 예전처럼 "풀려 있다" 로 본다.
+    public bool IsSaboteurNeutralized()
+    {
+        string saboteurId = GameState.Instance?.SaboteurEmployeeId;
+        if (string.IsNullOrEmpty(saboteurId)) return false;
+        var st = _employeeStates.GetValueOrDefault(saboteurId);
+        return st != null && (st.Isolated || !st.Alive);
     }
 
     public void SetRoomVisualCenter(string roomId, Vector2 center)
@@ -1330,6 +1344,7 @@ public partial class FacilitySimulation : Node
         _cctvWasOperational = true;
         _darknessSeconds = 0f;
         _containment.Reset();
+        _pendingSabotage.Clear();
         _covert.Reset();
         foreach (var e in _employeeStates.Values) e.CovertMove = false;
         _tensionStressTimers.Clear();
@@ -1467,6 +1482,8 @@ public partial class FacilitySimulation : Node
         TickDarkness(d);
         TabooRuleSystem.Instance?.Tick(d);
         TickSaboteur(d);
+        // 결번이 손대 둔 설비가 때가 되어 고장 난다(결번이 격리돼도 이미 떠난 고장은 없다 — 함께 사라진다).
+        TickPendingSabotage();
         // 봉쇄 계통의 불안정성이 가라앉는다 / 문턱을 넘으면 원인 불명 기록이 남는다.
         _containment.Tick(d, this);
         // 감시 공백(조명 OFF · CCTV OFF)을 이용한 은밀 이동 · 봉쇄 교란 · 범행.
@@ -1718,74 +1735,55 @@ public partial class FacilitySimulation : Node
         var cfg = Config.Instance.Data;
         if (opsToday == null && _rng.NextDouble() >= cfg.SaboteurSabotageChance * surveillanceMult) return;
 
-        string here = saboteur.CurrentRoomId;
-
-        // ── ③ 전력 조작 : 발전실에 있을 때 ────────────────────────────────
-        if (here == PowerRoomId && !GameState.Instance.IsPowerAccidentActive())
-        {
-            GameState.Instance.TriggerPowerAccident(cfg.SabotagePowerLoss);
-            LogSabotage(saboteur, here, others, $"전력 계통 이상 — 최대 전력 -{cfg.SabotagePowerLoss} (원인 불명)",
-                "▲ 발전 계통에서 비정상적인 손상이 감지되었습니다!");
-            return;
-        }
-
-        // ── ⑤ 자재 폐기 : 정비실 / 저장고에 있을 때 ───────────────────────
-        if (here is MaintenanceRoomId or StorageRoomId && GameState.Instance.Materials > 0)
-        {
-            GameState.Instance.AddMaterials(-cfg.SabotageMaterialLoss);
-            LogSabotage(saboteur, here, others, $"자재 {cfg.SabotageMaterialLoss}개 분실 (기록 없음)",
-                "▲ 시설 자재가 기록 없이 사라졌습니다!");
-            return;
-        }
-
-        // ── ①② 복구 작업 방해 : 코어 복구율 감소. 혼란 상태면 더 크게 깎는다 ──
-        if (here == CoreRoomId || blackoutChaos)
-        {
-            // 난이도 표의 배율이 걸린다 — 1차 캠페인에서는 결번을 늦게 찾았다고 복구율이
-            // 한 번에 무너지지 않는다(상대값은 그대로 두고 배율로만 조절한다).
-            float loss = (blackoutChaos ? cfg.SabotageCoreLossBlackout : cfg.SabotageCoreLoss)
-                         * RecoveryProfile.SabotageDamageMultiplier;
-            // 사유를 둘로 나눈다 — 평소의 방해와 "관리자가 조명·CCTV 를 꺼 둔 틈" 은
-            // 원인도 대책도 다르다. 화면에 뜨는 문구는 그대로다(로그는 LogSabotage 가 쓴다).
-            GameState.Instance.AddCoreProgress(-loss, blackoutChaos ? "정전 혼란" : "복구 작업 방해");
-            LogSabotage(saboteur, here, others, $"봉쇄 코어 복구율 -{loss:0}% (원인 불명)",
-                "▲ 봉쇄 코어 복구율이 비정상적으로 감소했습니다!");
-            // 깎인 양을 게이지 아래에 잠깐 띄운다 — "내가 쌓은 게 줄었다"가 보여야 한다.
-            NSP.Ui.FacilityAlertHud.Instance?.ShowCoreLoss(loss);
-            return;
-        }
-
-        // ── ④ 설비 손대기 : 그 작업실 업무가 한동안 헛돈다 ────────────────
-        //
-        // **CCTV 를 끊지 않는다.** 전에는 여기서 그 방의 CCTV 를 몇십 초 막았는데,
-        // 결번은 경비실에 있는 날이 많아 플레이어에게는 "경비실에 사고가 나면 CCTV 를
-        // 못 본다" 로 보였다. 더 나쁜 것은 **볼 수단을 빼앗는 방해**라 대응할 길이
-        // 없다는 점이다 — 보이는데 안 고쳐지는 쪽이 할 일이 생긴다.
-        // 그래서 같은 자리에서 설비를 건드려 업무를 헛돌게 한다(미세 이상).
-        var hereState = _roomStates.GetValueOrDefault(here);
-        if (hereState != null)
-        {
-            hereState.MicroFaultUntil = GameState.Instance.DayTimeSeconds + MicroFaultSeconds;
-            LogSabotage(saboteur, here, others,
-                $"설비 조작 — {MicroFaultSeconds:0}초간 작업 정체",
-                "▲ 설비가 원인 불명으로 멈췄습니다!");
-        }
-
+        // 지금 자리에서 손을 댄다. 고장은 지금 나지 않는다 — 시간이 지나 드러난다.
         // 배치된 직원은 관리자의 재배치 또는 실제 시설 문제(격리/대피) 없이는
         // 자기 담당 작업실을 떠나지 않는다. 파괴공작자는 현재 작업실에서만
         // 방해·위장 행동을 하며, 무작위 방 이동으로 근무표를 깨지 않는다.
+        PlantSabotage(saboteur, saboteur.CurrentRoomId, others, blackoutChaos, opsToday);
     }
 
-    // 방해공작 흔적. 실행자 id 는 남기되 로그 문구에는 이름을 쓰지 않는다 —
-    // 플레이어는 "무슨 일이 있었는지"만 보고, 누구인지는 로그/CCTV/진술 교차로 좁혀야 한다.
-    private void LogSabotage(EmployeeState actor, string roomId, List<EmployeeState> witnesses, string what,
-        string alert = "")
+    // ── 방해공작 = 손대기 → (시간) → 고장 ────────────────────────────────
+    //
+    // 예전에는 손대는 순간 그 방에서 바로 터졌다. 그러면 "혼자 있는 방에서는 손대지 않는다"
+    // 가 반드시 필요했고(로그 한 줄로 범인이 확정되니까), 결번이 혼자 방을 맡는 흔한 배치에서는
+    // 방해공작이 근무 내내 한 번도 일어나지 않았다. 터져도 코어 몇 % 가 깎이고 끝이라
+    // 관리자 입장에서는 방해받는다는 느낌조차 없었다(2026-10-28 플레이 피드백).
+    //
+    // 이제 둘을 떼어 놓는다.
+    //   ① 손대기 — 결번이 자기 자리에서 설비를 만진다. 남는 것은 그 방의 전조뿐이다.
+    //   ② 고장   — SabotageDelay* 초 뒤 **진짜 고장**이 난다(수리 업무 · 그 방 기능 정지).
+    //              혼자 있던 방에서 손댔다면 언제나 다른 방에서, 동료가 있었다면 확률로 다른 방에서.
+    // 그래서 고장 난 순간 그 방에 있던 사람이 범인이 아니다. 그보다 앞선 전조(CCTV 에 잡힌
+    // 설비 쪽 움직임 · 같은 방 직원의 기억)를 시각으로 되짚어야 한다 — 그게 추리다.
+    private sealed class PendingSabotage
+    {
+        public string ActorId = "";
+        public string OriginRoomId = "";
+        public string EffectRoomId = "";
+        public float FireAt;
+        public bool Alone;
+        // 손대는 장면을 보고 사람까지 특정한 직원. 손댄 방에서 그대로 터질 때만 쓴다 —
+        // 다른 방의 고장을 "그 사람이 했다" 고 말하면 보지 않은 것을 본 셈이 된다.
+        public List<string> Identified = new();
+    }
+
+    private readonly List<PendingSabotage> _pendingSabotage = new();
+
+    // 근무 끝 이만큼 전에는 미뤄 둔 고장을 더 미루지 않고 터뜨린다(그날 일은 그날 드러난다).
+    private const float SabotageLastCallSeconds = 8f;
+
+    // 결번이 손댄 것이 아직 터지지 않고 남아 있는가(검사 · 디버그용).
+    public int PendingSabotageCount => _pendingSabotage.Count;
+
+    // ① 손대기. 실행자 id 는 내부 진실로 들고 가되, 이 순간 화면에는 아무것도 뜨지 않는다.
+    private void PlantSabotage(EmployeeState actor, string originRoomId, List<EmployeeState> witnesses,
+        bool blackoutChaos, OpsProfileDef ops)
     {
         _sabotageActionsToday++;
-        _saboteurPlan.OnActed(this, actor, OpsProfile.Today, roomId);
+        _saboteurPlan.OnActed(this, actor, ops, originRoomId);
         // 오늘 몫이 남아 있으면 다음 차례를 연다 — 준비 시간을 처음부터 다시 채워야 하므로
         // 연달아 터지지 않고, 그 사이에 전조가 다시 나온다.
-        int budget = OpsProfile.Today?.MaxSabotageActionsPerDay ?? 1;
+        int budget = ops?.MaxSabotageActionsPerDay ?? 1;
         if (budget <= 0 || _sabotageActionsToday < budget) _saboteurPlan.ArmNextAction();
 
         // ① 눈치챈 사람 — 같은 방에서 이상을 알아차린 정도. 이름은 모른다.
@@ -1808,27 +1806,134 @@ public partial class FacilitySimulation : Node
         var identified = noticed
             .Where(id => EmployeeTraits.Get(id).ObservationalAwareness >= IdentifyAwareness)
             .Where(id => SawPrecursorOf(actor.EmployeeId, id))
-            .Where(_ => !IsRoomWorkProgressing(roomId))
+            .Where(_ => !IsRoomWorkProgressing(originRoomId))
             //      · 그리고 하필 그 순간 그쪽을 보고 있었다
             //        (조건을 다 갖춰도 늘 보이지는 않는다 — 특정은 어디까지나 운까지 겹쳐야 한다)
             .Where(_ => _rng.NextDouble() < IdentifyChance)
             .ToList();
 
-        // 로그의 실행자(actor)는 시스템 진실이라 그대로 남지만, 목격자 목록에는
-        // "사람을 특정한 사람" 만 들어간다. 대사·전화·심문은 이 목록만 본다.
-        EventLog.Instance?.LogEvent(LogEventType.Sabotage, actor.EmployeeId, roomId,
-            $"▲ {RoomName(roomId)} — {what}", identified);
-
         // 눈치만 챈 사람들은 "이상한 일이 있었다" 까지만 기억한다(실행자 없음).
+        // **손댄 방 · 손댄 시각**으로 남는다 — 나중에 다른 방에서 난 고장과 이 기억을 이어 붙이는 것이
+        // 휴게시간의 추리다.
         var onlyNoticed = noticed.Where(id => !identified.Contains(id)).ToList();
         if (onlyNoticed.Count > 0)
-            EventLog.Instance?.LogEvent(LogEventType.Neglect, "", roomId,
-                $"{RoomName(roomId)} — 설비 쪽에서 이상한 조작 흔적이 보였다", onlyNoticed);
+            EventLog.Instance?.LogEvent(LogEventType.Neglect, "", originRoomId,
+                $"{RoomName(originRoomId)} — 설비 쪽에서 이상한 조작 흔적이 보였다", onlyNoticed);
 
-        // 로그만 남기면 다른 화면을 보고 있을 때 그냥 지나간다 — 화면 전체로 알린다.
+        // 설비 쪽으로 붙는 움직임 — 마침 그 방 CCTV 를 보고 있었다면 그대로 조사자료가 된다
+        // (단기 근무의 첫 방해공작은 보고 있어도 저지른다 — SaboteurPlan.Impatient).
+        MarkSuspiciousAction(originRoomId, actor.EmployeeId);
+
+        bool alone = witnesses.Count == 0;
+        float now = GameState.Instance?.DayTimeSeconds ?? 0f;
+        float minDelay = Mathf.Max(0f, ops?.SabotageDelayMinSeconds ?? 12f);
+        float maxDelay = Mathf.Max(minDelay, ops?.SabotageDelayMaxSeconds ?? 28f);
+        float lastCall = DayObjectives.MaxShiftSeconds - SabotageLastCallSeconds;
+        _pendingSabotage.Add(new PendingSabotage
+        {
+            ActorId = actor.EmployeeId,
+            OriginRoomId = originRoomId,
+            EffectRoomId = PickSabotageEffectRoom(originRoomId, alone, blackoutChaos, ops),
+            // 근무가 끝나기 전에는 반드시 드러난다 — 손댄 것이 다음 날로 넘어가지 않는다.
+            FireAt = Mathf.Min(now + Mathf.Lerp(minDelay, maxDelay, GD.Randf()), Mathf.Max(now + 1f, lastCall)),
+            Alone = alone,
+            Identified = identified,
+        });
+    }
+
+    // 고장이 드러날 방. 경비실은 고르지 않는다 — 경비실 고장은 CCTV 전체를 끄는데, **볼 수단을
+    // 빼앗는 방해**는 대응할 길이 없다(예전에 CCTV 를 끊던 방해공작을 뺀 것과 같은 이유).
+    private string PickSabotageEffectRoom(string originRoomId, bool alone, bool blackoutChaos, OpsProfileDef ops)
+    {
+        var pool = new List<string>();
+        foreach (string id in ops?.SabotageTargetRooms ?? new Godot.Collections.Array<string>())
+            if (CanBreakForSabotage(id) && !pool.Contains(id)) pool.Add(id);
+        if (pool.Count == 0) return "";
+
+        // 조명 · CCTV 가 둘 다 죽은 혼란 — 가장 아픈 곳(코어)을 노린다. 단, 혼자 손댄 방이 코어실이면
+        // 거기서 터뜨리지 않는다(그 방에 결번 혼자였다는 것이 곧 답이 된다).
+        if (blackoutChaos && pool.Contains(CoreRoomId) && !(alone && originRoomId == CoreRoomId))
+            return CoreRoomId;
+
+        bool cross = alone || GD.Randf() < Mathf.Clamp(ops?.SabotageCrossRoomChance ?? 0.5f, 0f, 1f);
+        if (!cross && pool.Contains(originRoomId)) return originRoomId;
+
+        var elsewhere = pool.Where(r => r != originRoomId).ToList();
+        if (elsewhere.Count > 0) return elsewhere[Mathf.Clamp((int)(GD.Randf() * elsewhere.Count), 0, elsewhere.Count - 1)];
+        // 다른 방이 전부 고장이면 — 동료가 있던 방이었다면 그 자리에서, 혼자였다면 기다린다.
+        return !alone && pool.Contains(originRoomId) ? originRoomId : "";
+    }
+
+    private bool CanBreakForSabotage(string roomId)
+    {
+        if (string.IsNullOrEmpty(roomId) || roomId == GuardRoomId) return false;
+        var def = _roomDefs.GetValueOrDefault(roomId);
+        if (def == null || def.IsRestricted || def.AccidentConsequence == RoomAccidentNone) return false;
+        return IsRoomActive(roomId) && !HasActiveRepair(roomId);
+    }
+
+    // ② 손대 둔 것이 때가 되어 실제 고장으로 드러난다.
+    private void TickPendingSabotage()
+    {
+        if (_pendingSabotage.Count == 0) return;
+        // 결번을 격리했으면(또는 죽었으면) 손대 둔 것도 함께 사라진다 —
+        // "알맞게 격리하면 방해공작이 더는 일어나지 않는다" 를 예외 없이 지킨다.
+        if (IsSaboteurNeutralized()) { _pendingSabotage.Clear(); return; }
+        if (GameState.Instance?.CurrentPhase != GamePhase.Live) return;
+
+        float now = GameState.Instance.DayTimeSeconds;
+        bool lastCall = now >= DayObjectives.MaxShiftSeconds - SabotageLastCallSeconds;
+        for (int i = _pendingSabotage.Count - 1; i >= 0; i--)
+        {
+            var p = _pendingSabotage[i];
+            if (now < p.FireAt) continue;
+
+            // 다른 사고를 수습하는 중이면 잠깐 미룬다 — 무인 방치 사고와 같은 규칙이다.
+            // 한꺼번에 몰리면 대응할 길이 없다. 근무 막바지에는 더 미루지 않는다.
+            if (!lastCall && !CanStartNewIncident()) { p.FireAt = now + 3f; continue; }
+
+            // 그 사이 그 방이 다른 일로 고장 났으면 다른 방을 다시 고른다.
+            string room = CanBreakForSabotage(p.EffectRoomId)
+                ? p.EffectRoomId
+                : PickSabotageEffectRoom(p.OriginRoomId, p.Alone, false, OpsProfile.Today);
+            if (string.IsNullOrEmpty(room))
+            {
+                if (lastCall) _pendingSabotage.RemoveAt(i);
+                else p.FireAt = now + 3f;
+                continue;
+            }
+
+            _pendingSabotage.RemoveAt(i);
+            TriggerSabotageBreakdown(p, room);
+        }
+    }
+
+    // 결번이 손댄 설비가 실제로 고장 났다. 무인 방치 · 괴물 사고와 **같은 경로**(수리 업무 · 그 방
+    // 기능 정지 · 경고 단말기 · 미니맵)를 쓴다 — 고장은 고장이다. 다른 것은 로그가 「방해공작」
+    // 으로 찍히고 원인이 「원인 불명」이라는 것뿐이다. 그 방이 비어 있지도, 경고가 뜨지도 않았는데
+    // 고장 났다 — 그게 관리자가 "누가 손을 댔다" 고 알아채는 근거다.
+    private void TriggerSabotageBreakdown(PendingSabotage p, string roomId)
+    {
+        var def = _roomDefs.GetValueOrDefault(roomId);
+        if (def == null) return;
+
+        // 로그의 실행자(actor)는 시스템 진실이라 그대로 남지만, 목격자 목록에는
+        // "사람을 특정한 사람" 만 들어간다. 대사·전화·심문은 이 목록만 본다.
+        // 그 사람이 본 것은 손댄 방의 장면이다 — 다른 방에서 터진 고장의 목격자로 세우지 않는다.
+        var witnesses = roomId == p.OriginRoomId ? p.Identified : new List<string>();
+        EventLog.Instance?.LogEvent(LogEventType.Sabotage, p.ActorId, roomId,
+            $"▲ {RoomName(roomId)} — {def.AccidentName} (원인 불명)", witnesses);
+        // 먼저 사고를 열어 둔다 — 뒤이어 적용되는 시설 손실이 이 사고의 결과로 묶인다.
+        IncidentTracker.Open(roomId, def.AccidentName, "원인 불명",
+            "설비 수리 필요", RoomStaffing.RepairMinWorkers(roomId, def));
+        TabooRuleSystem.Instance?.ApplyRoomConsequence(def.AccidentConsequence, roomId, def.AccidentAmount);
+        AddRepairTask(roomId, def, 0);
+        _behavior.OnIncident(this, roomId, OpsProfile.Today);
+        Sabotaged?.Invoke(roomId);
+
+        // 로그만 남기면 다른 화면을 보고 있을 때 그냥 지나간다 — 화면 전체로 알린다(알림 한 줄도 함께 뜬다).
         // 연출은 HUD 가 알아서 돌고, 시뮬레이션은 여기서 멈추지 않는다.
-        NSP.Ui.FacilityAlertHud.Instance?.ShowCriticalAlert(
-            string.IsNullOrEmpty(alert) ? "▲ 시설 설비에서 인위적인 손상 흔적이 감지되었습니다!" : alert);
+        NSP.Ui.FacilityAlertHud.Instance?.ShowCriticalAlert($"▲ {RoomName(roomId)} 설비가 원인 불명으로 고장 났습니다!");
     }
 
     // CCTV가 꺼져 있는(정전/전력 미배분) 동안 벌어진 살인은 그 순간 바로 로그에 남기지 않는다

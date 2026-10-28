@@ -196,11 +196,16 @@ WarningGraceSeconds = 12.0
 WarningCutoffSeconds = 14.0
 ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_maintenance"), SubResource("sched_power"), SubResource("sched_storage")])
 SaboteurStartSeconds = 58.0
-; DAY1 은 배우는 날이다 — 방해공작은 거의 일어나지 않는다.
-; 준비와 전조는 평소대로 흐르되, 실제로 저지를지는 아래 확률이 정한다.
+; DAY1 도 방해공작이 **한 번은 반드시** 일어난다(2026-10-28 — 예전 45%). 단기 근무는 사흘뿐이라
+; 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다. 손댄 뒤 12~24초 지나 진짜 고장으로 드러난다.
+; 손대는 것은 근무 후반(62초~)이다 — 괴물(30~50초) · 경고와 겹치지 않고, 작은 교란(55초~)이 먼저 남는다.
+; 근무는 120초라 구간 끝을 90초로 당긴다(예전 116초는 150초 근무 기준이라 고장이 드러날 틈이 없었다).
 MaxSabotageActionsPerDay = 1
-SabotageChancePerDay = 0.45
-SabotageDeadlineRush = false
+SabotageChancePerDay = 1.0
+SabotageDeadlineRush = true
+SabotageDelayMinSeconds = 12.0
+SabotageDelayMaxSeconds = 24.0
+SabotageCrossRoomChance = 0.5
 AllowMurder = false
 GhostMaxPerDay = 1
 ; DAY1 은 괴물을 처음 보는 날이다 — 운에 맡기면 한 번도 안 나오는 판이 생긴다.
@@ -218,7 +223,7 @@ TamperWindowStartSeconds = 55.0
 TamperWindowEndSeconds = 80.0
 TamperCrossRoomChance = 0.7
 SabotageWindowStartSeconds = 62.0
-SabotageWindowEndSeconds = 116.0
+SabotageWindowEndSeconds = 90.0
 MaxReactionMovesPerDay = 3
 ; 첫 건은 근무 초반(배치 직후), 두 번째는 중후반 — 하루가 고르게 채워지게 떼어 놓는다.
 ReactionMoveFirstSeconds = 18.0
@@ -238,3 +243,6 @@ ContainmentTamperAfterSeconds = 10.0
 ContainmentWorkSeconds = 8.0
 ContainmentTampersPerDay = 1
 ContainmentInstabilityPerTamper = 14.0
+; 결번이 풀려 있는 동안 봉쇄가 저절로 흔들리는 속도. 감쇠(0.22/초)를 빼면 초당 +0.25 —
+; 근무가 끝날 때쯤 30% 남짓. 결번을 격리하면 멈추고 이상 개체도 나오지 않는다.
+ContainmentDriftPerSecond = 0.47

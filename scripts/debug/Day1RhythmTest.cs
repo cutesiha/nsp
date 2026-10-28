@@ -184,12 +184,15 @@ public partial class Day1RhythmTest : Node
         Check(runs.All(r => r.TamperAt >= 0f),
             $"A 작은 교란이 모든 판에서 1회 일어난다 ({Rate(runs, r => r.TamperAt >= 0f):0}%)");
 
+        // DAY1 에도 실제 방해공작이 한 번은 일어난다(2026-10-28 — 예전에는 45% 였다).
+        // 단기 근무는 사흘뿐이라 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다.
         float hard = Rate(runs, r => r.HardSabotage);
-        Check(hard is >= 15f and <= 55f, $"B 실제 방해공작 발생률이 설정 범위 안이다 ({hard:0}%)");
+        Check(hard >= 80f, $"B DAY1 에도 실제 방해공작이 일어난다 ({hard:0}%, 기준 80% 이상)");
 
-        var noHard = runs.Where(r => !r.HardSabotage).ToList();
-        Check(noHard.Count > 0 && noHard.All(r => r.TamperAt >= 0f),
-            $"C 방해공작이 없던 판({noHard.Count}회)에서도 교란은 남는다");
+        // 작은 교란은 방해공작과 별개로 돈다 — 방해공작이 있던 판에서도 따로 남는다.
+        var withHard = runs.Where(r => r.HardSabotage).ToList();
+        Check(withHard.Count > 0 && withHard.All(r => r.TamperAt >= 0f),
+            $"C 방해공작이 있던 판({withHard.Count}회)에서도 작은 교란은 따로 남는다");
 
         Check(runs.Any(r => r.CrossRoom),
             $"D 증상이 난 방과 손댄 방이 다른 판이 있다 ({Rate(runs, r => r.CrossRoom):0}%)");
