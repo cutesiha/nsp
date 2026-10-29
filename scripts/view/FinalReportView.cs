@@ -284,7 +284,8 @@ public partial class FinalReportView : Control
         scrim.SetAnchorsPreset(LayoutPreset.FullRect);
         _confirm.AddChild(scrim);
 
-        var panel = new Panel { Position = new Vector2(150f, 214f), Size = new Vector2(500f, 172f) };
+        // 글자가 창 밖으로 튀어나오지 않게 — 창을 넓히고, 안내는 두 줄로 나누고, 글자를 한 단계 줄였다(2026-10-29).
+        var panel = new Panel { Position = new Vector2(70f, 196f), Size = new Vector2(660f, 214f) };
         panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
         {
             BgColor = new Color(0.03f, 0.08f, 0.10f, 0.97f),
@@ -294,27 +295,28 @@ public partial class FinalReportView : Control
         _confirm.AddChild(panel);
 
         var who = _picks.FirstOrDefault(p => p.Id == _selected && !p.IsNone);
-        var l1 = Lbl(who == null ? "지목 없이 제출합니다." : $"격리 대상 : {who.Label}", 20,
+        var l1 = Lbl(who == null ? "지목 없이 제출합니다." : $"격리 대상 : {who.Label}", 16,
             who == null ? Ink : Mint);
-        l1.Position = new Vector2(0f, 22f);
-        l1.Size = new Vector2(panel.Size.X, 28f);
+        l1.Position = new Vector2(20f, 20f);
+        l1.Size = new Vector2(panel.Size.X - 40f, 34f);
         l1.HorizontalAlignment = HorizontalAlignment.Center;
+        l1.ClipText = true;
         panel.AddChild(l1);
 
-        var l2 = Lbl("제출 후에는 수정할 수 없습니다. 제출하시겠습니까?", 15, Ink);
-        l2.Position = new Vector2(0f, 62f);
-        l2.Size = new Vector2(panel.Size.X, 24f);
+        var l2 = Lbl("제출 후에는 수정할 수 없습니다.\n제출하시겠습니까?", 13, Ink);
+        l2.Position = new Vector2(20f, 64f);
+        l2.Size = new Vector2(panel.Size.X - 40f, 62f);
         l2.HorizontalAlignment = HorizontalAlignment.Center;
         panel.AddChild(l2);
 
-        var yes = MonitorUi.Button("[ 예 ]", Mint, _font, Submit, ViewFont.FS(17));
-        yes.Position = new Vector2(70f, 108f);
-        yes.Size = new Vector2(160f, 44f);
+        var yes = MonitorUi.Button("[ 예 ]", Mint, _font, Submit, ViewFont.FS(14));
+        yes.Position = new Vector2(120f, 144f);
+        yes.Size = new Vector2(190f, 48f);
         panel.AddChild(yes);
 
-        var no = MonitorUi.Button("[ 아니오 ]", Ink, _font, CloseConfirm, ViewFont.FS(17));
-        no.Position = new Vector2(270f, 108f);
-        no.Size = new Vector2(160f, 44f);
+        var no = MonitorUi.Button("[ 아니오 ]", Ink, _font, CloseConfirm, ViewFont.FS(14));
+        no.Position = new Vector2(350f, 144f);
+        no.Size = new Vector2(190f, 48f);
         panel.AddChild(no);
     }
 

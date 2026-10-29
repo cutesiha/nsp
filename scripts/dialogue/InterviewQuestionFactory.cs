@@ -6,14 +6,8 @@ using System.Linq;
 
 namespace NSP.Dialogue;
 
-// 「자료 한 장 → 물어볼 수 있는 것들 → 질문 문장」.
-//
-// 질문 문장은 반드시 그 자료의 값(시각·작업실·상대)을 그대로 인용한다.
-// 문장을 조립할 때 다른 사건의 값을 끌어오지 않는다 — 옛 꼬리질문이 엉뚱한 방 이름을
-// 말하던 원인이 그것이었다.
 public static class InterviewQuestionFactory
 {
-    // 증거 없이도 언제든 물을 수 있는 기본 질문. 인터뷰의 중심이 아니라 도입부다.
     public static List<InterviewQuestion> BasicQuestions(string targetEmployeeId)
     {
         var list = new List<InterviewQuestion>();

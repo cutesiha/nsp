@@ -500,6 +500,18 @@ public partial class Sfx : Node
         Play(key, volumeDb, (float)GD.RandRange(0.80, 0.90));
     }
 
+    // 관리자가 당하는 순간의 비명 — 기괴한 비명 여러 개를 피치를 어긋나게 겹쳐 한꺼번에 튼다.
+    // 한 녹음만 크게 틀면 "비명 효과음" 으로 들린다. 높낮이가 다른 목소리 여럿이 겹쳐야 사람이 아니다.
+    public void PlayGhostScreamChorus()
+    {
+        PlayGhostScream(14f);                                   // 울리는 비명 버스 — 가장 크게
+        Play(GhostScreams[0], 0f, 0.74f);                       // 낮게 끌리는 목소리
+        Play(GhostScreams[1], -1f, 1.22f);                      // 높게 찢어지는 목소리
+        Play(GhostScreams[1], -4f, 0.58f);                      // 아주 낮은 울음
+        Play("monster", -2f, 0.86f);
+        Play("babymonster", -5f, 1.08f);
+    }
+
     public void Play(string key, float volumeDb = 0f, float pitch = 1f)
     {
         var stream = Load(key);

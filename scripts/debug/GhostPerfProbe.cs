@@ -84,7 +84,8 @@ public partial class GhostPerfProbe : Node
             for (int i = 0; i < 1800 && th2.Phase != ThreatPhase.AtDoor; i++) await Frame();
             await Burst(sim, "문 앞 유예", () => { }, frames: 120);
             for (int i = 0; i < 1800 && !AdminDeathDirector.IsPlaying; i++) await Frame();
-            await Burst(sim, "침입 → 돌진 → 사망 화면", () => { }, frames: 240);
+            // 프레임 수로 끊으면 FPS 가 높을수록 구간이 짧아진다(250 FPS 에서 240프레임은 정적 1초뿐이었다).
+            await Burst(sim, "침입 → 돌진 → 사망 화면", () => { }, frames: 2000);
             await Frames(2);
             GetTree().Quit();
             return;

@@ -164,7 +164,6 @@ image:
 imagenote:
 sfx: intro_machine
 overlay: 국가특수에너지연구원\n제7지하시설\n\n정기 안전교육 기록
-sub: ARCHIVE 01
 hold: 2.2
 fx: typing
 

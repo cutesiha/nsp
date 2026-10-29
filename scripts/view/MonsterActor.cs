@@ -191,6 +191,40 @@ public sealed class MonsterActor
         return Mathf.Max(0f, (box.Position.Z + box.Size.Z) * k);
     }
 
+    // **지금 자세에서** 얼굴 한가운데와 골반이 Root 기준 어디인가(배율을 뺀 로컬 단위).
+    // 머리 뼈가 없는 모델(인형 · 거미)은 false. 골반 뼈가 없으면 발밑(원점)을 준다.
+    //
+    // PosedTopY 는 메시의 AABB 를 재는데, 스키닝된 메시는 AABB 가 차렷 자세 그대로라 숙인 자세를
+    // 따라가지 못한다. 그 값으로 어림했더니 결번자는 몸통이 화면 한가운데를 차지하고 머리는 화면
+    // 위로 빠졌다(2026-10-29). 뼈가 있는 모델은 머리 뼈를 직접 읽는다.
+    public bool FacePoints(out Vector3 face, out Vector3 hips)
+    {
+        face = hips = Vector3.Zero;
+        if (!IsValid(_root) || !IsValid(_sway)) return false;
+        // 지금 쓰는 모델에서만 찾는다 — Root 밑에는 재워 둔 다른 괴물도 같이 있다.
+        Skeleton3D sk = null;
+        void Find(Node n) { if (sk != null) return; if (n is Skeleton3D s) { sk = s; return; } foreach (var c in n.GetChildren()) Find(c); }
+        Find(_sway);
+        int head = sk?.FindBone("head") ?? -1;
+        if (head < 0) return false;
+        Vector3 Bone(int i) => _root.GlobalTransform.AffineInverse() * (sk.GlobalTransform * sk.GetBoneGlobalPose(i).Origin);
+        Vector3 neck = Bone(head);
+        int end = sk.FindBone("head_end");
+        // 머리 뼈는 목이 끝나는 자리(두개골 밑)에서 시작한다 — 얼굴은 그 뼈의 중간쯤이다.
+        face = end >= 0 ? neck.Lerp(Bone(end), 0.45f) : neck + Vector3.Up * 0.09f;
+        int pelvis = sk.FindBone("hips");
+        if (pelvis >= 0) hips = Bone(pelvis);
+        return true;
+    }
+
+    public Vector3 ToGlobal(Vector3 local) => IsValid(_root) ? _root.GlobalTransform * local : local;
+
+    // 로컬 점 하나가 정확히 target 에 오도록 몸 전체를 옮긴다(회전 · 배율은 그대로).
+    public void PinLocalPoint(Vector3 local, Vector3 target)
+    {
+        if (IsValid(_root)) _root.GlobalPosition += target - _root.GlobalTransform * local;
+    }
+
     // **지금 자세에서** 머리 꼭대기가 발에서 얼마나 위인가(Root 배율을 뺀 로컬 단위).
     //
     // TargetHeight 로 대신할 수 없다. 그 값은 FitToHeight 가 **차렷 자세**를 재서 맞춘
@@ -250,6 +284,17 @@ public sealed class MonsterActor
     // 발견하고 되돌렸다 — 그 경로로는 깨우지 못해 애니메이션이 멈춘 채 떴을 것이다.
     // 재우는 것은 **쓰지 않는 모델(sway)** 쪽만으로 충분하다.
     private void ShowRoot() => _root.Visible = true;
+
+    // 이 배우의 모든 메시를 그 렌더 레이어로 옮긴다(즉사 연출이 괴물만 따로 찍어 화면 맨 앞에 겹칠 때).
+    public void SetRenderLayers(uint layers)
+    {
+        void Walk(Node n)
+        {
+            if (n is VisualInstance3D vi) vi.Layers = layers;
+            foreach (var c in n.GetChildren()) Walk(c);
+        }
+        if (IsValid(_root)) Walk(_root);
+    }
 
     public void Hide()
     {
@@ -372,8 +417,12 @@ public sealed class MonsterActor
     // 같도록 LookAt 으로 맞춘다.
     //   괴물 모델 셋 다 **로컬 +Z 가 앞**이다(DeathShot 의 facing 모드로 확인).
     //   LookAt 은 -Z 를 목표로 돌리므로 **반대편**을 보게 해야 얼굴이 이쪽을 본다.
+    // leanBackDegrees — 몸을 보는 사람 반대쪽으로 젖히는 각도(즉사 연출의 "고개를 뒤로 젖혔다가 박치기").
+    // 음수면 앞으로 숙인다. 기본 0 = 꼿꼿이 선다.
+    // leanPivotY — 젖히는 축의 높이(모델 기준, m). 발바닥(0)을 축으로 하면 몸 전체가 쓰러지듯 넘어가
+    // 머리가 1m 씩 움직인다 — 목 높이를 축으로 두면 고개만 젖혀지고 얼굴은 제자리 근처에 남는다.
     public void FaceViewer(Vector3 globalPosition, Vector3 viewer, float scale = 1f,
-                           float yawWobbleDegrees = 0f)
+                           float yawWobbleDegrees = 0f, float leanBackDegrees = 0f, float leanPivotY = 0f)
     {
         ShowRoot();
 
@@ -384,10 +433,18 @@ public sealed class MonsterActor
         {
             // +Z 가 보는 사람 쪽을 향하는 각도. 축을 직접 맞추므로 LookAt 의
             // 기저 재계산을 거치지 않는다(거기서 배율이 흐트러진 적이 있다).
+            // X 회전(+)은 머리가 +Z(보는 사람) 쪽으로 숙여진다 — 젖히려면 음수로 돌린다.
             float yaw = Mathf.RadToDeg(Mathf.Atan2(toViewer.X, toViewer.Z));
-            _root.GlobalRotationDegrees = new Vector3(0f, yaw + yawWobbleDegrees, 0f);
+            _root.GlobalRotationDegrees = new Vector3(-leanBackDegrees, yaw + yawWobbleDegrees, 0f);
         }
         _root.Scale = Vector3.One * scale;
+        if (Mathf.Abs(leanBackDegrees) > 0.01f && leanPivotY > 0f)
+        {
+            // 축(목)이 기울이기 전 자리에 그대로 남도록 몸을 옮긴다.
+            Vector3 want = globalPosition + Vector3.Up * leanPivotY * scale;
+            Vector3 got = _root.GlobalTransform * new Vector3(0f, leanPivotY, 0f);
+            _root.GlobalPosition += want - got;
+        }
     }
 
     // blend 를 0 으로 주면 **그 자리에서 바로** 갈아탄다. 0.06초짜리 들이밀기에

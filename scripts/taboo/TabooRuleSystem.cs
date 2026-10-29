@@ -304,7 +304,14 @@ public partial class TabooRuleSystem : Node
         int max = taboo.ConditionParams.GetValueOrDefault("max", 999).AsInt32();
         float holdSeconds = taboo.ConditionParams.GetValueOrDefault("hold_seconds", 0f).AsSingle();
 
-        if (room.OccupantEmployeeIds.Count <= max)
+        // 그 방이 지금 **여러 명을 요구하는** 중이면(사고 수리 · 경고 안정화 — 코어실 · 발전실은 2명) 인원 금기는
+        // 쉰다. 금기가 "2명 이상 금지" 인데 수리는 2명이 있어야 되니, 둘을 동시에 지키는 길이 없었다 —
+        // DAY2 부터 그 방 사고를 고치려고 2명을 보내면 금기 벌칙(작업 속도 감소 · 발전실 금기 사건)이 터져
+        // 수리가 끝나지 않는 것처럼 보였다(2026-10-29 사용자 — "2명 배치했는데 수리가 안 된다").
+        var sim = FacilitySimulation.Instance;
+        bool crewNeeded = sim.HasRepairPending(roomId)
+                          || (sim.Warnings?.ForRoom(roomId)?.RequiredStaff ?? 0) > max;
+        if (room.OccupantEmployeeIds.Count <= max || crewNeeded)
         {
             // 인원이 정상으로 돌아옴 = 이번 위반 상태 종료. 다음 위반을 위해 완전히 초기화한다.
             room.TabooHoldTimers[taboo.TabooId] = 0f;

@@ -22,8 +22,21 @@ public partial class TitleTerminalView : Control
     // ── 문구 ────────────────────────────────────────────────────────────
     private const string Org1 = "국가특수에너지연구원";
     private const string Org2 = "제7지하시설";
+    // 표제의 글자 수 · 찍히는 박자는 이 문자열이 정한다(공백도 한 박자). 화면에는 아래 표제 그림이 뜬다.
     private const string TitleKo = "야 간 근 무 지 침";
-    private const string TitleEn = "NIGHT SHIFT PROTOCOL";
+
+    // ── 표제 그림 ────────────────────────────────────────────────────────
+    // 「야간근무지침」 로고(사용자 제공, 2026-10-29)를 한 글자씩 잘라 둔 것(assets/ui/title/).
+    // X = 원본 로고(1283×211)에서 그 조각의 왼쪽 끝 — 글자 사이 간격을 원본 그대로 되살린다.
+    // 영문 표제(NIGHT SHIFT PROTOCOL)는 뺐다 — 그 자리까지 표제가 크게 차지한다.
+    private static readonly (string File, float X)[] TitleGlyphs =
+    {
+        ("title_ya", 37f), ("title_gan", 241f), ("title_geun", 437f),
+        ("title_mu", 639f), ("title_ji", 841f), ("title_chim", 1043f),
+    };
+    private const float TitleSrcLeft = 37f, TitleSrcRight = 1249f;   // 로고 전체의 가로 범위(원본 픽셀)
+    private const float TitleWidth = 640f;                           // 화면에서 표제가 차지하는 폭
+    private const float TitleCenterY = 221f;                         // 위 · 아래 구분선(150 · 292) 사이 가운데
     private const string WaitingTag = "[ 관리자 인증 대기 중 ]";
     private const string StandbyHead = "FACILITY CONTROL SYSTEM";
     private const string StandbyUser = "USER DETECTED";
@@ -90,7 +103,7 @@ public partial class TitleTerminalView : Control
     private const float RevealRuleAt = 0.28f;      // 구분선
     private const float RevealTitleAt = 0.42f;     // 표제 타이핑 시작
     private const float TitleCharTime = 0.055f;    // 표제 한 글자
-    private const float RevealTailGap = 0.16f;     // 표제가 다 찍힌 뒤 영문 표제까지
+    private const float RevealTailGap = 0.16f;     // 표제가 다 찍힌 뒤 아래 구분선까지
     private const float RevealItemGap = 0.17f;     // 메뉴 한 줄 간격
 
     private static float TitleTypedAt => RevealTitleAt + TitleKo.Length * TitleCharTime;
@@ -120,10 +133,20 @@ public partial class TitleTerminalView : Control
     private double _typeSpeed = 0.016;
     private (string Id, string Label)[] _reportItems = Array.Empty<(string, string)>();
 
+    // 표제 조각 그림(TitleGlyphs 순서). 하나라도 없으면 예전처럼 글자로 그린다.
+    private Texture2D[] _titleTex;
+
     public override void _Ready()
     {
         Instance = this;
         _font = ViewFont.Default;
+        _titleTex = new Texture2D[TitleGlyphs.Length];
+        for (int i = 0; i < TitleGlyphs.Length; i++)
+        {
+            string path = $"res://assets/ui/title/{TitleGlyphs[i].File}.png";
+            _titleTex[i] = ResourceLoader.Exists(path) ? GD.Load<Texture2D>(path) : null;
+            if (_titleTex[i] == null) { _titleTex = null; break; }
+        }
         SetAnchorsPreset(LayoutPreset.FullRect);
         Size = Canvas;
         MouseFilter = MouseFilterEnum.Ignore;
@@ -398,27 +421,12 @@ public partial class TitleTerminalView : Control
             DrawString(_font, new Vector2(0f, 122f), Org2, HorizontalAlignment.Center, Canvas.X, ViewFont.S(17), Dim);
         if (t >= RevealRuleAt) Rule(150f);
 
-        // 표제는 화려한 로고가 아니라 시설 공문서 표제처럼. 한 글자씩 찍힌다.
+        // 표제 — 한 글자씩 찍힌다(콘솔에 입력되듯). 박자는 예전 글자 표제와 같다.
         int typed = _reveal < 0 ? TitleKo.Length : TypedTitleChars(t);
-        int titlePx = ViewFont.S(52);
-        float titleW = _font.GetStringSize(TitleKo, HorizontalAlignment.Left, -1, titlePx).X;
-        float titleX = (Canvas.X - titleW) * 0.5f;
-        if (typed > 0)
-            DrawString(_font, new Vector2(titleX, 224f), TitleKo[..typed],
-                HorizontalAlignment.Left, -1, titlePx, Ink);
-        // 찍히는 동안 커서가 따라간다.
-        if (typed < TitleKo.Length && t >= RevealTitleAt)
-        {
-            float cx = titleX + _font.GetStringSize(TitleKo[..typed], HorizontalAlignment.Left, -1, titlePx).X;
-            DrawRect(new Rect2(cx + 2f, 200f, 4f, 28f), Ink with { A = 0.8f });
-        }
+        if (_titleTex != null) DrawTitleGlyphs(typed, t);
+        else DrawTitleText(typed, t);
 
-        if (t >= RevealSubAt)
-        {
-            DrawString(_font, new Vector2(0f, 262f), TitleEn, HorizontalAlignment.Center, Canvas.X,
-                ViewFont.S(15), Mint with { A = 0.85f });
-            Rule(292f);
-        }
+        if (t >= RevealSubAt) Rule(292f);
 
         if (t >= RevealWaitAt)
         {
@@ -445,6 +453,46 @@ public partial class TitleTerminalView : Control
             }
             DrawString(_font, new Vector2(ItemLeft + 14f, y), LabelOf(i),
                 HorizontalAlignment.Left, ItemWidth - 20f, ViewFont.S(27), on ? Ink : Dim);
+        }
+    }
+
+    // 표제 그림 — 조각마다 원본 로고의 자리 그대로 놓는다. typed = 찍힌 글자 수(TitleKo 기준, 공백 포함).
+    // TitleKo 의 짝수 칸(0 · 2 · 4 …)이 글자 하나씩이다 — 공백 박자는 다음 글자까지의 쉼이다.
+    private void DrawTitleGlyphs(int typed, double t)
+    {
+        float scale = TitleWidth / (TitleSrcRight - TitleSrcLeft);
+        float left = (Canvas.X - TitleWidth) * 0.5f;
+        float h = _titleTex[0].GetHeight() * scale;
+        float top = TitleCenterY - h * 0.5f;
+        // 그림 색을 단말기 글자색 쪽으로 아주 조금 눌러 준다(흰 그림이 화면에서 혼자 튀지 않게).
+        var tint = new Color(0.93f, 0.98f, 0.97f);
+        float cursorX = left;
+        for (int i = 0; i < _titleTex.Length; i++)
+        {
+            if (typed <= i * 2) break;
+            var tex = _titleTex[i];
+            float x = left + (TitleGlyphs[i].X - TitleSrcLeft) * scale;
+            DrawTextureRect(tex, new Rect2(x, top, tex.GetWidth() * scale, h), false, tint);
+            cursorX = x + tex.GetWidth() * scale;
+        }
+        // 찍히는 동안 커서가 따라간다.
+        if (typed < TitleKo.Length && t >= RevealTitleAt)
+            DrawRect(new Rect2(cursorX + 4f, top + h * 0.14f, 6f, h * 0.72f), Ink with { A = 0.8f });
+    }
+
+    // 그림을 못 불러왔을 때만 — 예전 글자 표제.
+    private void DrawTitleText(int typed, double t)
+    {
+        int titlePx = ViewFont.S(52);
+        float titleW = _font.GetStringSize(TitleKo, HorizontalAlignment.Left, -1, titlePx).X;
+        float titleX = (Canvas.X - titleW) * 0.5f;
+        if (typed > 0)
+            DrawString(_font, new Vector2(titleX, 236f), TitleKo[..typed],
+                HorizontalAlignment.Left, -1, titlePx, Ink);
+        if (typed < TitleKo.Length && t >= RevealTitleAt)
+        {
+            float cx = titleX + _font.GetStringSize(TitleKo[..typed], HorizontalAlignment.Left, -1, titlePx).X;
+            DrawRect(new Rect2(cx + 2f, 212f, 4f, 28f), Ink with { A = 0.8f });
         }
     }
 

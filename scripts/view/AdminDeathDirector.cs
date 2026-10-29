@@ -34,8 +34,9 @@ public partial class AdminDeathDirector : Node
     private MonsterThreat _threat;
     private MonsterActor _actor;
 
-    // 차폐가 뚫린 뒤 **아무 일도 일어나지 않는** 시간.
-    private const double SilenceSeconds = 3.0;
+    // 차폐가 뚫린 뒤 **아무 일도 일어나지 않는** 시간. 길면 "고장인가?" 가 되어 놀랄 틈을 놓친다 —
+    // 짧게 숨만 죽였다가 갑자기 들이민다(2026-10-29).
+    private const double SilenceSeconds = 1.2;
 
     // 얼굴이 꽂히는 순간의 배율. 1 이면 실제 키 그대로라 "멀리 서 있는 사람" 으로 보인다 —
     // 조금 키워야 렌즈를 밀고 들어온 느낌이 난다.
@@ -125,27 +126,20 @@ public partial class AdminDeathDirector : Node
         // ── ② 팍 ───────────────────────────────────────────────────
         // 비명 · 충격음 · 흔들림 · 붉은 조명이 **얼굴이 들이닥치는 그 한 프레임**에
         // 전부 같이 터진다. 조금이라도 먼저 울리면 그게 예고가 된다.
+        // 들이밈 → 고개를 뒤로 젖힘 → 박치기 → 기괴한 비명 여러 개(Charge 안에서 전부).
         var cam = GetViewport()?.GetCamera3D();
         if (cam != null) await Charge(cam);
-        else await Wait(0.35);
-
-        // ── ③ 비명 ─────────────────────────────────────────────────
-        //
-        // 얼굴이 박히고 **그 다음에** 비명이 터진다. 같이 울리면 충격음에 묻혀
-        // 들리지 않고, 무엇보다 "당했다" 가 한 박자 뒤에 와야 읽힌다.
-        // 얼굴이 박히고 **1초 뒤** 비명, 그 **1초 뒤** 사망 표시. 셋이 붙어 터지면
-        // 무슨 일이 일어났는지 읽을 틈이 없다.
-        await Wait(1.0);
-        Sfx.Instance?.PlayScream("", -1f);
+        else { Sfx.Instance?.PlayGhostScreamChorus(); await Wait(0.8); }
 
         // ── ④ 암전 ─────────────────────────────────────────────────
-        // 비명에서 사망 화면까지 **정확히 1초.** 그 사이에 화면이 닫힌다.
+        // 비명이 울리는 동안 화면이 어두워지며 닫히고, 그 뒤 사망 기록이 뜬다.
         var blink = BlinkOverlay.Instance;
-        if (blink != null) await blink.Close(0.6);
-        else await Wait(0.6);
-        await Wait(0.4);
+        if (blink != null) await blink.Close(0.9);
+        else await Wait(0.9);
+        await Wait(0.5);
 
         _actor?.Hide();
+        EndFaceOverlay();
         AdminFearDirector.Instance?.ResetAll();
         foreach (string k in new[] { "machinery_loop", "drone_loop", "vent_loop", "alarm", "siren" })
             Sfx.Instance?.StopLoop(k);
@@ -202,15 +196,35 @@ public partial class AdminDeathDirector : Node
         // 카메라 자리를 **매 프레임 다시 읽는다**. 마지막에 화면을 세게 흔드는데,
         // 처음 한 번 읽은 자리에 세워 두면 들이민 얼굴이 흔들림과 함께 화면 밖으로
         // 밀려나 어깨만 스쳐 지나간다. 괴물은 흔들려도 렌즈에 붙어 있어야 한다.
-        void Pose(float dist, float s, float yawWobble = 0f)
+        Vector3? face = null;
+        Vector3 hips = Vector3.Zero;
+        void Pose(float dist, float s, float yawWobble = 0f, float leanBack = 0f, float lift = 0f)
         {
             Transform3D c = cam.GlobalTransform;
+            _poseView = c;
             Vector3 fwd = -c.Basis.Z.Normalized();
             // 관리자(카메라)를 똑바로 보게 세운다. 각도 계산은 MonsterActor 가 월드
             // 좌표로 처리한다 — 여기서 로컬 yaw 를 직접 넣으면 부모 노드가 놓인
             // 방향에 따라 앞뒤가 뒤집힌다.
-            _actor.FaceViewer(c.Origin - Vector3.Up * (eye * s - faceLift) + fwd * dist,
-                              c.Origin, s, yawWobble);
+            if (face is Vector3 f)
+            {
+                // 머리 뼈가 있으면 얼굴 한가운데를 렌즈 축 위 dist 지점에 못 박는다 — 박든 떨든
+                // 얼굴이 화면 한가운데를 벗어나지 않는다. 젖힐 때는 바로 선 자세의 골반을 축으로
+                // 상체째 뒤로 젖힌다(박치기 전의 뜸). 목을 축으로 돌렸더니 아래의 커다란 몸통이
+                // 렌즈 쪽으로 쏠려 박치기 직전 화면을 시커멓게 가렸다.
+                Vector3 at = c.Origin + fwd * dist + Vector3.Up * lift;
+                _actor.FaceViewer(at, c.Origin, s, yawWobble);
+                _actor.PinLocalPoint(f, at);
+                if (Mathf.Abs(leanBack) > 0.01f)
+                {
+                    Vector3 hipsAt = _actor.ToGlobal(hips);
+                    _actor.FaceViewer(at, c.Origin, s, yawWobble, leanBack);
+                    _actor.PinLocalPoint(hips, hipsAt);
+                }
+            }
+            else
+                _actor.FaceViewer(c.Origin - Vector3.Up * (eye * s - faceLift - lift) + fwd * dist,
+                                  c.Origin, s, yawWobble, leanBack, eye * 0.85f);
             // 빛은 관리자 쪽에 남는다 — 괴물에 바싹 붙이면 얼굴이 하얗게 날아간다.
             flash.GlobalPosition = c.Origin + fwd * 0.12f + c.Basis.X * 0.28f - Vector3.Up * 0.05f;
         }
@@ -257,41 +271,171 @@ public partial class AdminDeathDirector : Node
         // 비었던 원인이다). 전에는 0.84m 였는데, 그 거리에서는 몸통까지 다 들어와
         // **책상 뒤에 서 있는 것**처럼 보였다.
         float faceDist = Mathf.Max(0.55f, 0.20f + top * 0.17f);
+        if (_actor.FacePoints(out Vector3 fc, out hips)) face = fc;
+        // 머리 뼈로 맞출 때는 dist 가 **렌즈에서 얼굴까지**다(위 값은 발 기준이라 몸통이 먼저 닿는다).
+        // 0.40 은 들이밀어도 얼굴이 화면 높이의 4할밖에 안 돼 덜 무서웠다.
+        if (face != null) faceDist = 0.30f;
         Pose(FarDist, 1f);
+        // 괴물만 따로 찍어 화면 맨 앞에 겹친다 — 얼굴이 서는 자리(카메라 앞 0.5~0.8m)보다 모니터 · 책상이
+        // 가까워서, 그냥 두면 얼굴이 통째로 모니터 뒤에 가려졌다(2026-10-29 — "깜놀을 안 시킨다").
+        BeginFaceOverlay(cam);
 
-        // ⓐ 팍 — **0.07초.** 3.6m 에서 렌즈 앞까지 네 프레임 남짓이다.
-        //
-        // 전에는 달려들기 0.30초 + 멈칫 0.16초를 거쳤다. 그 사이가 있으면 "무언가
-        // 커지고 있다" 를 눈이 따라갈 시간이 생기고, 따라가 버리면 놀라지 않는다.
-        // 지금은 **앞의 3초 정적이 그 멈칫을 대신한다** — 뜸은 이미 충분히 들였으니
-        // 여기서는 볼 틈을 주지 않는다.
-        //
-        // 소리 · 흔들림 · 붉은 조명이 전부 **이 줄에서** 같이 터진다.
+        // 다섯 박자(2026-10-29 사용자 지시) —
+        //   ⓐ 갑자기 얼굴을 들이민다  ⓑ 고개를 뒤로 젖힌다  ⓒ 빠르게 얼굴로 박치기
+        //   ⓓ 기괴한 비명 여러 개가 한꺼번에  (ⓔ 암전 · 사망 표시는 Run 이 잇는다)
         var ctl = ControlRoom3DController.Instance;
+        float leanDist = faceDist * 1.35f;     // 들이민 자리 — 얼굴이 화면을 거의 채운다
+        float backDist = leanDist + 0.32f;     // 젖히며 조금 물러난 자리
+        // 박치기 — 렌즈에 거의 닿는다. 0.72배로 뒀더니 카메라가 머리 속으로 들어가 화면에서 통째로 사라졌다.
+        float hitDist = faceDist * 0.92f;
+
+        // ⓐ 들이밈 — 0.08초 만에 어둠 속에서 렌즈 앞으로. 충격음 · 흔들림 · 붉은 조명이 이 순간 같이 터진다.
         BeginRedAlert();
-        // **여기서 비명을 울리지 않는다.** 비명은 1초 뒤 Run 에서 한 번만 난다 —
-        // 들이닥치는 순간에 같이 울리면 "까꿍하자마자 비명" 이 되어 순서가 안 읽힌다.
         Sfx.Instance?.Play("impact_blunt", 0f, 0.86f);
-        Sfx.Instance?.Play("tinnitus", -6f);
-        ctl?.ShakeCamera(9f, 0.55f);
+        Sfx.Instance?.Play("tinnitus", -8f);
+        ctl?.ShakeCamera(7f, 0.4f);
         ctl?.SetScreenTint(new Color(1.6f, 0.25f, 0.2f));
         AmbientOverlay.Instance?.PulseNoise(0.5f);
         CCTVMonitorView.Instance?.FlashGlitch(1f);
-        await Sweep(0.07, u =>
+        await Sweep(0.08, u =>
         {
-            // 끝으로 갈수록 빨라진다 — 마지막 한 프레임에 얼굴이 꽂히는 느낌.
             float e = u * u;
-            float s = Mathf.Lerp(1f, FaceScale, e);
-            Pose(Mathf.Lerp(FarDist, faceDist, e), s);
-            flash.LightEnergy = Mathf.Lerp(0.2f, 0.95f, e);
+            Pose(Mathf.Lerp(FarDist, leanDist, e), Mathf.Lerp(1f, FaceScale, e));
+            flash.LightEnergy = Mathf.Lerp(0.2f, 0.9f, e);
+        });
+        // 얼굴이 딱 보이게 잠깐 멈춘다 — 미세하게 떨면서.
+        await Sweep(0.40, u =>
+        {
+            Pose(leanDist, FaceScale, Mathf.Sin(u * 40f) * 1.2f);
+            flash.LightEnergy = 0.9f;
         });
 
-        // 얼굴이 박힌 채로 남는다 — 흔들리는 동안에도 계속 화면 한가운데에 붙여 둔다.
-        await Sweep(0.42, _ =>
+        // ⓑ 고개를 뒤로 젖힌다 — 박치기 전의 뜸. 숨을 들이켜는 듯한 소리.
+        Sfx.Instance?.Play("whisper_reverse", -2f, 0.78f);
+        Sfx.Instance?.Play("breath_close", -4f, 0.8f);
+        await Sweep(0.45, u =>
         {
-            Pose(faceDist, FaceScale);
-            flash.LightEnergy = 0.95f;
+            float e = 1f - (1f - u) * (1f - u);
+            Pose(Mathf.Lerp(leanDist, backDist, e), FaceScale, 0f, Mathf.Lerp(0f, 34f, e));
+            flash.LightEnergy = Mathf.Lerp(0.9f, 0.6f, e);
         });
+        await Sweep(0.14, _ => Pose(backDist, FaceScale, 0f, 34f));
+
+        // ⓒ 박치기 — 0.06초. 젖혔던 몸이 앞으로 꺾이며 얼굴이 렌즈에 박힌다.
+        Sfx.Instance?.Play("head_impact", 2f, 0.82f);
+        Sfx.Instance?.Play("impact_blunt", 2f, 0.62f);
+        ctl?.ShakeCamera(15f, 0.75f);
+        ctl?.SetScreenTint(new Color(2.0f, 0.18f, 0.14f));
+        AmbientOverlay.Instance?.PulseNoise(1f);
+        CCTVMonitorView.Instance?.FlashGlitch(1f);
+        await Sweep(0.06, u =>
+        {
+            float e = u * u;
+            Pose(Mathf.Lerp(backDist, hitDist, e), Mathf.Lerp(FaceScale, FaceScale * 1.1f, e), 0f,
+                Mathf.Lerp(34f, 0f, e));
+            flash.LightEnergy = 1.1f;
+        });
+
+        // ⓓ 기괴한 비명 여러 개 — 얼굴이 박힌 그 자리에서. 화면에 붙인 채 떨게 둔다.
+        Sfx.Instance?.PlayGhostScreamChorus();
+        await Sweep(0.55, u =>
+        {
+            Pose(hitDist, FaceScale * 1.1f, Mathf.Sin(u * 55f) * 2.5f);
+            flash.LightEnergy = Mathf.Lerp(1.1f, 0.5f, u);
+        });
+    }
+
+    // ── 얼굴 오버레이 ───────────────────────────────────────────────
+    //
+    // 괴물 메시만 전용 레이어(20)로 옮기고, 같은 월드를 보는 투명 배경 SubViewport 카메라가 그
+    // 레이어만 찍어 화면 위(CanvasLayer 105 — 아날로그 필터 119 · 암전 160 아래)에 겹친다.
+    // 카메라는 매 프레임 관리자 카메라와 같은 자리 · 같은 화각으로 맞춘다(흔들림까지 따라간다).
+    private const uint FaceLayer = 1u << 19;
+    private SubViewport _faceVp;
+    private Camera3D _faceCam;
+    private Camera3D _mainCam;
+    private Transform3D? _poseView;   // Pose 가 괴물을 세울 때 기준으로 삼은 카메라 자리
+    private CanvasLayer _faceLayer;
+    private OmniLight3D _faceLight;
+
+    private void BeginFaceOverlay(Camera3D cam)
+    {
+        if (_faceVp != null || cam == null) return;
+        _mainCam = cam;
+        _actor.SetRenderLayers(FaceLayer);
+        var main = GetViewport();
+        var size = (Vector2I)main.GetVisibleRect().Size;
+        _faceVp = new SubViewport
+        {
+            TransparentBg = true,
+            Size = new Vector2I(Mathf.Max(64, size.X), Mathf.Max(64, size.Y)),
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Always,
+            World3D = main.World3D,
+        };
+        _faceCam = new Camera3D
+        {
+            CullMask = FaceLayer,
+            Current = true,
+            // 배경은 비우고, 어둠 속에서도 얼굴 윤곽이 읽힐 만큼만 은은한 빛을 준다.
+            Environment = new Godot.Environment
+            {
+                BackgroundMode = Godot.Environment.BGMode.ClearColor,
+                AmbientLightSource = Godot.Environment.AmbientSource.Color,
+                AmbientLightColor = new Color(0.62f, 0.56f, 0.60f),
+                AmbientLightEnergy = 1.6f,
+            },
+        };
+        _faceVp.AddChild(_faceCam);
+        // 얼굴만 비추는 빛 — 괴물 레이어에만 닿는다(방 조명은 그대로). 위에서 비스듬히 내려와 윤곽이 선다.
+        _faceLight = new OmniLight3D
+        {
+            LightCullMask = FaceLayer, LightColor = new Color(0.86f, 0.84f, 0.92f),
+            OmniRange = 3.2f, LightEnergy = 2.0f, ShadowEnabled = false,
+        };
+        AddChild(_faceLight);
+        AddChild(_faceVp);
+        _faceLayer = new CanvasLayer { Layer = 105 };
+        var rect = new TextureRect
+        {
+            Texture = _faceVp.GetTexture(),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        rect.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _faceLayer.AddChild(rect);
+        AddChild(_faceLayer);
+        SyncFaceCamera();
+    }
+
+    private void SyncFaceCamera()
+    {
+        if (_faceCam == null || _mainCam == null || !IsInstanceValid(_mainCam)) return;
+        // 괴물을 세운 그 카메라 자리로 찍는다. 흔들림(최대 15°)은 매 프레임 새로 뽑혀서, 지금 자리로
+        // 찍으면 한 프레임 전 기준으로 선 얼굴이 화면 밖으로 튀었다 — 얼굴은 렌즈에 붙고 방만 흔들린다.
+        _faceCam.GlobalTransform = _poseView ?? _mainCam.GlobalTransform;
+        _faceCam.Fov = _mainCam.Fov;
+        _faceCam.Near = Mathf.Min(_mainCam.Near, 0.02f);   // 렌즈에 붙은 얼굴이 잘리지 않게
+        _faceCam.Far = _mainCam.Far;
+        _faceCam.HOffset = _mainCam.HOffset;
+        _faceCam.VOffset = _mainCam.VOffset;
+        if (_faceLight != null)
+        {
+            var c = _poseView ?? _mainCam.GlobalTransform;
+            _faceLight.GlobalPosition = c.Origin + Vector3.Up * 0.45f + c.Basis.X * 0.22f - c.Basis.Z * 0.05f;
+        }
+    }
+
+    private void EndFaceOverlay()
+    {
+        _faceLayer?.QueueFree();
+        _faceVp?.QueueFree();
+        _faceLight?.QueueFree();
+        _faceLight = null;
+        _faceLayer = null;
+        _faceVp = null;
+        _faceCam = null;
+        _poseView = null;
     }
 
     // seconds 동안 매 프레임 step(0→1) 을 부른다. 돌진의 세 토막이 같은 방식으로 움직인다.
@@ -370,6 +514,7 @@ public partial class AdminDeathDirector : Node
 
     public override void _Process(double delta)
     {
+        SyncFaceCamera();
         if (!_redOn) return;
         _redT += delta;
         // 0.10초 안에 물든다 — 얼굴이 꽂히는 것과 **같은 순간**이어야 한다.
