@@ -55,11 +55,15 @@ public sealed class ContainmentSystem
     private readonly HashSet<int> _reported = new();
     private float _reportCooldown;
 
-    public void Reset()
+    // start = 근무 시작 시의 불안정성(OpsProfileDef.ContainmentStartInstability).
+    public void Reset(float start = 0f)
     {
-        Instability = 0f;
+        Instability = Mathf.Clamp(start, 0f, 100f);
         _log.Clear();
         _reported.Clear();
+        // 시작값 아래의 문턱은 이미 지난 것으로 친다 — 근무 시작하자마자 "원인 불명" 기록이 뜨지 않게.
+        for (int i = 0; i < Thresholds.Length; i++)
+            if (Instability >= Thresholds[i]) _reported.Add(i);
         _reportCooldown = 0f;
     }
 

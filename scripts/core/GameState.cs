@@ -214,11 +214,17 @@ public partial class GameState : Node
     // 사유(reason)가 그대로 넘어가므로 "얼마나 늘었고 무엇 때문에 깎였는가" 를 나눌 수 있다.
     public static System.Action<float, string> CoreLedger;
 
+    // 근무 중 코어 복구율이 **실제로** 깎인 순간(깎인 양 %, 사유). 코어실 사고의 출력 불안정이든
+    // 방해공작이든 원인을 가리지 않는다 — 화면 위 경고(FacilityAlertHud · ShiftHud)가 듣는다.
+    public static event System.Action<float, string> CoreLost;
+
     public void AddCoreProgress(float delta, string reason)
     {
         CoreLedger?.Invoke(delta, reason);
         float before = CoreProgress;
         CoreProgress = Mathf.Clamp(CoreProgress + delta, 0f, 100f);
+        float lost = before - CoreProgress;
+        if (lost > 0.001f && CurrentPhase == GamePhase.Live) CoreLost?.Invoke(lost, reason);
         // 「이게 연습이라고?」 — 가상 시뮬레이션에서 100% 에 닿은 **그 순간**을 잡는다.
         // DAY1 로 넘어가며 진행도는 0% 로 돌아가지만(GoToNextDay) 기록은 이미 남아 있다.
         AchievementManager.Instance?.NoteCoreProgress(before, CoreProgress);

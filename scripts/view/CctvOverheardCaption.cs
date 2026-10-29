@@ -173,6 +173,16 @@ public partial class CctvOverheardCaption : Control
             return;
         }
 
+        // 이 방에 개체가 나타났다 — 하던 잡담은 그 자리에서 끊기고 곧바로 비명 · 경악이 오간다.
+        // (예전에는 개체가 바로 옆에 서 있는데도 "교대 시간 언제죠?" 같은 평소 대화가 그대로 흘렀다.)
+        bool ghost = OverheardDialogue.IsGhostHere(FacilitySimulation.Instance, roomId);
+        if (ghost && !_ghostHere)
+        {
+            bool speakingCalm = _phase != Phase.Waiting && Current?.Situation != OverheardSituation.Ghost;
+            if (speakingCalm || _phase == Phase.Waiting) Reset(GhostFirstDelay);
+        }
+        _ghostHere = ghost;
+
         _timer -= delta;
         switch (_phase)
         {
@@ -204,7 +214,7 @@ public partial class CctvOverheardCaption : Control
 
             case Phase.SpeakA:
             case Phase.SpeakB:
-                _shown += delta * Mathf.Max(1f, table.CharsPerSecond);
+                _shown += delta * CharsPerSecond(table);
                 _text.VisibleCharacters = Mathf.Min(_text.GetTotalCharacterCount(), NamePrefixLength + (int)_shown);
                 if (_timer > 0f) return;
                 // 혼잣말은 상대가 없다 — 짧게 쉬었다 같은 말을 다시 한다.
@@ -217,10 +227,21 @@ public partial class CctvOverheardCaption : Control
                     Speak(Phase.SpeakB, Current.B, Current.LineB, table);
                     Heard(roomId, _heard?.Time ?? 0f);
                 }
+                // 개체가 아직 있으면 쉬지 않고 다음 비명으로 넘어간다.
+                else if (_ghostHere) Reset(_rng.RandfRange(GhostCooldownMin, GhostCooldownMax));
                 else Reset(_rng.RandfRange(table.CooldownMinSeconds, Mathf.Max(table.CooldownMinSeconds, table.CooldownMaxSeconds)));
                 break;
         }
     }
+
+    // 개체가 이 방에 나와 있는가(지난 프레임 기준) · 그때의 짧은 간격들.
+    private bool _ghostHere;
+    private const float GhostFirstDelay = 0.35f;
+    private const float GhostCooldownMin = 0.5f;
+    private const float GhostCooldownMax = 1.1f;
+    // 비명은 빨리 찍히고 짧게 머문다 — 차분한 대화와 같은 속도면 놀란 것처럼 읽히지 않는다.
+    private const float GhostTypeSpeed = 1.7f;
+    private const float GhostHoldSeconds = 1.4f;
 
     // 지금 나오는 것이 두 사람의 대화가 아니라 한 사람의 혼잣말인가.
     private bool _soloMutter;
@@ -249,9 +270,15 @@ public partial class CctvOverheardCaption : Control
         _shown = 0f;
         _text.VisibleCharacters = NamePrefixLength;
         // 글자가 다 찍히는 시간 + 머무는 시간.
-        _timer = line.Length / Mathf.Max(1f, table.CharsPerSecond) + table.LineHoldSeconds;
+        _timer = line.Length / Mathf.Max(1f, CharsPerSecond(table)) + (Panicky ? GhostHoldSeconds : table.LineHoldSeconds);
         Visible = true;
     }
+
+    // 지금 찍는 줄이 개체 앞의 비명인가.
+    private bool Panicky => Current?.Situation == OverheardSituation.Ghost && _phase != Phase.Waiting;
+
+    private float CharsPerSecond(OverheardLineTableDef table) =>
+        Mathf.Max(1f, table.CharsPerSecond) * (Panicky ? GhostTypeSpeed : 1f);
 
     // 화면에 뜬 줄을 "관리자가 들은 것"으로 남긴다. A 의 줄이 뜰 때 한 번, B 의 줄이 뜰 때 한 번.
     // 둘째 줄이 들어오면 이미 찍어 둔 단서의 사본도 둘째 줄까지 채운다.

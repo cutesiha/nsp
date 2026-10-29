@@ -177,6 +177,10 @@ public partial class FacilitySimulation : Node
         Instance = this;
     }
 
+    // 시뮬레이션 자체는 Tick(근무 중에만 불린다)으로 돈다. 여기서는 소리만 본다 — 근무가 끝난 뒤에도
+    // 개체의 울음 · 기척이 남지 않게, 근무 중이면 보고 있는 방에 따라 울음 크기를 맞춘다.
+    public override void _Process(double delta) => _ghost.TickAudio((float)delta, this);
+
     public override void _Ready()
     {
         // 중요 사건 경보 연출(붉은 점멸 + 상단 배너). 화면 위에만 얹히므로
@@ -873,6 +877,16 @@ public partial class FacilitySimulation : Node
         emp.PathQueue.Clear();
     }
 
+    // 지금 직원을 그 방으로 보낼 수 있는가(MoveEmployeeTo 가 목적지로 받아 주는 방인가).
+    // 잠긴 방 · 출입 제한 구역(중앙 제어실 · 격리실) · 오늘 쓰지 않는 방은 아니다.
+    public bool CanSendTo(string roomId)
+    {
+        if (string.IsNullOrEmpty(roomId)) return false;
+        if (!_roomStates.TryGetValue(roomId, out var room) || room.Locked) return false;
+        if (!_roomDefs.TryGetValue(roomId, out var def) || def.IsRestricted) return false;
+        return DayFeatures.IsRoomActive(def);
+    }
+
     public bool MoveEmployeeTo(string employeeId, string roomId)
     {
         if (!_employeeStates.TryGetValue(employeeId, out var emp) || emp.Isolated || !emp.Alive)
@@ -1343,7 +1357,9 @@ public partial class FacilitySimulation : Node
         _killsToday = 0;
         _cctvWasOperational = true;
         _darknessSeconds = 0f;
-        _containment.Reset();
+        // 실제 근무(DAY1~)는 봉쇄가 반쯤 흔들린 채로 시작한다(그날 운영표의 시작값). 교육일은 0.
+        _containment.Reset(DayFeatures.AutoIncidentsEnabled
+            ? OpsProfile.Today?.ContainmentStartInstability ?? 0f : 0f);
         _pendingSabotage.Clear();
         _covert.Reset();
         foreach (var e in _employeeStates.Values) e.CovertMove = false;
@@ -1486,6 +1502,8 @@ public partial class FacilitySimulation : Node
         TickPendingSabotage();
         // 봉쇄 계통의 불안정성이 가라앉는다 / 문턱을 넘으면 원인 불명 기록이 남는다.
         _containment.Tick(d, this);
+        // 원인 불명 기록은 잠깐만 경고 단말기에 머문다(고칠 업무가 없어 Resolve 가 불리지 않는다).
+        IncidentTracker.Prune();
         // 감시 공백(조명 OFF · CCTV OFF)을 이용한 은밀 이동 · 봉쇄 교란 · 범행.
         _covert.Tick(d, this, OpsProfile.Today);
         TickPowerRestoreReveal();
@@ -3038,7 +3056,10 @@ public partial class FacilitySimulation : Node
                 if (RepairCrewArrived(st) || st.CrewPresentSeconds >= RepairApprovalGraceSeconds)
                 {
                     st.ApprovalRequested = true;
-                    RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
+                    // 단기 근무에는 승인 절차가 없다 — 줄에 세우지 않으면 패드에 아무것도 뜨지 않고
+                    // 수리가 바로 진행된다(GameModes.RepairApprovalEnabled).
+                    if (GameModes.RepairApprovalEnabled)
+                        RepairApprovalSystem.Enqueue(st.RoomId, RoomName(st.RoomId), st);
                 }
             }
             // 승인이 떨어지기 전에는 수리에 손을 대지 않는다(G-2). 이것이 없으면 관리자가

@@ -506,17 +506,20 @@ public partial class IncomingCallDirector : Node
         // 혼자 근무 중인 사람이 건다 — 심심하다는 말도, 옆 방 소리를 들었다는 말도
         // 혼자 있어야 나온다.
         var alone = sim.GetActiveEmployeeIds()
-            .Where(id => Available(id) && sim.OnDutyCount(sim.GetEmployeeState(id)?.CurrentRoomId ?? "") == 1)
+            .Where(id => Available(id) && sim.GetEmployeeState(id) is { IsMoving: false, Incapacitated: false }
+                         && sim.OnDutyCount(sim.GetEmployeeState(id)?.CurrentRoomId ?? "") == 1)
             .ToList();
         if (alone.Count == 0) return;
         string caller = alone[_rng.RandiRange(0, alone.Count - 1)];
         string from = sim.GetEmployeeState(caller)?.CurrentRoomId ?? "";
 
-        // 갈 만한 다른 작업실. 사람이 있는 방이면 "소리를 들었다", 비어 있으면 "놀러 가도 되나".
+        // 갈 만한 다른 작업실 — 오늘 근무 중인 동료가 **실제로 서 있는** 방 중, 지금 보낼 수 있는 곳.
+        // (격리실 · 중앙 제어실 · 잠긴 방 · 단기 근무에서 빠진 방을 고르면 "가도 될까요?" 에 허락해도
+        //  갈 길이 없어 그 자리에 그대로 서 있었다 — 2026-10-29.)
         var others = sim.GetActiveEmployeeIds()
-            .Where(id => id != caller)
+            .Where(id => id != caller && Available(id) && sim.GetEmployeeState(id) is { IsMoving: false })
             .Select(id => sim.GetEmployeeState(id)?.CurrentRoomId ?? "")
-            .Where(r => !string.IsNullOrEmpty(r) && r != from)
+            .Where(r => !string.IsNullOrEmpty(r) && r != from && sim.CanSendTo(r))
             .Distinct().ToList();
         if (others.Count == 0) return;
         string target = others[_rng.RandiRange(0, others.Count - 1)];
@@ -627,8 +630,14 @@ public partial class IncomingCallDirector : Node
         {
             // 실제로 그 작업실로 보낸다. 이 상황의 전화는 여기서 끝.
             inc.Closed = true;
-            if (!string.IsNullOrEmpty(inc.RoomId))
-                FacilitySimulation.Instance?.MoveEmployeeTo(employeeId, inc.RoomId);
+            if (string.IsNullOrEmpty(inc.RoomId)) return;
+            var sim = FacilitySimulation.Instance;
+            // 잡담 전화("○○ 쪽으로 가도 될까요?")의 허락은 **그 방으로 옮기라는 배치**다 — 걸어가기만 하고
+            // 배치가 그대로면, 차폐문에 길이 한 번 끊겼다 열리는 순간 원래 방으로 되돌아갔다(Reroute 는
+            // 배치된 방으로 길을 찾는다). 지도 · 시설 로그에도 관리자가 옮긴 것으로 남는다.
+            bool idle = dialogueEvent is DialogueRepository.EventIdleVisit or DialogueRepository.EventIdleWorry;
+            if (idle && sim?.AssignToRoom(employeeId, inc.RoomId) == true) return;
+            sim?.MoveEmployeeTo(employeeId, inc.RoomId);
             return;
         }
 

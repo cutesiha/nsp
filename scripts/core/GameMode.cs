@@ -136,6 +136,13 @@ public static class GameModes
     // 값을 보고, 그 창구를 거치지 않는 지도 · 길찾기 · 지침만 IsRoomRemoved 를 직접 본다.
     public static bool StressSystemEnabled => Current != GameMode.Competition;
 
+    // ── 단기 근무에는 수리 승인 절차가 없다(2026-10-29 사용자 지시) ─────────────
+    //
+    // 사고 수리에 사람이 다 모이면 곧바로 고치기 시작한다. 관리자 패드의 승인 요청 · 미로 퍼즐 ·
+    // 요청 알림이 하나도 뜨지 않는다(RepairApprovalSystem 에 줄을 세우지 않는다 — FacilitySimulation).
+    // 정규 근무(5일)는 예전 그대로 승인 절차를 거친다.
+    public static bool RepairApprovalEnabled => Current != GameMode.Competition;
+
     public static bool RemovesRooms => Current == GameMode.Competition;
 
     public static bool IsRoomRemoved(string roomId) =>

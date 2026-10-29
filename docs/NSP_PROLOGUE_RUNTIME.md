@@ -105,6 +105,9 @@
 #                          demo_barrier     복도 CCTV 를 띄우고 차폐 레버를 올림 → 다음 줄에서 내림
 #                          demo_sabotage    발전실 방해공작 경보 + CCTV 노이즈 · ERROR! → 다음 줄에서 걷힘
 #                          ghost_noise      작업실에 개체 출현 + 비명 · 벽 두드리는 소리
+#                          containment      화면 위 「봉쇄 불안정」 게이지를 띄워 차오르게 하고 옆에 화살표
+#                                           (다음 줄에서도 더 오르고, containment_settle 이 끝날 때 걷힌다)
+#                          containment_settle  그 게이지가 다시 내려간다 → 줄이 넘어가면 게이지·화살표가 걷힌다
 #                          모르는 이름은 조용히 무시한다(오타로 교육이 멈추지 않는다).
 #
 #   @menu <id>          GUIDE-0 선택지
@@ -729,6 +732,8 @@ portrait: normal
 line: 그리고 누가 방해를 했는지는... 직접 찾아내셔야 하고요.
 
 # 사고 수리 승인 절차(G-2) — 발전실 사고 수리 중에 한 번만 가르친다.
+# ★ 단기 근무에는 승인 절차가 없다(2026-10-29) — 아래 세 묶음은 정규 근무에서만 부른다.
+#   단기 근무에서는 그 자리에서 수리가 끝나기를 기다렸다가 곧바로 tut_repair_done 으로 간다.
 # 이 줄이 찍히는 동안 RepairApprovalSystem.Paused 로 제한 시간이 멈춘다(TutorialDirector).
 # 패드를 들어 올려 확대하고, ‘예’ 를 누르는 순간 다음 대사(퍼즐 설명)로 간다.
 # 퍼즐이 끝나면(성공이든 실패든) 패드를 내려놓는다.
@@ -751,14 +756,27 @@ line: 또한 실패하면 수리 시간이 길어집니다. 그럼 풀어보십�
 
 # STEP 6 — 이상 개체 · 차폐 (단기 근무 · 장기 근무 공통)
 #   tut_anomaly_intro → (CCTV 로 그 방을 찾으면) tut_barrier_found 부터 이어진다.
+#   둘째 ~ 넷째 줄 — 봉쇄 불안정성(화면 위 게이지 + 화살표). 가상 시뮬레이션에는 결번이 없으므로
+#   게이지는 시연 값으로 오르내린다(cue: containment / containment_settle).
 #   "지금처럼 이상한 소리" 줄이 뜨는 순간 작업실에 개체가 나타나고, 벽 너머 비명과
 #   벽을 쿵쿵 두드리는 소리가 난다(어느 방인지는 알려 주지 않는다).
+#   마지막 줄("직접 CCTV를 돌려 보십시오")이 지시다 — 그 방 CCTV 를 띄우는 순간 다음으로 넘어간다.
 @guide tut_anomaly_intro
 portrait: normal
 line: 그리고 직원으로 둔갑한 괴물이 여러 개체들을 /1탈출/0시키고 있습니다.
+portrait: normal
+cue: containment
+line: 그 괴물이 시설에 있는 한, /2봉쇄 불안정성/0은 계속 올라갑니다.
+portrait: sneer
+line: 봉쇄가 불안정해질수록 더 많은 /1개체/0가 빠져나옵니다.
+portrait: normal
+cue: containment_settle
+line: 그러니 괴물을 찾아 /1격리/0해야 개체가 더 이상 나오지 않습니다.
 portrait: sneer
 cue: ghost_noise
 line: 개체가 등장해도 경고가 울리지 않기에, 지금처럼 /4이상한 소리/0가 들린다면 CCTV를 돌려 찾으셔야 합니다.
+portrait: normal
+line: 직접 /5CCTV/0를 돌려 보십시오.
 
 # ── 아래 tut_anomaly_find ~ tut_barrier_intro 는 지금 교육에서 부르지 않는다 ──
 #    (2026-10-22: tut_anomaly_intro 다음에 곧바로 tut_barrier_found 로 넘어간다.

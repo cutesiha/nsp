@@ -409,13 +409,23 @@ public partial class TutorialDirector : Node
         // 둘째 줄(배치 지시)이 뜨면 정비실 옆과 옮길 직원 옆에 화살표가 선다(cue: arrow). 배치하는 순간 다음으로.
         ArmArrow(() => RoomArrowAim(MaterialsRoomId), () => PointAtOneMover(sim, MaterialsRoomId, MaterialsMoverId));
         await SayAct("tut_materials", () => AnyoneAssignedTo(sim, MaterialsRoomId));
+        EndMaterialsHint();   // 둘째 줄을 읽기 전에 배치했으면 강조가 남아 있다
         HideArrow();
 
         // 사람이 들어가 자재가 실제로 들어오기를 잠깐만 기다린다. 걸어가서 한 바퀴 돌리는 데
         // 시간이 걸리므로, 그 사이를 교육이 채운다(늘어지지 않게 — 사용자 지시 2026-10-22).
         await UntilOrAfter(() => gs.Materials >= cost, MaterialsArriveWaitSeconds);
         if (gs.Materials < cost) gs.AddMaterials(cost - gs.Materials);
+        // "자재가 들어왔습니다" — 말하는 동안 자재 숫자를 다시 짚는다(한 줄 묶음이라 끝나면 직접 끈다).
+        HintMaterialsFor(2);
         await Say("tut_materials_done");
+        EndMaterialsHint();
+    }
+
+    private void EndMaterialsHint()
+    {
+        _materialsHintLines = 0;
+        HighlightMaterials(false);
     }
 
     // ── 보관 한도 · 저장고 교육 ──────────────────────────────────────
@@ -441,9 +451,12 @@ public partial class TutorialDirector : Node
 
         sim.OpenRoomMidShift(StorageRoomId);
         NSP.View.FacilityMonitorView.HighlightRoomNumber(StorageRoomId);
+        // 첫 줄("자재 보관 한도가 차서…")이 뜬 동안 자재 숫자를 짚는다 — 둘째 줄에서 꺼진다.
+        HintMaterialsFor(2);
         // "직원을 배치해 보십시오" 에서 기다린다 — 저장고에 사람을 넣는 순간 다음 대사.
         ArmArrow(() => RoomArrowAim(StorageRoomId), () => PointAtOneMover(sim, StorageRoomId, StorageMoverId, MaterialsRoomId));
         await SayAct("tut_storage", () => AnyoneAssignedTo(sim, StorageRoomId));
+        EndMaterialsHint();
         HideArrow();
         await Say("tut_storage_done");
     }
@@ -474,8 +487,13 @@ public partial class TutorialDirector : Node
         int need = Mathf.Max(2, (sim?.OnDutyCount(AccidentRoomId) ?? 0) + 1);
         // 사고와 함께 승인 요청이 줄에 선다. 다만 **띄우지는 않는다** —
         // 아직 아무도 보내지 않았는데 "수리를 승인하시겠습니까" 부터 뜨면 순서가 거꾸로다.
-        RepairApprovalSystem.Held = true;
-        RepairApprovalSystem.Paused = true;
+        // (단기 근무에는 승인 절차 자체가 없다 — GameModes.RepairApprovalEnabled.)
+        bool approval = GameModes.RepairApprovalEnabled;
+        if (approval)
+        {
+            RepairApprovalSystem.Held = true;
+            RepairApprovalSystem.Paused = true;
+        }
         sim?.TriggerTutorialAccident(AccidentRoomId, need);
         // 발전실 사고는 전력 용량을 깎는다(3 → 2). 그 일이 실제로 일어났을 때만 설명한다.
         // 이 묶음의 줄마다 cue 가 걸려 있다 — 스위치 기기 확대 · 조명 · CCTV 레버 시연 · 차폐 시연.
@@ -497,7 +515,8 @@ public partial class TutorialDirector : Node
 
         // ── 수리 승인 요청 · 미로 ──────────────────────────────────────
         // 사람을 보낸 직후, 수리가 끝나기 전에 가르친다 — 실제 근무에서 겪는 순서 그대로다.
-        await RunApprovalLesson();
+        // 승인 절차가 없는 근무(단기 근무)에서는 가르칠 것도 없다 — 수리가 끝나기를 기다릴 뿐이다.
+        if (approval) await RunApprovalLesson();
 
         await Until(() => sim?.HasRepairPending(AccidentRoomId) == false);
         await Say("tut_repair_done");
@@ -636,7 +655,8 @@ public partial class TutorialDirector : Node
         HideArrow();
         StopLeverDemos();
         StopSabotageDemo();
-        NSP.View.FacilityMonitorView.HighlightMaterials(false);
+        StopContainmentDemo();
+        HighlightMaterials(false);
         NSP.View.FacilityMonitorView.HighlightEndShift(false);
         RepairApprovalSystem.Paused = false;
         RepairApprovalSystem.Held = false;
@@ -674,7 +694,25 @@ public partial class TutorialDirector : Node
     private void HintMaterialsFor(int lines)
     {
         _materialsHintLines = Mathf.Max(1, lines);
-        NSP.View.FacilityMonitorView.HighlightMaterials(true);
+        HighlightMaterials(true);
+    }
+
+    // 모니터1 위 「자재 N / M」 — 하늘색 테두리와 함께 그 옆에 화살표를 세운다(자재가 모자라거나
+    // 들어오는 순간). 테두리만으로는 화면 어디를 봐야 하는지 눈에 잘 안 들어왔다.
+    private const string MaterialsArrowKey = "materials";
+
+    private static void HighlightMaterials(bool on)
+    {
+        NSP.View.FacilityMonitorView.HighlightMaterials(on);
+        if (on) TutorialArrow.PointAlso(MaterialsArrowKey, MaterialsArrowAim);
+        else TutorialArrow.ClearAlso(MaterialsArrowKey);
+    }
+
+    // 「자재 N / M」 왼쪽에서 그 숫자를 가리킨다(오른쪽은 모니터 가장자리다).
+    private static TutorialArrow.Aim? MaterialsArrowAim()
+    {
+        var view = FacilityMonitorView.Instance;
+        return view == null ? null : TutorialArrow.BesideOnMonitor(view, view.MaterialsRect, TutorialArrow.Side.Left);
     }
 
     // 정비실이 자재를 만들었다 — 화면 위 「자재 N / M」 을 하늘색 테두리로 잠깐 짚었다가 끈다.
@@ -695,7 +733,7 @@ public partial class TutorialDirector : Node
         double now = Time.GetTicksMsec() / 1000.0;
         if (now < _materialsFlashNext) return;
         _materialsFlashNext = now + MaterialsFlashGapSeconds;
-        NSP.View.FacilityMonitorView.HighlightMaterials(true);
+        HighlightMaterials(true);
         _ = EndMaterialsFlash(++_materialsFlashGen);
     }
 
@@ -704,14 +742,14 @@ public partial class TutorialDirector : Node
         try { await Wait(MaterialsFlashSeconds); }
         catch (OperationCanceledException) { return; }
         if (gen == _materialsFlashGen && _materialsHintLines == 0)
-            NSP.View.FacilityMonitorView.HighlightMaterials(false);
+            HighlightMaterials(false);
     }
 
     private void OnGuideLine(string text)
     {
         GuideSubtitleHud.Instance?.SetLine(text);
         if (_materialsHintLines > 0 && --_materialsHintLines == 0)
-            NSP.View.FacilityMonitorView.HighlightMaterials(false);
+            HighlightMaterials(false);
     }
 
     // 그 작업실에 **배치된** 직원이 하나라도 있는가. 도착(OnDutyCount)이 아니라 배치로 본다 —
@@ -874,6 +912,7 @@ public partial class TutorialDirector : Node
 
     private void CleanUpBarrierLesson(FacilitySimulation sim)
     {
+        StopContainmentDemo();
         _holdSwitchZoom = false;
         TutorialArrow.ClearAlso(CueArrowKey("zoom_switch_hold"));
         _ghostRoom = "";
@@ -942,9 +981,10 @@ public partial class TutorialDirector : Node
         await SayAct("tut_ask_where", () => _rabbitAskedWithEvidence
                           || (string.IsNullOrEmpty(_rabbitOriginRoomName) && _rabbitAskedAnything));
         HideArrow();
-        // 토끼가 실제로 방을 옮긴 기록이 있을 때만 "기록과 진술이 다르다"고 말한다.
-        if (!string.IsNullOrEmpty(_rabbitOriginRoomName))
-            await SayAct("tut_contradiction", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
+        // L 로 시설 기록을 여는 법은 **언제나** 가르친다. 예전에는 토끼가 실제로 방을 옮긴 판에서만
+        // 띄웠는데, 사고 수리에 다른 직원을 보내면(화살표도 코어실 밖 직원부터 가리킨다) 토끼가
+        // 옮기지 않아 이 안내가 통째로 빠졌다. 안내 문구는 모순을 말하지 않는다 — 기록을 여는 법뿐이다.
+        await SayAct("tut_contradiction", () => Day1HistoryOverlay.Instance?.IsLogOpen == true);
         // D 를 눌러 대화 기록을 **실제로 연 뒤에만** "통화를 종료하라"는 다음 줄이 뜬다.
         await SayAct("tut_dialogue_log", () => Day1HistoryOverlay.Instance?.IsDialogueOpen == true);
         // "통화를 종료해보십시오" 가 뜨는 순간 확대를 푼다(cue: zoom_clear).
@@ -1011,6 +1051,18 @@ public partial class TutorialDirector : Node
 
             // 개체 출현 — 비명 · 벽 두드리는 소리.
             case "ghost_noise": AppearGhost(); break;
+
+            // 화면 위 「봉쇄 불안정」 게이지를 띄워 차오르게 하고, 그 옆에 화살표를 세운다.
+            // 화살표는 불안정성 설명이 끝날 때(containment_settle 줄이 넘어갈 때)까지 남는다.
+            case "containment":
+                StartContainmentDemo(ContainmentDemoPeak, 3.2);
+                TutorialArrow.PointAlso(ContainmentArrowKey, ContainmentGaugeAim);
+                break;
+            // 괴물을 격리하면 가라앉는다 — 게이지가 다시 내려간다.
+            case "containment_settle":
+                StartContainmentDemo(0f, 2.4);
+                TutorialArrow.PointAlso(ContainmentArrowKey, ContainmentGaugeAim);
+                break;
         }
     }
 
@@ -1034,7 +1086,62 @@ public partial class TutorialDirector : Node
                 break;
             case "demo_barrier": StopBarrierDemo(); break;
             case "demo_sabotage": StopSabotageDemo(); break;
+            // 차오르던 게이지는 다음 줄(더 많은 개체가 나온다)에서도 조금 더 오른다 — 눈금을 넘어 붉어진다.
+            case "containment": StartContainmentDemo(ContainmentDemoTop, 3.6); break;
+            case "containment_settle": StopContainmentDemo(); break;
         }
+    }
+
+    // ── 봉쇄 불안정 시연 ─────────────────────────────────────────────
+    //
+    // 가상 시뮬레이션에는 결번이 없어 봉쇄 불안정이 실제로 오르지 않는다(ShiftHud 도 숨긴다).
+    // "괴물이 있는 한 오른다 → 많이 오르면 개체가 더 나온다 → 격리하면 가라앉는다" 를 말하는 동안만
+    // 화면의 그 게이지를 시연 값으로 띄운다. 시뮬레이션의 불안정성은 건드리지 않는다.
+    private const string ContainmentArrowKey = "containment_gauge";
+    // 실제 근무처럼 50% 에서 시작해 오르고(눈금 75% 를 넘으면 붉어진다), 격리 줄에서 0 까지 내려간다.
+    private const float ContainmentDemoStart = 50f;
+    private const float ContainmentDemoPeak = 68f;
+    private const float ContainmentDemoTop = 88f;
+    private int _containmentDemoGen;
+
+    private void StartContainmentDemo(float to, double seconds)
+    {
+        int gen = ++_containmentDemoGen;
+        float from = ShiftHud.DemoContainment ?? ContainmentDemoStart;
+        ShiftHud.DemoContainment = from;
+        _ = RunContainmentDemo(gen, from, to, seconds);
+    }
+
+    private async Task RunContainmentDemo(int gen, float from, float to, double seconds)
+    {
+        try
+        {
+            double t = 0;
+            while (gen == _containmentDemoGen && t < seconds)
+            {
+                await NextFrame();
+                t += GetProcessDeltaTime();
+                float k = Mathf.Clamp((float)(t / Mathf.Max(0.05, seconds)), 0f, 1f);
+                if (gen == _containmentDemoGen)
+                    ShiftHud.DemoContainment = Mathf.Lerp(from, to, 1f - (1f - k) * (1f - k));
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void StopContainmentDemo()
+    {
+        _containmentDemoGen++;
+        ShiftHud.DemoContainment = null;
+        TutorialArrow.ClearAlso(ContainmentArrowKey);
+    }
+
+    // 화면 위 「봉쇄 불안정 N%」 막대 오른쪽에서 그 막대를 가리킨다.
+    private static TutorialArrow.Aim? ContainmentGaugeAim()
+    {
+        var gauge = ShiftHud.Instance?.ContainmentGaugeControl;
+        return gauge == null ? null
+            : TutorialArrow.BesideOnScreen(gauge, new Rect2(Vector2.Zero, gauge.Size), TutorialArrow.Side.Right);
     }
 
     // 차폐 단계의 스위치 확대 — 다음 줄로 넘어가도 풀지 않는다(차폐가 닫힐 때 직접 푼다).

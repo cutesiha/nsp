@@ -186,6 +186,8 @@ public partial class DistractionTest : Node
         await ScenePowerOff(sim, ds);
         await SceneOtherRoom(sim, ds);
         await ScenePriority(sim, ds, world);
+        // 스스로 만드는 기회까지 돌려 보므로 맨 뒤에 둔다(앞 장면이 쓸 딴짓을 먼저 써 버리지 않게).
+        await SceneNoStartWhileWatched(sim, ds);
         ds.AutoSpawn = true;
 
         Log("");
@@ -200,21 +202,64 @@ public partial class DistractionTest : Node
                 + $"끝={c.EndReason} 실토=[{string.Join(",", c.Admitted)}] 교차질문=[{string.Join(",", c.CrossAsked)}]");
     }
 
-    // ① 보고 있는 방 — 목격이 성립하고, 전화에 전용 선택지가 뜬다.
+    // ⓪ 보는 앞에서는 시작하지 않는다(2026-10-29).
+    //    · 스스로 만드는 기회는 지금 띄워 둔 방을 고르지 않는다.
+    //    · 자리를 잡는 사이에 그 방이 띄워지면 딴짓을 접고 하던 일로 돌아간다(목격 기록 없음).
+    private async System.Threading.Tasks.Task SceneNoStartWhileWatched(FacilitySimulation sim, DistractionSystem ds)
+    {
+        Log("");
+        await Ensure(sim, 40f);
+        await Watch(sim, "maintenance_room");
+        int startedBefore = ds.StartedToday;
+        ds.AutoSpawn = true;
+        for (int k = 0; k < 40; k++)
+        {
+            ds.RushNextChance();
+            await Frames(2);
+            var made = ds.Events.LastOrDefault(e => e.Day == GameState.Instance.CurrentDay);
+            if (ds.StartedToday > startedBefore && made != null) break;
+        }
+        ds.AutoSpawn = false;
+        var spawned = ds.Events.Where(e => e.Day == GameState.Instance.CurrentDay).Skip(startedBefore).ToList();
+        Check(spawned.All(e => e.RoomId != "maintenance_room"),
+            $"스스로 시작한 딴짓은 지금 보고 있는 방(정비실)에서 일어나지 않는다 — "
+            + (spawned.Count == 0 ? "이번엔 발생 없음" : string.Join(",", spawned.Select(e => $"{e.Code}@{e.RoomName}"))));
+        foreach (var e in spawned)
+            for (int i = 0; i < 60 * 40 && e.Running; i++) await Frame();
+
+        // 보고 있는 방에서 억지로 일으켜 본다 — 자리를 잡기도 전에 카메라를 의식하고 돌아간다.
+        var ev = await Force(sim, DistractionKind.SheepDoze);
+        Check(ev != null, "SHEEP 딴짓을 보고 있는 방에서 일으켜 본다");
+        if (ev == null) return;
+        for (int i = 0; i < 60 * 3 && ev.Phase == DistractionPhase.Entering; i++) await Frame();
+        Check(ev.Aborted && ev.AbortReason == "관측 중" && ev.Phase is DistractionPhase.Returning or DistractionPhase.Done,
+            $"보는 앞에서는 딴짓을 시작하지 않는다 (phase={ev.Phase} 중단={ev.AbortReason})");
+        Check(!ev.HasBeenObserved, "시작하지 않은 딴짓은 목격으로 세지 않는다");
+        for (int i = 0; i < 60 * 20 && ev.Running; i++) await Frame();
+    }
+
+    // ① 안 보는 사이에 시작된 딴짓을, 그 방을 띄워 잡는다 — 목격이 성립하고 3~4초 뒤 놀라며,
+    //    전화에 전용 선택지가 뜬다. (보는 앞에서는 시작하지 않는다 — ⓪ SceneNoStartWhileWatched.)
     private async System.Threading.Tasks.Task SceneWitness(FacilitySimulation sim, DistractionSystem ds,
                                                            FacilityCctvWorld world)
     {
         await Ensure(sim, 40f);
-        await Watch(sim, "maintenance_room");
+        await Watch(sim, "core_room");
         var ev = await Force(sim, DistractionKind.FoxPhone);
-        Check(ev != null, "FOX_01 발생");
+        Check(ev != null, "FOX_01 발생(다른 방을 보는 사이)");
         if (ev == null) return;
+        // 자리를 잡고 실제로 딴짓을 하는 중에 그 방을 띄운다.
+        for (int i = 0; i < 60 * 20 && ev.Running && ev.Phase != DistractionPhase.Distracted; i++) await Frame();
+        await Seconds(0.8);
+        await Watch(sim, "maintenance_room", 0);
+        float watchAt = GameState.Instance?.DayTimeSeconds ?? 0f;
+        await Frames(6);   // 화면에 처음 잡히는 순간의 자리 맞춤(SnapToGoal)은 순간이동으로 세지 않는다
 
         var seq = new List<string>();
         var phases = new List<string>();
         float jump = 0f;
         Vector3? last = null;
-        float distractedAt = -1f, noticedAt = -1f;
+        float noticedAt = -1f;
         for (int i = 0; i < 60 * 30 && ev.Running; i++)
         {
             Track(world, "fox", seq, ref jump, ref last);
@@ -222,24 +267,23 @@ public partial class DistractionTest : Node
             {
                 phases.Add(ev.Phase.ToString());
                 float now = GameState.Instance?.DayTimeSeconds ?? 0f;
-                if (ev.Phase == DistractionPhase.Distracted) distractedAt = now;
                 if (ev.Phase == DistractionPhase.Noticed) noticedAt = now;
             }
             await Frame();
         }
         Log($"FOX_01 단계: {string.Join(">", phases)}");
         Log($"FOX_01 클립: {string.Join(">", seq)}");
-        Check(ev.HasBeenObserved, "보고 있는 방 — 목격됨");
+        Check(ev.HasBeenObserved, "그 방을 띄웠다 — 목격됨");
         Check(ev.HasReactedToCctv, "적발 반응 재생됨");
-        // 보자마자 놀라지 않는다 — 딴짓을 4~5초 보여 준 뒤에 알아챈다.
-        Check(distractedAt >= 0f && noticedAt - distractedAt >= 3.8f,
-            $"딴짓을 충분히 보여 준 뒤 놀란다({noticedAt - distractedAt:0.0}s)");
+        // 보자마자 놀라지 않는다 — 그 방을 띄운 뒤 3~4초 지나서 알아챈다(2026-10-29).
+        float react = noticedAt - watchAt;
+        Check(noticedAt >= 0f && react >= 2.8f && react <= 5.0f, $"채널을 맞춘 뒤 3~4초 지나 놀란다({react:0.0}s)");
         Check(ds.WitnessedTodayOf("fox").Count == 1, "같은 사건을 한 번만 집계");
         Check(phases.Contains("Noticed") && phases.Contains("Recovering") && phases.Contains("Returning"),
             "적발 → 정리 → 복귀 단계가 모두 지나갔다");
-        Check(seq.Contains("dis_fox_phone_enter") && seq.Contains("dis_fox_phone_loop")
+        Check(seq.Contains("dis_fox_phone_loop")
               && seq.Contains("dis_fox_phone_notice") && seq.Contains("dis_fox_phone_recover"),
-            "진입 → 반복 → 적발 → 복귀 클립이 순서대로 재생됐다");
+            "반복 → 적발 → 복귀 클립이 순서대로 재생됐다");
         Check(jump < 0.3f, $"순간이동 없음(한 프레임 최대 {jump:0.00}m)");
         Check(ds.ActiveOf("sheep") == null, "같은 방 양은 딴짓 중이 아니다");
         string sheepClip = Clip(world, "sheep");
@@ -278,10 +322,12 @@ public partial class DistractionTest : Node
     {
         Log("");
         await Ensure(sim, 45f);
-        await Watch(sim, "core_room");
+        await Watch(sim, "storage_room");
         var call = await Force(sim, DistractionKind.CatCall);
         Check(call != null, "CAT_01 발생 — 개인 통화");
         if (call == null) return;
+        for (int i = 0; i < 60 * 20 && call.Running && call.Phase != DistractionPhase.Distracted; i++) await Frame();
+        await Watch(sim, call.RoomId, 0);
 
         var dogEv = ds.ActiveOf("dog");
         Check(dogEv != null && dogEv.Kind == DistractionKind.DogCall, "상대(강아지)도 같은 시각에 통화 중이다");
@@ -363,11 +409,12 @@ public partial class DistractionTest : Node
     {
         Log("");
         await Ensure(sim, 35f);
-        await Watch(sim, "guard_room");
+        await Watch(sim, "core_room");
         var keep = await Force(sim, DistractionKind.RabbitPeek);
         Check(keep != null, "RABBIT_01 발생(경비실)");
         if (keep == null) return;
         for (int i = 0; i < 60 * 20 && keep.Phase != DistractionPhase.Distracted; i++) await Frame();
+        await Watch(sim, "guard_room", 0);
         await Seconds(1.2);
         float elapsed = keep.Elapsed;
         int seenCount = ds.WitnessedTodayOf("rabbit").Count;
@@ -426,11 +473,12 @@ public partial class DistractionTest : Node
     {
         Log("");
         await Ensure(sim, 30f);
-        await Watch(sim, "power_room");
+        await Watch(sim, "core_room");
         var cut = await Force(sim, DistractionKind.DogProbe);
         Check(cut != null, "DOG_02 발생(발전실)");
         if (cut == null) return;
         for (int i = 0; i < 60 * 20 && cut.Phase != DistractionPhase.Distracted; i++) await Frame();
+        await Watch(sim, "power_room", 0);
         for (int i = 0; i < 60 * 30 && sim.Ghost.Active; i++) await Frame();   // 다른 방 괴물이 물러날 때까지
         bool called = sim.Ghost.ForceAppear("power_room", sim, 30f);
         Check(called && sim.Ghost.ActiveRoomId == "power_room", "발전실에 괴물 등장");
@@ -504,6 +552,10 @@ public partial class DistractionTest : Node
         await NextDay(sim);
         await StartShift(sim);
         sim.Distractions.AutoSpawn = false;
+        float t0 = GameState.Instance.DayTimeSeconds;
+        await Seconds(1.0);
+        Log($"  (DAY{GameState.Instance.CurrentDay} 시계 {t0:0.0}→{GameState.Instance.DayTimeSeconds:0.0}s · "
+            + $"컷인정지={StoryCutinDirector.PausesGameplay} 패드정지={AdminPad3D.PausesGame} 사망연출={AdminDeathDirector.IsPlaying})");
     }
 
     // ── 통화창 다루기(검사 전용) ─────────────────────────────────────────
@@ -640,6 +692,8 @@ public partial class DistractionTest : Node
         await StartShift(sim);
         var ds = sim.Distractions;
         ds.AutoSpawn = false;
+        // 진입 동작까지 찍으려면 그 방을 띄워 둔 채로 일으켜야 한다(게임에서는 보는 앞에서 시작하지 않는다).
+        ds.AllowStartWhileWatched = true;
         var ctl = ControlRoom3DController.Instance;
         var cctv = ctl?.FacilityCctvViewport;
         if (cctv == null) { Fail("CCTV 뷰포트가 없다"); return; }
@@ -669,6 +723,7 @@ public partial class DistractionTest : Node
             SaveSheet(def.Code, 5);
         }
         ds.AutoSpawn = true;
+        ds.AllowStartWhileWatched = false;
     }
 
     private async System.Threading.Tasks.Task ShotAt(SubViewport vp, DistractionEvent ev,
@@ -731,6 +786,10 @@ public partial class DistractionTest : Node
         var flow = DebugEntryPoint.FindFlow(GetTree());
         DebugEntryPoint.Call(flow, "EnterShift");
         for (int i = 0; i < 900 && GameState.Instance?.CurrentPhase != GamePhase.Live; i++) await Frame();
+        // 검사는 차폐문을 닫지 않는다 — 복도로 걸어온 개체가 넘어오면 관리자 사망 연출이 근무 시계를
+        // 통째로 세운다(AdminDeathDirector). DAY1 개체는 근무 초반(8~14초)에 나오므로 거의 매번 걸린다.
+        // 개체 · 복도 위협 자체는 그대로 두고 넘어오지만 못하게 한다(교육과 같은 장치).
+        if (sim.Threats != null) sim.Threats.NoBreach = true;
         // 둘째 날부터는 근무 시작에 메인 스토리가 돌며 근무 시간을 멈춰 둔다 — 검사에는 넘길 사람이
         // 없으니 끊는다. 안 끊으면 그날 일으킨 딴짓이 진입 단계에 멈춘 채 남는다.
         // 해금 안내가 패드를 꺼내 두면 근무 시간이 멈춘다(AdminPad3D.PausesGame) — 그것도 내려놓는다.

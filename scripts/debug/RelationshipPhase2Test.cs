@@ -54,6 +54,9 @@ public partial class RelationshipPhase2Test : Node
                 if (n < 2) Check(false, $"{key} × {sit} 줄이 2개 이상 — {n}");
             }
         Check(true, "밴드 4 × 상황 3 칸마다 2줄 이상");
+        int ghostLines = new[] { "Any", "Close", "Friendly", "Neutral", "Uneasy" }
+            .Sum(k => OverheardDialogue.CountOf(k, OverheardSituation.Ghost));
+        Check(ghostLines >= 10, $"개체 출현(ghost) 줄 — {ghostLines}줄");
 
         var bad = OverheardDialogue.AllTemplates()
             .SelectMany(t => new[] { t.A, t.B })
@@ -125,6 +128,17 @@ public partial class RelationshipPhase2Test : Node
         Check(OverheardDialogue.TryPick("guard_room", out var ex) && ex.RoomId == "guard_room"
               && new[] { ex.A, ex.B }.OrderBy(x => x).SequenceEqual(new[] { "fox", "wolf" }), "경비실 근무 두 사람으로 대화를 고른다");
         Check(!OverheardDialogue.TryPick("core_room", out _), "혼자 있는 방(코어실)은 대화가 없다");
+
+        // 개체가 그 방에 나오면 무엇보다 앞서 비명 · 경악 줄로 바뀐다(2026-10-29).
+        _sim.Ghost.ForceAppear("guard_room", _sim, 9999f);
+        Check(OverheardDialogue.SituationOf("guard_room") == OverheardSituation.Ghost, "개체가 있는 방 → 개체 출현(다른 기록보다 우선)");
+        Check(OverheardDialogue.SituationOf("core_room") != OverheardSituation.Ghost, "개체가 없는 방은 그대로");
+        var screams = Enumerable.Range(0, 12)
+            .Select(_ => OverheardDialogue.TryPick("guard_room", out var g) ? g : null).Where(g => g != null).ToList();
+        Check(screams.Count == 12 && screams.All(g => g.Situation == OverheardSituation.Ghost),
+            "개체 앞에서는 평소 대화가 나오지 않는다 — 예) " + (screams.FirstOrDefault()?.LineA ?? "없음"));
+        _sim.Ghost.ForceDepart(_sim, notify: false);
+        Check(OverheardDialogue.SituationOf("guard_room") != OverheardSituation.Ghost, "개체가 떠나면 개체 출현 상황도 끝난다");
     }
 
     // ── 자막 진행 ────────────────────────────────────────────────────────

@@ -236,6 +236,8 @@ public partial class FacilityMonitorView : Control
     // 지금 「자재 N / M」 부분이 화면에서 차지하는 자리(UpdateProtocol 이 매번 다시 잰다).
     // 줄 전체가 오른쪽 정렬이라 글자 수가 바뀌면 이 자리도 같이 움직인다.
     private Rect2 _materialsRect;
+    // 교육 화살표가 그 숫자 옆에 서도록 같은 자리를 내준다(이 화면의 로컬 좌표).
+    public Rect2 MaterialsRect => _materialsRect;
 
     public static void HighlightMaterials(bool on)
     {

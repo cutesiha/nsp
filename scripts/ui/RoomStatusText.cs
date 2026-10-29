@@ -143,7 +143,10 @@ public static class RoomStatusText
         if (activeFailure) return RoomDangerTier.Failure;
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
-        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return RoomDangerTier.Failure;
+        // 수리는 **아직 진행 중일 때만** 고장이다. 끝난 수리도 표시 시간 동안 목록에 남아 있어서,
+        // 상시 업무가 없는 방은 고친 뒤에도 그동안 고장으로 칠해졌다.
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true, Status: SpawnedTaskStatus.Active })
+            return RoomDangerTier.Failure;
 
         // 발생 업무의 제한시간이 얼마나 임박했는가(0~1).
         float ratio = sim.GetRoomUrgencyRatio(roomId);
@@ -179,7 +182,8 @@ public static class RoomStatusText
         if (FacilitySimulation.Instance?.IsRoomCctvBlocked(state.RoomId) == true) return "CCTV 단절";
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
-        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return "설비 고장";
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true, Status: SpawnedTaskStatus.Active })
+            return "설비 고장";
         return "";
     }
 

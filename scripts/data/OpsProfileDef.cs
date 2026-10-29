@@ -36,6 +36,12 @@ public partial class OpsProfileDef : Resource
 
     [Export] public Array<ScheduledWarningDef> ScheduledWarnings = new();
 
+    // 이상 개체가 나와 있는 동안(작업실 출현 ~ 복도 접근 · 후퇴까지)은 새 경고를 띄우지 않는다.
+    // 정해진 시각의 경고는 개체가 물러갈 때까지 미뤄 두었다가 띄운다(최대 WarningAvoidGhostMaxDelay 초).
+    // DAY1 전용 — 처음 배우는 날에 개체와 설비 경고가 한꺼번에 몰리면 초심자는 둘 다 놓친다.
+    [Export] public bool WarningsAvoidGhost = false;
+    [Export] public float WarningAvoidGhostMaxDelay = 30f;
+
     // ── 방해자 ────────────────────────────────────────────────────────
     // 근무 시작 후 이 시간이 지나야 방해공작을 시도한다.
     [Export] public float SaboteurStartSeconds = 0f;
@@ -161,6 +167,11 @@ public partial class OpsProfileDef : Resource
     // 나오지 않는다). 감쇠(ContainmentSystem, 초당 0.22)를 이기는 만큼만 실제로 오른다.
     // CCTV 공백을 노린 교란(위 ContainmentTamper*)은 이 위에 한 번에 크게 얹힌다.
     [Export] public float ContainmentDriftPerSecond = 0f;
+
+    // 근무를 시작할 때의 봉쇄 불안정성(0~100). 2026-10-29 — DAY1 부터 50% 에서 시작한다.
+    // 반쯤 흔들린 채로 시작해야 결번을 격리했을 때 게이지가 0 까지 내려가는 것이 눈에 보인다.
+    // 교육(DAY0)은 이 값을 쓰지 않는다(게이지 자체가 없다).
+    [Export] public float ContainmentStartInstability = 0f;
 
     // ── 오늘의 금기 ────────────────────────────────────────────────────
     // 이 날 적용할 금기 id 목록(data/taboos/*.tres). 비어 있으면 그 날은 금기가 없다.

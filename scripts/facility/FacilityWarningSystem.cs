@@ -145,8 +145,14 @@ public sealed class FacilityWarningSystem
 
     // --- 정해진 시각의 경고(학습용) -----------------------------------------
 
+    // 지금 이상 개체가 시설에 나와 있는가 — 작업실에 있든, 복도로 걸어오는 중이든, 물러나는 중이든.
+    private static bool GhostInProgress(FacilitySimulation sim) =>
+        sim.Ghost?.Active == true || sim.Threats?.Current != null;
+
     private void TickScheduled(float now, OpsProfileDef profile, FacilitySimulation sim)
     {
+        // 개체가 나와 있거나(또는 이미 다른 경고가 떠 있으면) 미룬다 — 미룬 경고끼리 한꺼번에 몰려 뜨지 않게.
+        bool holdForGhost = profile.WarningsAvoidGhost && (GhostInProgress(sim) || _active.Count > 0);
         foreach (var s in profile.ScheduledWarnings)
         {
             if (s == null || _firedSchedule.Contains(s)) continue;
@@ -159,6 +165,9 @@ public sealed class FacilityWarningSystem
                 _scheduleAt[s] = at = Mathf.Max(1f, at);
             }
             if (now < at) continue;
+            // 개체와 겹치지 않게 미룬다 — 개체가 물러가면 곧바로 뜬다. 너무 오래 끌면(개체가 복도에
+            // 버티는 판) 그냥 띄운다 — 학습용 경고가 근무에서 통째로 빠지면 안 된다.
+            if (holdForGhost && now < at + Mathf.Max(0f, profile.WarningAvoidGhostMaxDelay)) continue;
             _firedSchedule.Add(s);
 
             var ops = OpsProfile.Room(s.RoomId);
@@ -181,6 +190,8 @@ public sealed class FacilityWarningSystem
         if (now > dayLength - profile.WarningCutoffSeconds) return;
         if (_active.Count >= Mathf.Max(1, profile.MaxConcurrentWarnings)) return;
         if (now < _gapUntil) return;
+        // 개체가 나와 있는 동안에는 무작위 경고도 쉰다(WarningsAvoidGhost 인 날만).
+        if (profile.WarningsAvoidGhost && GhostInProgress(sim)) return;
         // 하루 총량 상한 — 아직 안 뜬 '정해진 시각의 경고' 몫을 남겨 두고 무작위 경고를 멈춘다.
         if (profile.MaxWarningsPerDay > 0)
         {

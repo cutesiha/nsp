@@ -8,7 +8,8 @@ using NSP.Dialogue;
 
 namespace NSP.Facility;
 
-public enum OverheardSituation { Normal, Incident, Sabotage }
+// Ghost — 바로 그 방에 이상 개체가 나와 있다(평소 대화가 끊기고 비명 · 경악이 오간다).
+public enum OverheardSituation { Normal, Incident, Sabotage, Ghost }
 
 // 같은 방 두 사람이 CCTV 너머로 주고받는 짧은 대화 한 번.
 public sealed class OverheardExchange
@@ -87,6 +88,7 @@ public static class OverheardDialogue
             case "normal": sit = OverheardSituation.Normal; return true;
             case "incident": sit = OverheardSituation.Incident; return true;
             case "sabotage": sit = OverheardSituation.Sabotage; return true;
+            case "ghost": sit = OverheardSituation.Ghost; return true;
             default: sit = OverheardSituation.Normal; return false;
         }
     }
@@ -98,6 +100,9 @@ public static class OverheardDialogue
         var sim = FacilitySimulation.Instance;
         var gs = GameState.Instance;
         if (sim == null || gs == null) return OverheardSituation.Normal;
+
+        // 바로 이 방에 개체가 서 있다 — 무엇보다 앞선다. 평범한 잡담이 이어지면 아무도 못 본 것 같다.
+        if (IsGhostHere(sim, roomId)) return OverheardSituation.Ghost;
 
         float now = gs.DayTimeSeconds;
         int day = gs.CurrentDay;
@@ -126,6 +131,10 @@ public static class OverheardDialogue
             return OverheardSituation.Incident;
         return OverheardSituation.Normal;
     }
+
+    // 그 방에 지금 이상 개체가 나와 있는가.
+    public static bool IsGhostHere(FacilitySimulation sim, string roomId) =>
+        sim?.Ghost is { Active: true } && !string.IsNullOrEmpty(roomId) && sim.Ghost.ActiveRoomId == roomId;
 
     // ── 고르기 ───────────────────────────────────────────────────────────
 
@@ -175,6 +184,9 @@ public static class OverheardDialogue
         foreach (string key in BandKeys(band))
         {
             var list = Candidates(roomId, key, situation).ToList();
+            // 개체 앞에서는 관계를 가리지 않는 비명(Any)도 같은 주머니에 섞는다 — 매번 같은 말이 되지 않게.
+            if (situation == OverheardSituation.Ghost && list.Count > 0)
+                list.AddRange(Candidates(roomId, "Any", situation));
             if (list.Count == 0) continue;
             var e = list[Rng.Next(list.Count)];
             bool swap = Rng.Next(2) == 0;
@@ -182,8 +194,20 @@ public static class OverheardDialogue
             return true;
         }
 
-        // ③ 그 상황 줄이 하나도 없으면 평상 줄로.
-        return situation != OverheardSituation.Normal
+        // ③ 관계를 가리지 않는 줄(Any) — 개체 앞에서는 사이가 어떻든 다 같이 놀란다.
+        {
+            var list = Candidates(roomId, "Any", situation).ToList();
+            if (list.Count > 0)
+            {
+                var e = list[Rng.Next(list.Count)];
+                bool swap = Rng.Next(2) == 0;
+                ex = Build(roomId, e, swap ? y : x, swap ? x : y, band, situation);
+                return true;
+            }
+        }
+
+        // ④ 그 상황 줄이 하나도 없으면 평상 줄로. 개체 앞에서만은 예외다 — 잡담으로 돌아가느니 조용한 편이 낫다.
+        return situation is not (OverheardSituation.Normal or OverheardSituation.Ghost)
                && TryPickFor(roomId, x, y, OverheardSituation.Normal, out ex);
     }
 

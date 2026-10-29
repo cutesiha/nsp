@@ -214,3 +214,5 @@ ContainmentInstabilityPerTamper = 18.0
 ; 결번이 풀려 있는 동안 봉쇄가 저절로 흔들리는 속도(감쇠 0.22/초를 빼면 초당 +0.60).
 ; 결번을 격리하면 멈추고 이상 개체도 나오지 않는다.
 ContainmentDriftPerSecond = 0.82
+; 2026-10-29 — 근무는 봉쇄가 반쯤 흔들린 50% 에서 시작한다(결번을 격리하면 여기서 0 까지 내려간다).
+ContainmentStartInstability = 50.0

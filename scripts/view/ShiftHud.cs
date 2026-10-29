@@ -15,8 +15,8 @@ public partial class ShiftHud : CanvasLayer
     private const float GaugeWidth = 560f;
     private const float GaugeHeight = 34f;
     // 봉쇄 불안정 게이지 — 코어 게이지 바로 아래, 더 짧고 얇게. 상단 배너(98px~)보다 위에서 끝난다.
-    private const float ContainmentWidth = 300f;
-    private const float ContainmentHeight = 18f;
+    private const float ContainmentWidth = 340f;
+    private const float ContainmentHeight = 25f;
     private const float ContainmentGap = 6f;
 
     private Label _day;
@@ -36,7 +36,30 @@ public partial class ShiftHud : CanvasLayer
         ProcessMode = ProcessModeEnum.Always;
         BuildUI();
         Visible = false;
+        Instance = this;
+        GameState.CoreLost += OnCoreLost;
     }
+
+    public static ShiftHud Instance { get; private set; }
+
+    public override void _ExitTree()
+    {
+        GameState.CoreLost -= OnCoreLost;
+        if (Instance == this) Instance = null;
+    }
+
+    // 코어 복구율이 깎였다 — 게이지 테두리가 붉게 몇 번 깜빡인다(옆에 뜨는 경고 문장은 FacilityAlertHud).
+    private void OnCoreLost(float amount, string reason) => _gauge?.FlashLoss();
+
+    // ── 교육 시연(가상 시뮬레이션) ───────────────────────────────────────
+    //
+    // 봉쇄 불안정은 결번이 있는 실제 근무에서만 뜨지만, 교육이 "이 게이지가 오른다" 를 설명하는
+    // 동안에는 이 값으로 띄워 보여 준다. null 이면 평소 규칙. 시뮬레이션 값은 건드리지 않는다.
+    public static float? DemoContainment { get; set; }
+    private const float DemoContainmentMark = 75f;
+
+    // 교육 화살표가 가리킬 봉쇄 불안정 게이지(화면 위 CanvasLayer 의 Control).
+    public Control ContainmentGaugeControl => _containment;
 
     public override void _Process(double delta)
     {
@@ -68,6 +91,13 @@ public partial class ShiftHud : CanvasLayer
     private void TickContainmentGauge()
     {
         var sim = NSP.Facility.FacilitySimulation.Instance;
+        if (DemoContainment is { } demo)
+        {
+            if (!_containment.Visible) _containment.Visible = true;
+            // 시연에도 눈금을 찍는다 — 넘어서는 순간 막대가 붉어져 "더 많이 나온다" 가 보인다.
+            _containment.Set(demo, DemoContainmentMark);
+            return;
+        }
         bool show = sim != null && DayFeatures.AutoIncidentsEnabled;
         if (_containment.Visible != show) _containment.Visible = show;
         if (!show) return;
@@ -247,6 +277,10 @@ public partial class ShiftHud : CanvasLayer
             _dark = MakeLabel(new Color(0.04f, 0.08f, 0.12f));
             _darkClip.AddChild(_dark);
 
+            _lossTint = new ColorRect { Color = LossRed with { A = 0f }, MouseFilter = MouseFilterEnum.Ignore };
+            _lossTint.SetAnchorsPreset(LayoutPreset.FullRect);
+            AddChild(_lossTint);
+
             SetProgress(0f);
         }
 
@@ -303,9 +337,44 @@ public partial class ShiftHud : CanvasLayer
             _dark.Size = new Vector2(w, h);
         }
 
+        // 복구율이 깎인 순간부터 남은 깜빡임 시간(초).
+        private float _lossFlash;
+        private const float LossFlashSeconds = 1.4f;
+        private static readonly Color LossRed = new(1f, 0.28f, 0.22f);
+
+        public void FlashLoss()
+        {
+            _lossFlash = LossFlashSeconds;
+            QueueRedraw();
+        }
+
+        // 세 번 깜빡인다(켜짐 · 꺼짐이 번갈아). 마지막으로 갈수록 옅어진다.
+        private bool LossFlashOn(out float alpha)
+        {
+            alpha = Mathf.Clamp(_lossFlash / LossFlashSeconds, 0.25f, 1f);
+            if (_lossFlash <= 0f) return false;
+            float age = LossFlashSeconds - _lossFlash;
+            return (int)(age / (LossFlashSeconds / 6f)) % 2 == 0;
+        }
+
+        public override void _Process(double delta)
+        {
+            if (_lossFlash <= 0f) return;
+            _lossFlash = Mathf.Max(0f, _lossFlash - (float)delta);
+            // 막대 위에 붉은 막을 덮는다 — _Draw 는 자식(바탕 · 채움)보다 먼저 그려져 가려진다.
+            bool on = LossFlashOn(out float a);
+            if (_lossTint != null) _lossTint.Color = LossRed with { A = on ? 0.30f * a : 0f };
+            QueueRedraw();
+        }
+
+        private ColorRect _lossTint;
+
         public override void _Draw()
         {
             DrawRect(new Rect2(Vector2.Zero, Size), Border, false, 1.6f);
+            // 테두리는 막대 바깥쪽에 긋는다(안쪽은 자식들이 덮는다).
+            if (LossFlashOn(out float a))
+                DrawRect(new Rect2(Vector2.Zero, Size).Grow(2f), LossRed with { A = a }, false, 3f);
         }
     }
 
@@ -330,18 +399,21 @@ public partial class ShiftHud : CanvasLayer
 
         public override void _Ready()
         {
+            // 글자는 막대 높이(25px) 안에 들어가야 한다 — 예전 FS(12)(≈19px)+외곽선 4 는 18px 막대 위아래로 삐져나왔다.
             _label = new Label
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 MouseFilter = MouseFilterEnum.Ignore,
+                ClipText = true,
             };
             _label.SetAnchorsPreset(LayoutPreset.FullRect);
             _label.AddThemeFontOverride("font", ViewFont.Default);
-            _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(12));
+            _label.AddThemeFontSizeOverride("font_size", ViewFont.FS(10));
             _label.AddThemeColorOverride("font_color", new Color(0.98f, 0.96f, 0.92f));
             _label.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.9f));
-            _label.AddThemeConstantOverride("outline_size", 4);
+            _label.AddThemeConstantOverride("outline_size", 3);
+            _label.AddThemeConstantOverride("line_spacing", 0);
             AddChild(_label);
             Set(0f, 0f);
         }

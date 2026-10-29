@@ -169,8 +169,9 @@ public partial class SaboteurClueTest : Node
             if (IncidentTracker.ActiveCount > 0) lastDecision = now;
             // 전조(설비 접근·수치 이상)도 "지금 볼 것이 있다"에 해당한다.
             if (_sim.Saboteur.Clues.Count > clues) { clues = _sim.Saboteur.Clues.Count; lastDecision = now; }
-            // 괴물이 떠 있는 동안은 CCTV 에서 눈을 뗄 수 없다 — 빈 시간이 아니다.
-            if (_sim.Ghost.Active) lastDecision = now;
+            // 괴물이 떠 있는 동안은 CCTV 에서 눈을 뗄 수 없다 — 빈 시간이 아니다. 작업실을 떠나 복도로
+            // 걸어오는 동안(같은 개체다)도 마찬가지다 — 복도 CCTV 와 차폐문을 지켜야 한다.
+            if (_sim.Ghost.Active || _sim.Threats?.Current != null) lastDecision = now;
             // 정상 직원의 거짓 단서도 그 순간 화면에서 볼 것이 생긴 것이다.
             if (_sim.Behavior.FalseLeads.Count > leads)
             { leads = _sim.Behavior.FalseLeads.Count; lastDecision = now; run.Decisions++; }
@@ -383,7 +384,13 @@ public partial class SaboteurClueTest : Node
         float sabAvg = Avg(acted, r => r.SabotageAt);
         float worstGap = runs.Max(r => r.LongestGap);
 
-        Check(firstAvg >= 15f && firstAvg <= 32f, $"첫 경고가 18~28초 언저리다 (평균 {firstAvg:0.0}초)");
+        // 첫 경고는 데이터의 첫 예약 경고 시각 언저리다. DAY1 은 2026-10-29 부터 괴물이 근무 맨 앞(8~14초)에
+        // 나오고 경고는 그 뒤(50초~)로 물러났다 — 개체가 아직 복도에 있으면 조금 더 미뤄진다(WarningsAvoidGhost).
+        var firstSched = ops.ScheduledWarnings.Where(s => s != null).OrderBy(s => s.AtSeconds).FirstOrDefault();
+        float due = firstSched?.AtSeconds ?? 20f, jit = firstSched?.JitterSeconds ?? 0f;
+        float late = ops.WarningsAvoidGhost ? 15f : 6f;
+        Check(firstAvg >= due - jit - 6f && firstAvg <= due + jit + late,
+            $"첫 경고가 첫 예약 경고({due:0}±{jit:0}초) 언저리다 (평균 {firstAvg:0.0}초)");
         Check(acted.All(r => r.SabotageAt <= ops.SabotageWindowEndSeconds + 20f),
             "방해공작이 근무 막판까지 밀리지 않는다");
         Check(sabAvg >= 70f && sabAvg <= 102f, $"방해공작 평균 시각이 80~95초 언저리다 ({sabAvg:0.0}초)");

@@ -46,4 +46,6 @@ public sealed class IncidentDisplayData
     public bool IsOperational;
     // 사고가 아니라 "금기 위반 위험"임을 구분한다.
     public bool IsProtocol;
+    // 고장이 아니라 원인 불명 이상(IncidentTracker.Anomaly)이다 — 고칠 업무가 없어 잠깐 떴다 내려간다.
+    public bool IsAnomaly;
 }

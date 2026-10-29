@@ -155,10 +155,12 @@ RepairMinWorkers = 1
 
 ; ── 정해진 시각의 경고 ───────────────────────────────────────────────────
 ; 배치를 어떻게 했든 근무 중 최소 두 번은 인력을 옮기게 만든다.
+; DAY1 은 괴물이 근무 맨 앞(8~14초)에 나온다 — 경고는 그 괴물이 복도에서 물러난 뒤(50초~)부터 차례로 뜬다.
+; (예전 22초 · 50초 경고는 괴물 30~50초와 정확히 겹쳐, 발전실 경고와 괴물이 매번 함께 떴다 — 2026-10-29.)
 [sub_resource type="Resource" id="sched_maintenance"]
 script = ExtResource("3_warn")
-AtSeconds = 22.0
-JitterSeconds = 4.0
+AtSeconds = 50.0
+JitterSeconds = 3.0
 RoomId = "maintenance_room"
 ; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
 RequiredStaff = 0
@@ -166,8 +168,8 @@ ResponseSeconds = 15.0
 
 [sub_resource type="Resource" id="sched_power"]
 script = ExtResource("3_warn")
-AtSeconds = 50.0
-JitterSeconds = 5.0
+AtSeconds = 74.0
+JitterSeconds = 4.0
 RoomId = "power_room"
 ; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
 RequiredStaff = 0
@@ -176,8 +178,8 @@ ResponseSeconds = 15.0
 ; 근무 막바지 — 방해공작 수습과 겹치는 마지막 판단거리.
 [sub_resource type="Resource" id="sched_storage"]
 script = ExtResource("3_warn")
-AtSeconds = 96.0
-JitterSeconds = 5.0
+AtSeconds = 100.0
+JitterSeconds = 4.0
 RoomId = "storage_room"
 ; 필요 인원은 그 방이 정한다(코어·발전 2명 / 나머지 1명) — 0 = 방 설정 사용
 RequiredStaff = 0
@@ -198,7 +200,7 @@ ScheduledWarnings = Array[ExtResource("3_warn")]([SubResource("sched_maintenance
 SaboteurStartSeconds = 58.0
 ; DAY1 도 방해공작이 **한 번은 반드시** 일어난다(2026-10-28 — 예전 45%). 단기 근무는 사흘뿐이라
 ; 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다. 손댄 뒤 12~24초 지나 진짜 고장으로 드러난다.
-; 손대는 것은 근무 후반(62초~)이다 — 괴물(30~50초) · 경고와 겹치지 않고, 작은 교란(55초~)이 먼저 남는다.
+; 손대는 것은 근무 후반(62초~)이다 — 괴물(8~14초 → 복도 ~55초) · 경고와 겹치지 않고, 작은 교란(55초~)이 먼저 남는다.
 ; 근무는 120초라 구간 끝을 90초로 당긴다(예전 116초는 150초 근무 기준이라 고장이 드러날 틈이 없었다).
 MaxSabotageActionsPerDay = 1
 SabotageChancePerDay = 1.0
@@ -209,9 +211,12 @@ SabotageCrossRoomChance = 0.5
 AllowMurder = false
 GhostMaxPerDay = 1
 ; DAY1 은 괴물을 처음 보는 날이다 — 운에 맡기면 한 번도 안 나오는 판이 생긴다.
-; 30~50초 사이에 반드시 한 번(정확한 초는 근무마다 흔들린다).
-GhostFirstAppearFromSeconds = 30.0
-GhostFirstAppearBySeconds = 50.0
+; 근무 시작 8~14초 사이에 반드시 한 번(정확한 초는 근무마다 흔들린다). 초반의 빈 시간을 괴물이 채우고,
+; 설비 경고(50초~ · 74초~ · 100초~)와는 겹치지 않는다. 혹시 겹치면 경고 쪽이 기다린다(WarningsAvoidGhost).
+GhostFirstAppearFromSeconds = 8.0
+GhostFirstAppearBySeconds = 14.0
+WarningsAvoidGhost = true
+WarningAvoidGhostMaxDelay = 30.0
 SabotageTargetRooms = Array[String](["core_room", "power_room", "maintenance_room", "storage_room", "guard_room"])
 SabotageSettleSeconds = 5.0
 SabotagePrepareMinSeconds = 10.0
@@ -243,6 +248,8 @@ ContainmentTamperAfterSeconds = 10.0
 ContainmentWorkSeconds = 8.0
 ContainmentTampersPerDay = 1
 ContainmentInstabilityPerTamper = 14.0
-; 결번이 풀려 있는 동안 봉쇄가 저절로 흔들리는 속도. 감쇠(0.22/초)를 빼면 초당 +0.25 —
-; 근무가 끝날 때쯤 30% 남짓. 결번을 격리하면 멈추고 이상 개체도 나오지 않는다.
-ContainmentDriftPerSecond = 0.47
+; 결번이 풀려 있는 동안 봉쇄가 저절로 흔들리는 속도. 감쇠(0.22/초)를 빼면 초당 +0.15 —
+; 50% 에서 시작해 근무가 끝날 때쯤 70% 남짓(교란 한 번이면 그 위). 결번을 격리하면 멈추고 내려간다.
+ContainmentDriftPerSecond = 0.37
+; 2026-10-29 — 근무는 봉쇄가 반쯤 흔들린 50% 에서 시작한다(결번을 격리하면 여기서 0 까지 내려간다).
+ContainmentStartInstability = 50.0

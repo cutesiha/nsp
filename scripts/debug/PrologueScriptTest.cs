@@ -43,6 +43,13 @@ public partial class PrologueScriptTest : Node
         CheckCueBefore("tut_power_short", "demo_barrier", "Barrier");
         CheckCueBefore("tut_sabotage_intro", "demo_sabotage", "방금처럼요");
         CheckCueBefore("tut_anomaly_intro", "ghost_noise", "이상한 소리");
+        // 봉쇄 불안정성 설명(게이지 + 화살표) — 수리 승인 교육 자리를 대신한다(2026-10-29).
+        CheckCueBefore("tut_anomaly_intro", "containment", "봉쇄 불안정성");
+        CheckCueBefore("tut_anomaly_intro", "containment_settle", "격리");
+        var anomaly = PrologueScript.GetGuide("tut_anomaly_intro")?.Beats
+            .Where(b => b.Kind == PrologueScript.GuideBeatKind.Line).Select(b => b.Value).ToList();
+        Check(anomaly != null && anomaly.Count > 0 && anomaly[^1].Contains("CCTV") && anomaly[^1].Contains("돌려 보십시오"),
+            $"tut_anomaly_intro 는 \"직접 CCTV를 돌려 보십시오\" 지시로 끝난다 — {anomaly?.LastOrDefault()}");
         CheckCueBefore("tut_barrier_close", "zoom_monitor2", "접근 중");
         CheckCueBefore("tut_barrier_close", "zoom_switch_hold", "BARRIER");
         CheckCueBefore("tut_ask_where", "zoom_monitor1", "숫자 키");

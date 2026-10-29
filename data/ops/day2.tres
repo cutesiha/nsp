@@ -189,10 +189,11 @@ SaboteurStartSeconds = 26.0
 MaxSabotageActionsPerDay = 2
 AllowMurder = true
 GhostMaxPerDay = 2
-; 두 번째 개체는 봉쇄 불안정이 50% 를 넘었을 때만 나올 수 있다(화면 게이지에 눈금으로 찍힌다).
+; 두 번째 개체는 봉쇄 불안정이 75% 를 넘었을 때만 나올 수 있다(화면 게이지에 눈금으로 찍힌다).
+; (2026-10-29 — 게이지가 50% 에서 시작하므로 눈금을 50 → 75 로 올리고 흔들림을 늦췄다. 눈금에 닿는 시각은 예전과 같다.)
 ; 저절로 쌓이는 몫만으로는 근무 끝자락에야 닿는다 — CCTV 를 꺼 둬 교란을 허용하면 일찍 넘는다.
 ; 결번을 격리하면 첫 번째도 나오지 않는다 — 귀신은 결번이 불러오는 것이다.
-GhostExtraNeedsInstability = 50.0
+GhostExtraNeedsInstability = 75.0
 ; 하루 한 번은 **반드시** 나온다. 추첨에만 맡기면 하루 한도가 1 이라 운이 나쁜 날은
 ; 중앙제어실 쪽 위협이 통째로 0 이 된다(근무 150초 중 열 번 중 한 번꼴).
 ; 늦게 나오면 복도를 걸어올 시간이 모자라 그대로 근무가 끝나므로 앞쪽에 둔다.
@@ -229,6 +230,8 @@ ContainmentTamperAfterSeconds = 8.0
 ContainmentWorkSeconds = 7.0
 ContainmentTampersPerDay = 2
 ContainmentInstabilityPerTamper = 18.0
-; 결번이 풀려 있는 동안 봉쇄가 저절로 흔들리는 속도. 감쇠(0.22/초)를 빼면 초당 +0.45 —
-; 근무가 끝날 때쯤 50% 남짓. 결번을 격리하면 멈추고 이상 개체도 나오지 않는다.
-ContainmentDriftPerSecond = 0.67
+; 결번이 풀려 있는 동안 봉쇄가 저절로 흔들리는 속도. 감쇠(0.22/초)를 빼면 초당 +0.23 —
+; 50% 에서 시작해 근무 끝자락에 눈금(75%)에 닿는다. 결번을 격리하면 멈추고 이상 개체도 나오지 않는다.
+ContainmentDriftPerSecond = 0.45
+; 2026-10-29 — 근무는 봉쇄가 반쯤 흔들린 50% 에서 시작한다(결번을 격리하면 여기서 0 까지 내려간다).
+ContainmentStartInstability = 50.0

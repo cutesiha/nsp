@@ -61,11 +61,20 @@ public partial class FacilityAlertHud : CanvasLayer
         Layer = 122;
         ProcessMode = ProcessModeEnum.Always;
         BuildUi();
+        GameState.CoreLost += OnCoreLost;
     }
 
     public override void _ExitTree()
     {
+        GameState.CoreLost -= OnCoreLost;
         if (Instance == this) Instance = null;
+    }
+
+    // 코어 복구율이 깎였다 — 어디를 보고 있든 화면 위에서 바로 읽혀야 한다(코어실 사고 · 방해공작 공통).
+    private void OnCoreLost(float amount, string reason)
+    {
+        ShowCoreLoss(amount);
+        Sfx.Instance?.Play("alert_beep3", -9f);
     }
 
     // --- 외부에서 부르는 것 -------------------------------------------------
@@ -141,21 +150,28 @@ public partial class FacilityAlertHud : CanvasLayer
         Sfx.Instance?.Play("noise", -14f);
     }
 
-    // 코어 복구율이 깎인 순간 그 감소분을 잠깐 띄운다.
+    // 코어 복구율이 깎인 순간 「▼ 코어 복구율 N% 감소!」 를 게이지 바로 옆에 띄운다.
+    // 숫자만 띄우면(-1%) 무엇이 줄었는지 읽히지 않았다 — 경고 문장으로 쓴다.
+    private Tween _coreLossTween;
+
     public void ShowCoreLoss(float amount)
     {
         if (_coreLoss == null || amount <= 0.01f) return;
-        _coreLoss.Text = $"-{amount:0.#}%";
+        _coreLoss.Text = $"▼ 코어 복구율 {amount:0.#}% 감소!";
         _coreLoss.Visible = true;
         _coreLoss.Modulate = new Color(1f, 1f, 1f, 1f);
+        _coreLoss.Scale = new Vector2(1.18f, 1.18f);
         _coreLoss.Position = new Vector2(_coreLoss.Position.X, CoreLossTop);
 
-        var t = CreateTween();
+        _coreLossTween?.Kill();
+        var t = _coreLossTween = CreateTween();
         t.SetParallel(true);
-        // 숫자가 게이지에서 떨어져 나가듯 살짝 내려가며 사라진다.
-        t.TweenProperty(_coreLoss, "position:y", CoreLossTop + 22f, 1.5)
-            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-        t.TweenProperty(_coreLoss, "modulate:a", 0f, 1.5).SetDelay(0.6);
+        // 한 번 튀어나왔다가 제자리로 — 그 뒤 잠깐 머물고 살짝 내려가며 사라진다.
+        t.TweenProperty(_coreLoss, "scale", Vector2.One, 0.22)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        t.TweenProperty(_coreLoss, "position:y", CoreLossTop + 14f, 1.2).SetDelay(1.6)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
+        t.TweenProperty(_coreLoss, "modulate:a", 0f, 1.0).SetDelay(1.8);
         t.Chain().TweenCallback(Callable.From(() => _coreLoss.Visible = false));
     }
 
@@ -267,18 +283,20 @@ public partial class FacilityAlertHud : CanvasLayer
 
         // 코어 게이지(ShiftHud) 바로 오른쪽 — 게이지와 같은 줄에 붙여 둔다.
         // 아래에 두면 잠시 뒤 내려오는 배너와 겹친다.
+        // 경고 문장(「▼ 코어 복구율 N% 감소!」)이 들어가도록 넉넉히 잡는다 — 오른쪽 위 톱니(-76px~)와는 떨어져 있다.
         _coreLoss = new Label
         {
             Text = "",
             HorizontalAlignment = HorizontalAlignment.Left,
             MouseFilter = Control.MouseFilterEnum.Ignore,
             AnchorLeft = 0.5f, AnchorRight = 0.5f,
-            OffsetLeft = 296f, OffsetRight = 456f,
+            OffsetLeft = 296f, OffsetRight = 796f,
             Position = new Vector2(296f, CoreLossTop),
+            PivotOffset = new Vector2(0f, 18f),
             Visible = false,
         };
         _coreLoss.AddThemeFontOverride("font", ViewFont.Default);
-        _coreLoss.AddThemeFontSizeOverride("font_size", ViewFont.FS(28));
+        _coreLoss.AddThemeFontSizeOverride("font_size", ViewFont.FS(24));
         _coreLoss.AddThemeColorOverride("font_color", new Color(1f, 0.32f, 0.26f));
         _coreLoss.AddThemeColorOverride("font_outline_color", new Color(0.12f, 0f, 0f));
         _coreLoss.AddThemeConstantOverride("outline_size", 6);
