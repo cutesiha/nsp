@@ -66,6 +66,8 @@ public partial class ConfigData : Resource
 
     // DAY1 은 시스템을 배우는 날이라 대형 작업실 사고가 겹치지 않게 한다.
     // 활성 사고가 이 수 이상이거나, 직전 사고에서 이 시간이 지나지 않으면 새 사고를 미룬다.
+    // 미리 보이지 않는 사고(결번의 시간차 고장)에만 적용한다 — 카운트다운이 보이는 무인 방치 사고는
+    // 0초에 그대로 난다(FacilitySimulation.TickUnstaffedAccidents).
     [Export] public int Day1MaxActiveIncidents = 1;
     // 위 동시 사고 제한을 며칠째까지 유지하는가.
     // DAY1~3 은 한 번에 한 건으로 묶어 읽히게 두고, 마지막 이틀만 고장이 겹치게 한다.

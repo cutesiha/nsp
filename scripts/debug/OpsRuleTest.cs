@@ -96,12 +96,22 @@ public partial class OpsRuleTest : Node
         }
 
         // 실제로 한 번 굴려 본다. 아무도 배치하지 않고 경고가 뜰 때까지 기다린다.
+        // 이 검사는 경고 장치만 본다 — 빈 방의 무인 방치 사고는 0초에 반드시 나므로(DAY1~3 에도 미루지 않는다)
+        // 그대로 두면 경고가 뜰 방이 먼저 다 고장 난다. 이 검사 동안만 무인 사고 타이머를 붙잡아 둔다.
         StartShift(1);
+        _holdUnstaffed = true;
+        try { RunWarningStabilize(); }
+        finally { _holdUnstaffed = false; }
+    }
+
+    private void RunWarningStabilize()
+    {
         FacilityWarning w = null;
         for (float t = 0f; t < 110f && w == null; t += Step)
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            HoldUnstaffed();
             w = _sim.Warnings.Active.FirstOrDefault();
         }
         if (w == null) { Check(false, "근무 중 경고가 한 번은 뜬다"); return; }
@@ -119,12 +129,14 @@ public partial class OpsRuleTest : Node
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            HoldUnstaffed();
         }
         Check(_sim.OnDutyCount(room) >= w.RequiredStaff, $"{RoomName(room)}에 인원이 도착했다");
 
         // 도착 직후 — 아직 풀리면 안 된다.
         GameState.Instance.AdvanceDayTime(Step);
         _sim.Tick(Step);
+        HoldUnstaffed();
         bool stillOpen = _sim.Warnings.HasActive(room);
         Check(stillOpen, "도착하자마자 경고가 풀리지 않는다");
 
@@ -309,7 +321,17 @@ public partial class OpsRuleTest : Node
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            HoldUnstaffed();
         }
+    }
+
+    private bool _holdUnstaffed;
+
+    private void HoldUnstaffed()
+    {
+        if (!_holdUnstaffed) return;
+        foreach (string r in _sim.GetRoomIds())
+            if (_sim.GetRoomState(r) is { } rs) rs.UnstaffedTimer = 0f;
     }
 
     // ── ⑤ 재배치 경로 ───────────────────────────────────────────────

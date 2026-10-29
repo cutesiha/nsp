@@ -261,6 +261,32 @@ public static class EvidenceContradiction
         var incident = a.Kind == EvidenceKind.Incident ? a : b.Kind == EvidenceKind.Incident ? b : null;
         if (incident == null || !incident.HasTime || string.IsNullOrEmpty(incident.SubjectRoomId)) return null;
 
+        // ② - ㉢ 동료가 이 직원의 **이름을 대며** 한 말 + 그 말이 가리키는 사고 기록.
+        //
+        // "강아지 씨가 좀 이상했어요" 는 무엇을 봤는지 정리된 증언이 아니라서 ㉡ 의 행동 칸이 비어 있다.
+        // 그래도 그 사고를 두고 동료가 이 사람을 지목했다는 것 자체가 물을 거리다 — 그 말을 그대로 인용한다.
+        // 그 사고를 들고 물은 답이었거나(사건 키가 같다), 같은 방 · 같은 시간대의 말이어야 한다.
+        // 시각이 없는 말(자료 없이 물은 답에서 그 방 이름을 댔다)은 방만 맞으면 된다.
+        var named = (incident == a ? b : a) is { NamedMention: true } m && m.SubjectEmployeeId == target ? m : null;
+        if (named != null
+            && ((!string.IsNullOrEmpty(named.IncidentKey) && named.IncidentKey == incident.IncidentKey)
+                || (!string.IsNullOrEmpty(named.SubjectRoomId) && named.SubjectRoomId == incident.SubjectRoomId
+                    && (!named.HasTime || Mathf.Abs(incident.AnchorTime - named.AnchorTime) <= BehaviorWindowSeconds))))
+        {
+            return new Result
+            {
+                IsContradiction = true,
+                Kind = ConfrontKind.Behavior,
+                Earlier = earlier,
+                Later = later,
+                SubjectDay = incident.SubjectDay,
+                RoomA = incident.SubjectRoomId,
+                RoomB = incident.SubjectRoomId,
+                AnchorTime = incident.AnchorTime,
+                QuestionText = NamedQuestion(named, incident),
+            };
+        }
+
         var act = incident == a ? b : a;
         if (act.SubjectEmployeeId != target || string.IsNullOrEmpty(act.BehaviorDetail)) return null;
         if (act.SubjectRoomId != incident.SubjectRoomId) return null;
@@ -364,6 +390,17 @@ public static class EvidenceContradiction
             + $"{witness.BehaviorDetail}고 진술했습니다. 설명해 주시죠.");
     }
 
+    // 동료가 이름을 대며 한 말을 그대로 인용한다 — 그 말이 무엇을 뜻하는지는 화면이 해석하지 않는다.
+    private static string NamedQuestion(InterviewEvidence named, InterviewEvidence incident)
+    {
+        string when = DialogueClock.Spoken(incident.AnchorTime);
+        string room = InterviewEvidenceBoard.RoomName(incident.SubjectRoomId);
+        string who = InterviewEvidenceBoard.Codename(named.SpeakerEmployeeId);
+        return KoreanParticle.Resolve(
+            $"{when}경 {room} 사고에 대해 {who} 직원은 \"{InterviewQuestionFactory.Quote(named.QuotedLine)}\" 라고 "
+            + "했습니다. 설명해 주시죠.");
+    }
+
     private static string BehaviorQuestion(InterviewEvidence act)
     {
         string room = InterviewEvidenceBoard.RoomName(act.SubjectRoomId);
@@ -392,6 +429,9 @@ public static class EvidenceContradiction
         {
             EvidenceKind.OwnStatement =>
                 $"{when}에는 {room}에 있었다고 하셨습니다.",
+            EvidenceKind.Testimony when ev.NamedMention =>
+                $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} 직원은 "
+                + $"\"{InterviewQuestionFactory.Quote(ev.QuotedLine)}\" 라고 했습니다.",
             EvidenceKind.Testimony =>
                 $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} 직원은 {when}경 "
                 + $"{room}에서 당신을 봤다고 진술했습니다.",

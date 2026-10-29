@@ -1906,8 +1906,9 @@ public partial class FacilitySimulation : Node
             var p = _pendingSabotage[i];
             if (now < p.FireAt) continue;
 
-            // 다른 사고를 수습하는 중이면 잠깐 미룬다 — 무인 방치 사고와 같은 규칙이다.
-            // 한꺼번에 몰리면 대응할 길이 없다. 근무 막바지에는 더 미루지 않는다.
+            // 다른 사고를 수습하는 중이면 잠깐 미룬다 — 한꺼번에 몰리면 대응할 길이 없다.
+            // 미리 보이는 카운트다운이 없는 고장이라 미뤄도 화면이 거짓말하지 않는다.
+            // 근무 막바지에는 더 미루지 않는다.
             if (!lastCall && !CanStartNewIncident()) { p.FireAt = now + 3f; continue; }
 
             // 그 사이 그 방이 다른 일로 고장 났으면 다른 방을 다시 고른다.
@@ -2693,17 +2694,19 @@ public partial class FacilitySimulation : Node
             room.UnstaffedTimer += delta;
             if (room.UnstaffedTimer < limit) continue;
 
-            // DAY1 은 사고가 겹치지 않게 잠시 미룬다. 타이머는 유지되므로
-            // 조건이 풀리는 즉시 발생한다(원인은 그대로 "근무자 부재").
-            if (!CanStartNewIncident()) { room.UnstaffedTimer = limit; continue; }
-
+            // 남은 시간이 경고 단말기에 그대로 보이는 사고다 — 0초가 되면 **반드시** 난다.
+            // 예전에는 DAY1~3 의 동시 사고 제한(CanStartNewIncident)으로 여기서도 미뤘는데,
+            // 화면은 0초에 멈춘 채 사고가 안 나 "경고가 고장 났다" 로 보였다(2026-10-30 사용자 제보 —
+            // 귀신이 경비실을 부수고 떠난 뒤 수리가 끝난 순간부터 18초 동안 발전실이 0초에 걸려 있었다).
+            // 비워 둔 것은 관리자의 선택이고, 그 결과를 미뤄 줄 이유가 없다.
             room.UnstaffedTimer = 0f;
             TriggerRoomAccident(roomId, def);
         }
     }
 
-    // 초반 단순화: 대형 작업실 사고를 한 번에 하나로 제한한다.
-    // DAY1 전용이었지만 DAY5 까지 같은 규칙을 유지한다(Config.IncidentLimitLastDay).
+    // 초반 단순화: 대형 작업실 사고를 한 번에 하나로 제한한다(Config.IncidentLimitLastDay 까지).
+    // **미리 보이지 않는 사고에만** 쓴다(지금은 결번의 시간차 고장). 남은 시간을 화면에 보여 준
+    // 무인 방치 사고는 이 제한으로 미루지 않는다 — 0초에 멈춘 경고가 되기 때문이다.
     private bool CanStartNewIncident()
     {
         var cfg = Config.Instance.Data;

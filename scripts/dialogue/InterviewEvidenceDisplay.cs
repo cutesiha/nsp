@@ -238,6 +238,9 @@ public static class InterviewEvidenceDisplay
             EvidenceKind.Movement => $"{who} · {InterviewEvidenceBoard.RoomName(ev.FromRoomId)} → "
                                      + InterviewEvidenceBoard.RoomName(ev.ToRoomId)
                                      + (ev.PlayerOrdered ? "  (지시)" : ""),
+            // 이름을 대며 한 말은 들은 그대로 — "봤다" 로 고쳐 적으면 하지 않은 말이 된다.
+            EvidenceKind.Testimony when ev.NamedMention =>
+                $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who} · \"{ev.QuotedLine}\"",
             EvidenceKind.Testimony => $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who} · {room}에서 봤다",
             // 진술 카드는 세 종류다. 전에는 전부 "그 방에 있었다" 한 문구로 찍혀서,
             // 행동 주장("설비에 손대지 않았다")까지 위치 진술처럼 보였다.

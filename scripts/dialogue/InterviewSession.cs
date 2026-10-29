@@ -87,10 +87,12 @@ public sealed class InterviewSession
         var seen = new HashSet<string>();
         foreach (string qid in OpeningQuestions)
         {
+            int stamp = PlayerKnownEvidence.SightingStamp;
             var turn = LocalDialogueGenerator.Interview(EmployeeId, qid);
             string trace = DialogueComposer.LastTrace;
             string text = (turn?.Answer ?? "").Trim();
             if (string.IsNullOrEmpty(text) || text == "…" || !seen.Add(text)) continue;
+            NoteMentions(text, stamp, "", "", "", 0f, false, "basic:" + qid);
             _openings.Add(new OpeningStatement
             {
                 Index = _openings.Count,
@@ -272,11 +274,16 @@ public sealed class InterviewSession
         _asked.Add(q.Key);
         Asked?.Invoke(EmployeeId, q);
         turn.QuestionText = q.Text;
+        int stamp = PlayerKnownEvidence.SightingStamp;
 
         // 기본 질문은 기존 파이프라인이 그대로 답한다 — 잘 돌고 있는 길을 건드리지 않는다.
         turn.Answer = IsBasic(q.Intent)
             ? LocalDialogueGenerator.InterviewAnswer(EmployeeId, BasicQuestionId(q.Intent))
             : InterviewReplyPlanner.Answer(q);
+
+        if (IsBasic(q.Intent)) NoteMentions(turn.Answer, stamp, "", "", "", 0f, false, "basic:" + BasicQuestionId(q.Intent));
+        else NoteMentions(turn.Answer, stamp, InterviewReplyPlanner.FrameFor(q)?.MentionedEmployeeId ?? "",
+            q.IncidentKey, q.SubjectRoomId, q.AnchorTime, q.HasAnchorTime, q.Key);
 
         turn.FollowUps = NeutralFollowUps(q);
         Refresh();
@@ -293,7 +300,10 @@ public sealed class InterviewSession
         // DAY0 교육은 "무엇이든 물었는가"만 듣는다(자료 질문이 아니므로 EvidenceId 는 비어 있다).
         Asked?.Invoke(EmployeeId, new InterviewQuestion { TargetEmployeeId = EmployeeId, Text = q.Text });
         turn.QuestionText = q.Text;
+        int stamp = PlayerKnownEvidence.SightingStamp;
         turn.Answer = LocalDialogueGenerator.FollowUpAnswer(EmployeeId, q);
+        NoteMentions(turn.Answer, stamp, q.TargetEmployeeId, q.SubjectIncidentKey, q.EvidenceRoomId, 0f, false,
+            "follow:" + FollowUpKey(q));
         Refresh();
         return turn;
     }
@@ -306,10 +316,50 @@ public sealed class InterviewSession
         if (result == null || result.Earlier == null || result.Later == null) return turn;
         _asked.Add($"Confront|{result.Earlier.Id}|{result.Later.Id}");
         turn.QuestionText = result.QuestionText;
+        int stamp = PlayerKnownEvidence.SightingStamp;
         turn.Answer = InterviewReplyPlanner.ConfrontAnswer(EmployeeId, result, out string variant);
         Confronted?.Invoke(EmployeeId, result.Kind, variant);
+        var incident = result.Earlier.Kind == EvidenceKind.Incident ? result.Earlier
+            : result.Later.Kind == EvidenceKind.Incident ? result.Later : null;
+        NoteMentions(turn.Answer, stamp, "", incident?.IncidentKey ?? "", result.RoomA, result.AnchorTime,
+            result.Kind != ConfrontKind.None, $"Confront|{result.Earlier.Id}|{result.Later.Id}");
         Refresh();
         return turn;
+    }
+
+    // --- 이름을 댄 답 -----------------------------------------------------
+    //
+    // 답에서 다른 직원의 이름이 나왔으면 그 말을 **그 사람의 증언 카드**로 남긴다. 고양이가 사고 기록을
+    // 보고 "강아지 씨가 좀 수상하게 굴었어요" 라고 했으면, 강아지를 심문할 때 그 말과 사고 기록을
+    // 나란히 들이밀 수 있어야 한다(2026-10-30 사용자 지시 — 직접 이름으로 언급하면 그 자료는 선택돼야 한다).
+    // 질문의 종류는 가리지 않는다. 전에는 목격 증언으로 정리되는 답("누가 그랬다고 생각합니까" 등)만
+    // 카드가 되고, 이유 · 행동 · 누구에게 들었나 같은 답은 말한 사람 화면에서 끝났다.
+    //
+    // framedId — 답의 틀이 가리킨 사람. 문장에 이름이 안 나와도("거기 서 있는 것만 봤어요") 그 사람 이야기다.
+    // sourceKey — 어느 질문의 답인가. 같은 질문을 다시 물어 말투만 바뀐 답은 같은 카드로 친다.
+    // stamp — 답을 만들기 직전의 PlayerKnownEvidence.SightingStamp. 이 답이 같은 방의 목격 증언으로 이미
+    // 카드가 됐으면(「…이/가 한 말 · 그 방에 있었다」) 같은 말을 인용 카드로 한 장 더 띄우지 않는다 —
+    // 그 카드도 사고 기록과 함께 들이밀면 재석 추궁이 된다. 다른 방을 말했으면 인용 카드가 따로 있어야
+    // 그 사고와 이어진다.
+    // 자료 없이 물은 답은 사건을 모른다 — 문장에 작업실이 하나 나오면 그 방의 일로 본다.
+    private void NoteMentions(string answer, int stamp, string framedId, string incidentKey, string roomId,
+        float time, bool hasTime, string sourceKey)
+    {
+        if (string.IsNullOrWhiteSpace(answer) || answer.Trim() == "…") return;
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        if (sim == null) return;
+        if (string.IsNullOrEmpty(roomId) && string.IsNullOrEmpty(incidentKey))
+            roomId = InterviewEvidenceBoard.RoomNamedIn(answer);
+        foreach (string other in sim.GetEmployeeIds())
+        {
+            if (other == EmployeeId) continue;
+            if (other != framedId && !InterviewEvidenceBoard.NamesEmployee(answer, other)) continue;
+            string about = !string.IsNullOrEmpty(roomId) ? roomId : InterviewEvidenceBoard.IncidentRoomOfKey(incidentKey);
+            bool asSighting = PlayerKnownEvidence.SightingsSince(EmployeeId, other, stamp)
+                .Any(s => string.IsNullOrEmpty(about) || s.RoomId == about);
+            PlayerKnownEvidence.RecordMention(EmployeeId, other, answer, incidentKey, roomId, time, hasTime, sourceKey,
+                hidden: asSighting);
+        }
     }
 
     // --- 중립 꼬리질문 ---------------------------------------------------

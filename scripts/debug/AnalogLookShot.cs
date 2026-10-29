@@ -89,6 +89,7 @@ public partial class AnalogLookShot : Node
         PrintCorners();
         if (System.Array.IndexOf(args, "rays") >= 0) await DumpRays(dir);
         if (System.Array.IndexOf(args, "views") >= 0) await OtherViews(dir);
+        if (System.Array.IndexOf(args, "zoom") >= 0) await GameZoomViews(dir);
         GD.Print("saved → " + dir);
         GetTree().Quit();
     }
@@ -118,6 +119,22 @@ public partial class AnalogLookShot : Node
         Save(dir, "view_pad.png");
         AdminPad3D.Instance?.Toggle();
         await Frames(60);
+    }
+
+    // 실제 게임의 모니터 확대(숫자키 1 · 2 와 같은 거리 · 같은 길). 창 크기 · 비율이 달라도 구도가
+    // 같은지 볼 때 쓴다 — 화면 기준은 1920x1080 으로 고정이라 창 비율이 다르면 검은 띠만 생겨야 한다.
+    private async System.Threading.Tasks.Task GameZoomViews(string dir)
+    {
+        var ctl = ControlRoom3DController.Instance;
+        if (ctl == null) return;
+        foreach (int index in new[] { 1, 2 })
+        {
+            ctl.FocusMonitor(index, 0.01f);
+            await Frames(40);
+            Save(dir, $"zoom_m0{index}.png");
+            ctl.ClearFocus(0.01f);
+            await Frames(30);
+        }
     }
 
     // 모니터 베젤 앞면 네 귀퉁이의 화면 좌표 — 레퍼런스 이미지의 선 위치를 3D 좌표로 되돌릴 때 쓴다.

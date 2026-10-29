@@ -31,6 +31,7 @@ public partial class UnstaffedAccidentTest : Node
         GD.Print("   방            규정 초   실제 발생");
         foreach (string room in new[] { "power_room", "core_room", "maintenance_room", "guard_room", "storage_room" })
             Measure(room);
+        MeasureWhileOtherIncident("power_room", "guard_room");
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit();
     }
@@ -63,6 +64,48 @@ public partial class UnstaffedAccidentTest : Node
         bool fired = _sim.HasRepairPending(room);
         GD.Print($"   {Name(room),-12}  {limit,5:0}초   {(fired ? $"{t,5:0.0}초" : "  없음")}");
         Check(fired, $"{Name(room)} 을 비워 두면 하루 안에 사고가 난다");
+    }
+
+    // 다른 방에 사고가 열려 있어도 0초가 된 무인 방치 사고는 그 자리에서 난다.
+    // 2026-10-30 사용자 제보 — 귀신이 다른 방을 부수고 간 뒤 발전실 경고가 0초에 걸린 채 사고가
+    // 나지 않았다(DAY1~3 동시 사고 제한이 남은 시간을 다 보여 준 사고까지 미뤘다).
+    private void MeasureWhileOtherIncident(string room, string other)
+    {
+        GameState.Instance.ResetRun(1);
+        _sim.ResetRun();
+        _sim.ResetForNewShift();
+        EventLog.Instance?.ClearAll();
+        RepairApprovalSystem.ResetAll();
+        IncidentTracker.Reset();
+        GameState.Instance.SetPhase(GamePhase.Live);
+
+        var others = _sim.GetRoomIds()
+            .Where(r => r != room && _sim.GetRoomDef(r)?.IsRestricted == false && _sim.IsRoomActive(r))
+            .ToList();
+        var ids = _sim.GetActiveEmployeeIds();
+        for (int i = 0; i < ids.Count; i++) _sim.AssignToRoom(ids[i], others[i % others.Count]);
+        for (int i = 0; i < 4000 && ids.Any(x => _sim.GetEmployeeState(x).IsMoving); i++) _sim.Tick(Step);
+
+        float limit = RoomStaffing.UnstaffedAccidentSeconds(room, _sim.GetRoomDef(room));
+        float t = 0f;
+        bool opened = false;
+        while (t < limit + 5f && !_sim.HasRepairPending(room))
+        {
+            if (!opened && _sim.GetRoomState(room).UnstaffedTimer >= limit - 2f)
+            {
+                _sim.TriggerGhostAccident(other);
+                opened = true;
+                t = 0f;   // 여기서부터 남은 2초를 잰다
+            }
+            _sim.Tick(Step);
+            GameState.Instance.AdvanceDayTime(Step);
+            t += Step;
+        }
+        bool fired = _sim.HasRepairPending(room);
+        GD.Print($"   {Name(room)} 비움 + {Name(other)} 사고 중 — 규정 {limit:0.0}초 · " +
+                 $"{(fired ? $"다른 사고가 열린 뒤 {t:0.0}초에 발생" : "발생 안 함")}");
+        Check(opened && _sim.HasRepairPending(other), $"{Name(other)} 사고가 먼저 열려 있다");
+        Check(fired && t <= 2.5f, $"다른 사고가 열려 있어도 {Name(room)} 무인 사고가 0초에 난다");
     }
 
     private static new string Name(string roomId) =>

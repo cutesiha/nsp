@@ -48,7 +48,249 @@ public static class InterviewScenarioTest
         // 4차 — 사고 인지는 "그 순간 위치"가 아니라 "근무 중 겪은 것"이다(C).
         TestLearnedLater();
         TestTutorialRestInterview();
+        // 5차 — 다른 직원이 이름을 댄 발언은 그 사람 심문에서 사고 기록과 함께 제시할 수 있다.
+        TestNamedTestimonyWithIncident();
+        // 6차 — 휴게시간 심문의 **어떤 질문**이든, 답에서 이름이 나오면 그 사람에게 사고 기록과 함께 들이민다.
+        TestAnyQuestionNamingCarriesOver();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
+    }
+
+    // ── 6차 : 사고 기록을 들고 고양이에게 무엇을 묻든 — 강아지 이름이 나온 답은 강아지에게 쓸 수 있다 ──
+    //
+    // 2026-10-30 사용자 지시: "누가 그랬다고 생각합니까" 말고도, 조사 자료를 골라 물었을 때 직원이 누구를
+    // 수상하다 · 봤다고 이름을 대면, 그 대상에게 그 사건 자료와 그 증언을 동시에 제시할 수 있어야 한다.
+    // 심문 답은 대화 기록(통화 전용)에 남지 않아서, 5차의 대화 기록 경로만으로는 실제 심문이 빠져 있었다.
+    // 여기서는 화면이 쓰는 InterviewSession 을 그대로 타고 모든 질문 · 꼬리질문을 다 물어 본다.
+    private static void TestAnyQuestionNamingCarriesOver()
+    {
+        Head("6차", "고양이에게 사고 기록으로 무엇을 묻든 — 강아지 이름이 나온 답 → 강아지 심문에서 사고 기록과 동시 제시");
+        Reset();
+        PlayerKnownEvidence.ResetAll();
+        DialogueHistory.Instance?.ClearAll();
+        Deploy(new() { ["cat"] = Core, ["dog"] = Core, ["wolf"] = Power,
+                       ["rabbit"] = Storage, ["sheep"] = Guard, ["fox"] = Maintenance });
+        GameState.Instance.SetSaboteur("dog");
+        EventLog.Instance.Log(new LogEntry
+        {
+            Day = GameState.Instance?.CurrentDay ?? 1, GameTimeSeconds = At(34),
+            EventType = LogEventType.Neglect, ActorEmployeeId = "dog", RoomId = Core,
+            Description = $"{InterviewEvidenceBoard.Codename("dog")} — {Odd}",
+            WitnessEmployeeIds = new List<string> { "cat" },
+        });
+        Log(LogEventType.Sabotage, "dog", Core, At(40));
+
+        // ① 고양이 — 사고 기록 한 장으로 나오는 질문 전부, 그 꼬리질문까지 전부.
+        var cat = new InterviewSession("cat");
+        var inc = cat.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        if (!Check(inc != null, "고양이 노트에 방해공작 기록이 뜬다")) return;
+        cat.Toggle(inc.Id);
+        var pending = new List<InterviewQuestion>(cat.QuestionsForSelection());
+        var naming = new List<(InterviewIntent Intent, string Answer)>();
+        for (int guard = 0; guard < 40 && pending.Count > 0; guard++)
+        {
+            var q = pending[0];
+            pending.RemoveAt(0);
+            if (cat.WasAsked(q)) continue;
+            var turn = cat.Ask(q);
+            string framed = InterviewReplyPlanner.FrameFor(q)?.MentionedEmployeeId ?? "";
+            bool names = framed == "dog" || InterviewEvidenceBoard.NamesEmployee(turn.Answer, "dog");
+            if (names) naming.Add((q.Intent, turn.Answer.Trim()));
+            GD.Print($"   고양이 Q({q.Intent}){(names ? " ◆강아지" : "")}: {turn.QuestionText}\n            A: {turn.Answer}");
+            pending.AddRange(turn.FollowUps.Where(f => !cat.WasAsked(f)));
+        }
+        Check(naming.Count > 0, $"고양이의 답 가운데 강아지 이름이 나온 것이 있다 ({naming.Count}개)");
+        Check(naming.Any(n => n.Intent != InterviewIntent.AskSuspectOpinion),
+            "'누가 그랬다고 생각합니까' 말고 다른 질문의 답에서도 강아지 이름이 나온다(검사 범위 확인)");
+
+        // ② 강아지 — 이름이 나온 답마다 그 말을 담은 카드가 있고, 사고 기록과 함께 들이밀면 추궁이 된다.
+        //    같은 방의 목격으로 정리된 답은 목격 증언 카드(say:)가 그 말을 맡는다 — 같은 말이 두 장으로 뜨지 않는다.
+        var dog = new InterviewSession("dog");
+        var dogInc = dog.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        if (!Check(dogInc != null, "강아지 노트에 같은 방해공작 기록이 뜬다")) return;
+        var sighting = dog.Board.FirstOrDefault(e => e.Id.StartsWith("say:dog:cat:") && e.SubjectRoomId == Core);
+        int ok = 0, quoted = 0;
+        foreach (var (intent, answer) in naming)
+        {
+            var quote = dog.Board.FirstOrDefault(e => e.NamedMention && e.SpeakerEmployeeId == "cat"
+                                                      && e.QuotedLine == answer);
+            var card = quote ?? sighting;
+            if (card == null) { Check(false, $"[{intent}] 답이 강아지 노트에 카드로 뜬다 — \"{answer}\""); continue; }
+            dog.ClearSelection();
+            dog.Toggle(dogInc.Id);
+            dog.Toggle(card.Id);
+            var r = dog.CheckContradiction();
+            bool good = dog.CanUse(card) && dog.Selected.Count == 2 && r.Kind != ConfrontKind.None
+                        && (quote == null || (r.Kind == ConfrontKind.Behavior
+                                              && r.QuestionText.Contains(InterviewQuestionFactory.Quote(answer))));
+            if (quote != null) quoted++;
+            if (good) ok++;
+            else Check(false, $"[{intent}] 사고 기록 + 그 답으로 추궁이 성립한다 — 고름 {dog.Selected.Count}장 · {r.Kind} · {r.QuestionText}");
+        }
+        Check(ok == naming.Count,
+            $"이름이 나온 답 {naming.Count}개 전부 사고 기록과 함께 제시 → 추궁 성립 ({ok}개 · 인용 카드 {quoted} · 목격 카드 {naming.Count - quoted})");
+        Check(quoted > 0 && quoted < naming.Count, "목격으로 정리 안 된 답은 인용 카드, 목격으로 정리된 답은 목격 카드가 맡는다");
+        Check(!dog.Board.Any(e => e.NamedMention && e.SpeakerEmployeeId == "cat"
+                                  && naming.Any(n => n.Answer == e.QuotedLine && n.Intent == InterviewIntent.AskWhoWasPresent)),
+            "같은 방 목격으로 정리된 답(함께 있던 직원)은 인용 카드를 따로 만들지 않는다");
+        var sample = dog.Board.FirstOrDefault(e => e.NamedMention && e.SpeakerEmployeeId == "cat");
+        if (sample != null)
+        {
+            dog.ClearSelection(); dog.Toggle(dogInc.Id); dog.Toggle(sample.Id);
+            GD.Print($"   강아지 카드 예: {InterviewEvidenceDisplay.Body(sample)} ({sample.TimeText})\n   추궁: {dog.CheckContradiction().QuestionText}");
+        }
+
+        // ③ 같은 질문을 다시 물어도 카드가 늘지 않는다.
+        int before = dog.Board.Count(e => e.NamedMention);
+        var again = new InterviewSession("cat");
+        again.Toggle(inc.Id);
+        foreach (var q in again.QuestionsForSelection()) again.Ask(q);
+        int after = new InterviewSession("dog").Board.Count(e => e.NamedMention);
+        Check(after == before, $"같은 질문을 다시 물어도 같은 카드가 또 생기지 않는다 ({before} → {after})");
+
+        // ④ 이름이 나오지 않은 사람 · 말한 본인에게는 카드가 생기지 않는다.
+        Check(!new InterviewSession("rabbit").Board.Any(e => e.NamedMention && e.SpeakerEmployeeId == "cat"
+                                                              && naming.Any(n => n.Answer == e.QuotedLine)),
+            "강아지 이야기를 한 답이 이름이 안 나온 토끼 노트에는 뜨지 않는다");
+        Check(!new InterviewSession("cat").Board.Any(e => e.NamedMention && e.SubjectEmployeeId == "cat"
+                                                           && e.SpeakerEmployeeId == "cat"),
+            "말한 본인 노트에 자기 이름 카드가 생기지 않는다");
+
+        // ⑤ 자료 없이 한 말이라도 그 방 이름을 댔으면 그 방 사고와 잇는다(시각을 모르는 말).
+        PlayerKnownEvidence.RecordMention("cat", "dog", "코어실에서 강아지 씨가 계속 서성였어요.", "", Core, 0f, false);
+        var loose = new InterviewSession("dog");
+        var looseCard = loose.Board.FirstOrDefault(e => e.NamedMention && e.QuotedLine.StartsWith("코어실에서"));
+        if (Check(looseCard != null && !looseCard.HasTime, "자료 없이 한 말도 시각 없는 증언 카드로 뜬다"))
+        {
+            loose.Toggle(loose.Board.First(e => e.Kind == EvidenceKind.Incident).Id);
+            loose.Toggle(looseCard.Id);
+            Check(loose.CheckContradiction().Kind == ConfrontKind.Behavior, "그 방 사고 기록과 함께 들이밀면 행동 추궁이 성립한다");
+        }
+        Check(InterviewEvidenceBoard.RoomNamedIn("코어실에서 강아지 씨가 서성였어요") == Core, "문장 속 작업실: 코어실");
+        Check(InterviewEvidenceBoard.RoomNamedIn("코어실이랑 발전실을 오갔어요") == "", "문장 속 작업실: 둘이면 정하지 않는다");
+    }
+
+    // ── 5차 : 고양이가 "강아지가 수상했다" → 강아지에게 사고 기록 + 그 발언을 함께 들이민다 ──
+    //
+    // 플레이 기록(2026-10-30): 고양이에게 코어실 방해공작 자료를 들고 물었더니 강아지가 수상했다고
+    // 답했는데, 강아지 심문에서 그 사고 기록과 고양이의 말을 **동시에 고를 수 없었다.**
+    // 다른 직원이 이름을 직접 댄 발언은 그 이름의 주인에게 물을 때 쓸 수 있어야 한다.
+    private static void TestNamedTestimonyWithIncident()
+    {
+        Head("5차", "고양이가 강아지를 지목 → 강아지 심문에서 사고 기록 + 고양이 발언 동시 제시");
+        Reset();
+        // 앞 검사들이 남긴 진술 · 대화가 섞이면 "어느 카드가 이 장면 것인가" 를 가릴 수 없다.
+        PlayerKnownEvidence.ResetAll();
+        DialogueHistory.Instance?.ClearAll();
+        Deploy(new() { ["cat"] = Core, ["dog"] = Core, ["wolf"] = Power,
+                       ["rabbit"] = Storage, ["sheep"] = Guard, ["fox"] = Maintenance });
+        GameState.Instance.SetSaboteur("dog");
+        // 준비 단계의 이상 행동을 고양이가 봤다(FacilitySimulation.RecordOddBehaviour 와 같은 기록).
+        EventLog.Instance.Log(new LogEntry
+        {
+            Day = GameState.Instance?.CurrentDay ?? 1, GameTimeSeconds = At(34),
+            EventType = LogEventType.Neglect, ActorEmployeeId = "dog", RoomId = Core,
+            Description = $"{InterviewEvidenceBoard.Codename("dog")} — {Odd}",
+            WitnessEmployeeIds = new List<string> { "cat" },
+        });
+        Log(LogEventType.Sabotage, "dog", Core, At(40));
+
+        // ① 고양이 — 사고 기록을 들고 "누가 그랬다고 봅니까" 부터, 꼬리질문까지 전부 물어 본다.
+        var cat = new InterviewSession("cat");
+        var inc = cat.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        if (!Check(inc != null, "고양이 노트에 방해공작 기록이 뜬다")) return;
+        cat.Toggle(inc.Id);
+        var pending = new List<InterviewQuestion>(cat.QuestionsForSelection()
+            .Where(x => x.Intent == InterviewIntent.AskSuspectOpinion));
+        for (int guard = 0; guard < 6 && pending.Count > 0; guard++)
+        {
+            var q = pending[0];
+            pending.RemoveAt(0);
+            var turn = cat.Ask(q);
+            GD.Print($"   고양이 Q({q.Intent}): {turn.QuestionText}\n            A: {turn.Answer}");
+            pending.AddRange(turn.FollowUps.Where(f => !cat.WasAsked(f)));
+        }
+
+        // ② 강아지 — 그 사고 기록과, 고양이가 강아지 이름을 댄 발언을 둘 다 고를 수 있어야 한다.
+        var dog = new InterviewSession("dog");
+        dog.SetTab(NoteTab.ByIncident);
+        foreach (var e in dog.Board.Where(e => e.Kind is EvidenceKind.Incident or EvidenceKind.Testimony
+                                               || e.SpeakerEmployeeId == "cat"))
+            GD.Print($"   강아지 노트: [{e.Kind}] {e.Header} · {e.Body}  (쓸 수 있음={dog.CanUse(e)}, id={e.Id})");
+        var dogInc = dog.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
+        var said = dog.Board.FirstOrDefault(e => e.SpeakerEmployeeId == "cat" && e.SubjectEmployeeId == "dog"
+                                                 && dog.CanUse(e));
+        if (!Check(dogInc != null, "강아지 노트에 같은 방해공작 기록이 뜬다")) return;
+        if (!Check(said != null, "고양이가 강아지 이름을 댄 발언이 강아지 심문 자료로 쓸 수 있다")) return;
+        dog.ClearSelection();
+        dog.Toggle(dogInc.Id);
+        dog.Toggle(said.Id);
+        Check(dog.Selected.Count == 2, $"두 장을 동시에 고를 수 있다 ({dog.Selected.Count}장)");
+        var r = dog.CheckContradiction();
+        GD.Print($"   추궁: {r.QuestionText}  → {r.Kind} / {r.VerdictText}");
+        Check(r.Kind != ConfrontKind.None, "사고 기록 + 지목 증언으로 추궁이 성립한다");
+        // 같은 말이 「고양이가 한 말」 · 「고양이의 증언」 두 장으로 겹쳐 뜨지 않는다.
+        Check(!dog.Board.Any(e => e.Id.StartsWith("told:cat:dog:")),
+            "전원 보기에서 같은 증언이 두 장으로 겹치지 않는다");
+
+        // ② 목격으로 정리되지 않은 지목 — 이름만 댄 답. 전에는 카드가 아예 생기지 않았다.
+        //    심문 답은 세션이 받아 둔다(InterviewSession.NoteMentions — 6차가 실제 질문으로 확인한다).
+        //    화면(PhoneCallHud)은 같은 답을 대화 기록에도 남긴다 — 그것까지 넣고 카드가 한 장인지 본다.
+        PlayerKnownEvidence.ResetAll();
+        DialogueHistory.Instance?.ClearAll();
+        string line = "강아지 씨가 좀 수상하게 굴었어요.";
+        PlayerKnownEvidence.RecordMention("cat", "dog", line, inc.IncidentKey, inc.SubjectRoomId, inc.AnchorTime, true,
+            "test:5");
+        DialogueHistory.Instance?.AddEntry("cat", InterviewEvidenceBoard.Codename("cat"),
+            DialogueEntryType.NpcResponse, line, DialogueConversationType.Interview, "cat", new[] { inc.Id });
+        dog = new InterviewSession("dog");
+        var named = dog.Board.FirstOrDefault(e => e.NamedMention && e.SpeakerEmployeeId == "cat");
+        if (!Check(named != null, "이름만 댄 답도 강아지 노트에 고양이의 증언 카드로 뜬다")) return;
+        Check(dog.Board.Count(e => e.NamedMention && e.SpeakerEmployeeId == "cat") == 1,
+            "화면이 같은 답을 대화 기록에도 남겨도 카드는 한 장이다");
+        // 자료 없이 한 말(꼬리질문 · 첫 진술) — 대화 기록에는 「고양이가 한 말」 카드로도 남는다.
+        string loose = "강아지 씨는 원래 좀 그래요.";
+        PlayerKnownEvidence.RecordMention("cat", "dog", loose, "", "", 0f, false, "test:5b");
+        DialogueHistory.Instance?.AddEntry("cat", InterviewEvidenceBoard.Codename("cat"),
+            DialogueEntryType.NpcResponse, loose, DialogueConversationType.Interview, "cat");
+        var everyone = new InterviewSession("dog");
+        everyone.SetTab(NoteTab.ByIncident);
+        Check(everyone.Board.Count(e => e.QuotedLine == loose || (e.SpokenLine && e.Body == loose)) == 1,
+            "전원 보기에서 같은 말이 「고양이가 한 말」 · 「고양이의 증언」 두 장으로 뜨지 않는다");
+        GD.Print($"   카드: {InterviewEvidenceDisplay.Body(named)}  ({named.TimeText})");
+        Check(dog.CanUse(named), "그 카드로 강아지에게 물을 수 있다");
+        // 사건 키는 시각을 소수 한 자리로 적는다(IncidentKeyOf) — 그만큼은 차이가 난다.
+        Check(named.SubjectRoomId == Core && Mathf.Abs(named.AnchorTime - inc.AnchorTime) <= 0.1f,
+            "그 답이 들고 있던 사고의 방 · 시각을 가리킨다");
+        dog.Toggle(dogInc.Id);
+        dog.Toggle(named.Id);
+        r = dog.CheckContradiction();
+        GD.Print($"   추궁: {r.QuestionText}  → {r.Kind}");
+        Check(dog.Selected.Count == 2 && r.Kind == ConfrontKind.Behavior, "사고 기록과 함께 들이밀면 행동 추궁이 성립한다");
+        Check(r.QuestionText.Contains("수상하게 굴었어요"), "질문이 고양이가 한 말을 그대로 인용한다");
+        var single = InterviewQuestionFactory.For("dog", named);
+        GD.Print($"   한 장으로: {string.Join(" / ", single.Select(x => x.Text))}");
+        Check(single.Count > 0 && single.All(x => !x.Text.Contains("봤다고")),
+            "한 장으로 물을 때 '봤다고 진술했다' 처럼 하지 않은 말로 묻지 않는다");
+        // 이름을 듣지 않은 사람에게는 쓸 수 없다.
+        Check(!new InterviewSession("wolf").CanUse(named), "이름이 나오지 않은 직원에게는 그 카드를 쓸 수 없다");
+
+        // ③ 엿들은 대화 — 대화에 끼지 않은 제3자의 이름이 나오면 그 사람 자료가 된다.
+        PlayerKnownEvidence.RecordOverheard(Power, "wolf", "rabbit", "아까 강아지 씨 코어실에서 뭐 하던데.", "", At(38));
+        var heard = new InterviewSession("dog").Board.FirstOrDefault(e => e.NamedMention && e.SpeakerEmployeeId == "wolf");
+        Check(heard != null && heard.SubjectRoomId == Power, "엿들은 대화에서 이름이 나온 줄이 그 사람 노트에 뜬다");
+        // 근무 중 통화 — 대화 기록 경로는 통화 · 엿들은 대화를 맡는다.
+        DialogueHistory.Instance?.AddEntry("wolf", InterviewEvidenceBoard.Codename("wolf"),
+            DialogueEntryType.NpcResponse, "강아지 씨가 아까 통로에 서 있던데요.", DialogueConversationType.OutgoingCall, "wolf");
+        var call = new InterviewSession("dog").Board.FirstOrDefault(e => e.NamedMention
+            && e.Id.StartsWith("named:dog:wolf:") && !e.Id.Contains(":heard:") && !e.Id.Contains(":ask:"));
+        Check(call != null && new InterviewSession("dog").CanUse(call), "통화 중에 이름을 댄 말도 그 사람 심문 자료로 쓸 수 있다");
+
+        // ④ 이름 찾기 — 다른 낱말 속의 글자는 이름이 아니다.
+        Check(InterviewEvidenceBoard.NamesEmployee("강아지 씨가 그랬어요", "dog"), "이름: '강아지 씨' 를 찾는다");
+        Check(!InterviewEvidenceBoard.NamesEmployee("고양이 씨가 그랬어요", "sheep"), "이름: '고양이' 속 '양' 은 양이 아니다");
+        Check(!InterviewEvidenceBoard.NamesEmployee("양쪽 다 봤어요", "sheep"), "이름: '양쪽' 은 양이 아니다");
+        Check(InterviewEvidenceBoard.NamesEmployee("양 씨가 먼저 나갔어요", "sheep"), "이름: '양 씨' 는 양이다");
+        Check(InterviewEvidenceBoard.NamesEmployee("양이 먼저 나갔어요", "sheep"), "이름: '양이' 는 양이다");
     }
 
     // ── 4차 : 사고가 난 뒤 그 방에 가 본 직원은 "몰랐다"고 하지 않는다 ──────────

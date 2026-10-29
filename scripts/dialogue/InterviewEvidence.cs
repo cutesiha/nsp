@@ -66,6 +66,13 @@ public sealed class InterviewEvidence
     // 이 자료에 함께 등장하는 직원들(같은 방에 있던 인원, 증언자 등).
     public System.Collections.Generic.List<string> RelatedEmployeeIds { get; private set; } = new();
 
+    // 이 자료 안에서 **이름이 직접 불린** 직원들.
+    //
+    // 다른 직원이 어떤 직원의 이름을 대며 한 말은, 그 이름의 주인을 심문할 때 그대로 들이밀 수
+    // 있어야 한다(2026-10-30 플레이 피드백). 여기 있는 직원에게는 이 자료로 물을 수 있다
+    // (InterviewQuestionFactory.MayQuestionWith).
+    public System.Collections.Generic.List<string> MentionedEmployeeIds { get; private set; } = new();
+
     // --- 카드 표시 ---------------------------------------------------
     public string Header = "";      // "시설 로그" / "CCTV" / "늑대의 증언"
     public string TimeText = "";    // "22:13" (없으면 빈 값)
@@ -115,6 +122,14 @@ public sealed class InterviewEvidence
     // 그 문장을 그대로 실어 두는 카드다. 위치 주장이 아니므로 Position 은 비운다.
     public bool SpokenLine;
 
+    // 다른 직원이 이 직원의 이름을 대며 한 말의 **원문**(이름 언급 증언 카드일 때만).
+    //
+    // 목격 증언(Testimony)은 "누가 어디서 무엇을 하는 걸 봤다" 로 정리된 카드다. 하지만
+    // "강아지 씨가 좀 이상했어요" 처럼 이름만 대고 본 것을 정리하지 않은 답도 많다. 그런 말은
+    // 요약하면 없는 사실이 생기므로 들은 그대로 싣는다. 위치 주장이 아니므로 Position 은 비운다.
+    public string QuotedLine = "";
+    public bool NamedMention => !string.IsNullOrEmpty(QuotedLine);
+
     // 번복 이력에서 꺼낸 **정정 전** 진술인가(지금 주장과 다른, 앞서 한 말).
     // 지금 주장과 같은 무게로 모순 판정에 쓸 수 있다 — 오히려 이쪽이 추궁의 핵심이다.
     public bool Superseded;
@@ -155,6 +170,7 @@ public sealed class InterviewEvidence
     {
         var c = (InterviewEvidence)MemberwiseClone();
         c.RelatedEmployeeIds = new System.Collections.Generic.List<string>(RelatedEmployeeIds);
+        c.MentionedEmployeeIds = new System.Collections.Generic.List<string>(MentionedEmployeeIds);
         return c;
     }
 }

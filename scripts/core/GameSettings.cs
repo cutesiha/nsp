@@ -405,12 +405,74 @@ public static class GameSettings
         AudioServer.SetBusVolumeDb(i, Mathf.LinearToDb(Mathf.Max(linear, 0.0005f)));
     }
 
+    // ── 화면 기준 1920x1080 ─────────────────────────────────────────────
+    //
+    // 이 게임의 모든 화면(HUD · 통화창 · 컷신 · 제어실 카메라 구도)은 1920x1080 한 벌로 짠다.
+    // 창 크기는 컴퓨터마다 달라도 되지만, 그 안의 화면은 언제나 1920x1080 을 통째로 줄이거나 키운
+    // 것이어야 한다(창 비율이 다르면 위아래나 양옆이 검게 빈다 — 잘리거나 늘어나지 않는다).
+    //
+    // 예전에는 노트북에서 창이 넘치면 project.godot 의 기준 해상도 자체를 바꿔 맞췄다
+    // (1920x1080 → 1600x900 → 1600x800 → 1800x980 → 1700x880 …). 그러면 화면 **비율**이 같이 바뀌어
+    // 모니터 확대 · 스토리 화면이 이상하게 확대되고 잘렸다(2026-10-30 제보 — 1720x900 · 1080x920).
+    // 그래서 기준을 여기서 못 박는다. project.godot 의 viewport 크기를 바꾸면 **창 크기만** 바뀐다.
+    public static readonly Vector2I DesignResolution = new(1920, 1080);
+
+    private static void ApplyDesignResolution()
+    {
+        // 에디터 자체의 창을 건드리면 안 된다([Tool] 스크립트가 설정을 읽는 경우).
+        if (Engine.IsEditorHint()) return;
+        if (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null) return;
+        var root = tree.Root;
+        root.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+        root.ContentScaleAspect = Window.ContentScaleAspectEnum.Keep;
+        root.ContentScaleSize = DesignResolution;
+    }
+
+    // 창 모드에서 창이 화면(작업 표시줄 제외)보다 크면 16:9 를 지킨 채 화면 안에 들어오게 줄이고 가운데 둔다.
+    // 1920x1080 노트북은 제목 줄 · 작업 표시줄 때문에 1920x1080 창이 들어가지 않는다 — 기준을 바꾸지 말고
+    // 창만 줄이면 된다. 이미 들어가는 창은 건드리지 않는다(검사 씬의 --resolution 도 그대로 둔다).
+    private static void FitWindowToScreen()
+    {
+        if (_fullscreen || Engine.IsEditorHint() || Engine.IsEmbeddedInEditor()) return;
+        if (DisplayServer.GetName() == "headless") return;
+        if (DisplayServer.WindowGetMode() != DisplayServer.WindowMode.Windowed) return;
+
+        int screen = DisplayServer.WindowGetCurrentScreen();
+        Rect2I usable = DisplayServer.ScreenGetUsableRect(screen);
+        if (usable.Size.X <= 0 || usable.Size.Y <= 0) return;
+
+        Vector2I inner = DisplayServer.WindowGetSize();
+        Vector2I outer = DisplayServer.WindowGetSizeWithDecorations();
+        var deco = new Vector2I(Mathf.Max(0, outer.X - inner.X), Mathf.Max(0, outer.Y - inner.Y));
+        // 창이 아직 화면에 자리 잡기 전이면 테두리 크기를 모른다 — 윈도 기본 제목 줄 · 테두리로 어림한다.
+        if (deco.Y <= 0)
+        {
+            float dpi = Mathf.Max(1f, DisplayServer.ScreenGetDpi(screen) / 96f);
+            deco = new Vector2I(Mathf.RoundToInt(16 * dpi), Mathf.RoundToInt(39 * dpi));
+        }
+        int maxW = usable.Size.X - deco.X;
+        int maxH = usable.Size.Y - deco.Y;
+        if (maxW <= 0 || maxH <= 0 || (inner.X <= maxW && inner.Y <= maxH)) return;
+
+        float aspect = (float)DesignResolution.X / DesignResolution.Y;
+        int w = Mathf.Min(maxW, Mathf.FloorToInt(maxH * aspect));
+        int h = Mathf.FloorToInt(w / aspect);
+        DisplayServer.WindowSetSize(new Vector2I(w, h));
+        // 위치는 창 안쪽(제목 줄 아래) 기준이다. 제목 줄까지 포함한 창 전체가 작업 영역 가운데 오게 놓는다
+        // (아래 테두리는 옆 테두리와 같은 굵기로 본다).
+        int title = deco.Y - deco.X / 2;
+        DisplayServer.WindowSetPosition(usable.Position
+            + new Vector2I((usable.Size.X - w) / 2, (usable.Size.Y - h - deco.Y) / 2 + title));
+    }
+
     // 전체화면은 해상도를 늘리는 게 아니라 '화면 전체를 쓰는 창'으로 바꾸는 것.
-    // 콘텐츠 비율은 project.godot 의 stretch 설정(canvas_items / keep)이 유지해 준다.
+    // 콘텐츠 비율은 위의 화면 기준(canvas_items / keep · 1920x1080)이 유지해 준다.
     private static void ApplyFullscreen()
     {
         var want = _fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed;
         DisplayServer.WindowSetMode(want);
+        // 전체화면에서 창 모드로 돌아오면 예전 창 크기로 돌아온다 — 그 크기가 화면을 넘을 수 있다.
+        FitWindowToScreen();
 
         // 에디터에서 F5 로 실행하면 게임 창이 에디터 안에 '임베드' 되는데, 임베드된 창은
         // 전체화면 전환이 무시된다(엔진 제한). 조용히 아무 일도 안 일어난 것처럼 보이므로
@@ -555,6 +617,7 @@ public static class GameSettings
         }
 
         ApplyAudio();
+        ApplyDesignResolution();
         ApplyFullscreen();
         ApplyQuality();
     }

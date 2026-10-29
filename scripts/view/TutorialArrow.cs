@@ -28,7 +28,9 @@ public partial class TutorialArrow : CanvasLayer
 
     public enum Side { Right, Left, Above, Below }
 
-    // 1080 이 아니라 이 프로젝트의 기준 창 높이(project.godot viewport_height).
+    // 화살 크기를 처음 맞출 때의 화면 높이(그때 기준 해상도가 1700x880 이었다).
+    // 화면 높이에 비례해 키우므로 화면 대비 크기는 기준 해상도와 상관없이 같다 — 기준이
+    // 1920x1080 으로 고정된 지금도(GameSettings.DesignResolution) 이 값은 그대로 두면 된다.
     private const float BaseHeight = 880f;
 
     private static readonly Color Core = new(0.80f, 0.98f, 1f);
