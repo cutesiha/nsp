@@ -136,6 +136,16 @@ public partial class TitleRoomDirector : Node
     public override void _ExitTree()
     {
         if (Instance == this) Instance = null;
+        BootWarning.Closing -= OnBootWarningClosing;
+    }
+
+    // 켤 때 경고가 걷히기 시작했다 — 이제부터 모니터1 의 [PRESS ANY KEY] 가 키를 받는다.
+    private void OnBootWarningClosing()
+    {
+        BootWarning.Closing -= OnBootWarningClosing;
+        if (!IsInstanceValid(this) || !IsRunning || _phase != Phase.Off) return;
+        AchievementManager.Instance?.NoteTitleReached();
+        _phase = Phase.Standby;
     }
 
     // ShiftFlowController 가 부팅 직후 부른다.
@@ -195,10 +205,18 @@ public partial class TitleRoomDirector : Node
         _hint.SetSub("");
         _hint.ShowHud();
 
-        _phase = Phase.Standby;
+        // 게임을 막 켰을 때는 광과민성 경고가 먼저 떠 있다(2초 뒤 저절로 걷힌다). 그동안은 키를 받지 않고,
+        // 걷히면 모니터1 의 [PRESS ANY KEY] 에서 기다린다. 엔딩 뒤 · 시작화면으로 돌아온 경우는 경고 없이 바로 대기.
+        if (BootWarning.Active)
+        {
+            _phase = Phase.Off;
+            BootWarning.Closing += OnBootWarningClosing;
+        }
+        else _phase = Phase.Standby;
         // 「업무를 시작합니다」 — 실제 타이틀 화면에 들어선 지점.
         // 개발 도구로 타이틀을 건너뛰고 들어오면 이 줄을 지나가지 않는다.
-        AchievementManager.Instance?.NoteTitleReached();
+        // 경고가 떠 있으면 팝업(층 150)이 경고(층 200) 밑에 깔려 아무도 못 보고 지나간다 — 걷힌 뒤로 미룬다.
+        if (!BootWarning.Active) AchievementManager.Instance?.NoteTitleReached();
         SetProcess(true);
         SetProcessUnhandledInput(true);
     }
@@ -226,6 +244,10 @@ public partial class TitleRoomDirector : Node
         await WaitOn(0.18);
         while (term != null && !term.MenuRevealDone && !_rushPowerOn) await NextFrame();
         if (_rushPowerOn) term?.ShowMenu(false);      // 타이핑을 그 자리에서 끝낸다
+        // 모니터1 확대 화면(처음 켰을 때 · 시작화면으로 돌아왔을 때)에서는 다른 장비가 화면 밖이라 켜지는 것이
+        // 보이지 않는다 — 메뉴가 다 찍히면 **바로 고를 수 있게** 나머지 뜸을 건너뛴다(2026-10-31 사용자 요청).
+        // 장비는 뒤에서 그대로 켜진다. 방 전체가 보이는 엔딩 뒤 타이틀만 예전처럼 하나씩 켜지는 것을 보여 준다.
+        if (EndingState.Last == EndingState.Kind.None) _rushPowerOn = true;
         await WaitOn(0.30);
 
         // 2) **화면을 축소하지 않는다.** 시작 화면은 모니터1 확대 화면 그대로다 —
@@ -241,14 +263,14 @@ public partial class TitleRoomDirector : Node
         TitleStaffIdView.Instance?.PowerOn();
 
         await WaitOn(0.45);
-        Sfx.Instance?.Play("switch", -10f);             // 책상 조명 ON
+        if (!_rushPowerOn) Sfx.Instance?.Play("switch", -10f);   // 책상 조명 ON(건너뛰면 소리가 겹치니 생략)
         var lt = CreateTween();
         lt.SetParallel(true);
         if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilBase * 0.34f, 0.7);
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase * 0.45f, 0.7);
 
         await WaitOn(0.40);
-        Sfx.Instance?.Play("relay_click", -12f);        // 관리자 패드 ON
+        if (!_rushPowerOn) Sfx.Instance?.Play("relay_click", -12f);   // 관리자 패드 ON
 
         await WaitOn(0.35);
         _hint.SetSub(MenuHint);
@@ -545,7 +567,21 @@ public partial class TitleRoomDirector : Node
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (_phase is Phase.Off or Phase.Done or Phase.PoweringOn) return;
+        if (_phase is Phase.Off or Phase.Done) return;
+        // 부팅 중 — 누르면 남은 뜸을 건너뛴다(아래 블록). 예전에는 이 첫 줄에서 PoweringOn 까지 같이 걸러,
+        // 그 건너뛰기 블록에 한 번도 닿지 못했다(2026-10-31 "다른 모니터가 켜질 때까지 아무것도 모르고 기다린다").
+        if (_phase == Phase.PoweringOn)
+        {
+            if (e is InputEventMouseMotion pm) { _mouse = pm.Position; _mouseMoved = true; return; }
+            if (!_rushPowerOn
+                && (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+                    || e is InputEventKey { Pressed: true, Echo: false }))
+            {
+                _rushPowerOn = true;
+                GetViewport().SetInputAsHandled();
+            }
+            return;
+        }
         if (_phase == Phase.Settings)
         {
             if (e is InputEventMouseButton or InputEventMouseMotion) ForwardToSettings(e);
@@ -646,18 +682,8 @@ public partial class TitleRoomDirector : Node
             return;
         }
 
-        // 부팅 중에 누르면 **남은 뜸을 건너뛴다.** 메뉴 줄은 이미 화면에 다 떠 있는데
-        // 장비가 켜지는 연출이 끝날 때까지 눌리지 않아서, 고장으로 보이던 자리다.
-        // 그 클릭은 여기서 먹고 메뉴로는 넘기지 않는다 — 한 번 누른 것이 "건너뛰기 +
-        // 메뉴 선택" 둘로 먹히면 누를 생각도 없던 항목이 실행된다.
-        if (_phase == Phase.PoweringOn && !_rushPowerOn
-            && (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
-                || e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space or Key.Enter or Key.KpEnter }))
-        {
-            _rushPowerOn = true;
-            GetViewport().SetInputAsHandled();
-            return;
-        }
+        // (부팅 중 건너뛰기는 맨 위 PoweringOn 블록이 맡는다 — 그 클릭은 거기서 먹고 메뉴로는 넘기지 않는다.
+        //  한 번 누른 것이 "건너뛰기 + 메뉴 선택" 둘로 먹히면 누를 생각도 없던 항목이 실행된다.)
 
         if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
         {

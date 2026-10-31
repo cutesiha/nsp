@@ -680,13 +680,23 @@ public static class GameSettings
     private static Quality AutoQuality()
     {
         var type = RenderingServer.GetVideoAdapterType();
-        Quality q = type switch
-        {
-            RenderingDevice.DeviceType.DiscreteGpu => Quality.High,
-            RenderingDevice.DeviceType.IntegratedGpu => Quality.Low,
-            RenderingDevice.DeviceType.Cpu or RenderingDevice.DeviceType.VirtualGpu => Quality.VeryLow,
-            _ => Quality.Medium,
-        };
+        // 장치 종류만 믿으면 안 된다 — D3D12 에서는 인텔 내장 그래픽(UHD)도 'DiscreteGpu' 로 보고된다
+        // (2026-10-31 이 PC 에서 확인). 이름으로 내장 그래픽 · 소프트웨어 렌더러를 한 번 더 가린다.
+        string n = (RenderingServer.GetVideoAdapterName() ?? "").ToLowerInvariant();
+        bool software = n.Contains("microsoft basic") || n.Contains("llvmpipe") || n.Contains("swiftshader");
+        bool integratedName =
+            (n.Contains("intel") && (n.Contains("uhd") || n.Contains("hd graphics") || n.Contains("iris")))
+            || n.Contains("radeon(tm) graphics") || n.Contains("radeon graphics")
+            || (n.Contains("vega") && !n.Contains("rx "));
+        Quality q = software ? Quality.VeryLow
+            : integratedName ? Quality.Low
+            : type switch
+            {
+                RenderingDevice.DeviceType.DiscreteGpu => Quality.High,
+                RenderingDevice.DeviceType.IntegratedGpu => Quality.Low,
+                RenderingDevice.DeviceType.Cpu or RenderingDevice.DeviceType.VirtualGpu => Quality.VeryLow,
+                _ => Quality.Medium,
+            };
         GD.Print($"[설정] 첫 실행: 그래픽 장치 '{RenderingServer.GetVideoAdapterName()}' ({type}) → 품질 {q}");
         return q;
     }

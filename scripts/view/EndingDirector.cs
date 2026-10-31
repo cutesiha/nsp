@@ -125,6 +125,7 @@ public partial class EndingDirector : Node
         }
 
         TickSeal(delta);
+        TickBadRed(delta);
 
         if (!_flicker) return;
         // 경고음이 커지는 동안 조명이 불규칙하게 깜빡인다(BAD).
@@ -192,11 +193,7 @@ public partial class EndingDirector : Node
             default: await BadEnd(); break;
         }
 
-        // 네 엔딩 모두 — 연출이 끝나면 크레딧이 아래에서 위로 올라간다. 그 다음이 근무 기록.
-        var credits = new CreditsRoll();
-        _layer.AddChild(credits);
-        await credits.PlayAsync();
-
+        // 네 엔딩 모두 — 연출 → 근무 기록 → [타이틀로] → 크레딧 → 시작 화면(2026-10-31 사용자 요청 순서).
         await ShowRecord(_kind);
     }
 
@@ -228,9 +225,16 @@ public partial class EndingDirector : Node
 
         // ② 천장등만 남기고 방이 어두워진다.
         //    평소 이 그룹은 꺼져 있다(방의 빛은 두 화면이었다) — 여기서 처음 켠다.
-        ShowRoomLights(0.62f);
-        var lt = CreateTween().SetParallel(true);
-        if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilE * 0.62f * 0.62f, 1.2);
+        //    BAD · LATE(코어 실패 둘)는 켜지 않는다 — 완전한 어둠 속에 사이렌이 얕게 깔리기 시작한다
+        //    (2026-10-31 사용자 지시).
+        if (_kind is EndingState.Kind.Bad or EndingState.Kind.Late)
+            StartBadSiren();
+        else
+        {
+            ShowRoomLights(0.62f);
+            var lt = CreateTween().SetParallel(true);
+            if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilE * 0.62f * 0.62f, 1.2);
+        }
         SetLights(0f, 0f);
 
         // ③ 앰비언트 한 단계 하강.
@@ -379,17 +383,37 @@ public partial class EndingDirector : Node
     {
         var tcs = new TaskCompletionSource();
         var rec = new EndingRecordOverlay { Kind = kind };
-        rec.TitleRequested += () =>
-        {
-            EndingState.PendingWake = kind;
-            ControlRoom3DHorror.ExternalLightingOverride = false;
-            _ctl?.SetScreenTint(Colors.White);
-            _ctl?.SetFocusLocked(false);
-            GetTree().ChangeSceneToFile("res://scenes/main/MainScene3D_Test.tscn");
-            tcs.TrySetResult();
-        };
+        rec.TitleRequested += () => _ = LeaveToTitle(rec, kind, tcs);
         _topLayer.AddChild(rec);
         return tcs.Task;
+    }
+
+    // [타이틀로] — 근무 기록을 걷고 크레딧을 올린 뒤 시작 화면으로 돌아간다.
+    private bool _leaving;
+
+    private async Task LeaveToTitle(EndingRecordOverlay rec, EndingState.Kind kind, TaskCompletionSource tcs)
+    {
+        if (_leaving) return;   // 버튼을 두 번 눌러도 크레딧은 한 번
+        _leaving = true;
+        if (IsInstanceValid(rec))
+        {
+            rec.MouseFilter = Control.MouseFilterEnum.Ignore;
+            var fade = rec.CreateTween();
+            fade.TweenProperty(rec, "modulate:a", 0f, 0.6).SetTrans(Tween.TransitionType.Sine);
+            await ToSignal(fade, Tween.SignalName.Finished);
+            rec.QueueFree();
+        }
+        // 크레딧은 화면 필터 아래(타이틀 · 엔딩과 같은 파란 화면)에서 올라간다.
+        var credits = new CreditsRoll();
+        _layer.AddChild(credits);
+        await credits.PlayAsync();
+
+        EndingState.PendingWake = kind;
+        ControlRoom3DHorror.ExternalLightingOverride = false;
+        _ctl?.SetScreenTint(Colors.White);
+        _ctl?.SetFocusLocked(false);
+        GetTree().ChangeSceneToFile("res://scenes/main/MainScene3D_Test.tscn");
+        tcs.TrySetResult();
     }
 
     // ── GUIDE-0 얼굴창 ───────────────────────────────────────────────────

@@ -71,6 +71,39 @@ public partial class AdminDeathDirector : Node
         d.Run();
     }
 
+    // ── 엔딩(BAD)의 마지막 한 컷 — 같은 들이닥침을 **판정 없이** 빌려 쓴다 ─────────
+    //
+    // 문이 열리고 아무도 없는 줄 알았던 그때, 그것이 렌즈 앞에 박힌다(2026-10-31 사용자 요청).
+    // Begin 은 근무를 닫고 사망 기록을 띄우므로 쓰지 않는다 — 여기서는 Charge 만 돈다.
+    // 배우는 미리 세워 모델까지 읽어 둔다. 들이닥치는 그 프레임에 읽으면 첫 컷이 멈춘다.
+    public static AdminDeathDirector PrepareScare(Node host, string monsterId)
+    {
+        MonsterDef def = null;
+        foreach (var m in MonsterThreatSystem.Monsters)
+            if (m.MonsterId == monsterId) { def = m; break; }
+        if (def == null && MonsterThreatSystem.Monsters.Count > 0) def = MonsterThreatSystem.Monsters[0];
+        if (host == null || def == null) return null;
+        var d = new AdminDeathDirector { _threat = new MonsterThreat { Def = def } };
+        host.AddChild(d);
+        if (d._actor.Use(def)) d._actor.Hide();
+        return d;
+    }
+
+    public async Task ScareAsync()
+    {
+        var cam = GetViewport()?.GetCamera3D();
+        if (cam != null) await Charge(cam);
+        else { Sfx.Instance?.PlayGhostScreamChorus(); await Wait(0.8); }
+    }
+
+    // 들이닥친 얼굴 · 붉은 조명을 거둔다. 암전은 부른 쪽이 먼저 쳐 둔다.
+    public void EndScare()
+    {
+        _redOn = false;
+        _actor?.Hide();
+        EndFaceOverlay();
+    }
+
     public override void _Ready()
     {
         Instance = this;

@@ -134,11 +134,29 @@ public partial class ShiftFlowController : Node
         _stage = Stage.Title;
         // 시작 화면·근무 배치·휴게시간은 같은 곡으로 통일한다.
         // 실시간 근무에 들어갈 때만 페이드아웃되고 ControlRoomAtmosphere의 환경음이 대신한다.
-        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
+        //
+        // 켤 때 한 번 — 광과민성 · 공포 묘사 경고. 개발용 바로 시작(skipBoot)에서는 띄우지 않는다.
+        // 경고가 떠 있는 동안은 소리가 하나도 나지 않는다 — 곡은 경고가 걷힐 때 처음부터 시작한다.
+        if (!skipBoot && BootWarning.WillShow)
+        {
+            BootWarning.Closing += StartTitleMusicAfterWarning;
+            BootWarning.ShowOnce(this);
+        }
+        else
+        {
+            // 경고 없이 지나간 첫 부팅(개발용 바로 시작)도 "켤 때 한 번" 을 쓴 것으로 친다 —
+            // 그러지 않으면 그 판의 엔딩 뒤 타이틀에서 처음으로 경고가 떠 검은 화면처럼 보였다.
+            BootWarning.MarkShown();
+            Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
+        }
 
         if (skipBoot) BootStraightToDay1();
-        // 켤 때 한 번 — 광과민성 · 공포 묘사 경고. 개발용 바로 시작(skipBoot)에서는 띄우지 않는다.
-        else BootWarning.ShowOnce(this);
+    }
+
+    private void StartTitleMusicAfterWarning()
+    {
+        BootWarning.Closing -= StartTitleMusicAfterWarning;
+        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true, restartIfSame: true);
     }
 
     // 개발 전용(_skipToDay1Pending) — 타이틀을 건너뛰고 DAY1 배치로 곧장 들어간다.

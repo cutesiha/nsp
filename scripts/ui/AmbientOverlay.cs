@@ -21,6 +21,9 @@ public partial class AmbientOverlay : CanvasLayer
     // 입자를 따로 얹으므로, 여기 노이즈까지 겹치면 검정 · 청회색 면이 지저분해진다.
     // 공포 연출이 끌어올리는 노이즈(PulseNoise · SetGhostNoise)는 그대로 나온다.
     public float BaseNoiseScale { get; set; } = 1f;
+    // 가운데 하이라이트를 켤 것인가. 화면 필터(AnalogFilter)가 켜져 있으면 끈다 — 필터의 색 변환(LUT)이
+    // 이 아주 옅은 둥근 빛을 어두운 화면에서 **또렷한 고리**로 바꿔 버렸다(2026-10-31 "검은 화면에 투명한 링").
+    public bool CenterGlowAllowed { get; set; } = true;
 
     private TextureRect _vignetteRect;
     private TextureRect _centerGlow;
@@ -149,6 +152,7 @@ public partial class AmbientOverlay : CanvasLayer
         // 모서리 어둡게(비네트)는 3D 제어실에서도 거의 그대로 유지한다 — 화면 가장자리가
         // 확실히 죽어야 가운데 책상에 시선이 모인다.
         _vignetteRect.Modulate = new Color(1f, 1f, 1f, Mathf.Lerp(0.92f, 1f, _sceneIntensity));
+        _centerGlow.Visible = CenterGlowAllowed;
         _centerGlow.Modulate = new Color(1f, 1f, 1f, 0.18f * _sceneIntensity);
 
         // SHUT DOWN 페이드 + 깜빡이는 문구

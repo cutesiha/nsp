@@ -10,23 +10,22 @@ namespace NSP.View;
 // 지목은 맞았다. 다만 늦었다. 그래서 TRUE 의 회상은 하지 않는다 — 이 엔딩의 핵심은
 // "시간이 없다" 이고, 뒤를 돌아볼 여유가 없다.
 //
-// 마지막에 당신은 프롤로그에서 총괄 관리자가 눌렀던 그 스위치를 직접 내린다.
-// 같은 소리(switch), 같은 양식의 창(SealWindow) — 숫자만 0 이다.
+// 2026-10-31 사용자 요청으로 BAD 와 같은 결로 바꿨다 — 조명 없이 꺼지는 컴퓨터, 얕게 깔리는 사이렌,
+// 새빨간 방, 밖에서 두드리는 문, 저절로 열리는 문. 다른 것은 **끝**이다:
+//   BAD  — 그것이 들이닥치고 관리자가 죽는다.
+//   LATE — 아무것도 들어오지 않는다. 당신은 봉쇄 스위치를 직접 내렸고(프롤로그의 총괄 관리자처럼),
+//          시설은 지상과 끊겼다. 불이 꺼진 어둠 속, 바로 옆에서 숨소리가 난다 — 같이 갇혔다.
 public partial class EndingDirector
 {
     private async Task LateEnd()
     {
-        // ① 조회 — TRUE 와 같다. 다만 끝나자마자 경보 단말기가 운다.
+        // ① 조회 — TRUE 와 같다. 어둠 속에서 모니터2 하나만 켜져 있다. 사이렌은 이미 얕게 돈다.
         await IdentityQueryFailed();
         QueryPush("▸ 격리 이송 완료", EndingMonitorView.Tone.Normal, 26);
         await QueryWait(0.4);
-
         for (int i = 0; i < 3; i++) { Sfx.Instance?.Play("alert_beep3", -4f); await Wait(0.45); }
-        var sensor = _ctl?.GetNodeOrNull<Node3D>("ControlRoom/AlertTerminal");
-        if (sensor != null) _ctl?.FocusProp(sensor, 0.8f, 0.5f);
-        await Wait(1.2);
 
-        // ② 차폐 붕괴 — 카운트다운이 실시간으로 떨어진다.
+        // ② 차폐 붕괴 — 카운트다운이 실시간으로 떨어진다. 방은 여전히 어둡다(화면빛뿐).
         var left = EndingMonitorView.Left;
         var right = EndingMonitorView.Right;
         left?.Clear();
@@ -37,18 +36,22 @@ public partial class EndingDirector
         await Wait(0.6);
         _ctl?.SetLeftScreen(_ctl.EndingLeftViewport);
         _ctl?.SetRightScreen(_ctl.EndingRightViewport);
-        _ctl?.SetScreenTint(new Color(0.72f, 0.74f, 0.78f));   // 밝지 않다
+        _ctl?.SetScreenTint(new Color(1f, 0.6f, 0.55f));
         _ctl?.SetScreenBrightness(1f);
         Sfx.Instance?.Play("crt_on", -8f);
-        SetLights(0.55f, 0.35f);
+        if (_m1 != null) _m1.LightColor = new Color(1f, 0.42f, 0.38f);
+        if (_m2 != null) _m2.LightColor = new Color(1f, 0.42f, 0.38f);
+        SetLights(0.45f, 0f);
         await Wait(0.8);
 
+        left?.SetAlarm(true);
+        right?.SetAlarm(true);
         left?.Clear("CONTAINMENT CORE", "FINAL RECOVERY SEQUENCE");
         left?.SetBar(_core, failed: true);
         left?.Push($"복구율 {_core:0.0}% - 목표 미달", EndingMonitorView.Tone.Bad, 24);
         right?.Clear("비상 차폐", "EMERGENCY SEAL");
 
-        for (int t = 12; t >= 0; t--)
+        for (int t = 9; t >= 0; t--)
         {
             right?.ReplaceLast($"00:00:{t:00}", t <= 3 ? EndingMonitorView.Tone.Bad : EndingMonitorView.Tone.Normal);
             Sfx.Instance?.Play("tick", -18f);
@@ -56,23 +59,30 @@ public partial class EndingDirector
         }
         Sfx.Instance?.Play("power_down", -4f);
         _ctl?.SetScreenBrightnessFor("02", 0f);
-        await Wait(1.0);
+        await Wait(0.8);
 
-        // ③ GUIDE-0 — sneer 가 아니라 normal. 유일하게 사무적이지 않은 순간이다.
-        // 얼굴은 왼쪽(모니터1), 말은 오른쪽(모니터2). 카운트다운이 끝나 꺼졌던 오른쪽
-        // 화면을 GUIDE-0 이 다시 켜고 그 위에 말한다 — 같은 화면에 두면 얼굴창이 대사를 덮는다.
+        // ③ 중앙제어실이 새빨갛게 켜진다 — 쾅 하고 한 번에. 그 다음에 GUIDE-0.
+        Sfx.Instance?.Play("switch", -4f, 0.62f);
+        Sfx.Instance?.Play("boom", -4f, 0.72f);
+        BadRoomRed();
+        _ctl?.ShakeCamera(1.2f, 0.4f);
+        await Wait(1.2);
+
+        // GUIDE-0 — sneer 가 아니라 normal. 유일하게 사무적이지 않은 순간이다.
+        // 얼굴은 왼쪽(모니터1), 말은 오른쪽(모니터2). 같은 화면에 두면 얼굴창이 대사를 덮는다.
         Sfx.Instance?.Play("window_open", -10f);
+        GuideCornerFace.SetAlarmTint(true);
         ShowGuide("normal");
         left?.Clear();
         right?.Clear();
         _ctl?.SetScreenBrightnessFor("02", 1f);
         await Wait(0.9);
         await GuideSpeakAt(right, 1.1f, "관리자님의 판단은 옳았습니다.");
-        await Wait(1.5);
+        await Wait(1.2);
         await GuideSpeakAt(right, 1.1f,
             "다만, 시간이 부족했습니다.",
             "영구 봉쇄 절차를 개시합니다. 권한 확인이 필요합니다.");
-        await Wait(1.0);
+        await Wait(0.8);
 
         // ④ 스위치 — 프롤로그에서 총괄 관리자가 눌렀던 그 자리다.
         var panel = _ctl?.GetNodeOrNull<Node3D>("ControlRoom/PowerSwitchPanel");
@@ -108,51 +118,36 @@ public partial class EndingDirector
         // 프롤로그와 **완전히 같은 양식**의 창. 숫자만 0 이다.
         ShowSealWindow("영구 봉쇄", "00:00:00", "PERMANENT SEAL ENGAGED");
         Sfx.Instance?.Play("boom", -3f);   // 흔들림은 넣지 않는다. 조용히 울리기만 한다.
-        await Wait(3.4);
+        await Wait(3.0);
         HideSealWindow();
         HideGuide();
-
-        // ⑤ 소등 — 하나씩 끈다.
-        _ctl?.ClearFocus(1.0f);
-        await Wait(0.8);
+        Sfx.Instance?.Play("cctv_cut", -6f);
         _ctl?.SetScreenBrightness(0f);
-        Sfx.Instance?.Play("relay_click", -13f);
-        await Wait(0.8);
-        SetLights(0f, 0f);
-        Sfx.Instance?.Play("relay_click", -15f);
-        await Wait(0.8);
-        HideCeilingFixture();
-        Sfx.Instance?.Play("relay_click", -17f);
-        await Wait(0.8);
-        if (_roomFill != null) _roomFill.LightEnergy = 0f;
-        Sfx.Instance?.Play("relay_click", -19f);
-        await Wait(0.8);
+        SetLights(0f, 0f);   // 화면빛이 사라지고 붉은 등만 남는다
+        _ctl?.ClearFocus(1.0f);
+        await Wait(1.2);
 
-        // 마지막으로 환풍기 — 회전이 느려지다 멈춘다.
-        Sfx.Instance?.StopLoop("machinery_loop");
-        Sfx.Instance?.StopLoop("drone_loop");
-        var spin = CreateTween().SetParallel(true);
-        spin.TweenMethod(Callable.From<float>(v => Sfx.Instance?.SetLoopPitch("vent_loop", v)), 1f, 0.3f, 2.5);
-        spin.TweenMethod(Callable.From<float>(v => Sfx.Instance?.SetLoopVolume("vent_loop", v)), VentDb - 8f, -60f, 2.5);
+        // ⑤ 문 — 봉쇄는 걸렸다. 그런데 밖에서 무언가가 문을 친다 … 그리고 문이 열린다.
+        await DoorKnockAndOpen();
+
+        // ⑥ 아무것도 들어오지 않는다. 검은 문간만 본다.
         await Wait(2.6);
-        Sfx.Instance?.StopLoop("vent_loop");
-        Sfx.Instance?.Play("vent_stop", -6f);
 
-        // 비상등만 남긴다 — 붉지 않고 흐린 주황이다.
-        if (_emergency != null)
-        {
-            _emergency.Visible = true;
-            _emergency.LightColor = new Color(1f, 0.72f, 0.45f);
-            _emergency.LightEnergy = 0.5f;
-        }
-        // 벽의 비상등 덩어리도 같은 색으로 — 붉지 않고 흐린 주황이다.
-        SetEmergencyMesh(0.8f, new Color(1f, 0.72f, 0.45f));
-        await Wait(3.0);   // 카메라 고정. 아무 일도 일어나지 않는다.
+        // 붉은 등이 꺼진다 — 사이렌도 같이 끊긴다. 완전한 어둠.
+        Sfx.Instance?.Play("power_down", -4f, 0.7f);
+        BadLightsOff();
+        Sfx.Instance?.StopLoop("siren");
+        foreach (var k in new[] { "machinery_loop", "drone_loop", "vent_loop" }) Sfx.Instance?.StopLoop(k);
+        _black.Color = _black.Color with { A = 1f };
+        await Wait(2.2);
 
-        await Fade(_black, 1f, 2.5f);
+        // 어둠 속, 바로 옆에서 숨소리. 그것은 이미 들어와 있다 — 보여 주지 않는다.
+        Sfx.Instance?.Play("breath_close", -3f, 0.78f);
+        await Wait(2.6);
         await Banner("BAD END - 대상 확인, 복구 실패", new Color(0.85f, 0.80f, 0.70f));
         EndingState.Record(EndingState.Kind.Late);
     }
+
 
     // 전원 스위치 박스 위의 붉은 램프(영구 봉쇄 권한 확인).
     private StandardMaterial3D BuildSealLamp(Node3D panel)

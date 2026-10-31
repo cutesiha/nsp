@@ -92,7 +92,8 @@ public partial class TitleStaffIdView : Control
             GetTree().CreateTimer(0.10 + i * 0.09).Timeout += () =>
             {
                 card.Revealed = true;
-                QueueRedraw();
+                // 카드가 다 뜨기 전에 화면째 사라졌을 수 있다(타이틀을 바로 떠나는 경우).
+                if (IsInstanceValid(this)) QueueRedraw();
             };
         }
         _nextGlitch = 5.0;
