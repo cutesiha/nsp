@@ -32,7 +32,7 @@ public partial class ScheduleConsoleTest : Node
 
     private async System.Threading.Tasks.Task RunAll()
     {
-        GD.Print("################ Phase 0 — 배치 콘솔 · 설정 창 검증 ################");
+        GD.Print("################ Phase 0 - 배치 콘솔, 설정 창 검증 ################");
         NewGame(1);
 
         _vp = new SubViewport
@@ -75,11 +75,11 @@ public partial class ScheduleConsoleTest : Node
         var got = _sim.GetRoomIds().Where(id => ScheduleMapView.IsAssignable(_sim, id)).OrderBy(x => x).ToList();
         GD.Print($"   DAY1 배치 가능: {string.Join(", ", got)}");
         Check(expected.SequenceEqual(got), "배치 가능 작업실 목록이 같다");
-        Check(got.Contains("vent_room") && got.Contains("medical_room"), "경영 리워크: 환기실·의무실은 DAY1 부터 배치 가능");
+        Check(got.Contains("vent_room") && got.Contains("medical_room"), "경영 리워크: 환기실/의무실은 DAY1 부터 배치 가능");
         // 표시만이 아니라 실제 배치(길찾기 포함)가 되는지 — 배치 후 되돌린다.
         bool ventOk = _sim.AssignToRoom("wolf", "vent_room"); _sim.ClearAssignment("wolf");
         bool medOk = _sim.AssignToRoom("wolf", "medical_room"); _sim.ClearAssignment("wolf");
-        Check(ventOk && medOk, $"환기실·의무실에 실제로 배치된다(환기실 {ventOk} · 의무실 {medOk})");
+        Check(ventOk && medOk, $"환기실/의무실에 실제로 배치된다(환기실 {ventOk}, 의무실 {medOk})");
         Check(!got.Contains("central_office") && !got.Contains("isolation_room"), "제한 구역은 배치 불가");
 
         _map.ComputeLayout(_sim);
@@ -101,7 +101,7 @@ public partial class ScheduleConsoleTest : Node
     // ── 끌어다 놓기 ──────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task Drag()
     {
-        Head("B", "끌어다 놓기 — 대기 인원 → 정비실, 정비실 → 대기 인원(해제)");
+        Head("B", "끌어다 놓기 - 대기 인원 → 정비실, 정비실 → 대기 인원(해제)");
         await DragFromTo(_map.RosterCardOf("rabbit").GetCenter(), _map.CellOf("maintenance_room").GetCenter());
         Check(Assigned("rabbit") == "maintenance_room", $"토끼 → 정비실 ({Assigned("rabbit")})");
 
@@ -121,7 +121,7 @@ public partial class ScheduleConsoleTest : Node
     // ── 클릭으로 배치 ─────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task ClickAssign()
     {
-        Head("C", "클릭 배치 — 직원 선택 → 작업실 클릭");
+        Head("C", "클릭 배치 - 직원 선택 → 작업실 클릭");
         await Click(_map.RosterCardOf("dog").GetCenter());
         Check(_map.SelectedEmployeeId == "dog" && _map.FocusEmployeeId == "dog", "강아지 선택 + 오른쪽 모니터 대상");
         await Click(_map.CellOf("guard_room").GetCenter());
@@ -134,7 +134,7 @@ public partial class ScheduleConsoleTest : Node
 
     private async System.Threading.Tasks.Task RightClick()
     {
-        Head("D", "우클릭 — 배치 해제");
+        Head("D", "우클릭 - 배치 해제");
         await Frames(1);
         await Click(_map.ChipOf("dog").GetCenter(), MouseButton.Right);
         Check(Assigned("dog") == "", "강아지 칩 우클릭 → 해제");
@@ -143,7 +143,7 @@ public partial class ScheduleConsoleTest : Node
     // ── 놓을 수 없는 곳 ───────────────────────────────────────────────────
     private async System.Threading.Tasks.Task Refused()
     {
-        Head("E", "잠긴 방 · 제한 구역에는 놓이지 않는다");
+        Head("E", "잠긴 방, 제한 구역에는 놓이지 않는다");
         // 경영 리워크: 환기실은 DAY1 부터 열려 있다 — 끌어다 놓으면 실제로 배치된다.
         await DragFromTo(_map.RosterCardOf("fox").GetCenter(), _map.CellOf("vent_room").GetCenter());
         Check(Assigned("fox") == "vent_room", "환기실에 끌어다 놓으면 배치된다");
@@ -157,7 +157,7 @@ public partial class ScheduleConsoleTest : Node
     // ── 근무 시작 ────────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task StartButton()
     {
-        Head("F", "근무 시작 — 코어실에 1명 이상일 때만");
+        Head("F", "근무 시작 - 코어실에 1명 이상일 때만");
         await DragFromTo(_map.ChipOf("cat").GetCenter(), _map.RosterArea.GetCenter());
         await Frames(2);
         Check(!_map.StartEnabled, "코어실이 비면 근무 시작 비활성");
@@ -186,13 +186,13 @@ public partial class ScheduleConsoleTest : Node
         }
         var roster = _sim.GetActiveEmployeeIds();
         Check(roster.Count == 6 && roster.All(id => Assigned(id) == plan[id]),
-            "6명 모두 지정한 방에 배치됨 — " + string.Join(", ", roster.Select(id => $"{id}:{Assigned(id)}")));
+            "6명 모두 지정한 방에 배치됨 - " + string.Join(", ", roster.Select(id => $"{id}:{Assigned(id)}")));
     }
 
     // ── 환경 설정 ────────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task Settings()
     {
-        Head("H", "환경 설정 — 홀로그램 창 · 값 그대로");
+        Head("H", "환경 설정 - 홀로그램 창, 값 그대로");
         float master = GameSettings.MasterVolume, bgm = GameSettings.BgmVolume, sfx = GameSettings.SfxVolume;
         bool fs = GameSettings.Fullscreen;
         var q = GameSettings.GraphicsQuality;
@@ -206,7 +206,7 @@ public partial class ScheduleConsoleTest : Node
         var nodes = All(panel).ToList();
         Check(!nodes.Any(n => n is DocumentPaperTexture), "종이 질감(DocumentPaperTexture)이 없다");
         Check(nodes.Any(n => n is HologramFrame), "홀로그램 프레임(로그 창과 같은 HologramFrame)이 있다");
-        Check(nodes.OfType<HSlider>().Count() == 3, "음량 슬라이더 3개(MASTER · BGM · SFX) 그대로");
+        Check(nodes.OfType<HSlider>().Count() == 3, "음량 슬라이더 3개(MASTER, BGM, SFX) 그대로");
         Check(nodes.OfType<Button>().Any(b => b.Text == "닫기") && nodes.OfType<Button>().Any(b => b.Text == "✕"),
             "하단 닫기 + 오른쪽 위 ✕");
         panel.Close();

@@ -311,7 +311,7 @@ public partial class ScheduleBoardUI : Control
 
         string statusText = !coreStaffed
             ? "▲ 코어실에 최소 1명의 직원을 배치해야 합니다."
-            : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명" : $"{placed} / {total} 배치 완료";
+            : missing > 0 ? $"{placed} / {total} 배치, 미배치 {missing}명" : $"{placed} / {total} 배치 완료";
         var status = AddLabel(_form, statusText,
             new Vector2(DocLeft, CanvasSize.Y - 54), 16, !coreStaffed || missing > 0 ? InkRed : Ink, _body);
         status.Size = new Vector2(500, 32);
@@ -382,7 +382,7 @@ public partial class ScheduleBoardUI : Control
             // 요구 능력이 3개인 작업실(경비실: 담력·기술·관찰)은 한 줄에 다 넣으면 마지막
             // 항목이 배치표 오른쪽 밖으로 삐져나간다. 폭을 재서 넘칠 때만 줄을 나눈다.
             var stats = RoomRequiredStats(sim, roomId);
-            string joined = string.Join("  ·  ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
+            string joined = string.Join(", ", stats.Select(s => $"{StatIcon(s)} {StatLabel(s)}"));
             wrapped = stats.Count > 0 && TextWidth($"요구 능력  {joined}", 15) > pw;
             if (!wrapped)
             {
@@ -412,7 +412,7 @@ public partial class ScheduleBoardUI : Control
             // 아래 설명이 쓸 자리를 남겨야 하므로 세 줄까지만 싣는다.
             foreach (string line in ops.RoleNote.Split(" / ").Take(3))
             {
-                AddLabel(_info, "· " + line.Trim(), new Vector2(px + 4f, y), 13, HeadcountBrown, _body);
+                AddLabel(_info, "- " + line.Trim(), new Vector2(px + 4f, y), 13, HeadcountBrown, _body);
                 y += 18f;
             }
             y += 6f;
@@ -465,7 +465,7 @@ public partial class ScheduleBoardUI : Control
         // 능력치 대신 오늘의 기분을 그대로 다시 보여준다(카드에서 읽은 것과 같은 값).
         string mood = sim.GetDailyMood(employeeId);
         AddLabel(_info, "오늘의 기분", new Vector2(px, sy), 13, Ink, _body);
-        AddLabel(_info, string.IsNullOrEmpty(mood) ? "—" : mood, new Vector2(px, sy + 15), 19, InkRed, _serif);
+        AddLabel(_info, string.IsNullOrEmpty(mood) ? "-" : mood, new Vector2(px, sy + 15), 19, InkRed, _serif);
     }
 
     private void DrawCompare(FacilitySimulation sim, string employeeId, string roomId, float px, float py, float pw)
@@ -478,7 +478,7 @@ public partial class ScheduleBoardUI : Control
         var primary = stats.Count > 0 ? stats[0] : StatType.Tech;
         int value = edef.GetStat(primary);
 
-        AddLabel(_info, $"{edef.Codename}  ·  {StatIcon(primary)} {StatLabel(primary)} {value}", new Vector2(px, py), 16, Ink, _body);
+        AddLabel(_info, $"{edef.Codename}, {StatIcon(primary)} {StatLabel(primary)} {value}", new Vector2(px, py), 16, Ink, _body);
         AddLabel(_info, $"→ {rdef.DisplayName} 요구 능력: {StatLabel(primary)}", new Vector2(px, py + 28), 14, InkDim, _body);
 
         var (fitText, fitCol, fitNote) = FitTier(value);
@@ -736,7 +736,7 @@ public partial class ScheduleBoardUI : Control
             // 능력치가 잠긴 날 — 카드 아랫줄 전체를 "오늘의 기분"에 준다(작은 보조정보가 아니다).
             DrawString(_body, new Vector2(portraitX + 1f, moodBase - 1f), "오늘의 기분",
                 HorizontalAlignment.Left, -1, ViewFont.S(12), darkBg ? new Color(0.96f, 0.90f, 0.76f) : ink);
-            DrawString(_serif, new Vector2(portraitX + 84f, moodBase), string.IsNullOrEmpty(DailyMood) ? "—" : DailyMood,
+            DrawString(_serif, new Vector2(portraitX + 84f, moodBase), string.IsNullOrEmpty(DailyMood) ? "-" : DailyMood,
                 HorizontalAlignment.Left, Size.X - portraitX - 92f, ViewFont.S(17),
                 darkBg ? new Color(1f, 0.90f, 0.72f) : new Color(0.45f, 0.13f, 0.09f));
         }

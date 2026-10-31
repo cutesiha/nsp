@@ -90,7 +90,7 @@ public partial class HairThumbnailBaker : Node
         _at++;
         if (_at >= _queue.Count)
         {
-            GD.Print($"################ 썸네일 끝 — 성공 {_ok}개 · 실패 {_fail}개");
+            GD.Print($"################ 썸네일 끝 - 성공 {_ok}개, 실패 {_fail}개");
             GetTree().Quit();
             return;
         }

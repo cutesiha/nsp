@@ -346,9 +346,9 @@ public partial class InterviewCCTVView : Control
         ApplyStandingGlow(def);
         _namePlate.Visible = true;
         _nameLabel.Text = def.Codename;
-        _statusLabel.Text = !st.Alive ? "응답 없음 · 기록 종료"
-            : st.Isolated ? "격리됨 · 인터뷰 가능"
-            : "휴게 중 · 전화 연결 대기";
+        _statusLabel.Text = !st.Alive ? "응답 없음, 기록 종료"
+            : st.Isolated ? "격리됨, 인터뷰 가능"
+            : "휴게 중, 전화 연결 대기";
     }
 
     // --- 스탠딩 원화 배치 ------------------------------------------------

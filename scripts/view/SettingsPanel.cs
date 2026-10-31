@@ -310,7 +310,7 @@ public partial class SettingsPanel : CanvasLayer
         var row = Row();
         row.AddChild(Lbl("깜빡임 줄이기", Embedded ? 18 : 21, Ink, _body, labelW));
         var btn = DocButton(GameSettings.ReduceFlashing ? "켜짐" : "꺼짐", btnW);
-        btn.TooltipText = "번쩍임 · 점멸 · 화면 흔들림을 약하게 합니다(광과민성 발작 예방).";
+        btn.TooltipText = "번쩍임, 점멸, 화면 흔들림을 약하게 합니다(광과민성 발작 예방).";
         btn.Pressed += () =>
         {
             GameSettings.ReduceFlashing = !GameSettings.ReduceFlashing;

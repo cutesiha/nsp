@@ -72,13 +72,13 @@ public partial class SurfaceInputProbe : Node
         Ok(ctl != null, "제어실이 올라왔다");
         if (ctl == null) { Done(); return; }
 
-        GD.Print("\n################ 근무 배치 — 들어온 직후 ################");
+        GD.Print("\n################ 근무 배치 - 들어온 직후 ################");
         var before = Snapshot();
         Report(before);
         Shot("schedule_0s");
 
         // 놓아 주기(IdleReleaseSeconds = 4초)가 돌고도 남을 만큼 기다린다.
-        GD.Print("\n################ 8초 뒤 — 크기가 그대로인가 ################");
+        GD.Print("\n################ 8초 뒤 - 크기가 그대로인가 ################");
         await Seconds(8.0);
         var after = Snapshot();
         Report(after);
@@ -87,7 +87,7 @@ public partial class SurfaceInputProbe : Node
         // **지금 쓰이고 있는** 화면이 2×2 로 줄어 있지는 않은가. (0초 때의 뷰포트와
         // 비교하면 안 된다 — 그 사이에 화면이 바뀌면 옛 뷰포트는 줄어 있는 게 맞다.)
         foreach (var (name, vp, size) in after)
-            Ok(size.X > 4 && size.Y > 4, $"{name} — 쓰는 화면이 온전한 크기다 ({size})");
+            Ok(size.X > 4 && size.Y > 4, $"{name} - 쓰는 화면이 온전한 크기다 ({size})");
 
         GD.Print("\n################ 클릭 좌표가 뷰포트와 맞는가 ################");
         foreach (var s in Surfaces())
@@ -106,10 +106,10 @@ public partial class SurfaceInputProbe : Node
 
             var want = (Vector2)vp.Size * 0.5f;
             bool okv = mid.DistanceTo(want) <= 2f;
-            Ok(okv, $"{name} — 한가운데 클릭이 뷰포트 한가운데로 간다 (얻은 {mid.Round()} / 기대 {want.Round()})");
+            Ok(okv, $"{name} - 한가운데 클릭이 뷰포트 한가운데로 간다 (얻은 {mid.Round()} / 기대 {want.Round()})");
         }
 
-        GD.Print("\n################ 끝에서 끝까지 — 진짜 마우스로 눌러 본다 ################");
+        GD.Print("\n################ 끝에서 끝까지 - 진짜 마우스로 눌러 본다 ################");
         await ClickThrough(ctl);
 
         // **품질을 바꾼 직후에도 그대로인가.**
@@ -160,18 +160,18 @@ public partial class SurfaceInputProbe : Node
         var frame = vp.GetChild<Control>(0);
         float k = frame?.Scale.X ?? 1f;
 
-        GD.Print($"   카메라 {cam.Name} · 모니터 중심 월드 {screen.GlobalPosition} → 창 {cam.UnprojectPosition(screen.GlobalPosition).Round()}");
+        GD.Print($"   카메라 {cam.Name}, 모니터 중심 월드 {screen.GlobalPosition} → 창 {cam.UnprojectPosition(screen.GlobalPosition).Round()}");
         GD.Print($"   모니터 네 귀퉁이 창 좌표: " +
                  $"↖{cam.UnprojectPosition(screen.GlobalTransform * new Vector3(-0.5f, 0.5f, 0f)).Round()} " +
                  $"↗{cam.UnprojectPosition(screen.GlobalTransform * new Vector3(0.5f, 0.5f, 0f)).Round()} " +
                  $"↙{cam.UnprojectPosition(screen.GlobalTransform * new Vector3(-0.5f, -0.5f, 0f)).Round()} " +
                  $"↘{cam.UnprojectPosition(screen.GlobalTransform * new Vector3(0.5f, -0.5f, 0f)).Round()}");
-        GD.Print($"   뷰포트 {vp.Size} · 프레임 배율 {k:0.000} · 창 {DisplayServer.WindowGetSize()} · FlipV {screen.FlipV}");
+        GD.Print($"   뷰포트 {vp.Size}, 프레임 배율 {k:0.000}, 창 {DisplayServer.WindowGetSize()}, FlipV {screen.FlipV}");
 
         foreach (string emp in new[] { "sheep", "cat", "wolf" })
         {
             var card = map.RosterCardOf(emp);
-            if (card.Size.X <= 0f) { GD.Print($"   ({emp} 카드를 찾지 못했다 — 건너뜀)"); continue; }
+            if (card.Size.X <= 0f) { GD.Print($"   ({emp} 카드를 찾지 못했다 - 건너뜀)"); continue; }
 
             Vector2 inViewport = card.GetCenter() * k;
             Vector2 uv = inViewport / (Vector2)vp.Size;
@@ -179,8 +179,8 @@ public partial class SurfaceInputProbe : Node
             float ly = screen.FlipV ? uv.Y - 0.5f : 0.5f - uv.Y;
             Vector3 world = screen.GlobalTransform * new Vector3(lx, ly, 0f);
             Vector2 windowPos = cam.UnprojectPosition(world);
-            GD.Print($"   {emp}: 카드 {card} · 뷰포트 {inViewport.Round()} · uv ({uv.X:0.000},{uv.Y:0.000}) " +
-                     $"· 로컬 ({lx:0.000},{ly:0.000}) · 창 {windowPos.Round()}");
+            GD.Print($"   {emp}: 카드 {card}, 뷰포트 {inViewport.Round()}, uv ({uv.X:0.000},{uv.Y:0.000}) " +
+                     $"- 로컬 ({lx:0.000},{ly:0.000}), 창 {windowPos.Round()}");
 
             Push(new InputEventMouseButton
             {
@@ -255,7 +255,7 @@ public partial class SurfaceInputProbe : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (그림 없음 — {name})"); return; }
+        if (img == null) { GD.Print($"   (그림 없음 - {name})"); return; }
         img.SavePng($"{_dir}/surface_{name}.png");
     }
 

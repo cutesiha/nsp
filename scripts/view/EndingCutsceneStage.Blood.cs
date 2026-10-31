@@ -181,10 +181,12 @@ public partial class EndingCutsceneStage
 
     // 얼룩진 콘크리트 — 밝기 얼룩(알베도)과 패인 자국(노멀)을 노이즈로 깐다. 삼면 투사라 상자
     // 어느 면에 붙어도 늘어나지 않는다.
-    private static StandardMaterial3D GrimeMat(Color albedo, int seed, float uvScale, float bump, float rough = 0.92f)
+    // stain: 얼룩이 가장 진한 곳이 원래 색보다 얼마나 어두운가(처분실 0.58 = 짙게, 다른 장면은 옅게).
+    private static StandardMaterial3D GrimeMat(Color albedo, int seed, float uvScale, float bump, float rough = 0.92f,
+        float stain = 0.58f, float metal = 0f)
     {
         var tint = new Gradient();
-        tint.SetColor(0, new Color(0.42f, 0.40f, 0.40f));
+        tint.SetColor(0, new Color(1f - stain, 1f - stain * 1.03f, 1f - stain * 1.03f));
         tint.SetColor(1, new Color(1f, 0.98f, 0.97f));
         var spots = new FastNoiseLite
         {
@@ -207,6 +209,7 @@ public partial class EndingCutsceneStage
                 Width = 512, Height = 512, Seamless = true, Noise = pits, AsNormalMap = true, BumpStrength = bump,
             },
             Roughness = rough,
+            Metallic = metal,
             Uv1Triplanar = true,
             Uv1Scale = new Vector3(uvScale, uvScale, uvScale),
         };

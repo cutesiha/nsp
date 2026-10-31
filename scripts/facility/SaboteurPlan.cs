@@ -390,7 +390,7 @@ public sealed class SaboteurPlan
         sb.AppendLine($"재배치로 취소된 횟수: {CancelCount}   오늘 방해공작: {ActionCount}회");
         if (_blocked.Count > 0)
             sb.AppendLine("준비를 마치고 미룬 이유: "
-                          + string.Join(" · ", _blocked.Select(kv => $"{kv.Key} {kv.Value}회")));
+                          + string.Join(", ", _blocked.Select(kv => $"{kv.Key} {kv.Value}회")));
         sb.AppendLine("Preconditions:");
         foreach (string c in Conditions) sb.AppendLine($"  ✓ {c}");
         sb.AppendLine("Generated Clues:");

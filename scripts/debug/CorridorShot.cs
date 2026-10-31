@@ -53,7 +53,7 @@ public partial class CorridorShot : Node
 
         GD.Print("\n\n################ 복도 미니맵 ################");
         var net = sim.Corridors;
-        GD.Print($"   구간 {net.Segments.Count}개 · 차폐 가능 {net.Blockable.Count()}개 · 선택 {net.SelectedId}");
+        GD.Print($"   구간 {net.Segments.Count}개, 차폐 가능 {net.Blockable.Count()}개, 선택 {net.SelectedId}");
         Shot("01_평상시");
         ProbeLane();
 
@@ -65,7 +65,7 @@ public partial class CorridorShot : Node
         Shot("02_통로선택");
 
         net.Seal("corridor_east", out string why);
-        GD.Print($"   닫기 — {(string.IsNullOrEmpty(why) ? "수락" : why)}");
+        GD.Print($"   닫기 - {(string.IsNullOrEmpty(why) ? "수락" : why)}");
         await Seconds(0.4);
         Shot("03_닫히는중");
         await Seconds(1.0);
@@ -103,7 +103,7 @@ public partial class CorridorShot : Node
             sim.SetCorridorSurveillance(id);
             await Seconds(0.9);
             Ok(sim.SurveillanceCorridorId == id && string.IsNullOrEmpty(sim.SurveillanceTargetRoomId),
-                $"{s.CctvCameraId} 로 전환 — 작업실 감시는 꺼진다(관측 게이지도 안 찬다)");
+                $"{s.CctvCameraId} 로 전환 - 작업실 감시는 꺼진다(관측 게이지도 안 찬다)");
             ShotCctv($"10_{s.CctvCameraId}_먼시야");
         }
 
@@ -149,7 +149,7 @@ public partial class CorridorShot : Node
     private void ProbeLane()
     {
         var img = ControlRoom3DController.Instance?.FacilityViewport?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print("   (헤드리스 — 픽셀 확인 생략)"); return; }
+        if (img == null) { GD.Print("   (헤드리스 - 픽셀 확인 생략)"); return; }
         var map = FacilityMonitorView.Instance?.MinimapForTest;
         if (map == null) { GD.Print("   (미니맵을 찾지 못했다)"); return; }
 
@@ -169,7 +169,7 @@ public partial class CorridorShot : Node
     private void ShotCctv(string name)
     {
         var tex = ControlRoom3DController.Instance?.CctvViewport?.GetTexture();
-        if (tex == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (tex == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         tex.GetImage()?.SavePng($"{_dir}/corridor_{_shot:00}_{name}.png");
         _shot++;
     }
@@ -178,7 +178,7 @@ public partial class CorridorShot : Node
     private void Shot(string name)
     {
         var tex = ControlRoom3DController.Instance?.FacilityViewport?.GetTexture();
-        if (tex == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (tex == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         tex.GetImage()?.SavePng($"{_dir}/corridor_{_shot:00}_{name}.png");
         _shot++;
     }

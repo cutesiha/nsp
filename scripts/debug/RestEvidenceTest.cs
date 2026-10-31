@@ -75,7 +75,7 @@ public partial class RestEvidenceTest : Node
         Incident(LogEventType.TaskFailed, Storage, At(30));   // 고양이가 근무하던 방
 
         var session = new InterviewSession("cat");
-        foreach (var o in session.Openings) GD.Print($"   [근무 진술 {o.Index + 1}] ({o.QuestionId}) {o.Text}  · 꼬리질문 {o.FollowUps.Count}");
+        foreach (var o in session.Openings) GD.Print($"   [근무 진술 {o.Index + 1}] ({o.QuestionId}) {o.Text}, 꼬리질문 {o.FollowUps.Count}");
         Check(session.Openings.Count >= 2 && session.Openings.Count <= 4, $"진술 블록 2~4개 ({session.Openings.Count}개)");
         Check(session.Openings.All(o => !string.IsNullOrWhiteSpace(o.Text)), "빈 진술 블록이 없다");
         Check(session.Openings.Select(o => o.Text).Distinct().Count() == session.Openings.Count,
@@ -85,7 +85,7 @@ public partial class RestEvidenceTest : Node
     // ── 신규 B : Refresh 해도 최초 진술은 그대로 ───────────────────────────
     private void TestNewB()
     {
-        Head("신규 B", "Refresh · 탭 전환 후에도 최초 진술 유지");
+        Head("신규 B", "Refresh, 탭 전환 후에도 최초 진술 유지");
         Reset();
         Deploy();
         Incident(LogEventType.TaskFailed, Storage, At(30));
@@ -141,7 +141,7 @@ public partial class RestEvidenceTest : Node
     // ── 신규 D : CCTV 반복 기록 5개 → 화면에선 한 장, 원본은 5장 ─────────────
     private void TestNewD()
     {
-        Head("신규 D", "CCTV 반복 5건 → 범위 카드 1장 · 원본 5장 유지");
+        Head("신규 D", "CCTV 반복 5건 → 범위 카드 1장, 원본 5장 유지");
         Reset();
         Deploy();
         // 여우가 저장고에 계속 있고, 고양이가 드나든다(같은 인원 반복은 기록 단계에서 이미 걸러진다).
@@ -210,7 +210,7 @@ public partial class RestEvidenceTest : Node
     // ── 신규 G : 플레이어에게 보이는 시각은 한글 시간대 표기 ─────────────────
     private void TestNewG()
     {
-        Head("신규 G", "시각 표기 — 밤 · 새벽");
+        Head("신규 G", "시각 표기 - 밤, 새벽");
         var cases = new (int h, int m, string want)[]
         {
             (21, 20, "밤 9시 20분"), (22, 12, "밤 10시 12분"), (23, 15, "밤 11시 15분"),
@@ -239,7 +239,7 @@ public partial class RestEvidenceTest : Node
     // ── 신규 H : 표기가 바뀌어도 판정은 숫자 그대로 ─────────────────────────
     private void TestNewH()
     {
-        Head("신규 H", "표기 변경 후에도 AnchorTime · 모순 판정은 그대로");
+        Head("신규 H", "표기 변경 후에도 AnchorTime, 모순 판정은 그대로");
         Reset();
         Deploy();
         // 자정을 사이에 둔 2분 차이(밤 11시 59분 / 새벽 12시 1분) — 같은 순간으로 본다.
@@ -283,7 +283,7 @@ public partial class RestEvidenceTest : Node
         Check(move != null, "같은 이동이 조사 자료로 들어온다");
         if (move == null) return;
         GD.Print($"   자료: {move.OneLine}");
-        Check(move.FromRoomId == Storage && move.ToRoomId == Maintenance, "출발·도착 작업실이 그대로 실린다");
+        Check(move.FromRoomId == Storage && move.ToRoomId == Maintenance, "출발/도착 작업실이 그대로 실린다");
         Check(move.HasTime && Mathf.IsEqualApprox(move.AnchorTime, At(13)), "시각이 그대로 실린다");
         Check(move.PlayerObserved && move.Day == 1, "플레이어가 본 오늘 자료로 기록된다");
     }
@@ -291,7 +291,7 @@ public partial class RestEvidenceTest : Node
     // ── B : 플레이어가 보지 못한 내부 기록은 자료가 되지 않는다 ────────────
     private void TestB()
     {
-        Head("B", "통과 기록 · 목격자 없는 방해공작 → 자료 아님");
+        Head("B", "통과 기록, 목격자 없는 방해공작 → 자료 아님");
         Reset();
         Deploy();
 
@@ -304,7 +304,7 @@ public partial class RestEvidenceTest : Node
 
         var wolf = InterviewEvidenceBoard.Build("wolf");
         var fox = InterviewEvidenceBoard.Build("fox");
-        GD.Print($"   늑대 자료 {wolf.Count}장 · 여우 자료 {fox.Count}장 (기분 제외 " +
+        GD.Print($"   늑대 자료 {wolf.Count}장, 여우 자료 {fox.Count}장 (기분 제외 " +
                  $"{wolf.Count(e => e.Kind != EvidenceKind.Mood)}/{fox.Count(e => e.Kind != EvidenceKind.Mood)})");
 
         Check(!wolf.Any(e => e.Kind == EvidenceKind.Movement), "통과만 한 이동은 자료가 되지 않는다");
@@ -473,7 +473,7 @@ public partial class RestEvidenceTest : Node
     // ── I : 아무 대사나 자료가 되지는 않는다 ──────────────────────────────
     private void TestI()
     {
-        Head("I", "기분·소감·되묻기는 자료로 저장하지 않는다");
+        Head("I", "기분/소감/되묻기는 자료로 저장하지 않는다");
         Reset();
         Deploy();
         Incident(LogEventType.TaskFailed, Power, At(30));
@@ -502,16 +502,16 @@ public partial class RestEvidenceTest : Node
         session.Ask(InterviewQuestionFactory.Make("dog", incident, InterviewIntent.AskWhereAtIncident));
         var claimCard = session.Board.FirstOrDefault(e => e.Kind == EvidenceKind.OwnStatement
                                                           && e.SubjectEmployeeId == "dog");
-        GD.Print($"   위치 질문 1개 → 자료 {session.Board.Count}장 · 진술 카드 {claimCard?.OneLine ?? "없음"}");
+        GD.Print($"   위치 질문 1개 → 자료 {session.Board.Count}장, 진술 카드 {claimCard?.OneLine ?? "없음"}");
         Check(claimCard != null, "위치 진술은 자료로 남는다");
-        Check(claimCard != null && claimCard.CanAnchorPosition, "그 진술 카드는 시각·위치를 함께 가진다");
+        Check(claimCard != null && claimCard.CanAnchorPosition, "그 진술 카드는 시각/위치를 함께 가진다");
         Check(session.Board.Count >= before, "자료가 줄어들지 않는다");
     }
 
     // ── J : 심문 대상을 바꿔도 오늘의 자료는 남는다 ───────────────────────
     private void TestJ()
     {
-        Head("J", "직원을 바꿔도 조사 자료 유지 · DAY 가 바뀌면 분리");
+        Head("J", "직원을 바꿔도 조사 자료 유지, DAY 가 바뀌면 분리");
         Reset();
         Deploy();
         PlayerKnownEvidence.RecordCctvObservation(Maintenance, At(16), new[] { "cat" });
@@ -554,7 +554,7 @@ public partial class RestEvidenceTest : Node
         Check(oldClaims.All(e => e.Day < GameState.Instance.CurrentDay),
             "그 진술의 날짜는 **말한 날 그대로** 다(오늘 것으로 덮이지 않는다)");
         Check(oldClaims.All(e => InterviewEvidenceDisplay.Body(e).StartsWith("DAY")),
-            "카드에 지난 날짜가 적혀 있다 — 오늘 한 말로 읽히지 않는다");
+            "카드에 지난 날짜가 적혀 있다 - 오늘 한 말로 읽히지 않는다");
         Check(!day2.Any(e => e.Kind == EvidenceKind.Cctv),
             "지난 DAY 의 CCTV 기록은 섞이지 않는다");
     }
@@ -629,7 +629,7 @@ public partial class RestEvidenceTest : Node
 
         GD.Print($"   증언 카드: {say.OneLine}");
         // §5-4 — 증언 카드에 "무엇을 봤는지"가 남아야 한다(예전에는 방 이름만 남았다).
-        Check(say.Body == $"{"늑대"} · {Odd}", $"증언 카드 본문이 '늑대 · {Odd}' 다");
+        Check(say.Body == $"{"늑대"}: {Odd}", $"증언 카드 본문이 '늑대: {Odd}' 다");
         Check(say.BehaviorDetail == Odd, "그 내용이 BehaviorDetail 로도 실린다");
 
         var r = EvidenceContradiction.Check("cat", say, inc);
@@ -652,7 +652,7 @@ public partial class RestEvidenceTest : Node
         GD.Print($"   A: {turn.Answer}");
         var said = PlayerKnownEvidence.StatementsBy("cat");
         foreach (var st in said)
-            GD.Print($"   진술: {RoomNameOf(st.RoomId)} · {(st.HasTime ? DialogueClock.Text(st.AnchorTime) : "시각 없음")}");
+            GD.Print($"   진술: {RoomNameOf(st.RoomId)}, {(st.HasTime ? DialogueClock.Text(st.AnchorTime) : "시각 없음")}");
         Check(said.Count >= 1, "진술이 플레이어가 아는 자료로 남는다");
         Check(said.Any(x => x.HasTime), "그 진술에 시각이 붙는다");
 
@@ -682,7 +682,7 @@ public partial class RestEvidenceTest : Node
     // ── 신규 M : DAY0 교육이 듣는 Asked 이벤트가 그대로 돈다 ───────────────
     private void TestNewM()
     {
-        Head("신규 M", "InterviewSession.Asked — 교육 진행 조건");
+        Head("신규 M", "InterviewSession.Asked - 교육 진행 조건");
         Reset();
         Deploy();
         Incident(LogEventType.TaskFailed, Storage, At(30));
@@ -702,7 +702,7 @@ public partial class RestEvidenceTest : Node
         }
         finally { InterviewSession.Asked -= OnAsked; }
 
-        GD.Print($"   Asked {fired}회 · 대상 {who}");
+        GD.Print($"   Asked {fired}회, 대상 {who}");
         Check(fired >= 1, "질문할 때마다 Asked 가 발신된다");
         Check(who == "rabbit", "발신에 심문 대상 직원이 실린다");
     }
@@ -718,7 +718,7 @@ public partial class RestEvidenceTest : Node
     // 플레이어가 보지 못한 이동이 띠에 서게 되고, 그 순간 이 검사는 의미가 없어진다.
     private void TestNewN()
     {
-        Head("신규 N", "띠 시간표 — 구간 계산과 사고 세로선 (§5-14)");
+        Head("신규 N", "띠 시간표 - 구간 계산과 사고 세로선 (§5-14)");
         Reset();
 
         var rooms = new Dictionary<string, string>

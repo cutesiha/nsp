@@ -39,7 +39,7 @@ public partial class GhostScreamCallTest : Node
     // ── 40% · 하루 1회 ──────────────────────────────────────────────────
     private void TestRate()
     {
-        Head("A", "소멸 100회에 문의 전화 35~45% · 하루 1회 상한");
+        Head("A", "소멸 100회에 문의 전화 35~45%, 하루 1회 상한");
         var director = new IncomingCallDirector();
         float want = director.GhostScreamCallChance;
         GD.Print($"   설정된 확률 = {want * 100f:0}%");
@@ -59,7 +59,7 @@ public partial class GhostScreamCallTest : Node
             if (director.DebugGhostDispelled("power_room")) hit++;
         }
         GD.Print($"   소멸 100회: 문의 전화 {hit}회 ({hit}%)");
-        Check(hit >= 28 && hit <= 52, $"40% 근처다 ({hit}% — 100표본의 통계 오차 포함)");
+        Check(hit >= 28 && hit <= 52, $"40% 근처다 ({hit}% - 100표본의 통계 오차 포함)");
 
         // 하루 상한 — 같은 날 여러 번 소멸해도 한 번만.
         GameState.Instance.ResetRun(2);
@@ -106,7 +106,7 @@ public partial class GhostScreamCallTest : Node
             string c = IncomingCallDirector.GhostScreamCaller(ghostRoom);
             if (c == ids[1] || c == ids[2] || c == ids[3]) badCaller = true;
         }
-        Check(!badCaller, "기절 · 격리 · 사망한 직원은 걸지 않는다");
+        Check(!badCaller, "기절, 격리, 사망한 직원은 걸지 않는다");
 
         // 아무도 없으면 전화도 없다.
         foreach (string id in ids) Place(id, ghostRoom);
@@ -117,7 +117,7 @@ public partial class GhostScreamCallTest : Node
     // ── 대사가 여섯 명 모두 준비돼 있다 ─────────────────────────────────
     private void TestLines()
     {
-        Head("C", "여섯 명 모두 문의 · 두 가지 대답을 가지고 있다");
+        Head("C", "여섯 명 모두 문의, 두 가지 대답을 가지고 있다");
         Reset();
         foreach (string id in new[] { "rabbit", "cat", "dog", "fox", "sheep", "wolf" })
         {
@@ -130,11 +130,11 @@ public partial class GhostScreamCallTest : Node
                 GD.Print($"   {"",7}  ① {line.Choices[0].Text} → \"{line.Choices[0].Reply}\"");
                 GD.Print($"   {"",7}  ② {line.Choices[1].Text} → \"{line.Choices[1].Reply}\"");
             }
-            Check(ok, $"{id} 의 문의 · 대답이 모두 있다");
+            Check(ok, $"{id} 의 문의, 대답이 모두 있다");
         }
 
         // ── 개체가 흉내 내어 거는 가짜 전화(1013 QA 25번) ──────────────
-        Head("C-2", "가짜 전화 여섯 통 — 토큰 · 더듬는 말 · 두 가지 대답");
+        Head("C-2", "가짜 전화 여섯 통 - 토큰, 더듬는 말, 두 가지 대답");
         DialogueRepository.SetCallToken("ROOM", "정비실");
         DialogueRepository.SetCallToken("OTHER", "고양이");
         foreach (string id in new[] { "rabbit", "cat", "dog", "fox", "sheep", "wolf" })
@@ -162,7 +162,7 @@ public partial class GhostScreamCallTest : Node
     // ── 단서가 되지 않는다 ──────────────────────────────────────────────
     private void TestNotAClue()
     {
-        Head("D", "통화 기록 · 조사 자료 · 근무 기억 어디에도 남지 않는다");
+        Head("D", "통화 기록, 조사 자료, 근무 기억 어디에도 남지 않는다");
         Reset();
         var ids = _sim.GetActiveEmployeeIds().ToList();
         var rooms = _sim.GetRoomIds().Where(r => _sim.GetRoomDef(r)?.IsRestricted == false).ToList();

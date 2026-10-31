@@ -296,7 +296,7 @@ public partial class AchievementArchiveView : Control
         // 아래 조작줄.
         if (!Embedded) Button(BackRect(), BackLabel, BackHover);
         DrawString(_font, new Vector2(0f, FootY + 26f),
-            Embedded ? "↑ ↓ 이동   휠·막대 끌기   ESC 닫기" : "↑ ↓ 이동   휠·막대 끌기   ESC 뒤로",
+            Embedded ? "↑ ↓ 이동   휠/막대 끌기   ESC 닫기" : "↑ ↓ 이동   휠/막대 끌기   ESC 뒤로",
             HorizontalAlignment.Center, Canvas.X, ViewFont.S(11), Deep);
 
         // 주사선.

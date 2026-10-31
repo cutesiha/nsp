@@ -45,6 +45,7 @@ public static class EndingState
         _last = kind;
         // 단기 근무를 끝까지 마쳤다(엔딩 넷 중 무엇이든) — 정규(장기) 근무가 열린다.
         if (kind != Kind.None && GameModes.Current == GameMode.Competition) _shortCleared = true;
+        if (kind != Kind.None) _seen |= 1 << (int)kind;
         Save();
     }
 
@@ -60,11 +61,40 @@ public static class EndingState
         get { Load(); return _shortCleared; }
     }
 
+    // ── 엔딩 수집 (2026-10-31) ──────────────────────────────────────────
+    //
+    // 네 엔딩은 두 축으로 갈린다 - 코어를 목표까지 복구했는가, 최종 보고서의 지목이 맞았는가.
+    // 그 구조가 플레이어에게 보여야 "다른 엔딩도 있다" 가 전해진다. 타이틀 모니터2 의 엔딩 칸과
+    // 근무 기록 화면이 이 목록을 그대로 읽는다. 본 엔딩은 파일에 남는다(에디터는 F5 마다 비운다).
+    public sealed record Entry(Kind Kind, string Tag, string Name, string Rule);
+
+    public static readonly Entry[] Catalog =
+    {
+        new(Kind.True, "TRUE", "근무 종료", "코어 복구 목표 달성 + 결번 지목 성공"),
+        new(Kind.Loose, "LOOSE", "복구 완료, 대상 미확인", "코어 복구 목표 달성 + 지목 실패"),
+        new(Kind.Late, "LATE", "대상 확인, 복구 실패", "코어 복구 실패 + 결번 지목 성공"),
+        new(Kind.Bad, "BAD", "복구 실패", "코어 복구 실패 + 지목 실패"),
+    };
+
+    private static int _seen;
+
+    public static bool Seen(Kind k)
+    {
+        Load();
+        return k != Kind.None && (_seen & (1 << (int)k)) != 0;
+    }
+
+    public static int SeenCount
+    {
+        get { int n = 0; foreach (var e in Catalog) if (Seen(e.Kind)) n++; return n; }
+    }
+
     private static void Save()
     {
         var cfg = new ConfigFile();
         cfg.SetValue(Section, "last", (int)_last);
         cfg.SetValue(UnlockSection, "short_cleared", _shortCleared);
+        cfg.SetValue(UnlockSection, "endings_seen", _seen);
         cfg.Save(Path);
     }
 
@@ -101,5 +131,8 @@ public static class EndingState
         int raw = (int)cfg.GetValue(Section, "last", 0);
         _last = System.Enum.IsDefined(typeof(Kind), raw) ? (Kind)raw : Kind.None;
         _shortCleared = (bool)cfg.GetValue(UnlockSection, "short_cleared", false);
+        _seen = (int)cfg.GetValue(UnlockSection, "endings_seen", 0);
+        // 예전 저장 파일에는 본 엔딩 목록이 없다 - 마지막 엔딩만이라도 본 것으로 친다.
+        if (_last != Kind.None) _seen |= 1 << (int)_last;
     }
 }

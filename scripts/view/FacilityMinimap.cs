@@ -217,7 +217,7 @@ public partial class FacilityMinimap : Control
     private static string PopupText(string desc)
     {
         if (string.IsNullOrEmpty(desc)) return "";
-        var parts = desc.Split(" · ");
+        var parts = desc.Split(", ");
         if (parts.Length < 2) return desc.Contains("수리") ? "수리 완료" : "완료";
         var outp = new List<string>();
         foreach (var raw in parts.Skip(1))
@@ -828,7 +828,7 @@ public partial class FacilityMinimap : Control
         // 밝은 글자를 얹어 양쪽 배경에서 모두 읽히게 한다.
         string text = here >= need && risk.StabilizeNeedSeconds > 0f
             ? $"안정화 {risk.StabilizeDoneSeconds:0.#}/{risk.StabilizeNeedSeconds:0}s"
-            : $"▲ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
+            : $"▲ {risk.WarningRemainingSeconds:0}s, {here}/{need}";
         var at = new Vector2(bar.Position.X, bar.Position.Y + 12f);
         DrawString(_font, at + new Vector2(1f, 1f), text, HorizontalAlignment.Center,
             bar.Size.X, ViewFont.S(10), new Color(0.08f, 0.05f, 0f, 0.9f));
@@ -1260,7 +1260,7 @@ public partial class FacilityMinimap : Control
         {
             // 거부된 이유를 그 자리에서 말해 준다(봉쇄 · 제한 구역 · 기절).
             string why =
-                emp.Incapacitated ? "기절 — 다른 직원이 와서 옮겨야 합니다"
+                emp.Incapacitated ? "기절 - 다른 직원이 와서 옮겨야 합니다"
                 : sim.GetRoomState(roomId)?.Locked == true ? "봉쇄된 구역입니다"
                 : sim.GetRoomDef(roomId)?.IsRestricted == true ? "제한 구역입니다"
                 : "지금은 보낼 수 없습니다";

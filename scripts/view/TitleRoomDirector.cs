@@ -79,9 +79,9 @@ public partial class TitleRoomDirector : Node
     // 책상 장비 ↔ 명령 연결. 라벨은 화면 아래 힌트 줄에 뜬다.
     private static readonly (string Id, string Hint)[] PropHints =
     {
-        ("archive", "전화기  —  ARCHIVE  ·  도전과제 기록"),
-        ("config", "관리자 패드  —  SYSTEM CONFIG  ·  환경 설정"),
-        ("quit", "전력 패널  —  SHUT DOWN  ·  시스템 종료"),
+        ("archive", "전화기: ARCHIVE / 도전과제 기록"),
+        ("config", "관리자 패드: SYSTEM CONFIG / 환경 설정"),
+        ("quit", "전력 패널: SHUT DOWN / 시스템 종료"),
     };
 
     private ControlRoom3DController _ctl;
@@ -101,7 +101,7 @@ public partial class TitleRoomDirector : Node
     private Phase _phase = Phase.Off;
 
     // 기록실 · 근무 유형 선택을 보는 동안의 조작 안내.
-    private const string ArchiveHint = "↑ ↓ 이동   휠·막대 끌기   ESC 뒤로";
+    private const string ArchiveHint = "↑ ↓ 이동   휠/막대 끌기   ESC 뒤로";
     private const string ModeHint = "↑ ↓ 이동   ENTER 확정   ESC 취소";
     // 휠 한 칸에 굴러가는 거리(논리 px). 한 줄(78px)보다 조금 작게 — 줄이 툭툭 끊기지 않는다.
     private const float ArchiveWheelStep = 62f;
@@ -467,7 +467,7 @@ public partial class TitleRoomDirector : Node
             return;
         }
         GameModes.Select(mode);
-        GD.Print($"[근무 유형: {GameModes.DisplayName(mode)} — {GameModes.MaxDays}일]");
+        GD.Print($"[근무 유형: {GameModes.DisplayName(mode)} - {GameModes.MaxDays}일]");
         Sfx.Instance?.Play("relay_click", -5f);
         _ = StartShiftAsync();
     }
@@ -702,6 +702,13 @@ public partial class TitleRoomDirector : Node
                 GetViewport().SetInputAsHandled();
                 return;
             }
+            if (staffBtn == TitleStaffIdView.HelpId)
+            {
+                TitleStaffIdView.Instance.OpenHelp();
+                Sfx.Instance?.Play("relay_click", -8f);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
             if (staffBtn == TitleStaffIdView.SourcesCloseId)
             {
                 TitleStaffIdView.Instance.CloseSources();
@@ -829,7 +836,10 @@ public partial class TitleRoomDirector : Node
         if (btn.Length > 0)
         {
             TitleStaffIdView.Instance.SetHover(-1);
-            _hint.SetLine(btn == TitleStaffIdView.SourcesId ? "외부 리소스 출처를 봅니다." : "출처 창을 닫습니다.");
+            _hint.SetLine(btn == TitleStaffIdView.SourcesId ? "외부 리소스 출처를 봅니다."
+                : btn == TitleStaffIdView.HelpId ? "조작 방법과 근무 목표를 봅니다."
+                : btn == TitleStaffIdView.SourcesCloseId ? "창을 닫습니다."
+                : TitleStaffIdView.EndingHint(btn));
             return;
         }
         if (TitleStaffIdView.Instance.SetHover(card)) Sfx.Instance?.Play("tick", -20f);

@@ -36,22 +36,22 @@ public partial class RepairTimeTest : Node
 
     private void RunAll()
     {
-        GD.Print("\n\n################ 경고 안정화 · 고장 수리 소요 시간 ################");
-        GD.Print($"   하루 {Config.Instance.Data.DayLengthSeconds:0}초 · 근무 중 이동 속도 {Config.Instance.Data.EmployeeMoveSpeedInShift:0}");
+        GD.Print("\n\n################ 경고 안정화, 고장 수리 소요 시간 ################");
+        GD.Print($"   하루 {Config.Instance.Data.DayLengthSeconds:0}초, 근무 중 이동 속도 {Config.Instance.Data.EmployeeMoveSpeedInShift:0}");
 
-        GD.Print("\n===== 경고(노랑) — 뜨고 나서 풀릴 때까지 =====");
+        GD.Print("\n===== 경고(노랑) - 뜨고 나서 풀릴 때까지 =====");
         GD.Print("   방            필요  제한   작업   걸어가기   실제 총   결과");
         foreach (string room in Rooms) MeasureWarning(room);
 
-        GD.Print("\n===== 고장(빨강) — 나고 나서 고쳐질 때까지 =====");
+        GD.Print("\n===== 고장(빨강) - 나고 나서 고쳐질 때까지 =====");
         GD.Print("   방            필요  작업   걸어가기   실제 총");
         foreach (string room in Rooms) MeasureRepair(room);
 
-        GD.Print("\n===== 승인 실패(무응답 · 거절 · 미로 실패) 시 수리 =====");
+        GD.Print("\n===== 승인 실패(무응답, 거절, 미로 실패) 시 수리 =====");
         GD.Print("   방            정상   실패 후");
         foreach (string room in Rooms) MeasurePenalty(room);
 
-        GD.Print("\n===== 최악 — 스트레스 '위험' 인 인원으로 수리할 때 =====");
+        GD.Print("\n===== 최악 - 스트레스 '위험' 인 인원으로 수리할 때 =====");
         GD.Print("   방            정상   스트레스 위험");
         foreach (string room in Rooms) MeasureStressed(room);
 
@@ -64,7 +64,7 @@ public partial class RepairTimeTest : Node
         var ops = OpsProfile.Room(room);
         if (ops == null || string.IsNullOrEmpty(ops.WarningTitle))
         {
-            GD.Print($"   {Name(room),-12}  — 경고 없음(운영 규칙에 설정되지 않은 방)");
+            GD.Print($"   {Name(room),-12} - 경고 없음(운영 규칙에 설정되지 않은 방)");
             return;
         }
 
@@ -77,7 +77,7 @@ public partial class RepairTimeTest : Node
 
         RaiseWarning(ops, need, ops.WarningResponseSeconds);
         var w = _sim.Warnings.ForRoom(room);
-        if (w == null) { GD.Print($"   {Name(room),-12}  — 경고를 띄우지 못했다"); return; }
+        if (w == null) { GD.Print($"   {Name(room),-12} - 경고를 띄우지 못했다"); return; }
         float stabilize = w.WorkNeeded;
 
         // 관리자가 곧바로 사람을 보낸다.

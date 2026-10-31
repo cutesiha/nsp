@@ -160,7 +160,7 @@ public partial class DeathShot : Node
         Shot("02_문앞_유예");
 
         for (int i = 0; i < 1800 && !AdminDeathDirector.IsPlaying; i++) await Frame();
-        Ok(AdminDeathDirector.IsPlaying, "침입 — 사망 연출이 시작됐다");
+        Ok(AdminDeathDirector.IsPlaying, "침입 - 사망 연출이 시작됐다");
 
         // ① 정적 1.2초 — 여기서는 **아무것도 없어야 한다.** 한 장만 찍어
         //    화면이 조용한지(붉지 않은지, 괴물이 안 보이는지)만 확인한다.
@@ -191,7 +191,7 @@ public partial class DeathShot : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (img == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         img.SavePng($"{_dir}/death_{_shot:00}_{name}.png");
         _shot++;
     }

@@ -161,7 +161,7 @@ public partial class AdminPadShot : Node
         // 위의 파지 규칙 결과는 "숨기지 않았다면 어땠을까" 를 기록해 두는 용도다.
         if (pad.HideLeftArmWhileHolding)
         {
-            GD.Print("   [파지] HideLeftArmWhileHolding = ON — 든 동안 왼팔 메시를 숨긴다."
+            GD.Print("   [파지] HideLeftArmWhileHolding = ON - 든 동안 왼팔 메시를 숨긴다."
                      + " 화면 위에 손 픽셀이 0 인 것은 이 스위치로 보장된다.");
             return true;
         }
@@ -203,12 +203,12 @@ public partial class AdminPadShot : Node
         var cam0 = GetViewport().GetCamera3D();
         float facing = cam0 != null ? n.Dot((cam0.GlobalPosition - center).Normalized()) : 1f;
         if (facing < 0f)
-            GD.Print($"   [진단] 화면이 눈 반대쪽을 본다(법선·시선={facing:0.000}) — 화면 트랜스폼이 뒤집혔다."
-                     + $" 법선={n.Snapped(Vector3.One * 0.001f)} · 화면스케일={screen.GlobalTransform.Basis.Scale.Snapped(Vector3.One * 0.001f)}");
+            GD.Print($"   [진단] 화면이 눈 반대쪽을 본다(법선/시선={facing:0.000}) - 화면 트랜스폼이 뒤집혔다."
+                     + $" 법선={n.Snapped(Vector3.One * 0.001f)}, 화면스케일={screen.GlobalTransform.Basis.Scale.Snapped(Vector3.One * 0.001f)}");
 
         var bad = new List<(string Name, float D)>();
         float worstName = float.MinValue;
-        string worst = "—";
+        string worst = "-";
         foreach (string b in LeftHandBones)
         {
             int idx = skel.FindBone(b);
@@ -221,7 +221,7 @@ public partial class AdminPadShot : Node
 
         // 메시 꼭짓점 — 같은 평면 잣대(본보다 엄격하다).
         float meshWorst = float.MinValue;
-        string meshWho = "—";
+        string meshWho = "-";
         int meshBad = 0;
         foreach (var node in skel.GetChildren())
         {
@@ -243,12 +243,12 @@ public partial class AdminPadShot : Node
         // 본은 지시받은 대로 5mm 여유까지 요구하고, 살(메시)은 "평면보다 앞이 아닐 것"만 요구한다.
         bool ok = bad.Count == 0 && meshWorst < 0f;
         GD.Print($"   [파지 규칙] 본 {LeftHandBones.Length}개 중 위반 {bad.Count}개(기준 −5.0mm)"
-                 + $" · 손 메시 여유 {meshWorst * 1000f:+0.0;-0.0}mm (기준 0 미만, −5mm 미달 꼭짓점 {meshBad}개)"
-                 + $" — 가장 앞선 본 {worst} {worstName * 1000f:+0.0;-0.0}mm · 가장 앞선 메시 {meshWho}");
+                 + $", 손 메시 여유 {meshWorst * 1000f:+0.0;-0.0}mm (기준 0 미만, −5mm 미달 꼭짓점 {meshBad}개)"
+                 + $" - 가장 앞선 본 {worst} {worstName * 1000f:+0.0;-0.0}mm, 가장 앞선 메시 {meshWho}");
         foreach (var (name, d) in bad)
             GD.Print($"      ✖ {name} 이(가) 화면 평면 {(d + BehindMarginM) * 1000f:0.0}mm 만큼 침범 (dot={d * 1000f:+0.0;-0.0}mm)");
-        GD.Print(ok ? "   [파지 규칙] PASS — 왼손 전체가 화면 평면 뒤에 있다"
-                    : "   [파지 규칙] FAIL — 왼손이 화면 평면 앞으로 넘어왔다");
+        GD.Print(ok ? "   [파지 규칙] PASS - 왼손 전체가 화면 평면 뒤에 있다"
+                    : "   [파지 규칙] FAIL - 왼손이 화면 평면 앞으로 넘어왔다");
         return ok;
     }
 
@@ -330,7 +330,7 @@ public partial class AdminPadShot : Node
         mark.SavePng(_dir + "/pose_diff.png");
         noHand.SavePng(_dir + "/pose_nohand.png");
         return $"시점 픽셀 검사: 손이 바뀐 픽셀 {changed * 4}개 중 패드 화면 위 {onScreen * 4}개 (0 이어야 한다)"
-               + (onScreen > 0 ? $" · 가려진 자리 u {u0:0.000}~{u1:0.000} v {v0:0.000}~{v1:0.000}" : "");
+               + (onScreen > 0 ? $", 가려진 자리 u {u0:0.000}~{u1:0.000} v {v0:0.000}~{v1:0.000}" : "");
     }
 
     // 왼손 메시가 패드 본체 · 화면과 겹치는 양(꼭짓점 단위, 패드 본체 로컬 좌표).
@@ -339,26 +339,26 @@ public partial class AdminPadShot : Node
         public int Verts;
         public int Pierce;              // 본체 속으로 들어간 꼭짓점
         public float PierceMm;          // 가장 깊이 들어간 양(mm)
-        public string PierceWho = "—";
+        public string PierceWho = "-";
         public int OverScreen;          // 화면 표시 영역을 앞에서 가린 꼭짓점
         public float ScreenIntrudeMm;   // 화면 왼쪽 변에서 안쪽으로 들어온 최대 깊이(mm)
-        public string ScreenWho = "—";
+        public string ScreenWho = "-";
         public int FrontFace;           // 앞면(베젤 포함) 위로 올라온 꼭짓점 — 엄지만 허용
-        public string FrontWho = "—";
+        public string FrontWho = "-";
         public float ThumbEdgeMm;       // 엄지가 화면 왼쪽 변에서 얼마나 떨어져 있나(mm, +면 안전)
         public int EyeBlock;            // 플레이어 시점에서 화면 표시 영역을 실제로 가린 꼭짓점
-        public string EyeWho = "—";
+        public string EyeWho = "-";
         public float EyeU0 = 9f, EyeU1 = -9f, EyeV0 = 9f, EyeV1 = -9f;   // 가려진 화면 범위(0~1)
         public float TxMin = 9e9f, TxMax = -9e9f, TyMin = 9e9f, TyMax = -9e9f;   // 엄지 범위(본체 로컬, mm)
 
         public bool Ok => Pierce == 0 && OverScreen == 0 && EyeBlock == 0;
 
         public string Line() =>
-            $"침투 {Pierce}점({PierceMm:0.0}mm, {PierceWho}) · 화면가림 {OverScreen}점({ScreenIntrudeMm:0.0}mm, {ScreenWho})"
-            + $" · 시점가림 {EyeBlock}점({EyeWho}"
+            $"침투 {Pierce}점({PierceMm:0.0}mm, {PierceWho}), 화면가림 {OverScreen}점({ScreenIntrudeMm:0.0}mm, {ScreenWho})"
+            + $", 시점가림 {EyeBlock}점({EyeWho}"
             + (EyeBlock > 0 ? $", u {EyeU0:0.00}~{EyeU1:0.00} v {EyeV0:0.00}~{EyeV1:0.00}" : "") + ")"
-            + $" · 앞면 {FrontFace}점({FrontWho}) · 엄지여유 {ThumbEdgeMm:0.0}mm"
-            + $" · 엄지 x[{TxMin:0} ~ {TxMax:0}] y[{TyMin:0} ~ {TyMax:0}]mm · 꼭짓점 {Verts}";
+            + $", 앞면 {FrontFace}점({FrontWho}), 엄지여유 {ThumbEdgeMm:0.0}mm"
+            + $", 엄지 x[{TxMin:0} ~ {TxMax:0}] y[{TyMin:0} ~ {TyMax:0}]mm, 꼭짓점 {Verts}";
     }
 
     private static string PartOf(string meshName) =>
@@ -525,7 +525,7 @@ public partial class AdminPadShot : Node
         for (int i = 0; i < 900 && !pad.IsHeld; i++) await Frame();
         ulong up = Time.GetTicksMsec() - t0;
         await Seconds(0.9);
-        GD.Print($"   [속도] 집어 들기 {up / 1000f:0.00}초 · 내려놓기 {down / 1000f:0.00}초 (LiftSeconds={pad.LiftSeconds:0.00})");
+        GD.Print($"   [속도] 집어 들기 {up / 1000f:0.00}초, 내려놓기 {down / 1000f:0.00}초 (LiftSeconds={pad.LiftSeconds:0.00})");
     }
 
     // 값을 바꾼 뒤에는 반드시 내려놨다가 다시 집어 든다.
@@ -584,12 +584,12 @@ public partial class AdminPadShot : Node
             maxCorner = Mathf.Max(maxCorner, dc); maxBonePos = Mathf.Max(maxBonePos, dp); maxBoneRot = Mathf.Max(maxBoneRot, dr);
             maxCamPos = Mathf.Max(maxCamPos, dcp); maxCamRot = Mathf.Max(maxCamRot, dcr);
             cornersP = c; bonesP = bones; camP = cx;
-            GD.Print($"[클릭 {i}] 직전 대비 모서리 {dc:0.0000}px · 왼팔뼈 {dp * 1000f:0.0000}mm / 회전Δ {dr:E2} · 카메라 {dcp * 1000f:0.0000}mm / 회전Δ {dcr:E2}"
-                     + $"  ‖ 기준 대비 모서리 {ec:0.0000}px · 왼팔뼈 {ep * 1000f:0.0000}mm / 회전Δ {er:E2} · 카메라 {ecp * 1000f:0.0000}mm / 회전Δ {ecr:E2}");
+            GD.Print($"[클릭 {i}] 직전 대비 모서리 {dc:0.0000}px, 왼팔뼈 {dp * 1000f:0.0000}mm / 회전Δ {dr:E2}, 카메라 {dcp * 1000f:0.0000}mm / 회전Δ {dcr:E2}"
+                     + $"  ‖ 기준 대비 모서리 {ec:0.0000}px, 왼팔뼈 {ep * 1000f:0.0000}mm / 회전Δ {er:E2}, 카메라 {ecp * 1000f:0.0000}mm / 회전Δ {ecr:E2}");
         }
         Save("click_2_after.png");
-        GD.Print($"[클릭 5회 최대 · 클릭 사이 변화] 모서리 {maxCorner:0.0000}px · 왼팔뼈 {maxBonePos * 1000f:0.0000}mm / 회전Δ {maxBoneRot:E2}"
-                 + $" · 카메라 {maxCamPos * 1000f:0.0000}mm / 회전Δ {maxCamRot:E2}");
+        GD.Print($"[클릭 5회 최대, 클릭 사이 변화] 모서리 {maxCorner:0.0000}px, 왼팔뼈 {maxBonePos * 1000f:0.0000}mm / 회전Δ {maxBoneRot:E2}"
+                 + $", 카메라 {maxCamPos * 1000f:0.0000}mm / 회전Δ {maxCamRot:E2}");
     }
 
     private static (float, float, float, float, float) Diff(
@@ -683,7 +683,7 @@ public partial class AdminPadShot : Node
                 Vector2 pl = cam.UnprojectPosition(lm), pr = cam.UnprojectPosition(rm);
                 Vector2 d = pr - pl;
                 width += $" 기울기 {Mathf.RadToDeg(Mathf.Atan2(d.Y, d.X)):+0.0;-0.0}°"
-                       + $"(좌변중점 y={pl.Y:0} · 우변중점 y={pr.Y:0} — y 가 클수록 아래)";
+                       + $"(좌변중점 y={pl.Y:0}, 우변중점 y={pr.Y:0} - y 가 클수록 아래)";
             }
         }
         GD.Print($"[{label}] open={pad.IsOpen} held={pad.IsHeld} pause={AdminPad3D.PausesGame} screen={pad.IsScreenOn}"

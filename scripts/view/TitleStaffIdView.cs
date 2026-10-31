@@ -104,7 +104,7 @@ public partial class TitleStaffIdView : Control
         _poweredOn = false;
         _hover = -1;
         _scanning = false;
-        SourcesOpen = false;
+        _panel = "";
         _btnHover = "";
         foreach (var c in _cards) { c.Revealed = false; c.Verified = false; }
         QueueRedraw();
@@ -114,7 +114,7 @@ public partial class TitleStaffIdView : Control
     public void RunScan(Action onDone)
     {
         if (!_poweredOn || _cards.Count == 0) { onDone?.Invoke(); return; }
-        SourcesOpen = false;
+        _panel = "";
         _btnHover = "";
         _scanning = true;
         _scanY = 130f;
@@ -136,7 +136,14 @@ public partial class TitleStaffIdView : Control
     private static readonly Rect2 SourcesPanel = new(28f, 26f, Canvas.X - 56f, Canvas.Y - 52f);
     private static readonly Rect2 SourcesClose = new(Canvas.X - 28f - 50f, 34f, 40f, 40f);
 
-    public bool SourcesOpen { get; private set; }
+    // 지금 덮여 있는 창 - "" 없음, "sources" 출처, "help" 조작 안내. 어느 쪽이든 X · ESC 로 닫는다.
+    private string _panel = "";
+    public bool SourcesOpen => _panel.Length > 0;
+    public bool HelpOpen => _panel == "help";
+
+    // 「조작 안내」 버튼 - 오른쪽 위(직원 수 옆). 처음 하는 사람 · 심사위원이 조작과 목표를 한 장에서 본다.
+    public const string HelpId = "help";
+    private static readonly Rect2 HelpButton = new(Canvas.X - 196f, 56f, 148f, 30f);
     private string _btnHover = "";
 
     // 이 캔버스 좌표에 있는 버튼("sources" · "sources_close" · 없으면 "").
@@ -144,7 +151,50 @@ public partial class TitleStaffIdView : Control
     {
         if (!_poweredOn || _scanning) return "";
         if (SourcesOpen) return SourcesClose.Grow(4f).HasPoint(p) ? SourcesCloseId : "";
+        for (int i = 0; i < EndingState.Catalog.Length; i++)
+            if (EndingSlot(i).HasPoint(p)) return EndingPrefix + i;
+        if (HelpButton.HasPoint(p)) return HelpId;
         return SourcesButton.HasPoint(p) ? SourcesId : "";
+    }
+
+    // ── 엔딩 수집 칸 (2026-10-31) ─────────────────────────────────────────
+    //
+    // 출처 버튼 왼쪽에 엔딩 네 칸. 본 엔딩은 이름표(TRUE · LOOSE …)가, 못 본 엔딩은 「? ? ?」 가 뜬다.
+    // 가리키면 아래 안내 줄에 그 엔딩이 갈리는 조건이 뜬다 — 네 엔딩이 두 축(코어 복구 · 지목)으로
+    // 갈린다는 구조가 첫 화면에서 보이게.
+    public const string EndingPrefix = "ending:";
+    private const float EndingLeft = 162f, EndingTop = 548f, EndingW = 100f, EndingH = 30f, EndingGap = 6f;
+
+    private static Rect2 EndingSlot(int i) => new(EndingLeft + i * (EndingW + EndingGap), EndingTop, EndingW, EndingH);
+
+    // 엔딩 칸에 마우스를 올렸을 때 안내 줄에 띄울 문장. 엔딩 칸이 아니면 "".
+    public static string EndingHint(string id)
+    {
+        if (id == null || !id.StartsWith(EndingPrefix) || !int.TryParse(id[EndingPrefix.Length..], out int i)) return "";
+        if (i < 0 || i >= EndingState.Catalog.Length) return "";
+        var e = EndingState.Catalog[i];
+        return EndingState.Seen(e.Kind)
+            ? $"{e.Tag} END: {e.Name}   ({e.Rule})"
+            : $"아직 보지 못한 엔딩   ({e.Rule})";
+    }
+
+    private void DrawEndingSlots()
+    {
+        int seen = EndingState.SeenCount;
+        DrawString(_font, new Vector2(48f, EndingTop + 21f), $"ENDING {seen}/{EndingState.Catalog.Length}",
+            HorizontalAlignment.Left, EndingLeft - 50f, ViewFont.S(12), seen > 0 ? Mint : Dim);
+        for (int i = 0; i < EndingState.Catalog.Length; i++)
+        {
+            var e = EndingState.Catalog[i];
+            bool got = EndingState.Seen(e.Kind);
+            bool on = _btnHover == EndingPrefix + i;
+            var r = EndingSlot(i);
+            var edge = got ? (e.Kind == EndingState.Kind.True ? Mint : Ink) : Dim;
+            if (on) DrawRect(r, edge with { A = 0.14f });
+            DrawRect(r, edge with { A = got ? (on ? 0.95f : 0.6f) : (on ? 0.7f : 0.3f) }, false, on ? 1.6f : 1f);
+            DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 21f), got ? e.Tag : "? ? ?",
+                HorizontalAlignment.Center, r.Size.X, ViewFont.S(13), got ? (on ? Ink : edge) : Dim with { A = on ? 0.9f : 0.6f });
+        }
     }
 
     // 커서가 올라간 버튼. 바뀌었으면 true(효과음용).
@@ -157,17 +207,25 @@ public partial class TitleStaffIdView : Control
         return id.Length > 0;
     }
 
+    public void OpenHelp()
+    {
+        if (!_poweredOn) return;
+        _panel = "help";
+        _hover = -1;
+        QueueRedraw();
+    }
+
     public void OpenSources()
     {
         if (!_poweredOn) return;
-        SourcesOpen = true;
+        _panel = "sources";
         _hover = -1;
         QueueRedraw();
     }
 
     public void CloseSources()
     {
-        SourcesOpen = false;
+        _panel = "";
         _btnHover = "";
         QueueRedraw();
     }
@@ -291,10 +349,10 @@ public partial class TitleStaffIdView : Control
         DrawRect(new Rect2(16f, 14f, Canvas.X - 32f, Canvas.Y - 28f), Mint with { A = 0.22f }, false, 1.4f);
         DrawString(_font, new Vector2(48f, 76f), "STAFF IDENTIFICATION", HorizontalAlignment.Left,
             520f, ViewFont.S(20), Mint);
-        DrawString(_font, new Vector2(48f, 102f), "제7지하시설 · 야간근무 편성", HorizontalAlignment.Left,
+        DrawString(_font, new Vector2(48f, 102f), "제7지하시설 / 야간근무 편성", HorizontalAlignment.Left,
             520f, ViewFont.S(13), Dim);
-        DrawString(_font, new Vector2(Canvas.X - 200f, 80f), $"{_cards.Count} / {_cards.Count}",
-            HorizontalAlignment.Right, 160f, ViewFont.S(16), Dim);
+        DrawString(_font, new Vector2(Canvas.X - 330f, 80f), $"{_cards.Count} / {_cards.Count}",
+            HorizontalAlignment.Right, 120f, ViewFont.S(16), Dim);
         DrawRect(new Rect2(48f, 120f, Canvas.X - 96f, 1f), Mint with { A = 0.20f });
 
         for (int i = 0; i < _cards.Count; i++) DrawCard(i);
@@ -306,7 +364,7 @@ public partial class TitleStaffIdView : Control
         }
 
         DrawFooter();
-        if (!_scanning) DrawSourcesButton();
+        if (!_scanning) { DrawEndingSlots(); DrawSourcesButton(); DrawHelpButton(); }
         if (SourcesOpen) DrawSourcesPanel();
         Scanlines();
 
@@ -365,7 +423,18 @@ public partial class TitleStaffIdView : Control
         var r = SourcesButton;
         if (on) DrawRect(r, Mint with { A = 0.16f });
         DrawRect(r, Mint with { A = on ? 0.9f : 0.38f }, false, on ? 1.8f : 1.1f);
-        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 21f), (on ? "> " : "") + "출처 · CREDITS",
+        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 21f), (on ? "> " : "") + "출처 / CREDITS",
+            HorizontalAlignment.Center, r.Size.X, ViewFont.S(14), on ? Ink : Dim);
+    }
+
+    // 「조작 안내」 버튼 — 출처 버튼과 같은 모양.
+    private void DrawHelpButton()
+    {
+        bool on = _btnHover == HelpId;
+        var r = HelpButton;
+        if (on) DrawRect(r, Mint with { A = 0.16f });
+        DrawRect(r, Mint with { A = on ? 0.9f : 0.38f }, false, on ? 1.8f : 1.1f);
+        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 21f), (on ? "> " : "") + "조작 안내 / HELP",
             HorizontalAlignment.Center, r.Size.X, ViewFont.S(14), on ? Ink : Dim);
     }
 
@@ -376,9 +445,55 @@ public partial class TitleStaffIdView : Control
         DrawRect(p, Mint with { A = 0.55f }, false, 1.6f);
 
         float x = p.Position.X + 26f, y = p.Position.Y + 44f, w = p.Size.X - 52f;
-        DrawString(_font, new Vector2(x, y), "외부 리소스 출처", HorizontalAlignment.Left, w - 60f, ViewFont.S(20), Mint);
-        DrawString(_font, new Vector2(x, y + 22f), "EXTERNAL RESOURCES", HorizontalAlignment.Left, w, ViewFont.S(11), Dim);
+        DrawString(_font, new Vector2(x, y), HelpOpen ? "조작 안내" : "외부 리소스 출처",
+            HorizontalAlignment.Left, w - 60f, ViewFont.S(20), Mint);
+        DrawString(_font, new Vector2(x, y + 22f), HelpOpen ? "HOW TO PLAY" : "EXTERNAL RESOURCES",
+            HorizontalAlignment.Left, w, ViewFont.S(11), Dim);
         DrawRect(new Rect2(x, y + 32f, w, 1f), Mint with { A = 0.25f });
+        DrawClose();
+        if (HelpOpen) { DrawHelp(x, y + 62f, w); return; }
+        DrawSourcesList(x, y + 62f, w);
+    }
+
+    // 조작 안내 — 키는 설정에서 바꾼 값을 그대로 읽는다(설정 › 조작 키).
+    private void DrawHelp(float x, float y, float w)
+    {
+        string K(GameSettings.ZoomTarget t) => OS.GetKeycodeString(GameSettings.GetKey(t));
+        var rows = new (string Key, string What)[]
+        {
+            ("마우스", "모니터를 눌러 가까이 보기, 미니맵에서 직원을 끌어 다른 방에 배치"),
+            ($"{K(GameSettings.ZoomTarget.Monitor1)} / {K(GameSettings.ZoomTarget.Monitor2)}", "모니터 1 / 모니터 2 확대"),
+            ($"{K(GameSettings.ZoomTarget.Sensor)} / Tab", "관리자 패드 꺼내기 (지침, 단서, 직원 정보)"),
+            (K(GameSettings.ZoomTarget.PowerPanel), "전력 기기 확대 (조명, CCTV, 차폐문에 전력 배분)"),
+            ("T / L / D", "오늘의 업무 / 시설 로그 / 대화 기록"),
+            ("ESC", "일시정지, 창 닫기"),
+            ("SKIP", "이야기 건너뛰기 (화면 오른쪽 위)"),
+        };
+        foreach (var (key, what) in rows)
+        {
+            DrawString(_font, new Vector2(x + 6f, y), key, HorizontalAlignment.Left, 120f, ViewFont.S(13), Mint);
+            DrawString(_font, new Vector2(x + 132f, y), what, HorizontalAlignment.Left, w - 132f, ViewFont.S(13), Ink);
+            y += 26f;
+        }
+        y += 14f;
+        DrawString(_font, new Vector2(x, y), "목표", HorizontalAlignment.Left, w, ViewFont.S(12), Mint with { A = 0.8f });
+        y += 22f;
+        string[] goals =
+        {
+            "직원을 작업실에 배치해 봉쇄 코어를 복구하십시오. 비워 둔 방은 고장 납니다.",
+            "경고와 사고는 사람을 보내 고치고, 이상 개체는 CCTV 로 위치를 지켜보십시오.",
+            "휴게시간에 조사 자료를 골라 직원을 심문하고, 어긋나는 진술을 찾으십시오.",
+            "마지막 보고서에서 결번(방해자)을 지목하십시오. 엔딩은 코어 복구 x 지목 결과로 갈립니다.",
+        };
+        foreach (string g in goals)
+        {
+            DrawString(_font, new Vector2(x + 6f, y), "- " + g, HorizontalAlignment.Left, w - 6f, ViewFont.S(12), Ink);
+            y += 22f;
+        }
+    }
+
+    private void DrawClose()
+    {
 
         // X — 가리키면 밝아진다.
         bool xOn = _btnHover == SourcesCloseId;
@@ -389,8 +504,10 @@ public partial class TitleStaffIdView : Control
         var b = c.End - new Vector2(12f, 12f);
         DrawLine(a, b, xOn ? Err : Ink, 2f);
         DrawLine(new Vector2(b.X, a.Y), new Vector2(a.X, b.Y), xOn ? Err : Ink, 2f);
+    }
 
-        y += 62f;
+    private void DrawSourcesList(float x, float y, float w)
+    {
         string cat = "";
         foreach (var s in GameCredits.Sources)
         {
@@ -400,7 +517,7 @@ public partial class TitleStaffIdView : Control
                 DrawString(_font, new Vector2(x, y), cat, HorizontalAlignment.Left, w, ViewFont.S(12), Mint with { A = 0.8f });
                 y += 18f;
             }
-            DrawString(_font, new Vector2(x + 10f, y), $"{s.Use}  —  {s.Work} · {s.Author}",
+            DrawString(_font, new Vector2(x + 10f, y), $"{s.Use}: {s.Work} - {s.Author}",
                 HorizontalAlignment.Left, w - 10f, ViewFont.S(13), Ink);
             y += 17f;
             DrawString(_font, new Vector2(x + 22f, y), s.Url, HorizontalAlignment.Left, w - 22f, ViewFont.S(10), Dim);
@@ -409,10 +526,10 @@ public partial class TitleStaffIdView : Control
         y += 4f;
         DrawString(_font, new Vector2(x, y), "폰트", HorizontalAlignment.Left, w, ViewFont.S(12), Mint with { A = 0.8f });
         y += 18f;
-        DrawString(_font, new Vector2(x + 10f, y), string.Join("  ·  ", GameCredits.Fonts),
+        DrawString(_font, new Vector2(x + 10f, y), string.Join(", ", GameCredits.Fonts),
             HorizontalAlignment.Left, w - 10f, ViewFont.S(13), Ink);
         y += 26f;
-        DrawString(_font, new Vector2(x, y), $"{GameCredits.Engine}   ·   제작 {GameCredits.Maker}",
+        DrawString(_font, new Vector2(x, y), $"{GameCredits.Engine}   /   제작 {GameCredits.Maker}",
             HorizontalAlignment.Left, w, ViewFont.S(11), Dim);
     }
 

@@ -58,7 +58,7 @@ public partial class RoomDetailCard : PanelContainer
 
         if (def.IsRestricted)
         {
-            _descLabel.Text = "출입이 제한된 구역입니다. 배치·업무 조정 대상이 아닙니다.";
+            _descLabel.Text = "출입이 제한된 구역입니다. 배치/업무 조정 대상이 아닙니다.";
             _taskListButton.Visible = false;
             _lockButton.Visible = false;
             return;

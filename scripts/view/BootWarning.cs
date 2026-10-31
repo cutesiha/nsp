@@ -48,7 +48,7 @@ public partial class BootWarning : CanvasLayer
                           "빛에 민감하거나 광과민성 발작을 겪은 적이 있다면 플레이에 주의하십시오.",
                           22, new Color(0.88f, 0.90f, 0.90f)));
         box.AddChild(Line("환경 설정의 「깜빡임 줄이기」를 켜면 이 연출들이 약해집니다.", 20, new Color(0.46f, 0.90f, 0.80f)));
-        box.AddChild(Line("이 게임은 공포 · 유혈 · 사망 묘사를 포함하고 있습니다.", 18, new Color(0.55f, 0.60f, 0.62f)));
+        box.AddChild(Line("이 게임은 공포, 유혈, 사망 묘사를 포함하고 있습니다.", 18, new Color(0.55f, 0.60f, 0.62f)));
         box.AddChild(new Control { CustomMinimumSize = new Vector2(0f, 26f) });
         var hint = Line("아무 키나 눌러 계속", 16, new Color(0.40f, 0.46f, 0.48f));
         hint.Name = "Hint";

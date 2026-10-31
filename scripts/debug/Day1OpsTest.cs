@@ -65,7 +65,7 @@ public partial class Day1OpsTest : Node
         cfg0.StressUnlockDay = 99;
         foreach (var rid in new[] { "vent_room", "medical_room" })
             if (_sim.GetRoomDef(rid) is { } rd) rd.UnlockDay = 99;
-        GD.Print($"프로필 로드 OK — Day={profile.Day} 목표복구 {profile.TargetCoreGain:0}% " +
+        GD.Print($"프로필 로드 OK - Day={profile.Day} 목표복구 {profile.TargetCoreGain:0}% " +
                  $"작업실표 {profile.Rooms.Count}개 예약경고 {profile.ScheduledWarnings.Count}개");
 
         var stable = new Plan
@@ -90,13 +90,13 @@ public partial class Day1OpsTest : Node
         };
         var ignore = new Plan
         {
-            Label = "E 경고무시 (B 배치 · 대응 안 함)",
+            Label = "E 경고무시 (B 배치, 대응 안 함)",
             Crew = Crew(core: 2, power: 1, maint: 1, guard: 1, storage: 1),
             Respond = false,
         };
         var idle = new Plan
         {
-            Label = "G 무조작   (A 배치 · 대응 안 함)",
+            Label = "G 무조작   (A 배치, 대응 안 함)",
             Crew = Crew(core: 1, power: 2, maint: 1, guard: 1, storage: 1),
             Respond = false,
         };
@@ -134,7 +134,7 @@ public partial class Day1OpsTest : Node
         // 그 대신 세 번 돌려도 흔들리지 않는 사실이 이것이다 — **증원의 보상은 방을 비우지
         // 않았을 때만 나온다.** B(코어 2명 · 다섯 방 모두 배치)가 항상 A 와 C 를 크게 앞선다
         // (B 24.2 / 25.9 / 26.7 vs A 20.4 / 20.9 / 21.0, C 19.0 / 22.0 / 21.3).
-        Check("B 코어 2명(방을 비우지 않는 증원)이 A·C 보다 복구량이 높다",
+        Check("B 코어 2명(방을 비우지 않는 증원)이 A/C 보다 복구량이 높다",
             b.CoreGain > a.CoreGain + 1f && b.CoreGain > c.CoreGain + 1f, ref pass, ref fail);
         Check("C 코어 집중은 그만큼 위험을 떠안는다",
             c.WarnRaised + c.Breakdowns > a.WarnRaised + a.Breakdowns, ref pass, ref fail);

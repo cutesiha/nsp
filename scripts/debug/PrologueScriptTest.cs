@@ -49,7 +49,7 @@ public partial class PrologueScriptTest : Node
         var anomaly = PrologueScript.GetGuide("tut_anomaly_intro")?.Beats
             .Where(b => b.Kind == PrologueScript.GuideBeatKind.Line).Select(b => b.Value).ToList();
         Check(anomaly != null && anomaly.Count > 0 && anomaly[^1].Contains("CCTV") && anomaly[^1].Contains("돌려 보십시오"),
-            $"tut_anomaly_intro 는 \"직접 CCTV를 돌려 보십시오\" 지시로 끝난다 — {anomaly?.LastOrDefault()}");
+            $"tut_anomaly_intro 는 \"직접 CCTV를 돌려 보십시오\" 지시로 끝난다 - {anomaly?.LastOrDefault()}");
         CheckCueBefore("tut_barrier_close", "zoom_monitor2", "접근 중");
         CheckCueBefore("tut_barrier_close", "zoom_switch_hold", "BARRIER");
         CheckCueBefore("tut_ask_where", "zoom_monitor1", "숫자 키");
@@ -74,8 +74,8 @@ public partial class PrologueScriptTest : Node
         var end = PrologueScript.GetGuide("tut_end_call");
         string dlogText = string.Join(" ", dlog?.Beats.Select(b => b.Value) ?? System.Array.Empty<string>());
         string endText = string.Join(" ", end?.Beats.Select(b => b.Value) ?? System.Array.Empty<string>());
-        Check(dlogText.Contains("D키") && !dlogText.Contains("종료"), $"tut_dialogue_log 는 D 키 안내만 한다 — {dlogText}");
-        Check(endText.Contains("종료"), $"tut_end_call 이 통화 종료를 안내한다 — {endText}");
+        Check(dlogText.Contains("D키") && !dlogText.Contains("종료"), $"tut_dialogue_log 는 D 키 안내만 한다 - {dlogText}");
+        Check(endText.Contains("종료"), $"tut_end_call 이 통화 종료를 안내한다 - {endText}");
 
 
         // 대재난 컷씬 — 사이렌이 시작되는 첫 컷에 점프스케어(scare:)가 붙어 있다.
@@ -118,7 +118,7 @@ public partial class PrologueScriptTest : Node
                 break;
             }
         }
-        Check(ok, $"{id} — cue: {cueValue} 가 \"{lineContains}\" 줄 앞에 있다");
+        Check(ok, $"{id} - cue: {cueValue} 가 \"{lineContains}\" 줄 앞에 있다");
     }
 
     // 대본 전체에서 그 문구가 든 @guide 블록이 몇 개인가(같은 안내가 여러 번 뜨지 않게).

@@ -99,7 +99,7 @@ public partial class AnomalyCallDirector : Node
     {
         Running = true;
         _layer.Visible = true;
-        _who.Text = kind == KindSilent ? "발신자 미상 — 무응답" : "발신자 미상";
+        _who.Text = kind == KindSilent ? "발신자 미상 - 무응답" : "발신자 미상";
         _line.Text = "";
 
         if (kind == KindSilent) await RunSilent();
@@ -136,7 +136,7 @@ public partial class AnomalyCallDirector : Node
         Sfx.Instance?.PlayHorror("duct_scrape", -19f, 0.6f, 0.84f);
         await Say("…………", 1.7);
         Sfx.Instance?.PlayHorror("whisper_short", -14f, -0.7f, 0.92f);
-        await Say("― 뒤.", 1.2);
+        await Say("... 뒤.", 1.2);
         Sfx.Instance?.Play("phone_hangup", -3f);
         await Wait(0.5);
     }

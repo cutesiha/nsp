@@ -379,7 +379,7 @@ public partial class TitleTerminalView : Control
         string corner = mark switch
         {
             EndingState.Kind.Bad => "CONTAINMENT FAILED",
-            EndingState.Kind.True => "CORE 100% · STABLE",
+            EndingState.Kind.True => "CORE 100%, STABLE",
             _ => "NSP-07",
         };
         DrawString(_font, new Vector2(Canvas.X - 330f, 38f), corner, HorizontalAlignment.Right, 300f, ViewFont.S(12),

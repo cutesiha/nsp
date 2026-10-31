@@ -31,7 +31,7 @@ public partial class HairAssetPruner : Node
             keep.Add(store.Get(id).HairId);
         }
 
-        GD.Print($"################ 헤어 정리 — 카탈로그 {cat.Entries.Count}개 중 {keep.Count}개를 남긴다");
+        GD.Print($"################ 헤어 정리 - 카탈로그 {cat.Entries.Count}개 중 {keep.Count}개를 남긴다");
         foreach ((string id, _, _) in HairAssignmentStore.Characters)
             GD.Print($"  {HairAssignmentStore.Label(id),-12} {(store.HasChoice(id) ? store.Get(id).HairId : "(미선택)")}");
 
@@ -43,7 +43,7 @@ public partial class HairAssetPruner : Node
         }
         int unchosen = HairAssignmentStore.Characters.Count(c => !store.HasChoice(c.Id));
         if (unchosen > 0)
-            GD.Print($"  !! 아직 고르지 않은 캐릭터가 {unchosen}명 있다 — 그래도 진행한다");
+            GD.Print($"  !! 아직 고르지 않은 캐릭터가 {unchosen}명 있다 - 그래도 진행한다");
 
         long freed = 0;
         int meshes = 0, thumbs = 0;
@@ -65,8 +65,8 @@ public partial class HairAssetPruner : Node
                       "다른 머리로 바꾸려면 원본 팩으로 HairAssetBuilder 를 다시 돌려야 한다");
         Error err = cat.Save();
 
-        GD.Print($"\n  메시 {meshes}개 · 썸네일 {thumbs}개 삭제 — {freed / 1024 / 1024}MB 회수");
-        GD.Print($"  카탈로그 저장 {err} — 남은 항목 {cat.Entries.Count}개: " +
+        GD.Print($"\n  메시 {meshes}개, 썸네일 {thumbs}개 삭제 - {freed / 1024 / 1024}MB 회수");
+        GD.Print($"  카탈로그 저장 {err} - 남은 항목 {cat.Entries.Count}개: " +
                  string.Join(", ", cat.Entries.Select(e => e.Id)));
         GetTree().Quit();
     }

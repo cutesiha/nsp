@@ -50,7 +50,7 @@ public partial class TaskPriorityPopup : Control
 
         var sim = FacilitySimulation.Instance;
         var roomDef = sim.GetRoomDef(_roomId);
-        _titleLabel.Text = $"{roomDef?.DisplayName ?? _roomId} — 발생 업무";
+        _titleLabel.Text = $"{roomDef?.DisplayName ?? _roomId} - 발생 업무";
 
         foreach (Node child in _list.GetChildren())
             child.QueueFree();

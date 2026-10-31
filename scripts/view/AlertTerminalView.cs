@@ -218,7 +218,7 @@ public partial class AlertTerminalView : Control
         {
             CurrentSeverity = AlertSeverity.Notice;
             Show("경고 단말기", "OFFLINE", "전원 차단", "",
-                "사고 예측 · 원인 분석 불가\n전력을 배분하면 현재 상태를 다시 확인할 수 있습니다.",
+                "사고 예측, 원인 분석 불가\n전력을 배분하면 현재 상태를 다시 확인할 수 있습니다.",
                 Dim, AlertSeverity.Notice);
             SetNav(1);
             return;
@@ -270,7 +270,7 @@ public partial class AlertTerminalView : Control
                   : top.WarningRemainingSeconds >= 0f ? "\n사고까지 발생 대기" : "");
 
         Show("경고 단말기", statusWord, statusWord == "정상" ? "정상 가동 중" : $"시설 상태 : {statusWord}",
-            $"활성 사고 {active}   ·   사고 위험 {risk}", body, SeverityColor(severity), severity);
+            $"활성 사고 {active}, 사고 위험 {risk}", body, SeverityColor(severity), severity);
     }
 
     private void DrawCard(IncidentDisplayData d)
@@ -286,15 +286,15 @@ public partial class AlertTerminalView : Control
             };
 
         // 본문은 세 줄까지만. 남은 시간은 부제로 올려 크게 보이게 한다.
-        var lines = new List<string> { $"원인 · {d.CauseText}" };
+        var lines = new List<string> { $"원인: {d.CauseText}" };
         if (d.ConsequenceLines.Count > 0)
-            lines.Add((d.State == IncidentState.Active ? "결과 · " : "예상 · ")
-                      + string.Join(" · ", d.ConsequenceLines.Take(2))
+            lines.Add((d.State == IncidentState.Active ? "결과: " : "예상: ")
+                      + string.Join(", ", d.ConsequenceLines.Take(2))
                       + (d.ConsequenceLines.Count > 2 ? $" 외 {d.ConsequenceLines.Count - 2}건" : ""));
         string action = d.ActionHint;
         if (d.State == IncidentState.Active && d.RepairWorkers > 1)
-            action += $" · {d.RepairWorkers}명";
-        if (!string.IsNullOrEmpty(action)) lines.Add($"조치 · {action}");
+            action += $", {d.RepairWorkers}명";
+        if (!string.IsNullOrEmpty(action)) lines.Add($"조치: {action}");
 
         string sub = RoomName(d.RoomId);
         if (d.WarningRemainingSeconds > 0.05f) sub += $"   사고까지 {Clock(d.WarningRemainingSeconds)}";
@@ -311,7 +311,7 @@ public partial class AlertTerminalView : Control
         string body = recent.Count == 0
             ? "기록 없음"
             : string.Join("\n", recent.Take(3).Select(r =>
-                $"{Clock24(r.StartedAt)} {RoomName(r.RoomId)} · {r.Title} → {Clock24(r.ResolvedAt)} 해결"));
+                $"{Clock24(r.StartedAt)} {RoomName(r.RoomId)}, {r.Title} → {Clock24(r.ResolvedAt)} 해결"));
         Show("경고 단말기", "기록", "최근 해결 기록", $"{recent.Count}건", body, Dim, AlertSeverity.Notice);
     }
 

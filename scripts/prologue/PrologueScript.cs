@@ -173,7 +173,7 @@ public static class PrologueScript
         if (_loaded) return;
         _loaded = true;
         try { Parse(); }
-        catch (Exception e) { GD.PushWarning($"PrologueScript: 파싱 실패 — {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"PrologueScript: 파싱 실패 - {e.Message}"); }
     }
 
     public static Cutscene GetCutscene(string id)

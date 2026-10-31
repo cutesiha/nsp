@@ -66,7 +66,7 @@ public partial class StorySkipProbe : Node
         Ok(reached, "배치 화면까지 갔다");
         Ok(PrologueDirector.Instance?.IsRunning != true, "프롤로그가 뒤에서 계속 돌지 않는다");
         Ok(GameState.Instance?.CurrentDay == 0,
-            $"DAY0(가상 시뮬) 이다 — DAY1 로 건너뛰지 않았다 (지금 DAY {GameState.Instance?.CurrentDay})");
+            $"DAY0(가상 시뮬) 이다 - DAY1 로 건너뛰지 않았다 (지금 DAY {GameState.Instance?.CurrentDay})");
 
         bool tutorial = await WaitUntil(() => TutorialDirector.Instance is { IsRunning: true }, 1500);
         Ok(tutorial, "가상 시뮬이 시작됐다");
@@ -137,7 +137,7 @@ public partial class StorySkipProbe : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (그림 없음 — {name})"); return; }
+        if (img == null) { GD.Print($"   (그림 없음 - {name})"); return; }
         img.SavePng($"{_dir}/skip_{name}.png");
     }
 

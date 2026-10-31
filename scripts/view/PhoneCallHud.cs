@@ -414,7 +414,7 @@ public partial class PhoneCallHud : CanvasLayer
         // [전원] 을 켰을 때만 오늘 확보한 자료 전부를 사건별로 묶어 보여 준다.
         foreach (var (label, tab) in new (string, NoteTab)[]
                  {
-                     ("현재 직원", NoteTab.CurrentEmployee), ("대화·진술", NoteTab.Spoken),
+                     ("현재 직원", NoteTab.CurrentEmployee), ("대화/진술", NoteTab.Spoken),
                      ("★ 단서", NoteTab.Starred),
                      ("전원", NoteTab.ByIncident),
                  })
@@ -629,7 +629,7 @@ public partial class PhoneCallHud : CanvasLayer
         row.AddChild(TagStrip(card.First));
 
         string label = (open ? "▾ " : "▸ ") + Short(InterviewEvidenceDisplay.Body(card), CardBodyChars)
-                       + $"  ·{card.Items.Count}건";
+                       + $", {card.Items.Count}건";
         var b = CardButton(label, anySelected, anyNear, usable);
         string key = card.Key;
         b.Pressed += () =>
@@ -684,7 +684,7 @@ public partial class PhoneCallHud : CanvasLayer
         {
             Text = star ? "★" : "☆",
             CustomMinimumSize = new Vector2(30, CardHeight),
-            TooltipText = "단서로 기록 — 관리자 패드에 보관",
+            TooltipText = "단서로 기록 - 관리자 패드에 보관",
         };
         mark.AddThemeFontOverride("font", _font);
         mark.AddThemeFontSizeOverride("font_size", ViewFont.S(14));
@@ -830,7 +830,7 @@ public partial class PhoneCallHud : CanvasLayer
             var slot = i == 0 ? _slotA : _slotB;
             var ev = _session.EvidenceAt(i);
             string head = i == 0 ? "[자료 A]" : "[자료 B]";
-            slot.Text = head + "\n" + (ev == null ? "— 비어 있음" : InterviewEvidenceDisplay.SlotLine(ev));
+            slot.Text = head + "\n" + (ev == null ? "- 비어 있음" : InterviewEvidenceDisplay.SlotLine(ev));
             slot.TooltipText = ev == null ? "" : "누르면 선택을 해제합니다.";
             slot.AddThemeColorOverride("font_color", ev == null ? Cyan with { A = 0.45f } : Colors.White);
             slot.AddThemeColorOverride("font_hover_color", Colors.White);
@@ -853,7 +853,7 @@ public partial class PhoneCallHud : CanvasLayer
         _console?.SetDetail(focus == null
             ? ""
             : $"[{focus.Header}]  {focus.OneLine}"
-              + (string.IsNullOrEmpty(focus.BehaviorDetail) ? "" : "\n· " + focus.BehaviorDetail));
+              + (string.IsNullOrEmpty(focus.BehaviorDetail) ? "" : "\n, " + focus.BehaviorDetail));
     }
 
     private Label Lbl(string t, int size, Color c)
@@ -1496,7 +1496,7 @@ public partial class PhoneCallHud : CanvasLayer
         Sfx.Instance?.StopVoiceBlip();
         EmployeeMouthAnimator.StopTalking();
         ShowPlayerLine("");
-        _message.Text = DialogueHighlight.Colorize("— " + text);
+        _message.Text = DialogueHighlight.Colorize("- " + text);
         _message.VisibleCharacters = -1;
     }
 

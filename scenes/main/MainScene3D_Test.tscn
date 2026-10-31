@@ -1110,7 +1110,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
 visible = false
 pixel_size = 0.0007
 modulate = Color(0.7, 0.7, 0.72, 1)
-text = "MONITOR 01  —  FACILITY"
+text = "MONITOR 01 - FACILITY"
 font_size = 26
 outline_size = 0
 
@@ -1170,7 +1170,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
 visible = false
 pixel_size = 0.0007
 modulate = Color(0.7, 0.7, 0.72, 1)
-text = "MONITOR 02  —  CCTV"
+text = "MONITOR 02 - CCTV"
 font_size = 26
 outline_size = 0
 

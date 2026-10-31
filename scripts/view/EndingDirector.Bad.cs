@@ -24,7 +24,7 @@ public partial class EndingDirector
         await QueryOpen("신원 조회 중");
         for (int i = 0; i < 2; i++) { Sfx.Instance?.Play("key_type", -18f); await Wait(0.16); }
         if (string.IsNullOrEmpty(accused))
-            QueryPush("▸ 지정 없음 · 격리 미집행", EndingMonitorView.Tone.Normal);
+            QueryPush("▸ 지정 없음, 격리 미집행", EndingMonitorView.Tone.Normal);
         else
             QueryPush("▸ 해당 직원은 괴물이 아니었습니다", EndingMonitorView.Tone.Good, 34);
         await QueryWait();
@@ -161,7 +161,7 @@ public partial class EndingDirector
         _black.Color = _black.Color with { A = 1f };
         _props?.AllOff();
         await Wait(1.0);
-        await Banner("BAD END — 복구 실패", new Color(1f, 0.45f, 0.38f));
+        await Banner("BAD END - 복구 실패", new Color(1f, 0.45f, 0.38f));
         EndingState.Record(EndingState.Kind.Bad);
     }
 

@@ -81,7 +81,7 @@ public partial class GameModeTest : Node
 
         GameModes.ForceSelect(GameMode.Standard);
         Ok(GameModes.MaxDays == 5, "기본 모드 MaxDays = 5");
-        Ok(!IsFinal(3) && !IsFinal(4) && IsFinal(5), "기본 모드는 DAY5 가 마지막 — DAY3 에서 끝나지 않는다");
+        Ok(!IsFinal(3) && !IsFinal(4) && IsFinal(5), "기본 모드는 DAY5 가 마지막 - DAY3 에서 끝나지 않는다");
         Ok(ShiftCardView.ShieldHoursLeft(1) == 96, $"DAY1 남은 봉쇄 시간 {ShiftCardView.ShieldHoursLeft(1)}시간");
 
         // 마지막 날 휴게시간 — 대회용만 한 번 더 거친다.
@@ -108,7 +108,7 @@ public partial class GameModeTest : Node
 
     private void SectionC()
     {
-        Head("C", "결번 — 대회용 고정 · 기본 모드 무작위");
+        Head("C", "결번 - 대회용 고정, 기본 모드 무작위");
         var gs = GameState.Instance;
         var roster = _sim.GetActiveEmployeeIds().ToList();
         Ok(roster.Contains(GameModes.FixedSaboteurId), $"명단에 고정 대상이 있다 (직원 {roster.Count}명)");
@@ -151,12 +151,12 @@ public partial class GameModeTest : Node
 
         GameModes.ForceSelect(GameMode.Standard);
         float std = DayObjectives.FinalCoreTarget;
-        Ok(Mathf.IsEqualApprox(std, 100f), $"기본 모드 기준 {std:0}% — 예전과 같다");
+        Ok(Mathf.IsEqualApprox(std, 100f), $"기본 모드 기준 {std:0}% - 예전과 같다");
         Ok(DayObjectives.CoreRecovered(100f) && !DayObjectives.CoreRecovered(99.9f),
             "기본 모드는 100% 에서만 복구 완료");
 
         Ok(CoreTargetOf(1) == 18f && CoreTargetOf(2) == 38f && CoreTargetOf(3) == 58f,
-            "기본 모드 목표 곡선 18 / 38 / 58 — 손대지 않았다");
+            "기본 모드 목표 곡선 18 / 38 / 58 - 손대지 않았다");
 
         GameModes.ForceSelect(GameMode.Competition);
         Ok(CoreTargetOf(1) == 30f && CoreTargetOf(2) == 65f && CoreTargetOf(3) == 100f,
@@ -175,7 +175,7 @@ public partial class GameModeTest : Node
             GameModes.ForceSelect(mode);
             Ok(DayObjectives.Grade(true, 0, 0, 0) == "S" && DayObjectives.Grade(true, 0, 1, 0) == "A"
                && DayObjectives.Grade(false, 0, 0, 0) == "F",
-                $"{mode} — 진엔딩 S/A · 그 밖은 F");
+                $"{mode} - 진엔딩 S/A, 그 밖은 F");
         }
         GameModes.ForceSelect(GameMode.Competition);
 
@@ -231,7 +231,7 @@ public partial class GameModeTest : Node
                 sum += GameState.Instance.CoreProgress;
             }
             float avg = sum / runs;
-            GD.Print($"      {label,-34} 3일 뒤 코어 {avg,5:0.0}%  (목표 100%{(avg >= 100f ? "" : $" · {100f - avg:0.0}%p 모자람")})");
+            GD.Print($"      {label,-34} 3일 뒤 코어 {avg,5:0.0}%  (목표 100%{(avg >= 100f ? "" : $", {100f - avg:0.0}%p 모자람")})");
         }
         GameState.Instance.ResetRun(1);
         _sim.ResetRun();
@@ -273,7 +273,7 @@ public partial class GameModeTest : Node
                         : (caught ? EndingState.Kind.Late : EndingState.Kind.Bad));
                 }
             Ok(kinds.Distinct().Count() == 4,
-                $"{GameModes.DisplayName(mode)}({goal:0}% 기준) — True · Loose · Late · Bad 네 갈래가 전부 나온다");
+                $"{GameModes.DisplayName(mode)}({goal:0}% 기준) - True, Loose, Late, Bad 네 갈래가 전부 나온다");
         }
     }
 
@@ -293,7 +293,7 @@ public partial class GameModeTest : Node
         gs.AddCoreProgress(40f, "검사");
         gs.AddEvaluation(2);
         Ok(gs.SaboteurEmployeeId == GameModes.FixedSaboteurId && GameModes.MaxDays == 3,
-            "대회용 한 판 — 결번 고정 · 3일");
+            "대회용 한 판 - 결번 고정, 3일");
 
         // ② 타이틀로 나가 기본 모드로 새 게임.
         GameModes.ForceSelect(GameMode.Standard);
@@ -301,7 +301,7 @@ public partial class GameModeTest : Node
         _sim.ResetRun();
         Ok(GameModes.MaxDays == 5, "기본 모드로 바꾸면 다시 5일");
         Ok(Mathf.IsZeroApprox(gs.CoreProgress) && gs.EvaluationScore == 0 && gs.SaboteurEmployeeId == "",
-            "이전 판의 코어 · 업무평가 · 결번이 남지 않는다");
+            "이전 판의 코어, 업무평가, 결번이 남지 않는다");
 
         var seen = new HashSet<string>();
         for (int i = 0; i < 60; i++)
@@ -318,7 +318,7 @@ public partial class GameModeTest : Node
         gs.SetSaboteur("");
         gs.AssignSaboteurForMode(roster);
         Ok(gs.SaboteurEmployeeId == GameModes.FixedSaboteurId && GameModes.MaxDays == 3,
-            "기본 모드를 하고 와도 대회용은 다시 고정 · 3일");
+            "기본 모드를 하고 와도 대회용은 다시 고정, 3일");
 
         // ④ 타이틀 단말기 목록.
         Head("F", "타이틀 근무 유형 화면");
@@ -336,7 +336,7 @@ public partial class GameModeTest : Node
         Ok(term.CurrentMode == TitleTerminalView.Mode.ModeSelect, "근무 유형 선택 화면으로 전환된다");
         Ok(GameModes.IsPlayable(term.SelectedMode), "커서는 고를 수 있는 항목에서 시작한다");
         // 하드 모드 칸은 화면에서 뺐다 — 이제 두 칸 뒤는 [뒤로] 다.
-        Ok(TitleTerminalView.ModeItems.Length == 2, "근무 유형은 두 가지뿐이다(단기 · 정규)");
+        Ok(TitleTerminalView.ModeItems.Length == 2, "근무 유형은 두 가지뿐이다(단기, 정규)");
         Ok(term.MoveCursor(1) && term.SelectedMode == GameMode.Standard, "↓ 한 번 = 정규 근무");
         Ok(term.MoveCursor(1) && term.SelectedId == TitleTerminalView.ModeBackId,
             "↓ 한 번 더 = [뒤로]");
@@ -345,7 +345,7 @@ public partial class GameModeTest : Node
         term.ShowMenu();
         Ok(term.CurrentMode == TitleTerminalView.Mode.Menu, "ESC 복귀 = 기존 메뉴 화면");
         Ok(TitleTerminalView.MenuItems.Length == 4 && TitleTerminalView.MenuItems[0].Id == "start",
-            "기존 타이틀 메뉴(근무 개시 · 기록 열람 · 환경 설정 · 시스템 종료)는 그대로다");
+            "기존 타이틀 메뉴(근무 개시, 기록 열람, 환경 설정, 시스템 종료)는 그대로다");
         term.QueueFree();
     }
 

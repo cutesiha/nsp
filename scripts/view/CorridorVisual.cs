@@ -303,7 +303,7 @@ public sealed class CorridorVisual
             Box(_root, new Vector3(0.03f, 0.30f, 0.52f), new Vector3(-hw + 0.03f, 1.78f, z), steel);
             _root.AddChild(new Label3D
             {
-                Text = $"{zone} · {i + 1:00}",
+                Text = $"{zone}-{i + 1:00}",
                 Position = new Vector3(-hw + 0.06f, 1.78f, z),
                 RotationDegrees = new Vector3(0f, 90f, 0f),
                 PixelSize = 0.0019f, FontSize = 34, OutlineSize = 0,

@@ -43,7 +43,7 @@ public partial class CreditsRoll : Control
         AddChild(_box);
         Build();
 
-        _hint = Text("아무 키나 누르고 있으면 빨리 넘어갑니다 · ESC 건너뛰기", 13, Dim with { A = 0.7f });
+        _hint = Text("아무 키나 누르고 있으면 빨리 넘어갑니다   /   ESC 건너뛰기", 13, Dim with { A = 0.7f });
         _hint.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_hint);
 
@@ -136,7 +136,7 @@ public partial class CreditsRoll : Control
                 _box.AddChild(Text(cat, 17, Dim));
             }
             // 이름만 — 링크는 타이틀의 출처 창에 있다.
-            _box.AddChild(Text($"{s.Use}   ·   {s.Work} — {s.Author}", 21, Ink));
+            _box.AddChild(Text($"{s.Use}: {s.Work} - {s.Author}", 21, Ink));
         }
         Gap(70f);
         _box.AddChild(Text("폰트", 17, Dim));

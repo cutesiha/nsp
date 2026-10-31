@@ -152,7 +152,7 @@ public partial class TutorialCueShot : Node
         net.Select("corridor_west");
         PowerSwitchPanel.DemoSet(PowerConsumer.Barrier, true);
         net.Seal("corridor_west", out string why);
-        GD.Print($"   차폐 시연 — {(string.IsNullOrEmpty(why) ? "닫힘" : why)}");
+        GD.Print($"   차폐 시연 - {(string.IsNullOrEmpty(why) ? "닫힘" : why)}");
         await Seconds(1.3);
         Shot("11_power_barrier_up");
         ctl.ClearFocus(0.3f);

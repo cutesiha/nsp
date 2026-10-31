@@ -56,8 +56,8 @@ public partial class EndingCutsceneStage
     {
         var root = _setCorridor;
         var rng = new RandomNumberGenerator { Seed = 4417 };
-        var floor = Mat(new Color(0.236f, 0.250f, 0.268f), 0.46f, 0.08f);
-        var wall = Mat(new Color(0.262f, 0.274f, 0.298f), 0.92f);
+        var floor = GrimeMat(new Color(0.260f, 0.275f, 0.295f), 51, 0.5f, 2f, 0.46f, 0.26f, 0.08f);
+        var wall = GrimeMat(new Color(0.288f, 0.300f, 0.327f), 53, 0.4f, 3f, 0.92f, 0.26f);
         const float z0 = -31f, z1 = BayZ0, len = z1 - z0, mid = (z0 + z1) * 0.5f;
 
         Box(root, new Vector3(CorHalf * 2f + 0.6f, 0.3f, len), new Vector3(0f, -0.15f, mid), floor, "Floor");
@@ -384,8 +384,8 @@ public partial class EndingCutsceneStage
     {
         var root = _setCorridor;
         var rng = new RandomNumberGenerator { Seed = 9127 };
-        var floor = Mat(new Color(0.248f, 0.252f, 0.258f), 0.62f, 0.06f);
-        var wall = Mat(new Color(0.252f, 0.262f, 0.284f), 0.92f);
+        var floor = GrimeMat(new Color(0.272f, 0.277f, 0.283f), 57, 0.5f, 2f, 0.62f, 0.26f, 0.06f);
+        var wall = GrimeMat(new Color(0.277f, 0.288f, 0.312f), 59, 0.4f, 3f, 0.92f, 0.26f);
         float len = BayZ1 - BayZ0, mid = (BayZ0 + BayZ1) * 0.5f;
 
         Box(root, new Vector3(BayHalf * 2f + 0.6f, 0.3f, len), new Vector3(0f, -0.15f, mid), floor, "BayFloor");

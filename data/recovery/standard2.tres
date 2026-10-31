@@ -9,7 +9,7 @@
 [resource]
 script = ExtResource("1_profile")
 ProfileId = "standard2"
-DisplayName = "2차 복구 · 표준"
+DisplayName = "2차 복구, 표준"
 ; 1명 80% / 2명 120% / 3명 145%
 CoreStaffCurve = PackedFloat32Array(0, 0.80, 1.20, 1.45, 1.52)
 CoreRateMultiplier = 1.3

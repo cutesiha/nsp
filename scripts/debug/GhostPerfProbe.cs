@@ -80,7 +80,7 @@ public partial class GhostPerfProbe : Node
             sim.SetCorridorSurveillance("corridor_north");
             th2.Phase = ThreatPhase.Approach;
             th2.Progress = 0.86f;
-            await Measure(sim, "복도 접근 — 문 앞까지", keepGhost: true);
+            await Measure(sim, "복도 접근 - 문 앞까지", keepGhost: true);
             for (int i = 0; i < 1800 && th2.Phase != ThreatPhase.AtDoor; i++) await Frame();
             await Burst(sim, "문 앞 유예", () => { }, frames: 120);
             for (int i = 0; i < 1800 && !AdminDeathDirector.IsPlaying; i++) await Frame();
@@ -110,7 +110,7 @@ public partial class GhostPerfProbe : Node
             SetMonsterId(sim, "spider");
             sim.SetSurveillanceTarget("core_room");
             await Frames(6);
-            await Burst(sim, "거미 — 준비 뒤 처음 화면에", () => sim.SetSurveillanceTarget("power_room"), frames: 40);
+            await Burst(sim, "거미 - 준비 뒤 처음 화면에", () => sim.SetSurveillanceTarget("power_room"), frames: 40);
             WriteReport();
             await Frames(2);
             GetTree().Quit();
@@ -121,8 +121,8 @@ public partial class GhostPerfProbe : Node
         // 처음 화면에 뜰 때 몇 ms 를 먹는가. DAY1 로 부팅하면 결번자만 준비된다.
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "models") >= 0)
         {
-            GD.Print("\n######## 개체별 — 처음 화면에 뜰 때 ########\n");
-            GD.Print($"   오늘 = DAY {GameState.Instance?.CurrentDay} · 준비 완료 = {MonsterWarmup.Done}");
+            GD.Print("\n######## 개체별 - 처음 화면에 뜰 때 ########\n");
+            GD.Print($"   오늘 = DAY {GameState.Instance?.CurrentDay}, 준비 완료 = {MonsterWarmup.Done}");
             sim.SetSurveillanceTarget("power_room");
             await Frames(40);
             foreach (string id in new[] { "absentee", "infant", "spider", "infant" })
@@ -134,7 +134,7 @@ public partial class GhostPerfProbe : Node
                 // 화면에서 한 번 내렸다 올려 그 모델로 다시 꽂게 한다.
                 sim.SetSurveillanceTarget("core_room");
                 await Frames(6);
-                await Burst(sim, $"개체 {id} — 처음 화면에", () => sim.SetSurveillanceTarget("power_room"), frames: 40);
+                await Burst(sim, $"개체 {id} - 처음 화면에", () => sim.SetSurveillanceTarget("power_room"), frames: 40);
             }
             await Frames(2);
             GetTree().Quit();
@@ -144,26 +144,26 @@ public partial class GhostPerfProbe : Node
         // 귀신이 **나한테 걸어오는** 길을 그대로 탄다 — 작업실 → 복도 → 문 앞 → 침입.
         if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "come") >= 0)
         {
-            GD.Print("\n######## 귀신이 걸어온다 — 느린 프레임만 적는다 ########\n");
+            GD.Print("\n######## 귀신이 걸어온다 - 느린 프레임만 적는다 ########\n");
             sim.Ghost.ForceAppear("power_room", sim, 3f);
             await Frames(60);
             sim.Ghost.ForceDepart(sim, notify: true);   // 복도로 내보낸다
             await Frames(30);
             var th = sim.Threats?.Current;
             GD.Print(th != null
-                ? $"   복도 위협 생성됨 — {th.SegmentId} / {th.Def?.MonsterId}"
+                ? $"   복도 위협 생성됨 - {th.SegmentId} / {th.Def?.MonsterId}"
                 : "   복도 위협이 생기지 않았다(모드 설정 확인)");
             if (th != null) sim.SetCorridorSurveillance(th.SegmentId);
             await Ride(sim, watchCorridor: true);
             return;
         }
 
-        GD.Print("\n######## 귀신 — 어디서 멈추는가 ########\n");
+        GD.Print("\n######## 귀신 - 어디서 멈추는가 ########\n");
 
         await Measure(sim, "기준 A1 (귀신 없음)");
 
         // ── 등장 ────────────────────────────────────────────────────
-        await Burst(sim, "등장(보이는 방) · 최초", () => sim.Ghost.ForceAppear("power_room", sim, 60f));
+        await Burst(sim, "등장(보이는 방), 최초", () => sim.Ghost.ForceAppear("power_room", sim, 60f));
         await Measure(sim, "기준 A2", keepGhost: true);
 
         // ── 비명 세 번 — 반응이 넷으로 갈리므로 여러 번 본다 ─────────
@@ -171,14 +171,14 @@ public partial class GhostPerfProbe : Node
             await Burst(sim, $"비명 {i}회", () => Raise(sim, "Screamed", "power_room"));
 
         // ── 소멸(가루) ──────────────────────────────────────────────
-        await Burst(sim, "소멸 — 가루 입자", () => Raise(sim, "Dispelled", "power_room"), frames: 90);
+        await Burst(sim, "소멸 - 가루 입자", () => Raise(sim, "Dispelled", "power_room"), frames: 90);
 
         // ── 사고(설비 파괴) ─────────────────────────────────────────
         sim.Ghost.ForceDepart(sim, notify: false);
         await Frames(30);
         sim.Ghost.ForceAppear("power_room", sim, 60f);
         await Frames(40);
-        await Burst(sim, "사고 — 설비 파괴(불꽃)", () => Raise(sim, "Struck", "power_room"), frames: 150);
+        await Burst(sim, "사고 - 설비 파괴(불꽃)", () => Raise(sim, "Struck", "power_room"), frames: 150);
 
         // ── 채널을 돌려 귀신을 발견하는 순간 ────────────────────────
         sim.Ghost.ForceDepart(sim, notify: false);
@@ -238,10 +238,10 @@ public partial class GhostPerfProbe : Node
         double worst = 0; int at = 0;
         for (int i = 0; i < ms.Count; i++) if (ms[i] > worst) { worst = ms[i]; at = i; }
         var sb = new System.Text.StringBuilder();
-        sb.Append($"- **{label}** — 호출 {call:0.00} ms · 가장 느린 프레임 {worst:0.0} ms (+{at}프레임)\n  ");
+        sb.Append($"- **{label}** - 호출 {call:0.00} ms, 가장 느린 프레임 {worst:0.0} ms (+{at}프레임)\n  ");
         foreach (double x in ms) sb.Append($"{x:0} ");
         _notes.Add(sb.ToString());
-        Say($"      호출 {call:0.00} ms · 가장 느린 프레임 {worst:0.0} ms (+{at})");
+        Say($"      호출 {call:0.00} ms, 가장 느린 프레임 {worst:0.0} ms (+{at})");
     }
 
     // 이번 등장의 개체를 바꿔 끼운다(검사 전용 — 판정 규칙은 건드리지 않는다).
@@ -294,8 +294,8 @@ public partial class GhostPerfProbe : Node
     private void Keep(PerfStats.Result r)
     {
         _rows.Add(r);
-        Say($"   {r.Label} — 평균 {r.AvgFps:0.0} FPS · 1%low {r.LowOnePercentFps:0.0} · " +
-                 $"최악 {r.WorstMs:0.0}ms · draw {r.DrawCalls} · 오브젝트 {r.RenderObjects}");
+        Say($"   {r.Label} - 평균 {r.AvgFps:0.0} FPS, 1%low {r.LowOnePercentFps:0.0}, " +
+                 $"최악 {r.WorstMs:0.0}ms, draw {r.DrawCalls}, 오브젝트 {r.RenderObjects}");
     }
 
     private void Deploy(FacilitySimulation sim)
@@ -328,7 +328,7 @@ public partial class GhostPerfProbe : Node
         for (int i = 0; i < args.Length - 1; i++)
             if ((args[i] == "ride" || args[i] == "come") && double.TryParse(args[i + 1], out double v)) limit = v;
 
-        GD.Print($"\n######## 실제 근무 {limit:0}초 — 느린 프레임만 적는다 ########\n");
+        GD.Print($"\n######## 실제 근무 {limit:0}초 - 느린 프레임만 적는다 ########\n");
 
         string[] channels = { "power_room", "core_room", "storage_room", "guard_room",
                               "maintenance_room", "vent_room" };
@@ -374,7 +374,7 @@ public partial class GhostPerfProbe : Node
             if (GameState.Instance?.CurrentPhase != GamePhase.Live && !AdminDeathDirector.IsPlaying) break;
         }
 
-        GD.Print($"   {frames}프레임 / {t:0}초 · 16.7ms 를 넘긴 프레임 {slow.Count}개 · 가장 느린 {worstEver:0.0} ms\n");
+        GD.Print($"   {frames}프레임 / {t:0}초, 16.7ms 를 넘긴 프레임 {slow.Count}개, 가장 느린 {worstEver:0.0} ms\n");
         slow.Sort((x, y) => y.Ms.CompareTo(x.Ms));
         for (int i = 0; i < slow.Count && i < 25; i++)
             GD.Print($"   {slow[i].Ms,7:0.0} ms  @{slow[i].At,6:0.0}초   {slow[i].What}");
@@ -401,8 +401,8 @@ public partial class GhostPerfProbe : Node
             ? $"귀신 {g.ActiveRoomId}({g.ActiveMonsterId}) {g.AliveSeconds:0}초"
             : "귀신 없음";
         var th = sim.Threats?.Current;
-        string threat = th != null ? $" · 복도 {th.SegmentId} {th.Phase} {th.Progress:0.00}" : "";
-        string scare = AdminDeathDirector.IsPlaying ? " · 사망연출" : "";
+        string threat = th != null ? $", 복도 {th.SegmentId} {th.Phase} {th.Progress:0.00}" : "";
+        string scare = AdminDeathDirector.IsPlaying ? ", 사망연출" : "";
         return ghost + threat + scare;
     }
 

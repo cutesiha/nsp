@@ -23,6 +23,8 @@ public static class GameSettings
     // 조금 더 넓고 먹먹하게. 같은 필터를 쓰면 누가 말하는지 귀로 구분되지 않는다.
     public const string BusIntercom = "Intercom";
     public const string BusScream = "Scream";
+    // 직원 사망 비명의 방향 - 이 버스에서 좌우를 정하고 비명 버스(잔향 / 리미터)로 보낸다.
+    public const string BusScreamPan = "ScreamPan";
     // 공포 ambience 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     //
     // 버스를 따로 두는 이유는 둘이다.
@@ -145,9 +147,47 @@ public static class GameSettings
         EnsureRadioBus();
         EnsureIntercomBus();
         EnsureScreamBus();
+        EnsureScreamPanBus();
         EnsureAnalogSfxChain();
         EnsureHorrorBus();
         EnsureAmbienceBus();
+        EnsureMasterLimiter();
+    }
+
+    // 마지막 안전장치 — 모든 소리가 모이는 Master 끝에 리미터 하나. 비명 버스처럼 일부러 크게 미는 소리와
+    // 음악 · 효과음이 한꺼번에 겹쳐도 0dBFS 를 넘어 깨지지(클리핑) 않는다. 평소 크기는 건드리지 않는다
+    // (끌어올리는 값 없이 -1dB 위의 순간 최고점만 누른다) — 헤드폰으로 듣는 사람의 귀를 지키는 자리다.
+    // 비명이 난 방 쪽에서 들리게 - 좌우 패너 하나만 두고 비명 버스로 넘긴다(잔향 / 저역 / 리미터는 그쪽 몫).
+    private static AudioEffectPanner _screamPanner;
+
+    private static void EnsureScreamPanBus()
+    {
+        int idx = AudioServer.GetBusIndex(BusScreamPan);
+        if (idx < 0)
+        {
+            idx = AudioServer.BusCount;
+            AudioServer.AddBus(idx);
+            AudioServer.SetBusName(idx, BusScreamPan);
+            AudioServer.SetBusSend(idx, BusScream);
+            AudioServer.AddBusEffect(idx, new AudioEffectPanner());
+        }
+        _screamPanner = AudioServer.GetBusEffect(idx, 0) as AudioEffectPanner;
+    }
+
+    // -1 왼쪽 ~ +1 오른쪽.
+    public static void SetScreamPan(float pan)
+    {
+        EnsureScreamPanBus();
+        if (_screamPanner != null) _screamPanner.Pan = Mathf.Clamp(pan, -1f, 1f);
+    }
+
+    private static void EnsureMasterLimiter()
+    {
+        int master = AudioServer.GetBusIndex(BusMaster);
+        if (master < 0) return;
+        for (int i = 0; i < AudioServer.GetBusEffectCount(master); i++)
+            if (AudioServer.GetBusEffect(master, i) is AudioEffectHardLimiter) return;
+        AudioServer.AddBusEffect(master, new AudioEffectHardLimiter { CeilingDb = -1f, PreGainDb = 0f, Release = 0.1f });
     }
 
     // 시설 환경음(기계 · 환기) 전용 버스.
@@ -621,11 +661,34 @@ public static class GameSettings
             for (int i = 0; i < Keys.Length; i++)
                 Keys[i] = (Key)(int)cfg.GetValue("keys", ((ZoomTarget)i).ToString(), (int)DefaultKeys[i]);
         }
+        else if (DisplayServer.GetName() != "headless")
+        {
+            // 처음 켰다 — 설정 파일이 없다. 그래픽 품질을 그래픽 장치에 맞춰 고르고 바로 저장한다
+            // (2026-10-31). 내장 그래픽(노트북 · 사무용 PC)에서 '높음' 으로 시작하면 처음 몇 분이 끊긴다.
+            // 플레이어는 환경 설정에서 언제든 바꿀 수 있다.
+            _quality = AutoQuality();
+            Save();
+        }
 
         ApplyAudio();
         ApplyDesignResolution();
         ApplyFullscreen();
         ApplyQuality();
+    }
+
+    // 그래픽 장치 종류로 고른 첫 품질 — 외장 = 높음, 내장 = 낮음, 소프트웨어 · 가상 = 매우 낮음, 모르면 보통.
+    private static Quality AutoQuality()
+    {
+        var type = RenderingServer.GetVideoAdapterType();
+        Quality q = type switch
+        {
+            RenderingDevice.DeviceType.DiscreteGpu => Quality.High,
+            RenderingDevice.DeviceType.IntegratedGpu => Quality.Low,
+            RenderingDevice.DeviceType.Cpu or RenderingDevice.DeviceType.VirtualGpu => Quality.VeryLow,
+            _ => Quality.Medium,
+        };
+        GD.Print($"[설정] 첫 실행: 그래픽 장치 '{RenderingServer.GetVideoAdapterName()}' ({type}) → 품질 {q}");
+        return q;
     }
 
     public static void Save()

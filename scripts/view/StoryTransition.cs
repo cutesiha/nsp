@@ -108,7 +108,7 @@ public static class StoryTransition
         }
         catch (Exception e)
         {
-            GD.PushWarning($"StoryTransition: 진입 연출을 건너뜁니다 — {e.Message}");
+            GD.PushWarning($"StoryTransition: 진입 연출을 건너뜁니다 - {e.Message}");
             Release();
         }
         finally
@@ -155,7 +155,7 @@ public static class StoryTransition
         }
         catch (Exception e)
         {
-            GD.PushWarning($"StoryTransition: 종료 연출을 건너뜁니다 — {e.Message}");
+            GD.PushWarning($"StoryTransition: 종료 연출을 건너뜁니다 - {e.Message}");
         }
         finally
         {

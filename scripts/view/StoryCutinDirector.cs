@@ -164,7 +164,7 @@ public partial class StoryCutinDirector : Node
         string blocked = BlockedReason();
         if (blocked.Length > 0)
         {
-            GD.Print($"StoryCutinDirector: 컷인을 건너뜁니다 — {blocked} (beat={beat.BeatId})");
+            GD.Print($"StoryCutinDirector: 컷인을 건너뜁니다 - {blocked} (beat={beat.BeatId})");
             return false;
         }
 

@@ -66,7 +66,7 @@ public partial class RedEventLog : CanvasLayer
         vbox.AddChild(_issues);
         vbox.AddChild(_countdowns);
 
-        _idleLabel = MakeLabel("· 정상 운영 중", new Color(0.7f, 0.7f, 0.7f), 20);
+        _idleLabel = MakeLabel("- 정상 운영 중", new Color(0.7f, 0.7f, 0.7f), 20);
         _idleLabel.HorizontalAlignment = HorizontalAlignment.Right;
         vbox.AddChild(_idleLabel);
 
@@ -162,7 +162,7 @@ public partial class RedEventLog : CanvasLayer
         var warn = new Color(1f, 0.3f, 0.16f);
 
         if (gs.IsPowerAccidentActive())
-            yield return ("pwr_cap", "■ 최대 전력 감소 — 발전기 점검 필요", warn);
+            yield return ("pwr_cap", "■ 최대 전력 감소 - 발전기 점검 필요", warn);
         if (!gs.IsConsumerPowered(PowerConsumer.CctvWatch))
             yield return ("pwr_cctv", "■ CCTV 전력 차단", warn);
         if (!gs.IsConsumerPowered(PowerConsumer.Lighting))

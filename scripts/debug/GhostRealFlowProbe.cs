@@ -52,8 +52,8 @@ public partial class GhostRealFlowProbe : Node
         for (int i = 0; i < 1800 && DebugEntryPoint.Stage(flow) != "Shift"; i++) await Frame();
 
         var sim = FacilitySimulation.Instance;
-        GD.Print($"\n######## 실제 근무 DAY{GameState.Instance?.CurrentDay} {secs:0}초 — 귀신 전후 프레임 ########");
-        GD.Print($"   품질 {GameSettings.QualityLabel} · 창 {DisplayServer.WindowGetSize()} · vsync {DisplayServer.WindowGetVsyncMode()}");
+        GD.Print($"\n######## 실제 근무 DAY{GameState.Instance?.CurrentDay} {secs:0}초 - 귀신 전후 프레임 ########");
+        GD.Print($"   품질 {GameSettings.QualityLabel}, 창 {DisplayServer.WindowGetSize()}, vsync {DisplayServer.WindowGetVsyncMode()}");
 
         string[] channels = { "power_room", "core_room", "storage_room", "guard_room", "maintenance_room", "vent_room" };
         var slow = new List<string>();
@@ -78,7 +78,7 @@ public partial class GhostRealFlowProbe : Node
 
             if (ghost && !wasGhost)
             {
-                GD.Print($"   @{t,6:0.0}초  귀신 등장 — {g.ActiveRoomId}({g.ActiveMonsterId}) · 직전 10프레임 {string.Join(" ", ring.ToArray().Select0())}");
+                GD.Print($"   @{t,6:0.0}초  귀신 등장 - {g.ActiveRoomId}({g.ActiveMonsterId}), 직전 10프레임 {string.Join(" ", ring.ToArray().Select0())}");
                 afterGhost = 0; afterMs.Clear();
                 // 관리자가 바로 그 방을 본다 — 가장 무거운 경우.
                 sim.SetSurveillanceTarget(g.ActiveRoomId);
@@ -93,14 +93,14 @@ public partial class GhostRealFlowProbe : Node
                 afterMs.Add(ms);
                 if (++afterGhost == 120)
                 {
-                    GD.Print($"      등장 직후 120프레임: 최악 {Max(afterMs):0.0} ms · {string.Join(" ", afterMs.GetRange(0, 40).Select0())} …");
+                    GD.Print($"      등장 직후 120프레임: 최악 {Max(afterMs):0.0} ms, {string.Join(" ", afterMs.GetRange(0, 40).Select0())} …");
                     afterGhost = -1;
                 }
             }
 
             ring.Enqueue(ms); if (ring.Count > 10) ring.Dequeue();
             if (ghost) { ghostFrames++; ghostSum += ms; if (ms > 25) ghostOver++; } else calmSum += ms;
-            if (ms > 25) { over++; slow.Add($"{ms,7:0.0} ms @{t,6:0.0}초 {(ghost ? $"귀신 {g.ActiveRoomId}({g.ActiveMonsterId}) {g.AliveSeconds:0}초" : "귀신 없음")}{(death ? " · 사망연출" : "")}"); }
+            if (ms > 25) { over++; slow.Add($"{ms,7:0.0} ms @{t,6:0.0}초 {(ghost ? $"귀신 {g.ActiveRoomId}({g.ActiveMonsterId}) {g.AliveSeconds:0}초" : "귀신 없음")}{(death ? ", 사망연출" : "")}"); }
             if (ms > worst) worst = ms;
 
             if (!ghost && t >= nextSwitch)
@@ -113,8 +113,8 @@ public partial class GhostRealFlowProbe : Node
         }
 
         int calmFrames = frames - ghostFrames;
-        GD.Print($"\n   {frames}프레임 / {t:0}초 · 25ms 넘은 프레임 {over}개 · 최악 {worst:0.0} ms");
-        GD.Print($"   귀신 있을 때 평균 {(ghostFrames > 0 ? ghostSum / ghostFrames : 0):0.00} ms ({ghostFrames}프레임, 25ms 넘음 {ghostOver}) · 없을 때 평균 {(calmFrames > 0 ? calmSum / calmFrames : 0):0.00} ms");
+        GD.Print($"\n   {frames}프레임 / {t:0}초, 25ms 넘은 프레임 {over}개, 최악 {worst:0.0} ms");
+        GD.Print($"   귀신 있을 때 평균 {(ghostFrames > 0 ? ghostSum / ghostFrames : 0):0.00} ms ({ghostFrames}프레임, 25ms 넘음 {ghostOver}), 없을 때 평균 {(calmFrames > 0 ? calmSum / calmFrames : 0):0.00} ms");
         slow.Sort((x, y) => string.CompareOrdinal(y, x));
         foreach (string s in slow.GetRange(0, System.Math.Min(30, slow.Count))) GD.Print("   " + s);
         GetTree().Quit();

@@ -43,7 +43,7 @@ public partial class DeathScreamProbe : Node
 
         var sim = FacilitySimulation.Instance;
         var st = sim.GetEmployeeState(victim);
-        GD.Print($"\n######## 사망 연출 — {victim} ({sim.GetEmployeeDef(victim)?.Gender}) @ {st?.CurrentRoomId} ########");
+        GD.Print($"\n######## 사망 연출 - {victim} ({sim.GetEmployeeDef(victim)?.Gender}) @ {st?.CurrentRoomId} ########");
         Shot(dir, "death_0_before");
         typeof(FacilitySimulation).GetMethod("KillEmployee", BindingFlags.NonPublic | BindingFlags.Instance)
             ?.Invoke(sim, new object[] { victim, st?.CurrentRoomId ?? "" });
@@ -62,7 +62,7 @@ public partial class DeathScreamProbe : Node
             if (soundEnd >= 0 && fxEnd >= 0 && now - start > 1.0) break;
         }
         float tremor = ControlRoom3DController.Instance?.Rig?.Tremor ?? -1f;
-        GD.Print($"   비명 끝 {soundEnd:0.00}초 · 연출 끝 {fxEnd:0.00}초 · 끝난 뒤 떨림 {tremor:0.00}");
+        GD.Print($"   비명 끝 {soundEnd:0.00}초, 연출 끝 {fxEnd:0.00}초, 끝난 뒤 떨림 {tremor:0.00}");
         await Frames(20);
         Shot(dir, "death_9_after");
         GetTree().Quit();

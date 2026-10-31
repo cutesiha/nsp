@@ -574,7 +574,7 @@ public partial class IncomingCallDirector : Node
             _recentCalls.Add(now);
             _lastRingAt = now;
             if (DebugCalls)
-                GD.Print($"[CALL] {p.EmployeeId} / {p.DialogueEvent} / {p.RoomId} — "
+                GD.Print($"[CALL] {p.EmployeeId} / {p.DialogueEvent} / {p.RoomId} - "
                          + $"최근 {CallWindowSeconds:0}초 내 {_recentCalls.Count}/{MaxCallsPerWindow}통");
             Phone3D.Instance.RingIncoming(p.EmployeeId, p.DialogueEvent, p.RoomId);
             return;

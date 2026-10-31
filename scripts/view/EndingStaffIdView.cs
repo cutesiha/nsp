@@ -81,7 +81,7 @@ public partial class EndingStaffIdView : Control
         if (index < 0 || index >= _cards.Count) return;
         var c = _cards[index];
         c.Verified = true;
-        c.Stamp = c.Dead ? "격리 · 이송 완료" : "확인";
+        c.Stamp = c.Dead ? "격리, 이송 완료" : "확인";
         QueueRedraw();
     }
 

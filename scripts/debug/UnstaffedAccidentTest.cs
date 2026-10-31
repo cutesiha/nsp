@@ -102,7 +102,7 @@ public partial class UnstaffedAccidentTest : Node
             t += Step;
         }
         bool fired = _sim.HasRepairPending(room);
-        GD.Print($"   {Name(room)} 비움 + {Name(other)} 사고 중 — 규정 {limit:0.0}초 · " +
+        GD.Print($"   {Name(room)} 비움 + {Name(other)} 사고 중 - 규정 {limit:0.0}초, " +
                  $"{(fired ? $"다른 사고가 열린 뒤 {t:0.0}초에 발생" : "발생 안 함")}");
         Check(opened && _sim.HasRepairPending(other), $"{Name(other)} 사고가 먼저 열려 있다");
         Check(fired && t <= 2.5f, $"다른 사고가 열려 있어도 {Name(room)} 무인 사고가 0초에 난다");

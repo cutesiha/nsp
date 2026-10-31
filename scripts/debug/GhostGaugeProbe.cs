@@ -61,7 +61,7 @@ public partial class GhostGaugeProbe : Node
         await Seconds(1.5);
 
         // ── ① 괴물 소멸 게이지 ────────────────────────────────────────
-        GD.Print("\n\n################ 괴물 소멸 게이지 · 전화기 클릭 범위 ################");
+        GD.Print("\n\n################ 괴물 소멸 게이지, 전화기 클릭 범위 ################");
         GD.Print("\n===== [①] DAY2 근무에서 소멸 게이지 =====");
 
         const string room = "core_room";
@@ -98,7 +98,7 @@ public partial class GhostGaugeProbe : Node
         var narrow = phone.NarrowClickSize;
         GD.Print($"      DAY{gs?.CurrentDay} 상자 {wide}   기본 상자 {narrow}");
         Ok(wide.X > narrow.X && wide.Y > narrow.Y && wide.Z > narrow.Z,
-            $"DAY1~5 는 본체까지 넓다 (가로 ×{wide.X / narrow.X:0.00} · 세로 ×{wide.Y / narrow.Y:0.00} · 깊이 ×{wide.Z / narrow.Z:0.00})");
+            $"DAY1~5 는 본체까지 넓다 (가로 ×{wide.X / narrow.X:0.00}, 세로 ×{wide.Y / narrow.Y:0.00}, 깊이 ×{wide.Z / narrow.Z:0.00})");
 
         // 교육일로 되돌리면 기존 범위로 돌아와야 한다.
         gs?.ResetRun(0);

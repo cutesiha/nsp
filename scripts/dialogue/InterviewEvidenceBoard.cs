@@ -261,7 +261,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Incident,
                 Header = "기절 기록",
                 TimeText = DialogueClock.Text(r.Timestamp),
-                Body = $"{Codename(r.RelatedEmployeeId)} — 스트레스 한계 · 업무 불능",
+                Body = $"{Codename(r.RelatedEmployeeId)} - 스트레스 한계, 업무 불능",
                 SubjectEmployeeId = r.RelatedEmployeeId,
                 AnchorTime = r.Timestamp,
                 HasTime = true,
@@ -347,7 +347,7 @@ public static class InterviewEvidenceBoard
                 TimeText = DialogueClock.Text(o.Time),
                 Body = string.IsNullOrEmpty(detail)
                     ? $"{RoomName(o.RoomId)}에서 확인"
-                    : $"{RoomName(o.RoomId)} · {detail}",
+                    : $"{RoomName(o.RoomId)}: {detail}",
                 BehaviorDetail = detail,
                 SubjectEmployeeId = target,
                 AnchorTime = o.Time,
@@ -375,8 +375,8 @@ public static class InterviewEvidenceBoard
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
                 // 무엇을 하고 있었는지까지 들었으면 그것을 싣는다 — 방 이름은 시각 옆 태그로 충분하다.
                 Body = string.IsNullOrEmpty(s.Detail)
-                    ? $"{Codename(s.SpeakerId)} · {RoomName(s.RoomId)}에서 봤다"
-                    : $"{Codename(s.SpeakerId)} · {s.Detail}",
+                    ? $"{Codename(s.SpeakerId)}: {RoomName(s.RoomId)}에서 봤다"
+                    : $"{Codename(s.SpeakerId)}: {s.Detail}",
                 BehaviorDetail = s.Detail,
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = s.SpeakerId,
@@ -401,7 +401,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(s.SpeakerId) + "의 증언",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
-                Body = KoreanParticle.Resolve($"{Codename(s.SpeakerId)} · {s.Detail}은/는 보지 못했다"),
+                Body = KoreanParticle.Resolve($"{Codename(s.SpeakerId)}: {s.Detail}은/는 보지 못했다"),
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = s.SpeakerId,
                 AnchorTime = s.AnchorTime,
@@ -431,7 +431,7 @@ public static class InterviewEvidenceBoard
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
                 Body = string.IsNullOrEmpty(s.Detail)
                     ? $"{Codename(s.SubjectId)}을/를 {RoomName(s.RoomId)}에서 봤다"
-                    : $"{Codename(s.SubjectId)} · {s.Detail}",
+                    : $"{Codename(s.SubjectId)}: {s.Detail}",
                 BehaviorDetail = s.Detail,
                 SubjectEmployeeId = s.SubjectId,
                 SpeakerEmployeeId = target,
@@ -450,7 +450,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(target) + "이/가 한 말",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
-                Body = KoreanParticle.Resolve($"{Codename(s.SubjectId)} · {s.Detail}은/는 보지 못했다"),
+                Body = KoreanParticle.Resolve($"{Codename(s.SubjectId)}: {s.Detail}은/는 보지 못했다"),
                 SubjectEmployeeId = s.SubjectId,
                 SpeakerEmployeeId = target,
                 AnchorTime = s.AnchorTime,
@@ -655,7 +655,7 @@ public static class InterviewEvidenceBoard
                     DayIsFixed = true,
                     Header = Codename(target) + "의 진술" + (latest ? "" : "(정정 전)"),
                     TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",
-                    Body = (latest ? "본인 · " : "본인 · 처음엔 ") + $"{RoomName(room)}에 있었다",
+                    Body = (latest ? "본인: " : "본인: 처음엔 ") + $"{RoomName(room)}에 있었다",
                     SubjectEmployeeId = target,
                     SpeakerEmployeeId = target,
                     AnchorTime = st.AnchorTime,
@@ -732,7 +732,7 @@ public static class InterviewEvidenceBoard
                 Day = b.Day, SubjectDay = b.SubjectDay,
                 Header = Codename(target) + "의 진술",
                 TimeText = b.HasTime ? DialogueClock.Text(b.AnchorTime) : "",
-                Body = $"본인 · {b.Text}",
+                Body = $"본인: {b.Text}",
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = target,
                 AnchorTime = b.AnchorTime,
@@ -850,8 +850,8 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Anomaly,
                 Header = "이상 개체",
                 TimeText = DialogueClock.Text(r.Timestamp),
-                Body = struck ? $"{RoomName(room)} · 이상 개체 접촉 사고 당시 그 방에 있었다"
-                              : $"{RoomName(room)} · 이상 개체가 나타났을 때 그 방에 있었다",
+                Body = struck ? $"{RoomName(room)}: 이상 개체 접촉 사고 당시 그 방에 있었다"
+                              : $"{RoomName(room)}: 이상 개체가 나타났을 때 그 방에 있었다",
                 SubjectEmployeeId = target,
                 AnchorTime = r.Timestamp,
                 HasTime = true,

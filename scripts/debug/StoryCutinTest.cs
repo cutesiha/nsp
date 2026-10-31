@@ -27,7 +27,7 @@ public partial class StoryCutinTest : Node
 
     private async Task Run()
     {
-        GD.Print("\n\n################ 스토리 컷인 — Phase 1 ################");
+        GD.Print("\n\n################ 스토리 컷인 - Phase 1 ################");
 
         // 메인 씬 없이 컷인만 올린다(컷인은 3D 제어실에 의존하지 않아야 한다).
         _hud = new StoryCutinHud();
@@ -55,7 +55,7 @@ public partial class StoryCutinTest : Node
         await PhoneGuard();
         await PhoneStanding();
 
-        GD.Print($"\n################ 통과 {_pass} · 실패 {_fail} ################\n");
+        GD.Print($"\n################ 통과 {_pass}, 실패 {_fail} ################\n");
         if (_fail > 0) GD.PushError($"StoryCutinTest: {_fail}건 실패");
         await Frames(2);
         GetTree().Quit(_fail > 0 ? 1 : 0);
@@ -67,7 +67,7 @@ public partial class StoryCutinTest : Node
     // 결과와 한 픽셀도 다르지 않은지 여섯 명 전부 비교한다.
     private async Task LayoutRegression()
     {
-        GD.Print("\n── ① 배치 계산 회귀(InterviewCCTVView · ScheduleStaffView) ──");
+        GD.Print("\n── ① 배치 계산 회귀(InterviewCCTVView, ScheduleStaffView) ──");
         var sim = FacilitySimulation.Instance;
         Check(sim != null, "FacilitySimulation 오토로드가 있다");
         if (sim == null) return;
@@ -119,7 +119,7 @@ public partial class StoryCutinTest : Node
             else GD.Print($"   ! {id}: box {oldBox}→{newBox}  size {oldSize}→{newSize}  pos {oldPos}→{newPos}");
         }
         Check(total == 6, $"스탠딩 원화가 여섯 장 모두 있다 ({total})");
-        Check(same == total, $"여섯 명 모두 크기 · 위치 · 그림영역이 추출 전과 같다 ({same}/{total})");
+        Check(same == total, $"여섯 명 모두 크기, 위치, 그림영역이 추출 전과 같다 ({same}/{total})");
 
         // ScheduleStaffView 는 ContentBox 만 쓴다 — 그 값이 같으면 표시도 같다.
         Check(same == total, "ScheduleStaffView 가 쓰는 ContentBox 결과도 같다(같은 측정값)");
@@ -239,7 +239,7 @@ public partial class StoryCutinTest : Node
     // 한 명이 빠지면 남은 한 명이 다시 정중앙으로. 이동은 전부 트윈 · 등장/퇴장은 페이드.
     private async Task StagingMoves()
     {
-        GD.Print("\n── ③-B 등장 · 퇴장 동선 ──");
+        GD.Print("\n── ③-B 등장, 퇴장 동선 ──");
         var beat = new StoryBeat { BeatId = "test_staging" }
             .Add("rabbit", "혼자 서 있는 줄입니다.", CutinSide.Left)
             .Add("wolf", "둘이 되는 줄입니다.", CutinSide.Right)

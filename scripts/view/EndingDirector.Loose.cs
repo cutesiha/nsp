@@ -25,7 +25,7 @@ public partial class EndingDirector
         for (int i = 0; i < 3; i++) { Sfx.Instance?.Play("key_type", -18f); await Wait(0.18); }
         if (string.IsNullOrEmpty(accused))
         {
-            QueryPush("▸ 지정 없음 · 격리 미집행", EndingMonitorView.Tone.Normal);
+            QueryPush("▸ 지정 없음, 격리 미집행", EndingMonitorView.Tone.Normal);
             await QueryWait();
         }
         else
@@ -118,7 +118,7 @@ public partial class EndingDirector
         await Wait(1.5);
         Sfx.Instance?.StopLoop("tinnitus");
 
-        await Banner("BAD END — 복구 완료 · 대상 미확인",
+        await Banner("BAD END - 복구 완료, 대상 미확인",
             new Color(0.92f, 0.92f, 0.88f), new Color(0.12f, 0.12f, 0.14f));
         EndingState.Record(EndingState.Kind.Loose);
         // 성적표는 흰 화면이 아니라 어둠 위에 뜬다.

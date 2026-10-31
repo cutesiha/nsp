@@ -74,7 +74,7 @@ public partial class EndingShot : Node
         bool caught = mode is "true" or "late";
         if (mode is "true" or "loose" or "late" or "bad")
             gs.ForceFinalVerdict(caught ? gs.SaboteurEmployeeId : "", caught);
-        GD.Print($"DAY{gs.CurrentDay} · CORE {gs.CoreProgress:0.0}%");
+        GD.Print($"DAY{gs.CurrentDay}, CORE {gs.CoreProgress:0.0}%");
 
         var flow = GetTree().Root.FindChild("ShiftFlowController", true, false);
         if (mode == "verdict")

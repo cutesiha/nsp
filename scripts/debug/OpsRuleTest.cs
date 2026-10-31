@@ -117,7 +117,7 @@ public partial class OpsRuleTest : Node
         if (w == null) { Check(false, "근무 중 경고가 한 번은 뜬다"); return; }
 
         string room = w.RoomId;
-        GD.Print($"   {RoomName(room)} 경고 — {w.RequiredStaff}명 필요 · 안정화 {w.WorkNeeded:0.#}초 · " +
+        GD.Print($"   {RoomName(room)} 경고 - {w.RequiredStaff}명 필요, 안정화 {w.WorkNeeded:0.#}초, " +
                  $"제한 {w.Remaining:0}초");
 
         // 필요한 만큼 사람을 보낸다.
@@ -176,14 +176,14 @@ public partial class OpsRuleTest : Node
             var (n, here) = RunSabotageTrial(2, withCompany: false);
             alone += n; aloneHere += here;
         }
-        GD.Print($"   혼자 있을 때 — {Trials}회 중 방해공작 {alone}건 (그중 결번이 있던 코어실 {aloneHere}건)");
+        GD.Print($"   혼자 있을 때 - {Trials}회 중 방해공작 {alone}건 (그중 결번이 있던 코어실 {aloneHere}건)");
         Check(alone > 0, $"결번이 혼자 방을 맡아도 방해공작이 일어난다 ({alone}/{Trials})");
         Check(aloneHere == 0, "혼자 손댄 고장은 결번이 있던 방에서 터지지 않는다");
 
         // (나) 같은 방에 한 명을 더 둔다 — 이때도 일어난다(그 방에서 터질 수도 있다).
         int company = 0;
         for (int i = 0; i < Trials; i++) company += RunSabotageTrial(2, withCompany: true).Total;
-        GD.Print($"   동료가 있을 때 — {Trials}회 중 방해공작 {company}건");
+        GD.Print($"   동료가 있을 때 - {Trials}회 중 방해공작 {company}건");
         Check(company > 0, $"동료가 있으면 방해공작이 일어난다 ({company}/{Trials})");
     }
 
@@ -233,14 +233,14 @@ public partial class OpsRuleTest : Node
             total += n;
             if (n > 0) days++;
         }
-        GD.Print($"   DAY1 — {Trials}회 중 방해공작이 있었던 근무 {days}회 (총 {total}건, 결번 혼자 배치)");
+        GD.Print($"   DAY1 - {Trials}회 중 방해공작이 있었던 근무 {days}회 (총 {total}건, 결번 혼자 배치)");
         Check(days >= Trials * 8 / 10, $"DAY1 에도 방해공작이 한 번은 일어난다 ({days}/{Trials}회, 기준 8회 이상)");
         Check(total <= Trials, $"DAY1 은 하루 한 번을 넘지 않는다 (총 {total}건)");
 
         // 비교 — DAY2 는 같은 배치에서 더 잦다(하루 두 번까지).
         int day2 = 0;
         for (int i = 0; i < Trials; i++) day2 += RunSabotageTrial(2, withCompany: false).Total;
-        GD.Print($"   DAY2 — {Trials}회 중 방해공작 {day2}건");
+        GD.Print($"   DAY2 - {Trials}회 중 방해공작 {day2}건");
         Check(day2 > total, $"DAY2 는 DAY1 보다 잦다 (DAY2 {day2} > DAY1 {total})");
     }
 
@@ -250,7 +250,7 @@ public partial class OpsRuleTest : Node
     // 봉쇄 흔들림도 없어야 한다 — 확률이 줄어드는 것이 아니라 **0** 이다.
     private void CheckIsolationStopsSummoning()
     {
-        GD.Print("\n---------------- ⑥ 결번 격리 → 귀신 · 방해공작 · 봉쇄 멈춤 ----------------");
+        GD.Print("\n---------------- ⑥ 결번 격리 → 귀신, 방해공작, 봉쇄 멈춤 ----------------");
         const int Trials = 4;
 
         // (가) 풀어 둔 DAY3 — 봉쇄가 흔들리고 이상 개체가 나온다.
@@ -262,7 +262,7 @@ public partial class OpsRuleTest : Node
             freeGhosts += _sim.Ghost.AppearedToday;
             freeInst += _sim.Containment.Instability;
         }
-        GD.Print($"   풀어 둔 DAY3 — 이상 개체 {freeGhosts}회 / 근무 끝 봉쇄 불안정 평균 {freeInst / Trials:0.0}");
+        GD.Print($"   풀어 둔 DAY3 - 이상 개체 {freeGhosts}회 / 근무 끝 봉쇄 불안정 평균 {freeInst / Trials:0.0}");
         Check(freeGhosts >= Trials, $"결번이 풀려 있으면 이상 개체가 날마다 나온다 ({freeGhosts}/{Trials})");
         Check(freeInst / Trials > 30f, $"결번이 풀려 있으면 봉쇄가 저절로 흔들린다 (평균 {freeInst / Trials:0.0})");
 
@@ -275,7 +275,7 @@ public partial class OpsRuleTest : Node
             ghosts += _sim.Ghost.AppearedToday;
             inst = Mathf.Max(inst, _sim.Containment.Instability);
         }
-        GD.Print($"   격리한 DAY3 — 이상 개체 {ghosts}회 / 방해공작 {sabotage}건 / 봉쇄 불안정 최대 {inst:0.0}");
+        GD.Print($"   격리한 DAY3 - 이상 개체 {ghosts}회 / 방해공작 {sabotage}건 / 봉쇄 불안정 최대 {inst:0.0}");
         Check(ghosts == 0, "결번을 격리하면 이상 개체가 한 번도 나오지 않는다");
         Check(sabotage == 0, "결번을 격리하면 방해공작이 일어나지 않는다");
         Check(inst < 0.01f, "결번을 격리하면 봉쇄가 흔들리지 않는다");
@@ -298,7 +298,7 @@ public partial class OpsRuleTest : Node
             }
             leaked += EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Sabotage);
         }
-        GD.Print($"   손댄 직후 격리 — {caught}/{Trials}회 붙잡음, 그 뒤 드러난 고장 {leaked}건");
+        GD.Print($"   손댄 직후 격리 - {caught}/{Trials}회 붙잡음, 그 뒤 드러난 고장 {leaked}건");
         Check(caught > 0 && leaked == 0, "고장이 드러나기 전에 격리하면 손댄 것도 함께 사라진다");
     }
 
@@ -369,7 +369,7 @@ public partial class OpsRuleTest : Node
         }
         Check(bad.Count == 0, bad.Count == 0
             ? "어떤 경로도 제한 구역을 지나가지 않는다"
-            : $"제한 구역 경유 {bad.Count}건 — {string.Join(" · ", bad.Take(3))}");
+            : $"제한 구역 경유 {bad.Count}건 - {string.Join(", ", bad.Take(3))}");
 
         // 직원이 쓰는 작업실끼리는 중앙 제어실 없이도 전부 오갈 수 있어야 한다.
         var work = ids.Where(r => _sim.GetRoomDef(r) is { IsRestricted: false }).ToList();
@@ -380,7 +380,7 @@ public partial class OpsRuleTest : Node
                 unreachable.Add($"{RoomName(from)}→{RoomName(to)}");
         Check(unreachable.Count == 0, unreachable.Count == 0
             ? $"작업실 {work.Count}곳이 서로 전부 이어져 있다"
-            : $"길이 끊긴 쌍 {unreachable.Count}건 — {string.Join(" · ", unreachable.Take(3))}");
+            : $"길이 끊긴 쌍 {unreachable.Count}건 - {string.Join(", ", unreachable.Take(3))}");
     }
 
     private string RoomName(string roomId) => _sim.GetRoomDef(roomId)?.DisplayName ?? roomId;

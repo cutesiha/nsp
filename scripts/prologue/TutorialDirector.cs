@@ -219,7 +219,7 @@ public partial class TutorialDirector : Node
         await SayTyped("tut_shift_start");
 
         // ── STEP 3 : 자재 · 정비실 ───────────────────────────────────
-        TutorialTelemetry.Step("3 자재·정비실");
+        TutorialTelemetry.Step("3 자재/정비실");
         await RunMaterialsLesson(sim);
 
         // ── STEP 4 : 보관 한도 · 저장고 ──────────────────────────────
@@ -227,7 +227,7 @@ public partial class TutorialDirector : Node
         await RunStorageLesson(sim);
 
         // ── STEP 5 : 사고 ────────────────────────────────────────────
-        TutorialTelemetry.Step("5 사고·재배치");
+        TutorialTelemetry.Step("5 사고/재배치");
         await RunAccidentLesson(sim);
 
         // ── STEP 6 : 이상 개체 (CCTV · 차폐) ──────────────────────────

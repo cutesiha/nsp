@@ -525,7 +525,7 @@ public partial class FacilityMonitorView : Control
         string state = !capacity ? "전력 부족"
             : seg.CooldownLeft > 0f ? $"냉각 {seg.CooldownLeft:0.0}s"
             : seg.StatusText;
-        _barrierLabel.Text = $"BARRIER ▸ {seg.DisplayName} — {state}";
+        _barrierLabel.Text = $"BARRIER ▸ {seg.DisplayName} - {state}";
         _barrierLabel.AddThemeColorOverride("font_color",
             seg.Sealed ? new Color(1f, 0.46f, 0.38f)
             : seg.Moving ? new Color(1f, 0.82f, 0.42f)
@@ -659,13 +659,13 @@ public partial class FacilityMonitorView : Control
         {
             var def = sim.GetEmployeeDef(_selEmp);
             var st = sim.GetEmployeeState(_selEmp);
-            if (def == null || st == null) { SetFace(null); SetInspector("—"); _isolateBtn.Visible = false; return; }
+            if (def == null || st == null) { SetFace(null); SetInspector("-"); _isolateBtn.Visible = false; return; }
 
-            string room = sim.GetRoomDef(st.CurrentRoomId)?.DisplayName ?? "—";
+            string room = sim.GetRoomDef(st.CurrentRoomId)?.DisplayName ?? "-";
             var task = sim.GetActiveTaskForRoom(st.CurrentRoomId);
             string status = !st.Alive ? "[color=#ff5555]활동 중단[/color]"
                 : st.Isolated ? "[color=#dd88dd]격리됨[/color]"
-                : st.Incapacitated ? "[color=#ff5555]기절 — 의무실에서 회복 중[/color]"
+                : st.Incapacitated ? "[color=#ff5555]기절 - 의무실에서 회복 중[/color]"
                 : st.IsMoving ? "이동 중" : "정상";
 
             string doing = st.IsMoving ? "이동 중" : task?.DisplayName ?? "대기";
@@ -679,9 +679,9 @@ public partial class FacilityMonitorView : Control
                 var sb = new System.Text.StringBuilder();
                 if (DayFeatures.StatsEnabled)
                 {
-                    sb.Append($"기술 {def.Tech} · 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n");
-                    sb.Append($"담력 {def.Courage} · 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n");
-                    sb.Append($"관찰 {def.Observation} · 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n");
+                    sb.Append($"기술 {def.Tech}, 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"담력 {def.Courage}, 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"관찰 {def.Observation}, 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n");
                 }
                 if (DayFeatures.StressEnabled)
                 {
@@ -695,8 +695,8 @@ public partial class FacilityMonitorView : Control
                         _ => "#88cc88",
                     };
                     float stressMax = Config.Instance?.Data?.StressMax ?? 50f;
-                    sb.Append($"스트레스 {st.Stress:0} / {stressMax:0} · [color={bandColor}]{band}[/color]" +
-                              $" · 작업 {Mathf.RoundToInt(sim.StressWorkRate(st) * 100f)}%");
+                    sb.Append($"스트레스 {st.Stress:0} / {stressMax:0}, [color={bandColor}]{band}[/color]" +
+                              $", 작업 {Mathf.RoundToInt(sim.StressWorkRate(st) * 100f)}%");
                 }
                 detail = sb.ToString().TrimEnd('\n');
             }
@@ -704,13 +704,13 @@ public partial class FacilityMonitorView : Control
             {
                 string mood = sim.GetDailyMood(_selEmp);
                 // 경영 리워크: 특성(Trait)은 싣지 않는다.
-                detail = $"오늘의 기분 · [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "—" : mood)}[/color]";
+                detail = $"오늘의 기분: [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "-" : mood)}[/color]";
             }
 
             SetFace(def.FacePortrait);
             SetInspector(
                 $"[color=#ffc040]EMPLOYEE[/color]\n[font_size=23]{def.Codename}[/font_size]\n" +
-                $"[color=#8a99a8]{room} · {doing}[/color]\n\n" +
+                $"[color=#8a99a8]{room}, {doing}[/color]\n\n" +
                 detail +
                 (abnormal ? $"\n{status}" : ""));
 
@@ -726,7 +726,7 @@ public partial class FacilityMonitorView : Control
         {
             var def = sim.GetRoomDef(_selRoom);
             var state = sim.GetRoomState(_selRoom);
-            if (def == null || state == null) { SetFace(null); SetInspector("—"); HideRoomDots(); return; }
+            if (def == null || state == null) { SetFace(null); SetInspector("-"); HideRoomDots(); return; }
 
             var st = sim.GetPrimarySpawnedTask(_selRoom);
             var workers = state.OccupantEmployeeIds;
@@ -823,7 +823,7 @@ public partial class FacilityMonitorView : Control
         float x = EmpDotRadius + 2f, y = _roomDots.Size.Y / 2f;
         if (_roomDotColors.Count == 0)
         {
-            _roomDots.DrawString(_font, new Vector2(0f, y + 6f), "—", HorizontalAlignment.Left, -1, ViewFont.S(19), Dim);
+            _roomDots.DrawString(_font, new Vector2(0f, y + 6f), "-", HorizontalAlignment.Left, -1, ViewFont.S(19), Dim);
             return;
         }
         foreach (var c in _roomDotColors)
@@ -841,7 +841,7 @@ public partial class FacilityMonitorView : Control
         {
             string cause = RoomStatusText.GetFailureCause(roomId);
             var sb = new StringBuilder("\n\n[color=#ff4444]● 고장 발생[/color]");
-            if (!string.IsNullOrEmpty(cause)) sb.Append($"\n[color=#ff8a8a]{cause} — 수리 전까지 복구되지 않습니다.[/color]");
+            if (!string.IsNullOrEmpty(cause)) sb.Append($"\n[color=#ff8a8a]{cause} - 수리 전까지 복구되지 않습니다.[/color]");
             if (task is { IsRepair: true })
                 sb.Append($"\n[color=#ff8a8a]수리 진행도 : {Mathf.Clamp(task.Ratio, 0f, 1f) * 100f:0}%[/color]");
             return sb.ToString();
@@ -852,7 +852,7 @@ public partial class FacilityMonitorView : Control
         {
             string col = tier == RoomDangerTier.Unstable ? "#ff9933" : "#dddd55";
             string head = tier == RoomDangerTier.Unstable ? "▲ 고장 임박" : "▲ 고장 위험";
-            return $"\n\n[color={col}]{head} — {Clock(task.Remaining)} 뒤 고장[/color]";
+            return $"\n\n[color={col}]{head} - {Clock(task.Remaining)} 뒤 고장[/color]";
         }
         return "";
     }

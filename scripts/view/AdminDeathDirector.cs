@@ -569,7 +569,7 @@ public partial class AdminDeathDirector : Node
         var seg = FacilitySimulation.Instance?.Corridors.ById(_threat?.SegmentId ?? "");
         string where = seg?.DisplayName ?? "접근 복도";
         col.AddChild(Lbl($"{where} 차폐 실패", 20, ink));
-        col.AddChild(Lbl($"DAY {GameState.Instance?.CurrentDay ?? 1} · " +
+        col.AddChild(Lbl($"DAY {GameState.Instance?.CurrentDay ?? 1}, " +
                          $"{NSP.Dialogue.DialogueClock.Text(GameState.Instance?.DayTimeSeconds ?? 0f)}", 15, dim));
         col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
         col.AddChild(Lbl("중앙제어실 접근을 막지 못했습니다.", 16, dim));

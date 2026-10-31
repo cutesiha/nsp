@@ -99,7 +99,7 @@ public partial class PosterCamera : Camera3D
             Environment = BuildExposureOverride();
             MakeCurrent();
             BuildGuide();
-            GD.Print($"[PosterCamera] 프리뷰 ON — 마스크 안쪽이 저장될 그림이다. " +
+            GD.Print($"[PosterCamera] 프리뷰 ON - 마스크 안쪽이 저장될 그림이다. " +
                      $"{CaptureResolution.X}x{CaptureResolution.Y}, FOV {Fov:0.#}도(세로). {CaptureKey} = 저장");
         }
         else
@@ -183,7 +183,7 @@ public partial class PosterCamera : Camera3D
 
         int w = Mathf.Clamp(CaptureResolution.X, 16, 16384);
         int h = Mathf.Clamp(CaptureResolution.Y, 16, 16384);
-        GD.Print($"[PosterCamera] 캡처 시작 {w}x{h} — 프레임이 몇 초 멈춘다. " +
+        GD.Print($"[PosterCamera] 캡처 시작 {w}x{h} - 프레임이 몇 초 멈춘다. " +
                  $"(렌더 타깃만 대략 {(w * (long)h * 8L) / (1024 * 1024)}MB)");
 
         bool wasHidden = _hidden;

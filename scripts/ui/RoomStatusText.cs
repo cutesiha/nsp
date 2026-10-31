@@ -46,7 +46,7 @@ public static class RoomStatusText
             return "";
 
         if (sim.IsRoomBlockedByMaterials(roomId))
-            return "자재 부족 — 대기 중";
+            return "자재 부족 - 대기 중";
 
         var task = sim.GetTaskDef(st.TaskId);
         return $"{WorkIcon(roomDef.ManagedResource)} {task?.DisplayName ?? st.TaskId} 중{AnimatedDots()}";
@@ -80,7 +80,7 @@ public static class RoomStatusText
 
             string body;
             if (sim.IsRoomBlockedByMaterials(roomId))
-                body = "자재 부족 — 대기";
+                body = "자재 부족 - 대기";
             else if (here > 0 && here < need)
                 body = $"▲ {need}명 필요 (현재 {here}명)";
             else if (here > 0)

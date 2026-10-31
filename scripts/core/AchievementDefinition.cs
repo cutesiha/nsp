@@ -105,14 +105,16 @@ public static class Achievements
         Add(FirstInterview, "취조를 시작하지", "휴게시간에 직원을 심문하세요.", "◇");
 
         // B. 실수 / 시설 관리
+        // 수리 승인 절차 · 스트레스(기절)는 정규 근무에만 있다 - 그 과제들의 조건 끝에 「(정규 근무 전용)」 을 붙여
+        // 단기 근무만 해 본 사람이 "왜 안 뜨지?" 하지 않게 한다(2026-10-31).
         // 기절은 스트레스가 있는 근무(정규 근무)에만 있다 — 단기 근무에는 스트레스가 없다.
         // 그 근무를 고를 수 없는 동안은 기절 과제를 목록에서 뺀다(얻을 길이 없는 과제가 남으면
         // 수집률이 영영 다 차지 않는다). 「오늘은 무사히」도 기절을 말하지 않는다.
         bool faintPossible = GameModes.IsPlayable(GameMode.Standard);
-        Add(MazeFailOnce, "하찮은 관리자!", "수리 승인 퍼즐에 실패하세요.", "△");
-        Add(MazeFailThree, "부러진 손가락", "수리 승인 퍼즐에 누적 3회 실패하세요.", "△");
-        Add(RepairRequestIgnored, "모른 척하기도 업무입니다", "수리 승인 요청을 거절하거나 방치하세요.", "△");
-        if (faintPossible) Add(FirstFaint, "부주의한 관리자", "근무 중 직원을 기절까지 몰아붙이세요.", "△");
+        Add(MazeFailOnce, "하찮은 관리자!", "수리 승인 퍼즐에 실패하세요. (정규 근무 전용)", "△");
+        Add(MazeFailThree, "부러진 손가락", "수리 승인 퍼즐에 누적 3회 실패하세요. (정규 근무 전용)", "△");
+        Add(RepairRequestIgnored, "모른 척하기도 업무입니다", "수리 승인 요청을 거절하거나 방치하세요. (정규 근무 전용)", "△");
+        if (faintPossible) Add(FirstFaint, "부주의한 관리자", "근무 중 직원을 기절까지 몰아붙이세요. (정규 근무 전용)", "△");
         Add(WarningNeglected, "경고는 장식인가요?", "사전 경고를 방치해 설비를 고장 내세요.", "△");
         Add(PowerRestored, "다시 켜진 불빛", "발전기 사고로 줄어든 전력을 수리로 복구하세요.", "△");
         Add(FirstFacilityRepair, "고쳐 쓰면 그만", "고장 난 작업실 설비를 수리 완료하세요.", "△");

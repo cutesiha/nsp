@@ -101,7 +101,7 @@ public partial class ScareShot : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (img == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         img.SavePng($"{_dir}/scare_{_shot:00}_{name}.png");
         _shot++;
     }
@@ -109,7 +109,7 @@ public partial class ScareShot : Node
     private void ShotCctv(string name)
     {
         var tex = ControlRoom3DController.Instance?.CctvViewport?.GetTexture();
-        if (tex == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (tex == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         tex.GetImage()?.SavePng($"{_dir}/scare_{_shot:00}_{name}.png");
         _shot++;
     }

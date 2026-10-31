@@ -189,7 +189,7 @@ public partial class FinalReportView : Control
     private Button ClueButton(ClueBoard.Entry e, bool on)
     {
         var ev = e.Evidence;
-        string head = $"DAY{e.Day} · {ev?.Tag ?? ""} {ev?.TimeText ?? ""}".TrimEnd();
+        string head = $"DAY{e.Day}, {ev?.Tag ?? ""} {ev?.TimeText ?? ""}".TrimEnd();
         string body = ev?.Body ?? "";
         var btn = new Button
         {
@@ -357,7 +357,7 @@ public partial class FinalReportView : Control
             520f, ViewFont.S(24), Mint);
         DrawString(_font, new Vector2(32f, 70f), "FINAL ISOLATION REPORT", HorizontalAlignment.Left,
             520f, ViewFont.S(12), Dim);
-        DrawString(_font, new Vector2(Canvas.X - 200f, 48f), "NSP-07 · DAY 5",
+        DrawString(_font, new Vector2(Canvas.X - 200f, 48f), "NSP-07 / DAY 5",
             HorizontalAlignment.Right, 170f, ViewFont.S(14), Dim);
         DrawRect(new Rect2(30f, 80f, Canvas.X - 60f, 1f), Mint with { A = 0.22f });
 
@@ -368,7 +368,7 @@ public partial class FinalReportView : Control
         DrawString(_font, new Vector2(30f, 278f), "[근거 자료]", HorizontalAlignment.Left,
             200f, ViewFont.S(15), Ink);
         DrawString(_font, new Vector2(140f, 278f),
-            $"선택 사항 · 최대 {MaxEvidence}장   ({_chosen.Count}/{MaxEvidence})",
+            $"선택 사항, 최대 {MaxEvidence}장   ({_chosen.Count}/{MaxEvidence})",
             HorizontalAlignment.Left, 420f, ViewFont.S(13), Dim);
         // 근거 칸은 비어 있어도 자리가 보이게 테두리를 둔다(단서를 한 장도 안 찍은 판).
         DrawRect(new Rect2(24f, 286f, Canvas.X - 48f, 208f), Dim with { A = 0.22f }, false, 1f);
@@ -400,7 +400,7 @@ public partial class FinalReportView : Control
         if (p.IsNone)
         {
             DrawRect(box, new Color(0.02f, 0.05f, 0.06f, 0.9f));
-            DrawString(_font, new Vector2(box.Position.X, box.Position.Y + 40f), "—",
+            DrawString(_font, new Vector2(box.Position.X, box.Position.Y + 40f), "-",
                 HorizontalAlignment.Center, box.Size.X, ViewFont.S(28), Dim);
         }
         else if (p.Face != null)

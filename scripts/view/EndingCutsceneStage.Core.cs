@@ -64,8 +64,8 @@ public partial class EndingCutsceneStage
             line.RotationDegrees = new Vector3(0f, -Mathf.RadToDeg(a) + 90f, 0f);
         }
         // 바닥판 — 커다란 색면 하나로 두면 '바닥' 이 아니라 배경이 된다.
-        var plate = Mat(new Color(0.158f, 0.162f, 0.172f), 0.62f, 0.18f);
-        var plateDark = Mat(new Color(0.118f, 0.122f, 0.132f), 0.72f, 0.14f);
+        var plate = GrimeMat(new Color(0.172f, 0.176f, 0.187f), 61, 0.35f, 1.5f, 0.62f, 0.22f, 0.18f);
+        var plateDark = GrimeMat(new Color(0.128f, 0.133f, 0.144f), 67, 0.35f, 1.5f, 0.72f, 0.22f, 0.14f);
         for (int gx = -3; gx <= 3; gx++)
             for (int gz = -3; gz <= 3; gz++)
             {

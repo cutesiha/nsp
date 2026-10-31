@@ -47,8 +47,8 @@ public partial class RepairFrequencyTest : Node
     private void RunAll()
     {
         GD.Print("\n\n################ 수리 승인 요청 빈도 측정 ################");
-        GD.Print($"   하루 길이 {Config.Instance.Data.DayLengthSeconds:0}초 · "
-                 + $"동시 사고 상한 {Config.Instance.Data.Day1MaxActiveIncidents}건(DAY{Config.Instance.Data.IncidentLimitLastDay}까지) · "
+        GD.Print($"   하루 길이 {Config.Instance.Data.DayLengthSeconds:0}초, "
+                 + $"동시 사고 상한 {Config.Instance.Data.Day1MaxActiveIncidents}건(DAY{Config.Instance.Data.IncidentLimitLastDay}까지), "
                  + $"사고 간격 {Config.Instance.Data.IncidentGapSeconds:0}초");
 
         for (int day = 1; day <= 5; day++)
@@ -227,7 +227,7 @@ public partial class RepairFrequencyTest : Node
         foreach (var r in _rows)
         {
             string cause = r.Cause.Count == 0 ? "-"
-                : string.Join(" · ", r.Cause.OrderByDescending(p => p.Value).Select(p => $"{p.Key} {p.Value}"));
+                : string.Join(", ", r.Cause.OrderByDescending(p => p.Value).Select(p => $"{p.Key} {p.Value}"));
             GD.Print($"   {r.Day,3}  {r.Style,-4}   {r.Raised,2} / {r.Prevented,2} / {r.Failed,2}          "
                      + $"{r.Approvals,2}회      {cause}");
         }
@@ -239,7 +239,7 @@ public partial class RepairFrequencyTest : Node
         foreach (string style in new[] { "상주", "대응", "방치" })
         {
             var rs = _rows.Where(x => x.Style == style).ToList();
-            GD.Print($"\n   [{style}] 5일 합계 {rs.Sum(x => x.Approvals)}회 · 하루 평균 {rs.Average(x => x.Approvals):0.00}회");
+            GD.Print($"\n   [{style}] 5일 합계 {rs.Sum(x => x.Approvals)}회, 하루 평균 {rs.Average(x => x.Approvals):0.00}회");
         }
     }
 }

@@ -50,7 +50,7 @@ public partial class RealShiftDialogueTest : Node
 
     private async System.Threading.Tasks.Task Run()
     {
-        GD.Print("################ 실게임 경로 — 근무 → 휴게 심문 ################");
+        GD.Print("################ 실게임 경로 - 근무 → 휴게 심문 ################");
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
             ?.SetValue(null, true);
         var scene = GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate();
@@ -120,7 +120,7 @@ public partial class RealShiftDialogueTest : Node
         await Frames(30);
 
         var incidents = EventLog.Instance.GetAllEntries().Count(e => e.Day == day && DialogueContextBuilder.IsIncident(e.EventType));
-        GD.Print($"\n   오늘 로그 {EventLog.Instance.GetAllEntries().Count}줄 · 사고 {incidents}건 · 결번 {GameState.Instance.SaboteurEmployeeId}");
+        GD.Print($"\n   오늘 로그 {EventLog.Instance.GetAllEntries().Count}줄, 사고 {incidents}건, 결번 {GameState.Instance.SaboteurEmployeeId}");
         if (relocatedAt > 0f)
             Check(DialogueContextBuilder.RoomAt(Moved, day, relocatedAt - 1f) == Core,
                 "재배치 직전 여우의 시간표 위치는 여전히 코어실(지금 배치인 저장고가 아니다)");
@@ -133,11 +133,11 @@ public partial class RealShiftDialogueTest : Node
             hud.Open(id, LocalInterviewDialogue.EventDay1Interview);
             await Frames(2);
             var session = sessionField?.GetValue(hud) as InterviewSession;
-            if (!Check(session != null && session.EmployeeId == id, $"{Nm(id)} — PhoneCallHud 가 심문 세션을 연다"))
+            if (!Check(session != null && session.EmployeeId == id, $"{Nm(id)} - PhoneCallHud 가 심문 세션을 연다"))
                 continue;
             GD.Print($"\n--- {Nm(id)} ---");
             foreach (var o in session.Openings)
-                Record(id, $"(최초 진술 · {o.QuestionId})", o.Text, o.Trace, "?");
+                Record(id, $"(최초 진술, {o.QuestionId})", o.Text, o.Trace, "?");
             foreach (var q in LocationQuestions(session))
             {
                 string a = session.Ask(q).Answer;
@@ -180,7 +180,7 @@ public partial class RealShiftDialogueTest : Node
             .GroupBy(p => $"{Nm(p.x.Speaker)} | {p.x.Anchor}")
             .Where(g => g.Sum(p => p.n) > 1).ToList();
         foreach (var g in over.Take(5))
-            GD.Print($"   동료 반복: {g.Key} — " + string.Join(" / ", g.Select(p => p.x.Answer)));
+            GD.Print($"   동료 반복: {g.Key} - " + string.Join(" / ", g.Select(p => p.x.Answer)));
         Check(over.Count == 0, $"(b) 세션당 동료 언급 1회 이하 ({over.Count}개 세션 초과)");
         Check(_said.Where(x => x.Question.StartsWith("(최초 진술")).All(x => CompanionMemories(x.Trace) == 0),
             "최초 진술에는 동료 기억이 붙지 않는다");

@@ -124,7 +124,7 @@ public partial class AchievementManager : Node
     private static void Raise(AchievementDefinition def)
     {
         try { AchievementUnlocked?.Invoke(def); }
-        catch (Exception e) { GD.PushWarning($"AchievementManager: 팝업 통지 실패 — {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"AchievementManager: 팝업 통지 실패 - {e.Message}"); }
     }
 
     // ── 저장 ────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ public partial class AchievementManager : Node
             // 손상된 파일 — 기록이 비는 것은 아쉽지만 게임이 멈추지는 않는다.
             _unlocked.Clear();
             _counters.Clear();
-            GD.PushWarning($"AchievementManager: 도전과제 기록을 읽지 못했습니다 — {e.Message}");
+            GD.PushWarning($"AchievementManager: 도전과제 기록을 읽지 못했습니다 - {e.Message}");
         }
     }
 
@@ -168,7 +168,7 @@ public partial class AchievementManager : Node
         catch (Exception e)
         {
             // 디스크에 못 썼다고 런타임이 멈추면 안 된다 — 이번 실행 동안은 메모리에 남아 있다.
-            GD.PushWarning($"AchievementManager: 도전과제 저장 실패 — {e.Message}");
+            GD.PushWarning($"AchievementManager: 도전과제 저장 실패 - {e.Message}");
         }
     }
 
@@ -188,7 +188,7 @@ public partial class AchievementManager : Node
         OnRunReset();
         _loaded = true;                 // 다시 Load 해서 되살아나지 않게
 
-        if (Sandbox) { GD.Print("[도전과제] 샌드박스 실행 — 메모리 기록만 비웠습니다."); return; }
+        if (Sandbox) { GD.Print("[도전과제] 샌드박스 실행 - 메모리 기록만 비웠습니다."); return; }
 
         try
         {
@@ -196,11 +196,11 @@ public partial class AchievementManager : Node
             if (FileAccess.FileExists(StorePath))
                 DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(StorePath));
             if (FileAccess.FileExists(StorePath)) new ConfigFile().Save(StorePath);
-            GD.Print($"[도전과제] 기록을 초기화했습니다 — {StorePath}");
+            GD.Print($"[도전과제] 기록을 초기화했습니다 - {StorePath}");
         }
         catch (Exception e)
         {
-            GD.PushWarning($"AchievementManager: 기록 파일을 지우지 못했습니다 — {e.Message}");
+            GD.PushWarning($"AchievementManager: 기록 파일을 지우지 못했습니다 - {e.Message}");
         }
     }
 
@@ -406,7 +406,7 @@ public partial class AchievementManager : Node
             _hooks = new FacilityHooks(this);
             AddChild(_hooks);
         }
-        catch (Exception e) { GD.PushWarning($"AchievementManager: 이벤트 연결 실패 — {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"AchievementManager: 이벤트 연결 실패 - {e.Message}"); }
     }
 
     private void Unwire()
@@ -529,7 +529,7 @@ public partial class AchievementManager : Node
                 }
                 _sim.EmployeeKilled += OnKilled;
             }
-            catch (Exception e) { GD.PushWarning($"AchievementManager: 시뮬레이션 연결 실패 — {e.Message}"); }
+            catch (Exception e) { GD.PushWarning($"AchievementManager: 시뮬레이션 연결 실패 - {e.Message}"); }
         }
 
         public override void _ExitTree()

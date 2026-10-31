@@ -50,18 +50,18 @@ public partial class Day2FlowTest : Node
         var d1 = OpsProfile.For(1);
         var d2 = OpsProfile.For(2);
         var d3 = OpsProfile.For(3);
-        GD.Print($"\n[데이터] 운영 프로필 — DAY1 Day={d1?.Day} / DAY2 Day={d2?.Day} / DAY3 Day={d3?.Day}");
+        GD.Print($"\n[데이터] 운영 프로필 - DAY1 Day={d1?.Day} / DAY2 Day={d2?.Day} / DAY3 Day={d3?.Day}");
         Check(d2 != null && d2.Day == 2, "DAY2 전용 운영 프로필이 있다");
         // DAY3~5 는 날마다 다른 일정의 자기 프로필을 쓴다(상세 검증은 DayScheduleTest).
         Check(d3 != null && d3.Day == 3, "DAY3 은 자기 운영 프로필을 쓴다");
         if (d1 == null || d2 == null) return;
 
-        GD.Print($"        경고 간격 {d1.WarningGapSeconds:0.#}→{d2.WarningGapSeconds:0.#}초 · " +
-                 $"유예 {d1.WarningGraceSeconds:0.#}→{d2.WarningGraceSeconds:0.#}초 · " +
+        GD.Print($"        경고 간격 {d1.WarningGapSeconds:0.#}→{d2.WarningGapSeconds:0.#}초, " +
+                 $"유예 {d1.WarningGraceSeconds:0.#}→{d2.WarningGraceSeconds:0.#}초, " +
                  $"동시 경고 {d1.MaxConcurrentWarnings}→{d2.MaxConcurrentWarnings}개");
-        GD.Print($"        방해자 시작 {d1.SaboteurStartSeconds:0}→{d2.SaboteurStartSeconds:0}초 · " +
+        GD.Print($"        방해자 시작 {d1.SaboteurStartSeconds:0}→{d2.SaboteurStartSeconds:0}초, " +
                  $"준비 {d1.SabotagePrepareMinSeconds:0}~{d1.SabotagePrepareMaxSeconds:0}→" +
-                 $"{d2.SabotagePrepareMinSeconds:0}~{d2.SabotagePrepareMaxSeconds:0}초 · " +
+                 $"{d2.SabotagePrepareMinSeconds:0}~{d2.SabotagePrepareMaxSeconds:0}초, " +
                  $"하루 {d2.MaxSabotageActionsPerDay}회");
 
         Check(d2.MaxConcurrentWarnings == 1, "동시에 뜨는 경고는 DAY2 에서도 1개");
@@ -100,11 +100,11 @@ public partial class Day2FlowTest : Node
                  $"의무실 {_sim.IsRoomActive("medical_room")}");
 
         // 경영 리워크: 능력치 · 금기는 걷어냈고(잠금 유지), 스트레스와 환기실 · 의무실은 DAY1 부터 켜진다.
-        Check(!d1Stats && d1Stress && !d1Taboo, "DAY1 에는 능력치·금기가 꺼져 있고 스트레스는 켜져 있다");
+        Check(!d1Stats && d1Stress && !d1Taboo, "DAY1 에는 능력치/금기가 꺼져 있고 스트레스는 켜져 있다");
         Check(!DayFeatures.StatsEnabled && DayFeatures.StressEnabled && !DayFeatures.TaboosEnabled,
-            "DAY2 도 같은 규칙(능력치·금기 없음, 스트레스 있음)");
+            "DAY2 도 같은 규칙(능력치/금기 없음, 스트레스 있음)");
         Check(d1Vent && d1Med && _sim.IsRoomActive("vent_room") && _sim.IsRoomActive("medical_room"),
-            "환기실·의무실은 DAY1 부터 열려 있다(작업실 7개)");
+            "환기실/의무실은 DAY1 부터 열려 있다(작업실 7개)");
         GameState.Instance.ResetRun(5);
         Check(!DayFeatures.StatsEnabled && !DayFeatures.TaboosEnabled && _sim.IsRoomActive("vent_room"),
             "DAY5 까지 같은 규칙이 유지된다");
@@ -142,7 +142,7 @@ public partial class Day2FlowTest : Node
                              && Mathf.IsEqualApprox(l.Def.TargetValue, 2f)), "필수② 경고/고장 2회 해결");
         var opt = lines.FirstOrDefault(l => !l.Required);
         Check(opt != null && !opt.Def.TargetRooms.Contains("vent_room") && !opt.Def.TargetRooms.Contains("medical_room"),
-            "선택 업무가 잠긴 작업실(환기실·의무실)을 요구하지 않는다");
+            "선택 업무가 잠긴 작업실(환기실/의무실)을 요구하지 않는다");
         Check(!lines.Any(l => l.Def.DisplayText.Contains("방해") || l.Def.DisplayText.Contains("결번")),
             "방해공작 관련 업무는 노출되지 않는다");
     }
@@ -307,10 +307,10 @@ public partial class Day2FlowTest : Node
 
     private void Compare(Result d1, Result d2)
     {
-        GD.Print($"\n[근무] DAY1 코어 {d1.CoreGain:0.0}% · 경고 {d1.Warnings}회(막음 {d1.Prevented}) · " +
-                 $"고장 {d1.Breakdowns}건 · 방해공작 {Fmt(d1.SabotageAt)}");
-        GD.Print($"       DAY2 코어 {d2.CoreGain:0.0}% · 경고 {d2.Warnings}회(막음 {d2.Prevented}) · " +
-                 $"고장 {d2.Breakdowns}건 · 방해공작 {Fmt(d2.SabotageAt)}");
+        GD.Print($"\n[근무] DAY1 코어 {d1.CoreGain:0.0}%, 경고 {d1.Warnings}회(막음 {d1.Prevented}), " +
+                 $"고장 {d1.Breakdowns}건, 방해공작 {Fmt(d1.SabotageAt)}");
+        GD.Print($"       DAY2 코어 {d2.CoreGain:0.0}%, 경고 {d2.Warnings}회(막음 {d2.Prevented}), " +
+                 $"고장 {d2.Breakdowns}건, 방해공작 {Fmt(d2.SabotageAt)}");
         GD.Print($"       DAY2 발생 업무: {string.Join(", ", d2.SpawnedTasks.OrderBy(x => x))}");
 
         Check(d1.UnorderedMoves == 0 && d2.UnorderedMoves == 0,
@@ -327,7 +327,7 @@ public partial class Day2FlowTest : Node
         var p1 = OpsProfile.For(1); var p2 = OpsProfile.For(2);
         Check(p2 != null && p1 != null && p2.SabotageWindowStartSeconds <= p1.SabotageWindowStartSeconds,
             "DAY2 방해공작 기회 창이 DAY1 보다 늦지 않다");
-        GD.Print($"       범인이 특정된 근무 — DAY1 {d1.NamedCount}/3 · DAY2 {d2.NamedCount}/3");
+        GD.Print($"       범인이 특정된 근무 - DAY1 {d1.NamedCount}/3, DAY2 {d2.NamedCount}/3");
         Check(d2.NamedCount <= 1, "DAY2 에서도 범인 특정은 드물다(자동 노출 아님)");
     }
 

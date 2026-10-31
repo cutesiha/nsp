@@ -251,7 +251,7 @@ public partial class QaFixTest : Node
     // 없는 키를 부르면 Sfx.Play 가 조용히 아무것도 하지 않아 "효과음이 안 난다"가 된다.
     private void TestMazeSoundsExist()
     {
-        Head("⑥", "미로 · 승인 버튼 효과음 키가 실재한다");
+        Head("⑥", "미로, 승인 버튼 효과음 키가 실재한다");
         foreach (string key in new[] { "tick", "task_done", "switch_fail", "power_down", "relay_click", "switch" })
             Check(Sfx.Instance?.Has(key) == true, $"효과음 '{key}' 를 찾을 수 있다");
     }
@@ -271,7 +271,7 @@ public partial class QaFixTest : Node
         // 예전 동작이 살아 있으면 30초에 VentUnstaffedStressAmount(1.5) 가 세 번 들어가 +4.5 차이가 난다.
         float oldTick = Config.Instance.Data.VentUnstaffedStressAmount;
         Check(empty - staffed < oldTick,
-            $"비운 판이 더 오르지 않는다 (차이 {empty - staffed:+0.00;-0.00} · 옛 동작이면 +{oldTick * 3f:0.0})");
+            $"비운 판이 더 오르지 않는다 (차이 {empty - staffed:+0.00;-0.00}, 옛 동작이면 +{oldTick * 3f:0.0})");
 
         // 사고를 내면 그때부터 오른다 — 디버프 자체가 사라진 것은 아니어야 한다.
         var ids = _sim.GetActiveEmployeeIds();
@@ -284,7 +284,7 @@ public partial class QaFixTest : Node
         // 같은 시간 동안의 평소 상승분보다 확실히 커야 "환기 때문" 이라고 말할 수 있다.
         float baseline = staffed * faultSpan / 30f;
         Check(after > baseline + 1f,
-            $"사고가 난 뒤에는 실제로 오른다 (+{after:0.00} · 평소 +{baseline:0.00})");
+            $"사고가 난 뒤에는 실제로 오른다 (+{after:0.00}, 평소 +{baseline:0.00})");
     }
 
     // 30초 동안 오른 최대 스트레스. 환기실만 비우거나 채우고 나머지 조건은 같게 맞춘다.

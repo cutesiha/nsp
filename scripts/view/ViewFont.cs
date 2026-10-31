@@ -10,10 +10,10 @@ public static class ViewFont
     private static Font _default;
     public static Font Default => _default ??= GD.Load<Font>("res://assets/fonts/BookkMyungjo_Bold.ttf") ?? ThemeDB.FallbackFont;
 
-    // 하루가 시작될 때 뜨는 「DAY N」 표제(ShiftCardView) 전용 — KIMM 볼드.
+    // 표제 글꼴 — 「DAY N」 카드 · 크레딧 제목 · 경고 머리글. 2026-10-31 사용자 요청으로 KIMM 볼드에서 더 우아한 세리프로 바꿨다.
     private static Font _dayTitle;
     public static Font DayTitle => _dayTitle ??=
-        (ResourceLoader.Exists("res://assets/fonts/KIMM_bold.ttf") ? GD.Load<Font>("res://assets/fonts/KIMM_bold.ttf") : null) ?? Default;
+        (ResourceLoader.Exists("res://assets/fonts/DeoUahanSerif.ttf") ? GD.Load<Font>("res://assets/fonts/DeoUahanSerif.ttf") : null) ?? Default;
 
     // ── 표정 기호(☺︎ ☹︎) ──────────────────────────────────────────────
     //

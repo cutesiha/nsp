@@ -48,7 +48,7 @@ public partial class CovertOpsTest : Node
     // ── ① 전력 · 차폐 (검사 1~4) ─────────────────────────────────────────
     private void PowerAndBarrier()
     {
-        GD.Print("\n── 전력 · 차폐 ───────────────────────────────────");
+        GD.Print("\n── 전력, 차폐 ───────────────────────────────────");
         StartShift(1, "dog");
         var gs = GameState.Instance;
 
@@ -179,7 +179,7 @@ public partial class CovertOpsTest : Node
     // ── ③ 방해공작 · 관측 (검사 10~14) ───────────────────────────────────
     private void SabotageVisibility()
     {
-        GD.Print("\n── 방해공작 · 관측 자료 ──────────────────────────");
+        GD.Print("\n── 방해공작, 관측 자료 ──────────────────────────");
 
         // 10. CCTV OFF 에서 봉쇄 교란이 일어난다.
         StartShift(3, "dog", new[] { ("core_room", 2), ("power_room", 2), ("guard_room", 1), ("storage_room", 1) });
@@ -229,7 +229,7 @@ public partial class CovertOpsTest : Node
         Check(seen.Count > 0,
             $"교란 중인 방을 직접 지켜보면 '업무 중단' 이 조사자료가 된다 ({seen.Count}건)");
         if (seen.Count > 0)
-            GD.Print($"      예) {SaboteurPlan.Clock(seen[0].Time)} — " +
+            GD.Print($"      예) {SaboteurPlan.Clock(seen[0].Time)} - " +
                      $"{Code("dog")}가 {_sim.RoomDisplayName(seen[0].RoomId)}에서 {seen[0].ActionText}");
         Check(seen.Count == 0 || _sim.Covert.CaughtOnCamera > 0,
             "현행범으로 잡히면 결번은 그 자리에서 손을 뗀다");
@@ -286,7 +286,7 @@ public partial class CovertOpsTest : Node
             Check(_sim.Covert.KillsCommitted > 0, "사망은 은밀 행동 계통 하나만 거쳐 일어났다");
             Check(!string.IsNullOrEmpty(deathRoom), $"사망 장소가 실제 작업실이다 ({_sim.RoomDisplayName(deathRoom)})");
         }
-        else GD.Print("      (이번 시도에서는 사망이 발생하지 않았다 — 조건부이므로 정상)");
+        else GD.Print("      (이번 시도에서는 사망이 발생하지 않았다 - 조건부이므로 정상)");
 
         // 16. 결번이 한 번도 움직이지 않았는데 다른 방 사람이 죽는 일은 없다.
         bool remoteKill = false;
@@ -357,7 +357,7 @@ public partial class CovertOpsTest : Node
         // 붙여 버려 차이가 보이지 않는다. 재는 것은 둘이다 — ① 가중치가 실제로 걸리는가,
         // ② 출몰 시점에 그 앞의 교란이 실제로 기록되어 있는가(인과가 이어졌는가).
         float m0 = MultiplierAt(0f), m50 = MultiplierAt(50f), m100 = MultiplierAt(100f);
-        GD.Print($"      출몰 가중치 — 불안정 0:{m0:0.00}배  50:{m50:0.00}배  100:{m100:0.00}배");
+        GD.Print($"      출몰 가중치 - 불안정 0:{m0:0.00}배  50:{m50:0.00}배  100:{m100:0.00}배");
         Check(m100 > m50 && m50 > m0 && Mathf.IsEqualApprox(m0, 1f),
             "봉쇄 불안정성이 높을수록 출몰 확률 가중치가 커진다 (0 이면 가중 없음)");
 
@@ -414,7 +414,7 @@ public partial class CovertOpsTest : Node
     // ── ⑥ 모드 · 기존 진행 (검사 25~26) ──────────────────────────────────
     private void ModeIntegrity()
     {
-        GD.Print("\n── 모드 · 기존 진행 ──────────────────────────────");
+        GD.Print("\n── 모드, 기존 진행 ──────────────────────────────");
 
         // 26. 기본 모드는 결번을 무작위로 고른다.
         var picked = new HashSet<string>();
@@ -496,7 +496,7 @@ public partial class CovertOpsTest : Node
                     }
                 GD.Print($"   DAY{day} {name,-10} 근무{runs}  사망 {deaths}  은밀이동 {moves}  " +
                          $"교란 {tampers}  출몰 {ghosts}  범행시도 {attempts}  저지 {stopped}");
-                if (day == 1) Check(deaths == 0, $"DAY1 {name} — 사망 0");
+                if (day == 1) Check(deaths == 0, $"DAY1 {name} - 사망 0");
             }
         }
     }
@@ -531,7 +531,7 @@ public partial class CovertOpsTest : Node
         Check(_sim.AssignToRoom("wolf", "core_room"), "늑대를 코어실로 다시 보낸다");
         for (int i = 0; i < 200 && wolf.IsMoving; i++) Advance(Step);
         Check(wolf.CurrentRoomId == "core_room", $"늑대가 코어실에 도착했다 ({wolf.CurrentRoomId})");
-        Check(_sim.IsAtOrHeadingTo("wolf", "core_room"), "이제는 코어실에 있다 — 같은 지시는 넘긴다");
+        Check(_sim.IsAtOrHeadingTo("wolf", "core_room"), "이제는 코어실에 있다 - 같은 지시는 넘긴다");
 
         // ② 결번(강아지) — 옮긴 방이 돌아갈 자리가 된다. 예전 자리(경비실)로 걸어 돌아가지 않는다.
         Check(_sim.AssignToRoom("dog", "maintenance_room"), "강아지를 정비실로 보낸다");

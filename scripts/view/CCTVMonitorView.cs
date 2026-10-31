@@ -191,7 +191,7 @@ public partial class CCTVMonitorView : Control
         };
         AddChild(_dispelLabelBg);
 
-        _dispelLabel = Lbl("관측 유지 — 시선을 떼지 마십시오", 16, new Color(0.72f, 0.96f, 0.84f));
+        _dispelLabel = Lbl("관측 유지 - 시선을 떼지 마십시오", 16, new Color(0.72f, 0.96f, 0.84f));
         _dispelLabel.Position = new Vector2(Frame.Position.X, ly);
         _dispelLabel.Size = new Vector2(Frame.Size.X, 24f);
         _dispelLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -261,7 +261,7 @@ public partial class CCTVMonitorView : Control
         _dispelFill.Size = new Vector2(w, 14f);
         _dispelLabel.Text = ghost.DispelRatio >= 0.999f
             ? "관측 완료"
-            : $"관측 유지 — 시선을 떼지 마십시오  ({ghost.DispelRatio * 100f:0}%)";
+            : $"관측 유지 - 시선을 떼지 마십시오  ({ghost.DispelRatio * 100f:0}%)";
     }
 
     // 벽 너머의 기척. 괴물의 비명과, 그 방에 있는 직원의 비명이 겹쳐 아주 작게 난다.
@@ -541,7 +541,7 @@ public partial class CCTVMonitorView : Control
                 camName = sim.GetRoomDef(ids[idx])?.DisplayName ?? camName;
             }
         }
-        _camLabel.Text = $"CAM · {camName}";
+        _camLabel.Text = $"CAM / {camName}";
 
         bool powered = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
         bool systemFault = GameState.Instance.CctvSystemOffline;
@@ -623,7 +623,7 @@ public partial class CCTVMonitorView : Control
             return false;
         }
 
-        _camLabel.Text = $"CAM · {seg.CctvCameraId} · {seg.DisplayName}";
+        _camLabel.Text = $"CAM / {seg.CctvCameraId} / {seg.DisplayName}";
 
         bool powered = GameState.Instance.IsConsumerPowered(PowerConsumer.CctvWatch);
         if (!forceFeed && GameState.Instance.CctvSystemOffline)

@@ -109,9 +109,9 @@ public partial class RestNoteShot : Node
                 await Frames(40);
                 Save(dir, "rest_06_발언질문.png");
                 GD.Print($"  고른 발언: {said.OneLine}");
-                foreach (var q in session.QuestionsForSelection()) GD.Print("   · " + q.Text);
+                foreach (var q in session.QuestionsForSelection()) GD.Print(", " + q.Text);
             }
-            else GD.Print("  !! 대화·진술 탭에 발언이 없다");
+            else GD.Print("  !! 대화/진술 탭에 발언이 없다");
         }
 
         GD.Print("saved → " + dir);

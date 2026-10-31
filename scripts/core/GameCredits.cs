@@ -20,10 +20,10 @@ public static class GameCredits
         ("프로그래밍", Maker),
         ("그래픽", Maker),
         ("사운드", Maker),
-        ("UI · 연출", Maker),
+        ("UI / 연출", Maker),
     };
 
-    public const string ThanksHead = "QA · Special Thanks";
+    public const string ThanksHead = "QA / Special Thanks";
     public static readonly string[] Thanks = { "백준하", "허도경", "류도훈" };
 
     // 외부 리소스. Url 은 출처 창에만 쓴다(https:// 는 떼고 적는다).
@@ -38,8 +38,8 @@ public static class GameCredits
         new("3D 모델", "인간 괴물", "The Wrapped", "codyanka",
             "codyanka.itch.io/the-wrapped"),
         new("3D 모델", "직원 머리카락", "헤어 3D 모델 2종", "CGTrader",
-            "cgtrader.com/items/7205705 · cgtrader.com/items/5976442"),
-        new("사운드", "비명 · 숨소리 등 효과음", "효과음 자료", "PGTD",
+            "cgtrader.com/items/7205705 / cgtrader.com/items/5976442"),
+        new("사운드", "비명, 숨소리 등 효과음", "효과음 자료", "PGTD",
             "pgtd.tistory.com"),
         new("사운드", "메인화면 기계실 환경음", "Machine Room", "Pixabay",
             "pixabay.com/sound-effects/film-special-effects-machine-room-55632"),
@@ -48,7 +48,7 @@ public static class GameCredits
     };
 
     // 쓴 글꼴 — 이름만 적는다.
-    public static readonly string[] Fonts = { "부크크 명조", "KIMM Bold", "KMU80 성곡 세리프", "날선체" };
+    public static readonly string[] Fonts = { "부크크 명조", "더 우아한 세리프", "KMU80 성곡 세리프", "날선체" };
 
     public const string Engine = "Made with Godot Engine";
     public const string ThankYou = "플레이해 주셔서 감사합니다.";

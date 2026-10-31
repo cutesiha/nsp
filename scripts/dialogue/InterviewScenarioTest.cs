@@ -63,7 +63,7 @@ public static class InterviewScenarioTest
     // 떠야 하고, 그것으로 심문할 수 있어야 한다.
     private static void TestDeathInvestigation()
     {
-        Head("7차", "늑대 생체 신호 소실 — 조사 자료 · 띠 시간표 · 심문");
+        Head("7차", "늑대 생체 신호 소실 - 조사 자료, 띠 시간표, 심문");
         Reset();
         PlayerKnownEvidence.ResetAll();
         DialogueHistory.Instance?.ClearAll();
@@ -75,7 +75,7 @@ public static class InterviewScenarioTest
         {
             Day = GameState.Instance?.CurrentDay ?? 1, GameTimeSeconds = At(55),
             EventType = LogEventType.Death, ActorEmployeeId = "wolf", RoomId = Power,
-            Description = $"▲ {InterviewEvidenceBoard.RoomName(Power)} — {InterviewEvidenceBoard.Codename("wolf")} 생체 신호 소실. 발견 당시 목격자 없음.",
+            Description = $"▲ {InterviewEvidenceBoard.RoomName(Power)} - {InterviewEvidenceBoard.Codename("wolf")} 생체 신호 소실. 발견 당시 목격자 없음.",
         });
         Move("dog", Power, Storage, At(62));
 
@@ -89,7 +89,7 @@ public static class InterviewScenarioTest
             "카드에 누구의 생체 신호가 끊겼는지 적혀 있다");
         Check(death.SubjectRoomId == Power, "카드는 그 일이 난 방(발전실)을 가리킨다");
         Check(death.Header == "생체 신호 소실" && death.VictimEmployeeId == "wolf" && death.Tag == "사망",
-            $"카드 머리는 생체 신호 소실 · 대상은 늑대다 ({death.Header} · {death.VictimEmployeeId} · {death.Tag})");
+            $"카드 머리는 생체 신호 소실, 대상은 늑대다 ({death.Header}, {death.VictimEmployeeId}, {death.Tag})");
 
         // ② 띠 시간표 — 세로선이 서고, 늑대의 띠는 그 시각에서 끝난다.
         int day = GameState.Instance?.CurrentDay ?? 1;
@@ -131,7 +131,7 @@ public static class InterviewScenarioTest
         dog.Toggle(dogDeath.Id);
         dog.Toggle(dogMove.Id);
         var r = dog.CheckContradiction();
-        GD.Print($"   추궁: {r.Kind} — {r.QuestionText}");
+        GD.Print($"   추궁: {r.Kind} - {r.QuestionText}");
         Check(r.Kind != ConfrontKind.None, "사망 기록 + 그 시각 발전실 이동 기록으로 강아지를 추궁할 수 있다");
         Check(r.QuestionText.Contains(InterviewEvidenceBoard.Codename("wolf")) && r.QuestionText.Contains("생체 신호"),
             "추궁 문장이 늑대의 생체 신호가 끊긴 순간을 짚는다");
@@ -145,7 +145,7 @@ public static class InterviewScenarioTest
     // 여기서는 화면이 쓰는 InterviewSession 을 그대로 타고 모든 질문 · 꼬리질문을 다 물어 본다.
     private static void TestAnyQuestionNamingCarriesOver()
     {
-        Head("6차", "고양이에게 사고 기록으로 무엇을 묻든 — 강아지 이름이 나온 답 → 강아지 심문에서 사고 기록과 동시 제시");
+        Head("6차", "고양이에게 사고 기록으로 무엇을 묻든 - 강아지 이름이 나온 답 → 강아지 심문에서 사고 기록과 동시 제시");
         Reset();
         PlayerKnownEvidence.ResetAll();
         DialogueHistory.Instance?.ClearAll();
@@ -156,7 +156,7 @@ public static class InterviewScenarioTest
         {
             Day = GameState.Instance?.CurrentDay ?? 1, GameTimeSeconds = At(34),
             EventType = LogEventType.Neglect, ActorEmployeeId = "dog", RoomId = Core,
-            Description = $"{InterviewEvidenceBoard.Codename("dog")} — {Odd}",
+            Description = $"{InterviewEvidenceBoard.Codename("dog")} - {Odd}",
             WitnessEmployeeIds = new List<string> { "cat" },
         });
         Log(LogEventType.Sabotage, "dog", Core, At(40));
@@ -196,7 +196,7 @@ public static class InterviewScenarioTest
             var quote = dog.Board.FirstOrDefault(e => e.NamedMention && e.SpeakerEmployeeId == "cat"
                                                       && e.QuotedLine == answer);
             var card = quote ?? sighting;
-            if (card == null) { Check(false, $"[{intent}] 답이 강아지 노트에 카드로 뜬다 — \"{answer}\""); continue; }
+            if (card == null) { Check(false, $"[{intent}] 답이 강아지 노트에 카드로 뜬다 - \"{answer}\""); continue; }
             dog.ClearSelection();
             dog.Toggle(dogInc.Id);
             dog.Toggle(card.Id);
@@ -206,10 +206,10 @@ public static class InterviewScenarioTest
                                               && r.QuestionText.Contains(InterviewQuestionFactory.Quote(answer))));
             if (quote != null) quoted++;
             if (good) ok++;
-            else Check(false, $"[{intent}] 사고 기록 + 그 답으로 추궁이 성립한다 — 고름 {dog.Selected.Count}장 · {r.Kind} · {r.QuestionText}");
+            else Check(false, $"[{intent}] 사고 기록 + 그 답으로 추궁이 성립한다 - 고름 {dog.Selected.Count}장, {r.Kind}, {r.QuestionText}");
         }
         Check(ok == naming.Count,
-            $"이름이 나온 답 {naming.Count}개 전부 사고 기록과 함께 제시 → 추궁 성립 ({ok}개 · 인용 카드 {quoted} · 목격 카드 {naming.Count - quoted})");
+            $"이름이 나온 답 {naming.Count}개 전부 사고 기록과 함께 제시 → 추궁 성립 ({ok}개, 인용 카드 {quoted}, 목격 카드 {naming.Count - quoted})");
         Check(quoted > 0 && quoted < naming.Count, "목격으로 정리 안 된 답은 인용 카드, 목격으로 정리된 답은 목격 카드가 맡는다");
         Check(!dog.Board.Any(e => e.NamedMention && e.SpeakerEmployeeId == "cat"
                                   && naming.Any(n => n.Answer == e.QuotedLine && n.Intent == InterviewIntent.AskWhoWasPresent)),
@@ -271,7 +271,7 @@ public static class InterviewScenarioTest
         {
             Day = GameState.Instance?.CurrentDay ?? 1, GameTimeSeconds = At(34),
             EventType = LogEventType.Neglect, ActorEmployeeId = "dog", RoomId = Core,
-            Description = $"{InterviewEvidenceBoard.Codename("dog")} — {Odd}",
+            Description = $"{InterviewEvidenceBoard.Codename("dog")} - {Odd}",
             WitnessEmployeeIds = new List<string> { "cat" },
         });
         Log(LogEventType.Sabotage, "dog", Core, At(40));
@@ -297,7 +297,7 @@ public static class InterviewScenarioTest
         dog.SetTab(NoteTab.ByIncident);
         foreach (var e in dog.Board.Where(e => e.Kind is EvidenceKind.Incident or EvidenceKind.Testimony
                                                || e.SpeakerEmployeeId == "cat"))
-            GD.Print($"   강아지 노트: [{e.Kind}] {e.Header} · {e.Body}  (쓸 수 있음={dog.CanUse(e)}, id={e.Id})");
+            GD.Print($"   강아지 노트: [{e.Kind}] {e.Header}, {e.Body}  (쓸 수 있음={dog.CanUse(e)}, id={e.Id})");
         var dogInc = dog.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
         var said = dog.Board.FirstOrDefault(e => e.SpeakerEmployeeId == "cat" && e.SubjectEmployeeId == "dog"
                                                  && dog.CanUse(e));
@@ -337,12 +337,12 @@ public static class InterviewScenarioTest
         var everyone = new InterviewSession("dog");
         everyone.SetTab(NoteTab.ByIncident);
         Check(everyone.Board.Count(e => e.QuotedLine == loose || (e.SpokenLine && e.Body == loose)) == 1,
-            "전원 보기에서 같은 말이 「고양이가 한 말」 · 「고양이의 증언」 두 장으로 뜨지 않는다");
+            "전원 보기에서 같은 말이 「고양이가 한 말」, 「고양이의 증언」 두 장으로 뜨지 않는다");
         GD.Print($"   카드: {InterviewEvidenceDisplay.Body(named)}  ({named.TimeText})");
         Check(dog.CanUse(named), "그 카드로 강아지에게 물을 수 있다");
         // 사건 키는 시각을 소수 한 자리로 적는다(IncidentKeyOf) — 그만큼은 차이가 난다.
         Check(named.SubjectRoomId == Core && Mathf.Abs(named.AnchorTime - inc.AnchorTime) <= 0.1f,
-            "그 답이 들고 있던 사고의 방 · 시각을 가리킨다");
+            "그 답이 들고 있던 사고의 방, 시각을 가리킨다");
         dog.Toggle(dogInc.Id);
         dog.Toggle(named.Id);
         r = dog.CheckContradiction();
@@ -385,7 +385,7 @@ public static class InterviewScenarioTest
     // 그 순간만 보면 "쭉 경비실에 있었다"가 되어 재배치 기록과 어긋났다.
     private static void TestLearnedLater()
     {
-        Head("4차", "나중에 가서 고친 사고 — 알고는 있다 · 그때는 다른 방에 있었다");
+        Head("4차", "나중에 가서 고친 사고 - 알고는 있다, 그때는 다른 방에 있었다");
         Reset();
         Deploy(new() { ["rabbit"] = Guard, ["cat"] = Storage, ["dog"] = Core,
                        ["fox"] = Medical, ["sheep"] = Maintenance, ["wolf"] = Vent });
@@ -461,7 +461,7 @@ public static class InterviewScenarioTest
         string[] all = { aKnown, aRoute, aNext, aAgain };
         string[] stay = { "쭉", "계속", "내내", "안 움직", "움직이지 않", "에만 있" };
         var slip = all.FirstOrDefault(a => stay.Any(a.Contains));
-        Check(slip == null, $"어떤 답에도 '쭉 · 계속 {guard}' 가 없다{(slip == null ? "" : " → " + slip)}");
+        Check(slip == null, $"어떤 답에도 '쭉, 계속 {guard}' 가 없다{(slip == null ? "" : " → " + slip)}");
     }
 
     // 그 시각 그 방 사고의 주장 키.
@@ -490,7 +490,7 @@ public static class InterviewScenarioTest
     // 묻지도 않은 알리바이가 먼저 튀어나왔다(F-1).
     private static void TestTutorialRestInterview()
     {
-        Head("4차-B", "교육 휴게시간 — '이상한 점' 답에 위치 진술이 섞이지 않는다");
+        Head("4차-B", "교육 휴게시간 - '이상한 점' 답에 위치 진술이 섞이지 않는다");
         Reset();
         GameState.Instance.ResetRun(0);                       // DAY0 = 교육
         Deploy(new() { ["rabbit"] = Guard, ["cat"] = Maintenance, ["dog"] = Core,
@@ -540,7 +540,7 @@ public static class InterviewScenarioTest
     // ── 3차-A : 놀러 가고 싶다는 전화가 잦으면 근무 태만을 따질 수 있다 ──────────
     private static void TestIdleCallNeglect()
     {
-        Head("3차-A", "여우가 놀러 가고 싶다고 두 번 전화 → 통화 자료 두 장 · 근무 태만 추궁");
+        Head("3차-A", "여우가 놀러 가고 싶다고 두 번 전화 → 통화 자료 두 장, 근무 태만 추궁");
         Reset();
         Deploy(new() { ["fox"] = Guard, ["cat"] = Storage, ["dog"] = Core,
                        ["rabbit"] = Maintenance, ["sheep"] = Medical, ["wolf"] = Vent });
@@ -556,7 +556,7 @@ public static class InterviewScenarioTest
         Check(InterviewEvidenceBoard.Build("cat").All(e => e.Kind != EvidenceKind.Call), "다른 직원의 노트에는 여우의 통화가 없다");
 
         var qs = InterviewQuestionFactory.For("fox", calls[1]);
-        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent}{(q.IsConfront ? " · 따짐" : "")})");
+        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent}{(q.IsConfront ? ", 따짐" : "")})");
         var neglect = qs.FirstOrDefault(q => q.Intent == InterviewIntent.ConfrontNeglect);
         Check(neglect != null && neglect.Text.Contains("2번") && neglect.IsConfront, "근무 태만 추궁이 열리고 횟수를 말한다");
         Check(qs.Any(q => q.Intent == InterviewIntent.AskCallReason && q.Text.Contains("코어실")), "전화 이유 질문이 그 통화가 말한 작업실을 인용한다");
@@ -579,7 +579,7 @@ public static class InterviewScenarioTest
         Move("fox", Guard, Storage, At(14));
         InterviewReplyPlanner.Reset();
         var neglect2 = InterviewQuestionFactory.Make("fox", calls[1], InterviewIntent.ConfrontNeglect);
-        GD.Print($"   A(태만·이탈 기록 있음): {InterviewReplyPlanner.Answer(neglect2)}");
+        GD.Print($"   A(태만/이탈 기록 있음): {InterviewReplyPlanner.Answer(neglect2)}");
         Check(InterviewReplyPlanner.FrameFor(neglect2).Variant == "caught", "지시 없는 이동 기록이 있으면 인정한다");
 
         // 한 번뿐이면 태만 추궁은 없다.
@@ -594,7 +594,7 @@ public static class InterviewScenarioTest
     // ── 3차-B : 이상 개체를 마주친 직원에게 안부 · 생김새 · 행동 · 동료를 묻는다 ────
     private static void TestGhostEncounter()
     {
-        Head("3차-B", "코어실 개체 관측 소멸 · 양과 늑대가 그 방에 있었다 → 개체 자료 · 질문 · 증언");
+        Head("3차-B", "코어실 개체 관측 소멸, 양과 늑대가 그 방에 있었다 → 개체 자료, 질문, 증언");
         Reset();
         Deploy(new() { ["sheep"] = Core, ["wolf"] = Core, ["cat"] = Storage, ["dog"] = Guard,
                        ["rabbit"] = Maintenance, ["fox"] = Vent });
@@ -604,14 +604,14 @@ public static class InterviewScenarioTest
         if (!Check(sheep != null, "양의 조사 노트에 개체 조우 자료가 뜬다")) return;
         GD.Print($"   자료: [{sheep.Header}] {sheep.OneLine}");
         Check(sheep.RelatedEmployeeIds.Contains("wolf"), "같이 있던 늑대가 자료에 실린다");
-        Check(sheep.SubjectRoomId == Core && sheep.CanAnchorPosition, "코어실 · 그 시각의 재석 근거다");
+        Check(sheep.SubjectRoomId == Core && sheep.CanAnchorPosition, "코어실, 그 시각의 재석 근거다");
         Check(InterviewEvidenceBoard.Build("cat").All(e => e.Kind != EvidenceKind.Anomaly), "다른 방에 있던 고양이에게는 없다");
 
         var qs = InterviewQuestionFactory.For("sheep", sheep);
         foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent})");
         // 2단계에서 "직접 보았는가"(AskAnomalySeenHow) 와 "어디로 갔는가"(AskAnomalyDirection) 가
         // 앞뒤로 붙었다 — 모습을 묻기 전에 **본 것이 맞는지** 부터 가린다(기획안 §3-③).
-        Check(qs.Count == 6, $"직접 봤나 · 괜찮은가 · 생김새 · 무엇을 했나 · 어디로 갔나 · 같이 있던 사람 ({qs.Count})");
+        Check(qs.Count == 6, $"직접 봤나, 괜찮은가, 생김새, 무엇을 했나, 어디로 갔나, 같이 있던 사람 ({qs.Count})");
         Check(qs[0].Intent == InterviewIntent.AskAnomalySeenHow, "'직접 보았는가' 가 가장 먼저 온다");
         foreach (var q in qs)
         {
@@ -625,18 +625,18 @@ public static class InterviewScenarioTest
         Check(others != null && others.Text.Contains("늑대"), "같이 있던 사람 질문이 늑대를 부른다");
         var say = InterviewEvidenceBoard.Build("wolf")
             .FirstOrDefault(e => e.Kind == EvidenceKind.Testimony && e.SpeakerEmployeeId == "sheep");
-        Check(say != null && !string.IsNullOrEmpty(say.BehaviorDetail), $"양의 답이 늑대에 대한 증언 카드가 된다 — {say?.Body}");
+        Check(say != null && !string.IsNullOrEmpty(say.BehaviorDetail), $"양의 답이 늑대에 대한 증언 카드가 된다 - {say?.Body}");
 
         var wolfEv = InterviewEvidenceBoard.Build("wolf").FirstOrDefault(e => e.Kind == EvidenceKind.Anomaly);
         var wolfQ = InterviewQuestionFactory.Make("wolf", wolfEv, InterviewIntent.AskGhostWellbeing);
-        GD.Print($"   A(늑대·안부): {InterviewReplyPlanner.Answer(wolfQ)}");
+        GD.Print($"   A(늑대/안부): {InterviewReplyPlanner.Answer(wolfQ)}");
         Check(InterviewReplyPlanner.FrameFor(wolfQ).Variant == "ok", "늑대는 담담하다");
     }
 
     // ── 3차-C : 사고 기록에는 알리바이를 증명하라 · 무관 근거를 대라 · 지목하라 · 재석을 따진다 ──
     private static void TestAlibiQuestions()
     {
-        Head("3차-C", "사고 기록 → 알리바이 증명 · 무관 근거 · 지목 · 기록상 재석 따지기");
+        Head("3차-C", "사고 기록 → 알리바이 증명, 무관 근거, 지목, 기록상 재석 따지기");
         Reset();
         Deploy(new() { ["cat"] = Power, ["dog"] = Power, ["wolf"] = Vent,
                        ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
@@ -644,7 +644,7 @@ public static class InterviewScenarioTest
 
         var inc = InterviewEvidenceBoard.Build("cat").First(e => e.Kind == EvidenceKind.Incident);
         var qs = InterviewQuestionFactory.For("cat", inc);
-        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent}{(q.IsConfront ? " · 따짐" : "")})");
+        foreach (var q in qs) GD.Print($"   Q: {q.Text}  ({q.Intent}{(q.IsConfront ? ", 따짐" : "")})");
         Check(qs.Any(q => q.Intent == InterviewIntent.AskAlibiProof), "알리바이 증명 요구가 있다");
         Check(qs.Any(q => q.Intent == InterviewIntent.AskProveInnocence && q.IsConfront), "무관하다는 근거를 대라는 추궁이 있다");
         Check(qs.Any(q => q.Intent == InterviewIntent.AskSuspectOpinion), "누가 그랬다고 보느냐는 질문이 있다");
@@ -676,14 +676,14 @@ public static class InterviewScenarioTest
         DialogueClaimState.ResetAll();
         var prove = InterviewQuestionFactory.Make("cat", inc, InterviewIntent.AskProveInnocence);
         string a3 = InterviewReplyPlanner.Answer(prove);
-        GD.Print($"   A(결번·무관 근거): {a3}");
+        GD.Print($"   A(결번/무관 근거): {a3}");
         var fr = InterviewReplyPlanner.FrameFor(prove);
         Check(fr.Variant is "deny" or "evasive", $"결번 개체는 부정하거나 흐린다 ({fr.Variant})");
         // 지시 없는 이동은 근무지 이탈로 따질 수 있다.
         Move("cat", Power, Storage, At(50));
         var mv = InterviewEvidenceBoard.Build("cat").First(e => e.Kind == EvidenceKind.Movement);
         var mq = InterviewQuestionFactory.For("cat", mv);
-        foreach (var q in mq) GD.Print($"   Q(이동): {q.Text}  ({q.Intent}{(q.IsConfront ? " · 따짐" : "")})");
+        foreach (var q in mq) GD.Print($"   Q(이동): {q.Text}  ({q.Intent}{(q.IsConfront ? ", 따짐" : "")})");
         Check(mq.Any(q => q.Intent == InterviewIntent.ConfrontUnorderedMove && q.Text.Contains("근무지 이탈")),
             "지시 없는 이동에는 근무지 이탈 추궁이 열린다");
         Check(mq.All(q => q.Intent != InterviewIntent.AskNextLocation), "그 뒤 어디로 갔냐는 질문은 기본 목록에서 빠졌다(꼬리질문으로만)");
@@ -765,7 +765,7 @@ public static class InterviewScenarioTest
     // ── D : 방해공작은 "사건"으로만 자료가 된다(범인은 알려 주지 않는다) ──
     private static void TestD()
     {
-        Head("D", "목격자 없는 방해공작 — 사건은 남고 실행자는 새지 않는다");
+        Head("D", "목격자 없는 방해공작 - 사건은 남고 실행자는 새지 않는다");
         Reset();
         Deploy(new() { ["cat"] = Storage, ["dog"] = Guard, ["wolf"] = Vent,
                        ["rabbit"] = Maintenance, ["sheep"] = Medical, ["fox"] = Core });
@@ -942,7 +942,7 @@ public static class InterviewScenarioTest
     // 알리바이(ClaimedRoomId)와 같은 규칙이다 — 물을 때마다 말이 달라지면 추리가 성립하지 않는다.
     private static void TestEquipmentDenial()
     {
-        Head("2차-A", "결번의 설비 접촉 부인 — 한 번 정하면 바뀌지 않는다");
+        Head("2차-A", "결번의 설비 접촉 부인 - 한 번 정하면 바뀌지 않는다");
         Reset();
         Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
@@ -989,7 +989,7 @@ public static class InterviewScenarioTest
     // 머물렀다"는 증언의 대상이 된다. 그때 흐리면 결백한 사람이 범인처럼 보인다.
     private static void TestInnocentAdmitsBehavior()
     {
-        Head("2차-B", "결백한 직원의 행동 추궁 — honest");
+        Head("2차-B", "결백한 직원의 행동 추궁 - honest");
         Reset();
         Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });
@@ -1017,7 +1017,7 @@ public static class InterviewScenarioTest
     // 결번 개체에게서 잡을 수 있는 유일한 거짓말이 실제로 잡히는지 끝까지 본다.
     private static void TestDenialVersusWitness()
     {
-        Head("2차-C", "결번의 부인 진술 + 동료 목격 증언 → 행동 추궁 · deny");
+        Head("2차-C", "결번의 부인 진술 + 동료 목격 증언 → 행동 추궁, deny");
         Reset();
         Deploy(new() { ["cat"] = Maintenance, ["dog"] = Guard, ["wolf"] = Maintenance,
                        ["rabbit"] = Storage, ["sheep"] = Medical, ["fox"] = Core });

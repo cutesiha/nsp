@@ -36,6 +36,15 @@ public partial class CreditsProbe : Node
         SaveTex(staff, "c2_staff_sources");
         Shot("c3_title_full");
         staff?.CloseSources();
+        staff?.SetButtonHover(TitleStaffIdView.EndingPrefix + "0");
+        await Seconds(0.3);
+        SaveTex(staff, "c2a_endings_hover");
+        staff?.OpenHelp();
+        staff?.SetButtonHover("");
+        await Seconds(0.3);
+        SaveTex(staff, "c2b_help");
+        staff?.CloseSources();
+        if (args.Length > 1 && args[1] == "nocredits") { GetTree().Quit(); return; }
 
         var layer = new CanvasLayer { Layer = 118 };
         AddChild(layer);

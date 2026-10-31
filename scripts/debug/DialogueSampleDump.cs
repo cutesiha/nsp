@@ -75,13 +75,13 @@ public partial class DialogueSampleDump : Node
         CheckBank();
         DutyByLogDetail();
 
-        RunScene("장면 1 — 혼자 배치", SoloDay, Power);
-        RunScene("장면 2 — 둘이 배치", PairDay, Power);
+        RunScene("장면 1 - 혼자 배치", SoloDay, Power);
+        RunScene("장면 2 - 둘이 배치", PairDay, Power);
         // 근무 기억 검사는 질문 전에 — 질문을 받고 나면 그 기억은 "이미 한 이야기"가 되어 다시 떠올리지 않는다.
-        RunScene("장면 3 — 재배치", RelocationDay, Power,
+        RunScene("장면 3 - 재배치", RelocationDay, Power,
             before: first => { if (first) CheckMemoryOfRelocationDay(); },
             after: _ => IncomingCalls());
-        RunScene("장면 4 — 미배치 포함", UnassignedDay, Storage, before: first =>
+        RunScene("장면 4 - 미배치 포함", UnassignedDay, Storage, before: first =>
         {
             if (first) CheckUnassignedTimeline();
         });
@@ -103,7 +103,7 @@ public partial class DialogueSampleDump : Node
     {
         var problems = DialogueLineBank.Problems;
         foreach (string p in problems.Take(10)) GD.Print("   뱅크: " + p);
-        Check(problems.Count == 0, $"대사 뱅크 조사·형식 오류 없음 ({problems.Count}건)");
+        Check(problems.Count == 0, $"대사 뱅크 조사/형식 오류 없음 ({problems.Count}건)");
         foreach (string id in Ids)
             Check(DialogueLineBank.Has(id, "mem.with", DialogueVoices.Get(id).Formal)
                   && DialogueLineBank.Keys.Any(k => k == $"{id}|mem.worked"),
@@ -125,12 +125,12 @@ public partial class DialogueSampleDump : Node
         Log(LogEventType.Neglect, "cat", Maint, At(40), "(문구 없음)", detail: LogDetail.Recovered);
         Log(LogEventType.TaskEnd, "cat", Maint, At(60), "(문구 없음)", detail: LogDetail.Unassigned);
         // 반대로 문구만 있고 종류가 없으면 근무 상태는 바뀌지 않는다.
-        Log(LogEventType.Neglect, "rabbit", Maint, At(20), "토끼 — 기절, 의무실로 이송");
+        Log(LogEventType.Neglect, "rabbit", Maint, At(20), "토끼 - 기절, 의무실로 이송");
 
         bool With(float m) => DialogueContextBuilder.OccupantsAt(Maint, 1, At(m), "rabbit").Contains("cat");
         GD.Print("\n===== 근무 구간(LogDetail) =====");
         Check(With(10) && !With(30) && With(50) && !With(70),
-            "기절 · 회복 · 배치 해제는 LogDetail 로 가린다 (22:10 있음 · 22:30 기절 · 22:50 복귀 · 23:10 해제)");
+            "기절, 회복, 배치 해제는 LogDetail 로 가린다 (22:10 있음, 22:30 기절, 22:50 복귀, 23:10 해제)");
         Check(DialogueContextBuilder.OnDutyAt("rabbit", 1, At(30)), "문구에 '기절'만 있고 종류가 없으면 근무 중으로 본다");
     }
 
@@ -155,25 +155,25 @@ public partial class DialogueSampleDump : Node
     // 자료가 없어 물을 수 없는 질문(이동 기록이 없는 직원의 이동 이유 등)은 건너뛴다.
     private void AskEveryKind(string id, string mainIncidentRoom)
     {
-        Rec(id, "근무 중 전화 · 작업 상태", "작업은 잘 되어가나요?", LocalDialogueGenerator.GeneralAnswer(id, 0));
+        Rec(id, "근무 중 전화, 작업 상태", "작업은 잘 되어가나요?", LocalDialogueGenerator.GeneralAnswer(id, 0));
         // 이 전화는 이 직원이 아는 가장 최근 사고를 기준으로 답한다(LocalDialogueGenerator.GeneralAnswer 와 같은 기준).
         var known = DialogueContextBuilder.MostRecentKnownIncident(id, 1);
-        Rec(id, "근무 중 전화 · 이상현상", "주변에 이상현상은 없었나요?", LocalDialogueGenerator.GeneralAnswer(id, 2),
+        Rec(id, "근무 중 전화, 이상현상", "주변에 이상현상은 없었나요?", LocalDialogueGenerator.GeneralAnswer(id, 2),
             anchor: known?.GameTimeSeconds ?? -1f);
 
         var s = new InterviewSession(id);
         // 최초 진술 — 심문을 열면 직원이 먼저 하는 말(기본 질문 세 개의 첫 답). 카드가 되는 문장이다.
         foreach (var o in s.Openings)
-            Rec(id, "최초 진술 · " + OpeningName(o.QuestionId), "(심문을 열면 먼저 하는 말)", o.Text, o.Trace);
+            Rec(id, "최초 진술, " + OpeningName(o.QuestionId), "(심문을 열면 먼저 하는 말)", o.Text, o.Trace);
 
         var incident = s.Board.Where(e => e.Kind == EvidenceKind.Incident && s.CanUse(e))
             .OrderByDescending(e => e.SubjectRoomId == mainIncidentRoom).FirstOrDefault();
         if (incident != null)
         {
-            AskIntent(s, incident, InterviewIntent.AskIncidentKnown, "사고 · 알았나");
-            AskIntent(s, incident, InterviewIntent.AskWhereAtIncident, "사고 · 그때 어디");
-            AskIntent(s, incident, InterviewIntent.AskWhoWasPresent, "사고 · 같이 있던 사람");
-            AskIntent(s, incident, InterviewIntent.AskBeforeIncident, "사고 · 직전");
+            AskIntent(s, incident, InterviewIntent.AskIncidentKnown, "사고, 알았나");
+            AskIntent(s, incident, InterviewIntent.AskWhereAtIncident, "사고, 그때 어디");
+            AskIntent(s, incident, InterviewIntent.AskWhoWasPresent, "사고, 같이 있던 사람");
+            AskIntent(s, incident, InterviewIntent.AskBeforeIncident, "사고, 직전");
             // 방금 한 위치 진술이 자료가 됐다 — 그걸 들이밀며 다시 묻는다.
             var own = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.OwnStatement && s.CanUse(e));
             if (own != null) AskIntent(s, own, InterviewIntent.AskRestate, "진술 재확인");
@@ -181,14 +181,14 @@ public partial class DialogueSampleDump : Node
         var move = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Movement && s.CanUse(e));
         if (move != null)
         {
-            AskIntent(s, move, InterviewIntent.AskMoveReason, "이동 · 이유");
-            AskIntent(s, move, InterviewIntent.AskActionAtDestination, "이동 · 거기서 한 일");
+            AskIntent(s, move, InterviewIntent.AskMoveReason, "이동, 이유");
+            AskIntent(s, move, InterviewIntent.AskActionAtDestination, "이동, 거기서 한 일");
         }
         var mood = s.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Mood && s.CanUse(e));
         if (mood != null)
         {
-            AskIntent(s, mood, InterviewIntent.AskMoodReason, "기분 · 이유");
-            AskIntent(s, mood, InterviewIntent.AskMoodBefore, "기분 · 근무 전부터");
+            AskIntent(s, mood, InterviewIntent.AskMoodReason, "기분, 이유");
+            AskIntent(s, mood, InterviewIntent.AskMoodBefore, "기분, 근무 전부터");
         }
         // 의심 질문은 오늘의 대표 사고(가장 무거운 · 가장 최근)를 기준으로 답한다.
         Rec(id, "의심받을 때", "당신을 의심하고 있습니다.",
@@ -229,9 +229,9 @@ public partial class DialogueSampleDump : Node
         CallMemoryLog.RecordAt(1, At(42), "dog", CallRecordKind.OrderedStay, Power, DialogueRepository.EventAccidentNearby);
         Log(LogEventType.TaskFailed, "", Storage, At(70), witnesses: new[] { "cat" });
         GameState.Instance.AdvanceDayTime(At(90));
-        return "배치: 토끼=정비실 · 고양이=저장고 · 여우=코어실 · 양=의무실 · 늑대=경비실 · 강아지=발전실 (모두 혼자)\n" +
-               "배치표 로그 없음(근무 시작 배치만 기록) · 22:30 관리자가 토끼에게 전화\n" +
-               "22:40 발전실 설비 고장(강아지 목격) → 강아지 신고 · 대기 지시 / 23:10 저장고 설비 고장(고양이 목격)\n" +
+        return "배치: 토끼=정비실, 고양이=저장고, 여우=코어실, 양=의무실, 늑대=경비실, 강아지=발전실 (모두 혼자)\n" +
+               "배치표 로그 없음(근무 시작 배치만 기록), 22:30 관리자가 토끼에게 전화\n" +
+               "22:40 발전실 설비 고장(강아지 목격) → 강아지 신고, 대기 지시 / 23:10 저장고 설비 고장(고양이 목격)\n" +
                "사고 질문은 22:40 발전실 건 기준";
     }
 
@@ -250,9 +250,9 @@ public partial class DialogueSampleDump : Node
         Log(LogEventType.TaskFailed, "", Storage, At(70), witnesses: new[] { "fox", "sheep" });
         CallMemoryLog.RecordAt(1, At(71), "sheep", CallRecordKind.Missed, Storage, DialogueRepository.EventAccidentNearby);
         GameState.Instance.AdvanceDayTime(At(90));
-        return "배치: 고양이·강아지=발전실 · 여우·양=저장고 · 토끼·늑대=정비실\n" +
-               "배치표 로그 없음(근무 시작 배치만 기록) · 22:30 관리자가 늑대에게 전화\n" +
-               "22:40 발전실 설비 고장(고양이·강아지 목격) → 강아지 신고 · 대기 지시 / 23:10 저장고 설비 고장(여우·양 목격) → 양 전화했지만 관리자 부재\n" +
+        return "배치: 고양이/강아지=발전실, 여우/양=저장고, 토끼/늑대=정비실\n" +
+               "배치표 로그 없음(근무 시작 배치만 기록), 22:30 관리자가 늑대에게 전화\n" +
+               "22:40 발전실 설비 고장(고양이/강아지 목격) → 강아지 신고, 대기 지시 / 23:10 저장고 설비 고장(여우/양 목격) → 양 전화했지만 관리자 부재\n" +
                "사고 질문은 22:40 발전실 건 기준";
     }
 
@@ -271,18 +271,18 @@ public partial class DialogueSampleDump : Node
         CallMemoryLog.RecordAt(1, At(42), "wolf", CallRecordKind.OrderedGo, Power, DialogueRepository.EventAccidentNearby);
         Move("wolf", Guard, Power, At(45));
         Log(LogEventType.TaskStart, "wolf", Power, At(46), $"▣ 늑대 발전실 도착 / {repairGen} 시작", new[] { "dog" });
-        Log(LogEventType.TaskComplete, "", Power, At(60), $"✓ 발전실 — '{repairGen}' 수리 완료 · 기능 복구");
+        Log(LogEventType.TaskComplete, "", Power, At(60), $"✓ 발전실 - '{repairGen}' 수리 완료, 기능 복구");
         Log(LogEventType.TaskFailed, "", Maint, At(70), witnesses: new[] { "rabbit", "cat" });
         CallMemoryLog.RecordAt(1, At(71), "sheep", CallRecordKind.Missed, Maint, DialogueRepository.EventAccidentNearby);
         CallMemoryLog.RecordAt(1, At(72), "cat", CallRecordKind.Reported, Maint, DialogueRepository.EventAccidentNearby);
         CallMemoryLog.RecordAt(1, At(72.5f), "cat", CallRecordKind.OrderedStay, Maint, DialogueRepository.EventAccidentNearby);
         Relocate("rabbit", Maint, Storage, At(80), TaskName("inventory_sorting", "재고 정리"));
         GameState.Instance.AdvanceDayTime(At(90));
-        return "배치: 토끼·고양이=정비실 · 여우=코어실 · 양=저장고 · 늑대·강아지=경비실 (배치표 로그 있음)\n" +
+        return "배치: 토끼/고양이=정비실, 여우=코어실, 양=저장고, 늑대/강아지=경비실 (배치표 로그 있음)\n" +
                "22:25 강아지 발전실로 재배치 / 22:30 관리자가 토끼에게 전화 / 22:40 발전실 설비 고장(강아지 목격, 늑대 옆방)\n" +
-               "22:41 늑대 신고 → 확인 지시 → 발전실 수리 → 23:00 복구 / 23:10 정비실 설비 고장(토끼·고양이 목격, 양 옆방)\n" +
+               "22:41 늑대 신고 → 확인 지시 → 발전실 수리 → 23:00 복구 / 23:10 정비실 설비 고장(토끼/고양이 목격, 양 옆방)\n" +
                "23:11 양이 전화했지만 관리자 부재 / 23:12 고양이 신고 → 대기 지시 / 23:20 토끼 저장고로 재배치\n" +
-               "사고 질문은 22:40 발전실 건 기준 · 늑대 · 양 · 강아지는 발전실 사고 신고 전화도 건다";
+               "사고 질문은 22:40 발전실 건 기준, 늑대, 양, 강아지는 발전실 사고 신고 전화도 건다";
     }
 
     // ── 장면 4: 미배치 포함 — 오늘 근무하지 않은 직원과 근무 중에 옮겨진 직원 ─────────
@@ -300,21 +300,21 @@ public partial class DialogueSampleDump : Node
         Log(LogEventType.TaskFailed, "", Storage, At(40), witnesses: new[] { Moved });
         Log(LogEventType.TaskFailed, "", Maint, At(60), witnesses: new[] { "rabbit", "cat" });
         GameState.Instance.AdvanceDayTime(At(90));
-        return "배치: 토끼·고양이=정비실 · 여우=코어실 · 늑대·강아지=경비실 · 양=배치 안 됨(시작실 저장고에 서 있음)\n" +
+        return "배치: 토끼/고양이=정비실, 여우=코어실, 늑대/강아지=경비실, 양=배치 안 됨(시작실 저장고에 서 있음)\n" +
                "배치표 로그 없음(근무 시작 배치만 기록)\n" +
                "22:10 코어실 설비 고장(여우 목격) / 22:20 여우 저장고로 재배치 / 22:40 저장고 설비 고장(여우 목격)\n" +
-               "23:00 정비실 설비 고장(토끼·고양이 목격)\n" +
-               "사고 질문은 22:40 저장고 건 기준 · 양의 이름은 누구의 답에도 나오면 안 된다(양 자신의 답은 근무하지 않은 사람의 답)";
+               "23:00 정비실 설비 고장(토끼/고양이 목격)\n" +
+               "사고 질문은 22:40 저장고 건 기준, 양의 이름은 누구의 답에도 나오면 안 된다(양 자신의 답은 근무하지 않은 사람의 답)";
     }
 
     private void CheckUnassignedTimeline()
     {
         Check(!DialogueContextBuilder.OccupantsAt(Storage, 1, At(40), Moved).Contains(Idle),
-            "미배치 — 22:40 저장고 동석자에 근무하지 않은 양이 없다");
+            "미배치 - 22:40 저장고 동석자에 근무하지 않은 양이 없다");
         Check(DialogueContextBuilder.RoomAt(Idle, 1, At(40)) == "",
-            "미배치 — 근무하지 않은 양에게는 동선이 없다");
+            "미배치 - 근무하지 않은 양에게는 동선이 없다");
         Check(DialogueContextBuilder.RoomAt(Moved, 1, At(10)) == Core,
-            $"재배치 — 여우는 옮겨지기 전(22:10)에 코어실에 있었다 ({RoomName(DialogueContextBuilder.RoomAt(Moved, 1, At(10)))})");
+            $"재배치 - 여우는 옮겨지기 전(22:10)에 코어실에 있었다 ({RoomName(DialogueContextBuilder.RoomAt(Moved, 1, At(10)))})");
     }
 
     // 직원이 먼저 거는 발전실 사고 신고 — 장면 3 에서 그 사고를 아는 사람만.
@@ -325,10 +325,10 @@ public partial class DialogueSampleDump : Node
             var call = LocalDialogueGenerator.BuildIncomingCall(id, DialogueRepository.EventAccidentNearby, Power);
             if (call == null) continue;
             // 첫 대사와 두 대답은 전화가 오는 순간 한꺼번에 만들어진다 — 틀 이름은 슬롯 규약으로 적는다.
-            Rec(id, "수신 전화 · 사고 신고", "(직원이 전화를 건다)", call.Opening,
-                "call.prefix / report.direct · report.indirect");
+            Rec(id, "수신 전화, 사고 신고", "(직원이 전화를 건다)", call.Opening,
+                "call.prefix / report.direct, report.indirect");
             for (int i = 0; i < call.Choices.Count; i++)
-                Rec(id, i == 0 ? "수신 전화 · 가라는 지시에" : "수신 전화 · 대기 지시에",
+                Rec(id, i == 0 ? "수신 전화, 가라는 지시에" : "수신 전화, 대기 지시에",
                     call.Choices[i].Text, call.Choices[i].Reply, i == 0 ? "accept" : "decline");
         }
     }
@@ -340,17 +340,17 @@ public partial class DialogueSampleDump : Node
         bool Has(string id, MemoryKind k, string room) =>
             ShiftMemory.Of(id, 1).Any(m => m.Kind == k && (room == null || m.RoomId == room));
         foreach (string id in Ids)
-            GD.Print($"   {Nm(id)}: " + string.Join(" · ", ShiftMemory.Of(id, 1)
+            GD.Print($"   {Nm(id)}: " + string.Join(", ", ShiftMemory.Of(id, 1)
                 .Select(m => $"{DialogueClock.Text(m.Time)} {m.Kind}{(m.RoomId.Length > 0 ? "@" + RoomName(m.RoomId) : "")}")));
-        Check(Has("wolf", MemoryKind.Dispatched, Power), "늑대 — 전화 지시로 발전실 출동을 기억한다");
-        Check(Has("wolf", MemoryKind.IncidentHeard, Power), "늑대 — 옆방(발전실) 사고를 소리로 기억한다");
-        Check(Has("wolf", MemoryKind.RepairDone, Power), "늑대 — 자기가 있던 발전실 복구를 기억한다");
-        Check(Has("sheep", MemoryKind.CallMissed, null), "양 — 관리자가 안 받은 전화를 기억한다");
+        Check(Has("wolf", MemoryKind.Dispatched, Power), "늑대 - 전화 지시로 발전실 출동을 기억한다");
+        Check(Has("wolf", MemoryKind.IncidentHeard, Power), "늑대 - 옆방(발전실) 사고를 소리로 기억한다");
+        Check(Has("wolf", MemoryKind.RepairDone, Power), "늑대 - 자기가 있던 발전실 복구를 기억한다");
+        Check(Has("sheep", MemoryKind.CallMissed, null), "양 - 관리자가 안 받은 전화를 기억한다");
         Check(Has("dog", MemoryKind.Relocated, Power) && Has("dog", MemoryKind.IncidentHere, Power),
-            "강아지 — 재배치와 그 방의 사고를 기억한다");
-        Check(Has("cat", MemoryKind.CallStay, null), "고양이 — 대기 지시를 기억한다");
+            "강아지 - 재배치와 그 방의 사고를 기억한다");
+        Check(Has("cat", MemoryKind.CallStay, null), "고양이 - 대기 지시를 기억한다");
         Check(!Has("fox", MemoryKind.IncidentHeard, Power) && !Has("fox", MemoryKind.IncidentHere, Power),
-            "여우 — 먼 방(발전실) 사고는 기억에 없다");
+            "여우 - 먼 방(발전실) 사고는 기억에 없다");
 
         // 질문 시각(발전실 사고) 기준으로 강아지가 떠올리는 사람은 그 방 사람이어야 한다.
         var withNames = new HashSet<string>();
@@ -363,7 +363,7 @@ public partial class DialogueSampleDump : Node
             foreach (var a in r.Addenda)
                 if (a.Vars.TryGetValue("who", out var w)) withNames.Add(w);
         }
-        Check(withNames.All(n => n == Nm("wolf")), $"강아지 — 22:47 발전실에서 같이 있던 사람은 늑대뿐 ({string.Join(",", withNames)})");
+        Check(withNames.All(n => n == Nm("wolf")), $"강아지 - 22:47 발전실에서 같이 있던 사람은 늑대뿐 ({string.Join(",", withNames)})");
     }
 
     // ── 결번 개체가 거짓 알리바이를 대는 하루(장면마다 한 번) ──────────────────────
@@ -380,7 +380,7 @@ public partial class DialogueSampleDump : Node
         Log(LogEventType.TaskFailed, "", real, At(42));
         GameState.Instance.AdvanceDayTime(At(90));
 
-        string title = $"결번 장면 — {Nm(sab)}";
+        string title = $"결번 장면 - {Nm(sab)}";
         _scene = title; _sample = 1;
         _scenes.Add((title, KoreanParticle.Resolve(
             $"{Nm(sab)}은/는 {RoomName(assigned)} 배치 → 22:30 몰래 {RoomName(real)} → 22:33 방해공작 → 22:38 복귀 → 22:42 {RoomName(real)} 고장.\n" +
@@ -390,14 +390,14 @@ public partial class DialogueSampleDump : Node
         CheckLieMemory(sab, assigned, real);
         var session = new InterviewSession(sab);
         foreach (var o in session.Openings)
-            Rec(sab, "최초 진술 · " + OpeningName(o.QuestionId), "(심문을 열면 먼저 하는 말)", o.Text, o.Trace);
+            Rec(sab, "최초 진술, " + OpeningName(o.QuestionId), "(심문을 열면 먼저 하는 말)", o.Text, o.Trace);
         var incident = session.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
         if (incident != null)
         {
             foreach (var (intent, kind) in new[]
                      {
-                         (InterviewIntent.AskWhereAtIncident, "사고 · 그때 어디"), (InterviewIntent.AskBeforeIncident, "사고 · 직전"),
-                         (InterviewIntent.AskWhoWasPresent, "사고 · 같이 있던 사람"), (InterviewIntent.AskIncidentKnown, "사고 · 알았나"),
+                         (InterviewIntent.AskWhereAtIncident, "사고, 그때 어디"), (InterviewIntent.AskBeforeIncident, "사고, 직전"),
+                         (InterviewIntent.AskWhoWasPresent, "사고, 같이 있던 사람"), (InterviewIntent.AskIncidentKnown, "사고, 알았나"),
                      })
             {
                 var q = InterviewQuestionFactory.Make(sab, incident, intent);
@@ -408,7 +408,7 @@ public partial class DialogueSampleDump : Node
                     // 결번 전략이 '축소·합리화'면 위치 자체는 인정한다 — 그때는 누설 검사가 아니다.
                     string claimed = InterviewReplyPlanner.FrameFor(q)?.Vars.GetValueOrDefault("room", "") ?? "";
                     if (claimed == RoomName(real))
-                        GD.Print($"   ({sab} 은/는 이번엔 위치를 인정하는 전략 — 축소/합리화)");
+                        GD.Print($"   ({sab} 은/는 이번엔 위치를 인정하는 전략 - 축소/합리화)");
                     else
                         Check(!a.Contains(RoomName(real)), $"[{sab}] 거짓 알리바이({claimed}) 중 실제 위치({RoomName(real)})를 말하지 않는다");
                 }
@@ -423,7 +423,7 @@ public partial class DialogueSampleDump : Node
         {
             var ms = new InterviewSession(mate);
             var q = InterviewQuestionFactory.Make(mate, incident, InterviewIntent.AskWhoWasPresent);
-            Rec(mate, $"결번({Nm(sab)})와 같은 배치 · 같이 있던 사람", q.Text, ms.Ask(q).Answer,
+            Rec(mate, $"결번({Nm(sab)})와 같은 배치, 같이 있던 사람", q.Text, ms.Ask(q).Answer,
                 anchor: q.HasAnchorTime ? q.AnchorTime : -1f);
         }
     }
@@ -452,16 +452,16 @@ public partial class DialogueSampleDump : Node
     private void CheckVoiceMarks()
     {
         GD.Print("\n===== 말버릇 =====");
-        var kinds = new[] { "사고 · 그때 어디", "사고 · 같이 있던 사람", "의심받을 때" };
+        var kinds = new[] { "사고, 그때 어디", "사고, 같이 있던 사람", "의심받을 때" };
         List<string> Of(string id) => _said
             .Where(x => x.Scene.StartsWith("장면 2") && x.Speaker == id && kinds.Contains(x.Kind))
             .Select(x => x.Answer).ToList();
-        Check(Of("sheep").All(DialogueVoiceTics.HasStutter), $"양 — 모든 답변에 더듬기가 있다 ({Of("sheep").Count(DialogueVoiceTics.HasStutter)}/{Of("sheep").Count})");
-        Check(Of("fox").Count(a => a.Contains('~')) * 2 >= Of("fox").Count, $"여우 — 절반 이상의 답변에 '~' ({Of("fox").Count(a => a.Contains('~'))}/{Of("fox").Count})");
-        Check(Of("rabbit").Count(a => a.Contains('!')) * 10 >= Of("rabbit").Count * 8, $"토끼 — 대부분의 답변에 '!' ({Of("rabbit").Count(a => a.Contains('!'))}/{Of("rabbit").Count})");
-        Check(Of("wolf").All(a => !a.Contains('!') && !a.Contains('~')), "늑대 — 느낌표 · 물결 없음");
-        Check(Of("wolf").All(a => a.Contains("니다")), "늑대 — 합쇼체");
-        Check(Of("cat").All(a => !a.Contains('!')), "고양이 — 느낌표 없음");
+        Check(Of("sheep").All(DialogueVoiceTics.HasStutter), $"양 - 모든 답변에 더듬기가 있다 ({Of("sheep").Count(DialogueVoiceTics.HasStutter)}/{Of("sheep").Count})");
+        Check(Of("fox").Count(a => a.Contains('~')) * 2 >= Of("fox").Count, $"여우 - 절반 이상의 답변에 '~' ({Of("fox").Count(a => a.Contains('~'))}/{Of("fox").Count})");
+        Check(Of("rabbit").Count(a => a.Contains('!')) * 10 >= Of("rabbit").Count * 8, $"토끼 - 대부분의 답변에 '!' ({Of("rabbit").Count(a => a.Contains('!'))}/{Of("rabbit").Count})");
+        Check(Of("wolf").All(a => !a.Contains('!') && !a.Contains('~')), "늑대 - 느낌표, 물결 없음");
+        Check(Of("wolf").All(a => a.Contains("니다")), "늑대 - 합쇼체");
+        Check(Of("cat").All(a => !a.Contains('!')), "고양이 - 느낌표 없음");
     }
 
     // ── 기계 검사 ─────────────────────────────────────────────────────
@@ -473,7 +473,7 @@ public partial class DialogueSampleDump : Node
         var answers = _said.Select(x => x.Answer).ToList();
         var leaks = answers.Where(a => Leak.IsMatch(a)).ToList();
         foreach (var a in leaks.Take(5)) GD.Print("   누출: " + a);
-        Check(leaks.Count == 0, $"변수·조사 표기가 새지 않는다 ({leaks.Count}건)");
+        Check(leaks.Count == 0, $"변수/조사 표기가 새지 않는다 ({leaks.Count}건)");
 
         var empty = answers.Where(a => string.IsNullOrWhiteSpace(a) || a == "…").ToList();
         Check(empty.Count == 0, $"빈 답변 없음 ({empty.Count}건)");
@@ -500,7 +500,7 @@ public partial class DialogueSampleDump : Node
             .Where(g => g.Sum(p => p.n) > 1)
             .ToList();
         foreach (var g in over.Take(5))
-            GD.Print($"   동료 반복: {g.Key} ×{g.Sum(p => p.n)} — " + string.Join(" / ", g.Select(p => p.x.Answer)));
+            GD.Print($"   동료 반복: {g.Key} ×{g.Sum(p => p.n)} - " + string.Join(" / ", g.Select(p => p.x.Answer)));
         Check(over.Count == 0, $"(b) 같은 세션에서 동료 언급이 한 번을 넘지 않는다 ({over.Count}개 세션)");
 
         // 최초 진술(카드가 되는 문장)에는 동료 기억이 붙지 않는다.
@@ -549,7 +549,7 @@ public partial class DialogueSampleDump : Node
             Check(over.Count == 0, $"[{Nm(id)}] 조립기가 덧붙여 문장 수 상한({cap})을 넘은 답 0개 ({over.Count}/{mine.Count})");
             Check(q2.Count <= q2Limit, $"[{Nm(id)}] 물음표 2개 이상인 답 {q2Limit}개 이하 ({q2.Count})");
             Check(memDeny.Count == 0, $"[{Nm(id)}] deny/nosight/noanomaly/status 틀에 기억이 붙은 답 0개 ({memDeny.Count})");
-            Check(closedPlus.Count == 0, $"[{Nm(id)}] 닫힌 틀 뒤에 덧붙임 · 되묻기 · 기억 · 인상이 붙은 답 0개 ({closedPlus.Count})");
+            Check(closedPlus.Count == 0, $"[{Nm(id)}] 닫힌 틀 뒤에 덧붙임, 되묻기, 기억, 인상이 붙은 답 0개 ({closedPlus.Count})");
         }
     }
 
@@ -605,7 +605,7 @@ public partial class DialogueSampleDump : Node
         foreach (string id in Ids)
         {
             var md = new StringBuilder();
-            md.AppendLine($"# {Nm(id)} — 대사 샘플");
+            md.AppendLine($"# {Nm(id)} - 대사 샘플");
             md.AppendLine();
             md.AppendLine("`scenes/debug/DialogueSampleDump.tscn` 이 만든 파일입니다. 실행할 때마다 새로 뽑힙니다.");
             md.AppendLine($"장면 1~4 는 장면을 {SamplesPerScene}번 처음부터 다시 만들어 매번 같은 질문 묶음을 던진 결과입니다" +
@@ -637,13 +637,13 @@ public partial class DialogueSampleDump : Node
         }
 
         var o = new StringBuilder();
-        o.AppendLine("# 대사 샘플 — 개요");
+        o.AppendLine("# 대사 샘플 - 개요");
         o.AppendLine();
         o.AppendLine("캐릭터별 답변은 같은 폴더의 `<캐릭터>.md` 에 있습니다: " +
-                     string.Join(" · ", Ids.Select(i => $"[{Nm(i)}]({i}.md)")));
+                     string.Join(", ", Ids.Select(i => $"[{Nm(i)}]({i}.md)")));
         o.AppendLine();
         var answers = _said.Select(x => x.Answer).ToList();
-        o.AppendLine($"- 답변 {answers.Count}개 · '씨' 가 들어간 답변 {answers.Count(a => a.Contains("씨"))}개");
+        o.AppendLine($"- 답변 {answers.Count}개, '씨' 가 들어간 답변 {answers.Count(a => a.Contains("씨"))}개");
         o.AppendLine($"- 기계 검사 {_pass} PASS / {_fail} FAIL");
         o.AppendLine();
         o.AppendLine("## 장면");

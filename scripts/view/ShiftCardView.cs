@@ -83,7 +83,7 @@ public partial class ShiftCardView : CanvasLayer
         box.AddThemeConstantOverride("separation", 14);
         _root.AddChild(box);
 
-        // 「DAY N」 만 KIMM 볼드로 크게 — 2026-10-31 사용자 요청(74 → 112).
+        // 「DAY N」 만 표제 글꼴(더 우아한 세리프)로 크게 — 2026-10-31 사용자 요청(74 → 112).
         _day = Line(box, 112, Cyan);
         _day.AddThemeFontOverride("font", ViewFont.DayTitle);
         box.AddChild(new Control { CustomMinimumSize = new Vector2(0f, 10f) });
@@ -140,8 +140,8 @@ public partial class ShiftCardView : CanvasLayer
         {
             $"DAY {day}",
             $"봉쇄 코어 {Mathf.FloorToInt(core)}%",
-            goal > 0f ? $"오늘 목표 {goal:0}%" : "오늘 목표 —",
-            hours > 0 ? $"비상 차폐 종료까지 {hours}시간" : "비상 차폐 종료 — 오늘이 마지막 근무",
+            goal > 0f ? $"오늘 목표 {goal:0}%" : "오늘 목표 -",
+            hours > 0 ? $"비상 차폐 종료까지 {hours}시간" : "비상 차폐 종료 - 오늘이 마지막 근무",
         };
     }
 

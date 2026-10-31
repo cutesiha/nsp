@@ -213,7 +213,7 @@ public partial class AdminPad3D : Node3D, IProjectionSurface, ISurfacePressListe
     {
         Sfx.Instance?.Play("alert_beep3", -4f);
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
-            $"▲ {roomName} 수리 승인 요청 — 패드에서 응답하세요.", NSP.Ui.NoticeLevel.Warning);
+            $"▲ {roomName} 수리 승인 요청 - 패드에서 응답하세요.", NSP.Ui.NoticeLevel.Warning);
         // 들고 있는 중이면 그대로 둔다(이미 패드가 눈앞이다). 연출이 시점을 잡고 있으면 건드리지 않는다.
         if (_state == PadState.Stowed) ControlRoom3DController.Instance?.UnzoomIfFocused();
     }

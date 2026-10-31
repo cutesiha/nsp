@@ -55,13 +55,13 @@ Lines = PackedStringArray("직원을 골라 수화기를 들면 심문이 시작
 [sub_resource type="Resource" id="page_9"]
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/facility_map.png"
-Title = "왼쪽 모니터 · 시설 지도"
+Title = "왼쪽 모니터, 시설 지도"
 Lines = PackedStringArray("작업실과 직원의 위치, 방마다의 진행이 보입니다.", "방이나 직원을 누르면 CCTV가 그곳을 비춥니다.", "숫자 키 1로 확대합니다.")
 
 [sub_resource type="Resource" id="page_10"]
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/cctv.png"
-Title = "오른쪽 모니터 · CCTV"
+Title = "오른쪽 모니터, CCTV"
 Lines = PackedStringArray("고른 방의 영상과 소리가 들어옵니다.", "같은 방의 두 사람이 나누는 대화가 들리기도 합니다.", "들은 대화는 F 키나 자막 클릭으로 보관합니다.", "숫자 키 2로 확대합니다.")
 
 [sub_resource type="Resource" id="page_11"]
@@ -74,7 +74,7 @@ Lines = PackedStringArray("수화기를 들어 직원에게 직접 걸 수 있�
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/power_panel.png"
 Title = "전력 패널과 이 패드"
-Lines = PackedStringArray("세 채널은 조명 · CCTV · 패드입니다.", "켤 수 있는 채널 수는 전력 용량만큼이며, 정전이 나면 줄어듭니다.", "패드 채널이 꺼지면 이 단말기와 사고 예고도 꺼집니다.", "패드는 Tab 또는 숫자 키 3으로 꺼냅니다.")
+Lines = PackedStringArray("세 채널은 조명, CCTV, 패드입니다.", "켤 수 있는 채널 수는 전력 용량만큼이며, 정전이 나면 줄어듭니다.", "패드 채널이 꺼지면 이 단말기와 사고 예고도 꺼집니다.", "패드는 Tab 또는 숫자 키 3으로 꺼냅니다.")
 
 [sub_resource type="Resource" id="page_13"]
 script = ExtResource("3_page")
@@ -104,7 +104,7 @@ Lines = PackedStringArray("개체는 관측되는 것을 견디지 못합니다.
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/pin_log.png"
 Title = "단서 보관"
-Lines = PackedStringArray("시설 로그(L)의 이동 · 사고 줄에서 ☆를 누르면", "이 패드의 단서 앱에 보관됩니다.", "CCTV로 엿들은 대화도 단서로 보관할 수 있습니다.")
+Lines = PackedStringArray("시설 로그(L)의 이동, 사고 줄에서 ☆를 누르면", "이 패드의 단서 앱에 보관됩니다.", "CCTV로 엿들은 대화도 단서로 보관할 수 있습니다.")
 
 [sub_resource type="Resource" id="page_18"]
 script = ExtResource("3_page")
@@ -182,7 +182,7 @@ Lines = PackedStringArray("재고를 정리해 자재 보관 한도를 올립니
 script = ExtResource("3_page")
 ImagePath = "res://assets/pad/manual/cctv_power.png"
 Title = "발전실"
-Lines = PackedStringArray("시설 전체에 전력을 공급합니다.", "인력이 모자라면 모든 작업실의 업무가 느려집니다.", "조명 · CCTV · 패드 세 채널이 이 전력을 씁니다.", "발전기 사고는 혼자 못 고칩니다 — 두 명을 보내십시오.")
+Lines = PackedStringArray("시설 전체에 전력을 공급합니다.", "인력이 모자라면 모든 작업실의 업무가 느려집니다.", "조명, CCTV, 패드 세 채널이 이 전력을 씁니다.", "발전기 사고는 혼자 못 고칩니다 - 두 명을 보내십시오.")
 
 [sub_resource type="Resource" id="room_guard"]
 script = ExtResource("3_page")

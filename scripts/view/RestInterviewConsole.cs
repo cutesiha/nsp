@@ -199,7 +199,7 @@ public partial class RestInterviewConsole : Control
         // 경비실이 오늘 무엇을 남겼는가. 없으면 왜 없는지까지 적는다 —
         // 자료가 비는 이유가 "경비실을 비웠기 때문"이라는 것을 여기서 알게 한다.
         int n = NSP.Facility.RoomEffectStats.GuardRecordsToday;
-        _guardRecords.Text = n > 0 ? $"경비 기록 {n}건" : "경비 기록 없음 — 오늘 경비실이 비어 있었습니다";
+        _guardRecords.Text = n > 0 ? $"경비 기록 {n}건" : "경비 기록 없음 - 오늘 경비실이 비어 있었습니다";
         _guardRecords.AddThemeColorOverride("font_color", n > 0 ? Dim : new Color(1f, 0.46f, 0.40f));
     }
 

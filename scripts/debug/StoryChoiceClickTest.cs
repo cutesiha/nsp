@@ -52,7 +52,7 @@ public partial class StoryChoiceClickTest : Node
 
         var hud = StoryCutinHud.Instance;
         var dir = StoryCutinDirector.Instance;
-        Check(hud != null && dir != null, "컷인 HUD · 디렉터가 있다");
+        Check(hud != null && dir != null, "컷인 HUD, 디렉터가 있다");
         if (hud == null || dir == null) { Done(); return; }
 
         // 선택지가 있는 비트를 모니터2 위에서 돌린다(메인 스토리와 같은 경로).
@@ -158,7 +158,7 @@ public partial class StoryChoiceClickTest : Node
 
     private void Done()
     {
-        GD.Print($"\n################ 통과 {_pass} · 실패 {_fail} ################\n");
+        GD.Print($"\n################ 통과 {_pass}, 실패 {_fail} ################\n");
         if (_fail > 0) GD.PushError($"StoryChoiceClickTest: {_fail}건 실패");
         GetTree().Quit(_fail > 0 ? 1 : 0);
     }

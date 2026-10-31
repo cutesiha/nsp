@@ -41,9 +41,9 @@ public partial class RecoveryBalanceTest : Node
         foreach (int cycle in new[] { 1, 2, 3 })
         {
             var prof = RecoveryProfile.ForCycle(cycle);
-            GD.Print($"\n══════ {cycle}차 — {prof.DisplayName} " +
-                     $"(1명 ×{prof.CoreStaffMultiplier(1):0.00} · 2명 ×{prof.CoreStaffMultiplier(2):0.00} · " +
-                     $"자재 ×{prof.CoreMaterialCostMultiplier:0.00} · 방해 ×{prof.SabotageCoreDamageMultiplier:0.00} · " +
+            GD.Print($"\n══════ {cycle}차 - {prof.DisplayName} " +
+                     $"(1명 ×{prof.CoreStaffMultiplier(1):0.00}, 2명 ×{prof.CoreStaffMultiplier(2):0.00}, " +
+                     $"자재 ×{prof.CoreMaterialCostMultiplier:0.00}, 방해 ×{prof.SabotageCoreDamageMultiplier:0.00}, " +
                      $"보정 {(prof.CatchupEnabled ? "O" : "X")}) ══════");
             GD.Print("  패턴      DAY1    DAY2    DAY3    DAY4    DAY5   100%달성");
             foreach (Style style in new[] { Style.Rookie, Style.Average, Style.Veteran })
@@ -319,7 +319,7 @@ public partial class RecoveryBalanceTest : Node
     // 아니면 이미 100% 에 닿아 잘린 것인지(Clamp) 부터 가린다.
     private async System.Threading.Tasks.Task LedgerBreakdown()
     {
-        GD.Print("\n══════ 코어 획득 분해 (1차 · 평균 패턴 · 20판) ══════");
+        GD.Print("\n══════ 코어 획득 분해 (1차, 평균 패턴, 20판) ══════");
 
         const int runs = 20;
         var attempted = new float[5];     // 복구가 성립했다면 들어왔을 양
@@ -434,8 +434,8 @@ public partial class RecoveryBalanceTest : Node
             GD.Print($"    DAY{day}  복구 {100f * work / total,5:0.0}%  인력없음 {100f * noStaff / total,5:0.0}%" +
                      $"  자재없음 {100f * noMat / total,5:0.0}%  코어사고 {100f * brokenT / total,5:0.0}%" +
                      $"  출력불안정 {100f * unstable / total,5:0.0}%");
-            GD.Print($"           가용 {alive}/{roster.Count}  (사망 {dead} · 기절 {faint} · 격리 {iso})" +
-                     $"  자재 생산 {_matMade} · 소비 {_matUsed} · 한도폐기 {_matDiscard} · 남음 {GameState.Instance.Materials}/{GameState.Instance.MaterialsCap}" +
+            GD.Print($"           가용 {alive}/{roster.Count}  (사망 {dead}, 기절 {faint}, 격리 {iso})" +
+                     $"  자재 생산 {_matMade}, 소비 {_matUsed}, 한도폐기 {_matDiscard}, 남음 {GameState.Instance.Materials}/{GameState.Instance.MaterialsCap}" +
                      $"  환기가동 {100f * ventUp / total,4:0}%");
             _matMade = _matUsed = _matDiscard = 0;
         }
@@ -455,7 +455,7 @@ public partial class RecoveryBalanceTest : Node
         const int runs = 14;
 
         var prof = RecoveryProfile.ForCycle(1);
-        GD.Print("\n══════ DAY 배율 자동 탐색 (1차 · 평균 기준) ══════");
+        GD.Print("\n══════ DAY 배율 자동 탐색 (1차, 평균 기준) ══════");
 
         for (int day = 1; day <= 5; day++)
         {
@@ -474,7 +474,7 @@ public partial class RecoveryBalanceTest : Node
             }
             found[day - 1] = best;
             prof.DayRecoveryMultiplier = (float[])found.Clone();
-            GD.Print($"  DAY{day} ×{best:0.00}  (목표 {target[day - 1]:0} · 실측 {AverageAt(day, runs):0.0})");
+            GD.Print($"  DAY{day} ×{best:0.00}  (목표 {target[day - 1]:0}, 실측 {AverageAt(day, runs):0.0})");
             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
         }
 
@@ -506,7 +506,7 @@ public partial class RecoveryBalanceTest : Node
     // ── DAY3 에 8% 로 크게 뒤처진 판이 DAY5 까지 회복 가능한가 ──────────────
     private async System.Threading.Tasks.Task Day3RecoveryCase()
     {
-        GD.Print("\n══════ DAY3 8% 케이스 — 아직 회복 가능한가 ══════");
+        GD.Print("\n══════ DAY3 8% 케이스 - 아직 회복 가능한가 ══════");
 
         foreach (int cycle in new[] { 1, 2, 3 })
         {

@@ -266,6 +266,18 @@ public partial class Sfx : Node
     // 시작 화면처럼 일부러 더 작게 깔아야 하는 자리는 호출부에서 따로 적는다.
     public const float MusicDefaultDb = -3.5f;
 
+    // 곡마다 원본 크기가 달라서 같은 볼륨으로 틀어도 들리는 크기가 다르다 — 그 차이만 메운다.
+    // 기준은 메인 곡 rest_time(들리는 크기 -14.0dB). 값은 LoudnessProbe(디코딩해서 잰 RMS)로 쟀다
+    // (2026-10-31: breakroom -13.8 · nsp_mainbgm2 -15.3 · startbgm1 -13.5).
+    // 호출부가 정한 volume(장면마다 일부러 크게 · 작게)은 그대로 두고, 이 보정만 더한다.
+    public static float MusicTrimDb(string name) => name switch
+    {
+        "breakroom" => -0.2f,
+        "nsp_mainbgm2" => 1.3f,
+        "startbgm1" => -0.5f,
+        _ => 0f,
+    };
+
     // 기존 호출 호환: 즉시(짧은 페이드) 루프 재생.
     public void PlayMusic(string name, float volumeDb = MusicDefaultDb) => CrossfadeMusic(name, 0.15f, true, 0f, volumeDb);
 
@@ -278,6 +290,7 @@ public partial class Sfx : Node
                                float startSeconds = 0f, float targetDb = MusicDefaultDb, bool restartIfSame = false)
     {
         if (name == _musicName && !restartIfSame && _music[_musicActive].Playing) return;
+        targetDb += MusicTrimDb(name);
 
         // BGM은 용량 때문에 .ogg 로 보관한다(.wav 는 이전 자산 호환용 폴백).
         string path = MusicPath(name);

@@ -115,7 +115,7 @@ public partial class IsolationShot : Node3D
                 await Frame();
             }
             Save(dir, $"iso_react_{id}.png");
-            GD.Print($"   반응 {id} — {IsolationSystem.ReactSeconds(id):0.00}초, 이 순간 {peak:0.00}초");
+            GD.Print($"   반응 {id} - {IsolationSystem.ReactSeconds(id):0.00}초, 이 순간 {peak:0.00}초");
             st.Isolated = false;
             st.Isolation = IsolationPhase.None;
         }
@@ -133,7 +133,7 @@ public partial class IsolationShot : Node3D
         ClearActors();
         for (int i = 0; i < 6; i++) { Step(); await Frame(); }
         Save(dir, "iso_bed_empty.png");
-        GD.Print($"   빈 침대 — 보이는 밴드 {StrapReport()} (0이어야 한다)");
+        GD.Print($"   빈 침대 - 보이는 밴드 {StrapReport()} (0이어야 한다)");
 
         // 두 사람을 동시에 수용한다 — 침대와 밴드가 서로 섞이지 않아야 한다.
         var a = _sim.GetEmployeeState("sheep");
@@ -165,7 +165,7 @@ public partial class IsolationShot : Node3D
         {
             for (; now < at; now += Dt) { Step(); await Frame(); }
             Save(dir, $"iso_{name}.png");
-            GD.Print($"   {name} ({at:0.0}s) — 밴드 {StrapReport()} · {LieReport("sheep")} · {LieReport("fox")}");
+            GD.Print($"   {name} ({at:0.0}s) - 밴드 {StrapReport()}, {LieReport("sheep")}, {LieReport("fox")}");
         }
 
         // 침대별 · 캐릭터별로 따로 한 장씩 — 자세가 침대를 따라가는지 캐릭터를 따라가는지 본다.
@@ -177,7 +177,7 @@ public partial class IsolationShot : Node3D
             Add(who, CctvEmployeeAction.Isolated, Slots[0]);
             for (float t = 0f; t < 14f; t += Dt) { Step(); await Frame(); }
             Save(dir, $"iso_solo_{who}_bed1.png");
-            GD.Print($"   혼자 {who} — 밴드 {StrapReport()}, 골반높이 {HipHeight(who):0.000}m · {LieReport(who)}");
+            GD.Print($"   혼자 {who} - 밴드 {StrapReport()}, 골반높이 {HipHeight(who):0.000}m, {LieReport(who)}");
         }
         // 두 번째 침대만 쓰게 한다(첫 번째 침대를 다른 사람이 차지한 경우).
         ClearActors();
@@ -185,7 +185,7 @@ public partial class IsolationShot : Node3D
         Add("fox", CctvEmployeeAction.Isolated, Slots[1]);
         for (float t = 0f; t < 14f; t += Dt) { Step(); await Frame(); }
         Save(dir, "iso_two_beds.png");
-        GD.Print($"   두 침대 — 밴드 {StrapReport()}, 양 {HipHeight("sheep"):0.000}m / 여우 {HipHeight("fox"):0.000}m");
+        GD.Print($"   두 침대 - 밴드 {StrapReport()}, 양 {HipHeight("sheep"):0.000}m / 여우 {HipHeight("fox"):0.000}m");
 
         // CCTV 를 한참 뒤에 돌려 본 경우 — 걷는 것부터 다시 보여주지 않고 이미 묶여 있다.
         ClearActors();
@@ -194,7 +194,7 @@ public partial class IsolationShot : Node3D
         await Frames(2);
         for (int i = 0; i < 20; i++) { Step(); await Frame(); }
         Save(dir, "iso_late_view.png");
-        GD.Print($"   나중에 본 격리실 — 밴드 {StrapReport()} (바로 묶여 있어야 한다)");
+        GD.Print($"   나중에 본 격리실 - 밴드 {StrapReport()} (바로 묶여 있어야 한다)");
 
         // 다시 정상 진행으로 돌려놓고, 여우만 해제한다.
         ClearActors();
@@ -213,7 +213,7 @@ public partial class IsolationShot : Node3D
         {
             for (float t = 0f; t < at; t += Dt) { Step(); await Frame(); }
             Save(dir, $"iso_release_{name}.png");
-            GD.Print($"   해제 {name} — 밴드 {StrapReport()} (여우 침대만 0이 되어야 한다)");
+            GD.Print($"   해제 {name} - 밴드 {StrapReport()} (여우 침대만 0이 되어야 한다)");
         }
     }
 
@@ -297,7 +297,7 @@ public partial class IsolationShot : Node3D
         return "없음";
     }
 
-    private string StrapReport() => $"침대1 {VisibleStraps(1)}/7 · 침대2 {VisibleStraps(2)}/7";
+    private string StrapReport() => $"침대1 {VisibleStraps(1)}/7, 침대2 {VisibleStraps(2)}/7";
 
     private float HipHeight(string id)
     {

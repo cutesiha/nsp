@@ -40,7 +40,7 @@ public partial class DeathScreamFx : Node
     public static void Play(string employeeId)
     {
         bool female = FacilitySimulation.Instance?.GetEmployeeDef(employeeId)?.Gender?.Contains("여") == true;
-        bool real = Sfx.Instance?.PlayDeathScream(female) == true;
+        bool real = Sfx.Instance?.PlayDeathScream(female, PanOf(employeeId)) == true;
         if (!real) Sfx.Instance?.PlayScream(employeeId, -1.5f);   // 음원이 없으면 예전 합성 비명
 
         var ctl = ControlRoom3DController.Instance;
@@ -49,6 +49,17 @@ public partial class DeathScreamFx : Node
         var fx = new DeathScreamFx { _real = real, Name = "DeathScreamFx" };
         ctl.AddChild(fx);
         _running = fx;
+    }
+
+    // 비명이 들리는 방향 — 그 직원이 있던 방이 중앙제어실(지도 가운데)의 왼쪽인가 오른쪽인가.
+    // "어디서 죽었지?" 가 귀로 먼저 온다(추리 단서). 끝까지 치우치지는 않는다(±0.7).
+    private static float PanOf(string employeeId)
+    {
+        var sim = FacilitySimulation.Instance;
+        string room = sim?.GetEmployeeState(employeeId)?.CurrentRoomId ?? "";
+        if (sim == null || string.IsNullOrEmpty(room)) return 0f;
+        float dx = sim.RoomMapPosition(room).X - sim.RoomMapPosition("central_office").X;
+        return Mathf.Clamp(dx / 180f * 0.7f, -0.7f, 0.7f);
     }
 
     public override void _Ready()

@@ -30,8 +30,8 @@ public partial class HairSourceInspector : Node
             .Where(m => m.Mesh != null)
             .OrderByDescending(m => m.Mesh.SurfaceGetArrays(0)[(int)Mesh.ArrayType.Vertex].As<Vector3[]>().Length)
             .First();
-        GD.Print($"  몸 메시 '{body.Name}' · skin={(body.Skin != null ? "있음" : "없음")} " +
-                 $"· skeleton='{body.Skeleton}'");
+        GD.Print($"  몸 메시 '{body.Name}', skin={(body.Skin != null ? "있음" : "없음")} " +
+                 $"- skeleton='{body.Skeleton}'");
 
         var arr = body.Mesh.SurfaceGetArrays(0);
         var vs = arr[(int)Mesh.ArrayType.Vertex].As<Vector3[]>();
@@ -40,11 +40,11 @@ public partial class HairSourceInspector : Node
         var norms = arr[(int)Mesh.ArrayType.Normal].As<Vector3[]>();
         var uvs = arr[(int)Mesh.ArrayType.TexUV].As<Vector2[]>();
         var idx = arr[(int)Mesh.ArrayType.Index].As<int[]>();
-        GD.Print($"  정점 {vs.Length} · 삼각 {idx.Length / 3} · 법선 {(norms != null ? "O" : "X")} " +
-                 $"· UV {(uvs != null ? "O" : "X")}");
+        GD.Print($"  정점 {vs.Length}, 삼각 {idx.Length / 3}, 법선 {(norms != null ? "O" : "X")} " +
+                 $"- UV {(uvs != null ? "O" : "X")}");
         GD.Print($"  BONES {(bones == null ? "없음" : $"{bones.Length}개 ({bones.Length / vs.Length}/정점)")} " +
-                 $"· WEIGHTS {(weights == null ? "없음" : $"{weights.Length}개")}");
-        if (bones == null) { GD.Print("  !! 가중치가 없다 — 껍질 방식 불가"); root.QueueFree(); return; }
+                 $"- WEIGHTS {(weights == null ? "없음" : $"{weights.Length}개")}");
+        if (bones == null) { GD.Print("  !! 가중치가 없다 - 껍질 방식 불가"); root.QueueFree(); return; }
 
         // 어느 본이 어디를 지배하는가. 옷 영역을 본 이름으로 정의하기 위한 자료다.
         int per = bones.Length / vs.Length;

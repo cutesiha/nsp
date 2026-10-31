@@ -651,7 +651,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         bool can = DayObjectives.CanEndShift && !tutorialHold;
         if (_objEndBtn.Disabled == can) _objEndBtn.Disabled = !can;
         _objHint.Text = tutorialHold ? "교육 안내에 따라 근무를 종료하십시오."
-            : can ? "필수 업무 완료 — 더 일하거나, 지금 근무를 마칠 수 있습니다."
+            : can ? "필수 업무 완료 - 더 일하거나, 지금 근무를 마칠 수 있습니다."
             : "필수 업무를 완료해야 근무를 종료할 수 있습니다.";
     }
 
@@ -929,7 +929,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             Text = "☆",
             Position = Vector2.Zero,
             Size = new Vector2(LogStarWidth, 29),
-            TooltipText = "단서로 기록 — 관리자 패드에 보관",
+            TooltipText = "단서로 기록 - 관리자 패드에 보관",
             MouseFilter = Control.MouseFilterEnum.Stop,
             MouseDefaultCursorShape = Control.CursorShape.PointingHand,
             FocusMode = Control.FocusModeEnum.None,
@@ -1021,7 +1021,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         DisplayLogSeverity.Sabotage => "■",
         DisplayLogSeverity.Recovery => "✓",
         DisplayLogSeverity.RoomEffect => "◆",
-        _ => "·",
+        _ => "-",
     };
 
     // 작업실/업무 이름에 대괄호가 들어가도 BBCode 태그로 해석되지 않게 한다.

@@ -25,7 +25,7 @@ public partial class HorrorSfxGen : Node
     public override void _Ready()
     {
         string dir = ProjectSettings.GlobalizePath("res://assets/audio/sfx");
-        GD.Print("\n\n################ 공포 · 스토리 효과음 합성 ################");
+        GD.Print("\n\n################ 공포, 스토리 효과음 합성 ################");
 
         // ── 속삭임 ───────────────────────────────────────────────────
         Save(dir, "whisper_short", Whisper(2, 0.95, false), 0.52);

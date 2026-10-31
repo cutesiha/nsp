@@ -532,10 +532,10 @@ public partial class StaffTimelineView : Control
 
     private string HoverText((int Kind, int Index, string Key) h) => h.Kind switch
     {
-        3 => _pins[h.Index].Header + " · " + _pins[h.Index].Body,
+        3 => _pins[h.Index].Header + ", " + _pins[h.Index].Body,
         2 => IncidentLabel(_rows[_incidents[h.Index]]),
-        1 => Codename(h.Key) + " · " + RoomName(_segments[h.Key][h.Index].RoomId)
-             + " · " + ClockText(_segments[h.Key][h.Index].Start),
+        1 => Codename(h.Key) + ", " + RoomName(_segments[h.Key][h.Index].RoomId)
+             + ", " + ClockText(_segments[h.Key][h.Index].Start),
         _ => "",
     };
 
@@ -586,7 +586,7 @@ public partial class StaffTimelineView : Control
     }
 
     // 툴팁 — "23:47 · 정비실 사고"
-    private static string IncidentLabel(DisplayLogEntry r) => ClockText(r.Timestamp) + " · " + IncidentTitle(r);
+    private static string IncidentLabel(DisplayLogEntry r) => ClockText(r.Timestamp) + ", " + IncidentTitle(r);
 
     // 근무 초 → 22:00~04:00 벽시계 숫자. 환산은 DialogueClock 한 곳에서만 한다
     // (SaboteurPlan.Clock 과 같은 식이다). 띠는 숫자 표기를 쓴다 — 가로축 눈금과 맞춰야 한다.

@@ -211,7 +211,7 @@ public sealed class CovertActionSystem
                 _tamperWork = 0f;
                 _tamperRoomId = "";
                 _caughtCooldown = 12f;
-                Note(sim, $"봉쇄 교란 중단 — CCTV 관측됨 @{sim.RoomDisplayName(room)}");
+                Note(sim, $"봉쇄 교란 중단 - CCTV 관측됨 @{sim.RoomDisplayName(room)}");
                 return;
             }
         }
@@ -402,7 +402,7 @@ public sealed class CovertActionSystem
             if (_blockedSeconds > 6f)
             {
                 CovertMovesBlocked++;
-                Note(sim, "은밀 이동 실패 — 차폐문에 막힘");
+                Note(sim, "은밀 이동 실패 - 차폐문에 막힘");
                 BeginEscape(sim, sab);
             }
             return;
@@ -417,7 +417,7 @@ public sealed class CovertActionSystem
             if (_rng.Randf() < (ops?.CovertAbortOnLightChance ?? 0.5f))
             {
                 AbortedByPlayer++;
-                Note(sim, "은밀 이동 포기 — 조명 복구");
+                Note(sim, "은밀 이동 포기 - 조명 복구");
                 BeginEscape(sim, sab);
                 return;
             }

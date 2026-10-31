@@ -172,8 +172,8 @@ public partial class SirenSfxGen : Node
         }
         step /= s.Length - 1;
         GD.Print($"{name}: {s.Length / (double)Rate:0.00}s  피크 {hi * k:0.00}  RMS {rms * k:0.000}");
-        GD.Print($"  이음매 {seam:0.0000}  (평소 샘플간 변화 평균 {step:0.0000} · 최대 {stepMax:0.0000})");
+        GD.Print($"  이음매 {seam:0.0000}  (평소 샘플간 변화 평균 {step:0.0000}, 최대 {stepMax:0.0000})");
         GD.Print(seam <= stepMax ? "  → 이음매가 평소 변화 범위 안이다. 딱 소리 없음."
-                                 : "  !! 이음매가 평소보다 크다 — 반복 재생에서 딱 소리가 난다.");
+                                 : "  !! 이음매가 평소보다 크다 - 반복 재생에서 딱 소리가 난다.");
     }
 }

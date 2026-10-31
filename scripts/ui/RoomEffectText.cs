@@ -123,7 +123,7 @@ public static class RoomEffectText
     {
         string label = "";
         var values = new System.Collections.Generic.List<string>();
-        foreach (string piece in part.Split(new[] { " · ", " — " }, System.StringSplitOptions.RemoveEmptyEntries))
+        foreach (string piece in part.Split(new[] { ", ", " - " }, System.StringSplitOptions.RemoveEmptyEntries))
         {
             string p = piece.Trim();
             var m = HeadCount.Match(p);
@@ -151,7 +151,7 @@ public static class RoomEffectText
         switch (roomId)
         {
             case "core_room":
-                return $"복구 +{RoomEffectStats.CoreUpToday:0}% 오늘 · 자재 {gs.Materials}개 남음";
+                return $"복구 +{RoomEffectStats.CoreUpToday:0}% 오늘, 자재 {gs.Materials}개 남음";
 
             case "power_room":
                 // 지금까지 쓰던 문구 그대로 — 미니맵 상자 아래 줄과 같은 값을 쓴다.
@@ -165,8 +165,8 @@ public static class RoomEffectText
                 if (def is { EffectType: TaskEffectType.AddMaterials } && task.Status == SpawnedTaskStatus.Active)
                     // 남은 게이지 ÷ 지금 속도. 아무도 없으면 속도가 0 이라 "정지" 로 읽힌다.
                     next = task.LastRate > 0.01f
-                        ? $" · 다음 생산까지 {Mathf.Max(0f, task.GaugeRequired - task.Gauge) / task.LastRate:0}초"
-                        : " · 정지";
+                        ? $", 다음 생산까지 {Mathf.Max(0f, task.GaugeRequired - task.Gauge) / task.LastRate:0}초"
+                        : ", 정지";
                 return $"자재 생산 +{RoomEffectStats.MaterialsToday}개 오늘{next}";
             }
 
@@ -183,7 +183,7 @@ public static class RoomEffectText
             }
 
             case "guard_room":
-                return $"오늘 기록 {RoomEffectStats.GuardRecordsToday}건 (순찰 · 이탈 · 이상 감지)";
+                return $"오늘 기록 {RoomEffectStats.GuardRecordsToday}건 (순찰, 이탈, 이상 감지)";
 
             case "medical_room":
             {
@@ -200,7 +200,7 @@ public static class RoomEffectText
                 // 의무실이 고장 나 있으면 회복이 느려지고 치료(스트레스 회복)도 돌지 않는다(G-4).
                 // 고장 난 의무실이 아무 대가 없이 방치되던 것을 화면에서도 읽히게 한다.
                 string fault = sim.HasActiveRepair(roomId)
-                    ? $" · 고장 — 회복 {cfg.MedicalFaultRecoveryRate:0.#}배 느림 · 치료 정지"
+                    ? $", 고장 - 회복 {cfg.MedicalFaultRecoveryRate:0.#}배 느림, 치료 정지"
                     : "";
                 return $"{verb}: {who} (회복까지 {Mathf.Max(0f, patient.FaintRecoverTimer):0}초){fault}";
             }
@@ -221,20 +221,20 @@ public static class RoomEffectText
         switch (roomId)
         {
             case "core_room":
-                if (here == 0) return "코어실 비어 있음 — 복구 정지";
-                if (sim.IsRoomBlockedByMaterials(roomId)) return "자재 없음 — 복구 정지 중 (정비실 확인)";
+                if (here == 0) return "코어실 비어 있음 - 복구 정지";
+                if (sim.IsRoomBlockedByMaterials(roomId)) return "자재 없음 - 복구 정지 중 (정비실 확인)";
                 return "";
 
             case "power_room":
                 if (here > 0) return "";
                 // 35% 라는 값은 그 날의 운영 데이터에서 그대로 읽는다.
-                return $"발전실 비어 있음 — 출력 {sim.PowerRoomOutputWhenEmpty() * 100f:0}% · 조명·CCTV 불안정";
+                return $"발전실 비어 있음 - 출력 {sim.PowerRoomOutputWhenEmpty() * 100f:0}%, 조명/CCTV 불안정";
 
             case "maintenance_room":
             {
                 if (here > 0) return "";
                 int cost = Mathf.Max(1, RoomStaffing.CoreMaterialCost());
-                return $"정비실 비어 있음 — 자재 생산 중단 ({gs.Materials}개로 코어 약 {gs.Materials / cost}% 분)";
+                return $"정비실 비어 있음 - 자재 생산 중단 ({gs.Materials}개로 코어 약 {gs.Materials / cost}% 분)";
             }
 
             case "storage_room":
@@ -245,7 +245,7 @@ public static class RoomEffectText
                 if (waste <= 0.5f) return "";
                 // 실제로 나가는 개수까지 함께 적는다 — 기본 소모가 작으면 +25% 가
                 // 반올림되어 개수는 그대로일 수 있고, 그때는 그대로인 것이 사실이다.
-                return $"저장고 비어 있음 — 자재 소모 +{waste:0}% " +
+                return $"저장고 비어 있음 - 자재 소모 +{waste:0}% " +
                        $"(코어 1%당 {RoomStaffing.CoreMaterialCostPerPercent()}개)";
             }
 
@@ -259,10 +259,10 @@ public static class RoomEffectText
                 // 환기 고장 → 그 다음 스트레스 순으로 온다. 예전에는 비어 있기만 해도
                 // "전원 스트레스 +1 / 15초" 라고 적고 있었는데, 시뮬레이션은 그 일을 하지 않는다.
                 if (!down)
-                    return $"환기실 비어 있음 — 방치하면 환기 고장 " +
+                    return $"환기실 비어 있음 - 방치하면 환기 고장 " +
                            $"(그때부터 전원 스트레스 +{cfg.VentFaultStressAmount:0.#} / " +
                            $"{cfg.VentFaultStressIntervalSeconds:0}초)";
-                string line = $"환기실 고장 — 전원 스트레스 " +
+                string line = $"환기실 고장 - 전원 스트레스 " +
                               $"+{cfg.VentFaultStressAmount:0.#} / {cfg.VentFaultStressIntervalSeconds:0}초";
                 // 기절선에 가까워진 사람이 있으면 이름을 붙인다 — 숫자보다 이름이 먼저 읽힌다.
                 var worst = sim.GetActiveEmployeeIds()
@@ -271,12 +271,12 @@ public static class RoomEffectText
                     .OrderByDescending(x => x.Stress).FirstOrDefault();
                 if (worst != null)
                     line += $"\n{sim.GetEmployeeDef(worst.EmployeeId)?.Codename ?? worst.EmployeeId} " +
-                            $"스트레스 {worst.Stress:0} — 기절 임박";
+                            $"스트레스 {worst.Stress:0} - 기절 임박";
                 return line;
             }
 
             case "guard_room":
-                return here == 0 ? "경비실 비어 있음 — 재석 기록 없음 (휴게시간 조사 자료 감소)" : "";
+                return here == 0 ? "경비실 비어 있음 - 재석 기록 없음 (휴게시간 조사 자료 감소)" : "";
 
             case "medical_room":
             {
@@ -288,8 +288,8 @@ public static class RoomEffectText
                 // 화면에는 시뮬레이션이 정말 하는 일만 적는다.
                 var treat = sim.GetTaskDef("staff_treatment");
                 return treat == null
-                    ? "의무실 비어 있음 — 치료 정지"
-                    : $"의무실 비어 있음 — 치료 정지 (스트레스 -{treat.EffectAmount:0.#} / {treat.GaugeRequired:0}초 멈춤)";
+                    ? "의무실 비어 있음 - 치료 정지"
+                    : $"의무실 비어 있음 - 치료 정지 (스트레스 -{treat.EffectAmount:0.#} / {treat.GaugeRequired:0}초 멈춤)";
             }
         }
         return "";

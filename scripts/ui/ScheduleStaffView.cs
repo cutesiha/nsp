@@ -179,7 +179,7 @@ public partial class ScheduleStaffView : Control
     private void DrawRosterGrid(FacilitySimulation sim)
     {
         var roster = sim.GetActiveEmployeeIds();
-        Header("STAFF IDENTIFICATION", "제7지하시설 · 야간근무 편성");
+        Header("STAFF IDENTIFICATION", "제7지하시설, 야간근무 편성");
         // 머릿수는 **투입할 수 있는 인원 / 편성 인원**이다. 사망자가 섞인 날에는
         // 분자가 줄어든다 — 그 차이가 곧 "오늘 한 명이 비어 있다"는 사실이다.
         int alive = roster.Count(id => sim.GetEmployeeState(id)?.Alive != false);
@@ -214,10 +214,10 @@ public partial class ScheduleStaffView : Control
                 HorizontalAlignment.Center, w, Fs(19), benched ? Dim : Ink);
             // ⑭ 이 화면은 "기분"을 맡는다 — 배치 상태는 왼쪽 지도의 대기 인원 카드가 보여 준다.
             string mood = sim.GetDailyMood(roster[i]);
-            string where = dead ? "■ 사망 · 신호 소실"
-                : st.Incapacitated ? "기절 · 의무실에서 회복 필요"
-                : st.Isolated ? "[격리] · 근무 불가"
-                : "기분: " + (string.IsNullOrEmpty(mood) ? "—" : mood);
+            string where = dead ? "■ 사망, 신호 소실"
+                : st.Incapacitated ? "기절, 의무실에서 회복 필요"
+                : st.Isolated ? "[격리], 근무 불가"
+                : "기분: " + (string.IsNullOrEmpty(mood) ? "-" : mood);
             DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 138f), where,
                 HorizontalAlignment.Center, w, Fs(13), benched ? Err : Amber);
             // 죽은 사람의 스트레스를 띄우면 아직 살아 있는 사람처럼 읽힌다.
@@ -235,8 +235,8 @@ public partial class ScheduleStaffView : Control
         if (def == null || st == null) { DrawRosterGrid(sim); return; }
 
         bool dead = !st.Alive;
-        Header("STAFF IDENTIFICATION  ·  " + id.ToUpperInvariant(),
-            dead ? "■ 생체 신호 소실 — 근무 편성에서 제외됨." : "시설 직원 신원 확인됨.");
+        Header("STAFF IDENTIFICATION / " + id.ToUpperInvariant(),
+            dead ? "■ 생체 신호 소실 - 근무 편성에서 제외됨." : "시설 직원 신원 확인됨.");
 
         // 초상 — 전용 그림(SchedulePortrait)은 3:4 로 그려 둔 것이라 칸도 3:4 로 잡고 그대로 넣는다.
         // 없으면 예전처럼 스탠딩 원화의 상반신을 잘라 채운다.
@@ -268,7 +268,7 @@ public partial class ScheduleStaffView : Control
         y += 30f;
         string mood = sim.GetDailyMood(id);
         DrawString(_font, new Vector2(x, y),
-            dead ? "소실 — 응답 없음" : string.IsNullOrEmpty(mood) ? "—" : mood,
+            dead ? "소실 - 응답 없음" : string.IsNullOrEmpty(mood) ? "-" : mood,
             HorizontalAlignment.Left, 440f, Fs(24), dead ? Err : Amber);
         y += 38f;
 
@@ -276,9 +276,9 @@ public partial class ScheduleStaffView : Control
         DrawString(_font, new Vector2(x, y), "현재 배치", HorizontalAlignment.Left, 440f, Fs(14), label);
         y += 30f;
         DrawString(_font, new Vector2(x, y),
-            dead ? "직원 사망 · 배치 불가"
-            : st.Isolated ? "격리실 · 근무 불가"
-            : st.Incapacitated ? "기절 · 의무실에서 회복 필요"
+            dead ? "직원 사망, 배치 불가"
+            : st.Isolated ? "격리실, 근무 불가"
+            : st.Incapacitated ? "기절, 의무실에서 회복 필요"
             : string.IsNullOrEmpty(room) ? "미배치" : RoomName(sim, room),
             HorizontalAlignment.Left, 440f, Fs(22),
             dead || st.Isolated ? Err : string.IsNullOrEmpty(room) ? Amber : Mint);
@@ -289,9 +289,9 @@ public partial class ScheduleStaffView : Control
 
         bool selected = ScheduleMapView.Instance?.SelectedEmployeeId == id;
         if (dead)
-            Footer($"{def.Codename}   생체 신호 소실 — 이 직원은 배치할 수 없습니다.", Err);
+            Footer($"{def.Codename}   생체 신호 소실 - 이 직원은 배치할 수 없습니다.", Err);
         else
-            Footer(selected ? $"{def.Codename} 선택됨 — 배치할 작업실을 누르십시오." : $"{def.Codename}   시설 직원 신원 확인됨.",
+            Footer(selected ? $"{def.Codename} 선택됨 - 배치할 작업실을 누르십시오." : $"{def.Codename}   시설 직원 신원 확인됨.",
                 selected ? Mint : Ink);
     }
 

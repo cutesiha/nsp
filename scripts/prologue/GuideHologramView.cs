@@ -937,7 +937,7 @@ public partial class GuideHologramView : Control
             var font = ViewFont.Default;
             DrawString(font, new Vector2(12f, 20f), "GUIDE-0.exe", HorizontalAlignment.Left,
                 Size.X - 100f, ViewFont.S(14), Cyan with { A = 0.95f });
-            DrawString(font, new Vector2(Size.X - 84f, 20f), "—  □  ✕", HorizontalAlignment.Left,
+            DrawString(font, new Vector2(Size.X - 84f, 20f), "-  □  ✕", HorizontalAlignment.Left,
                 80f, ViewFont.S(14), Cyan with { A = 0.55f });
 
             // 홀로그램 스캔라인.

@@ -114,7 +114,7 @@ public sealed class FacilityWarningSystem
                 Prevented++;
                 Close(w, now, sim);
                 EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", w.RoomId,
-                    $"✓ {sim.RoomDisplayName(w.RoomId)} — {w.Title} 안정화 성공");
+                    $"✓ {sim.RoomDisplayName(w.RoomId)} - {w.Title} 안정화 성공");
                 NSP.Ui.FacilityAlertHud.Instance?.Notify("✓ " +
                     NSP.Dialogue.KoreanParticle.Subject(sim.RoomDisplayName(w.RoomId)) + " 안정화되었습니다.",
                     NSP.Ui.NoticeLevel.Info);
@@ -257,7 +257,7 @@ public sealed class FacilityWarningSystem
         Raised++;
 
         EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", w.RoomId,
-            $"▲ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 " +
+            $"▲ {sim.RoomDisplayName(w.RoomId)} - {w.Title}, {w.Total:0}초 안에 " +
             $"{w.RequiredStaff}명 투입 후 {w.WorkNeeded:0}초 작업 필요");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"▲ {sim.RoomDisplayName(w.RoomId)}에서 " +

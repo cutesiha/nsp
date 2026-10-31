@@ -55,7 +55,7 @@ public partial class MonsterShot : Node
         for (int i = 0; i < 900 && GameState.Instance?.CurrentPhase != GamePhase.Live; i++) await Frame();
         await Seconds(3.0);
 
-        GD.Print("\n\n################ 괴물 · 복도 CCTV ################");
+        GD.Print("\n\n################ 괴물, 복도 CCTV ################");
         var th = _sim.Threats;
         var net = _sim.Corridors;
 
@@ -143,7 +143,7 @@ public partial class MonsterShot : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (img == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         img.SavePng($"{_dir}/mon_{_shot:00}_{name}.png");
         _shot++;
     }
@@ -151,7 +151,7 @@ public partial class MonsterShot : Node
     private void ShotCctv(string name)
     {
         var tex = ControlRoom3DController.Instance?.CctvViewport?.GetTexture();
-        if (tex == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (tex == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         tex.GetImage()?.SavePng($"{_dir}/mon_{_shot:00}_{name}.png");
         _shot++;
     }

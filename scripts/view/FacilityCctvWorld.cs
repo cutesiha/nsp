@@ -135,7 +135,7 @@ public partial class FacilityCctvWorld : Node3D
         foreach (var (roomId, path) in RoomScenes)
         {
             var ps = GD.Load<PackedScene>(path);
-            if (ps == null) { GD.PushWarning($"FacilityCctvWorld: 방 씬 로드 실패 — {path}"); continue; }
+            if (ps == null) { GD.PushWarning($"FacilityCctvWorld: 방 씬 로드 실패 - {path}"); continue; }
             var inst = ps.Instantiate<Node3D>();
             inst.Visible = false;
             AddChild(inst);
@@ -192,7 +192,7 @@ public partial class FacilityCctvWorld : Node3D
             {
                 var ps = GD.Load<PackedScene>(path);
                 if (ps != null) actor = ps.Instantiate<Node3D>();
-                else GD.PushWarning($"FacilityCctvWorld: 직원 3D 씬 로드 실패 — {path} (플레이스홀더로 대체)");
+                else GD.PushWarning($"FacilityCctvWorld: 직원 3D 씬 로드 실패 - {path} (플레이스홀더로 대체)");
             }
             // 씬이 없거나 로드에 실패해도 게임이 멈추지 않게 예전 도형으로 대체한다.
             if (actor == null && fallback != null)

@@ -42,7 +42,7 @@ public partial class MonsterModelProbe : Node
         var players = new List<AnimationPlayer>();
         Walk(root, 1, meshes, skeletons, players);
 
-        GD.Print($"   ── 메시 {meshes.Count} · 스켈레톤 {skeletons.Count} · AnimationPlayer {players.Count}");
+        GD.Print($"   ── 메시 {meshes.Count}, 스켈레톤 {skeletons.Count}, AnimationPlayer {players.Count}");
 
         var box = new Aabb();
         bool first = true;
@@ -72,7 +72,7 @@ public partial class MonsterModelProbe : Node
             foreach (string clip in list)
             {
                 var anim = ap.GetAnimation(clip);
-                GD.Print($"      · \"{clip}\"  길이 {anim?.Length:0.00}초  루프 {anim?.LoopMode}  트랙 {anim?.GetTrackCount()}");
+                GD.Print($", \"{clip}\"  길이 {anim?.Length:0.00}초  루프 {anim?.LoopMode}  트랙 {anim?.GetTrackCount()}");
             }
         }
         if (players.Count == 0) GD.Print("   ── 애니메이션 없음 (정지 메시)");

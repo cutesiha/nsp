@@ -52,7 +52,7 @@ public partial class StoryTransitionShot : Node
         DebugEntryPoint.CallStatic("StartNewRun", 3);
         GameState.Instance.AddCoreProgress(44f, "캡처");
 
-        GD.Print("\n\n################ DAY 스토리 전환 — 실제 흐름 관찰 ################");
+        GD.Print("\n\n################ DAY 스토리 전환 - 실제 흐름 관찰 ################");
         GD.Print("    시각    상태                       BGM          눈꺼풀  모니터2  카드");
 
         // 여기서부터 진짜 흐름이 시작된다(EnterSchedule → PlayDayIntro → 전환 + 스토리).
@@ -74,7 +74,7 @@ public partial class StoryTransitionShot : Node
                 _nextDiag = _t + 10.0;
                 var h = StoryCutinHud.Instance;
                 var d = StoryCutinDirector.Instance;
-                GD.Print($"      · {_t,5:0}s  beat={d?.CurrentBeatId ?? "-"} playing={d?.IsPlaying} " +
+                GD.Print($", {_t,5:0}s  beat={d?.CurrentBeatId ?? "-"} playing={d?.IsPlaying} " +
                          $"shown={h?.IsShown} choosing={h?.IsChoosing} waiting={h?.IsWaitingForInput} " +
                          $"advances={h?.AdvanceCount}");
             }
@@ -131,14 +131,14 @@ public partial class StoryTransitionShot : Node
         }
 
         string music = Sfx.Instance?.CurrentMusic ?? "";
-        if (music.Length == 0) music = "—";
+        if (music.Length == 0) music = "-";
         bool dark = BlinkOverlay.Instance?.IsClosed ?? false;
         float shut = BlinkOverlay.Instance?.ClosedAmount ?? 0f;
         bool monitor = StoryCutinDirector.ShowsRestRoom;
         bool card = ShiftCardView.Instance?.IsShown ?? false;
 
         GD.Print($"   {_t,6:0.00}s  {Pad(state, 26)}  {Pad(music, 11)}  {shut * 100,3:0}%    " +
-                 $"{(monitor ? "휴게실" : " — ")}    {(card ? "표시" : "—")}");
+                 $"{(monitor ? "휴게실" : " - ")}    {(card ? "표시" : "-")}");
         Shot(state);
     }
 
@@ -157,7 +157,7 @@ public partial class StoryTransitionShot : Node
         if (opening && shut > 0.02f) return "③ 눈 뜨는 중";
         if (dark) return "① 눈 감는 중";
         if (playing) return "⑤ 대사 진행";
-        if (monitor && trans) return "④ 휴게실 · 첫 대사 전";
+        if (monitor && trans) return "④ 휴게실, 첫 대사 전";
         if (monitor) return "⑥ 대사 사이";
         if (trans) return "⓪ 전환 시작(날숨)";
         return "⑧ 복귀 완료";
@@ -175,7 +175,7 @@ public partial class StoryTransitionShot : Node
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
         if (img == null) return;   // 헤드리스 — 표만 남는다
-        string safe = state.Length > 2 ? state[2..].Replace(" ", "_").Replace("·", "") : state;
+        string safe = state.Length > 2 ? state[2..].Replace(" ", "_").Replace("-", "") : state;
         img.SavePng($"{_dir}/story_{_shot:00}_{safe}.png");
         _shot++;
     }

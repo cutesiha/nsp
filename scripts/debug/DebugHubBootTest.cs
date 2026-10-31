@@ -21,7 +21,7 @@ public partial class DebugHubBootTest : Node
 
     private async System.Threading.Tasks.Task Run()
     {
-        GD.Print("\n\n################ 개발 허브 — 근무 배치 진입 ################");
+        GD.Print("\n\n################ 개발 허브 - 근무 배치 진입 ################");
         await EnterSchedule(0);
         Check(GameState.Instance?.CurrentDay == 0, $"DAY0 으로 들어갔다 ({GameState.Instance?.CurrentDay})");
         Check(NSP.Prologue.TutorialDirector.Instance?.IsRunning == true, "GUIDE-0 교육이 돌기 시작했다");
@@ -32,8 +32,8 @@ public partial class DebugHubBootTest : Node
         string first = NSP.Prologue.GuideSubtitleHud.Instance?.CurrentLine ?? "";
         for (int i = 0; i < 10; i++) { PushSpace(); await Seconds(0.5); }
         string now = NSP.Prologue.GuideSubtitleHud.Instance?.CurrentLine ?? "";
-        Check(!string.IsNullOrEmpty(first), $"첫 대사가 떴다 — \"{first}\"");
-        Check(now != first, $"대사가 넘어간다 — \"{now}\"");
+        Check(!string.IsNullOrEmpty(first), $"첫 대사가 떴다 - \"{first}\"");
+        Check(now != first, $"대사가 넘어간다 - \"{now}\"");
 
         await EnterSchedule(1);
         Check(GameState.Instance?.CurrentDay == 1, $"DAY1 으로 들어갔다 ({GameState.Instance?.CurrentDay})");

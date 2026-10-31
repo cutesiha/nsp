@@ -35,7 +35,7 @@ public partial class ModeSelectShot : Node
             AchievementManager.Instance?.Unlock(id);
 
         AddChild(GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate());
-        GD.Print("\n\n################ 근무 유형 선택 · 일시정지 도전과제 ################");
+        GD.Print("\n\n################ 근무 유형 선택, 일시정지 도전과제 ################");
 
         // ① 타이틀 대기 → 아무 키 → 메뉴 조작 가능해질 때까지.
         for (int i = 0; i < 1200 && TitleTerminalView.Instance?.CurrentMode
@@ -115,7 +115,7 @@ public partial class ModeSelectShot : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (img == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         img.SavePng($"{_dir}/mode_{_shot:00}_{name}.png");
         _shot++;
     }

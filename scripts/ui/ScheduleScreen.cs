@@ -199,7 +199,7 @@ public partial class ScheduleScreen : Control
                 CustomMinimumSize = new Vector2(132f, 58f),
                 Text = NSP.Core.DayFeatures.StatsEnabled
                     ? $"{def.Codename}\n기{def.Tech} 담{def.Courage} 관{def.Observation}"
-                    : $"{def.Codename}\n오늘의 기분: {(string.IsNullOrEmpty(state.DailyMood) ? "—" : state.DailyMood)}",
+                    : $"{def.Codename}\n오늘의 기분: {(string.IsNullOrEmpty(state.DailyMood) ? "-" : state.DailyMood)}",
             };
             chip.AddThemeFontSizeOverride("font_size", 16);
             chip.Pressed += () => ToggleEmployeeCard(employeeId);
@@ -235,7 +235,7 @@ public partial class ScheduleScreen : Control
         else
         {
             string mood = FacilitySimulation.Instance.GetDailyMood(employeeId);
-            var moodLbl = new Label { Text = $"오늘의 기분: {(string.IsNullOrEmpty(mood) ? "—" : mood)}" };
+            var moodLbl = new Label { Text = $"오늘의 기분: {(string.IsNullOrEmpty(mood) ? "-" : mood)}" };
             moodLbl.AddThemeFontSizeOverride("font_size", 18);
             _cardStats.AddChild(moodLbl);
         }
@@ -272,7 +272,7 @@ public partial class ScheduleScreen : Control
         RoomResourceType.Survival => "생존 유지",
         RoomResourceType.Materials => "자재 생산",
         RoomResourceType.Stress => "스트레스 회복",
-        RoomResourceType.Surveillance => "감시·봉쇄 강화",
+        RoomResourceType.Surveillance => "감시/봉쇄 강화",
         RoomResourceType.CoreRepair => "코어 직접 수리",
         RoomResourceType.Storage => "자재 저장 상한 관리",
         RoomResourceType.Isolation => "격리 수용 (배치 불가)",

@@ -44,11 +44,11 @@ public partial class HairAssetBuilder : Node
         Error err = cat.Save();
 
         GD.Print($"\n################ 카탈로그 저장 {HairCatalog.Path} → {err}");
-        GD.Print($"  남성 헤어 {cat.Hairs("male").Count()}개 · 여성 헤어 {cat.Hairs("female").Count()}개 · " +
+        GD.Print($"  남성 헤어 {cat.Hairs("male").Count()}개, 여성 헤어 {cat.Hairs("female").Count()}개, " +
                  $"수염 {cat.Entries.Count(e => e.Kind == "beard")}개");
-        GD.Print($"  팩이 바라보는 방향 — 남성 {HairCatalog.PackYaw(HairSourceSplitter.MaleFbx)}도 · " +
+        GD.Print($"  팩이 바라보는 방향 - 남성 {HairCatalog.PackYaw(HairSourceSplitter.MaleFbx)}도, " +
                  $"여성 {HairCatalog.PackYaw(HairSourceSplitter.FemaleObj)}도");
-        foreach (string n in notes) GD.Print("  · " + n);
+        foreach (string n in notes) GD.Print(", " + n);
         GD.Print($"  걸린 시간 {sw.Elapsed.TotalSeconds:F1}초");
 
         GetTree().Quit();

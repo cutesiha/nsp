@@ -59,8 +59,8 @@ public partial class SaboteurClueTest : Node
         var ops = OpsProfile.For(1);
         if (ops == null) { GD.PrintErr("data/ops/day1.tres 실패"); return; }
         float length = DayObjectives.MaxShiftSeconds;
-        GD.Print($"근무 {length:0}초 · 방해공작 활성 {ops.SaboteurStartSeconds:0}초 · " +
-                 $"준비 {ops.SabotagePrepareMinSeconds:0}~{ops.SabotagePrepareMaxSeconds:0}초 · " +
+        GD.Print($"근무 {length:0}초, 방해공작 활성 {ops.SaboteurStartSeconds:0}초, " +
+                 $"준비 {ops.SabotagePrepareMinSeconds:0}~{ops.SabotagePrepareMaxSeconds:0}초, " +
                  $"목표 구간 {ops.SabotageWindowStartSeconds:0}~{ops.SabotageWindowEndSeconds:0}초");
 
         var runs = new List<Run>();
@@ -220,13 +220,13 @@ public partial class SaboteurClueTest : Node
                      $"{r.CoreGain,5:0.0}%  {r.LongestGap,6:0.0}초  {r.Decisions,3}회");
 
         var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
-        GD.Print($"\n평균 — 첫 경고 {Avg(runs, r => r.FirstWarningAt):0.0}초 · " +
-                 $"두 번째 {Avg(runs, r => r.SecondEventAt):0.0}초 · " +
-                 $"준비 {Avg(acted, r => r.PrepareAt):0.0}초 · " +
+        GD.Print($"\n평균 - 첫 경고 {Avg(runs, r => r.FirstWarningAt):0.0}초, " +
+                 $"두 번째 {Avg(runs, r => r.SecondEventAt):0.0}초, " +
+                 $"준비 {Avg(acted, r => r.PrepareAt):0.0}초, " +
                  $"방해공작 {Avg(acted, r => r.SabotageAt):0.0}초 " +
                  $"({acted.Count}/{runs.Count}회 발생)");
-        GD.Print($"평균 코어 {runs.Average(r => r.CoreGain):0.0}% · 최장 무행동 구간 " +
-                 $"{runs.Max(r => r.LongestGap):0.0}초 · 평균 판단 {runs.Average(r => r.Decisions):0.0}회");
+        GD.Print($"평균 코어 {runs.Average(r => r.CoreGain):0.0}%, 최장 무행동 구간 " +
+                 $"{runs.Max(r => r.LongestGap):0.0}초, 평균 판단 {runs.Average(r => r.Decisions):0.0}회");
     }
 
     // --- Test A/B : 자율 이동 금지 ------------------------------------------
@@ -259,7 +259,7 @@ public partial class SaboteurClueTest : Node
 
         Order("cat", "storage_room");
         Advance(4f);
-        GD.Print($"      재배치 후 phase={_sim.Saboteur.Phase} · 취소 {_sim.Saboteur.CancelCount}회");
+        GD.Print($"      재배치 후 phase={_sim.Saboteur.Phase}, 취소 {_sim.Saboteur.CancelCount}회");
         Check(_sim.Saboteur.Phase != SaboteurPhase.Preparing && _sim.Saboteur.CancelCount > 0,
             "C 재배치하면 준비가 취소된다");
 
@@ -277,7 +277,7 @@ public partial class SaboteurClueTest : Node
     private void CheckPrecursors(List<Run> runs)
     {
         var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
-        GD.Print($"\n[E~I] 방해공작 {acted.Count}회 · 전조 평균 {Avg(acted, r => r.Precursors):0.0}개 · " +
+        GD.Print($"\n[E~I] 방해공작 {acted.Count}회, 전조 평균 {Avg(acted, r => r.Precursors):0.0}개, " +
                  $"단서 경로 평균 {Avg(acted, r => r.CluePaths):0.0}개");
         // DAY1 에도 실제 방해공작이 **한 번은** 일어난다(2026-10-28 — 예전에는 "드물다" 였다).
         // 단기 근무는 사흘뿐이라 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다. 손댄 고장은
@@ -287,7 +287,7 @@ public partial class SaboteurClueTest : Node
         // (SaboteurPlan.CancelCount) 손 놓은 판보다 조금 낮게 나올 수 있다. 배치는 여전히 방어다.
         float hardRate = acted.Count * 100f / Mathf.Max(1, runs.Count);
         Check(hardRate >= 50f,
-            $"DAY1 에도 방해공작이 일어난다 ({hardRate:0}% · 기준 50% 이상)");
+            $"DAY1 에도 방해공작이 일어난다 ({hardRate:0}%, 기준 50% 이상)");
         Check(runs.All(r => r.Tampered), "작은 교란은 모든 근무에서 남는다");
         Check(acted.All(r => r.Precursors >= 1), "E 방해공작 전에 전조가 최소 1개 생긴다");
         Check(acted.All(r => r.PrepareAt >= 0f && r.PrepareAt < r.SabotageAt),
@@ -311,7 +311,7 @@ public partial class SaboteurClueTest : Node
         var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);
         int noise = rows.Count(r => r.Text.Contains("확인했다") || r.Text.Contains("들여다")
                                     || r.Text.Contains("머물렀다"));
-        GD.Print($"      시설 로그 {rows.Count}줄 · 미세 행동 노출 {noise}줄");
+        GD.Print($"      시설 로그 {rows.Count}줄, 미세 행동 노출 {noise}줄");
         Check(noise == 0, "H 전조가 시설 로그를 도배하지 않는다(범인이 노출되지 않는다)");
     }
 
@@ -339,7 +339,7 @@ public partial class SaboteurClueTest : Node
             float avg = sum / n;
             gains.Add(avg);
             best = Mathf.Max(best, avg);
-            GD.Print($"  {label,-18} 코어 {avg:0.0}%  (자재 {GameState.Instance.Materials} · " +
+            GD.Print($"  {label,-18} 코어 {avg:0.0}%  (자재 {GameState.Instance.Materials}, " +
                      $"고장 {IncidentTracker.OpenedCount}건)");
         }
         Check(gains.Count(g => g >= best * 0.7f) >= 2, "유효 전략이 2개 이상이다");

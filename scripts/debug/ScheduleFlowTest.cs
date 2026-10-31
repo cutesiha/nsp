@@ -24,7 +24,7 @@ public partial class ScheduleFlowTest : Node
 
     private async System.Threading.Tasks.Task Run()
     {
-        GD.Print("################ Phase 0 — 배치 → 근무 흐름 ################");
+        GD.Print("################ Phase 0 - 배치 → 근무 흐름 ################");
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
             ?.SetValue(null, true);
         var scene = GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate();
@@ -38,7 +38,7 @@ public partial class ScheduleFlowTest : Node
 
         var bound = ctl?.Screens.Select(s => s.TargetViewport).ToList();
         Check(bound != null && bound.Contains(ctl.ScheduleMapViewport) && bound.Contains(ctl.ScheduleStaffViewport),
-            "두 CRT 에 배치 콘솔(지도 · 직원 정보)이 걸린다");
+            "두 CRT 에 배치 콘솔(지도, 직원 정보)이 걸린다");
         var board = scene.FindChild("DeskScheduleBoard", true, false) as Node3D;
         Check(board == null || !board.Visible, "책상 위 종이 배치표는 켜지지 않는다");
 

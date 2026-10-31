@@ -125,7 +125,7 @@ public sealed class MonsterActor
 
         if (string.IsNullOrEmpty(def.ModelPath) || !ResourceLoader.Exists(def.ModelPath))
         {
-            GD.PushWarning($"MonsterActor: 모델을 찾지 못했습니다 — {def.ModelPath}. 임시 형상으로 대신합니다.");
+            GD.PushWarning($"MonsterActor: 모델을 찾지 못했습니다 - {def.ModelPath}. 임시 형상으로 대신합니다.");
             var ph = Placeholder(def);
             sway.AddChild(ph);
             return ph;

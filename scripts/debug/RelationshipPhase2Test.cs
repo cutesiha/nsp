@@ -46,22 +46,22 @@ public partial class RelationshipPhase2Test : Node
     {
         Head("A", "대사 테이블 (config OverheardLinesPath)");
         Check(OverheardDialogue.Table != null && OverheardDialogue.Count > 0,
-            $"overheard_lines.tres 로드 — {OverheardDialogue.Count}줄");
+            $"overheard_lines.tres 로드 - {OverheardDialogue.Count}줄");
         foreach (var key in new[] { "Close", "Friendly", "Neutral", "Uneasy" })
             foreach (var sit in new[] { OverheardSituation.Normal, OverheardSituation.Incident, OverheardSituation.Sabotage })
             {
                 int n = OverheardDialogue.CountOf(key, sit);
-                if (n < 2) Check(false, $"{key} × {sit} 줄이 2개 이상 — {n}");
+                if (n < 2) Check(false, $"{key} × {sit} 줄이 2개 이상 - {n}");
             }
         Check(true, "밴드 4 × 상황 3 칸마다 2줄 이상");
         int ghostLines = new[] { "Any", "Close", "Friendly", "Neutral", "Uneasy" }
             .Sum(k => OverheardDialogue.CountOf(k, OverheardSituation.Ghost));
-        Check(ghostLines >= 10, $"개체 출현(ghost) 줄 — {ghostLines}줄");
+        Check(ghostLines >= 10, $"개체 출현(ghost) 줄 - {ghostLines}줄");
 
         var bad = OverheardDialogue.AllTemplates()
             .SelectMany(t => new[] { t.A, t.B })
             .Select(KoreanParticle.Lint).Where(s => s.Length > 0).ToList();
-        Check(bad.Count == 0, "변수 뒤 조사는 슬래시 표기 — " + (bad.FirstOrDefault() ?? "문제 없음"));
+        Check(bad.Count == 0, "변수 뒤 조사는 슬래시 표기 - " + (bad.FirstOrDefault() ?? "문제 없음"));
         var ids = new[] { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
         var names = ids.Select(id => _sim.GetEmployeeDef(id)?.Codename ?? id).ToList();
         var leak = OverheardDialogue.AllTemplates().Where(t => t.Situation == OverheardSituation.Sabotage)
@@ -81,7 +81,7 @@ public partial class RelationshipPhase2Test : Node
         // 밀접(고양이–강아지)은 Close 줄 또는 연인 전용 줄.
         var keys = Many("cat", "dog", OverheardSituation.Normal).Select(e => e.Key).Distinct().ToList();
         Check(keys.All(k => k == "Close" || k == "type:Lover") && keys.Contains("type:Lover") && keys.Contains("Close"),
-            "고양이–강아지 = 밀접 줄 + 연인 전용 줄 — " + string.Join(", ", keys));
+            "고양이–강아지 = 밀접 줄 + 연인 전용 줄 - " + string.Join(", ", keys));
 
         // 짝사랑(토끼 → 여우)은 토끼가 먼저 말한다.
         var crush = Many("fox", "rabbit", OverheardSituation.Normal).Where(e => e.Key == "type:Crush").ToList();
@@ -93,7 +93,7 @@ public partial class RelationshipPhase2Test : Node
         // 첫 낱말이 한 음절이면 더듬지 않고, 말끝 흐리기는 확률이라 전부는 아니다 — 대부분이면 된다.
         int ticced = sheepLines.Count(x => DialogueVoiceTics.HasStutter(x.Item2) || x.Item2.Contains("..."));
         Check(sheepLines.Count > 0 && ticced >= sheepLines.Count * 0.7f,
-            $"말버릇 — 양은 더듬거나 말끝을 흐린다({ticced}/{sheepLines.Count}): " + sheepLines.First().Item2);
+            $"말버릇 - 양은 더듬거나 말끝을 흐린다({ticced}/{sheepLines.Count}): " + sheepLines.First().Item2);
 
         // 같은 방에서 방금 나온 줄은 바로 반복되지 않는다.
         var seq = Enumerable.Range(0, 3).Select(_ => Pick("guard_room_x", "dog", "fox", OverheardSituation.Normal)?.LineA).ToList();
@@ -108,16 +108,16 @@ public partial class RelationshipPhase2Test : Node
     // ── 상황 판정 ─────────────────────────────────────────────────────────
     private void Situations()
     {
-        Head("C", "상황 판정 — 평상 / 사고 직후 / 방해 정황");
+        Head("C", "상황 판정 - 평상 / 사고 직후 / 방해 정황");
         LiveSetup(new() { ["fox"] = "guard_room", ["wolf"] = "guard_room", ["dog"] = "core_room" });
         Run(3f);
         Check(OverheardDialogue.SituationOf("guard_room") == OverheardSituation.Normal, "기록이 없으면 평상");
 
-        EventLog.Instance.LogEvent(LogEventType.TaskFailed, "", "guard_room", "경비실 — 테스트 사고");
+        EventLog.Instance.LogEvent(LogEventType.TaskFailed, "", "guard_room", "경비실 - 테스트 사고");
         Check(OverheardDialogue.SituationOf("guard_room") == OverheardSituation.Incident, "그 방 사고 기록 → 사고 직후");
         Check(OverheardDialogue.SituationOf("core_room") == OverheardSituation.Normal, "다른 방은 영향 없음");
 
-        EventLog.Instance.LogEvent(LogEventType.Sabotage, "fox", "guard_room", "경비실 — 테스트 방해");
+        EventLog.Instance.LogEvent(LogEventType.Sabotage, "fox", "guard_room", "경비실 - 테스트 방해");
         Check(OverheardDialogue.SituationOf("guard_room") == OverheardSituation.Sabotage, "방해 기록 → 방해 정황(사고보다 우선)");
 
         float win = OverheardDialogue.Table.SabotageWindowSeconds;
@@ -136,7 +136,7 @@ public partial class RelationshipPhase2Test : Node
         var screams = Enumerable.Range(0, 12)
             .Select(_ => OverheardDialogue.TryPick("guard_room", out var g) ? g : null).Where(g => g != null).ToList();
         Check(screams.Count == 12 && screams.All(g => g.Situation == OverheardSituation.Ghost),
-            "개체 앞에서는 평소 대화가 나오지 않는다 — 예) " + (screams.FirstOrDefault()?.LineA ?? "없음"));
+            "개체 앞에서는 평소 대화가 나오지 않는다 - 예) " + (screams.FirstOrDefault()?.LineA ?? "없음"));
         _sim.Ghost.ForceDepart(_sim, notify: false);
         Check(OverheardDialogue.SituationOf("guard_room") != OverheardSituation.Ghost, "개체가 떠나면 개체 출현 상황도 끝난다");
     }
@@ -144,7 +144,7 @@ public partial class RelationshipPhase2Test : Node
     // ── 자막 진행 ────────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task Caption()
     {
-        Head("D", "CCTV 자막 — 대기 → A → B → 쉼, 신호 끊김 · 방 전환");
+        Head("D", "CCTV 자막 - 대기 → A → B → 쉼, 신호 끊김, 방 전환");
         var cap = new CctvOverheardCaption { Size = new Vector2(736f, 50f) };
         AddChild(cap);
         await Frames(1);
@@ -153,9 +153,9 @@ public partial class RelationshipPhase2Test : Node
         cap.Tick(0.1f, "guard_room", true);
         Check(!cap.Visible && cap.CurrentLine == "", "방을 켠 직후에는 조용하다(첫 대기)");
         Advance(cap, "guard_room", true, t.FirstDelaySeconds + 0.2f);
-        Check(cap.Visible && cap.Current != null && cap.CurrentSpeaker == cap.Current.A, $"첫 대기 뒤 A 가 말한다 — {Nm(cap.CurrentSpeaker)}: {cap.CurrentLine}");
+        Check(cap.Visible && cap.Current != null && cap.CurrentSpeaker == cap.Current.A, $"첫 대기 뒤 A 가 말한다 - {Nm(cap.CurrentSpeaker)}: {cap.CurrentLine}");
         Advance(cap, "guard_room", true, cap.CurrentLine.Length / t.CharsPerSecond + t.LineHoldSeconds + 0.1f);
-        Check(cap.Visible && cap.CurrentSpeaker == cap.Current.B, $"이어서 B 가 받는다 — {Nm(cap.CurrentSpeaker)}: {cap.CurrentLine}");
+        Check(cap.Visible && cap.CurrentSpeaker == cap.Current.B, $"이어서 B 가 받는다 - {Nm(cap.CurrentSpeaker)}: {cap.CurrentLine}");
         Advance(cap, "guard_room", true, cap.CurrentLine.Length / t.CharsPerSecond + t.LineHoldSeconds + 0.1f);
         Check(!cap.Visible && cap.ExchangesPlayed == 1, "대화가 끝나면 쉰다");
         Advance(cap, "guard_room", true, t.CooldownMaxSeconds + 0.5f);
@@ -181,7 +181,7 @@ public partial class RelationshipPhase2Test : Node
     // ── 메인 씬 ──────────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task MainScene()
     {
-        Head("E", "실제 메인 씬 — 근무 중 오른쪽 CRT CCTV 에 대화 자막");
+        Head("E", "실제 메인 씬 - 근무 중 오른쪽 CRT CCTV 에 대화 자막");
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)?.SetValue(null, true);
         var scene = GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate();
         AddChild(scene);
@@ -220,7 +220,7 @@ public partial class RelationshipPhase2Test : Node
             ctl.CctvViewport.GetTexture().GetImage().SavePng(args[0] + "/cctv_overheard.png");
             GD.Print("saved → " + args[0] + "/cctv_overheard.png");
         }
-        Check(heard, $"코어실(늑대+토끼) CCTV 에서 대화가 들린다 — {line} (피드 {(cctv?.FeedVisible == true ? "정상" : "?")})");
+        Check(heard, $"코어실(늑대+토끼) CCTV 에서 대화가 들린다 - {line} (피드 {(cctv?.FeedVisible == true ? "정상" : "?")})");
         scene.QueueFree();
         await Frames(2);
     }
@@ -229,7 +229,7 @@ public partial class RelationshipPhase2Test : Node
     private void Expect(string x, string y, OverheardSituation sit, string key, string what)
     {
         var list = Many(x, y, sit);
-        Check(list.Count > 0 && list.All(e => e.Key == key && e.Situation == sit), $"{what} — {Nm(x)}·{Nm(y)} → {key}");
+        Check(list.Count > 0 && list.All(e => e.Key == key && e.Situation == sit), $"{what} - {Nm(x)}/{Nm(y)} → {key}");
     }
 
     private List<OverheardExchange> Many(string x, string y, OverheardSituation sit) =>

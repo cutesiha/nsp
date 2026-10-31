@@ -121,7 +121,7 @@ public partial class PadRepairOverlay : Control
         DrawRect(new Rect2(Vector2.Zero, _canvas), Amber with { A = 0.35f + 0.45f * beat }, false, 10f);
 
         Title("수리 승인 요청", Amber);
-        DrawString(_font, new Vector2(0, _canvas.Y * 0.31f), $"{r?.RoomName} — 설비 수리",
+        DrawString(_font, new Vector2(0, _canvas.Y * 0.31f), $"{r?.RoomName} - 설비 수리",
             HorizontalAlignment.Center, w, ViewFont.S(40), Ink);
         DrawString(_font, new Vector2(0, _canvas.Y * 0.43f), "수리를 승인하시겠습니까?",
             HorizontalAlignment.Center, w, ViewFont.S(48), Ink);
@@ -134,7 +134,7 @@ public partial class PadRepairOverlay : Control
         DrawRect(new Rect2(bar.Position, new Vector2(bar.Size.X * ratio, bar.Size.Y)),
             ratio < 0.34f ? Red : Amber);
         DrawString(_font, new Vector2(0, _canvas.Y * 0.575f),
-            $"{Mathf.CeilToInt(Mathf.Max(0f, RepairApprovalSystem.SecondsLeft))}초 — 답하지 않으면 수리가 느려집니다",
+            $"{Mathf.CeilToInt(Mathf.Max(0f, RepairApprovalSystem.SecondsLeft))}초 - 답하지 않으면 수리가 느려집니다",
             HorizontalAlignment.Center, w, ViewFont.S(26), Dim);
 
         Button(YesRect, "예", Good, _hover == 1);
@@ -210,7 +210,7 @@ public partial class PadRepairOverlay : Control
         Label(origin, cell, m.Goal, "G", Good);
 
         DrawString(_font, new Vector2(0, origin.Y + side + 40f),
-            "방향키로 한 칸씩 · 벽 · 되돌아가기 · 시간 초과 = 실패",
+            "방향키로 한 칸씩   /   벽, 되돌아가기, 시간 초과 = 실패",
             HorizontalAlignment.Center, w, ViewFont.S(24), Dim);
     }
 
@@ -228,12 +228,12 @@ public partial class PadRepairOverlay : Control
         else Title("수리 승인 요청", Amber);
 
         bool ok = RepairApprovalSystem.LastSucceeded;
-        string why = ok ? "승인 완료 — 수리를 진행합니다"
-            : !RepairApprovalSystem.LastApproved ? "미승인 — 수리가 느려집니다"
-            : RepairApprovalSystem.Maze?.TimedOut == true ? "시간 초과 — 수리가 느려집니다"
+        string why = ok ? "승인 완료 - 수리를 진행합니다"
+            : !RepairApprovalSystem.LastApproved ? "미승인 - 수리가 느려집니다"
+            : RepairApprovalSystem.Maze?.TimedOut == true ? "시간 초과 - 수리가 느려집니다"
             : RepairApprovalSystem.Maze?.FailedAs == RepairMaze.StepResult.Backtracked
-                ? "왔던 칸으로 되돌아갔습니다 — 수리가 느려집니다"
-                : "벽에 막혔습니다 — 수리가 느려집니다";
+                ? "왔던 칸으로 되돌아갔습니다 - 수리가 느려집니다"
+                : "벽에 막혔습니다 - 수리가 느려집니다";
 
         var band = new Rect2(0, _canvas.Y * 0.84f, _canvas.X, 80f);
         DrawRect(band, new Color(0.02f, 0.05f, 0.06f, 0.95f));

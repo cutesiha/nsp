@@ -143,7 +143,7 @@ public partial class RoomEffectTest : Node
                                      or DisplayLogSeverity.Sabotage)
             .Select(Day1HistoryOverlay.BodyColor).ToList();
         int clashes = effects.Count(e => alarm.Any(o => Near(o, Day1HistoryOverlay.BodyColor(e))));
-        Check(clashes == 0, $"방 효과 색이 경고·사고 색과 겹치지 않는다 (겹친 줄 {clashes})");
+        Check(clashes == 0, $"방 효과 색이 경고/사고 색과 겹치지 않는다 (겹친 줄 {clashes})");
 
         // 직원 고유색과 가까운 방이 있는가. 실패로 보지 않는다 — 직원 줄은 "이름 | ..." 이고
         // 방 줄은 "작업실 | ..." 에 ◆ 표식이 붙어 글로 먼저 갈라지기 때문이다.

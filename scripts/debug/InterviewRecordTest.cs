@@ -99,7 +99,7 @@ public partial class InterviewRecordTest : Node
 
     private void SectionC()
     {
-        GD.Print("\n#### C. 빨간색 = 거짓말 이 아니다 — 네 상태");
+        GD.Print("\n#### C. 빨간색 = 거짓말 이 아니다 - 네 상태");
         Reset();
         Place(new() { ["dog"] = Power, ["sheep"] = Power });
         Log(LogEventType.TaskStart, "dog", Power, 1f);
@@ -109,7 +109,7 @@ public partial class InterviewRecordTest : Node
         var claim = Card(EvidenceKind.OwnStatement, "dog", Guard, 300f, position: true);
         var cctv = Card(EvidenceKind.Cctv, "dog", Power, 300f, position: true);
         var r1 = EvidenceContradiction.Check("dog", claim, cctv);
-        GD.Print($"      ① {r1.Kind} / {r1.Verdict} — {r1.VerdictText}");
+        GD.Print($"      ① {r1.Kind} / {r1.Verdict} - {r1.VerdictText}");
         Ok(r1.Verdict == ConfrontVerdict.FactConflict,
             $"① 기록 ↔ 진술은 '확인된 사실 충돌' ({r1.Verdict})");
 
@@ -118,7 +118,7 @@ public partial class InterviewRecordTest : Node
         var witness = Card(EvidenceKind.Testimony, "dog", Power, 300f, behavior: "패널에 손을 대고 있었다");
         witness.SpeakerEmployeeId = "sheep";
         var r2 = EvidenceContradiction.Check("dog", denial, witness);
-        GD.Print($"      ② {r2.Kind} / {r2.Verdict} — {r2.VerdictText}");
+        GD.Print($"      ② {r2.Kind} / {r2.Verdict} - {r2.VerdictText}");
         Ok(r2.Verdict == ConfrontVerdict.StatementClash,
             $"② 사람 말 ↔ 사람 말은 '진술 대립' ({r2.Verdict})");
         Ok(r2.VerdictText.Contains("어느 쪽이 맞는지"), "   누가 맞는지는 모른다고 적는다");
@@ -129,14 +129,14 @@ public partial class InterviewRecordTest : Node
         incident.IncidentType = LogEventType.TaskFailed;
         var presence = Card(EvidenceKind.Cctv, "dog", Power, 300f, position: true);
         var r3 = EvidenceContradiction.Check("dog", incident, presence);
-        GD.Print($"      ③ {r3.Kind} / {r3.Verdict} — {r3.VerdictText}");
+        GD.Print($"      ③ {r3.Kind} / {r3.Verdict} - {r3.VerdictText}");
         Ok(r3.Verdict == ConfrontVerdict.NeedsExplanation,
             $"③ 사고 난 방에 있었다는 것은 '해명 필요' ({r3.Verdict})");
 
         // ④ 모순 없음 — 같은 방을 가리키는 두 자료.
         var same = Card(EvidenceKind.Movement, "dog", Power, 300f, position: true);
         var r4 = EvidenceContradiction.Check("dog", presence, same);
-        GD.Print($"      ④ {r4.Kind} / {r4.Verdict} — {r4.VerdictText}");
+        GD.Print($"      ④ {r4.Kind} / {r4.Verdict} - {r4.VerdictText}");
         Ok(r4.Verdict == ConfrontVerdict.None, $"④ 양립 가능하면 '모순 없음' ({r4.Verdict})");
 
         Ok(r1.Verdict != r2.Verdict && r2.Verdict != r3.Verdict,
@@ -187,7 +187,7 @@ public partial class InterviewRecordTest : Node
         // 증언자(양)에게는 관찰 범위를 되물을 수 있다.
         string window = InterviewReplyPlanner.Answer(
             InterviewQuestionFactory.Make("sheep", testimony, InterviewIntent.AskObservationWindow, "dog"));
-        GD.Print($"      A(양·관찰시간): {window}");
+        GD.Print($"      A(양/관찰시간): {window}");
         Ok(!string.IsNullOrEmpty(window) && window != "…", "증언자에게 관찰 시간을 되물을 수 있다");
     }
 
@@ -233,7 +233,7 @@ public partial class InterviewRecordTest : Node
         GD.Print($"      B 주장 → {string.Join(",", qb)}");
         Ok(qb.Contains(InterviewIntent.AskNotObservedScope), "③ '어느 순간까지 보셨나' 를 되물을 수 있다");
         Ok(!qb.Contains(InterviewIntent.AskSeenPersonAction),
-            "   '뭘 하고 있었나' 는 열리지 않는다 — 못 본 것이므로");
+            "   '뭘 하고 있었나' 는 열리지 않는다 - 못 본 것이므로");
 
         // ④ 주장 A 는 강아지에게 들이밀 수 있고, 주장 B 는 들이밀 수 없다.
         var toDogA = InterviewQuestionFactory.For("dog", positive).Select(q => q.Intent).ToList();
@@ -245,7 +245,7 @@ public partial class InterviewRecordTest : Node
         // ⑤ '못 봤다' 는 무엇과 맞대어도 모순이 되지 않는다.
         var cctv = Card(EvidenceKind.Cctv, "dog", Power, 300f, position: true);
         var r = EvidenceContradiction.Check("dog", negative, cctv);
-        GD.Print($"      ⑤ {r.Kind} / {r.Verdict} — {r.VerdictText}");
+        GD.Print($"      ⑤ {r.Kind} / {r.Verdict} - {r.VerdictText}");
         Ok(!r.IsContradiction, "⑤ '못 봤다' 와 CCTV 를 맞대도 모순이 아니다");
         Ok(r.VerdictText.Contains("근거는 되지 않"), "   이유를 밝힌다");
     }
@@ -323,8 +323,8 @@ public partial class InterviewRecordTest : Node
         {
             sheep2.Toggle(faint.Id);
             var fq = sheep2.QuestionsForSelection().Select(q => q.Intent).ToList();
-            GD.Print($"      기절 기록[{faint.Id}] 대상 {faint.SubjectEmployeeId}·{faint.SubjectRoomId}"
-                     + $"·{faint.AnchorTime} / 현장 인원 "
+            GD.Print($"      기절 기록[{faint.Id}] 대상 {faint.SubjectEmployeeId}/{faint.SubjectRoomId}"
+                     + $"/{faint.AnchorTime} / 현장 인원 "
                      + string.Join(",", DialogueContextBuilder.OccupantsAt(
                          faint.SubjectRoomId, faint.SubjectDay, faint.AnchorTime, faint.SubjectEmployeeId))
                      + $" / 양 위치 {DialogueContextBuilder.RoomAt("sheep", 1, faint.AnchorTime)}");
@@ -369,7 +369,7 @@ public partial class InterviewRecordTest : Node
 
         // ② 「대화·진술」 탭에 올라오고, 골라서 질문할 수 있다.
         session.SetTab(NoteTab.Spoken);
-        Ok(session.SpokenRecords().Any(e => e.Id == line.Id), "② 대화·진술 탭에 올라온다");
+        Ok(session.SpokenRecords().Any(e => e.Id == line.Id), "② 대화/진술 탭에 올라온다");
         session.Toggle(line.Id);
         Ok(session.Selected.Count == 1, "   눌러서 선택된다");
         var q = session.QuestionsForSelection();
@@ -387,7 +387,7 @@ public partial class InterviewRecordTest : Node
         // ④ 범위를 말하지 않은 발언으로는 모순을 세울 수 없다.
         var incident = Card(EvidenceKind.Incident, "", Storage, 200f);
         var r = EvidenceContradiction.Check("cat", line, incident);
-        GD.Print($"      ④ {r.Verdict} — {r.VerdictText}");
+        GD.Print($"      ④ {r.Verdict} - {r.VerdictText}");
         Ok(!r.IsContradiction, "④ 원문 발언만으로는 모순이 성립하지 않는다");
         Ok(r.VerdictText.Contains("어디까지"), "   먼저 범위를 물어야 한다고 알려 준다");
     }
@@ -414,7 +414,7 @@ public partial class InterviewRecordTest : Node
         {
             day1.ClearSelection();
             day1.Toggle(c.Id);
-            Ok(day1.Selected.Count == 1, $"   고를 수 있다 — {c.Body}");
+            Ok(day1.Selected.Count == 1, $"   고를 수 있다 - {c.Body}");
         }
 
         // DAY3 로 넘어간다. 진술 기록은 판이 끝날 때까지 남는다.
@@ -425,7 +425,7 @@ public partial class InterviewRecordTest : Node
         var day3 = new InterviewSession("fox");
         var claims3 = day3.Board.Where(e => e.Kind == EvidenceKind.OwnStatement && !e.SpokenLine).ToList();
         GD.Print("      DAY3 노트: " + string.Join(" / ",
-            claims3.Select(c => $"DAY{c.Day}·대상DAY{c.SubjectDay} {c.Body}")));
+            claims3.Select(c => $"DAY{c.Day}/대상DAY{c.SubjectDay} {c.Body}")));
         Ok(claims3.Count == 2, $"③ DAY1 에 한 위치 진술을 DAY3 에도 찾을 수 있다 ({claims3.Count})");
         Ok(claims3.All(c => c.Day == 1), "   말한 날이 DAY1 로 남아 있다(오늘 날짜로 덮이지 않는다)");
         Ok(claims3.All(c => c.SubjectDay == 1), "   가리키는 날도 DAY1 이다");
@@ -442,7 +442,7 @@ public partial class InterviewRecordTest : Node
         var todayRecord = Card(EvidenceKind.Cctv, "fox", Core, 300f, position: true);
         todayRecord.Day = 3;
         var r = EvidenceContradiction.Check("fox", old ?? claims3[0], todayRecord);
-        GD.Print($"      ⑤ {r.Verdict} — {r.VerdictText}");
+        GD.Print($"      ⑤ {r.Verdict} - {r.VerdictText}");
         Ok(!r.IsContradiction, "⑤ 어제 발언과 오늘 기록은 모순으로 묶이지 않는다");
     }
 

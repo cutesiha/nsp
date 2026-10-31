@@ -76,7 +76,7 @@ public sealed class RestRoomVisual
         var seats = roomNode.GetNodeOrNull<Node3D>("Seats");
         if (seats == null)
         {
-            GD.PushWarning("RestRoomVisual: 휴게실 씬에 Seats 노드가 없습니다 — 직원을 앉힐 자리가 없습니다.");
+            GD.PushWarning("RestRoomVisual: 휴게실 씬에 Seats 노드가 없습니다 - 직원을 앉힐 자리가 없습니다.");
             return;
         }
         foreach (var child in seats.GetChildren())

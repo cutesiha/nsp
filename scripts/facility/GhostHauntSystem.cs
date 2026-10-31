@@ -254,7 +254,7 @@ public sealed class GhostHauntSystem
         foreach (string id in sim.OnDutyEmployeeIds(room)) _witnesses.Add(id);
         // 사고가 없어도 목격은 남는다 — 교육 뒤 휴게시간 증언이 비지 않게.
         EventLog.Instance?.LogEvent(LogEventType.AnomalySighting, "", room,
-            $"○ {sim.RoomDisplayName(room)} — 이상 개체 목격 (설비 피해 없음)",
+            $"○ {sim.RoomDisplayName(room)} - 이상 개체 목격 (설비 피해 없음)",
             witnesses: _witnesses.ToList());
         var cfg = Config.Instance?.Data;
         if (cfg != null) Clear(cfg, now);
@@ -424,7 +424,7 @@ public sealed class GhostHauntSystem
             // 설비는 멀쩡하다. 그래도 **본 사람은 봤다** — 이 한 줄이 없으면
             // 다음 날 "분명히 봤다" 는 진술에 맞는 기록이 하나도 없게 된다.
             EventLog.Instance?.LogEvent(LogEventType.AnomalySighting, "", room,
-                $"○ {sim.RoomDisplayName(room)} — 이상 개체 목격 (설비 피해 없음)",
+                $"○ {sim.RoomDisplayName(room)} - 이상 개체 목격 (설비 피해 없음)",
                 witnesses: _witnesses.ToList());
         }
 
@@ -441,7 +441,7 @@ public sealed class GhostHauntSystem
         string room = ActiveRoomId;
         DispelledToday++;
         EventLog.Instance?.LogEvent(LogEventType.AnomalyDispelled, "", room,
-            $"○ {sim.RoomDisplayName(room)} — 관측으로 이상 개체 소멸",
+            $"○ {sim.RoomDisplayName(room)} - 관측으로 이상 개체 소멸",
             witnesses: _witnesses.ToList());
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"{sim.RoomDisplayName(room)}의 이상 개체가 소멸했습니다.", NSP.Ui.NoticeLevel.Info);

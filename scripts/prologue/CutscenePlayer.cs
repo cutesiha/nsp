@@ -1135,9 +1135,9 @@ public partial class CutscenePlayer : Control
 
             // 제목 표시줄
             DrawRect(TitleBar, Chrome);
-            DrawString(font, new Vector2(12f, 21f), "▶  " + FileName + "  —  NSP MEDIA PLAYER",
+            DrawString(font, new Vector2(12f, 21f), "▶  " + FileName + " - NSP MEDIA PLAYER",
                 HorizontalAlignment.Left, 600f, ViewFont.S(15), new Color(0.72f, 0.78f, 0.82f));
-            DrawString(font, new Vector2(Size.X - 96f, 21f), "—   □   ✕",
+            DrawString(font, new Vector2(Size.X - 96f, 21f), "-   □   ✕",
                 HorizontalAlignment.Left, 90f, ViewFont.S(15), new Color(0.55f, 0.60f, 0.65f));
 
             // 영상 영역(검은 바탕) + 얇은 테두리

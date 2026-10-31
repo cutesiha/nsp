@@ -248,20 +248,20 @@ public partial class RestRosterView : Control
 
         if (!st.Alive)
         {
-            _selected.Text = $"{def.Codename} · 응답 없음";
+            _selected.Text = $"{def.Codename}, 응답 없음";
             _isolateBtn.Disabled = true;
         }
         else if (st.Incapacitated)
         {
             // 아직 깨어나지 않았다 — 심문할 수 없다. 묻고 싶으면 근무 중에 의무실을 돌려 놨어야 한다.
-            _selected.Text = $"{def.Codename} · 기절 — 심문 불가";
+            _selected.Text = $"{def.Codename}, 기절 - 심문 불가";
             _isolateBtn.Disabled = false;
             _isolateBtn.Text = st.Isolated ? "격리 취소" : "격리";
         }
         else
         {
             string status = st.Isolated ? "격리됨" : "휴게 중";
-            _selected.Text = $"{def.Codename} · {status}";
+            _selected.Text = $"{def.Codename}, {status}";
             _isolateBtn.Disabled = false;
             _isolateBtn.Text = st.Isolated ? "격리 취소" : "격리";
         }

@@ -35,7 +35,8 @@ public partial class Sfx
     }
 
     // 비명을 튼다. 음원을 못 찾으면 false — 부르는 쪽이 예전 합성 비명으로 대신한다.
-    public bool PlayDeathScream(bool female)
+    // pan: 비명이 난 방이 중앙제어실의 왼쪽(-) / 오른쪽(+) 어디인가. 원음 겹만 그쪽에서 들린다.
+    public bool PlayDeathScream(bool female, float pan = 0f)
     {
         string path = female ? GirlScreamPath : BoyScreamPath;
         var stream = ResourceLoader.Exists(path) ? GD.Load<AudioStream>(path) : null;
@@ -46,13 +47,14 @@ public partial class Sfx
         {
             _deathLayers = new[]
             {
-                new AudioStreamPlayer { Name = "DeathScreamMain", Bus = GameSettings.BusScream },
+                new AudioStreamPlayer { Name = "DeathScreamMain", Bus = GameSettings.BusScreamPan },
                 new AudioStreamPlayer { Name = "DeathScreamLow", Bus = GameSettings.BusWarp },
                 new AudioStreamPlayer { Name = "DeathScreamHigh", Bus = GameSettings.BusSfx },
             };
             foreach (var p in _deathLayers) AddChild(p);
         }
         int serial = ++_deathSerial;
+        GameSettings.SetScreamPan(pan);
         float len = (float)stream.GetLength();
         if (len <= 0f) len = 3f;
 
@@ -62,14 +64,17 @@ public partial class Sfx
 
         var main = _deathLayers[0];
         main.Stream = stream;
-        main.VolumeDb = 4f;
+        // girl_scream 원본이 boy_scream 보다 2dB 작다(LoudnessProbe) - 그만큼 올려 남녀 크기를 맞춘다.
+        // 큰 소리는 의도지만, 예전 +4dB 는 비명 버스 리미터를 너무 세게 눌러 소리가 뭉개졌다 - 조금 내렸다.
+        float even = female ? 2f : 0f;
+        main.VolumeDb = 1f + even;
         main.PitchScale = 0.92f;
         main.Play();
 
         const float LowFrom = 0.68f, LowTo = 0.46f;
         var low = _deathLayers[1];
         low.Stream = stream;
-        low.VolumeDb = 1f;
+        low.VolumeDb = -1f + even;
         low.PitchScale = LowFrom;
         low.Play();
         // 낮은 겹은 재생하는 내내 더 느려진다. 길이는 평균 배속으로 잡는다(끝까지 늘어지게).
@@ -86,7 +91,7 @@ public partial class Sfx
             {
                 if (serial != _deathSerial || !IsInstanceValid(high)) return;
                 high.Stream = stream;
-                high.VolumeDb = -9f;
+                high.VolumeDb = -9f + even;
                 high.PitchScale = 1.17f;
                 high.Play();
             };

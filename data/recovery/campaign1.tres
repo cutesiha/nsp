@@ -10,7 +10,7 @@
 [resource]
 script = ExtResource("1_profile")
 ProfileId = "campaign1"
-DisplayName = "1차 복구 · 스토리"
+DisplayName = "1차 복구, 스토리"
 ; 코어 복구 속도·수율은 5일에 걸쳐 100% 가 되도록 잡혀 있다.
 ; 예전 값(RateMultiplier 1.45 · YieldMultiplier 2.6)은 DAY1 하루에만 +64% 가 차서
 ; DAY2 중에 100% 를 찍고 남은 사흘이 통째로 의미를 잃었다(RecoveryBalanceTest 참고).

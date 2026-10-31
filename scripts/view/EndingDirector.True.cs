@@ -40,7 +40,7 @@ public partial class EndingDirector
         await LastRestStory();
         await GuideFarewell();
 
-        await Banner("TRUE END — 근무 종료", new Color(0.72f, 0.96f, 0.88f));
+        await Banner("TRUE END - 근무 종료", new Color(0.72f, 0.96f, 0.88f));
         EndingState.Record(EndingState.Kind.True);
     }
 

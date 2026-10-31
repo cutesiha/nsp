@@ -127,7 +127,7 @@ public partial class InterviewFactsTest : Node
 
     private void SectionC()
     {
-        GD.Print("\n#### C. 기절·격리 중이던 직원을 목격자로 세우지 않는다");
+        GD.Print("\n#### C. 기절/격리 중이던 직원을 목격자로 세우지 않는다");
         Reset();
         Place(new() { ["sheep"] = Power, ["wolf"] = Power, ["fox"] = Core });
         Log(1, LogEventType.TaskStart, "sheep", Power, 1f);
@@ -174,7 +174,7 @@ public partial class InterviewFactsTest : Node
 
     private void SectionD()
     {
-        GD.Print("\n#### D. 동석자·목격은 그 날 그 방에 실제로 있던 사람만");
+        GD.Print("\n#### D. 동석자/목격은 그 날 그 방에 실제로 있던 사람만");
         Reset();
 
         // DAY1 저장고에는 고양이만. DAY2 저장고에는 강아지만.
@@ -233,7 +233,7 @@ public partial class InterviewFactsTest : Node
 
     private void SectionF()
     {
-        GD.Print("\n#### F. 모순 판정 — 대상 사건 날짜와 증거 날짜를 맞댄다");
+        GD.Print("\n#### F. 모순 판정 - 대상 사건 날짜와 증거 날짜를 맞댄다");
         Reset();
 
         // ① 당일 발언 ↔ 당일 증거 — 평소대로 성립한다.
@@ -303,7 +303,7 @@ public partial class InterviewFactsTest : Node
             SubjectEmployeeId = who, SpeakerEmployeeId = who,
             SubjectRoomId = room, Position = PositionClaim.AtRoom,
             AnchorTime = at, HasTime = true,
-            Header = "진술", Body = $"본인 · {InterviewEvidenceBoard.RoomName(room)}에 있었다",
+            Header = "진술", Body = $"본인, {InterviewEvidenceBoard.RoomName(room)}에 있었다",
         };
 
     // CCTV 기록 — 기록은 만들어진 날과 가리키는 날이 같다.

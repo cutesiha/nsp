@@ -29,7 +29,7 @@ public partial class StoryAudioTest : Node
 
     private void RunAll()
     {
-        GD.Print("\n\n################ 스토리 전환 · 공포 사운드 검증 ################");
+        GD.Print("\n\n################ 스토리 전환, 공포 사운드 검증 ################");
         TestAssetsExist();
         TestHorrorNeverCollidesWithGameplayCues();
         TestDayRamp();
@@ -229,10 +229,10 @@ public partial class StoryAudioTest : Node
         var card = ShiftCardView.Instance;
         if (blink == null || card == null)
         {
-            Check(false, "BlinkOverlay · ShiftCardView 가 떠 있다");
+            Check(false, "BlinkOverlay, ShiftCardView 가 떠 있다");
             return;
         }
-        Check(true, "BlinkOverlay · ShiftCardView 가 떠 있다");
+        Check(true, "BlinkOverlay, ShiftCardView 가 떠 있다");
 
         // 암전 · 카드 · 더킹 · 스토리 BGM 을 한꺼번에 걸어 놓고 Release 를 때린다.
         _ = blink.Close(0.4);
@@ -266,7 +266,7 @@ public partial class StoryAudioTest : Node
 
         int horror = AudioServer.GetBusIndex(GameSettings.BusHorror);
         Check(AudioServer.GetBusSend(horror) == GameSettings.BusSfx,
-            "Horror 는 SFX 로 보낸다 — 효과음 볼륨 설정을 그대로 따른다");
+            "Horror 는 SFX 로 보낸다 - 효과음 볼륨 설정을 그대로 따른다");
         Check(AudioServer.GetBusEffect(horror, GameSettings.HorrorPannerIndex) is AudioEffectPanner,
             "Horror 버스 맨 앞에 패너가 있다");
 

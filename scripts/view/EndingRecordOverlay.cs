@@ -23,8 +23,8 @@ public partial class EndingRecordOverlay : Control
     private static string EndingName(EndingState.Kind k) => k switch
     {
         EndingState.Kind.True => "근무 종료",
-        EndingState.Kind.Loose => "복구 완료 · 대상 미확인",
-        EndingState.Kind.Late => "대상 확인 · 복구 실패",
+        EndingState.Kind.Loose => "복구 완료, 대상 미확인",
+        EndingState.Kind.Late => "대상 확인, 복구 실패",
         EndingState.Kind.Bad => "복구 실패",
         _ => "종료 기록",
     };
@@ -80,7 +80,7 @@ public partial class EndingRecordOverlay : Control
         panel.AddChild(col);
 
         col.AddChild(Lbl($"{GameModes.MaxDays}일간의 근무 기록", 26, accent, HorizontalAlignment.Center));
-        col.AddChild(Lbl($"NIGHT SHIFT RECORD  ·  DAY 1 – {GameModes.MaxDays}", 13, failed ? FailDim : Dim,
+        col.AddChild(Lbl($"NIGHT SHIFT RECORD / DAY 1-{GameModes.MaxDays}", 13, failed ? FailDim : Dim,
             HorizontalAlignment.Center));
         col.AddChild(new HSeparator());
 
@@ -109,6 +109,26 @@ public partial class EndingRecordOverlay : Control
         col.AddChild(new HSeparator());
         Row(col, "종료 기록", EndingName(Kind), failed ? FailDim : Dim, 20);
         Row(col, "관리자 평가", grade, accent, 30);
+
+        // 엔딩 수집 — 네 엔딩이 "코어 복구 × 지목" 두 축으로 갈린다는 것을 여기서 보여 준다.
+        // 이번 엔딩은 강조, 본 엔딩은 이름표, 못 본 엔딩은 「? ? ?」(조건은 타이틀 모니터2 엔딩 칸에서 볼 수 있다).
+        col.AddChild(new HSeparator());
+        Row(col, "엔딩 수집", $"{EndingState.SeenCount} / {EndingState.Catalog.Length}", Ink, 18);
+        var slots = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        slots.AddThemeConstantOverride("separation", 14);
+        foreach (var e in EndingState.Catalog)
+        {
+            bool now = e.Kind == Kind;
+            bool got = EndingState.Seen(e.Kind);
+            var l = Lbl(got ? e.Tag : "? ? ?", now ? 18 : 15, now ? accent : got ? Ink : Dim, HorizontalAlignment.Center);
+            l.CustomMinimumSize = new Vector2(130, 0);
+            l.TooltipText = got ? $"{e.Tag} END: {e.Name}\n{e.Rule}" : $"아직 보지 못한 엔딩\n{e.Rule}";
+            l.MouseFilter = MouseFilterEnum.Pass;
+            slots.AddChild(l);
+        }
+        col.AddChild(slots);
+        var rule = EndingState.Catalog.FirstOrDefault(e => e.Kind == Kind);
+        if (rule != null) col.AddChild(Lbl($"이번 엔딩의 조건: {rule.Rule}", 13, failed ? FailDim : Dim, HorizontalAlignment.Center));
 
         col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 10) });
         var btn = MonitorUi.Button("[ 타이틀로 ]", accent, ViewFont.Default, () => TitleRequested?.Invoke(), ViewFont.FS(18));

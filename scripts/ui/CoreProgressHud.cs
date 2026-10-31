@@ -51,16 +51,16 @@ public partial class CoreProgressHud : Control
 
         string core = NSP.Facility.FacilitySimulation.CoreRoomIdPublic;
 
-        if (sim.HasRepairPending(core)) return "· 복구 중단 — 코어실 사고";
-        if (sim.IsRoomBlockedByMaterials(core)) return "· 복구 중단 — 자재 부족";
+        if (sim.HasRepairPending(core)) return "/ 복구 중단: 코어실 사고";
+        if (sim.IsRoomBlockedByMaterials(core)) return "/ 복구 중단: 자재 부족";
 
         int here = sim.OnDutyCount(core);
-        if (here <= 0) return "· 복구 중단 — 코어실 인력 없음";
+        if (here <= 0) return "/ 복구 중단: 코어실 인력 없음";
 
         float mult = NSP.Core.RecoveryProfile.CoreStaffMultiplier(here);
-        if (mult <= 0f) return "· 복구 중단";
-        if (mult < 1f) return $"· 복구 느림 ×{mult:0.00}";
-        if (mult > 1.05f) return $"· 복구 가속 ×{mult:0.00}";
-        return "· 복구 중";
+        if (mult <= 0f) return "/ 복구 중단";
+        if (mult < 1f) return $"/ 복구 느림 ×{mult:0.00}";
+        if (mult > 1.05f) return $"/ 복구 가속 ×{mult:0.00}";
+        return "/ 복구 중";
     }
 }

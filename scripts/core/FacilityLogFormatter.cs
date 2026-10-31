@@ -243,7 +243,7 @@ public static class FacilityLogFormatter
         if (d.Contains("순찰 기록"))
         {
             // 원문 "경비 순찰 기록 — 정비실 : 여우, 늑대" → "경비 순찰 · 정비실 | 여우, 늑대"
-            string body = Strip(d).Replace("경비 순찰 기록 — ", "경비 순찰 · ").Replace(" : ", " | ");
+            string body = Strip(d).Replace("경비 순찰 기록 - ", "경비 순찰, ").Replace(" : ", " | ");
             var patrol = Row(e, body, DisplayLogSeverity.RoomEffect);
             if (patrol != null) patrol.RoomId = e.RoomId;
             return patrol;
@@ -302,7 +302,7 @@ public static class FacilityLogFormatter
     private static DisplayLogEntry Sabotage(LogEntry e)
     {
         // 원본은 "작업실 — 결과" 형태다. 앞에 '방해공작' 을 세워 한눈에 구분되게 한다.
-        string body = Strip(e.Description).Replace(" — ", " · ");
+        string body = Strip(e.Description).Replace(" - ", ", ");
         string witness = e.WitnessEmployeeIds.FirstOrDefault(w => w != e.ActorEmployeeId);
         if (!string.IsNullOrEmpty(witness))
             return Row(e, $"방해공작 | {body}  ({Codename(witness)} 목격)", DisplayLogSeverity.Sabotage);
@@ -359,7 +359,7 @@ public static class FacilityLogFormatter
     private static string Pipe(string value)
     {
         string t = Strip(value);
-        int i = t.IndexOf(" — ", System.StringComparison.Ordinal);
+        int i = t.IndexOf(" - ", System.StringComparison.Ordinal);
         if (i > 0) return t[..i].Trim() + " | " + t[(i + 3)..].Trim();
         return t;
     }

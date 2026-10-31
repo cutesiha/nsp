@@ -146,7 +146,7 @@ public static class StoryBeatSelector
         }
         catch (Exception e)
         {
-            GD.PushWarning($"StoryBeatSelector: 스토리를 건너뜁니다 — {e.Message}");
+            GD.PushWarning($"StoryBeatSelector: 스토리를 건너뜁니다 - {e.Message}");
             StoryCutinDirector.Instance?.Abort();
         }
         finally
@@ -158,7 +158,7 @@ public static class StoryBeatSelector
                 try { await StoryTransition.Exit(ctx); }
                 catch (Exception e)
                 {
-                    GD.PushWarning($"StoryBeatSelector: 종료 연출 실패 — {e.Message}");
+                    GD.PushWarning($"StoryBeatSelector: 종료 연출 실패 - {e.Message}");
                     StoryTransition.Release();
                 }
             }

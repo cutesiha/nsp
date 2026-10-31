@@ -23,7 +23,7 @@ public partial class LightingShot : Node
     {
         var args = OS.GetCmdlineUserArgs();
         string dir = args.Length > 0 ? args[0] : ProjectSettings.GlobalizePath("user://");
-        GD.Print($"renderer = {ProjectSettings.GetSetting("rendering/renderer/rendering_method")} · {RenderingServer.GetVideoAdapterName()}");
+        GD.Print($"renderer = {ProjectSettings.GetSetting("rendering/renderer/rendering_method")}, {RenderingServer.GetVideoAdapterName()}");
 
         // 시작 화면만 보는 모드 — DAY1 로 건너뛰지 않고 타이틀 그대로 켠 뒤 찍는다.
         if (args.Length > 1 && args[1] == "title") { await ShotTitle(dir); return; }
@@ -88,7 +88,7 @@ public partial class LightingShot : Node
             last = now;
         }
         double avgMs = samples.Average();
-        GD.Print($"FPS avg = {1000.0 / avgMs:0.0} · worst frame = {samples.Max():0} ms · frames = {samples.Count}");
+        GD.Print($"FPS avg = {1000.0 / avgMs:0.0}, worst frame = {samples.Max():0} ms, frames = {samples.Count}");
         GD.Print("saved → " + dir);
         GetTree().Quit();
     }
@@ -142,8 +142,8 @@ public partial class LightingShot : Node
         float corner = (cornerTL + cornerTR + cornerBL) / 3f;
         float deskPool = DeskLum(img);
 
-        GD.Print($"[대비] 방 구석 {corner:0.000} (좌상 {cornerTL:0.000} · 우상 {cornerTR:0.000} · 좌하 {cornerBL:0.000})"
-                 + $" · 책상 {deskPool:0.000} · 책상/구석 = {(corner > 0.0001f ? deskPool / corner : 999f):0.0}배");
+        GD.Print($"[대비] 방 구석 {corner:0.000} (좌상 {cornerTL:0.000}, 우상 {cornerTR:0.000}, 좌하 {cornerBL:0.000})"
+                 + $", 책상 {deskPool:0.000}, 책상/구석 = {(corner > 0.0001f ? deskPool / corner : 999f):0.0}배");
         ReportHistogram(img);
     }
 
@@ -168,9 +168,9 @@ public partial class LightingShot : Node
         }
         lum.Sort();
         float P(float q) => lum[Mathf.Clamp((int)(q * (lum.Count - 1)), 0, lum.Count - 1)];
-        GD.Print($"[밝기분포] p01 {P(0.01f):0.000} · p05 {P(0.05f):0.000} · p50 {P(0.5f):0.000}"
-                 + $" · p95 {P(0.95f):0.000} · p99 {P(0.99f):0.000}");
-        GD.Print($"[밝기분포] 순수 검정(<0.02) {black * 100f / lum.Count:0.0}% · 폭(p95-p05) {P(0.95f) - P(0.05f):0.000}");
+        GD.Print($"[밝기분포] p01 {P(0.01f):0.000}, p05 {P(0.05f):0.000}, p50 {P(0.5f):0.000}"
+                 + $", p95 {P(0.95f):0.000}, p99 {P(0.99f):0.000}");
+        GD.Print($"[밝기분포] 순수 검정(<0.02) {black * 100f / lum.Count:0.0}%, 폭(p95-p05) {P(0.95f) - P(0.05f):0.000}");
     }
 
     // 책상면 띠(전화기 · 스위치박스가 놓인 줄)의 평균 밝기.
@@ -208,7 +208,7 @@ public partial class LightingShot : Node
 
         float drop = noShadow > 0.0001f ? (noShadow - withShadow) / noShadow : 0f;
         GD.Print($"[그림자] 책상 밝기 그림자끔 {noShadow:0.000} → 켬 {withShadow:0.000}"
-                 + $" · 그림자가 책상을 {drop * 100f:0.0}% 어둡게 한다");
+                 + $", 그림자가 책상을 {drop * 100f:0.0}% 어둡게 한다");
     }
 
     private async System.Threading.Tasks.Task Frame()

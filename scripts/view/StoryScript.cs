@@ -32,7 +32,7 @@ public static class StoryScript
         if (_loaded) return;
         _loaded = true;
         try { Parse(); }
-        catch (Exception e) { GD.PushWarning($"StoryScript: 파싱 실패 — {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"StoryScript: 파싱 실패 - {e.Message}"); }
     }
 
     // 테스트에서 문서를 다시 읽게 한다.
@@ -124,7 +124,7 @@ public static class StoryScript
                 int idx = IndexOfBranch(choice, arg);
                 if (idx < 0 || idx >= choice.Options.Count)
                 {
-                    GD.PushWarning($"StoryScript: @branch 가 가리키는 선택지가 없습니다 — {line} ({entry.Id})");
+                    GD.PushWarning($"StoryScript: @branch 가 가리키는 선택지가 없습니다 - {line} ({entry.Id})");
                     continue;
                 }
                 branch = choice.Options[idx];

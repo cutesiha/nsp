@@ -155,13 +155,16 @@ public partial class EndingCutsceneStage : Node
     {
         if (on == _restraintLook) return;
         _restraintLook = on;
+        // 그래픽 품질이 낮음 · 매우 낮음이면(내장 그래픽) 해상도 · 그림자 · SSAO 를 한 단계 내린다 —
+        // 엔딩 한가운데서 프레임이 끊기면 연출이 망가진다. 붉은 조명 · 핏자국 · 재질은 그대로다.
+        bool light = NSP.Core.GameSettings.GraphicsQuality is NSP.Core.GameSettings.Quality.Low or NSP.Core.GameSettings.Quality.VeryLow;
         if (_vp != null)
         {
-            _vp.Size = on ? RestraintViewportSize : ViewportSize;
+            _vp.Size = on ? (light ? ViewportSize : RestraintViewportSize) : ViewportSize;
             _vp.Scaling3DScale = on ? 1f : 0.8f;
             _vp.ScreenSpaceAA = on ? Viewport.ScreenSpaceAAEnum.Fxaa : Viewport.ScreenSpaceAAEnum.Disabled;
             _vp.UseDebanding = on;
-            _vp.PositionalShadowAtlasSize = on ? 2048 : 1024;
+            _vp.PositionalShadowAtlasSize = on && !light ? 2048 : 1024;
         }
         var e = _stageEnv;
         if (e == null) return;
@@ -172,7 +175,7 @@ public partial class EndingCutsceneStage : Node
         e.GlowBloom = on ? 0f : 0.12f;
         e.GlowIntensity = on ? 0.8f : 0.5f;
         e.GlowHdrThreshold = on ? 1.2f : 1f;
-        e.SsaoEnabled = on;
+        e.SsaoEnabled = on && !light;
         if (on)
         {
             e.SsaoRadius = 0.8f;

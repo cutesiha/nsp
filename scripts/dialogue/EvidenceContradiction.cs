@@ -161,17 +161,17 @@ public static class EvidenceContradiction
         if (r.Kind == ConfrontKind.Location && recordVsClaim)
         {
             r.Verdict = ConfrontVerdict.FactConflict;
-            r.VerdictText = "확인된 사실 충돌 — 기록과 진술이 맞지 않습니다.";
+            r.VerdictText = "확인된 사실 충돌 - 기록과 진술이 맞지 않습니다.";
         }
         else if (bothSpoken)
         {
             r.Verdict = ConfrontVerdict.StatementClash;
-            r.VerdictText = "진술 대립 — 두 사람의 말이 다릅니다. 어느 쪽이 맞는지는 아직 알 수 없습니다.";
+            r.VerdictText = "진술 대립 - 두 사람의 말이 다릅니다. 어느 쪽이 맞는지는 아직 알 수 없습니다.";
         }
         else
         {
             r.Verdict = ConfrontVerdict.NeedsExplanation;
-            r.VerdictText = "해명 필요 — 설명을 들어 볼 만하지만, 그 자체로 어긋나는 것은 아닙니다.";
+            r.VerdictText = "해명 필요 - 설명을 들어 볼 만하지만, 그 자체로 어긋나는 것은 아닙니다.";
         }
     }
 

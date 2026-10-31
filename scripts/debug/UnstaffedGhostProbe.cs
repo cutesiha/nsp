@@ -64,7 +64,7 @@ public partial class UnstaffedGhostProbe : Node
             GD.Print($"   발전실 근무자 {id} → {to}");
         }
 
-        GD.Print($"\n######## 단기 근무 DAY{GameState.Instance?.CurrentDay} — 발전실 비움 + 귀신 ########");
+        GD.Print($"\n######## 단기 근무 DAY{GameState.Instance?.CurrentDay} - 발전실 비움 + 귀신 ########");
         Engine.TimeScale = speed;
         var def = sim.GetRoomDef(Power);
         float limit = RoomStaffing.UnstaffedAccidentSeconds(Power, def);
@@ -96,9 +96,9 @@ public partial class UnstaffedGhostProbe : Node
                 lastPrint = now;
                 bool ok = (bool)canStart.Invoke(sim, null);
                 var act = string.Join(", ", IncidentTracker.Active.Select(x => $"{x.RoomId}:{x.Title}{(x.IsAnomaly ? "(이상)" : "")}"));
-                GD.Print($"   @{now,6:0.0}  발전실 남은 {remaining,5:0.0} · 인원 {sim.OnDutyCount(Power)} · 수리 {sim.HasRepairPending(Power)} · " +
-                         $"새사고가능 {ok} · 귀신 {(sim.Ghost.Active ? sim.Ghost.ActiveRoomId : "-")} · 위협 {(sim.Threats.Current != null ? sim.Threats.Current.SegmentId : "-")} · " +
-                         $"사고목록 [{act}] · 마지막사고 {IncidentTracker.LastIncidentAt:0.0}");
+                GD.Print($"   @{now,6:0.0}  발전실 남은 {remaining,5:0.0}, 인원 {sim.OnDutyCount(Power)}, 수리 {sim.HasRepairPending(Power)}, " +
+                         $"새사고가능 {ok}, 귀신 {(sim.Ghost.Active ? sim.Ghost.ActiveRoomId : "-")}, 위협 {(sim.Threats.Current != null ? sim.Threats.Current.SegmentId : "-")}, " +
+                         $"사고목록 [{act}], 마지막사고 {IncidentTracker.LastIncidentAt:0.0}");
             }
             if (accident && now - accidentAt > 5f) break;
             if (now > 125f) break;

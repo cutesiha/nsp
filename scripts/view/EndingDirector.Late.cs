@@ -45,7 +45,7 @@ public partial class EndingDirector
 
         left?.Clear("CONTAINMENT CORE", "FINAL RECOVERY SEQUENCE");
         left?.SetBar(_core, failed: true);
-        left?.Push($"복구율 {_core:0.0}% — 목표 미달", EndingMonitorView.Tone.Bad, 24);
+        left?.Push($"복구율 {_core:0.0}% - 목표 미달", EndingMonitorView.Tone.Bad, 24);
         right?.Clear("비상 차폐", "EMERGENCY SEAL");
 
         for (int t = 12; t >= 0; t--)
@@ -150,7 +150,7 @@ public partial class EndingDirector
         await Wait(3.0);   // 카메라 고정. 아무 일도 일어나지 않는다.
 
         await Fade(_black, 1f, 2.5f);
-        await Banner("BAD END — 대상 확인 · 복구 실패", new Color(0.85f, 0.80f, 0.70f));
+        await Banner("BAD END - 대상 확인, 복구 실패", new Color(0.85f, 0.80f, 0.70f));
         EndingState.Record(EndingState.Kind.Late);
     }
 

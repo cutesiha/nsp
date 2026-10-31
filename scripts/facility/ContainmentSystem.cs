@@ -110,7 +110,7 @@ public sealed class ContainmentSystem
             if (_reportCooldown > 0f) continue;
             _reportCooldown = 12f;
             EventLog.Instance?.LogEvent(LogEventType.SignalAnomaly, "", FacilitySimulation.CoreRoomIdPublic,
-                "▲ 격리 구역 봉쇄 계통 — 차폐 신호 불안정 (원인 불명)");
+                "▲ 격리 구역 봉쇄 계통 - 차폐 신호 불안정 (원인 불명)");
             IncidentTracker.Anomaly(FacilitySimulation.CoreRoomIdPublic, "▲ 봉쇄 계통 불안정",
                 "격리 구역 차폐 신호가 규정 범위를 벗어났습니다. 원인 미상.");
         }

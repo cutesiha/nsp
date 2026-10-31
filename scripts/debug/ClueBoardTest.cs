@@ -78,7 +78,7 @@ public partial class ClueBoardTest : Node
         var incident = fromRows.FirstOrDefault(e => e.Kind == EvidenceKind.Incident);
         Check(move != null && move.SubjectEmployeeId == "cat", "이동 줄 → 고양이의 이동 자료");
         Check(incident != null && incident.SubjectRoomId == Power, "사고 줄 → 발전실 사고 자료");
-        Check(fromRows.Count == 2, $"자료가 되는 줄은 이동 · 사고 둘뿐이다(배치 · 다툼 줄은 아니다) — {fromRows.Count}장");
+        Check(fromRows.Count == 2, $"자료가 되는 줄은 이동, 사고 둘뿐이다(배치, 다툼 줄은 아니다) - {fromRows.Count}장");
 
         var board = InterviewEvidenceBoard.Build("cat");
         Check(move != null && board.Any(e => e.Id == move.Id), $"이동 자료 Id 가 조사 노트와 같다 ({move?.Id})");
@@ -89,7 +89,7 @@ public partial class ClueBoardTest : Node
     // ── ② Id 는 내용으로 — 기록이 늘거나 잘려도 같다 ───────────────────
     private void TestIdStability()
     {
-        Head("B", "자료 Id 안정성 — 로그가 늘어도 · 시청 기록이 잘려도");
+        Head("B", "자료 Id 안정성 - 로그가 늘어도, 시청 기록이 잘려도");
         Reset();
         Deploy();
         Incident(LogEventType.TaskFailed, Power, At(40));
@@ -129,7 +129,7 @@ public partial class ClueBoardTest : Node
     // ── ClueBoard 자체 ────────────────────────────────────────────────
     private void TestClueBoardBasics()
     {
-        Head("C", "찍기 · 풀기 · 중복 · 알림 · 뱃지");
+        Head("C", "찍기, 풀기, 중복, 알림, 뱃지");
         Reset();
         Deploy();
         Move("cat", Storage, Power, At(30));
@@ -150,7 +150,7 @@ public partial class ClueBoardTest : Node
         ClueBoard.MarkSeen();
         Check(ClueBoard.UnseenCount == 0, "패드를 열면 뱃지가 비워진다");
         Check(!ClueBoard.Toggle(mv) && !ClueBoard.IsPinned(mv) && ClueBoard.Count == 1, "Toggle 로 풀었다");
-        Check(pins == 2 && unpins == 1, $"알림: 찍기 {pins}번 · 풀기 {unpins}번");
+        Check(pins == 2 && unpins == 1, $"알림: 찍기 {pins}번, 풀기 {unpins}번");
 
         // 사본이다 — 원본을 고쳐도 단서는 그대로.
         string body = ev.Body;
@@ -165,7 +165,7 @@ public partial class ClueBoardTest : Node
     // ── ③ 심문 ★ = ClueBoard ───────────────────────────────────────────
     private void TestInterviewStarIsClueBoard()
     {
-        Head("D", "저장소는 하나 — 근무 중 로그 ☆ 와 심문 ★ 가 같은 단서다");
+        Head("D", "저장소는 하나 - 근무 중 로그 ☆ 와 심문 ★ 가 같은 단서다");
         Reset();
         Deploy();
         Move("cat", Storage, Power, At(30));
@@ -192,7 +192,7 @@ public partial class ClueBoardTest : Node
     // ── ④ 날짜를 넘어 ─────────────────────────────────────────────────
     private void TestAcrossDays()
     {
-        Head("E", "근무가 바뀌어도 단서는 남는다 · (Day, Id) 로 갈린다");
+        Head("E", "근무가 바뀌어도 단서는 남는다, (Day, Id) 로 갈린다");
         Reset();
         Deploy();
         Incident(LogEventType.TaskFailed, Power, At(40));
@@ -222,7 +222,7 @@ public partial class ClueBoardTest : Node
 
     private void TestResets()
     {
-        Head("F", "비워지는 때 — 새 게임 · 교육일(DAY0) 종료");
+        Head("F", "비워지는 때 - 새 게임, 교육일(DAY0) 종료");
         Reset();
         Deploy();
         Incident(LogEventType.TaskFailed, Power, At(40));
@@ -245,19 +245,19 @@ public partial class ClueBoardTest : Node
     // ── ⑤ 엿들은 대화 → 조사 자료 ─────────────────────────────────────
     private void TestOverheardEvidence()
     {
-        Head("G", "엿들은 대화 — 두 사람 모두의 조사 자료 · 질문 · 둘째 줄 갱신");
+        Head("G", "엿들은 대화 - 두 사람 모두의 조사 자료, 질문, 둘째 줄 갱신");
         Reset();
         var rec = PlayerKnownEvidence.RecordOverheard(Guard, "fox", "wolf", "오늘 좀 이상하지 않아?", "", At(20));
         var fox = InterviewEvidenceBoard.Build("fox").FirstOrDefault(e => e.Kind == EvidenceKind.Overheard);
         var wolf = InterviewEvidenceBoard.Build("wolf").FirstOrDefault(e => e.Kind == EvidenceKind.Overheard);
-        Check(fox != null && wolf != null && fox.Id == wolf.Id, $"여우 · 늑대 조사 노트에 같은 Id 로 들어간다 ({fox?.Id})");
+        Check(fox != null && wolf != null && fox.Id == wolf.Id, $"여우, 늑대 조사 노트에 같은 Id 로 들어간다 ({fox?.Id})");
         Check(fox?.SubjectEmployeeId == "fox" && wolf?.SubjectEmployeeId == "wolf", "각자 자기 자료로 들어간다(누구에게든 물을 수 있다)");
         Check(fox?.RelatedEmployeeIds.Contains("wolf") == true, "함께 있던 사람으로 상대가 올라간다");
-        Check(fox?.SubjectRoomId == Guard && fox.HasTime && fox.CanAnchorPosition, "그 방 · 그 시각의 재석 근거다");
+        Check(fox?.SubjectRoomId == Guard && fox.HasTime && fox.CanAnchorPosition, "그 방, 그 시각의 재석 근거다");
         Check(InterviewEvidenceBoard.Build("cat").All(e => e.Kind != EvidenceKind.Overheard), "대화에 없던 고양이의 노트에는 없다");
         Check(InterviewEvidenceBoard.BuildAll("fox").Count(e => e.Kind == EvidenceKind.Overheard) == 1, "전원 보기에서는 한 장이다");
         var qs = fox == null ? new List<InterviewQuestion>() : InterviewQuestionFactory.For("fox", fox);
-        Check(qs.Count > 0 && qs.All(q => !string.IsNullOrEmpty(q.Text)), $"이 자료로 여우에게 물을 수 있다 — {qs.FirstOrDefault()?.Text}");
+        Check(qs.Count > 0 && qs.All(q => !string.IsNullOrEmpty(q.Text)), $"이 자료로 여우에게 물을 수 있다 - {qs.FirstOrDefault()?.Text}");
         Check(fox == null || InterviewQuestionFactory.For("cat", fox).Count == 0, "다른 직원(고양이)에게는 물을 수 없다");
         Check(InterviewEvidenceDisplay.Tag(fox) == "대화" && fox?.Tag == "대화", "태그는 「대화」");
 
@@ -266,7 +266,7 @@ public partial class ClueBoardTest : Node
         PlayerKnownEvidence.RecordOverheard(Guard, "fox", "wolf", "", "글쎄, 난 모르겠는데.", At(20));
         ClueBoard.Refresh(InterviewEvidenceBoard.FromOverheard(rec));
         var entry = ClueBoard.Find(1, fox?.Id);
-        Check(entry != null && entry.Evidence.Body.Contains("글쎄"), $"둘째 줄까지 단서에 채워졌다 — {entry?.Evidence.Body}");
+        Check(entry != null && entry.Evidence.Body.Contains("글쎄"), $"둘째 줄까지 단서에 채워졌다 - {entry?.Evidence.Body}");
         Check(PlayerKnownEvidence.OverheardCount == 1, "같은 대화는 한 건이다(줄이 들어올 때마다 늘지 않는다)");
 
         ClueBoard.Refresh(InterviewEvidenceBoard.FromOverheard(
@@ -281,7 +281,7 @@ public partial class ClueBoardTest : Node
     // ── ⑤ 자막 · 단축키로 찍기 ────────────────────────────────────────
     private async System.Threading.Tasks.Task TestCaptionPin()
     {
-        Head("H", "CCTV 대화 자막 — 뜬 줄이 기록되고 · 누르면 찍힌다 · 끝난 뒤 잠깐은 찍을 수 있다");
+        Head("H", "CCTV 대화 자막 - 뜬 줄이 기록되고, 누르면 찍힌다, 끝난 뒤 잠깐은 찍을 수 있다");
         LiveSetup(new Dictionary<string, string> { ["fox"] = Guard, ["wolf"] = Guard, ["cat"] = Core });
         var cap = new CctvOverheardCaption { Size = new Vector2(736f, 50f) };
         AddChild(cap);
@@ -290,7 +290,7 @@ public partial class ClueBoardTest : Node
 
         Check(!cap.CanPin && !cap.TogglePin(), "아무것도 들리지 않았으면 찍을 수 없다");
         Advance(cap, Guard, t.FirstDelaySeconds + 0.2f);
-        Check(cap.Visible && cap.Current != null, $"A 가 말한다 — {cap.CurrentLine}");
+        Check(cap.Visible && cap.Current != null, $"A 가 말한다 - {cap.CurrentLine}");
         Check(PlayerKnownEvidence.OverheardCount == 1, "첫 줄이 뜨자 관리자가 들은 대화로 기록된다");
         Check(cap.CanPin && cap.PinnableEvidence?.Kind == EvidenceKind.Overheard, "지금 들리는 대화를 찍을 수 있다");
 
@@ -328,7 +328,7 @@ public partial class ClueBoardTest : Node
     // ── ⑥ 로그 창 ☆ ─────────────────────────────────────────────────
     private async System.Threading.Tasks.Task TestLogWindowStar()
     {
-        Head("I", "시설 로그 창 — 이동 · 사고 줄에만 ☆ · 누르면 찍힌다");
+        Head("I", "시설 로그 창 - 이동, 사고 줄에만 ☆, 누르면 찍힌다");
         Reset();
         GameState.Instance.SetPhase(GamePhase.Live);
         Deploy();
@@ -342,7 +342,7 @@ public partial class ClueBoardTest : Node
         overlay.OpenLog();
         await Frames(2);
         var stars = Buttons(overlay).Where(b => b.TooltipText.StartsWith("단서로 기록")).ToList();
-        Check(stars.Count == 2, $"☆ 는 이동 · 사고 두 줄에만 달린다 ({stars.Count}개 / 로그 {Rows().Count}줄)");
+        Check(stars.Count == 2, $"☆ 는 이동, 사고 두 줄에만 달린다 ({stars.Count}개 / 로그 {Rows().Count}줄)");
         Check(stars.All(s => s.Modulate.A < 0.01f), "평소에는 숨어 있다(마우스를 올린 줄만 보인다)");
         if (stars.Count > 0)
         {
@@ -359,7 +359,7 @@ public partial class ClueBoardTest : Node
 
     private async System.Threading.Tasks.Task TestToast()
     {
-        Head("J", "찍는 순간 — 토스트 · 뱃지");
+        Head("J", "찍는 순간 - 토스트, 뱃지");
         Reset();
         var hud = new ClueHud();
         AddChild(hud);
@@ -378,7 +378,7 @@ public partial class ClueBoardTest : Node
     // ── 3D 패드 — 꺼내기 · 일시정지 · 내려놓기 ─────────────────────────
     private async System.Threading.Tasks.Task TestPad()
     {
-        Head("K", "관리자 패드 — Tab 으로 꺼내고 · 든 동안에도 시간은 흐른다 · 기록 창은 열린다 · 내려놓기");
+        Head("K", "관리자 패드 - Tab 으로 꺼내고, 든 동안에도 시간은 흐른다, 기록 창은 열린다, 내려놓기");
         Reset();
         GameState.Instance.SetPhase(GamePhase.Live);
         Deploy();
@@ -393,29 +393,29 @@ public partial class ClueBoardTest : Node
         Check(!pad.IsOpen && !AdminPad3D.PausesGame, "처음에는 책상 위에 놓여 있다");
 
         hud._Input(new InputEventKey { Keycode = Key.Tab, Pressed = true });
-        Check(pad.IsOpen && !AdminPad3D.PausesGame, "Tab — 꺼내도 근무 시간은 그대로 흐른다(PauseWhileHeld 기본 끔)");
+        Check(pad.IsOpen && !AdminPad3D.PausesGame, "Tab - 꺼내도 근무 시간은 그대로 흐른다(PauseWhileHeld 기본 끔)");
         pad.PauseWhileHeld = true;
         Check(AdminPad3D.PausesGame, "PauseWhileHeld 를 켜면 든 동안 멈춘다(옵션)");
         pad.PauseWhileHeld = false;
         Check(ClueBoard.UnseenCount == 1, "홈 화면에서는 새 단서 뱃지(+1)가 남아 있다");
         await Until(() => pad.IsHeld, 3000);
         Check(pad.IsHeld, "들어 올려 손에 쥐었다");
-        Check(pad.HoldFlatToCamera && Mathf.IsZeroApprox(pad.HoldRollDeg), "일자 파지 — 화면이 카메라와 평행하고 갸웃 기울기가 없다");
+        Check(pad.HoldFlatToCamera && Mathf.IsZeroApprox(pad.HoldRollDeg), "일자 파지 - 화면이 카메라와 평행하고 갸웃 기울기가 없다");
 
         // 든 채로도 로그 · 대화 기록 · 업무 창은 열린다(게임 밖 UI). 창이 떠 있는 동안 우클릭은 창을 닫는 데 쓰인다.
         var overlay = new Day1HistoryOverlay();
         AddChild(overlay);
         await Frames(1);
         overlay._Input(new InputEventKey { Keycode = Key.L, Pressed = true });
-        Check(overlay.IsLogOpen && pad.IsHeld, "든 채로 L — 시설 로그 창이 열리고 패드는 그대로 손에 있다");
+        Check(overlay.IsLogOpen && pad.IsHeld, "든 채로 L - 시설 로그 창이 열리고 패드는 그대로 손에 있다");
         pad._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
         Check(overlay.IsLogOpen && pad.IsHeld && pad.View.Current == PadView.Tab.Home, "창이 떠 있는 동안 우클릭은 패드를 뒤로 보내지 않는다");
         overlay._Input(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true });
         Check(!overlay.IsWindowOpen && pad.IsHeld, "우클릭은 창을 닫고, 패드는 여전히 손에 있다");
         overlay._Input(new InputEventKey { Keycode = Key.D, Pressed = true });
-        Check(overlay.IsDialogueOpen, "든 채로 D — 대화 기록 창");
+        Check(overlay.IsDialogueOpen, "든 채로 D - 대화 기록 창");
         overlay._Input(new InputEventKey { Keycode = Key.T, Pressed = true });
-        Check(overlay.IsObjectivesOpen, "든 채로 T — 오늘의 업무 창");
+        Check(overlay.IsObjectivesOpen, "든 채로 T - 오늘의 업무 창");
         overlay.CloseWindow();
         var logBtn = overlay.FindChild("LogHistoryButton", true, false) as Control;
         Check(logBtn != null && overlay.IsOverIcons(logBtn.GetGlobalRect().GetCenter())
@@ -441,9 +441,9 @@ public partial class ClueBoardTest : Node
         await Until(() => !pad.IsOpen, 3000);
         Check(!pad.IsOpen && !AdminPad3D.PausesGame, "책상에 내려놓았다");
         Check(!pad.View.IsLocked && pad.View.Current == PadView.Tab.Home,
-            "근무 중 거치대 위 화면은 잠금 화면이 아니라 홈(지침 · 단서 · 직원)이다");
+            "근무 중 거치대 위 화면은 잠금 화면이 아니라 홈(지침, 단서, 직원)이다");
         Check(pad.TargetViewport.RenderTargetUpdateMode == SubViewport.UpdateMode.Always,
-            "근무 중에는 거치대 위에서도 화면을 계속 그린다(시각 · 배지 · 예고)");
+            "근무 중에는 거치대 위에서도 화면을 계속 그린다(시각, 배지, 예고)");
 
         // Tab 도 우클릭과 같다 — 한 단계 뒤로, 홈에서 한 번 더 누르면 내려놓는다.
         // (그 자리에서 바로 내려놓고 싶으면 패드 **바깥**을 좌클릭한다 — AdminPad3D._Input.)
@@ -460,7 +460,7 @@ public partial class ClueBoardTest : Node
         // 거치대 위 홈의 앱 아이콘 — 누른 자리(논리 좌표)의 앱을 연 채로 집어 든다.
         Check(pad.View.AppAt(new Vector2(560, 345)) == PadView.Tab.Clues
               && pad.View.AppAt(new Vector2(282, 345)) == PadView.Tab.Manual
-              && pad.View.AppAt(new Vector2(20, 20)) == null, "거치대 위 홈 — 아이콘 자리를 가려낸다");
+              && pad.View.AppAt(new Vector2(20, 20)) == null, "거치대 위 홈 - 아이콘 자리를 가려낸다");
         pad.Open(PadView.Tab.Staff);
         await Until(() => pad.IsHeld, 3000);
         Check(pad.IsHeld && pad.View.Current == PadView.Tab.Staff, "아이콘을 누르면 그 앱이 열린 채로 들어 올린다");
@@ -492,7 +492,7 @@ public partial class ClueBoardTest : Node
     // ── 패드 화면 — 단서 · 직원 · 지침 ────────────────────────────────
     private async System.Threading.Tasks.Task TestPadView()
     {
-        Head("L", "패드 화면 — 페이지 · 정렬 · 직원 필터 · 상세 · 관련 진술 · 직원 탭 · 지침");
+        Head("L", "패드 화면 - 페이지, 정렬, 직원 필터, 상세, 관련 진술, 직원 탭, 지침");
         Reset();
         GameState.Instance.SetPhase(GamePhase.Rest);
         Deploy();
@@ -515,7 +515,7 @@ public partial class ClueBoardTest : Node
         view.OnOpened();
         view.OpenApp(PadView.Tab.Clues, fade: false);
         Check(total >= 7 && view.VisibleClues().Count == total, $"단서 {total}장이 모두 보인다");
-        Check(view.PageCount == (total + 5) / 6, $"한 페이지 6장 — {view.PageCount}쪽");
+        Check(view.PageCount == (total + 5) / 6, $"한 페이지 6장 - {view.PageCount}쪽");
         view.SetPage(1);
         Check(view.Page == 1, "다음 쪽으로 넘어간다");
         view.SetPage(99);
@@ -530,15 +530,15 @@ public partial class ClueBoardTest : Node
 
         view.ShowCluesFor("cat");
         Check(view.EmployeeFilter == "cat" && view.VisibleClues().All(e => ClueBoard.Involves(e, "cat")) && view.VisibleClues().Count >= 2,
-            $"직원 필터 — 고양이가 등장하는 단서만 {view.VisibleClues().Count}장");
+            $"직원 필터 - 고양이가 등장하는 단서만 {view.VisibleClues().Count}장");
         view.ClearEmployeeFilter();
 
         // 상세 — 관련 직원 · 관련 진술.
         var cctv = ClueBoard.Entries.First(e => e.Evidence.Kind == EvidenceKind.Cctv);
         var related = PadView.RelatedStaff(cctv);
-        Check(related.Contains("cat") && related.Contains("sheep"), $"관련 직원에 함께 있던 사람까지 — {string.Join(",", related)}");
+        Check(related.Contains("cat") && related.Contains("sheep"), $"관련 직원에 함께 있던 사람까지 - {string.Join(",", related)}");
         var incident = ClueBoard.Entries.First(e => e.Evidence.Kind == EvidenceKind.Incident);
-        Check(PadView.RelatedStatements(incident).Count == 0, "아직 아무도 그 자료로 묻지 않았다 — 진술 없음");
+        Check(PadView.RelatedStatements(incident).Count == 0, "아직 아무도 그 자료로 묻지 않았다 - 진술 없음");
         DialogueHistory.Instance.AddEntry("manager", "관리자", DialogueEntryType.PlayerChoice, "이 사고를 알고 있었습니까?",
             DialogueConversationType.Interview, "cat", new[] { incident.EvidenceId });
         DialogueHistory.Instance.AddEntry("cat", "고양이", DialogueEntryType.NpcResponse, "몰랐어요.",
@@ -547,7 +547,7 @@ public partial class ClueBoardTest : Node
             DialogueConversationType.Interview, "dog");
         var talks = PadView.RelatedStatements(incident);
         Check(talks.Count == 1 && talks[0].Employee == "cat" && talks[0].Lines.Count == 2,
-            "그 자료로 물은 질문과 대답만 — 고양이 한 사람, 두 줄");
+            "그 자료로 물은 질문과 대답만 - 고양이 한 사람, 두 줄");
         view.OpenDetail(incident);
         Check(view.DetailEntry == incident, "카드를 누르면 상세가 열린다");
         ClueBoard.Unpin(incident.Day, incident.EvidenceId);
@@ -560,13 +560,13 @@ public partial class ClueBoardTest : Node
         var (good, bad) = PadView.Relations("cat");
         Check(good.All(o => RelationshipSystem.Band("cat", o) is PairBand.Close or PairBand.Friendly)
               && bad.All(o => RelationshipSystem.Band("cat", o) is PairBand.Uneasy or PairBand.Refuse)
-              && good.Count + bad.Count > 0, $"관계는 Band 로 — 좋음 {string.Join(",", good)} / 나쁨 {string.Join(",", bad)}");
+              && good.Count + bad.Count > 0, $"관계는 Band 로 - 좋음 {string.Join(",", good)} / 나쁨 {string.Join(",", bad)}");
         _sim.GetEmployeeState("wolf").Isolated = true;
         Check(PadView.StatusOf("wolf").Text == "격리", "격리된 직원에 뱃지");
         _sim.GetEmployeeState("wolf").Isolated = false;
         bool filled = _sim.GetEmployeeIds().All(id => _sim.GetEmployeeDef(id) is { } d
             && d.Gender != "" && d.ShortProfileLine != "" && d.SelfIntroLine != "" && d.FavoriteFood != "" && d.DislikedFood != "");
-        Check(filled, "6명 모두 성별 · 한 줄 성격 · 자기소개 · 음식 기록이 있다");
+        Check(filled, "6명 모두 성별, 한 줄 성격, 자기소개, 음식 기록이 있다");
         view.ShowCluesFor("dog");
         Check(view.Current == PadView.Tab.Clues && view.EmployeeFilter == "dog", "직원 → 단서 보기는 그 직원 필터로 단서 탭을 연다");
 
@@ -576,12 +576,12 @@ public partial class ClueBoardTest : Node
         // 7장이다 — 원래 6장에 '작업실'(방 안내)이 끼어들었다. 방 하나에 한 쪽씩이라
         // 그 장만 8쪽이고, 나머지는 전부 4쪽이다. 쪽이 패드에 들어가는지는 아래에서
         // 따로 본다(4줄 · 줄당 40자).
-        Check(chapters.Count == 7, $"지침 챕터 7장(data/pad/manual.tres) — {chapters.Count}장");
+        Check(chapters.Count == 7, $"지침 챕터 7장(data/pad/manual.tres) - {chapters.Count}장");
         Check(chapters.All(c => c.PageList().Count is >= 2 and <= 8),
-            "챕터마다 2~8쪽 — " + string.Join(" ", chapters.Select(c => $"{c.Title}{c.PageList().Count}")));
+            "챕터마다 2~8쪽 - " + string.Join(" ", chapters.Select(c => $"{c.Title}{c.PageList().Count}")));
         var pages = chapters.SelectMany(c => c.PageList()).ToList();
         Check(pages.All(p => p.Lines.Length <= PadManualDef.MaxLinesPerPage && p.Lines.All(l => l.Length <= PadManualDef.MaxCharsPerLine)),
-            $"모든 쪽이 4줄 · 줄당 40자 이내 — 가장 긴 줄 {pages.SelectMany(p => p.Lines).Max(l => l.Length)}자");
+            $"모든 쪽이 4줄, 줄당 40자 이내 - 가장 긴 줄 {pages.SelectMany(p => p.Lines).Max(l => l.Length)}자");
         Check(pages.All(p => !string.IsNullOrEmpty(p.ImagePath) && !string.IsNullOrEmpty(p.Title)), "모든 쪽에 그림 경로와 제목이 있다");
         view.OpenChapter(2);
         view.SetManualPage(1);
@@ -602,7 +602,7 @@ public partial class ClueBoardTest : Node
     //               (엔딩을 바꾸지 않는다 — 성적표와 GUIDE-0 한 줄에만 쓴다)
     private void TestFinalReport()
     {
-        Head("N", "최종 격리 보고서 — 지목 정답 · 근거 0장 / 무관 1장 / 유효 1장");
+        Head("N", "최종 격리 보고서 - 지목 정답, 근거 0장 / 무관 1장 / 유효 1장");
         Reset();
         Deploy();
         GameState.Instance.SetSaboteur("cat");
@@ -648,7 +648,7 @@ public partial class ClueBoardTest : Node
     // ── 스냅샷 연결 ───────────────────────────────────────────────────
     private void TestSnapshot()
     {
-        Head("M", "CCTV 스냅샷 — 사고 순간의 한 컷이 그 사고 자료에 붙는다 · 보던 방만");
+        Head("M", "CCTV 스냅샷 - 사고 순간의 한 컷이 그 사고 자료에 붙는다, 보던 방만");
         Reset();
         Deploy();
         Incident(LogEventType.Sabotage, Power, At(40));

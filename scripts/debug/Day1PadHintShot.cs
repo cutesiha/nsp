@@ -27,9 +27,9 @@ public partial class Day1PadHintShot : Node
         AddChild(GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate());
 
         for (int i = 0; i < 1200 && GameState.Instance?.CurrentPhase != GamePhase.Schedule; i++) await Frame();
-        GD.Print($"DAY {GameState.Instance?.CurrentDay} · 단계 {GameState.Instance?.CurrentPhase}");
+        GD.Print($"DAY {GameState.Instance?.CurrentDay}, 단계 {GameState.Instance?.CurrentPhase}");
         GD.Print($"스트레스 해금 = {DayFeatures.StressEnabled} (StressUnlockDay={Config.Instance?.Data?.StressUnlockDay})");
-        GD.Print($"능력치 {DayFeatures.StatsEnabled} · 금기 {DayFeatures.TaboosEnabled}");
+        GD.Print($"능력치 {DayFeatures.StatsEnabled}, 금기 {DayFeatures.TaboosEnabled}");
 
         // 배치 진입 0.8초 뒤 패드가 올라오고, 그 0.35초 뒤 안내가 뜬다.
         double[] at = { 0.6, 1.1, 1.5, 2.2, 3.4, 4.2, 5.0 };

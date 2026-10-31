@@ -137,16 +137,16 @@ public partial class VoiceStyleTest : Node
     {
         float wolf = Avg(corpus["wolf"]), rabbit = Avg(corpus["rabbit"]), fox = Avg(corpus["fox"]);
         float dog = Avg(corpus["dog"]), cat = Avg(corpus["cat"]), sheep = Avg(corpus["sheep"]);
-        GD.Print($"[C] 평균 길이 — 늑대 {wolf:0.0} / 고양이 {cat:0.0} / 양 {sheep:0.0} / " +
+        GD.Print($"[C] 평균 길이 - 늑대 {wolf:0.0} / 고양이 {cat:0.0} / 양 {sheep:0.0} / " +
                  $"강아지 {dog:0.0} / 여우 {fox:0.0} / 토끼 {rabbit:0.0}");
-        Check(wolf < rabbit && wolf < fox, "C 늑대가 토끼·여우보다 짧게 말한다");
+        Check(wolf < rabbit && wolf < fox, "C 늑대가 토끼/여우보다 짧게 말한다");
     }
 
     private void CheckD(Dictionary<string, List<string>> corpus)
     {
         int sheep = corpus["sheep"].Count(Hedged);
         int wolf = corpus["wolf"].Count(Hedged);
-        GD.Print($"[D] 확신 낮추는 표현 — 양 {sheep}개 / 늑대 {wolf}개");
+        GD.Print($"[D] 확신 낮추는 표현 - 양 {sheep}개 / 늑대 {wolf}개");
         Check(sheep > wolf, "D 양이 늑대보다 자주 확신을 낮춘다");
     }
 
@@ -172,7 +172,7 @@ public partial class VoiceStyleTest : Node
                 || a.Contains("보고") || a.Contains("방향") || a.Contains("진동")) scoped++;
             if (a.Contains("봤습니다") && !a.Contains("직접 보")) claimed++;
         }
-        GD.Print($"[F] 늑대 12개 중 감각/범위를 밝힌 답변 {scoped}개 · 단정한 답변 {claimed}개");
+        GD.Print($"[F] 늑대 12개 중 감각/범위를 밝힌 답변 {scoped}개, 단정한 답변 {claimed}개");
         Check(claimed == 0, "F 늑대가 확인하지 않은 것을 단정하지 않는다");
         Check(scoped >= 6, "F 늑대가 들은 것과 본 것을 구분한다");
     }
@@ -196,7 +196,7 @@ public partial class VoiceStyleTest : Node
             for (int i = 0; i < 5; i++) five.Add(Answer(id, DialogueQuestions.Anomaly));
             int distinct = five.Distinct().Count();
             int maxDup = five.GroupBy(t => t).Max(g => g.Count());
-            GD.Print($"[G] {Codename(id),-4} 5연속 — 서로 다른 문장 {distinct}개, 같은 문장 최대 {maxDup}회");
+            GD.Print($"[G] {Codename(id),-4} 5연속 - 서로 다른 문장 {distinct}개, 같은 문장 최대 {maxDup}회");
             // 늑대처럼 문장 풀이 3개뿐인 캐릭터는 5연속에서 한 문장이 세 번 나올 수 있다.
             // 잡고 싶은 것은 "같은 문장만 반복"이므로 서로 다른 문장 수를 기준으로 본다.
             Check(distinct >= 3 && maxDup <= 3, $"G {Codename(id)} 가 같은 문장을 되풀이하지 않는다");
@@ -210,7 +210,7 @@ public partial class VoiceStyleTest : Node
         var bad = corpus.SelectMany(kv => kv.Value).Where(t => DoubleYes.IsMatch(t)).ToList();
         // 느낌표 상한은 캐릭터마다 다르다(토끼는 밝고 솔직해서 여럿) — 말투 설정의 MaxExclamations 를 넘지 않으면 된다.
         int tooMany = corpus.Sum(kv => kv.Value.Count(t => t.Count(c => c == '!') > DialogueVoices.Get(kv.Key).MaxExclamations));
-        GD.Print($"[H] '네! 네!' {bad.Count}건 · 느낌표 상한 초과 {tooMany}건");
+        GD.Print($"[H] '네! 네!' {bad.Count}건, 느낌표 상한 초과 {tooMany}건");
         foreach (string b in bad.Take(3)) GD.Print("     " + b);
         Check(bad.Count == 0, "H 한 답변에 같은 긍정이 두 번 나오지 않는다");
         Check(tooMany == 0, "H 한 답변의 느낌표가 그 캐릭터의 상한을 넘지 않는다");

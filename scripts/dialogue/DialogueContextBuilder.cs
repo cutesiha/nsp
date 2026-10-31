@@ -425,7 +425,7 @@ public static class DialogueContextBuilder
     private static string OddBehaviourDetail(string description)
     {
         if (string.IsNullOrEmpty(description)) return "";
-        int i = description.IndexOf(" — ", System.StringComparison.Ordinal);
+        int i = description.IndexOf(" - ", System.StringComparison.Ordinal);
         return i < 0 ? "" : description[(i + 3)..].Trim();
     }
 

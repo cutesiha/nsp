@@ -54,7 +54,7 @@ public partial class HairStudioShot : Node
         _at++;
         if (_at >= _shots.Length)
         {
-            GD.Print($"################ 캡처 끝 — {_saved.Count}장");
+            GD.Print($"################ 캡처 끝 - {_saved.Count}장");
             foreach (string s in _saved) GD.Print("  " + s);
             GetTree().Quit();
             return;

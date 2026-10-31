@@ -79,7 +79,7 @@ public static class HairSourceSplitter
             if (r.TwinOf != null)
             {
                 notes.Add($"FBX 노드 '{r.Node}' 표면 {r.Surface}(재질 '{r.Material}')은 " +
-                          $"{r.TwinOf.Id} 과 같은 메시다 — 정점 {r.Verts.Count}개가 정렬 후 1mm " +
+                          $"{r.TwinOf.Id} 과 같은 메시다 - 정점 {r.Verts.Count}개가 정렬 후 1mm " +
                           "안에서 일치한다(팩 안에 위치만 바꿔 두 번 들어 있다). 번호를 주지 않았다");
                 continue;
             }
@@ -87,8 +87,8 @@ public static class HairSourceSplitter
             r.Id = id;
             made.Add(Finish(r, id, "male", MaleFbx, r.IsBeard ? "beard" : "hair", log));
         }
-        log($"남성 팩: 노드 {nodes.Count}개 · 표면 {raws.Count}개 → " +
-            $"헤어 {hair}개 · 수염 {beard}개 (복제본 {raws.Count(r => r.TwinOf != null)}개 제외)");
+        log($"남성 팩: 노드 {nodes.Count}개, 표면 {raws.Count}개 → " +
+            $"헤어 {hair}개, 수염 {beard}개 (복제본 {raws.Count(r => r.TwinOf != null)}개 제외)");
         return made;
     }
 
@@ -120,7 +120,7 @@ public static class HairSourceSplitter
         {
             if (r.TwinOf != null)
             {
-                notes.Add($"OBJ 그룹 '{r.Node}' 은 {r.TwinOf.Id} 과 같은 메시다 — " +
+                notes.Add($"OBJ 그룹 '{r.Node}' 은 {r.TwinOf.Id} 과 같은 메시다 - " +
                           "격자 칸만 다르다. 번호를 주지 않았다");
                 continue;
             }
@@ -276,7 +276,7 @@ public static class HairSourceSplitter
 
         if (pairs == 0)
         {
-            log("  격자가 겹치는 그룹이 없다 — 그룹 하나 = 헤어 하나로 확인");
+            log("  격자가 겹치는 그룹이 없다 - 그룹 하나 = 헤어 하나로 확인");
             notes.Add($"여성 팩의 그룹 {raws.Count}개는 격자 칸이 서로 겹치지 않는다. " +
                       "실측으로 '그룹 하나 = 헤어스타일 하나' 를 확인하고 그대로 분리했다");
             return raws;
@@ -407,7 +407,7 @@ public static class HairSourceSplitter
     // 사람이 알아볼 이름. 원본에 헤어 이름이 없으므로(재질 이름이 "1.002" 수준이다)
     // 번호 + 실측 길이로 짓는다. "컬리" 같은 말을 임의로 붙이지 않는다.
     private static string NameOf(string id, float h)
-        => $"{id} · {Korean(Length(h))} ({h * 100f:F0}cm)";
+        => $"{id}, {Korean(Length(h))} ({h * 100f:F0}cm)";
 
     private static string Length(float h) => h < 0.26f ? "short" : h < 0.40f ? "medium" : "long";
 
@@ -556,9 +556,9 @@ public static class HairSourceSplitter
         Aabb sb = Of(skull), cb = cranium.Count > 32 ? Of(cranium) : Of(skull);
         root.QueueFree();
 
-        log($"{sex} 베이스: 키 {top:F3}m · Head 본 y={headY:F3} · " +
+        log($"{sex} 베이스: 키 {top:F3}m, Head 본 y={headY:F3}, " +
             $"머리통 {sb.Size.Snapped(Vector3.One * 0.001f)} @ {sb.GetCenter().Snapped(Vector3.One * 0.001f)} " +
-            $"· 귀 위 {cb.Size.Snapped(Vector3.One * 0.001f)} @ {cb.GetCenter().Snapped(Vector3.One * 0.001f)} " +
+            $"- 귀 위 {cb.Size.Snapped(Vector3.One * 0.001f)} @ {cb.GetCenter().Snapped(Vector3.One * 0.001f)} " +
             $"(정점 {skull.Count}/{cranium.Count}개)");
 
         return new HairBaseEntry
