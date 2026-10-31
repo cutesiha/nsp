@@ -33,12 +33,12 @@ public static class RoomEffectText
     // 방을 고른 화면에 띄우는 짧은 요약. 네 줄을 넘기지 않는다(문서 31절).
     //
     //   data/rooms/*.tres 의 BriefLines
-    // + "⚠ 비워 두면 N초 뒤 사고"      ← 오늘의 운영 규칙에서 읽는다
-    // + "⚙ 사고 수리 N명"              ← 같은 창구(RoomStaffing)에서 읽는다
+    // + "▲ 비워 두면 N초 뒤 사고"      ← 오늘의 운영 규칙에서 읽는다
+    // + "□ 사고 수리 N명"              ← 같은 창구(RoomStaffing)에서 읽는다
     //
     // 뒤 두 줄은 날마다 값이 달라지므로 데이터 문장에 적지 않고 여기서 만든다.
     //
-    // compact = true 면 계산 줄(⚠ · ⚙)만 돌려준다. 좁은 칸 — 근무 중 방 카드와 종이
+    // compact = true 면 계산 줄(▲ · □)만 돌려준다. 좁은 칸 — 근무 중 방 카드와 종이
     // 배치표 — 에서 쓴다. 그 두 화면에는 Headline · Idle · 인원별 효과가 이미 붙어 있어
     // 기능 줄까지 실으면 아래 "상태 / 진행 / 직원" 이 칸 밖으로 밀려난다.
     public const int BriefMaxLines = 4;
@@ -55,19 +55,88 @@ public static class RoomEffectText
         if (!def.IsRestricted)
         {
             float unstaffed = RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
-            if (unstaffed > 0f) computed.Add($"⚠ 비워 두면 {unstaffed:0}초 뒤 사고");
+            if (unstaffed > 0f) computed.Add($"▲ 비워 두면 {unstaffed:0}초 뒤 사고");
             int crew = RoomStaffing.RepairMinWorkers(roomId, def);
-            computed.Add(crew >= 2 ? $"⚙ 사고 수리 {crew}명 — 혼자서는 못 고친다" : $"⚙ 사고 수리 {crew}명");
+            computed.Add(crew >= 2 ? $"□ 사고 수리 {crew}명, 혼자서는 못 고친다" : $"□ 사고 수리 {crew}명");
         }
 
         int room = compact ? 0 : Mathf.Max(0, BriefMaxLines - computed.Count);
-        foreach (string l in def.BriefLines)
+        foreach (var row in BriefDataRows(def))
         {
             if (lines.Count >= room) break;
-            if (!string.IsNullOrWhiteSpace(l)) lines.Add(l.Trim());
+            lines.Add(row.Label.Length > 0 ? $"{row.Label}  {row.Value}" : row.Value);
         }
         lines.AddRange(computed);
         return lines;
+    }
+
+    // ── 작업실 정보 표 ──────────────────────────────────────────────
+    //
+    // 근무배치 화면에서 방을 고르면 권장 인원 아래에 뜨는 표의 한 줄(항목 · 내용).
+    // 문장을 늘어놓지 않고 표로 보여 준다 — 긴 작대기 · 가운데 점 · 그림 기호로 이어 붙인
+    // 줄이 AI 가 만든 안내문처럼 보였다(사용자 지시 2026-10-22). 그래서 이 표의 글에는
+    // 그런 기호를 쓰지 않는다. Warn = 주의해야 할 줄(색을 바꿔 쓴다).
+    public readonly record struct InfoRow(string Label, string Value, bool Warn);
+
+    // data/rooms/*.tres 의 BriefLines 는 "항목|내용" 한 줄씩이다.
+    private static System.Collections.Generic.IEnumerable<InfoRow> BriefDataRows(RoomDef def)
+    {
+        foreach (string raw in def.BriefLines)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string l = raw.Trim();
+            int bar = l.IndexOf('|');
+            string label = bar < 0 ? "" : l[..bar].Trim();
+            string value = bar < 0 ? l : l[(bar + 1)..].Trim();
+            yield return new InfoRow(label, value, label is "주의" or "고장");
+        }
+    }
+
+    // 표 전체 — 기능 설명(데이터) + 오늘의 운영 규칙(무인 사고 · 수리 인원) + 인원별 효과.
+    public static System.Collections.Generic.List<InfoRow> InfoRows(string roomId)
+    {
+        var rows = new System.Collections.Generic.List<InfoRow>();
+        var def = FacilitySimulation.Instance?.GetRoomDef(roomId);
+        if (def == null) return rows;
+        rows.AddRange(BriefDataRows(def));
+        if (def.IsRestricted) return rows;
+
+        // 인원별 효과(OpsProfile.RoleNote). "0명 발전 중단 · 시설 전체 35% / 1명 ..." 를
+        // 인원 수마다 한 줄로 가른다.
+        var ops = OpsProfile.Room(roomId);
+        if (ops != null && !string.IsNullOrWhiteSpace(ops.RoleNote))
+            foreach (string part in ops.RoleNote.Split(" / "))
+                rows.AddRange(RoleNoteRows(part));
+
+        float unstaffed = RoomStaffing.UnstaffedAccidentSeconds(roomId, def);
+        if (unstaffed > 0f) rows.Add(new InfoRow("무인 사고", $"비워 두면 {unstaffed:0}초 뒤 사고", true));
+        int crew = RoomStaffing.RepairMinWorkers(roomId, def);
+        rows.Add(new InfoRow("사고 수리", crew >= 2 ? $"{crew}명 필요, 혼자서는 못 고친다" : $"{crew}명", false));
+        return rows;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex HeadCount =
+        new(@"^(\d+명(?:\s*이상)?)(?:이면)?\s+(.+)$");
+
+    // RoleNote 한 덩어리 → 표의 줄. "1명 기준의 62% · 2명 100%" 처럼 인원이 둘 섞여 있으면 두 줄이 된다.
+    private static System.Collections.Generic.IEnumerable<InfoRow> RoleNoteRows(string part)
+    {
+        string label = "";
+        var values = new System.Collections.Generic.List<string>();
+        foreach (string piece in part.Split(new[] { ", ", " - " }, System.StringSplitOptions.RemoveEmptyEntries))
+        {
+            string p = piece.Trim();
+            var m = HeadCount.Match(p);
+            if (m.Success)
+            {
+                if (values.Count > 0) { yield return new InfoRow(label.Length > 0 ? label : "역할", string.Join(", ", values), false); values.Clear(); }
+                label = m.Groups[1].Value;
+                values.Add(m.Groups[2].Value.Trim());
+            }
+            else values.Add(p);
+        }
+        if (values.Count > 0)
+            yield return new InfoRow(label.Length > 0 ? label : "역할", string.Join(", ", values), false);
     }
 
     // ── (a) 핵심 수치 ────────────────────────────────────────────────
@@ -82,7 +151,7 @@ public static class RoomEffectText
         switch (roomId)
         {
             case "core_room":
-                return $"복구 +{RoomEffectStats.CoreUpToday:0}% 오늘 · 자재 {gs.Materials}개 남음";
+                return $"복구 +{RoomEffectStats.CoreUpToday:0}% 오늘, 자재 {gs.Materials}개 남음";
 
             case "power_room":
                 // 지금까지 쓰던 문구 그대로 — 미니맵 상자 아래 줄과 같은 값을 쓴다.
@@ -96,8 +165,8 @@ public static class RoomEffectText
                 if (def is { EffectType: TaskEffectType.AddMaterials } && task.Status == SpawnedTaskStatus.Active)
                     // 남은 게이지 ÷ 지금 속도. 아무도 없으면 속도가 0 이라 "정지" 로 읽힌다.
                     next = task.LastRate > 0.01f
-                        ? $" · 다음 생산까지 {Mathf.Max(0f, task.GaugeRequired - task.Gauge) / task.LastRate:0}초"
-                        : " · 정지";
+                        ? $", 다음 생산까지 {Mathf.Max(0f, task.GaugeRequired - task.Gauge) / task.LastRate:0}초"
+                        : ", 정지";
                 return $"자재 생산 +{RoomEffectStats.MaterialsToday}개 오늘{next}";
             }
 
@@ -114,7 +183,7 @@ public static class RoomEffectText
             }
 
             case "guard_room":
-                return $"오늘 기록 {RoomEffectStats.GuardRecordsToday}건 (순찰 · 이탈 · 이상 감지)";
+                return $"오늘 기록 {RoomEffectStats.GuardRecordsToday}건 (순찰, 이탈, 이상 감지)";
 
             case "medical_room":
             {
@@ -131,7 +200,7 @@ public static class RoomEffectText
                 // 의무실이 고장 나 있으면 회복이 느려지고 치료(스트레스 회복)도 돌지 않는다(G-4).
                 // 고장 난 의무실이 아무 대가 없이 방치되던 것을 화면에서도 읽히게 한다.
                 string fault = sim.HasActiveRepair(roomId)
-                    ? $" · 고장 — 회복 {cfg.MedicalFaultRecoveryRate:0.#}배 느림 · 치료 정지"
+                    ? $", 고장 - 회복 {cfg.MedicalFaultRecoveryRate:0.#}배 느림, 치료 정지"
                     : "";
                 return $"{verb}: {who} (회복까지 {Mathf.Max(0f, patient.FaintRecoverTimer):0}초){fault}";
             }
@@ -152,20 +221,20 @@ public static class RoomEffectText
         switch (roomId)
         {
             case "core_room":
-                if (here == 0) return "코어실 비어 있음 — 복구 정지";
-                if (sim.IsRoomBlockedByMaterials(roomId)) return "자재 없음 — 복구 정지 중 (정비실 확인)";
+                if (here == 0) return "코어실 비어 있음 - 복구 정지";
+                if (sim.IsRoomBlockedByMaterials(roomId)) return "자재 없음 - 복구 정지 중 (정비실 확인)";
                 return "";
 
             case "power_room":
                 if (here > 0) return "";
                 // 35% 라는 값은 그 날의 운영 데이터에서 그대로 읽는다.
-                return $"발전실 비어 있음 — 출력 {sim.PowerRoomOutputWhenEmpty() * 100f:0}% · 조명·CCTV 불안정";
+                return $"발전실 비어 있음 - 출력 {sim.PowerRoomOutputWhenEmpty() * 100f:0}%, 조명/CCTV 불안정";
 
             case "maintenance_room":
             {
                 if (here > 0) return "";
                 int cost = Mathf.Max(1, RoomStaffing.CoreMaterialCost());
-                return $"정비실 비어 있음 — 자재 생산 중단 ({gs.Materials}개로 코어 약 {gs.Materials / cost}% 분)";
+                return $"정비실 비어 있음 - 자재 생산 중단 ({gs.Materials}개로 코어 약 {gs.Materials / cost}% 분)";
             }
 
             case "storage_room":
@@ -176,7 +245,7 @@ public static class RoomEffectText
                 if (waste <= 0.5f) return "";
                 // 실제로 나가는 개수까지 함께 적는다 — 기본 소모가 작으면 +25% 가
                 // 반올림되어 개수는 그대로일 수 있고, 그때는 그대로인 것이 사실이다.
-                return $"저장고 비어 있음 — 자재 소모 +{waste:0}% " +
+                return $"저장고 비어 있음 - 자재 소모 +{waste:0}% " +
                        $"(코어 1%당 {RoomStaffing.CoreMaterialCostPerPercent()}개)";
             }
 
@@ -190,10 +259,10 @@ public static class RoomEffectText
                 // 환기 고장 → 그 다음 스트레스 순으로 온다. 예전에는 비어 있기만 해도
                 // "전원 스트레스 +1 / 15초" 라고 적고 있었는데, 시뮬레이션은 그 일을 하지 않는다.
                 if (!down)
-                    return $"환기실 비어 있음 — 방치하면 환기 고장 " +
+                    return $"환기실 비어 있음 - 방치하면 환기 고장 " +
                            $"(그때부터 전원 스트레스 +{cfg.VentFaultStressAmount:0.#} / " +
                            $"{cfg.VentFaultStressIntervalSeconds:0}초)";
-                string line = $"환기실 고장 — 전원 스트레스 " +
+                string line = $"환기실 고장 - 전원 스트레스 " +
                               $"+{cfg.VentFaultStressAmount:0.#} / {cfg.VentFaultStressIntervalSeconds:0}초";
                 // 기절선에 가까워진 사람이 있으면 이름을 붙인다 — 숫자보다 이름이 먼저 읽힌다.
                 var worst = sim.GetActiveEmployeeIds()
@@ -202,12 +271,12 @@ public static class RoomEffectText
                     .OrderByDescending(x => x.Stress).FirstOrDefault();
                 if (worst != null)
                     line += $"\n{sim.GetEmployeeDef(worst.EmployeeId)?.Codename ?? worst.EmployeeId} " +
-                            $"스트레스 {worst.Stress:0} — 기절 임박";
+                            $"스트레스 {worst.Stress:0} - 기절 임박";
                 return line;
             }
 
             case "guard_room":
-                return here == 0 ? "경비실 비어 있음 — 재석 기록 없음 (휴게시간 조사 자료 감소)" : "";
+                return here == 0 ? "경비실 비어 있음 - 재석 기록 없음 (휴게시간 조사 자료 감소)" : "";
 
             case "medical_room":
             {
@@ -219,8 +288,8 @@ public static class RoomEffectText
                 // 화면에는 시뮬레이션이 정말 하는 일만 적는다.
                 var treat = sim.GetTaskDef("staff_treatment");
                 return treat == null
-                    ? "의무실 비어 있음 — 치료 정지"
-                    : $"의무실 비어 있음 — 치료 정지 (스트레스 -{treat.EffectAmount:0.#} / {treat.GaugeRequired:0}초 멈춤)";
+                    ? "의무실 비어 있음 - 치료 정지"
+                    : $"의무실 비어 있음 - 치료 정지 (스트레스 -{treat.EffectAmount:0.#} / {treat.GaugeRequired:0}초 멈춤)";
             }
         }
         return "";

@@ -11,7 +11,7 @@ namespace NSP.View;
 // 방 안에서 일이 벌어지고 당신이 그 안에 있다.**
 // 그래서 엔딩은 두 모니터를 한 번 완전히 꺼 버리고 시작한다. 게임 시작 이래 두 화면이
 // 동시에 꺼지는 것은 처음이고, 그 순간 플레이어는 5일 만에 처음으로 "방" 을 본다.
-// 신원 조회도 큰 화면이 아니라 손 앞의 작은 패드에서 한다.
+// 신원 조회는 그 어둠 속에서 모니터2 하나만 다시 켜서 한다.
 //
 // 엔딩은 네 갈래다 — 코어 100% 복구 × 최종 보고서의 지목.
 //
@@ -42,6 +42,7 @@ public partial class EndingDirector : Node
     private Color _m1C, _m2C, _fillC, _ceilC, _roomFillC;
 
     private CanvasLayer _layer;
+    private CanvasLayer _topLayer;
     private ColorRect _red;
     private ColorRect _white;
     private ColorRect _black;
@@ -76,8 +77,15 @@ public partial class EndingDirector : Node
         // 엔딩 동안 GUIDE-0 의 입은 이 연출기가 직접 돌린다(홀로그램 화면은 떠 있지 않다).
         GuideMouthAnimator.ExternallyDriven = true;
         _rng.Randomize();
-        _layer = new CanvasLayer { Layer = 130 };   // 통화창(114) · 경보(122) 위
+        // **화면 필터(AnalogFilter 119) 아래**에 둔다 — 타이틀 · 프롤로그와 같은 파란 아날로그 화면이
+        // 엔딩의 컷씬 · 암전 · 섬광 · 배너에도 그대로 씌워진다(2026-10-31 사용자 요청).
+        // 예전에는 130 이라 필터 위에 그려져, 엔딩만 필터가 하나도 안 먹은 맨 화면이었다.
+        // 프롤로그 무대(Prologue3DDirector)와 같은 118 — 통화창(114) 위, 필터 아래.
+        _layer = new CanvasLayer { Layer = 118 };
         AddChild(_layer);
+        // 마지막 근무 기록 화면만은 필터 위(130)에 둔다 — 읽고 눌러야 하는 화면이다.
+        _topLayer = new CanvasLayer { Layer = 130 };
+        AddChild(_topLayer);
 
         _red = FullRect(new Color(0.85f, 0.05f, 0.03f, 0f));
         _white = FullRect(new Color(1f, 1f, 1f, 0f));
@@ -117,6 +125,7 @@ public partial class EndingDirector : Node
         }
 
         TickSeal(delta);
+        TickBadRed(delta);
 
         if (!_flicker) return;
         // 경고음이 커지는 동안 조명이 불규칙하게 깜빡인다(BAD).
@@ -139,7 +148,6 @@ public partial class EndingDirector : Node
         GuideMouthAnimator.Reset();
         GuideMouthAnimator.ExternallyDriven = false;
         AdminPad3D.Instance?.SetEndingMode(false);
-        EndingPadConsole.Instance?.Close();
         foreach (var k in new[] { "machinery_loop", "drone_loop", "vent_loop", "alarm", "siren" })
             Sfx.Instance?.StopLoop(k);
     }
@@ -185,14 +193,14 @@ public partial class EndingDirector : Node
             default: await BadEnd(); break;
         }
 
+        // 네 엔딩 모두 — 연출 → 근무 기록 → [타이틀로] → 크레딧 → 시작 화면(2026-10-31 사용자 요청 순서).
         await ShowRecord(_kind);
     }
 
     // ── 공통 도입 (네 엔딩 전부, 약 15초) ─────────────────────────────────
     //
     // 두 모니터를 **차례로** 끈다. 게임 내내 이 방의 빛은 두 화면이었고, 그것이 꺼지는
-    // 순간 플레이어는 처음으로 천장등 아래의 방을 본다. 그다음 눈이 가는 곳은
-    // 큰 화면이 아니라 책상 위에서 혼자 켜지는 작은 패드 하나다.
+    // 순간 플레이어는 처음으로 천장등 아래의 방을 본다.
     private async Task CommonIntro()
     {
         Sfx.Instance?.Loop("machinery_loop", MachineryDb);
@@ -217,9 +225,16 @@ public partial class EndingDirector : Node
 
         // ② 천장등만 남기고 방이 어두워진다.
         //    평소 이 그룹은 꺼져 있다(방의 빛은 두 화면이었다) — 여기서 처음 켠다.
-        ShowRoomLights(0.62f);
-        var lt = CreateTween().SetParallel(true);
-        if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilE * 0.62f * 0.62f, 1.2);
+        //    BAD · LATE(코어 실패 둘)는 켜지 않는다 — 완전한 어둠 속에 사이렌이 얕게 깔리기 시작한다
+        //    (2026-10-31 사용자 지시).
+        if (_kind is EndingState.Kind.Bad or EndingState.Kind.Late)
+            StartBadSiren();
+        else
+        {
+            ShowRoomLights(0.62f);
+            var lt = CreateTween().SetParallel(true);
+            if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilE * 0.62f * 0.62f, 1.2);
+        }
         SetLights(0f, 0f);
 
         // ③ 앰비언트 한 단계 하강.
@@ -227,50 +242,46 @@ public partial class EndingDirector : Node
         Sfx.Instance?.SetLoopVolume("drone_loop", DroneDb - 8f);
         await Wait(1.3);
 
-        // ④ 정적.
+        // ④ 정적. 여기서 패드로 내려가지 않는다 — 예전에는 패드를 확대했다가 TRUE 가
+        // 곧바로 모니터1 로 되돌아와, 아무것도 하지 않는 확대 · 복귀가 한 번 끼었다.
         await Wait(1.0);
-
-        // ⑤ 책상 위 패드의 배지 표시등이 켜진다.
-        var pad = AdminPad3D.Instance;
-        pad?.SetEndingMode(true);
-        pad?.SetBadgeLed(PadBlue, 2.6f);
-        Sfx.Instance?.Play("sensor_beep", -16f);
-        var console = EndingPadConsole.Instance;
-        if (console != null)
-        {
-            console.Open("");
-            console.CharTyped += OnCharTyped;
-        }
-        await Wait(0.5);
-
-        // ⑥ 카메라가 패드로 내려간다 — 신원 조회는 손 앞 작은 화면에서 한다.
-        if (pad?.BodyNode != null) _ctl?.FocusProp(pad.BodyNode, 1.4f);
-        await Wait(1.7);
     }
 
     // 문을 돌아볼 때 눈을 이만큼 옮긴다 — 두 CRT 가 눈앞을 가려서, 고개만 돌리면 문이
     // 모니터 뒤에 완전히 숨는다. 의자에 기대 화면 위로 올려다보는 자세다.
     protected static readonly Vector3 DoorEyeOffset = new(0f, 0.45f, 0.25f);
 
-    protected static readonly Color PadBlue = new(0.25f, 0.70f, 1f);
-    protected static readonly Color PadRed = new(1f, 0.22f, 0.16f);
-    protected static readonly Color PadGreen = new(0.3f, 1f, 0.55f);
+    // ── 신원 조회 — 모니터2 ──────────────────────────────────────────────
+    //
+    // 조회 결과는 모니터2 에 띄운다. 책상 위 패드는 작아서 "괴물이었는가" 한 줄이
+    // 잘 읽히지 않았다(2026-10-28 요청). 결과를 읽는 동안만 모니터2 로 다가간다.
+    private EndingMonitorView Query => EndingMonitorView.Right;
 
-    // ── 패드 신원 조회 ───────────────────────────────────────────────────
-
-    private EndingPadConsole Pad => EndingPadConsole.Instance;
-
-    private void PadOpen(string header) => Pad?.Open(header);
-
-    private void PadPush(string text, EndingMonitorView.Tone tone = EndingMonitorView.Tone.Normal,
-        int size = 30, double charTime = 0) => Pad?.Push(text, tone, size, charTime);
-
-    private async Task PadWait(double after = 0)
+    // 모니터1 은 끈 채로 두고 모니터2 만 켠다.
+    private async Task QueryOpen(string header)
     {
-        int guard = 0;
-        while (Pad is { Typing: true } && guard++ < 3000) await NextFrame();
-        if (after > 0) await Wait(after);
+        var q = Query;
+        HookTyping(q);
+        q?.Clear(header, "IDENTITY CHECK");
+        _ctl?.SetRightScreen(_ctl.EndingRightViewport);
+        // 전역 밝기가 0 이면 뷰포트가 그리기를 멈춘다(UpdateActiveViewports) —
+        // 전역을 1 로 올리고 두 화면은 각자 따로 끈다. 같은 프레임이라 번쩍이지 않는다.
+        _ctl?.SetScreenBrightness(1f);
+        _ctl?.SetScreenBrightnessFor("01", 0f);
+        _ctl?.SetScreenBrightnessFor("02", 0f);
+        await Wait(0.25);
+        _ctl?.SetScreenBrightnessFor("02", 1f);
+        _ctl?.SetScreenNoise(0.05f);
+        Sfx.Instance?.Play("crt_on", -8f);
+        SetLights(0.45f, 0.2f);
+        _ctl?.FocusMonitor(2, 1.2f);
+        await Wait(1.0);
     }
+
+    private void QueryPush(string text, EndingMonitorView.Tone tone = EndingMonitorView.Tone.Normal,
+        int size = 30, double charTime = 0) => Query?.Push(text, tone, size, charTime: charTime);
+
+    private Task QueryWait(double after = 0) => AwaitTyping(Query, after);
 
     // ── 복구 완료 (TRUE ⑤ · LOOSE ②) ───────────────────────────────────
     //
@@ -372,17 +383,37 @@ public partial class EndingDirector : Node
     {
         var tcs = new TaskCompletionSource();
         var rec = new EndingRecordOverlay { Kind = kind };
-        rec.TitleRequested += () =>
-        {
-            EndingState.PendingWake = kind;
-            ControlRoom3DHorror.ExternalLightingOverride = false;
-            _ctl?.SetScreenTint(Colors.White);
-            _ctl?.SetFocusLocked(false);
-            GetTree().ChangeSceneToFile("res://scenes/main/MainScene3D_Test.tscn");
-            tcs.TrySetResult();
-        };
-        _layer.AddChild(rec);
+        rec.TitleRequested += () => _ = LeaveToTitle(rec, kind, tcs);
+        _topLayer.AddChild(rec);
         return tcs.Task;
+    }
+
+    // [타이틀로] — 근무 기록을 걷고 크레딧을 올린 뒤 시작 화면으로 돌아간다.
+    private bool _leaving;
+
+    private async Task LeaveToTitle(EndingRecordOverlay rec, EndingState.Kind kind, TaskCompletionSource tcs)
+    {
+        if (_leaving) return;   // 버튼을 두 번 눌러도 크레딧은 한 번
+        _leaving = true;
+        if (IsInstanceValid(rec))
+        {
+            rec.MouseFilter = Control.MouseFilterEnum.Ignore;
+            var fade = rec.CreateTween();
+            fade.TweenProperty(rec, "modulate:a", 0f, 0.6).SetTrans(Tween.TransitionType.Sine);
+            await ToSignal(fade, Tween.SignalName.Finished);
+            rec.QueueFree();
+        }
+        // 크레딧은 화면 필터 아래(타이틀 · 엔딩과 같은 파란 화면)에서 올라간다.
+        var credits = new CreditsRoll();
+        _layer.AddChild(credits);
+        await credits.PlayAsync();
+
+        EndingState.PendingWake = kind;
+        ControlRoom3DHorror.ExternalLightingOverride = false;
+        _ctl?.SetScreenTint(Colors.White);
+        _ctl?.SetFocusLocked(false);
+        GetTree().ChangeSceneToFile("res://scenes/main/MainScene3D_Test.tscn");
+        tcs.TrySetResult();
     }
 
     // ── GUIDE-0 얼굴창 ───────────────────────────────────────────────────
@@ -432,8 +463,14 @@ public partial class EndingDirector : Node
     private async Task GuideSpeak(EndingMonitorView view, params string[] lines) =>
         await GuideSpeakAt(view, 1f, lines);
 
+    // 자리 규칙: **얼굴창은 모니터1(왼쪽), 대사는 모니터2(오른쪽).**
+    // 얼굴창은 CRT 한가운데에 크게 뜨기 때문에 같은 화면에 대사를 찍으면 글자가
+    // 통째로 얼굴 뒤로 들어간다(배드 · 레이트에서 실제로 그랬다). 그래서 말하는 순간
+    // 얼굴을 **말하는 화면의 반대쪽**으로 보내 둔다 — 어느 엔딩이 어느 화면에 말하든
+    // 둘이 겹치지 않는다.
     private async Task GuideSpeakAt(EndingMonitorView view, float slow, params string[] lines)
     {
+        if (view != null) PlaceGuide(onRight: view == EndingMonitorView.Left);
         _guideTalking = true;
         GuideMouthAnimator.StartTalking();
         view?.SetBlockCenter(true);
@@ -459,7 +496,7 @@ public partial class EndingDirector : Node
         if (_guideTalking)
         {
             GuideMouthAnimator.NoticeCharacter(c);
-            Sfx.Instance?.PlayVoiceBlip("guide0", c);
+            Sfx.Instance?.PlayVoiceBlip("guide0", c, Sfx.VoiceChannel.Radio);
             return;
         }
         if (char.IsWhiteSpace(c)) return;

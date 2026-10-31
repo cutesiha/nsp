@@ -203,7 +203,7 @@ public static class InterviewEvidenceDisplay
         switch (card.Kind)
         {
             case EvidenceCardKind.CctvRange:
-                return $"{who} · {InterviewEvidenceBoard.RoomName(f.SubjectRoomId)}에서 지속 확인";
+                return $"{who}: {InterviewEvidenceBoard.RoomName(f.SubjectRoomId)}에서 지속 확인";
             case EvidenceCardKind.MovePath:
                 var rooms = new List<string> { InterviewEvidenceBoard.RoomName(f.FromRoomId) };
                 rooms.AddRange(card.Items.Select(e => InterviewEvidenceBoard.RoomName(e.ToRoomId)));
@@ -221,7 +221,7 @@ public static class InterviewEvidenceDisplay
     {
         if (ev == null) return "";
         string line = BodyLine(ev);
-        return ev.Day > 0 && ev.Day != DialogueContextBuilder.Day() ? $"DAY{ev.Day} · {line}" : line;
+        return ev.Day > 0 && ev.Day != DialogueContextBuilder.Day() ? $"DAY{ev.Day} / {line}" : line;
     }
 
     private static string BodyLine(InterviewEvidence ev)
@@ -231,24 +231,27 @@ public static class InterviewEvidenceDisplay
         return ev.Kind switch
         {
             EvidenceKind.Incident => ev.Body,
-            EvidenceKind.Cctv => $"{who} · {room}"
+            EvidenceKind.Cctv => $"{who}: {room}"
                                  + (ev.RelatedEmployeeIds.Count > 0
                                      ? $"   (함께: {string.Join(", ", ev.RelatedEmployeeIds.Select(InterviewEvidenceBoard.Codename))})"
                                      : ""),
-            EvidenceKind.Movement => $"{who} · {InterviewEvidenceBoard.RoomName(ev.FromRoomId)} → "
+            EvidenceKind.Movement => $"{who}: {InterviewEvidenceBoard.RoomName(ev.FromRoomId)} → "
                                      + InterviewEvidenceBoard.RoomName(ev.ToRoomId)
                                      + (ev.PlayerOrdered ? "  (지시)" : ""),
-            EvidenceKind.Testimony => $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who} · {room}에서 봤다",
+            // 이름을 대며 한 말은 들은 그대로 — "봤다" 로 고쳐 적으면 하지 않은 말이 된다.
+            EvidenceKind.Testimony when ev.NamedMention =>
+                $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who}: \"{ev.QuotedLine}\"",
+            EvidenceKind.Testimony => $"{InterviewEvidenceBoard.Codename(ev.SpeakerEmployeeId)} → {who}: {room}에서 봤다",
             // 진술 카드는 세 종류다. 전에는 전부 "그 방에 있었다" 한 문구로 찍혀서,
             // 행동 주장("설비에 손대지 않았다")까지 위치 진술처럼 보였다.
             EvidenceKind.OwnStatement => ev.SpokenLine
-                ? $"{who} · \"{ev.Body}\""                                   // 원문 발언 그대로
+                ? $"{who}: \"{ev.Body}\""                                   // 원문 발언 그대로
                 : !string.IsNullOrEmpty(ev.BehaviorDetail)
-                    ? $"{who} · \"{ev.BehaviorDetail}\""                     // 행동 주장
-                    : $"{who} · {(ev.Superseded ? "처음엔 " : "")}\"{room}에 있었다\"",
+                    ? $"{who}: \"{ev.BehaviorDetail}\""                     // 행동 주장
+                    : $"{who}: {(ev.Superseded ? "처음엔 " : "")}\"{room}에 있었다\"",
             // 누가 누구와 · 무슨 말을 — 방 이름은 시각 옆 태그로 충분하다.
             EvidenceKind.Overheard => ev.Body,
-            _ => $"{who} · {ev.Body}",
+            _ => $"{who}: {ev.Body}",
         };
     }
 

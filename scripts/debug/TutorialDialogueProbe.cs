@@ -44,7 +44,7 @@ public partial class TutorialDialogueProbe : Node
         InterviewReplyPlanner.Reset();
         DialoguePatternMemory.ResetAll();
 
-        GD.Print($"\n===== {label} — GameState.CurrentDay={gs.CurrentDay} / DialogueContextBuilder.Day()={DialogueContextBuilder.Day()} =====");
+        GD.Print($"\n===== {label} - GameState.CurrentDay={gs.CurrentDay} / DialogueContextBuilder.Day()={DialogueContextBuilder.Day()} =====");
 
         // 교육과 같은 모양: 토끼는 경비실 배치(AssignRoomId) → 발전실 사고(AccidentRoomId)
         // → 관리자가 토끼를 발전실로 재배치해 수리. 경비실은 발전실의 옆방이다.
@@ -113,7 +113,7 @@ public partial class TutorialDialogueProbe : Node
             EventType = type,
             ActorEmployeeId = actor,
             RoomId = room,
-            Description = (repair ? "🔧 " : "") + $"(진단 {type} {room} {at:0.0})" + (done ? " / 설비 수리 완료" : ""),
+            Description = (repair ? "▣ " : "") + $"(진단 {type} {room} {at:0.0})" + (done ? " / 설비 수리 완료" : ""),
         });
     }
 }

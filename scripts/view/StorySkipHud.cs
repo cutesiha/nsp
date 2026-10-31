@@ -19,6 +19,10 @@ public partial class StorySkipHud : CanvasLayer
 
     private Button _button;
 
+    // 화면 가장자리에서 띄우는 간격. ShiftHud 가 이 버튼 아래로 아이콘을 내릴 때도 쓴다.
+    public const float EdgeMargin = 12f;
+    public const float CornerHeight = EdgeMargin + 52f;
+
     public override void _EnterTree() => Instance = this;
 
     public override void _ExitTree()
@@ -39,10 +43,11 @@ public partial class StorySkipHud : CanvasLayer
         _button.CustomMinimumSize = new Vector2(132, 52);
         _button.FocusMode = Control.FocusModeEnum.None;
         _button.MouseFilter = Control.MouseFilterEnum.Stop;
-        // 오른쪽 위. 설정 톱니 · Tab 아이콘 아래로 내려 겹치지 않게 둔다.
+        // 화면 오른쪽 위 모서리에 붙인다(2026-10-27 — 톱니 · Tab 아래에 떠 있던 자리가 애매했다).
+        // 이 버튼이 떠 있는 동안에는 ShiftHud 가 톱니 · 패드 아이콘을 이 아래로 내린다.
         _button.AnchorLeft = 1f; _button.AnchorRight = 1f;
-        _button.OffsetLeft = -152f; _button.OffsetRight = -20f;
-        _button.OffsetTop = 156f; _button.OffsetBottom = 208f;
+        _button.OffsetLeft = -(EdgeMargin + 132f); _button.OffsetRight = -EdgeMargin;
+        _button.OffsetTop = EdgeMargin; _button.OffsetBottom = EdgeMargin + 52f;
         _button.Visible = false;
         AddChild(_button);
     }

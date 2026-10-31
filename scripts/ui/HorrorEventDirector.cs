@@ -282,7 +282,9 @@ public partial class HorrorEventDirector : Node
         Kind.CctvScare => MonsterThreatSystem.Monsters.Count > 0,
         // 통화가 없으면 왜곡할 목소리도 없다 — 통화 중에만 걸리므로 자동 발동에서는 뺀다.
         Kind.CallWarp => false,
-        Kind.CallGhost or Kind.CallSilent => Phone3D.Instance?.IsBusy == false,
+        // 발신자 미상 전화(귀신 · 무응답)는 자동으로 울리지 않는다 — 2026-10-31 사용자 요청으로 뺐다.
+        // 받아도 정보가 없는 전화라 근무 흐름만 끊는다. 연출 코드는 남겨 두어 ForceFire 로는 울릴 수 있다.
+        Kind.CallGhost or Kind.CallSilent => false,
         _ => true,
     };
 

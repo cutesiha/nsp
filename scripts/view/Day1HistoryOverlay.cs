@@ -38,6 +38,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 오늘의 업무 창에서 "근무 종료" 를 눌렀을 때. ShiftFlowController 가 받는다.
     public event System.Action EndShiftRequested;
 
+    // 교육 화살표가 가리킬 자리 — 오른쪽 아래 「T 업무」 버튼과, 업무 창 안의 「근무 종료」.
+    public Control ObjectivesButton => _objButton;
+    public Control ObjectivesEndButton => _objEndBtn;
+
     private WindowMode _mode;
     private Control _root;
     private Control _icons;
@@ -176,6 +180,21 @@ public partial class Day1HistoryOverlay : CanvasLayer
         return false;
     }
 
+    // 오른쪽 아래 버튼들이 실제로 차지하는 자리(보이는 버튼만 합친 것). 없으면 빈 사각형.
+    // 접은 심문 대화창이 이 자리와 겹치지 않게 비켜 설 때 쓴다(PhoneCallHud.SetCollapsed).
+    public Rect2 IconsGlobalRect()
+    {
+        var box = new Rect2();
+        if (_icons == null || !_icons.Visible) return box;
+        foreach (var child in _icons.GetChildren())
+        {
+            if (child is not Control { Visible: true } c) continue;
+            var r = c.GetGlobalRect();
+            box = box.Size == Vector2.Zero ? r : box.Merge(r);
+        }
+        return box;
+    }
+
     private void ToggleLog()
     {
         if (_mode == WindowMode.Log) CloseWindow();
@@ -260,7 +279,10 @@ public partial class Day1HistoryOverlay : CanvasLayer
             Name = "HistoryIcons",
             AnchorLeft = 1f, AnchorRight = 1f, AnchorTop = 1f, AnchorBottom = 1f,
             OffsetLeft = -598f, OffsetRight = -20f, OffsetTop = -80f, OffsetBottom = -20f,
-            MouseFilter = Control.MouseFilterEnum.Pass,
+            // 줄 자체는 클릭을 받지 않는다 — 버튼 세 개만 받는다. Pass 로 두면 버튼이 없는
+            // 빈 자리(578px 폭)까지 투명한 벽이 되어, 접어 둔 심문 대화창의 「▲ 펼치기」 가
+            // 그 밑에 깔려 눌리지 않았다(창을 옮겨야만 눌렸다).
+            MouseFilter = Control.MouseFilterEnum.Ignore,
             // 오른쪽에 붙인다 — 휴게시간에 '업무' 버튼이 빠져도 로그/대화 기록이 화면 오른쪽 끝에 남는다.
             Alignment = BoxContainer.AlignmentMode.End,
         };
@@ -374,7 +396,8 @@ public partial class Day1HistoryOverlay : CanvasLayer
     // 띠 높이. 창의 본문(제목 아래 ~ 바닥, 566px)의 40% — 나머지 60% 가 텍스트 목록이다.
     // 텍스트가 열 줄 넘게 늘어서면 "누가 언제 어디" 가 안 읽힌다는 게 이 띠를 만든 이유지만,
     // 반반(280)으로 나누니 정작 목록이 너무 짧아졌다는 지적이 있었다.
-    private const float LogBandH = 226f;
+    // 2026-10-27 — 사고 선마다 라벨 줄이 생기고 "띠를 더 크게" 요청이 있어 226 → 262 로 올렸다.
+    private const float LogBandH = 262f;
 
     // 오늘 근무에 나온 직원만 띠에 올린다(배치표 · 휴게 명단과 같은 명단).
     private void RefreshLogBand()
@@ -568,7 +591,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
         bool live = gs?.CurrentPhase == GamePhase.Live;
 
         // 버튼은 근무 중 + 오늘 업무가 등록된 날에만. 닫혀 있어도 진행도(1/2)는 읽힌다.
-        // (가상 시뮬레이션 교육일에는 업무 데이터가 없으므로 버튼도 뜨지 않는다.)
+        // (가상 시뮬레이션도 업무 데이터 data/objectives/day0.tres 가 있어 같은 버튼이 뜬다.)
         bool show = live && DayObjectives.Today != null;
         if (_objButton != null && _objButton.Visible != show) _objButton.Visible = show;
 
@@ -623,10 +646,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
             RebuildObjectiveRows(lines);
         }
 
-        bool can = DayObjectives.CanEndShift;
+        // 교육은 GUIDE-0 가 근무 종료를 지시한 뒤에만 끝낼 수 있다(그 전에 끝내면 교육이 끊긴다).
+        bool tutorialHold = NSP.Prologue.TutorialDirector.BlocksEndShift;
+        bool can = DayObjectives.CanEndShift && !tutorialHold;
         if (_objEndBtn.Disabled == can) _objEndBtn.Disabled = !can;
-        _objHint.Text = can
-            ? "필수 업무 완료 — 더 일하거나, 지금 근무를 마칠 수 있습니다."
+        _objHint.Text = tutorialHold ? "교육 안내에 따라 근무를 종료하십시오."
+            : can ? "필수 업무 완료 - 더 일하거나, 지금 근무를 마칠 수 있습니다."
             : "필수 업무를 완료해야 근무를 종료할 수 있습니다.";
     }
 
@@ -904,7 +929,7 @@ public partial class Day1HistoryOverlay : CanvasLayer
             Text = "☆",
             Position = Vector2.Zero,
             Size = new Vector2(LogStarWidth, 29),
-            TooltipText = "단서로 기록 — 관리자 패드에 보관",
+            TooltipText = "단서로 기록 - 관리자 패드에 보관",
             MouseFilter = Control.MouseFilterEnum.Stop,
             MouseDefaultCursorShape = Control.CursorShape.PointingHand,
             FocusMode = Control.FocusModeEnum.None,
@@ -991,12 +1016,12 @@ public partial class Day1HistoryOverlay : CanvasLayer
     private static string Marker(DisplayLogSeverity severity) => severity switch
     {
         DisplayLogSeverity.Move => "→",
-        DisplayLogSeverity.Warning => "⚠",
-        DisplayLogSeverity.Critical => "⚠",
+        DisplayLogSeverity.Warning => "▲",
+        DisplayLogSeverity.Critical => "▲",
         DisplayLogSeverity.Sabotage => "■",
         DisplayLogSeverity.Recovery => "✓",
         DisplayLogSeverity.RoomEffect => "◆",
-        _ => "·",
+        _ => "-",
     };
 
     // 작업실/업무 이름에 대괄호가 들어가도 BBCode 태그로 해석되지 않게 한다.

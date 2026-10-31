@@ -26,7 +26,7 @@ public partial class PrologueAudioTest : Node
 
     private async void Run()
     {
-        GD.Print("\n\n################ 프롤로그 재난 소리 · 연출 검증 ################");
+        GD.Print("\n\n################ 프롤로그 재난 소리, 연출 검증 ################");
         TestAssets();
         TestWarpBus();
         await TestWarpPlayback();
@@ -51,13 +51,13 @@ public partial class PrologueAudioTest : Node
         var siren = ResourceLoader.Exists("res://assets/audio/sfx/siren.wav")
             ? GD.Load<AudioStream>("res://assets/audio/sfx/siren.wav") : null;
         double len = siren?.GetLength() ?? 0;
-        Check(len > 4.9 && len < 5.1, $"사이렌 한 주기가 5초다(상승 2.5 + 유지 1.5 + 하강 1.0) — {len:0.00}s");
+        Check(len > 4.9 && len < 5.1, $"사이렌 한 주기가 5초다(상승 2.5 + 유지 1.5 + 하강 1.0) - {len:0.00}s");
 
         // 차폐문 쿠웅은 금속 '쨍' 이 아니라 둔탁한 저음이어야 한다 — 길이로 거칠게 본다.
         var slam = ResourceLoader.Exists("res://assets/audio/sfx/bulkhead_slam.wav")
             ? GD.Load<AudioStream>("res://assets/audio/sfx/bulkhead_slam.wav") : null;
         double sl = slam?.GetLength() ?? 0;
-        Check(sl > 2.0, $"쿠웅이 2초 이상 울린다(금속 타격음은 1.4초) — {sl:0.00}s");
+        Check(sl > 2.0, $"쿠웅이 2초 이상 울린다(금속 타격음은 1.4초) - {sl:0.00}s");
     }
 
     // ── B. Warp 버스 ───────────────────────────────────────────────────
@@ -70,10 +70,10 @@ public partial class PrologueAudioTest : Node
         if (idx < 0) return;
         Check(AudioServer.GetBusSend(idx) == GameSettings.BusSfx, "효과음 볼륨 설정을 따른다(SFX 로 보낸다)");
         int n = AudioServer.GetBusEffectCount(idx);
-        Check(n == 3, $"효과가 셋이다(저역통과 · 페이저 · 잔향) — {n}개");
-        Check(AudioServer.GetBusEffect(idx, 0) is AudioEffectLowPassFilter, "① 저역통과 — 멀고 둔탁하게");
-        Check(AudioServer.GetBusEffect(idx, 1) is AudioEffectPhaser, "② 페이저 — 느린 울렁임");
-        Check(AudioServer.GetBusEffect(idx, 2) is AudioEffectReverb, "③ 잔향 — 거대한 지하 공간");
+        Check(n == 3, $"효과가 셋이다(저역통과, 페이저, 잔향) - {n}개");
+        Check(AudioServer.GetBusEffect(idx, 0) is AudioEffectLowPassFilter, "① 저역통과 - 멀고 둔탁하게");
+        Check(AudioServer.GetBusEffect(idx, 1) is AudioEffectPhaser, "② 페이저 - 느린 울렁임");
+        Check(AudioServer.GetBusEffect(idx, 2) is AudioEffectReverb, "③ 잔향 - 거대한 지하 공간");
         // 두 번 불러도 효과가 쌓이지 않는다.
         GameSettings.EnsureWarpBus();
         Check(AudioServer.GetBusEffectCount(idx) == 3, "두 번 불러도 효과가 늘지 않는다");
@@ -117,7 +117,7 @@ public partial class PrologueAudioTest : Node
         sfx.StopAllWarped();
         await Frames(2);
         Check(!sfx.WarpedPlaying("storm") && !sfx.WarpedPlaying("glass_low"),
-            "StopAllWarped 가 **전부** 멈춘다 — 프롤로그 소리가 게임까지 따라오지 않는다");
+            "StopAllWarped 가 **전부** 멈춘다 - 프롤로그 소리가 게임까지 따라오지 않는다");
     }
 
     // ── D. 지연 예약이 취소된다 ─────────────────────────────────────────
@@ -182,11 +182,11 @@ public partial class PrologueAudioTest : Node
 
         // 지상은 두 컷이다(세 컷이면 늘어진다).
         int surface = cut.Slides.Count(s => s.Scene3D.StartsWith("surface"));
-        Check(surface == 2, $"지상 컷이 둘이다 — {surface}개");
+        Check(surface == 2, $"지상 컷이 둘이다 - {surface}개");
 
         // 비상 차폐 창이 뜨는 컷에서 쿠웅이 울린다.
         var seal = cut.Slides.FirstOrDefault(s => s.WinTitle.Contains("비상 차폐"));
-        Check(seal != null && seal.Sfx == "bulkhead_slam", $"차폐 컷의 효과음이 쿠웅이다 — '{seal?.Sfx}'");
+        Check(seal != null && seal.Sfx == "bulkhead_slam", $"차폐 컷의 효과음이 쿠웅이다 - '{seal?.Sfx}'");
         Check(seal != null && seal.SfxLoopStop == "siren", "그 컷에서 사이렌이 멈춘다");
     }
 
@@ -208,7 +208,7 @@ public partial class PrologueAudioTest : Node
         actor.MoveTo(new Vector3(0f, 0f, -10f), 5f, CutsceneActor.Gait.Run);
         await Frames(4);
         float runX = torso.RotationDegrees.X;
-        Check(runX < -10f, $"전력질주 — 상체가 앞으로 깊게 숙여진다 ({runX:0.0}°)");
+        Check(runX < -10f, $"전력질주 - 상체가 앞으로 깊게 숙여진다 ({runX:0.0}°)");
         Check(runX > -55f, $"그래도 접히지는 않는다 ({runX:0.0}°)");
         if (neck != null)
             Check(neck.RotationDegrees.X > 0f,
@@ -256,10 +256,10 @@ public partial class PrologueAudioTest : Node
         Check(sfx.LoopVolumeDb("siren") <= -20f,
             $"이후 컷에서도 사이렌이 다시 커지지 않는다 ({sfx.LoopVolumeDb("siren"):0.0}dB)");
         Check(sfx.WarpedPlaying("shout_f") && sfx.WarpedPlaying("shout_m"),
-            "여성 · 남성 비명이 **같이** 들린다");
+            "여성, 남성 비명이 **같이** 들린다");
         Check(sfx.WarpedBus("shout_f") == GameSettings.BusSfx
             && sfx.WarpedBus("shout_m") == GameSettings.BusSfx,
-            "비명은 변형 없이 원음으로 나간다 — 사람 목소리로 알아들어야 한다");
+            "비명은 변형 없이 원음으로 나간다 - 사람 목소리로 알아들어야 한다");
 
         // ④ 마지막 장면 — 브리핑실 경보.
         dir.Begin("director_last");
@@ -270,7 +270,7 @@ public partial class PrologueAudioTest : Node
         // ⑤ 컷씬 종료.
         dir.End();
         await Seconds(0.8);
-        Check(!sfx.IsLooping("alarm"), "End() 가 경보를 끈다 — 프롤로그 뒤 무한 재생 사고");
+        Check(!sfx.IsLooping("alarm"), "End() 가 경보를 끈다 - 프롤로그 뒤 무한 재생 사고");
         Check(!sfx.WarpedPlaying("storm"), "End() 가 폭풍우도 끈다");
         foreach (string key in new[] { "siren", "machinery_loop", "electric_crackle_loop",
                                        "vent_loop", "drone_loop" })

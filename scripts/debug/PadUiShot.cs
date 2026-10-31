@@ -105,7 +105,7 @@ public partial class PadUiShot : Node
             copy.SubjectRoomId = "storage_room";
             ClueBoard.Pin(copy);
         }
-        GD.Print($"단서 {ClueBoard.Count}장 · 스냅샷 {ClueBoard.Entries.Count(e => e.Snapshot != null)}장");
+        GD.Print($"단서 {ClueBoard.Count}장, 스냅샷 {ClueBoard.Entries.Count(e => e.Snapshot != null)}장");
         await Seconds(2.4);
 
         // 사고를 냈으니 수리 승인 요청이 패드를 덮고 있다 — 화면을 찍기 전에 닫는다.

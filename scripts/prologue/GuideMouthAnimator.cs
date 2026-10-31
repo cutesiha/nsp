@@ -160,11 +160,11 @@ public static class GuideMouthAnimator
     // 방금 찍힌 글자. 문장부호면 잠깐 입을 다문다.
     public static void NoticeCharacter(char c)
     {
-        bool dot = c is '.' or '…' or '·';
+        bool dot = c is '.' or '…' or '-';
         if (dot)
         {
             // 점이 이어지면(…, ...) 쉬는 시간을 늘린다.
-            bool run = _lastChar is '.' or '…' or '·';
+            bool run = _lastChar is '.' or '…' or '-';
             _holdUntilMuted = System.Math.Max(_holdUntilMuted, run ? EllipsisHold : PunctuationHold);
         }
         else if (c is ',' or '?' or '!')

@@ -85,6 +85,7 @@ public partial class PadHintBubble : CanvasLayer
         if (string.IsNullOrEmpty(text)) return;
         _label.Text = text;
         Visible = true;
+        _sawPadOpen = AdminPad3D.Instance?.IsOpen == true;
         _slide = DropPx;
         _panel.Modulate = Colors.White with { A = 0f };
         Place();
@@ -113,9 +114,17 @@ public partial class PadHintBubble : CanvasLayer
         Visible = false;
     }
 
+    // 이 말풍선은 패드 위에 붙어 있다 — 패드를 내려놓으면 머무는 시간을 기다리지 않고 바로 걷는다
+    // (예전에는 패드를 곧장 닫으면 말풍선만 허공에 남아 있었다).
+    private bool _sawPadOpen;
+
     public override void _Process(double delta)
     {
-        if (Visible) Place();
+        if (!Visible) return;
+        bool padOpen = AdminPad3D.Instance?.IsOpen == true;
+        if (padOpen) _sawPadOpen = true;
+        else if (_sawPadOpen) { HideNow(); return; }
+        Place();
     }
 
     // 패드 화면의 위쪽 가운데 바로 위에 말풍선을 놓는다.

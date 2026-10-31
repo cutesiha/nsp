@@ -39,6 +39,13 @@
 [ext_resource type="Script" uid="uid://4f1a061qnnvj" path="res://scripts/view/PosterCamera.cs" id="37_poster"]
 [ext_resource type="Script" uid="uid://ktw63x4pfpwe" path="res://scripts/view/StoryCutinHud.cs" id="38_cutinhud"]
 [ext_resource type="Script" uid="uid://dn3kp66iuyygq" path="res://scripts/view/StoryCutinDirector.cs" id="39_cutindir"]
+[ext_resource type="Shader" uid="uid://d1gd3id45n1s1" path="res://shaders/analog_paint.gdshader" id="90_paint"]
+[ext_resource type="Script" uid="uid://rb3mey8rtu1a" path="res://scripts/view/AnalogPaint.cs" id="91_paint"]
+[ext_resource type="Texture2D" uid="uid://p1ms0v2ffgql" path="res://shaders/analog_paint_mul.png" id="92_paint"]
+[ext_resource type="Texture2D" uid="uid://dwtykuay1164d" path="res://shaders/analog_paint_add.png" id="93_paint"]
+[ext_resource type="Texture2D" uid="uid://v7emjwq661ww" path="res://shaders/analog_paint_depth.png" id="94_paint"]
+[ext_resource type="Texture2D" uid="uid://bjb1x4dyjottw" path="res://shaders/analog_ink_m01.png" id="95_ink"]
+[ext_resource type="Texture2D" uid="uid://b1pl38waaf7y3" path="res://shaders/analog_ink_m02.png" id="96_ink"]
 
 [sub_resource type="Environment" id="Env"]
 background_mode = 1
@@ -47,10 +54,14 @@ ambient_light_source = 2
 ambient_light_color = Color(0.34, 0.36, 0.44, 1)
 ambient_light_energy = 0.07
 tonemap_mode = 2
+ssao_enabled = true
+ssao_radius = 0.35
+ssao_intensity = 4.0
+ssao_power = 2.0
+ssao_light_affect = 0.6
 glow_enabled = true
 glow_intensity = 0.75
 glow_strength = 1.05
-glow_bloom = 0.07
 glow_hdr_threshold = 0.78
 glow_hdr_scale = 2.4
 fog_enabled = true
@@ -221,6 +232,12 @@ cull_mode = 1
 shading_mode = 0
 albedo_color = Color(0.05, 0.13, 0.17, 1)
 
+[sub_resource type="StandardMaterial3D" id="Mat_InkM01"]
+transparency = 1
+shading_mode = 0
+disable_fog = true
+albedo_texture = ExtResource("95_ink")
+
 [sub_resource type="QuadMesh" id="Quad"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_MonitorStand"]
@@ -230,6 +247,12 @@ roughness = 0.3
 emission_enabled = true
 emission = Color(0.52, 0.53, 0.55, 1)
 emission_energy_multiplier = 0.01
+
+[sub_resource type="StandardMaterial3D" id="Mat_InkM02"]
+transparency = 1
+shading_mode = 0
+disable_fog = true
+albedo_texture = ExtResource("96_ink")
 
 [sub_resource type="TorusMesh" id="DialRing"]
 inner_radius = 0.018
@@ -276,7 +299,7 @@ size = Vector3(0.258, 0.022, 0.01)
 [sub_resource type="BoxMesh" id="PadMesh_CradleBack"]
 size = Vector3(0.2064, 0.008, 0.1302)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mrpvo"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_rs0f7"]
 albedo_color = Color(0.05, 0.08, 0.08, 1)
 emission_enabled = true
 emission = Color(0.3, 0.95, 1, 1)
@@ -309,7 +332,7 @@ emission_energy_multiplier = 0.6
 
 [sub_resource type="QuadMesh" id="PadMesh_Screen"]
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hopqi"]
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ciy36"]
 albedo_color = Color(0.2, 0.15, 0.05, 1)
 emission_enabled = true
 emission = Color(1, 0.72, 0.25, 1)
@@ -336,6 +359,22 @@ emission_energy_multiplier = 1.5
 albedo_color = Color(0.2, 0.02, 0.02, 1)
 emission_enabled = true
 emission = Color(0.9, 0.05, 0.05, 1)
+
+[sub_resource type="ShaderMaterial" id="Mat_AnalogPaint"]
+render_priority = -100
+shader = ExtResource("90_paint")
+shader_parameter/paint_mul = ExtResource("92_paint")
+shader_parameter/paint_add = ExtResource("93_paint")
+shader_parameter/paint_depth = ExtResource("94_paint")
+shader_parameter/ref_world_to_view = Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+shader_parameter/ref_tan_half_fov = 0.6249
+shader_parameter/ref_aspect = 1.9318
+shader_parameter/amount = 1.0
+shader_parameter/light_scale = 1.0
+shader_parameter/depth_tolerance = 0.025
+
+[sub_resource type="QuadMesh" id="Quad_AnalogPaint"]
+size = Vector2(2, 2)
 
 [node name="MainScene3D_Test" type="Node3D" unique_id=68669416]
 script = ExtResource("2_ctl")
@@ -1044,6 +1083,13 @@ cast_shadow = 0
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_BezelOutline")
 
+[node name="M01_Ink" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=1406551338 groups=["analog_ink"]]
+transform = Transform3D(1.0752, 0, 0, 0, 0.8712, 0, 0, 0, 1, 0, 1.117212, 0.046)
+material_override = SubResource("Mat_InkM01")
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("Quad")
+
 [node name="M01_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor01" unique_id=749959280]
 transform = Transform3D(0.7399999, 0, 0, 0, 0.5549999, 0, 2.9802322e-08, 0, 1, -0.00064593554, 1.1436114, 0.04258901)
 mesh = SubResource("Quad")
@@ -1064,7 +1110,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
 visible = false
 pixel_size = 0.0007
 modulate = Color(0.7, 0.7, 0.72, 1)
-text = "MONITOR 01  —  FACILITY"
+text = "MONITOR 01 - FACILITY"
 font_size = 26
 outline_size = 0
 
@@ -1096,10 +1142,18 @@ cast_shadow = 0
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_BezelOutline")
 
+[node name="M02_Ink" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1406551339 groups=["analog_ink"]]
+transform = Transform3D(1.0752, 0, 0, 0, 0.8712, 0, 0, 0, 1, 0, 1.117212, 0.046)
+material_override = SubResource("Mat_InkM02")
+cast_shadow = 0
+gi_mode = 0
+mesh = SubResource("Quad")
+
 [node name="M02_Screen" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=2035591087]
 transform = Transform3D(0.73999995, 0, 0, 0, 0.55499995, 0, -1.4901161e-08, 0, 1, 2.9802322e-08, 1.1436116, 0.04000002)
 mesh = SubResource("Quad")
 script = ExtResource("3_screen")
+BlackCrush = 0.025
 
 [node name="M02_Neck" type="MeshInstance3D" parent="ControlRoom/Monitor02" unique_id=1492429967]
 transform = Transform3D(0.08, 0, 0, 0, 0.28, 0, 0, 0, 0.08, 0, 0.93, -0.02)
@@ -1116,7 +1170,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0.035)
 visible = false
 pixel_size = 0.0007
 modulate = Color(0.7, 0.7, 0.72, 1)
-text = "MONITOR 02  —  CCTV"
+text = "MONITOR 02 - CCTV"
 font_size = 26
 outline_size = 0
 
@@ -1244,7 +1298,7 @@ mesh = SubResource("PadMesh_CradleBack")
 
 [node name="Led" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadCradle" unique_id=1296692488]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.09804, 0.0135, 0.061)
-material_override = SubResource("StandardMaterial3D_mrpvo")
+material_override = SubResource("StandardMaterial3D_rs0f7")
 mesh = SubResource("PadMesh_Led")
 
 [node name="PadBody" type="Node3D" parent="ControlRoom/AdminPad" unique_id=1590197408]
@@ -1267,7 +1321,7 @@ mesh = SubResource("PadMesh_Screen")
 
 [node name="BadgeLed" type="MeshInstance3D" parent="ControlRoom/AdminPad/PadBody" unique_id=868969769]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.126, 0.0066, -0.098)
-material_override = SubResource("StandardMaterial3D_hopqi")
+material_override = SubResource("StandardMaterial3D_ciy36")
 mesh = SubResource("PadMesh_BadgeLed")
 
 [node name="GripPoint" type="Marker3D" parent="ControlRoom/AdminPad/PadBody" unique_id=692864851]
@@ -1286,7 +1340,7 @@ script = ExtResource("15_powerpanel")
 transform = Transform3D(0.24000011, 0, -1.4901161e-08, 0, 0.24000007, 0, 1.4901161e-08, 0, 0.24000011, 0.02287203, 0, 0.06186104)
 
 [node name="CapacityLabel" type="Label3D" parent="ControlRoom/PowerSwitchPanel" unique_id=352968916]
-transform = Transform3D(1, 0, 0, 0, 0.9702957, 0.2419219, 0, -0.2419219, 0.9702957, 0.022872, 0.22348, 0.101381)
+transform = Transform3D(1, 0, 0, 0, 0.9335804, 0.3583679, 0, -0.3583679, 0.9335804, 0.022872, 0.1788, 0.07986)
 pixel_size = 0.00042
 modulate = Color(0.55, 0.85, 0.65, 1)
 text = "POWER 3 / 3"
@@ -1366,6 +1420,15 @@ omni_range = 5.5
 transform = Transform3D(0.14, 0, 0, 0, 0.09, 0, 0, 0, 0.08, 1.9, 1.95, -2.55)
 mesh = SubResource("Box")
 surface_material_override/0 = SubResource("Mat_EmergencyRed")
+
+[node name="AnalogPaint" type="MeshInstance3D" parent="ControlRoom" unique_id=1406551337]
+material_override = SubResource("Mat_AnalogPaint")
+cast_shadow = 0
+extra_cull_margin = 16384.0
+gi_mode = 0
+mesh = SubResource("Quad_AnalogPaint")
+script = ExtResource("91_paint")
+ReferenceCamera = Transform3D(1, 0, 0, 0, 0.9925418, 0.1219051, 0, -0.1219051, 0.9925418, 0, 1.128931, 0.1938892)
 
 [node name="DeskFillLight" type="SpotLight3D" parent="ControlRoom" unique_id=1845022731]
 transform = Transform3D(1, 0, 0, 0, 0.9415, 0.337, 0, -0.337, 0.9415, 0, 1.05, 0.25)

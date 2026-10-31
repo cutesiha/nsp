@@ -18,7 +18,13 @@ public static class GameSettings
     // 무전/인터컴 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     // 기존 직원 보이스를 그대로 통과시키되 대역만 좁혀 "무전기에서 나오는 소리"로 만든다.
     public const string BusRadio = "Radio";
+    // 작업실 인터폰 전용. 무전(Radio)과 **일부러 다르게** 들려야 한다 —
+    // GUIDE-0 는 시설의 기계 비서라 좁고 차갑게, 직원 전화는 벽에 붙은 낡은 인터폰이라
+    // 조금 더 넓고 먹먹하게. 같은 필터를 쓰면 누가 말하는지 귀로 구분되지 않는다.
+    public const string BusIntercom = "Intercom";
     public const string BusScream = "Scream";
+    // 직원 사망 비명의 방향 - 이 버스에서 좌우를 정하고 비명 버스(잔향 / 리미터)로 보낸다.
+    public const string BusScreamPan = "ScreamPan";
     // 공포 ambience 전용. SFX 로 보내므로 효과음 볼륨 설정을 그대로 따른다.
     //
     // 버스를 따로 두는 이유는 둘이다.
@@ -91,6 +97,7 @@ public static class GameSettings
 
     private static float _master = 0.85f, _bgm = 0.8f, _sfx = 0.9f;
     private static bool _fullscreen;
+    private static bool _reduceFlashing;
     private static Quality _quality = Quality.High;
     private static bool _loaded;
 
@@ -98,6 +105,10 @@ public static class GameSettings
     public static float BgmVolume { get => _bgm; set { _bgm = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static float SfxVolume { get => _sfx; set { _sfx = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static bool Fullscreen { get => _fullscreen; set { _fullscreen = value; ApplyFullscreen(); } }
+    // 깜빡임 · 흔들림 줄이기(광과민성 배려). 켜면 붉은 점멸은 느린 맥박으로, 화면 섬광 · 카메라 흔들림은 약하게 바뀐다.
+    public static bool ReduceFlashing { get => _reduceFlashing; set => _reduceFlashing = value; }
+    // 섬광 · 흔들림에 곱하는 배율 — 줄이기를 켜면 0.3.
+    public static float FlashScale => _reduceFlashing ? 0.3f : 1f;
     public static Quality GraphicsQuality { get => _quality; set { _quality = value; ApplyQuality(); } }
     public static string QualityLabel => QualityLevels[(int)_quality].Label;
 
@@ -134,9 +145,49 @@ public static class GameSettings
             AudioServer.SetBusSend(idx, BusMaster);
         }
         EnsureRadioBus();
+        EnsureIntercomBus();
         EnsureScreamBus();
+        EnsureScreamPanBus();
+        EnsureAnalogSfxChain();
         EnsureHorrorBus();
         EnsureAmbienceBus();
+        EnsureMasterLimiter();
+    }
+
+    // 마지막 안전장치 — 모든 소리가 모이는 Master 끝에 리미터 하나. 비명 버스처럼 일부러 크게 미는 소리와
+    // 음악 · 효과음이 한꺼번에 겹쳐도 0dBFS 를 넘어 깨지지(클리핑) 않는다. 평소 크기는 건드리지 않는다
+    // (끌어올리는 값 없이 -1dB 위의 순간 최고점만 누른다) — 헤드폰으로 듣는 사람의 귀를 지키는 자리다.
+    // 비명이 난 방 쪽에서 들리게 - 좌우 패너 하나만 두고 비명 버스로 넘긴다(잔향 / 저역 / 리미터는 그쪽 몫).
+    private static AudioEffectPanner _screamPanner;
+
+    private static void EnsureScreamPanBus()
+    {
+        int idx = AudioServer.GetBusIndex(BusScreamPan);
+        if (idx < 0)
+        {
+            idx = AudioServer.BusCount;
+            AudioServer.AddBus(idx);
+            AudioServer.SetBusName(idx, BusScreamPan);
+            AudioServer.SetBusSend(idx, BusScream);
+            AudioServer.AddBusEffect(idx, new AudioEffectPanner());
+        }
+        _screamPanner = AudioServer.GetBusEffect(idx, 0) as AudioEffectPanner;
+    }
+
+    // -1 왼쪽 ~ +1 오른쪽.
+    public static void SetScreamPan(float pan)
+    {
+        EnsureScreamPanBus();
+        if (_screamPanner != null) _screamPanner.Pan = Mathf.Clamp(pan, -1f, 1f);
+    }
+
+    private static void EnsureMasterLimiter()
+    {
+        int master = AudioServer.GetBusIndex(BusMaster);
+        if (master < 0) return;
+        for (int i = 0; i < AudioServer.GetBusEffectCount(master); i++)
+            if (AudioServer.GetBusEffect(master, i) is AudioEffectHardLimiter) return;
+        AudioServer.AddBusEffect(master, new AudioEffectHardLimiter { CeilingDb = -1f, PreGainDb = 0f, Release = 0.1f });
     }
 
     // 시설 환경음(기계 · 환기) 전용 버스.
@@ -296,6 +347,93 @@ public static class GameSettings
         AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter { CutoffHz = 3200f });
     }
 
+    // ── 시설 장비를 거쳐 나온 소리 (아날로그 호러) ───────────────────────
+    //
+    // 게임의 **모든 소리**가 1970~90년대 지하 연구시설의 장비를 통해 들린다.
+    // 효과음 파일을 한 개도 바꾸지 않고, 그것들이 지나는 길에 장비의 성질을 입힌다
+    // — 그래야 새 소리를 넣을 때마다 따로 손볼 필요가 없다.
+    //
+    // SFX 버스 하나에만 건다. 그 아래로 환경음 · 공포음 · 무전 · 인터폰 · 비명이
+    // 전부 흘러들어오므로 한 번에 같은 성질을 받고, **음악(BGM)은 받지 않는다** —
+    // 음악까지 좁히면 그냥 고장 난 스피커가 된다.
+    //
+    // 다섯 겹, 전부 약하게. 하나씩은 "들릴 듯 말 듯" 이지만 겹치면 소리의 출처가
+    // 바뀐다 — 게임이 내는 소리가 아니라 **그 방의 장비가 내는 소리**가 된다.
+    //
+    //   ① 저역 깎기   작은 스피커는 바닥 울림을 못 낸다
+    //   ② 테이프 흔들림 감은 테이프가 고르게 돌지 않는다 — 아날로그 호러의 핵심
+    //   ③ 비트 깎기   낡은 디지털 · 자기 녹음의 거친 결
+    //   ④ 고역 깎기   공기감 · 반짝임이 없다
+    //   ⑤ 짧은 잔향   콘크리트 지하실
+    //
+    // 세기를 바꾸려면 아래 숫자만 고친다. 전부 0 으로 두면 예전 소리 그대로다.
+    private const string AnalogChainMark = "nsp_analog_chain";
+
+    private static void EnsureAnalogSfxChain()
+    {
+        int idx = AudioServer.GetBusIndex(BusSfx);
+        if (idx < 0) return;
+        // 두 번 걸지 않는다 — EnsureBuses 는 여러 번 불릴 수 있다.
+        for (int i = 0; i < AudioServer.GetBusEffectCount(idx); i++)
+            if (AudioServer.GetBusEffect(idx, i) is { } fx && fx.HasMeta(AnalogChainMark)) return;
+
+        void Add(AudioEffect fx)
+        {
+            fx.SetMeta(AnalogChainMark, true);
+            AudioServer.AddBusEffect(idx, fx);
+        }
+
+        // ① 작은 스피커 — 바닥이 없다.
+        Add(new AudioEffectHighPassFilter { CutoffHz = 115f, Resonance = 0.4f });
+
+        // ② 테이프 흔들림(wow). 느리고 아주 얕게 — 빠르거나 깊으면 "고장" 으로 들린다.
+        var wow = new AudioEffectChorus { VoiceCount = 2, Wet = 0.12f, Dry = 1f };
+        // 두 겹의 주기가 서로 안 맞아떨어져야 흔들림이 규칙으로 들리지 않는다.
+        wow.SetVoiceDelayMs(0, 14f); wow.SetVoiceRateHz(0, 0.35f);
+        wow.SetVoiceDepthMs(0, 1.4f); wow.SetVoiceLevelDb(0, -3f);
+        wow.SetVoiceDelayMs(1, 21f); wow.SetVoiceRateHz(1, 0.21f);
+        wow.SetVoiceDepthMs(1, 1.0f); wow.SetVoiceLevelDb(1, -6f);
+        Add(wow);
+
+        // ③ 비트를 깎는다 — 자기 녹음 · 낡은 디지털의 거친 결.
+        //    Drive 를 올리면 금방 지저분해진다. 알아듣는 데 지장 없는 선까지만.
+        Add(new AudioEffectDistortion
+        {
+            Mode = AudioEffectDistortion.ModeEnum.Lofi,
+            Drive = 0.14f, PreGain = 0f, PostGain = -1f,
+        });
+
+        // ④ 공기감을 덜어낸다.
+        Add(new AudioEffectLowPassFilter { CutoffHz = 8600f, Resonance = 0.3f });
+
+        // ⑤ 콘크리트 지하실. 젖은 정도를 아주 낮게 둔다 — 높이면 경고음이 뭉개진다.
+        Add(new AudioEffectReverb
+        {
+            RoomSize = 0.42f, Damping = 0.62f, Wet = 0.085f, Dry = 1f, Spread = 0.7f,
+        });
+    }
+
+    // 작업실 인터폰 — 벽에 붙은 낡은 스피커.
+    //
+    //   저역 깎기(통 울림 제거) → 고역 깎기(좁은 스피커) → 아주 짧은 잔향(벽에 붙은 상자)
+    // 무전(Radio)보다 **대역이 넓고 찌그러짐이 없다.** 진술을 알아듣는 데 방해가 되면
+    // 안 되기 때문이다(지시서 §6) — 통화는 추리에 필요한 정보를 듣는 자리다.
+    private static void EnsureIntercomBus()
+    {
+        if (AudioServer.GetBusIndex(BusIntercom) >= 0) return;
+        int idx = AudioServer.BusCount;
+        AudioServer.AddBus(idx);
+        AudioServer.SetBusName(idx, BusIntercom);
+        AudioServer.SetBusSend(idx, BusSfx);
+
+        AudioServer.AddBusEffect(idx, new AudioEffectHighPassFilter { CutoffHz = 420f });
+        AudioServer.AddBusEffect(idx, new AudioEffectLowPassFilter { CutoffHz = 4200f });
+        AudioServer.AddBusEffect(idx, new AudioEffectReverb
+        {
+            RoomSize = 0.18f, Damping = 0.75f, Wet = 0.12f, Dry = 1f, Spread = 0.2f,
+        });
+    }
+
     private static void ApplyAudio()
     {
         EnsureBuses();
@@ -312,12 +450,74 @@ public static class GameSettings
         AudioServer.SetBusVolumeDb(i, Mathf.LinearToDb(Mathf.Max(linear, 0.0005f)));
     }
 
+    // ── 화면 기준 1920x1080 ─────────────────────────────────────────────
+    //
+    // 이 게임의 모든 화면(HUD · 통화창 · 컷신 · 제어실 카메라 구도)은 1920x1080 한 벌로 짠다.
+    // 창 크기는 컴퓨터마다 달라도 되지만, 그 안의 화면은 언제나 1920x1080 을 통째로 줄이거나 키운
+    // 것이어야 한다(창 비율이 다르면 위아래나 양옆이 검게 빈다 — 잘리거나 늘어나지 않는다).
+    //
+    // 예전에는 노트북에서 창이 넘치면 project.godot 의 기준 해상도 자체를 바꿔 맞췄다
+    // (1920x1080 → 1600x900 → 1600x800 → 1800x980 → 1700x880 …). 그러면 화면 **비율**이 같이 바뀌어
+    // 모니터 확대 · 스토리 화면이 이상하게 확대되고 잘렸다(2026-10-30 제보 — 1720x900 · 1080x920).
+    // 그래서 기준을 여기서 못 박는다. project.godot 의 viewport 크기를 바꾸면 **창 크기만** 바뀐다.
+    public static readonly Vector2I DesignResolution = new(1920, 1080);
+
+    private static void ApplyDesignResolution()
+    {
+        // 에디터 자체의 창을 건드리면 안 된다([Tool] 스크립트가 설정을 읽는 경우).
+        if (Engine.IsEditorHint()) return;
+        if (Engine.GetMainLoop() is not SceneTree tree || tree.Root == null) return;
+        var root = tree.Root;
+        root.ContentScaleMode = Window.ContentScaleModeEnum.CanvasItems;
+        root.ContentScaleAspect = Window.ContentScaleAspectEnum.Keep;
+        root.ContentScaleSize = DesignResolution;
+    }
+
+    // 창 모드에서 창이 화면(작업 표시줄 제외)보다 크면 16:9 를 지킨 채 화면 안에 들어오게 줄이고 가운데 둔다.
+    // 1920x1080 노트북은 제목 줄 · 작업 표시줄 때문에 1920x1080 창이 들어가지 않는다 — 기준을 바꾸지 말고
+    // 창만 줄이면 된다. 이미 들어가는 창은 건드리지 않는다(검사 씬의 --resolution 도 그대로 둔다).
+    private static void FitWindowToScreen()
+    {
+        if (_fullscreen || Engine.IsEditorHint() || Engine.IsEmbeddedInEditor()) return;
+        if (DisplayServer.GetName() == "headless") return;
+        if (DisplayServer.WindowGetMode() != DisplayServer.WindowMode.Windowed) return;
+
+        int screen = DisplayServer.WindowGetCurrentScreen();
+        Rect2I usable = DisplayServer.ScreenGetUsableRect(screen);
+        if (usable.Size.X <= 0 || usable.Size.Y <= 0) return;
+
+        Vector2I inner = DisplayServer.WindowGetSize();
+        Vector2I outer = DisplayServer.WindowGetSizeWithDecorations();
+        var deco = new Vector2I(Mathf.Max(0, outer.X - inner.X), Mathf.Max(0, outer.Y - inner.Y));
+        // 창이 아직 화면에 자리 잡기 전이면 테두리 크기를 모른다 — 윈도 기본 제목 줄 · 테두리로 어림한다.
+        if (deco.Y <= 0)
+        {
+            float dpi = Mathf.Max(1f, DisplayServer.ScreenGetDpi(screen) / 96f);
+            deco = new Vector2I(Mathf.RoundToInt(16 * dpi), Mathf.RoundToInt(39 * dpi));
+        }
+        int maxW = usable.Size.X - deco.X;
+        int maxH = usable.Size.Y - deco.Y;
+        if (maxW <= 0 || maxH <= 0 || (inner.X <= maxW && inner.Y <= maxH)) return;
+
+        float aspect = (float)DesignResolution.X / DesignResolution.Y;
+        int w = Mathf.Min(maxW, Mathf.FloorToInt(maxH * aspect));
+        int h = Mathf.FloorToInt(w / aspect);
+        DisplayServer.WindowSetSize(new Vector2I(w, h));
+        // 위치는 창 안쪽(제목 줄 아래) 기준이다. 제목 줄까지 포함한 창 전체가 작업 영역 가운데 오게 놓는다
+        // (아래 테두리는 옆 테두리와 같은 굵기로 본다).
+        int title = deco.Y - deco.X / 2;
+        DisplayServer.WindowSetPosition(usable.Position
+            + new Vector2I((usable.Size.X - w) / 2, (usable.Size.Y - h - deco.Y) / 2 + title));
+    }
+
     // 전체화면은 해상도를 늘리는 게 아니라 '화면 전체를 쓰는 창'으로 바꾸는 것.
-    // 콘텐츠 비율은 project.godot 의 stretch 설정(canvas_items / keep)이 유지해 준다.
+    // 콘텐츠 비율은 위의 화면 기준(canvas_items / keep · 1920x1080)이 유지해 준다.
     private static void ApplyFullscreen()
     {
         var want = _fullscreen ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed;
         DisplayServer.WindowSetMode(want);
+        // 전체화면에서 창 모드로 돌아오면 예전 창 크기로 돌아온다 — 그 크기가 화면을 넘을 수 있다.
+        FitWindowToScreen();
 
         // 에디터에서 F5 로 실행하면 게임 창이 에디터 안에 '임베드' 되는데, 임베드된 창은
         // 전체화면 전환이 무시된다(엔진 제한). 조용히 아무 일도 안 일어난 것처럼 보이므로
@@ -415,11 +615,24 @@ public static class GameSettings
     public static void ApplyEnvironmentQuality(Godot.Environment env)
     {
         if (env == null) return;
+
+        // 접촉 그림자(SSAO) — 기기가 책상 · 서로 맞닿는 곳만 진하게 어두워진다. 높음 · 보통에서만 켠다.
+        // 씬마다 원래 켰는지를 Environment 자체에 적어 두고, 품질을 다시 올리면 그대로 되살린다.
+        if (!env.HasMeta("nsp_wants_ssao")) env.SetMeta("nsp_wants_ssao", env.SsaoEnabled);
+        env.SsaoEnabled = (bool)env.GetMeta("nsp_wants_ssao")
+            && (_quality == Quality.High || _quality == Quality.Medium);
+
         _sceneWantsGlow ??= env.GlowEnabled;
         env.GlowEnabled = _sceneWantsGlow.Value && QualityLevels[(int)_quality].Glow;
         if (!env.GlowEnabled) return;
 
-        // 1~7 단계. 숫자가 클수록 넓고 흐리게 퍼지며 그만큼 비싸다.
+        // 숫자가 클수록 넓고 흐리게 퍼지며 그만큼 비싸다.
+        //
+        // **인덱스는 0 부터다.** 인스펙터가 "Glow Levels 1~7" 로 보여 주는 것과 달리
+        // SetGlowLevel 이 받는 번호는 0~6 이고, 7 을 넣으면 매 씬 전환마다
+        // "p_level = 7 is out of bounds" 가 찍힌다. 아래 번호는 지금 화면에 실제로
+        // 걸려 있던 단계 그대로 두고, 범위 밖이라 애초에 먹지 않던 한 줄만 걷어냈다
+        // — 보정해 둔 색감이 바뀌면 안 되기 때문이다.
         bool wide = _quality == Quality.High;
         env.SetGlowLevel(1, 1f);
         env.SetGlowLevel(2, 1f);
@@ -427,7 +640,6 @@ public static class GameSettings
         env.SetGlowLevel(4, 0.85f);
         env.SetGlowLevel(5, wide ? 0.55f : 0f);
         env.SetGlowLevel(6, 0f);
-        env.SetGlowLevel(7, 0f);
     }
 
     // --- 저장 / 불러오기 ---------------------------------------------------
@@ -444,14 +656,49 @@ public static class GameSettings
             _bgm = (float)cfg.GetValue("audio", "bgm", _bgm);
             _sfx = (float)cfg.GetValue("audio", "sfx", _sfx);
             _fullscreen = (bool)cfg.GetValue("video", "fullscreen", _fullscreen);
+            _reduceFlashing = (bool)cfg.GetValue("video", "reduce_flashing", _reduceFlashing);
             _quality = (Quality)Mathf.Clamp((int)cfg.GetValue("video", "quality", (int)_quality), 0, QualityLevels.Length - 1);
             for (int i = 0; i < Keys.Length; i++)
                 Keys[i] = (Key)(int)cfg.GetValue("keys", ((ZoomTarget)i).ToString(), (int)DefaultKeys[i]);
         }
+        else if (DisplayServer.GetName() != "headless")
+        {
+            // 처음 켰다 — 설정 파일이 없다. 그래픽 품질을 그래픽 장치에 맞춰 고르고 바로 저장한다
+            // (2026-10-31). 내장 그래픽(노트북 · 사무용 PC)에서 '높음' 으로 시작하면 처음 몇 분이 끊긴다.
+            // 플레이어는 환경 설정에서 언제든 바꿀 수 있다.
+            _quality = AutoQuality();
+            Save();
+        }
 
         ApplyAudio();
+        ApplyDesignResolution();
         ApplyFullscreen();
         ApplyQuality();
+    }
+
+    // 그래픽 장치 종류로 고른 첫 품질 — 외장 = 높음, 내장 = 낮음, 소프트웨어 · 가상 = 매우 낮음, 모르면 보통.
+    private static Quality AutoQuality()
+    {
+        var type = RenderingServer.GetVideoAdapterType();
+        // 장치 종류만 믿으면 안 된다 — D3D12 에서는 인텔 내장 그래픽(UHD)도 'DiscreteGpu' 로 보고된다
+        // (2026-10-31 이 PC 에서 확인). 이름으로 내장 그래픽 · 소프트웨어 렌더러를 한 번 더 가린다.
+        string n = (RenderingServer.GetVideoAdapterName() ?? "").ToLowerInvariant();
+        bool software = n.Contains("microsoft basic") || n.Contains("llvmpipe") || n.Contains("swiftshader");
+        bool integratedName =
+            (n.Contains("intel") && (n.Contains("uhd") || n.Contains("hd graphics") || n.Contains("iris")))
+            || n.Contains("radeon(tm) graphics") || n.Contains("radeon graphics")
+            || (n.Contains("vega") && !n.Contains("rx "));
+        Quality q = software ? Quality.VeryLow
+            : integratedName ? Quality.Low
+            : type switch
+            {
+                RenderingDevice.DeviceType.DiscreteGpu => Quality.High,
+                RenderingDevice.DeviceType.IntegratedGpu => Quality.Low,
+                RenderingDevice.DeviceType.Cpu or RenderingDevice.DeviceType.VirtualGpu => Quality.VeryLow,
+                _ => Quality.Medium,
+            };
+        GD.Print($"[설정] 첫 실행: 그래픽 장치 '{RenderingServer.GetVideoAdapterName()}' ({type}) → 품질 {q}");
+        return q;
     }
 
     public static void Save()
@@ -461,6 +708,7 @@ public static class GameSettings
         cfg.SetValue("audio", "bgm", _bgm);
         cfg.SetValue("audio", "sfx", _sfx);
         cfg.SetValue("video", "fullscreen", _fullscreen);
+        cfg.SetValue("video", "reduce_flashing", _reduceFlashing);
         cfg.SetValue("video", "quality", (int)_quality);
         for (int i = 0; i < Keys.Length; i++)
             cfg.SetValue("keys", ((ZoomTarget)i).ToString(), (int)Keys[i]);

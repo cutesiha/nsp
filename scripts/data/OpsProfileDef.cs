@@ -36,6 +36,12 @@ public partial class OpsProfileDef : Resource
 
     [Export] public Array<ScheduledWarningDef> ScheduledWarnings = new();
 
+    // 이상 개체가 나와 있는 동안(작업실 출현 ~ 복도 접근 · 후퇴까지)은 새 경고를 띄우지 않는다.
+    // 정해진 시각의 경고는 개체가 물러갈 때까지 미뤄 두었다가 띄운다(최대 WarningAvoidGhostMaxDelay 초).
+    // DAY1 전용 — 처음 배우는 날에 개체와 설비 경고가 한꺼번에 몰리면 초심자는 둘 다 놓친다.
+    [Export] public bool WarningsAvoidGhost = false;
+    [Export] public float WarningAvoidGhostMaxDelay = 30f;
+
     // ── 방해자 ────────────────────────────────────────────────────────
     // 근무 시작 후 이 시간이 지나야 방해공작을 시도한다.
     [Export] public float SaboteurStartSeconds = 0f;
@@ -57,6 +63,10 @@ public partial class OpsProfileDef : Resource
     [Export] public float GhostFirstAppearFromSeconds = -1f;
     [Export] public float GhostFirstAppearBySeconds = -1f;
 
+    // 그날 **두 번째부터의** 출몰은 봉쇄 불안정성이 이 값 이상일 때만 일어난다. 0 이면 조건 없음.
+    // 첫 등장(보장 포함)은 이 조건을 보지 않는다. 화면의 봉쇄 불안정 게이지에 이 자리가 눈금으로 찍힌다.
+    [Export] public float GhostExtraNeedsInstability = 0f;
+
     // ── 방해공작 기회 조건(SaboteurPlan) ───────────────────────────────
     // 결번 개체가 노릴 수 있는 중요 시설. 비워 두면 예전 방식(현재 있는 방에서 바로 실행).
     // 결번 개체가 실제로 그 방까지 걸어가야만 그 방에서 사고가 난다.
@@ -73,9 +83,23 @@ public partial class OpsProfileDef : Resource
     // 방 안에 자기 말고 아무도 없으면 손대지 않는다.
     //
     // 혼자 있는 방에서 코어 복구율이 깎이면 로그만 보고도 범인이 확정된다. 그건 추리가
-    // 아니라 통보다. 결번 개체는 다른 사람이 같은 방에 있을 때만 움직인다 — 그래서
-    // "혼자 두는 배치" 가 관리자의 실제 방어 수단이 된다(대신 방마다 효율이 떨어진다).
-    [Export] public bool SabotageNeedsCompany = true;
+    // 아니라 통보다. 예전에는 그래서 다른 사람이 같은 방에 있을 때만 움직였다.
+    //
+    // **기본값은 이제 끈다**(2026-10-28). 작업실 5개에 직원 6명이면 결번은 거의 늘 혼자 방을
+    // 맡아, 이 규칙 하나로 방해공작이 근무 내내 0 번이었다. 같은 문제는 아래 시간차 · 장소차가
+    // 대신 막는다 — 혼자 있던 방에서 손댄 고장은 **언제나 다른 방에서** 터진다.
+    [Export] public bool SabotageNeedsCompany = false;
+
+    // ── 손댄 순간 ≠ 터지는 순간(방해공작의 시간차 · 장소차) ─────────────
+    //
+    // 결번 개체가 설비에 손을 대는 것과 그 설비가 실제로 고장 나는 것은 따로 일어난다.
+    // 손을 댄 뒤 이 구간(초) 안의 어느 순간에 고장이 드러난다. 그래서 고장 난 순간 그 방에
+    // 있던 사람이 범인이 아니다 — 그보다 앞선 전조(CCTV · 목격)를 되짚어야 한다.
+    [Export] public float SabotageDelayMinSeconds = 12f;
+    [Export] public float SabotageDelayMaxSeconds = 28f;
+    // 동료가 있던 방에서 손댔을 때, 고장이 그 방이 아닌 다른 방에서 날 확률.
+    // (혼자였으면 이 값과 상관없이 언제나 다른 방이다.)
+    [Export(PropertyHint.Range, "0,1,0.05")] public float SabotageCrossRoomChance = 0.5f;
 
     // 목표 구간이 끝나 가면 준비가 덜 됐어도 강행하는가.
     // 켜면 그날 방해공작이 사실상 보장된다. DAY1 처럼 "거의 일어나지 않는" 날에는 끈다.
@@ -107,7 +131,8 @@ public partial class OpsProfileDef : Resource
 
     // ── 감시 공백 이용(CovertActionSystem) ─────────────────────────────
     //
-    // 전력은 2포인트뿐이라 LIGHTING · CCTV · BARRIER 를 동시에 켤 수 없다. 관리자가
+    // 전력은 3포인트다(2026-10-22 — 예전 2). 발전실 사고 · 전력 조작으로 2 가 되면
+    // LIGHTING · CCTV · BARRIER 를 동시에 켤 수 없다. 관리자가
     // 귀신을 막으려고 차폐에 전력을 돌리는 순간 감시에 구멍이 뚫리고, 결번 개체는
     // **그 구멍을 실제로 이용한다**. 아래 값들이 "얼마나 빨리, 얼마나 자주" 를 정한다.
     //
@@ -134,6 +159,19 @@ public partial class OpsProfileDef : Resource
     [Export] public int ContainmentTampersPerDay = 2;
     // 한 번 성공할 때 쌓이는 불안정성(0~100 척도).
     [Export] public float ContainmentInstabilityPerTamper = 18f;
+
+    // 결번 개체가 근무 중인 동안 봉쇄 계통이 **저절로** 흔들리는 속도(불안정성 / 초).
+    //
+    // 귀신은 직원으로 둔갑한 결번 개체가 불러오는 것이다. 그래서 결번이 풀려 있는 한 봉쇄는
+    // 감시와 상관없이 조금씩 계속 흔들리고, 결번을 격리하면 그 자리에서 멈춘다(귀신도 더는
+    // 나오지 않는다). 감쇠(ContainmentSystem, 초당 0.22)를 이기는 만큼만 실제로 오른다.
+    // CCTV 공백을 노린 교란(위 ContainmentTamper*)은 이 위에 한 번에 크게 얹힌다.
+    [Export] public float ContainmentDriftPerSecond = 0f;
+
+    // 근무를 시작할 때의 봉쇄 불안정성(0~100). 2026-10-29 — DAY1 부터 50% 에서 시작한다.
+    // 반쯤 흔들린 채로 시작해야 결번을 격리했을 때 게이지가 0 까지 내려가는 것이 눈에 보인다.
+    // 교육(DAY0)은 이 값을 쓰지 않는다(게이지 자체가 없다).
+    [Export] public float ContainmentStartInstability = 0f;
 
     // ── 오늘의 금기 ────────────────────────────────────────────────────
     // 이 날 적용할 금기 id 목록(data/taboos/*.tres). 비어 있으면 그 날은 금기가 없다.

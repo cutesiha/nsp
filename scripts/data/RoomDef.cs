@@ -13,8 +13,9 @@ public partial class RoomDef : Resource
     // 어떤 판정도 이 글을 읽지 않는다. 방 카드 · 배치표 · 패드 지침이 그대로 그린다.
     //
     // Summary    : 핵심 역할 한 문장. 방 이름 아래 한 줄로 들어간다.
-    // BriefLines : 방을 고르면 뜨는 짧은 요약(2~3줄). 한 줄 32자 이내로 쓴다.
-    //              "· " 로 시작하면 기능, "⚠ " 로 시작하면 비웠을 때의 위험이다.
+    // BriefLines : 방을 고르면 뜨는 정보 표의 줄(2~3줄). "항목|내용" 으로 쓴다(예: "회복|기절한 직원은 이곳 침대에서만 깨어난다").
+    //              긴 작대기 · 가운데 점 · 그림 기호로 이어 붙이지 않는다 — 표가 칸을 나눠 준다.
+    //              "· " 로 시작하면 기능, "▲ " 로 시작하면 비웠을 때의 위험이다.
     //              무인 사고 시간 · 사고 수리 인원은 적지 않는다 —
     //              그 두 줄은 RoomEffectText.Brief 가 오늘의 운영 규칙에서 읽어 붙인다.
     [Export(PropertyHint.MultilineText)] public string Summary = "";
@@ -28,6 +29,8 @@ public partial class RoomDef : Resource
     [Export] public Vector2 MapPosition = Vector2.Zero;
     // 띠 시간표(StaffTimelineView)에서 이 작업실을 나타내는 색. 그리기 전용이다 —
     // 어떤 판정도 이 값을 읽지 않는다. 비워 두면 통로와 같은 어두운 회색으로 그려진다.
+    // 색상은 방마다 다르게 두되 채도 · 밝기는 눌러 둔다 — 원색이 나란히 서면 어두운 시설
+    // 화면에서 띠만 알록달록 떠 보인다(2026-10-27 요청으로 전부 한 톤 낮췄다).
     [Export] public Color MapColor = new(0.30f, 0.33f, 0.36f);
     [Export] public bool IsCoreRoom = false;
     [Export] public bool IsRestricted = false;

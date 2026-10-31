@@ -158,9 +158,9 @@ public static class EmployeeMouthAnimator
     {
         // 대사를 감싸는 여는 따옴표 — 말이 아니므로 입을 멈추지 않는다.
         if (c == '"' && _lastChar == '\0') { _lastChar = c; return; }
-        if (c is '.' or '…' or '·')
+        if (c is '.' or '…' or '-')
         {
-            bool run = _lastChar is '.' or '…' or '·';
+            bool run = _lastChar is '.' or '…' or '-';
             _hold = System.Math.Max(_hold, run ? GuideMouthAnimator.EllipsisHold : GuideMouthAnimator.PunctuationHold);
         }
         else if (c is ',' or '?' or '!' or '~' or '"')

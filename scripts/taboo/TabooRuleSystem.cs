@@ -304,7 +304,14 @@ public partial class TabooRuleSystem : Node
         int max = taboo.ConditionParams.GetValueOrDefault("max", 999).AsInt32();
         float holdSeconds = taboo.ConditionParams.GetValueOrDefault("hold_seconds", 0f).AsSingle();
 
-        if (room.OccupantEmployeeIds.Count <= max)
+        // 그 방이 지금 **여러 명을 요구하는** 중이면(사고 수리 · 경고 안정화 — 코어실 · 발전실은 2명) 인원 금기는
+        // 쉰다. 금기가 "2명 이상 금지" 인데 수리는 2명이 있어야 되니, 둘을 동시에 지키는 길이 없었다 —
+        // DAY2 부터 그 방 사고를 고치려고 2명을 보내면 금기 벌칙(작업 속도 감소 · 발전실 금기 사건)이 터져
+        // 수리가 끝나지 않는 것처럼 보였다(2026-10-29 사용자 — "2명 배치했는데 수리가 안 된다").
+        var sim = FacilitySimulation.Instance;
+        bool crewNeeded = sim.HasRepairPending(roomId)
+                          || (sim.Warnings?.ForRoom(roomId)?.RequiredStaff ?? 0) > max;
+        if (room.OccupantEmployeeIds.Count <= max || crewNeeded)
         {
             // 인원이 정상으로 돌아옴 = 이번 위반 상태 종료. 다음 위반을 위해 완전히 초기화한다.
             room.TabooHoldTimers[taboo.TabooId] = 0f;
@@ -357,7 +364,7 @@ public partial class TabooRuleSystem : Node
     private void Violate(TabooDef taboo, string actorEmployeeId, string roomId, string description)
     {
         EventLog.Instance?.LogEvent(LogEventType.TabooViolation, actorEmployeeId, roomId,
-            $"⚠ 금기 위반 — {description}");
+            $"▲ 금기 위반 - {description}");
 
         // 일부 금기는 결과 적용을 전용 연출 이벤트(예: PowerRoomTabooEvent)에 맡긴다 —
         // 위반 로그는 즉시 남기되, 실제 운영 페널티는 연출이 끝나는 타이밍에 적용한다.
@@ -413,15 +420,15 @@ public partial class TabooRuleSystem : Node
         {
             case TabooConsequenceType.PowerOutage:
                 if (room != null) room.PowerOn = false;
-                EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId, $"⚠ {roomName} 정전 발생");
+                EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId, $"▲ {roomName} 정전 발생");
                 break;
             case TabooConsequenceType.CctvDisconnect:
                 if (room != null) room.CctvDisconnected = true;
-                EventLog.Instance?.LogEvent(LogEventType.CctvDisconnect, "", roomId, $"⚠ {roomName} CCTV 단절");
+                EventLog.Instance?.LogEvent(LogEventType.CctvDisconnect, "", roomId, $"▲ {roomName} CCTV 단절");
                 break;
             case TabooConsequenceType.CorridorLock:
                 if (room != null) room.Locked = true;
-                EventLog.Instance?.LogEvent(LogEventType.Relocation, "", roomId, $"⚠ {roomName} 통로 봉쇄");
+                EventLog.Instance?.LogEvent(LogEventType.Relocation, "", roomId, $"▲ {roomName} 통로 봉쇄");
                 break;
             case TabooConsequenceType.ObservationCorruption:
                 if (room != null) room.InfoDistorted = true;
@@ -434,7 +441,7 @@ public partial class TabooRuleSystem : Node
             case TabooConsequenceType.PowerCapacityLoss:
                 GameState.Instance.TriggerPowerAccident(Mathf.RoundToInt(stressAmount));
                 EventLog.Instance?.LogEvent(LogEventType.PowerOutage, "", roomId,
-                    $"⚠ {roomName} 발전 설비 과부하 — 최대 사용 가능 전력 감소");
+                    $"▲ {roomName} 발전 설비 과부하 - 최대 사용 가능 전력 감소");
                 // 설비가 실제로 터지는 소리와 연기. 채널이 강제로 내려갔는지와 무관하게
                 // 사고 자체가 보이고 들려야 한다(1013 QA 10번).
                 RoomEffectStats.PowerEquipmentFailed?.Invoke();
@@ -443,29 +450,29 @@ public partial class TabooRuleSystem : Node
             case TabooConsequenceType.CctvSystemFault:
                 GameState.Instance.SetCctvSystemOffline(true);
                 EventLog.Instance?.LogEvent(LogEventType.CctvDisconnect, "", roomId,
-                    $"⚠ CCTV 시스템 강제 OFFLINE — {roomName} 감시 설비 고장 (수리 필요)");
+                    $"▲ CCTV 시스템 강제 OFFLINE - {roomName} 감시 설비 고장 (수리 필요)");
                 break;
             case TabooConsequenceType.MaterialsHalt:
                 GameState.Instance.SetMaterialsProductionHalted(true);
                 int lost = Config.Instance.Data.MaintenanceFaultMaterialLoss;
                 GameState.Instance.AddMaterials(-lost);
                 EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-                    $"⚠ {roomName} 설비 파손 — 자재 생산 정지, 자재 -{lost} (수리 필요)");
+                    $"▲ {roomName} 설비 파손 - 자재 생산 정지, 자재 -{lost} (수리 필요)");
                 break;
             case TabooConsequenceType.VentilationFault:
                 GameState.Instance.SetVentilationDown(true);
                 EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-                    $"⚠ {roomName} 환기 정지 — 전 직원 스트레스 지속 상승 (수리 필요)");
+                    $"▲ {roomName} 환기 정지 - 전 직원 스트레스 지속 상승 (수리 필요)");
                 break;
             case TabooConsequenceType.MedicalContamination:
                 GameState.Instance.SetMedicalContaminated(true);
                 EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-                    $"⚠ {roomName} 의료 장비 오염 — 스트레스 치료 불가 (수리 필요)");
+                    $"▲ {roomName} 의료 장비 오염 - 스트레스 치료 불가 (수리 필요)");
                 break;
             case TabooConsequenceType.CoreOutputUnstable:
                 GameState.Instance.SetCoreOutputUnstable(true);
                 EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-                    $"⚠ {roomName} 봉쇄 코어 출력 불안정 — 복구 정지 + 복구율 감소 (수리 필요)");
+                    $"▲ {roomName} 봉쇄 코어 출력 불안정 - 복구 정지 + 복구율 감소 (수리 필요)");
                 break;
             // ── 금기 위반 페널티 ────────────────────────────────────────
             case TabooConsequenceType.VentHaltAndStress:
@@ -474,7 +481,7 @@ public partial class TabooRuleSystem : Node
                 GameState.Instance.SetVentilationDown(true);
                 AddStressToTargets(roomId, ParamF("stress", 10f), "금기 위반");
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ 환기 {ParamF("halt_seconds", 30f):0}초 중단");
+                    $"▲ 환기 {ParamF("halt_seconds", 30f):0}초 중단");
                 break;
 
             case TabooConsequenceType.TrackingLost:
@@ -482,27 +489,27 @@ public partial class TabooRuleSystem : Node
                 foreach (var id in Targets(roomId))
                     _trackingLostUntil[id] = Now + ParamF("seconds", 20f);
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ 일부 직원의 위치·통신이 {ParamF("seconds", 20f):0}초간 두절");
+                    $"▲ 일부 직원의 위치/통신이 {ParamF("seconds", 20f):0}초간 두절");
                 break;
 
             case TabooConsequenceType.PhoneLockAndStress:
                 PhoneLockedUntil = Now + ParamF("seconds", 20f);
                 AddStressToTargets(roomId, ParamF("stress", 8f), "금기 위반");
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ 전화기 {ParamF("seconds", 20f):0}초간 사용 불가");
+                    $"▲ 전화기 {ParamF("seconds", 20f):0}초간 사용 불가");
                 break;
 
             case TabooConsequenceType.PhoneImpostorLock:
                 PhoneLockedUntil = Now + ParamF("seconds", 30f);
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    "⚠ 직원이 아닌 목소리가 응답했다 — 통화 잠김");
+                    "▲ 직원이 아닌 목소리가 응답했다 - 통화 잠김");
                 break;
 
             case TabooConsequenceType.MaterialLossAndStress:
                 GameState.Instance.AddMaterials(-ParamI("materials", 5));
                 AddStressToTargets(roomId, ParamF("stress", 8f), "금기 위반");
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ 자재 -{ParamI("materials", 5)}");
+                    $"▲ 자재 -{ParamI("materials", 5)}");
                 break;
 
             case TabooConsequenceType.TreatmentAbortAndStress:
@@ -510,27 +517,27 @@ public partial class TabooRuleSystem : Node
                 GameState.Instance.SetMedicalContaminated(true);
                 AddStressToTargets(roomId, ParamF("stress", 5f), "금기 위반");
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    "⚠ 치료 즉시 중단");
+                    "▲ 치료 즉시 중단");
                 break;
 
             case TabooConsequenceType.CctvChannelScramble:
                 CctvScrambledUntil = Now + ParamF("seconds", 20f);
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ CCTV 채널 혼선 — {ParamF("seconds", 20f):0}초간 방 이름과 화면 불일치");
+                    $"▲ CCTV 채널 혼선 - {ParamF("seconds", 20f):0}초간 방 이름과 화면 불일치");
                 break;
 
             case TabooConsequenceType.WorkSpeedPenalty:
                 _workPenaltyMultiplier = ParamF("multiplier", 0.6f);
                 _workPenaltyUntil = Now + ParamF("seconds", 30f);
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ 해당 직원 업무 속도 {(1f - _workPenaltyMultiplier) * 100f:0}% 감소");
+                    $"▲ 해당 직원 업무 속도 {(1f - _workPenaltyMultiplier) * 100f:0}% 감소");
                 break;
 
             case TabooConsequenceType.StorageCapAndMaterialLoss:
                 GameState.Instance.AddMaterialsCap(-ParamI("cap", 5));
                 GameState.Instance.AddMaterials(-ParamI("materials", 5));
                 EventLog.Instance?.LogEvent(LogEventType.TabooViolation, "", roomId,
-                    $"⚠ 저장 한도 -{ParamI("cap", 5)} · 자재 -{ParamI("materials", 5)}");
+                    $"▲ 저장 한도 -{ParamI("cap", 5)}, 자재 -{ParamI("materials", 5)}");
                 break;
 
             case TabooConsequenceType.StorageCollapse:
@@ -540,7 +547,7 @@ public partial class TabooRuleSystem : Node
                     : Config.Instance.Data.StorageCollapseCapLoss;
                 GameState.Instance.AddMaterialsCap(-capLoss);
                 EventLog.Instance?.LogEvent(LogEventType.TaskFailed, "", roomId,
-                    $"⚠ {roomName} 보관 선반 붕괴 — 자재 보유 한도 -{capLoss} (초과분 파괴)");
+                    $"▲ {roomName} 보관 선반 붕괴 - 자재 보유 한도 -{capLoss} (초과분 파괴)");
                 break;
         }
     }

@@ -27,9 +27,9 @@ public partial class EndingCutsceneStage
         _kPaper, _kWood, _kWarn, _kWarnDark, _kLabel, _kCable, _kBrass, _kGlassPane, _kDirt, _kFoam;
 
     // 도장 콘크리트 — 벽의 기본. 거칠고 빛을 거의 안 받는다.
-    private static StandardMaterial3D KConcrete => _kConcrete ??= Mat(new Color(0.300f, 0.300f, 0.308f), 0.94f);
-    private static StandardMaterial3D KConcreteDark => _kConcreteDark ??= Mat(new Color(0.205f, 0.207f, 0.218f), 0.96f);
-    private static StandardMaterial3D KConcretePale => _kConcretePale ??= Mat(new Color(0.262f, 0.260f, 0.252f), 0.90f);
+    private static StandardMaterial3D KConcrete => _kConcrete ??= GrimeMat(new Color(0.330f, 0.330f, 0.338f), 31, 0.45f, 4f, 0.94f, 0.28f);
+    private static StandardMaterial3D KConcreteDark => _kConcreteDark ??= GrimeMat(new Color(0.225f, 0.227f, 0.240f), 37, 0.45f, 4f, 0.96f, 0.28f);
+    private static StandardMaterial3D KConcretePale => _kConcretePale ??= GrimeMat(new Color(0.288f, 0.286f, 0.277f), 41, 0.45f, 3f, 0.90f, 0.26f);
 
     // 금속 패널 — 벽 상단 · 설비 외장. 약하게 반사한다.
     private static StandardMaterial3D KPanel => _kPanel ??= Mat(new Color(0.268f, 0.282f, 0.305f), 0.46f, 0.72f);
@@ -42,7 +42,7 @@ public partial class EndingCutsceneStage
 
     // 바닥 — 구역마다 다르다. 연구/설비는 에폭시(약한 반사), 생활 구역은 무광.
     private static StandardMaterial3D KEpoxy => _kEpoxy ??= Mat(new Color(0.258f, 0.272f, 0.292f), 0.38f, 0.10f);
-    private static StandardMaterial3D KEpoxyWorn => _kEpoxyWorn ??= Mat(new Color(0.300f, 0.306f, 0.312f), 0.68f, 0.04f);
+    private static StandardMaterial3D KEpoxyWorn => _kEpoxyWorn ??= GrimeMat(new Color(0.330f, 0.336f, 0.343f), 43, 0.55f, 1.5f, 0.68f, 0.24f, 0.04f);
     private static StandardMaterial3D KLiving => _kLiving ??= Mat(new Color(0.272f, 0.250f, 0.222f), 0.88f);
     private static StandardMaterial3D KRubber => _kRubber ??= Mat(new Color(0.082f, 0.085f, 0.090f), 0.98f);
 

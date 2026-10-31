@@ -417,11 +417,11 @@ public partial class RoomCctvPreview : Node3D
     {
         if (_info == null) return;
         string clip = _clipIndex < 0 ? "자동(자리 기본)" : Clips[_clipIndex];
-        _info.Text = $"{_roomIds[_room]} · {_employeeIds[_employee]} × {_count}명 · {clip} · "
+        _info.Text = $"{_roomIds[_room]}, {_employeeIds[_employee]} × {_count}명, {clip}, "
                    + $"카메라 {(_freeCamera ? "자유(좌드래그/휠)" : "실제 CCTV")}"
-                   + (spotCount >= 0 ? $" · WorkSpot {spotCount}개" : "")
+                   + (spotCount >= 0 ? $", WorkSpot {spotCount}개" : "")
                    + (_ghostOn ? $"\n괴물 {_ghost?.Pose} {(_ghost?.Busy == true ? "(진행 중)" : "(대기)")}"
-                                 + (_lastImpact.Length > 0 ? $" · 마지막 충돌 {_lastImpact}" : "") : "");
+                                 + (_lastImpact.Length > 0 ? $", 마지막 충돌 {_lastImpact}" : "") : "");
     }
 
     private static HBoxContainer Row(Node parent)

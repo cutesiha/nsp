@@ -22,16 +22,16 @@ public static class RoomStatusText
 {
     private static readonly Dictionary<RoomResourceType, string> WorkIcons = new()
     {
-        [RoomResourceType.Power] = "🔧",
-        [RoomResourceType.Survival] = "💨",
-        [RoomResourceType.Materials] = "🔧",
-        [RoomResourceType.Stress] = "💊",
-        [RoomResourceType.Surveillance] = "📹",
-        [RoomResourceType.CoreRepair] = "🔧",
-        [RoomResourceType.Storage] = "📦",
+        [RoomResourceType.Power] = "■",
+        [RoomResourceType.Survival] = "○",
+        [RoomResourceType.Materials] = "▣",
+        [RoomResourceType.Stress] = "□",
+        [RoomResourceType.Surveillance] = "●",
+        [RoomResourceType.CoreRepair] = "▣",
+        [RoomResourceType.Storage] = "▤",
     };
 
-    public static string WorkIcon(RoomResourceType type) => WorkIcons.GetValueOrDefault(type, "🔧");
+    public static string WorkIcon(RoomResourceType type) => WorkIcons.GetValueOrDefault(type, "▣");
 
     public static string BuildActivityLine(string roomId)
     {
@@ -46,15 +46,15 @@ public static class RoomStatusText
             return "";
 
         if (sim.IsRoomBlockedByMaterials(roomId))
-            return "📦 자재 부족 — 대기 중";
+            return "자재 부족 - 대기 중";
 
         var task = sim.GetTaskDef(st.TaskId);
         return $"{WorkIcon(roomDef.ManagedResource)} {task?.DisplayName ?? st.TaskId} 중{AnimatedDots()}";
     }
 
     // 방 지도 박스 / CCTV 화면에 함께 쓰는 발생 업무 상태 블록.
-    //   🔧 발전기 점검  ⏱0:12
-    //   ███░░░ 62%          (담당자 없으면 "⌛ 담당자 없음", 완료/실패면 배지)
+    //   ▣ 발전기 점검  △0:12
+    //   ███░░░ 62%          (담당자 없으면 "△ 담당자 없음", 완료/실패면 배지)
     public static string BuildRoomStatusBlock(string roomId)
     {
         var sim = FacilitySimulation.Instance;
@@ -68,28 +68,28 @@ public static class RoomStatusText
             string name = task?.DisplayName ?? st.TaskId;
 
             if (st.Status == SpawnedTaskStatus.Completed) return $"✓ {name} 완료";
-            if (st.Status == SpawnedTaskStatus.Failed) return $"🚨 {name} 처리 실패";
+            if (st.Status == SpawnedTaskStatus.Failed) return $"● {name} 처리 실패";
 
-            if (st.IsRepair) return $"🔧 {name} 수리 필요";
+            if (st.IsRepair) return $"▣ {name} 수리 필요";
 
             string icon = WorkIcon(roomDef.ManagedResource);
-            string head = st.Recurring ? $"{icon} {name}" : $"{icon} {name}  ⏱{Clock(st.Remaining)}";
+            string head = st.Recurring ? $"{icon} {name}" : $"{icon} {name}  △{Clock(st.Remaining)}";
 
             int here = sim.GetRoomState(roomId)?.OccupantEmployeeIds.Count ?? 0;
             int need = task != null ? Mathf.Max(1, task.MinWorkersToProgress) : 1;
 
             string body;
             if (sim.IsRoomBlockedByMaterials(roomId))
-                body = "📦 자재 부족 — 대기";
+                body = "자재 부족 - 대기";
             else if (here > 0 && here < need)
-                body = $"⚠ {need}명 필요 (현재 {here}명)";
+                body = $"▲ {need}명 필요 (현재 {here}명)";
             else if (here > 0)
             {
                 float pct = Mathf.Clamp(st.Ratio, 0f, 1f) * 100f;
                 body = $"{Bar(st.Ratio)} {pct:0}%";
             }
             else
-                body = "⌛ 담당자 없음";
+                body = "△ 담당자 없음";
 
             return $"{head}\n{body}";
         }
@@ -97,7 +97,7 @@ public static class RoomStatusText
         string dangerLine = GetDangerLine(GetDangerTier(roomId));
         if (!string.IsNullOrEmpty(dangerLine)) return dangerLine;
         if (TabooRuleSystem.Instance != null && TabooRuleSystem.Instance.IsRoomAtTabooRisk(roomId))
-            return "⚠ 금기 주의";
+            return "▲ 금기 주의";
         return "";
     }
 
@@ -143,7 +143,10 @@ public static class RoomStatusText
         if (activeFailure) return RoomDangerTier.Failure;
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
-        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return RoomDangerTier.Failure;
+        // 수리는 **아직 진행 중일 때만** 고장이다. 끝난 수리도 표시 시간 동안 목록에 남아 있어서,
+        // 상시 업무가 없는 방은 고친 뒤에도 그동안 고장으로 칠해졌다.
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true, Status: SpawnedTaskStatus.Active })
+            return RoomDangerTier.Failure;
 
         // 발생 업무의 제한시간이 얼마나 임박했는가(0~1).
         float ratio = sim.GetRoomUrgencyRatio(roomId);
@@ -179,15 +182,16 @@ public static class RoomStatusText
         if (FacilitySimulation.Instance?.IsRoomCctvBlocked(state.RoomId) == true) return "CCTV 단절";
 
         var prim = sim.GetPrimarySpawnedTask(roomId);
-        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true }) return "설비 고장";
+        if (prim is { Status: SpawnedTaskStatus.Failed } or { IsRepair: true, Status: SpawnedTaskStatus.Active })
+            return "설비 고장";
         return "";
     }
 
     public static string GetDangerLine(RoomDangerTier tier) => tier switch
     {
-        RoomDangerTier.Delayed => "⚠ 점검 지연",
-        RoomDangerTier.Unstable => "❗ 상태 불안정",
-        RoomDangerTier.Failure => "🚨 고장",
+        RoomDangerTier.Delayed => "▲ 점검 지연",
+        RoomDangerTier.Unstable => "▲ 상태 불안정",
+        RoomDangerTier.Failure => "● 고장",
         _ => "",
     };
 

@@ -32,8 +32,15 @@ public partial class Sfx : Node
     // 대사 타자 효과에 맞춰 나는 캐릭터별 짧은 보이스 블립. 전용 채널 하나만 써서
     // 여러 블립이 겹쳐 터지지 않게 하고(새로 Play()하면 이전 소리를 자연히 끊는다),
     // 최소 간격(Rate Limit)으로 너무 촘촘하게 울리지 않게 한다.
+    // 보이스 블립이 어느 기기를 거쳐 들리는가.
+    //   Direct   눈앞의 사람 · 컷인 — 아무것도 걸지 않는다
+    //   Radio    GUIDE-0 와 무전 — 좁고 차갑게(시설의 기계 비서)
+    //   Intercom 작업실 전화 — 벽에 붙은 낡은 스피커. Radio 보다 넓고 먹먹하다
+    public enum VoiceChannel { Direct, Radio, Intercom }
+
     private AudioStreamPlayer _voicePlayer;
     private AudioStreamPlayer _voiceRadioPlayer;
+    private AudioStreamPlayer _voiceIntercomPlayer;
     private readonly RandomNumberGenerator _voiceRng = new();
     private readonly Dictionary<string, List<AudioStream>> _voiceVariantCache = new();
     private double _lastVoiceBlipMsec = -10000;
@@ -64,6 +71,10 @@ public partial class Sfx : Node
         // 직원별 보이스 파일도, 평소 통화/인터뷰 재생 경로도 전혀 바뀌지 않는다.
         _voiceRadioPlayer = new AudioStreamPlayer { Bus = GameSettings.BusRadio };
         AddChild(_voiceRadioPlayer);
+
+        // 작업실 인터폰 채널 — 전화로 듣는 직원 목소리가 이쪽을 탄다.
+        _voiceIntercomPlayer = new AudioStreamPlayer { Bus = GameSettings.BusIntercom };
+        AddChild(_voiceIntercomPlayer);
 
         for (int i = 0; i < 2; i++)
         {
@@ -255,6 +266,18 @@ public partial class Sfx : Node
     // 시작 화면처럼 일부러 더 작게 깔아야 하는 자리는 호출부에서 따로 적는다.
     public const float MusicDefaultDb = -3.5f;
 
+    // 곡마다 원본 크기가 달라서 같은 볼륨으로 틀어도 들리는 크기가 다르다 — 그 차이만 메운다.
+    // 기준은 메인 곡 rest_time(들리는 크기 -14.0dB). 값은 LoudnessProbe(디코딩해서 잰 RMS)로 쟀다
+    // (2026-10-31: breakroom -13.8 · nsp_mainbgm2 -15.3 · startbgm1 -13.5).
+    // 호출부가 정한 volume(장면마다 일부러 크게 · 작게)은 그대로 두고, 이 보정만 더한다.
+    public static float MusicTrimDb(string name) => name switch
+    {
+        "breakroom" => -0.2f,
+        "nsp_mainbgm2" => 1.3f,
+        "startbgm1" => -0.5f,
+        _ => 0f,
+    };
+
     // 기존 호출 호환: 즉시(짧은 페이드) 루프 재생.
     public void PlayMusic(string name, float volumeDb = MusicDefaultDb) => CrossfadeMusic(name, 0.15f, true, 0f, volumeDb);
 
@@ -267,6 +290,7 @@ public partial class Sfx : Node
                                float startSeconds = 0f, float targetDb = MusicDefaultDb, bool restartIfSame = false)
     {
         if (name == _musicName && !restartIfSame && _music[_musicActive].Playing) return;
+        targetDb += MusicTrimDb(name);
 
         // BGM은 용량 때문에 .ogg 로 보관한다(.wav 는 이전 자산 호환용 폴백).
         string path = MusicPath(name);
@@ -489,6 +513,18 @@ public partial class Sfx : Node
         Play(key, volumeDb, (float)GD.RandRange(0.80, 0.90));
     }
 
+    // 관리자가 당하는 순간의 비명 — 기괴한 비명 여러 개를 피치를 어긋나게 겹쳐 한꺼번에 튼다.
+    // 한 녹음만 크게 틀면 "비명 효과음" 으로 들린다. 높낮이가 다른 목소리 여럿이 겹쳐야 사람이 아니다.
+    public void PlayGhostScreamChorus()
+    {
+        PlayGhostScream(14f);                                   // 울리는 비명 버스 — 가장 크게
+        Play(GhostScreams[0], 0f, 0.74f);                       // 낮게 끌리는 목소리
+        Play(GhostScreams[1], -1f, 1.22f);                      // 높게 찢어지는 목소리
+        Play(GhostScreams[1], -4f, 0.58f);                      // 아주 낮은 울음
+        Play("monster", -2f, 0.86f);
+        Play("babymonster", -5f, 1.08f);
+    }
+
     public void Play(string key, float volumeDb = 0f, float pitch = 1f)
     {
         var stream = Load(key);
@@ -533,7 +569,8 @@ public partial class Sfx : Node
     // 거짓 공식 증거를 만들지 않기 위해서다. 통화가 끝나면 0 으로 되돌린다.
     public float VoiceWarp;
 
-    public void PlayVoiceBlip(string employeeId, char c, bool radio = false, float pitchMul = 1f)
+    public void PlayVoiceBlip(string employeeId, char c,
+                              VoiceChannel channel = VoiceChannel.Direct, float pitchMul = 1f)
     {
         if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsSymbol(c)) return;
 
@@ -543,7 +580,12 @@ public partial class Sfx : Node
         var variants = LoadVoiceVariants(employeeId);
         if (variants.Count == 0) return;
 
-        var player = radio ? _voiceRadioPlayer : _voicePlayer;
+        var player = channel switch
+        {
+            VoiceChannel.Radio => _voiceRadioPlayer,
+            VoiceChannel.Intercom => _voiceIntercomPlayer,
+            _ => _voicePlayer,
+        };
         if (player == null) return;
 
         // 신호가 비틀리는 중이면 가끔 한 음절이 통째로 사라진다(§6-2 ①).
@@ -594,6 +636,7 @@ public partial class Sfx : Node
     {
         _voicePlayer?.Stop();
         _voiceRadioPlayer?.Stop();
+        _voiceIntercomPlayer?.Stop();
     }
 
     // --- 절차 생성 효과음(에셋 없음) — 직원 비명 / 개체 웃음 -------------

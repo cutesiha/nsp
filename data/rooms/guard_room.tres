@@ -7,13 +7,13 @@ script = ExtResource("1_room")
 RoomId = "guard_room"
 DisplayName = "경비실"
 Summary = "시설을 감시하고 직원의 재석 기록을 남긴다."
-BriefLines = PackedStringArray("· 감시 — 방해공작을 억제한다", "· 순찰 기록은 휴게시간 조사 자료가 된다")
+BriefLines = PackedStringArray("감시|방해공작을 억제한다", "순찰 기록|휴게시간 조사 자료가 된다")
 ConnectedRoomIds = Array[String](["power_room", "maintenance_room"])
 AdjacentRoomIds = Array[String](["core_room", "power_room"])
 MapPosition = Vector2(90, 370)
 UnlockDay = 0
 ; 띠 시간표에서 이 방을 나타내는 색 — 경비실 보라
-MapColor = Color(0.60, 0.50, 0.84, 1)
+MapColor = Color(0.5, 0.45, 0.62, 1)
 IsCoreRoom = false
 ManagedResource = 5
 HasEmergencyLighting = true

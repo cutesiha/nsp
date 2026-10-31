@@ -53,8 +53,16 @@ public static class RecoveryProfile
 
     // 코어 복구 속도 자체에 걸리는 배율.
     // 속도 배율 × 그 DAY 의 배율. 하루 상한(cap)은 만들지 않는다 — 잘하면 앞설 수 있다.
+    //
+    // 코어가 **이미 다 찼으면 0** 이다 — 코어실 게이지가 그 자리에서 멈추고 더 일하지 않는다.
+    // 예전에는 100% 에서도 작업이 계속 돌아 게이지가 찼다가(그때마다 자재도 소모됐다)
+    // 완료 순간 100 으로 잘렸고, 화면에는 100 위로 소수점이 차올랐다가 되돌아가는 것이 보였다.
+    // 코어가 사고로 다시 깎이면 그때부터 다시 돈다.
     public static float RateMultiplier =>
-        Mathf.Max(0.02f, Current.CoreRateMultiplier * Current.DayMultiplier(GameState.Instance?.CurrentDay ?? 1));
+        CoreFull ? 0f
+            : Mathf.Max(0.02f, Current.CoreRateMultiplier * Current.DayMultiplier(GameState.Instance?.CurrentDay ?? 1));
+
+    public static bool CoreFull => (GameState.Instance?.CoreProgress ?? 0f) >= 100f - 0.001f;
 
     // 자재 1개가 사 오는 복구량 배율.
     public static float YieldMultiplier => Mathf.Max(0.1f, Current.CoreYieldMultiplier);

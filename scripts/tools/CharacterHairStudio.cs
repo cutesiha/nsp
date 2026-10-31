@@ -99,7 +99,7 @@ public partial class CharacterHairStudio : Node3D
         BuildUi();
 
         if (_cat.Entries.Count == 0)
-            SetStatus("카탈로그가 비어 있다 — 먼저 res://scenes/tools/HairAssetBuilder.tscn 을 한 번 돌려라", true);
+            SetStatus("카탈로그가 비어 있다 - 먼저 res://scenes/tools/HairAssetBuilder.tscn 을 한 번 돌려라", true);
 
         SelectCharacter("admin");
     }
@@ -204,7 +204,7 @@ public partial class CharacterHairStudio : Node3D
     private bool LoadGameBase(string path)
     {
         var packed = ResourceLoader.Load<PackedScene>(path);
-        if (packed == null) { SetStatus($"{path} 를 열지 못했다 — 헤어팩 두상으로 돌아간다", true); return false; }
+        if (packed == null) { SetStatus($"{path} 를 열지 못했다 - 헤어팩 두상으로 돌아간다", true); return false; }
 
         var inst = packed.Instantiate<Node3D>();
         _baseRoot.AddChild(inst);
@@ -212,7 +212,7 @@ public partial class CharacterHairStudio : Node3D
         var head = inst.GetNodeOrNull<MeshInstance3D>(HairAssignmentStore.HeadMeshPath);
         if (anchor == null || head?.Mesh == null)
         {
-            SetStatus($"{path} 에서 머리를 찾지 못했다 — 헤어팩 두상으로 돌아간다", true);
+            SetStatus($"{path} 에서 머리를 찾지 못했다 - 헤어팩 두상으로 돌아간다", true);
             _baseRoot.RemoveChild(inst);
             inst.QueueFree();
             return false;
@@ -366,7 +366,7 @@ public partial class CharacterHairStudio : Node3D
         page.AddThemeConstantOverride("separation", 8);
         layer.AddChild(page);
 
-        var title = new Label { Text = "CHARACTER STUDIO — HAIR SELECTION" };
+        var title = new Label { Text = "CHARACTER STUDIO - HAIR SELECTION" };
         Style(title, 22, new Color(0.88f, 0.9f, 0.92f));
         page.AddChild(title);
 
@@ -378,7 +378,7 @@ public partial class CharacterHairStudio : Node3D
         row.AddChild(CenterPanel());
         row.AddChild(RightPanel());
 
-        _status = new Label { Text = "드래그 = 회전 · 휠 = 확대/축소" };
+        _status = new Label { Text = "드래그 = 회전, 휠 = 확대/축소" };
         Style(_status, 13, new Color(0.55f, 0.58f, 0.6f));
         page.AddChild(_status);
     }
@@ -473,7 +473,7 @@ public partial class CharacterHairStudio : Node3D
         foreach ((string key, string label) in new[]
                  {
                      ("all", "전체"), ("short", "짧은"), ("medium", "중간"),
-                     ("long", "긴"), ("volume", "긴·풍성"),
+                     ("long", "긴"), ("volume", "긴/풍성"),
                  })
         {
             string k = key;
@@ -572,7 +572,7 @@ public partial class CharacterHairStudio : Node3D
         if (_hairId != "" && _store.Get(id).Fit != FitSpace)
         {
             AutoFit();
-            SetStatus("저장된 값이 다른 베이스 기준이라 이 모델에 맞춰 다시 올렸다 — 조정 후 저장하면 그 값이 게임에 들어간다");
+            SetStatus("저장된 값이 다른 베이스 기준이라 이 모델에 맞춰 다시 올렸다 - 조정 후 저장하면 그 값이 게임에 들어간다");
         }
         else
         {
@@ -597,7 +597,7 @@ public partial class CharacterHairStudio : Node3D
         if (cur != null && cur.Sex != sex && !_showOtherPack)
         {
             _hairId = "";
-            SetStatus($"베이스를 {sex.ToUpper()} 로 바꿨다 — 고른 헤어는 다른 팩이라 선택을 비웠다. " +
+            SetStatus($"베이스를 {sex.ToUpper()} 로 바꿨다 - 고른 헤어는 다른 팩이라 선택을 비웠다. " +
                       "그 헤어를 그대로 쓰려면 '남녀 헤어 모두 보기' 를 켜라");
         }
         RebuildHairList();
@@ -630,10 +630,10 @@ public partial class CharacterHairStudio : Node3D
         {
             _listed.Add(e);
             int i = _hairList.AddItem(e.Id, Thumb(e.Id));
-            _hairList.SetItemTooltip(i, $"{e.Name}\n{e.MeshPath}\n삼각 {e.Tris} · 원본 {e.SourceNode}");
+            _hairList.SetItemTooltip(i, $"{e.Name}\n{e.MeshPath}\n삼각 {e.Tris}, 원본 {e.SourceNode}");
         }
         _hairList.Visible = true;
-        _hairInfo.Text = $"{_listed.Count}개 — {(_showOtherPack ? "남녀 전체" : _body.ToUpper())} · 필터 {_filter}";
+        _hairInfo.Text = $"{_listed.Count}개 - {(_showOtherPack ? "남녀 전체" : _body.ToUpper())}, 필터 {_filter}";
     }
 
     private readonly Dictionary<string, Texture2D> _thumbs = new();
@@ -795,7 +795,7 @@ public partial class CharacterHairStudio : Node3D
         Error err = _store.Save();
         _dirty = false;
         SetStatus(err == Error.Ok
-            ? $"{HairAssignmentStore.Label(_charId)} 저장 — {_store.LastSavedTo} " +
+            ? $"{HairAssignmentStore.Label(_charId)} 저장 - {_store.LastSavedTo} " +
               $"(고른 캐릭터 {HairAssignmentStore.Characters.Count(c => _store.HasChoice(c.Id))}/8명)"
             : $"저장 실패: {err}", err != Error.Ok);
         Refresh();
@@ -827,8 +827,8 @@ public partial class CharacterHairStudio : Node3D
         }
 
         if (e != null)
-            _hairInfo.Text = $"{e.Name} · 삼각 {e.Tris} · 크기 {e.Size.X * 100f:F0}×{e.Size.Y * 100f:F0}×" +
-                             $"{e.Size.Z * 100f:F0}cm · 주름비 {e.AreaRatio:F2}\n{e.MeshPath}";
+            _hairInfo.Text = $"{e.Name}, 삼각 {e.Tris}, 크기 {e.Size.X * 100f:F0}×{e.Size.Y * 100f:F0}×" +
+                             $"{e.Size.Z * 100f:F0}cm, 주름비 {e.AreaRatio:F2}\n{e.MeshPath}";
     }
 
     private void SetStatus(string s, bool bad = false)

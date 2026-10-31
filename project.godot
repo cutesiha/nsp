@@ -37,12 +37,14 @@ MonsterThreatPresenter="*res://scripts/view/MonsterThreatPresenter.cs"
 FaintCameraDirector="*res://scripts/view/FaintCameraDirector.cs"
 AnomalyCallDirector="*res://scripts/view/AnomalyCallDirector.cs"
 HorrorEventDirector="*res://scripts/ui/HorrorEventDirector.cs"
+AnalogFilter="*res://scripts/ui/AnalogFilter.cs"
 
 [display]
 
-window/size/viewport_width=1700
-window/size/viewport_height=880
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 
 [dotnet]
 

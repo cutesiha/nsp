@@ -36,7 +36,7 @@ text = "야간근무지침"
 layout_mode = 2
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 22
-text = "NSP — DAY 1 PROTOTYPE"
+text = "NSP - DAY 1 PROTOTYPE"
 
 [node name="StartButton" type="Button" parent="Root"]
 layout_mode = 2

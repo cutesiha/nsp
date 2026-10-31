@@ -28,6 +28,9 @@ public sealed class StoryRoleCast
 
     private readonly List<string> _witnesses = new();
     private readonly List<string> _others = new();
+    // 어제 생체 신호가 끊긴 직원(로그 순서). 대사 속 {dead} · {dead2} 가 이 사람의 이름으로 바뀐다.
+    private readonly List<string> _dead = new();
+    public const string DeadToken = "{dead}";
 
     public static bool IsRole(string speakerId) =>
         !string.IsNullOrEmpty(speakerId) && speakerId[0] == '@';
@@ -42,6 +45,9 @@ public sealed class StoryRoleCast
             foreach (var e in log.GetAllEntries())
             {
                 if (e.Day != day - 1) continue;
+                if (e.EventType == LogEventType.Death && !string.IsNullOrEmpty(e.ActorEmployeeId)
+                    && !cast._dead.Contains(e.ActorEmployeeId))
+                    cast._dead.Add(e.ActorEmployeeId);
                 if (e.EventType is not (LogEventType.AnomalyDispelled or LogEventType.AnomalyIncident)) continue;
                 foreach (string id in e.WitnessEmployeeIds)
                     if (!cast._witnesses.Contains(id)) cast._witnesses.Add(id);
@@ -72,19 +78,39 @@ public sealed class StoryRoleCast
     // 절대 고치지 않는다(한 번 고치면 그 판 내내 그대로 남는다).
     public StoryLine Apply(StoryLine line)
     {
-        if (line == null || !IsRole(line.SpeakerEmployeeId)) return line;
-        string who = Resolve(line.SpeakerEmployeeId);
+        if (line == null) return null;
+        bool role = IsRole(line.SpeakerEmployeeId);
+        bool named = (line.Text ?? "").Contains("{dead");
+        if (!role && !named) return line;
+        string who = role ? Resolve(line.SpeakerEmployeeId) : line.SpeakerEmployeeId;
         if (who.Length == 0) return null;   // 맡을 사람이 없다 — 이 줄은 빠진다
+        string text = named ? NameTheDead(line.Text) : line.Text;
+        if (text == null) return null;      // 이름을 댈 죽은 사람이 없다 — 이 줄도 빠진다
         return new StoryLine
         {
             SpeakerEmployeeId = who,
             Expression = line.Expression,
             Side = line.Side,
-            Text = line.Text,
+            Text = text,
             HoldSeconds = line.HoldSeconds,
             ExitSide = line.ExitSide,
             Optional = line.Optional,
         };
+    }
+
+    // 대사 속 {dead} → 어제 죽은 첫 번째 직원의 이름, {dead2} → 두 번째. 맡을 사람이 없으면 null.
+    public string NameTheDead(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        for (int n = 5; n >= 1; n--)
+        {
+            string token = n == 1 ? DeadToken : "{dead" + n + "}";
+            if (!text.Contains(token)) continue;
+            if (n > _dead.Count) return null;
+            string id = _dead[n - 1];
+            text = text.Replace(token, NSP.Facility.FacilitySimulation.Instance?.GetEmployeeDef(id)?.Codename ?? id);
+        }
+        return text;
     }
 
     // @heard3 → 3. 숫자가 없으면 1.

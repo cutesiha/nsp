@@ -42,7 +42,7 @@ public partial class PresenceTest : Node
     // ── 하루 상한과 간격 ────────────────────────────────────────────────
     private void TestBudget(PresenceDirector d)
     {
-        Head("A", "하루 2~3회 · 서로 40초 이상");
+        Head("A", "하루 2~3회, 서로 40초 이상");
         var gs = GameState.Instance;
         gs.ResetRun(2);
         gs.SetPhase(GamePhase.Live);
@@ -93,7 +93,7 @@ public partial class PresenceTest : Node
     // ── 언제 나오지 않는가 ──────────────────────────────────────────────
     private void TestGating(PresenceDirector d)
     {
-        Head("B", "근무 중에만 · 교육일(DAY0)에는 나오지 않는다");
+        Head("B", "근무 중에만, 교육일(DAY0)에는 나오지 않는다");
         var gs = GameState.Instance;
 
         gs.ResetRun(0);
@@ -112,7 +112,7 @@ public partial class PresenceTest : Node
     // ── 흔적이 남지 않는다 ──────────────────────────────────────────────
     private async System.Threading.Tasks.Task TestLeavesNoTrace(PresenceDirector d)
     {
-        Head("C", "로그 · 증거 카드 · 인터뷰 어디에도 남지 않는다");
+        Head("C", "로그, 증거 카드, 인터뷰 어디에도 남지 않는다");
         var gs = GameState.Instance;
         gs.ResetRun(2);
         gs.SetPhase(GamePhase.Live);
@@ -138,7 +138,7 @@ public partial class PresenceTest : Node
             d.Fire(k);
             await Seconds(0.7);
         }
-        GD.Print($"   네 연출을 모두 띄웠다: {string.Join(" · ", d.FiredKinds)}");
+        GD.Print($"   네 연출을 모두 띄웠다: {string.Join(", ", d.FiredKinds)}");
 
         var added = EventLog.Instance.GetAllEntries().Skip(logBefore).ToList();
         foreach (var e in added) GD.Print($"   [로그에 새로 생긴 줄] {e.EventType} {e.RoomId} {e.Description}");

@@ -121,7 +121,7 @@ public static class KoreanParticle
                 if (!rest.StartsWith(bare, System.StringComparison.Ordinal)) continue;
                 // "{task} 하고" 처럼 띄어 쓴 경우는 조사가 아니다 — StartsWith 라 이미 걸러진다.
                 // "{room}이었어요" 는 받침 없는 방 이름에서 "저장고이었어요" 가 된다.
-                return $"변수 뒤 조사 '{bare}' 는 받침에 따라 달라집니다 — '{PairHint(bare)}' 로 쓰세요: {template}";
+                return $"변수 뒤 조사 '{bare}' 는 받침에 따라 달라집니다 - '{PairHint(bare)}' 로 쓰세요: {template}";
             }
         }
         return "";

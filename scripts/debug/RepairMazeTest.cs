@@ -29,7 +29,7 @@ public partial class RepairMazeTest : Node
     // ── 1,000회 생성 — 해답 보장 · 시간 여유 ────────────────────────────
     private void TestGeneration()
     {
-        Head("A", "1,000회 생성 — 반드시 풀 수 있고 시간이 넉넉하다");
+        Head("A", "1,000회 생성 - 반드시 풀 수 있고 시간이 넉넉하다");
         const int runs = 1000;
         int unsolvable = 0, tooTight = 0, minLen = int.MaxValue, maxLen = 0;
         float minSlack = float.MaxValue;
@@ -64,7 +64,7 @@ public partial class RepairMazeTest : Node
             if (slack < RepairMaze.TimeMargin - 0.001f) tooTight++;
         }
 
-        GD.Print($"   해답 길이 {minLen}~{maxLen}칸 · 최소 시간 여유 {minSlack:0.00}배");
+        GD.Print($"   해답 길이 {minLen}~{maxLen}칸, 최소 시간 여유 {minSlack:0.00}배");
         Check(unsolvable == 0, $"{runs}회 모두 풀 수 있다 (불가 {unsolvable}건)");
         Check(tooTight == 0, $"{runs}회 모두 시간 여유 {RepairMaze.TimeMargin:0.0}배 이상 (모자람 {tooTight}건)");
         Check(minSlack >= RepairMaze.TimeMargin - 0.001f, "가장 빠듯한 미로도 기준을 넘는다");

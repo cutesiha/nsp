@@ -36,6 +36,7 @@ public static class InterviewEvidenceBoard
         AddAnomalies(list, rows, targetEmployeeId);
         AddCctv(list, targetEmployeeId);
         AddTestimonies(list, targetEmployeeId);
+        AddNamedMentions(list, targetEmployeeId);
         AddOwnStatements(list, targetEmployeeId);
         AddOwnTestimonies(list, targetEmployeeId);
         AddBehaviorClaims(list, targetEmployeeId);
@@ -114,16 +115,42 @@ public static class InterviewEvidenceBoard
         if (sim == null) return list;
 
         var seen = new HashSet<string>(list.Select(e => e.Id));
+        // 이 직원 노트에 인용 카드로 올라온 말(말한 사람 · 원문). 심문 답의 인용 카드는 대화 기록의
+        // 순번을 모르므로 Id 로 짝을 지을 수 없다 — 원문으로 맞춘다.
+        var quoted = new HashSet<string>(list.Where(e => e.NamedMention)
+            .Select(e => e.SpeakerEmployeeId + "|" + e.QuotedLine.Trim()));
         foreach (string id in sim.GetActiveEmployeeIds())
         {
             if (id == targetEmployeeId) continue;
             foreach (var e in Build(id))
             {
+                // 같은 말이 말한 사람 노트와 이 직원 노트에 서로 다른 카드로 올라와 있으면
+                // (…이 한 말 / …의 증언) 이 직원 쪽 — 질문에 쓸 수 있는 쪽 — 한 장만 남긴다.
+                if (seen.Contains(MirrorIdFor(e, targetEmployeeId))) continue;
+                if (e.SpokenLine && quoted.Contains(e.SpeakerEmployeeId + "|" + (e.Body ?? "").Trim())) continue;
                 if (!seen.Add(e.Id)) continue;   // 사고 기록처럼 주인이 없는 자료는 한 번만
                 list.Add(e);
             }
         }
         return Sort(list);
+    }
+
+    // 다른 직원 노트의 카드가 이 직원 노트에서는 어떤 Id 로 올라와 있는가(없으면 빈 값).
+    //   told:{말한 사람}:{이 직원}:{방}    ↔  say:{이 직원}:{말한 사람}:{방}
+    //   toldnot:{말한 사람}:{이 직원}:{…}  ↔  notsee:{이 직원}:{말한 사람}:{…}
+    //   said:{말한 사람}:{날}:{순번}        ↔  named:{이 직원}:{말한 사람}:{날}:{순번}
+    private static string MirrorIdFor(InterviewEvidence e, string target)
+    {
+        if (e == null || string.IsNullOrEmpty(e.Id)) return "";
+        var p = e.Id.Split(':', 4);
+        if (p.Length < 4) return "";
+        return p[0] switch
+        {
+            "told" when p[2] == target => $"say:{target}:{p[1]}:{p[3]}",
+            "toldnot" when p[2] == target => $"notsee:{target}:{p[1]}:{p[3]}",
+            "said" => $"named:{target}:{p[1]}:{p[2]}:{p[3]}",
+            _ => "",
+        };
     }
 
     // 시간이 없는 자료(기분)는 항상 맨 위에 둔다 — 근무 전에 적어 낸 것이므로.
@@ -234,7 +261,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Incident,
                 Header = "기절 기록",
                 TimeText = DialogueClock.Text(r.Timestamp),
-                Body = $"{Codename(r.RelatedEmployeeId)} — 스트레스 한계 · 업무 불능",
+                Body = $"{Codename(r.RelatedEmployeeId)} - 스트레스 한계, 업무 불능",
                 SubjectEmployeeId = r.RelatedEmployeeId,
                 AnchorTime = r.Timestamp,
                 HasTime = true,
@@ -252,7 +279,9 @@ public static class InterviewEvidenceBoard
         {
             Id = IncidentIdOf(key),
             Kind = EvidenceKind.Incident,
-            Header = "사고 기록",
+            // 사망은 "생체 신호 소실" 로 — 누구의 신호가 끊겼는지는 본문과 VictimEmployeeId 가 말한다.
+            Header = r.SourceEventType == LogEventType.Death ? "생체 신호 소실" : "사고 기록",
+            VictimEmployeeId = r.SourceEventType == LogEventType.Death ? r.RelatedEmployeeId ?? "" : "",
             TimeText = DialogueClock.Text(r.Timestamp),
             Body = r.Text,
             SubjectEmployeeId = "",          // 누구의 것도 아니다 — 모두에게 물을 수 있다
@@ -318,7 +347,7 @@ public static class InterviewEvidenceBoard
                 TimeText = DialogueClock.Text(o.Time),
                 Body = string.IsNullOrEmpty(detail)
                     ? $"{RoomName(o.RoomId)}에서 확인"
-                    : $"{RoomName(o.RoomId)} · {detail}",
+                    : $"{RoomName(o.RoomId)}: {detail}",
                 BehaviorDetail = detail,
                 SubjectEmployeeId = target,
                 AnchorTime = o.Time,
@@ -346,8 +375,8 @@ public static class InterviewEvidenceBoard
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
                 // 무엇을 하고 있었는지까지 들었으면 그것을 싣는다 — 방 이름은 시각 옆 태그로 충분하다.
                 Body = string.IsNullOrEmpty(s.Detail)
-                    ? $"{Codename(s.SpeakerId)} · {RoomName(s.RoomId)}에서 봤다"
-                    : $"{Codename(s.SpeakerId)} · {s.Detail}",
+                    ? $"{Codename(s.SpeakerId)}: {RoomName(s.RoomId)}에서 봤다"
+                    : $"{Codename(s.SpeakerId)}: {s.Detail}",
                 BehaviorDetail = s.Detail,
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = s.SpeakerId,
@@ -372,7 +401,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(s.SpeakerId) + "의 증언",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
-                Body = KoreanParticle.Resolve($"{Codename(s.SpeakerId)} · {s.Detail}은/는 보지 못했다"),
+                Body = KoreanParticle.Resolve($"{Codename(s.SpeakerId)}: {s.Detail}은/는 보지 못했다"),
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = s.SpeakerId,
                 AnchorTime = s.AnchorTime,
@@ -402,7 +431,7 @@ public static class InterviewEvidenceBoard
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
                 Body = string.IsNullOrEmpty(s.Detail)
                     ? $"{Codename(s.SubjectId)}을/를 {RoomName(s.RoomId)}에서 봤다"
-                    : $"{Codename(s.SubjectId)} · {s.Detail}",
+                    : $"{Codename(s.SubjectId)}: {s.Detail}",
                 BehaviorDetail = s.Detail,
                 SubjectEmployeeId = s.SubjectId,
                 SpeakerEmployeeId = target,
@@ -421,7 +450,7 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Testimony,
                 Header = Codename(target) + "이/가 한 말",
                 TimeText = s.HasTime ? DialogueClock.Text(s.AnchorTime) : "",
-                Body = KoreanParticle.Resolve($"{Codename(s.SubjectId)} · {s.Detail}은/는 보지 못했다"),
+                Body = KoreanParticle.Resolve($"{Codename(s.SubjectId)}: {s.Detail}은/는 보지 못했다"),
                 SubjectEmployeeId = s.SubjectId,
                 SpeakerEmployeeId = target,
                 AnchorTime = s.AnchorTime,
@@ -432,6 +461,164 @@ public static class InterviewEvidenceBoard
                 RelatedEmployeeIds = { s.SubjectId },
             });
         }
+    }
+
+    // --- 다른 직원이 이 직원의 이름을 댄 말 --------------------------------
+    //
+    // "강아지 씨가 좀 이상했어요" 처럼 남이 이 직원의 **이름을 직접 대며** 한 말. 목격 증언(위)으로
+    // 정리되지 않는 답이 많다 — 누구에게 알렸는지, 누구에게 들었는지, 엿들은 잡담의 한 줄 같은 것들.
+    // 전에는 그런 말이 말한 사람의 노트에만 남거나(자료를 들고 물은 답이면) 아예 카드가 되지 않아서,
+    // 그 이름의 주인에게 사고 기록과 함께 들이밀 수가 없었다(2026-10-30 플레이 피드백).
+    //
+    // 들은 말을 원문 그대로 싣는다. 요약하면 그 사람이 하지 않은 말이 생긴다.
+    private static void AddNamedMentions(List<InterviewEvidence> list, string target)
+    {
+        var history = DialogueHistory.Instance?.GetAllEntries();
+        if (history != null)
+        {
+            foreach (var e in history)
+            {
+                // 관리자의 말(질문)은 빼고 직원의 말만 — 질문에 이름이 들어 있는 건 당연하다.
+                if (e.EntryType == DialogueEntryType.PlayerChoice) continue;
+                // 휴게시간 심문의 답은 아래(MentionsOf)가 맡는다 — 화면이 같은 답을 대화 기록에도 남기므로
+                // 여기서도 만들면 한 마디가 두 장이 된다. 거기는 질문이 가리킨 사건 · 방 · 사람까지 들고 있다.
+                if (e.ConversationType == DialogueConversationType.Interview) continue;
+                if (string.IsNullOrEmpty(e.SpeakerId) || e.SpeakerId == target) continue;
+                if (!NamesEmployee(e.Text, target)) continue;
+
+                // 사고 자료를 들고 한 질문의 답이면 그 사고의 시각 · 방을 가리킨다.
+                // 아니면 그 말을 한 시각에 둔다(원문 발언 카드와 같다).
+                string key = LinkedIncidentKey(e.EvidenceIds);
+                float time = IncidentTimeOfKey(key, e.Timestamp);
+                list.Add(NamedCard($"named:{target}:{e.SpeakerId}:{e.Day}:{e.Seq}", target, e.SpeakerId,
+                    e.Text, e.Day, time, IncidentRoomOfKey(key), key));
+            }
+        }
+
+        // 휴게시간 심문의 답 — 자료를 들고 물은 답이면 그 자료의 사건 · 방 · 시각을 가리킨다.
+        // 심문 답은 대화 기록(DialogueHistory, 통화 전용)에 남지 않으므로 따로 받아 둔 것을 읽는다
+        // (InterviewSession.NoteMentions). 예전에는 이 길이 없어 "고양이에게 사고 기록을 들고 물었더니
+        // 강아지가 수상했다고 했다" 는 말이 강아지 노트에 오지 않았다(2026-10-30 사용자 지시).
+        foreach (var m in PlayerKnownEvidence.MentionsOf(target))
+        {
+            float time = m.HasTime ? m.Time : IncidentTimeOfKey(m.IncidentKey, -1f);
+            string room = !string.IsNullOrEmpty(m.RoomId) ? m.RoomId : IncidentRoomOfKey(m.IncidentKey);
+            list.Add(NamedCard($"named:{target}:{m.SpeakerId}:ask:{m.Seq}", target, m.SpeakerId,
+                m.Line, m.Day, Mathf.Max(0f, time), room, m.IncidentKey, hasTime: time >= 0f));
+        }
+
+        // 엿들은 대화 — 대화에 끼지 않은 제3자의 이름이 나온 줄. 대화에 낀 사람이면 엿들은 대화
+        // 카드가 이미 그 사람 노트에 있다(AddOverheard).
+        foreach (var h in PlayerKnownEvidence.OverheardToday())
+        {
+            if (h.A == target || h.B == target) continue;
+            foreach (var (speaker, line) in new[] { (h.A, h.LineA), (h.B, h.LineB) })
+            {
+                if (string.IsNullOrEmpty(speaker) || !NamesEmployee(line, target)) continue;
+                list.Add(NamedCard($"named:{target}:{speaker}:heard:{h.RoomId}:{h.Time:0.0}", target, speaker,
+                    line, h.Day, h.Time, h.RoomId, ""));
+            }
+        }
+    }
+
+    // hasTime 이 거짓이면 언제 일을 말한 것인지 모른다(자료 없이 물은 질문의 답) — 시각을 붙이지 않는다.
+    private static InterviewEvidence NamedCard(string id, string target, string speaker, string line, int day,
+        float time, string roomId, string incidentKey, bool hasTime = true)
+    {
+        var ev = new InterviewEvidence
+        {
+            Id = id,
+            Kind = EvidenceKind.Testimony,
+            Day = day, SubjectDay = day,
+            DayIsFixed = true,
+            Header = Codename(speaker) + "의 증언",
+            TimeText = hasTime ? DialogueClock.Text(time) : "",
+            Body = line,
+            QuotedLine = line,
+            SubjectEmployeeId = target,
+            SpeakerEmployeeId = speaker,
+            AnchorTime = time,
+            HasTime = hasTime,
+            // 이름을 댄 것이지 그 사람이 어디 있었다고 말한 것이 아니다 — 위치 추궁의 근거가 아니다.
+            Position = PositionClaim.None,
+            SubjectRoomId = roomId ?? "",
+            IncidentKey = incidentKey ?? "",
+        };
+        ev.RelatedEmployeeIds.Add(speaker);
+        ev.MentionedEmployeeIds.Add(target);
+        return ev;
+    }
+
+    // 문장이 그 직원의 코드네임을 **이름으로** 부르는가.
+    //
+    // "고양이" 안의 "양" 처럼 다른 낱말의 일부로 들어간 것은 이름이 아니다 — 앞 글자가 한글이면
+    // 낱말의 중간이다. 한 글자 이름(양)은 뒤도 본다: 조사 · 호칭이 붙거나 낱말이 끝나야 이름이다
+    // ("양쪽" · "양호" 는 이름이 아니다).
+    public static bool NamesEmployee(string text, string employeeId)
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(employeeId)) return false;
+        string name = Codename(employeeId);
+        // 이름표를 못 찾으면(시뮬레이션이 없는 검사 등) id 가 돌아온다 — 영문 id 로는 찾지 않는다.
+        if (string.IsNullOrEmpty(name) || name == employeeId) return false;
+
+        for (int i = text.IndexOf(name, System.StringComparison.Ordinal); i >= 0;
+             i = text.IndexOf(name, i + name.Length, System.StringComparison.Ordinal))
+        {
+            int end = i + name.Length;
+            if (i > 0 && IsHangul(text[i - 1])) continue;
+            if (name.Length == 1 && end < text.Length && IsHangul(text[end])
+                && !SingleNameSuffixes.Any(s => string.CompareOrdinal(text, end, s, 0, s.Length) == 0))
+                continue;
+            return true;
+        }
+        return false;
+    }
+
+    // 문장이 가리키는 작업실 — 이름이 **딱 하나** 나올 때만(둘 이상이면 어느 쪽 일인지 모른다).
+    // 자료 없이 물은 질문의 답("코어실에서 강아지 씨가 서성였어요")을 그 방의 사고와 잇는 데 쓴다.
+    public static string RoomNamedIn(string text)
+    {
+        var sim = FacilitySimulation.Instance;
+        if (sim == null || string.IsNullOrEmpty(text)) return "";
+        string found = "";
+        foreach (string roomId in sim.GetRoomIds())
+        {
+            string name = sim.GetRoomDef(roomId)?.DisplayName ?? "";
+            if (name.Length < 2 || !text.Contains(name, System.StringComparison.Ordinal)) continue;
+            if (!string.IsNullOrEmpty(found)) return "";
+            found = roomId;
+        }
+        return found;
+    }
+
+    // 한 글자 이름 뒤에 붙어도 이름으로 읽히는 것들.
+    private static readonly string[] SingleNameSuffixes =
+        { "씨", "님", "직원", "이", "은", "을", "의", "도", "만", "과", "하고", "한테", "에게", "랑" };
+
+    private static bool IsHangul(char c) => c >= '가' && c <= '힣';
+
+    // 그 말이 들고 있던 자료 가운데 사고 자료의 사건 키(없으면 빈 값). 자료 Id 는 "incident:{키}" 이고,
+    // 같은 순간의 사고가 여럿이면 뒤에 "#2" 가 붙는다(AddLogRows).
+    private static string LinkedIncidentKey(IEnumerable<string> evidenceIds)
+    {
+        const string prefix = "incident:";
+        foreach (string id in evidenceIds ?? Enumerable.Empty<string>())
+        {
+            if (string.IsNullOrEmpty(id) || !id.StartsWith(prefix, System.StringComparison.Ordinal)) continue;
+            string key = id[prefix.Length..];
+            int dup = key.IndexOf('#');
+            return dup >= 0 ? key[..dup] : key;
+        }
+        return "";
+    }
+
+    // 사건 키("{종류}:{방}:{시각}")의 시각. 읽지 못하면 fallback.
+    // 키는 IncidentKeyOf 가 지금 문화권 형식으로 찍으므로 읽을 때도 같은 형식으로 읽는다.
+    private static float IncidentTimeOfKey(string incidentKey, float fallback)
+    {
+        if (string.IsNullOrEmpty(incidentKey)) return fallback;
+        var parts = incidentKey.Split(':');
+        return parts.Length >= 3 && float.TryParse(parts[2], out float t) ? t : fallback;
     }
 
     // --- 이 직원이 앞서 한 진술 -------------------------------------------
@@ -468,7 +655,7 @@ public static class InterviewEvidenceBoard
                     DayIsFixed = true,
                     Header = Codename(target) + "의 진술" + (latest ? "" : "(정정 전)"),
                     TimeText = st.HasTime ? DialogueClock.Text(st.AnchorTime) : "",
-                    Body = (latest ? "본인 · " : "본인 · 처음엔 ") + $"{RoomName(room)}에 있었다",
+                    Body = (latest ? "본인: " : "본인: 처음엔 ") + $"{RoomName(room)}에 있었다",
                     SubjectEmployeeId = target,
                     SpeakerEmployeeId = target,
                     AnchorTime = st.AnchorTime,
@@ -545,7 +732,7 @@ public static class InterviewEvidenceBoard
                 Day = b.Day, SubjectDay = b.SubjectDay,
                 Header = Codename(target) + "의 진술",
                 TimeText = b.HasTime ? DialogueClock.Text(b.AnchorTime) : "",
-                Body = $"본인 · {b.Text}",
+                Body = $"본인: {b.Text}",
                 SubjectEmployeeId = target,
                 SpeakerEmployeeId = target,
                 AnchorTime = b.AnchorTime,
@@ -663,8 +850,8 @@ public static class InterviewEvidenceBoard
                 Kind = EvidenceKind.Anomaly,
                 Header = "이상 개체",
                 TimeText = DialogueClock.Text(r.Timestamp),
-                Body = struck ? $"{RoomName(room)} · 이상 개체 접촉 사고 당시 그 방에 있었다"
-                              : $"{RoomName(room)} · 이상 개체가 나타났을 때 그 방에 있었다",
+                Body = struck ? $"{RoomName(room)}: 이상 개체 접촉 사고 당시 그 방에 있었다"
+                              : $"{RoomName(room)}: 이상 개체가 나타났을 때 그 방에 있었다",
                 SubjectEmployeeId = target,
                 AnchorTime = r.Timestamp,
                 HasTime = true,
@@ -678,7 +865,7 @@ public static class InterviewEvidenceBoard
     }
 
     // 주장 키(EventType:Room:Time)에서 방만 꺼낸다. 행동 추궁이 "같은 방"을 보기 때문이다.
-    private static string IncidentRoomOfKey(string incidentKey)
+    internal static string IncidentRoomOfKey(string incidentKey)
     {
         if (string.IsNullOrEmpty(incidentKey)) return "";
         var parts = incidentKey.Split(':');

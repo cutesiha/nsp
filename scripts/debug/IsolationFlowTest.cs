@@ -64,8 +64,8 @@ public partial class IsolationFlowTest : Node
         Check(_sim.IsolateEmployee("cat"), "격리 명령이 받아들여졌다");
         Check(st.Isolated, "격리 상태가 되었다");
         Check(st.Isolation == IsolationPhase.React, $"그 자리에서 반응하는 단계다 ({st.Isolation})");
-        Check(!st.IsMoving && st.PathQueue.Count == 0, "아직 경로가 없다 — 걷지 않는다");
-        Check(st.AssignedRoomId.Length == 0, "배치가 풀렸다 — 업무 기여 0");
+        Check(!st.IsMoving && st.PathQueue.Count == 0, "아직 경로가 없다 - 걷지 않는다");
+        Check(st.AssignedRoomId.Length == 0, "배치가 풀렸다 - 업무 기여 0");
         Check(_sim.OnDutyCount(wasIn) == 1, "작업실 인원에서 빠졌다(남은 사람은 늑대 하나)");
 
         // 반응이 끝나기 전에는 움직이지 않는다.
@@ -133,7 +133,7 @@ public partial class IsolationFlowTest : Node
             if (st.Isolation == IsolationPhase.InRoom) break;
         }
         Check(!carried, "누구도 격리 대상을 업거나 끌고 가지 않았다");
-        Check(!hadResponder, "구조자가 붙지 않았다 — 격리는 의식이 있는 상태다");
+        Check(!hadResponder, "구조자가 붙지 않았다 - 격리는 의식이 있는 상태다");
         Check(!faintPhase, "기절 흐름이 끼어들지 않았다");
         Check(st.Isolation == IsolationPhase.InRoom, "혼자 걸어 수용되었다");
     }

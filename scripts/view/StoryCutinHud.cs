@@ -131,17 +131,19 @@ public partial class StoryCutinHud : CanvasLayer
 
         // 글이 들어가는 칸. 전체화면 값은 예전 그대로다 — 손대면 프롤로그 · DAY0 교육
         // 화면의 글 자리가 같이 움직인다.
-        float topGap = onMonitor ? 3f : 16f;
+        // 이름 줄 위 여백. 이름띠는 이 여백을 **위아래에 똑같이** 둔다(아래 BandHeight).
+        float topGap = onMonitor ? 5f : 10f;
         float side = onMonitor ? 16f : 26f;
         _col.OffsetLeft = side; _col.OffsetRight = -side;
         _col.OffsetTop = topGap; _col.OffsetBottom = onMonitor ? -8f : -14f;
-        _col.AddThemeConstantOverride("separation", onMonitor ? 5 : 10);
+        // 이름 줄과 대사 사이 — 대사 첫 줄이 이름띠 아랫선에 붙지 않게 띠 여백보다 조금 더 띄운다.
+        _col.AddThemeConstantOverride("separation", onMonitor ? 8 : 14);
 
         // 이름 띠 — 높이를 **이름 글자에서 거꾸로** 잡는다. 30px 로 고정해 두면 글자가
         // 커질수록 이름이 띠 아래로 삐져나온다(실제로 두 화면 다 그랬다).
-        // 이름이 선 자리를 옮기는 게 아니라, 그 자리를 덮을 만큼만 띠를 잡는다.
-        _frame.BandHeight = Mathf.Round(
-            topGap + ViewFont.Default.GetHeight(nameSize) + (onMonitor ? 3f : 5f));
+        // 예전에는 위 여백(16)이 아래 여백(5)보다 훨씬 커서 이름이 띠 바닥에 내려앉아 보였다 —
+        // 한글 글자는 줄 높이를 거의 다 채우므로, 위아래 여백만 같으면 띠 한가운데에 선다.
+        _frame.BandHeight = Mathf.Round(topGap * 2f + ViewFont.Default.GetHeight(nameSize));
         // 폭은 모니터 안에서만 아주 살짝 줄인다(전체화면은 예전처럼 창 폭을 다 쓴다).
         _frame.BandInset = onMonitor ? 8f : 0f;
 
@@ -156,6 +158,7 @@ public partial class StoryCutinHud : CanvasLayer
         // 모니터2 안에서는 원화가 살짝 아래로 내려앉아 보인다 — 크기는 그대로 두고
         // 자리만 조금 올린다.
         _left.LiftFraction = _right.LiftFraction = onMonitor ? MonitorPortraitLift : 0f;
+        _left.ApplyEmployeeLift = _right.ApplyEmployeeLift = onMonitor;
     }
 
     // 모니터2 안에서 스탠딩을 올리는 양(자리 높이 비율). 작게 — 0.04 면 영상 높이의 4%.
@@ -721,7 +724,9 @@ public partial class StoryCutinHud : CanvasLayer
                     if (_managerLine)
                         Sfx.Instance?.PlayVoiceBlip(ManagerVoiceId, _fullText[i],
                             pitchMul: ManagerVoicePitch);
-                    else Sfx.Instance?.PlayVoiceBlip(_speakerVoiceId, _fullText[i]);
+                    // GUIDE-0 는 눈앞의 사람이 아니라 시설 스피커로 말한다(지시서 §6).
+                    else Sfx.Instance?.PlayVoiceBlip(_speakerVoiceId, _fullText[i],
+                        _speakerVoiceId == "guide0" ? Sfx.VoiceChannel.Radio : Sfx.VoiceChannel.Direct);
                     EmployeeMouthAnimator.NoticeCharacter(_fullText[i]);
                 }
                 _shownChars = shown;

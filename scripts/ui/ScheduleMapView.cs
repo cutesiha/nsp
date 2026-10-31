@@ -44,6 +44,9 @@ public partial class ScheduleMapView : Control
     // 클릭으로 배치 대상으로 고른 직원(다음에 누르는 작업실로 들어간다).
     public string SelectedEmployeeId { get; private set; } = "";
     public string DraggingEmployeeId => _dragging ? _dragEmp : "";
+    // 지금 손에 쥔 직원 — 누르고 있거나(끌기 직전 포함) 클릭으로 골라 둔 직원.
+    // 교육 화살표가 "집어 들었으면 놓을 곳을 가리킨다" 를 판단할 때 쓴다.
+    public string HeldEmployeeId => !string.IsNullOrEmpty(_dragEmp) ? _dragEmp : SelectedEmployeeId;
 
     // ── 화면 배치(모니터 논리 좌표 800 × 600) ────────────────────────────
     private static readonly Vector2 Canvas = new(800f, 600f);
@@ -264,7 +267,7 @@ public partial class ScheduleMapView : Control
         return band switch
         {
             PairBand.Refuse => both + " 같은 방 근무를 거부합니다",
-            PairBand.Uneasy => both + " 사이가 불편합니다 — 효율 저하 · 긴장 · 언쟁 위험",
+            PairBand.Uneasy => both + " 사이가 불편합니다 - 효율 저하, 긴장, 언쟁 위험",
             PairBand.Close => both + " 각별한 사이입니다",
             PairBand.Friendly => both + " 사이가 좋습니다",
             _ => "",
@@ -305,9 +308,10 @@ public partial class ScheduleMapView : Control
     // ── 좌표 ─────────────────────────────────────────────────────────────
 
     // 지도에 올릴 방: MapPosition 이 있는 방 전부(잠긴 방도 어둡게 보여 준다).
+    // 단기 근무에서 빠진 방(환기실 · 의무실)은 잠긴 칸으로도 그리지 않는다 — 없는 방이다.
     private static List<RoomDef> MapRooms(FacilitySimulation sim) =>
         sim.GetRoomIds().Select(sim.GetRoomDef)
-            .Where(d => d != null && d.MapPosition != Vector2.Zero)
+            .Where(d => d != null && d.MapPosition != Vector2.Zero && !GameModes.IsRoomRemoved(d.RoomId))
             .ToList();
 
     // MapPosition 전체를 지도 영역에 맞춰 늘린다(칸이 영역 밖으로 나가지 않게 반 칸씩 여백).
@@ -391,7 +395,8 @@ public partial class ScheduleMapView : Control
             if (def == null) continue;
 
             // 통로(실선) — 직원이 실제로 다니는 길. 근무 중 미니맵과 같은 직각 꺾임 규칙.
-            foreach (var other in def.ConnectedRoomIds)
+            // 길찾기와 같은 목록을 쓴다(단기 근무의 정비실 ↔ 격리실 직통로 포함).
+            foreach (var other in sim.LinkedRoomIds(roomId))
             {
                 if (!_cells.TryGetValue(other, out var oc) || !seen.Add(Key("c", roomId, other))) continue;
                 Vector2 a = cell.GetCenter(), b = oc.GetCenter();
@@ -699,7 +704,7 @@ public partial class ScheduleMapView : Control
         bool dropHere = _dragging && r.HasPoint(_lastPos);
         DrawRect(r, new Color(0.04f, 0.08f, 0.08f, 0.9f));
         DrawRect(r, dropHere ? Mint : Mint with { A = 0.22f }, false, dropHere ? 2f : 1f);
-        DrawString(_font, r.Position + new Vector2(10f, 20f), "STAFF  ·  대기 인원", HorizontalAlignment.Left,
+        DrawString(_font, r.Position + new Vector2(10f, 20f), "STAFF, 대기 인원", HorizontalAlignment.Left,
             r.Size.X - 20f, Fs(12), Mint);
 
         foreach (var (emp, card) in _rosterRects)
@@ -751,9 +756,9 @@ public partial class ScheduleMapView : Control
 
             // 기분은 모니터 2 가 맡는다 — 여기는 "지금 어디에 있는가" 만.
             // 다만 배치할 수 없는 사람(사망 · 기절 · 격리)과 스트레스 구간은 여기서도 바로 보여야 한다(F-2).
-            string sub = dead ? "■ 사망 · 배치 불가"
-                : st.Incapacitated ? "기절 · 의무실에서 회복 필요"
-                : st.Isolated ? "[격리] · 근무 불가"
+            string sub = dead ? "■ 사망, 배치 불가"
+                : st.Incapacitated ? "기절, 의무실에서 회복 필요"
+                : st.Isolated ? "[격리], 근무 불가"
                 : assigned ? "→ " + (sim.GetRoomDef(st.AssignedRoomId)?.DisplayName ?? "")
                 : "미배치";
             var subCol = dead || st.Incapacitated || st.Isolated ? Alert : assigned ? Mint : Amber;
@@ -762,7 +767,7 @@ public partial class ScheduleMapView : Control
                 string band = sim.StressBandName(st);
                 if (band != "정상")
                 {
-                    sub += $"  ·  스트레스 {st.Stress:0} {band}";
+                    sub += $", 스트레스 {st.Stress:0} {band}";
                     subCol = FacilitySimulation.StressBandColor(band);
                 }
             }
@@ -788,14 +793,14 @@ public partial class ScheduleMapView : Control
 
         // 거부 > 코어 미배치 > 인원 순. 불편 쌍은 시작을 막지 않으므로 인원 줄 위에 따로 싣는다.
         // 지시를 거부한 직후에는 그 이유를 먼저 띄운다 — 조작이 먹지 않는 것처럼 보이지 않게.
-        string deadNote = dead > 0 ? $"  ·  사망 {dead}명" : "";
+        string deadNote = dead > 0 ? $", 사망 {dead}명" : "";
         string status = _refusalAge < RefusalSeconds && _refusal.Length > 0
             ? "■ " + _refusal
             : refused.Count > 0
             ? "✕ " + PairText(sim, refused[0].A, refused[0].B, PairBand.Refuse) + (refused.Count > 1 ? $" 외 {refused.Count - 1}건" : "")
             : !core
-                ? "⚠ 코어실에 최소 1명의 직원을 배치해야 합니다."
-                : missing > 0 ? $"{placed} / {total} 배치  ·  미배치 {missing}명{deadNote}"
+                ? "▲ 코어실에 최소 1명의 직원을 배치해야 합니다."
+                : missing > 0 ? $"{placed} / {total} 배치, 미배치 {missing}명{deadNote}"
                               : $"{placed} / {total} 배치 완료{deadNote}";
         Color statusCol = _refusalAge < RefusalSeconds && _refusal.Length > 0 ? Alert
             : refused.Count > 0 ? Alert : !core || missing > 0 ? Amber : Mint;
@@ -803,7 +808,7 @@ public partial class ScheduleMapView : Control
         if (uneasy.Count > 0)
         {
             var u = uneasy[0];
-            string warn = "⚠ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
+            string warn = "▲ " + PairText(sim, u.A, u.B, PairBand.Uneasy) + (uneasy.Count > 1 ? $" 외 {uneasy.Count - 1}쌍" : "");
             DrawString(_font, new Vector2(24f, Canvas.Y - 80f), warn, HorizontalAlignment.Left, 520f, Fs(11), Warn);
         }
         DrawString(_font, new Vector2(24f, Canvas.Y - 52f), status, HorizontalAlignment.Left, 520f,
@@ -831,7 +836,7 @@ public partial class ScheduleMapView : Control
         if (src.X <= 0f || src.Y <= 0f) return;
         float k = Mathf.Min(box.Size.X / src.X, box.Size.Y / src.Y);
         var dst = src * k;
-        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false);
+        DrawTextureRect(tex, new Rect2(box.Position + (box.Size - dst) * 0.5f, dst), false, NSP.View.CrtArt.Tint);
     }
 
     private void DrawDashedLine(Vector2 a, Vector2 b, Color col, float width, float dash)
@@ -896,7 +901,7 @@ public partial class ScheduleMapView : Control
             var pst = sim.GetEmployeeState(emp);
             if (pst is { Alive: false })
             {
-                Refuse($"{sim.GetEmployeeDef(emp)?.Codename ?? emp} 생체 신호 소실 — 배치할 수 없습니다");
+                Refuse($"{sim.GetEmployeeDef(emp)?.Codename ?? emp} 생체 신호 소실 - 배치할 수 없습니다");
                 SelectedEmployeeId = "";
                 FocusEmp(emp);
                 AcceptEvent();
@@ -972,10 +977,10 @@ public partial class ScheduleMapView : Control
         {
             var st = sim.GetEmployeeState(emp);
             string name = sim.GetEmployeeDef(emp)?.Codename ?? emp;
-            if (st is { Isolated: true }) Refuse($"{name} 격리 중 — 근무에 투입할 수 없습니다");
-            else if (sim.MustStayInMedical(emp)) Refuse($"{name} 기절 — 회복 전까지 의무실을 벗어날 수 없습니다");
+            if (st is { Isolated: true }) Refuse($"{name} 격리 중 - 근무에 투입할 수 없습니다");
+            else if (sim.MustStayInMedical(emp)) Refuse($"{name} 기절 - 회복 전까지 의무실을 벗어날 수 없습니다");
             else if (!IsAssignable(sim, room))
-                Refuse($"{sim.GetRoomDef(room)?.DisplayName ?? room} — 오늘 배치할 수 없는 구역입니다");
+                Refuse($"{sim.GetRoomDef(room)?.DisplayName ?? room} - 오늘 배치할 수 없는 구역입니다");
         }
         // 배치가 안 됐으면 고른 상태로 남겨 둔다 — 작업실을 한 번 더 누르면 들어간다.
         SelectedEmployeeId = emp;

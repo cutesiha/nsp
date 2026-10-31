@@ -242,7 +242,7 @@ public partial class InterviewTreeTest : Node
 
     private void SectionF()
     {
-        GD.Print("\n#### F. 설비 사고 — 설정 변경 질문과 일관된 은폐");
+        GD.Print("\n#### F. 설비 사고 - 설정 변경 질문과 일관된 은폐");
         Reset();
         Place(new() { ["dog"] = Power, ["cat"] = Storage });
         Log(LogEventType.TaskStart, "dog", Power, 1f);
@@ -287,7 +287,7 @@ public partial class InterviewTreeTest : Node
         }
         else
         {
-            Ok(true, $"③ 이번 판에서 강아지는 부인을 고르지 않았다 ({frame.Variant}) — 전략은 판마다 정해진다");
+            Ok(true, $"③ 이번 판에서 강아지는 부인을 고르지 않았다 ({frame.Variant}) - 전략은 판마다 정해진다");
         }
 
         // ④ 답에 따라 꼬리질문이 갈라진다.
@@ -316,7 +316,7 @@ public partial class InterviewTreeTest : Node
 
     private void SectionG()
     {
-        GD.Print("\n#### G. 정전 — 인지 수준에 따라 답과 꼬리질문이 갈린다");
+        GD.Print("\n#### G. 정전 - 인지 수준에 따라 답과 꼬리질문이 갈린다");
         Reset();
         // 양은 발전실(정전 현장), 여우는 멀리 떨어진 경비실.
         Place(new() { ["sheep"] = Power, ["fox"] = Guard });
@@ -363,7 +363,7 @@ public partial class InterviewTreeTest : Node
 
     private void SectionH()
     {
-        GD.Print("\n#### H. 기절 — 쓰러진 사람 · 그 자리에 있던 사람 · 옮긴 사람");
+        GD.Print("\n#### H. 기절 - 쓰러진 사람, 그 자리에 있던 사람, 옮긴 사람");
         Reset();
         Place(new() { ["sheep"] = Power, ["wolf"] = Power, ["cat"] = Storage });
         Log(LogEventType.TaskStart, "sheep", Power, 1f);
@@ -389,7 +389,7 @@ public partial class InterviewTreeTest : Node
             Id = "faint:sheep:300.00", Kind = EvidenceKind.Incident, Day = 1,
             SubjectEmployeeId = "sheep", SubjectRoomId = Power,
             AnchorTime = 300f, HasTime = true, Position = PositionClaim.AtRoom,
-            Header = "기절 기록", Body = "양 — 스트레스 한계",
+            Header = "기절 기록", Body = "양 - 스트레스 한계",
         };
         Ok(InterviewQuestionFactory.IsFaintCard(faint), "기절 자료로 인식된다");
 
@@ -411,7 +411,7 @@ public partial class InterviewTreeTest : Node
         var qCat = InterviewQuestionFactory.For("cat", faint).Select(q => q.Intent).ToList();
         GD.Print($"      고양이(다른 방): {string.Join(",", qCat)}");
         Ok(!qCat.Contains(InterviewIntent.AskFoundWhere) && !qCat.Contains(InterviewIntent.AskRescueAction),
-            "③ 다른 방에 있던 직원에게 발견·구조를 묻지 않는다");
+            "③ 다른 방에 있던 직원에게 발견/구조를 묻지 않는다");
 
         // ④ 늑대의 발견 답변은 '본 만큼' 이다.
         string found = InterviewReplyPlanner.Answer(
@@ -424,7 +424,7 @@ public partial class InterviewTreeTest : Node
 
     private void SectionI()
     {
-        GD.Print("\n#### I. 이상 개체 — 직접 본 사람만 모습과 방향을 말한다");
+        GD.Print("\n#### I. 이상 개체 - 직접 본 사람만 모습과 방향을 말한다");
         Reset();
         Place(new() { ["rabbit"] = Storage, ["dog"] = Core });
         Log(LogEventType.TaskStart, "rabbit", Storage, 1f);

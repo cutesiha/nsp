@@ -87,7 +87,7 @@ public partial class PlayerCharacter : Node3D
         _skel = GetNodeOrNull<Skeleton3D>("Rig");
         if (_skel == null)
         {
-            GD.PushWarning("PlayerCharacter: 자식 Skeleton3D 'Rig' 를 찾지 못함 — 씬에 추가되어 있어야 함.");
+            GD.PushWarning("PlayerCharacter: 자식 Skeleton3D 'Rig' 를 찾지 못함 - 씬에 추가되어 있어야 함.");
             return;
         }
 

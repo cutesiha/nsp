@@ -90,7 +90,7 @@ public partial class PosterShotLit : Node
         if (ceiling != null) { ceiling.Visible = true; ceiling.LightEnergy = _ceilEnergy; }
         var fill = root?.GetNodeOrNull<OmniLight3D>("ControlRoom/Lights/FillLight");
         if (fill != null) { fill.Visible = true; fill.LightEnergy = _fillEnergy; }
-        GD.Print($"[PosterShotLit] 조명 ON — 천장등 {_ceilEnergy}, 보조등 {_fillEnergy}");
+        GD.Print($"[PosterShotLit] 조명 ON - 천장등 {_ceilEnergy}, 보조등 {_fillEnergy}");
 
         // ── 2. 모니터 1 — GUIDE-0.exe 얼굴(smile) ──────────────────────────
         ctl.SetLeftScreen(ctl.GuideFaceViewport);
@@ -101,7 +101,7 @@ public partial class PosterShotLit : Node
             // guide0_smile.png 는 입까지 그려진 완성 얼굴이라 입 Overlay 가 필요 없다.
             var smile = GD.Load<Texture2D>("res://assets/ui/guide0/guide0_smile.png");
             face.SetPortrait("smile", smile, false);
-            GD.Print($"[PosterShotLit] 모니터1 — GUIDE-0 smile (텍스처 {(smile != null ? "로드됨" : "없음")})");
+            GD.Print($"[PosterShotLit] 모니터1 - GUIDE-0 smile (텍스처 {(smile != null ? "로드됨" : "없음")})");
         }
         else GD.PushWarning("[PosterShotLit] GuideFaceView 를 못 찾았다.");
 
@@ -123,7 +123,7 @@ public partial class PosterShotLit : Node
         ctl.SetScreenBrightness(1.0f);
         // SetScreenBrightness 가 '아는 뷰포트'만 Always 로 올리므로, 내 뷰포트는 직접 못박는다.
         promptVp.RenderTargetUpdateMode = SubViewport.UpdateMode.Always;
-        GD.Print("[PosterShotLit] 모니터2 — 근무 시작 안내 문구");
+        GD.Print("[PosterShotLit] 모니터2 - 근무 시작 안내 문구");
 
         await Seconds(1.5);
 

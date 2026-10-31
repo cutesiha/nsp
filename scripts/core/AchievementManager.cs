@@ -124,7 +124,7 @@ public partial class AchievementManager : Node
     private static void Raise(AchievementDefinition def)
     {
         try { AchievementUnlocked?.Invoke(def); }
-        catch (Exception e) { GD.PushWarning($"AchievementManager: 팝업 통지 실패 — {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"AchievementManager: 팝업 통지 실패 - {e.Message}"); }
     }
 
     // ── 저장 ────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ public partial class AchievementManager : Node
             // 손상된 파일 — 기록이 비는 것은 아쉽지만 게임이 멈추지는 않는다.
             _unlocked.Clear();
             _counters.Clear();
-            GD.PushWarning($"AchievementManager: 도전과제 기록을 읽지 못했습니다 — {e.Message}");
+            GD.PushWarning($"AchievementManager: 도전과제 기록을 읽지 못했습니다 - {e.Message}");
         }
     }
 
@@ -168,7 +168,7 @@ public partial class AchievementManager : Node
         catch (Exception e)
         {
             // 디스크에 못 썼다고 런타임이 멈추면 안 된다 — 이번 실행 동안은 메모리에 남아 있다.
-            GD.PushWarning($"AchievementManager: 도전과제 저장 실패 — {e.Message}");
+            GD.PushWarning($"AchievementManager: 도전과제 저장 실패 - {e.Message}");
         }
     }
 
@@ -188,7 +188,7 @@ public partial class AchievementManager : Node
         OnRunReset();
         _loaded = true;                 // 다시 Load 해서 되살아나지 않게
 
-        if (Sandbox) { GD.Print("[도전과제] 샌드박스 실행 — 메모리 기록만 비웠습니다."); return; }
+        if (Sandbox) { GD.Print("[도전과제] 샌드박스 실행 - 메모리 기록만 비웠습니다."); return; }
 
         try
         {
@@ -196,11 +196,11 @@ public partial class AchievementManager : Node
             if (FileAccess.FileExists(StorePath))
                 DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(StorePath));
             if (FileAccess.FileExists(StorePath)) new ConfigFile().Save(StorePath);
-            GD.Print($"[도전과제] 기록을 초기화했습니다 — {StorePath}");
+            GD.Print($"[도전과제] 기록을 초기화했습니다 - {StorePath}");
         }
         catch (Exception e)
         {
-            GD.PushWarning($"AchievementManager: 기록 파일을 지우지 못했습니다 — {e.Message}");
+            GD.PushWarning($"AchievementManager: 기록 파일을 지우지 못했습니다 - {e.Message}");
         }
     }
 
@@ -379,14 +379,13 @@ public partial class AchievementManager : Node
     // DayObjectives.Grade 그대로 쓰고 여기서 새로 만들지 않는다.
     public void NoteEnding(EndingState.Kind kind)
     {
-        var gs = GameState.Instance;
-        string grade = DayObjectives.Grade(gs?.CoreProgress ?? 0f, gs?.EvaluationScore ?? 0);
+        string grade = DayObjectives.FinalGrade(kind);
         // S 를 받았다고 A 까지 주지 않는다 — 실제로 받은 등급 하나만.
         switch (grade)
         {
             case "S": Unlock(Achievements.GradeS); break;
             case "A": Unlock(Achievements.GradeA); break;
-            case "D": Unlock(Achievements.GradeLowest); break;
+            case "F": Unlock(Achievements.GradeLowest); break;
         }
         // 다른 실패 엔딩(Late · Loose)을 Bad 로 뭉치지 않는다.
         if (kind == EndingState.Kind.True) Unlock(Achievements.TrueEnding);
@@ -407,7 +406,7 @@ public partial class AchievementManager : Node
             _hooks = new FacilityHooks(this);
             AddChild(_hooks);
         }
-        catch (Exception e) { GD.PushWarning($"AchievementManager: 이벤트 연결 실패 — {e.Message}"); }
+        catch (Exception e) { GD.PushWarning($"AchievementManager: 이벤트 연결 실패 - {e.Message}"); }
     }
 
     private void Unwire()
@@ -468,11 +467,27 @@ public partial class AchievementManager : Node
         if (RealShift) Unlock(Achievements.WarningNeglected);
     }
 
-    internal void OnGhostDispelled() => Unlock(Achievements.GhostDispelled);
-
-    internal void OnGhostStruck()
+    // 이상 개체가 작업실을 떠났다 — 그 방 CCTV 를 띄워 두고 있었을 때만 "확인했다" 로 친다.
+    internal void OnGhostDispelled(string roomId)
     {
-        if (RealShift) Unlock(Achievements.GhostIgnored);
+        if (WatchingRoom(roomId)) Unlock(Achievements.GhostDispelled);
+    }
+
+    // 이상 개체가 그 방 설비를 부쉈다 — **그 순간을 CCTV 로 보고 있었을 때만** 「보기만 하는 관리자」.
+    //
+    // 예전에는 "끝까지 관측하지 않아 사고를 내세요" 였다. 관측 소멸이 폐지된 뒤로 개체는 보든 말든
+    // 떠나며 확률로 사고를 내므로, 끝까지 지켜본 사람에게도 이 과제가 떴다(2026-10-31 사용자 제보).
+    // 지금은 사고를 막지 못하고 지켜보기만 한 것을 센다 — 보지 않았으면 뜨지 않는다.
+    internal void OnGhostStruck(string roomId)
+    {
+        if (RealShift && WatchingRoom(roomId)) Unlock(Achievements.GhostIgnored);
+    }
+
+    private static bool WatchingRoom(string roomId)
+    {
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        return sim != null && !string.IsNullOrEmpty(roomId)
+            && sim.IsRoomUnderActiveCctv(roomId) && !sim.IsRoomCctvBlocked(roomId);
     }
 
     // FacilitySimulation 안쪽 시스템들의 이벤트를 받아 넘기는 얇은 중계 노드.
@@ -514,7 +529,7 @@ public partial class AchievementManager : Node
                 }
                 _sim.EmployeeKilled += OnKilled;
             }
-            catch (Exception e) { GD.PushWarning($"AchievementManager: 시뮬레이션 연결 실패 — {e.Message}"); }
+            catch (Exception e) { GD.PushWarning($"AchievementManager: 시뮬레이션 연결 실패 - {e.Message}"); }
         }
 
         public override void _ExitTree()
@@ -539,7 +554,7 @@ public partial class AchievementManager : Node
         private void OnKilled(string id) => _m.OnDeath();
         private void OnWarningFailed(string roomId, string title) => _m.OnWarningFailed();
         private void OnIsolated(string id) => _m.NoteIsolationAccepted(id);
-        private void OnDispelled(string roomId) => _m.OnGhostDispelled();
-        private void OnStruck(string roomId) => _m.OnGhostStruck();
+        private void OnDispelled(string roomId) => _m.OnGhostDispelled(roomId);
+        private void OnStruck(string roomId) => _m.OnGhostStruck(roomId);
     }
 }

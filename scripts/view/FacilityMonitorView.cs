@@ -27,13 +27,20 @@ public partial class FacilityMonitorView : Control
     private FacilityMinimap _minimap;
     // 검사 전용 — 그려진 지도를 픽셀로 확인할 때 쓴다.
     public FacilityMinimap MinimapForTest => _minimap;
+    // 교육 화살표가 가리키는 자리 — 지도 위 작업실 상자와 「근무 종료」 버튼.
+    public FacilityMinimap Minimap => _minimap;
+    public Control EndShiftButton => _endBtn;
+    // 「근무 종료」 를 눌러 확인 창이 떠 있는가.
+    public bool EndShiftConfirmOpen => _endShiftConfirmation?.Visible == true;
     private Label _clock;
     private Label _protocol;
     private Label _alertLine;
     private RichTextLabel _inspector;
     private TextureRect _face;
     // 인스펙터 얼굴 썸네일 한 변(1:1).
-    private const float FaceSize = 72f;
+    private const float FaceSize = 112f;
+    // 밝기는 CrtArt 한 곳에서 정한다(모니터에 올리는 원화 전부가 같은 값을 쓴다).
+    private ColorRect _faceBack;
     private Button _isolateBtn;
     private Label _notice;
     private double _noticeUntil;
@@ -229,6 +236,8 @@ public partial class FacilityMonitorView : Control
     // 지금 「자재 N / M」 부분이 화면에서 차지하는 자리(UpdateProtocol 이 매번 다시 잰다).
     // 줄 전체가 오른쪽 정렬이라 글자 수가 바뀌면 이 자리도 같이 움직인다.
     private Rect2 _materialsRect;
+    // 교육 화살표가 그 숫자 옆에 서도록 같은 자리를 내준다(이 화면의 로컬 좌표).
+    public Rect2 MaterialsRect => _materialsRect;
 
     public static void HighlightMaterials(bool on)
     {
@@ -281,6 +290,23 @@ public partial class FacilityMonitorView : Control
 
         // 직원을 고르면 설명 위에 얼굴(스탠딩 원화에서 머리만 잘라낸 FacePortrait)을 1:1 로 띄운다.
         // 방을 고르면 숨는다 — 그때는 설명이 이 자리까지 올라와 쓰던 높이를 그대로 쓴다.
+        // 원화는 밝은 파스텔(하늘색 · 연보라 · 흰 바탕)이다. 그대로 올리면 CRT 발광과
+        // 전역 LUT 를 지나면서 **한 덩어리로 날아가** 누구 얼굴인지 알아볼 수 없다
+        // — 화면에서 가장 밝은 자리가 되어 번짐까지 먹는다.
+        //
+        // 그래서 얼굴 뒤에 어두운 판을 깔고, 그림 자체는 조금 눌러서 올린다.
+        // 검은 선화는 원래 어두워서 거의 그대로 남고 **연한 면만 내려가** 대비가 산다.
+        var faceBack = new ColorRect
+        {
+            Position = new Vector2(10, 30),
+            Size = new Vector2(FaceSize, FaceSize),
+            Color = NSP.View.CrtArt.Backing,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        insPanel.AddChild(faceBack);
+        _faceBack = faceBack;
+
         _face = new TextureRect
         {
             Position = new Vector2(10, 30),
@@ -290,6 +316,7 @@ public partial class FacilityMonitorView : Control
             MouseFilter = MouseFilterEnum.Ignore,
             Visible = false,
         };
+        NSP.View.CrtArt.Apply(_face);
         insPanel.AddChild(_face);
 
         _inspector = new RichTextLabel
@@ -498,7 +525,7 @@ public partial class FacilityMonitorView : Control
         string state = !capacity ? "전력 부족"
             : seg.CooldownLeft > 0f ? $"냉각 {seg.CooldownLeft:0.0}s"
             : seg.StatusText;
-        _barrierLabel.Text = $"BARRIER ▸ {seg.DisplayName} — {state}";
+        _barrierLabel.Text = $"BARRIER ▸ {seg.DisplayName} - {state}";
         _barrierLabel.AddThemeColorOverride("font_color",
             seg.Sealed ? new Color(1f, 0.46f, 0.38f)
             : seg.Moving ? new Color(1f, 0.82f, 0.42f)
@@ -522,7 +549,8 @@ public partial class FacilityMonitorView : Control
         // 필수 업무를 끝내기 전에는 근무를 끝낼 수 없다는 걸 버튼 모양으로 보여준다.
         if (_endBtn != null)
         {
-            bool can = DayObjectives.CanEndShift;
+            // 교육은 GUIDE-0 가 근무 종료를 지시한 뒤에만(그 전에 끝내면 교육이 끊긴다).
+            bool can = DayObjectives.CanEndShift && !NSP.Prologue.TutorialDirector.BlocksEndShift;
             if (_endBtn.Disabled == can) _endBtn.Disabled = !can;
         }
         UpdateProtocol();
@@ -585,6 +613,8 @@ public partial class FacilityMonitorView : Control
         _faceCache = tex;
         _face.Texture = tex;
         _face.Visible = tex != null;
+        // 어두운 받침도 얼굴과 함께 여닫는다 — 방을 고른 자리에 검은 칸만 남으면 안 된다.
+        if (_faceBack != null) _faceBack.Visible = tex != null;
 
         // 방을 고르면 격리 버튼이 숨으므로 그 자리까지 설명이 내려올 수 있다.
         // (직원을 고르면 y 328 의 격리 버튼 위에서 끊어야 한다.)
@@ -607,7 +637,7 @@ public partial class FacilityMonitorView : Control
         sb.Append($"    코어 복구 1%당 {NSP.Facility.RoomStaffing.CoreMaterialCostPerPercent()} 소모");
         var taboos = TabooRuleSystem.Instance?.GetActiveTaboos().ToList();
         if (taboos is { Count: > 0 })
-            sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "⚠ " + t.Description)));
+            sb.Append("    ").Append(string.Join("    ", taboos.Select(t => "▲ " + t.Description)));
         string protocol = sb.ToString();
         if (_protocol.Text != protocol) _protocol.Text = protocol;
 
@@ -629,13 +659,13 @@ public partial class FacilityMonitorView : Control
         {
             var def = sim.GetEmployeeDef(_selEmp);
             var st = sim.GetEmployeeState(_selEmp);
-            if (def == null || st == null) { SetFace(null); SetInspector("—"); _isolateBtn.Visible = false; return; }
+            if (def == null || st == null) { SetFace(null); SetInspector("-"); _isolateBtn.Visible = false; return; }
 
-            string room = sim.GetRoomDef(st.CurrentRoomId)?.DisplayName ?? "—";
+            string room = sim.GetRoomDef(st.CurrentRoomId)?.DisplayName ?? "-";
             var task = sim.GetActiveTaskForRoom(st.CurrentRoomId);
             string status = !st.Alive ? "[color=#ff5555]활동 중단[/color]"
                 : st.Isolated ? "[color=#dd88dd]격리됨[/color]"
-                : st.Incapacitated ? "[color=#ff5555]기절 — 의무실에서 회복 중[/color]"
+                : st.Incapacitated ? "[color=#ff5555]기절 - 의무실에서 회복 중[/color]"
                 : st.IsMoving ? "이동 중" : "정상";
 
             string doing = st.IsMoving ? "이동 중" : task?.DisplayName ?? "대기";
@@ -649,9 +679,9 @@ public partial class FacilityMonitorView : Control
                 var sb = new System.Text.StringBuilder();
                 if (DayFeatures.StatsEnabled)
                 {
-                    sb.Append($"기술 {def.Tech} · 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n");
-                    sb.Append($"담력 {def.Courage} · 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n");
-                    sb.Append($"관찰 {def.Observation} · 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n");
+                    sb.Append($"기술 {def.Tech}, 작업 {Mathf.RoundToInt(sim.TechWorkMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"담력 {def.Courage}, 스트레스 {Mathf.RoundToInt(sim.CourageStressMultiplier(_selEmp) * 100f)}%\n");
+                    sb.Append($"관찰 {def.Observation}, 단서 {Mathf.RoundToInt(sim.ObservationClueChance(_selEmp) * 100f)}%\n\n");
                 }
                 if (DayFeatures.StressEnabled)
                 {
@@ -665,8 +695,8 @@ public partial class FacilityMonitorView : Control
                         _ => "#88cc88",
                     };
                     float stressMax = Config.Instance?.Data?.StressMax ?? 50f;
-                    sb.Append($"스트레스 {st.Stress:0} / {stressMax:0} · [color={bandColor}]{band}[/color]" +
-                              $" · 작업 {Mathf.RoundToInt(sim.StressWorkRate(st) * 100f)}%");
+                    sb.Append($"스트레스 {st.Stress:0} / {stressMax:0}, [color={bandColor}]{band}[/color]" +
+                              $", 작업 {Mathf.RoundToInt(sim.StressWorkRate(st) * 100f)}%");
                 }
                 detail = sb.ToString().TrimEnd('\n');
             }
@@ -674,13 +704,13 @@ public partial class FacilityMonitorView : Control
             {
                 string mood = sim.GetDailyMood(_selEmp);
                 // 경영 리워크: 특성(Trait)은 싣지 않는다.
-                detail = $"오늘의 기분 · [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "—" : mood)}[/color]";
+                detail = $"오늘의 기분: [color=#ffd479]{(string.IsNullOrEmpty(mood) ? "-" : mood)}[/color]";
             }
 
             SetFace(def.FacePortrait);
             SetInspector(
                 $"[color=#ffc040]EMPLOYEE[/color]\n[font_size=23]{def.Codename}[/font_size]\n" +
-                $"[color=#8a99a8]{room} · {doing}[/color]\n\n" +
+                $"[color=#8a99a8]{room}, {doing}[/color]\n\n" +
                 detail +
                 (abnormal ? $"\n{status}" : ""));
 
@@ -696,7 +726,7 @@ public partial class FacilityMonitorView : Control
         {
             var def = sim.GetRoomDef(_selRoom);
             var state = sim.GetRoomState(_selRoom);
-            if (def == null || state == null) { SetFace(null); SetInspector("—"); HideRoomDots(); return; }
+            if (def == null || state == null) { SetFace(null); SetInspector("-"); HideRoomDots(); return; }
 
             var st = sim.GetPrimarySpawnedTask(_selRoom);
             var workers = state.OccupantEmployeeIds;
@@ -724,12 +754,12 @@ public partial class FacilityMonitorView : Control
             // 실제 수치로 적고 있어, 같은 말을 고정 문장으로 한 번 더 할 자리가 없다.
             // 역할 설명은 배치 화면의 작업실 칸과 패드 지침 4장이 맡는다.
             //
-            // 짧은 요약 — 무인 위험 · 사고 수리 인원 두 줄. ⚠ 줄만 호박색으로 쓴다.
+            // 짧은 요약 — 무인 위험 · 사고 수리 인원 두 줄. ▲ 줄만 호박색으로 쓴다.
             string desc = "";
             var briefSb = new System.Text.StringBuilder();
             foreach (string line in NSP.Ui.RoomEffectText.Brief(_selRoom, compact: true))
                 briefSb.Append($"[font_size={ViewFont.S(14)}]" +
-                               $"[color={(line.StartsWith('⚠') ? "#ffc040" : "#8fa8a0")}]" +
+                               $"[color={(line.StartsWith('▲') ? "#ffc040" : "#8fa8a0")}]" +
                                $"{Escape(line)}[/color][/font_size]\n");
 
 
@@ -793,7 +823,7 @@ public partial class FacilityMonitorView : Control
         float x = EmpDotRadius + 2f, y = _roomDots.Size.Y / 2f;
         if (_roomDotColors.Count == 0)
         {
-            _roomDots.DrawString(_font, new Vector2(0f, y + 6f), "—", HorizontalAlignment.Left, -1, ViewFont.S(19), Dim);
+            _roomDots.DrawString(_font, new Vector2(0f, y + 6f), "-", HorizontalAlignment.Left, -1, ViewFont.S(19), Dim);
             return;
         }
         foreach (var c in _roomDotColors)
@@ -810,8 +840,8 @@ public partial class FacilityMonitorView : Control
         if (tier == RoomDangerTier.Failure)
         {
             string cause = RoomStatusText.GetFailureCause(roomId);
-            var sb = new StringBuilder("\n\n[color=#ff4444]🚨 고장 발생[/color]");
-            if (!string.IsNullOrEmpty(cause)) sb.Append($"\n[color=#ff8a8a]{cause} — 수리 전까지 복구되지 않습니다.[/color]");
+            var sb = new StringBuilder("\n\n[color=#ff4444]● 고장 발생[/color]");
+            if (!string.IsNullOrEmpty(cause)) sb.Append($"\n[color=#ff8a8a]{cause} - 수리 전까지 복구되지 않습니다.[/color]");
             if (task is { IsRepair: true })
                 sb.Append($"\n[color=#ff8a8a]수리 진행도 : {Mathf.Clamp(task.Ratio, 0f, 1f) * 100f:0}%[/color]");
             return sb.ToString();
@@ -821,8 +851,8 @@ public partial class FacilityMonitorView : Control
         if (task is { Recurring: false, Status: SpawnedTaskStatus.Active } && task.TimeLimitSeconds < float.MaxValue)
         {
             string col = tier == RoomDangerTier.Unstable ? "#ff9933" : "#dddd55";
-            string head = tier == RoomDangerTier.Unstable ? "❗ 고장 임박" : "⚠ 고장 위험";
-            return $"\n\n[color={col}]{head} — {Clock(task.Remaining)} 뒤 고장[/color]";
+            string head = tier == RoomDangerTier.Unstable ? "▲ 고장 임박" : "▲ 고장 위험";
+            return $"\n\n[color={col}]{head} - {Clock(task.Remaining)} 뒤 고장[/color]";
         }
         return "";
     }

@@ -24,23 +24,23 @@ public partial class AudioProbe : Node
 
     private static readonly Entry[] List =
     {
-        new() { Label = "속삭임 — 오른쪽",      Key = "whisper_short",   Pan = 0.82f, Db = -26f },
-        new() { Label = "속삭임 — 왼쪽",        Key = "whisper_short",   Pan = -0.82f, Db = -26f },
-        new() { Label = "속삭임 — 긴 것(왼쪽)", Key = "whisper_long",    Pan = -0.72f, Db = -27f },
-        new() { Label = "속삭임 — 부르는 억양", Key = "whisper_call",    Pan = 0.7f,  Db = -25f },
-        new() { Label = "속삭임 — 거꾸로",      Key = "whisper_reverse", Pan = -0.7f, Db = -27f },
-        new() { Label = "환풍구 — 기어가는 소리", Key = "duct_crawl",    Pan = -0.4f, Db = -24f },
-        new() { Label = "환풍구 — 긁힘",        Key = "duct_scrape",     Pan = 0.4f,  Db = -26f },
-        new() { Label = "문 — 노크",            Key = "door_knock_soft", Pan = 0f,    Db = -20f },
-        new() { Label = "문 — 긁힘",            Key = "door_scratch",    Pan = 0.1f,  Db = -24f },
-        new() { Label = "문 — 손잡이",          Key = "door_handle",     Pan = -0.1f, Db = -24f },
-        new() { Label = "가까이 — 들이마심(오른쪽)", Key = "breath_close", Pan = 0.85f, Db = -23f },
-        new() { Label = "가까이 — 옷 스침(왼쪽)",   Key = "cloth_rustle", Pan = -0.85f, Db = -25f },
-        new() { Label = "관리자 — 날숨",        Key = "admin_exhale",    Pan = 0f,    Db = -22f },
-        new() { Label = "관리자 — 숨 멎었다 들이마심", Key = "admin_gasp", Pan = 0f,  Db = -17f },
-        new() { Label = "휴게실 — 웅성거림",    Key = "breakroom_murmur", Pan = 0f,   Db = -27f },
-        new() { Label = "휴게실 — 의자 끌기",   Key = "chair_pull",      Pan = 0f,    Db = -22f },
-        new() { Label = "휴게실 — 컵 내려놓기", Key = "cup_set",         Pan = 0f,    Db = -25f },
+        new() { Label = "속삭임 - 오른쪽",      Key = "whisper_short",   Pan = 0.82f, Db = -26f },
+        new() { Label = "속삭임 - 왼쪽",        Key = "whisper_short",   Pan = -0.82f, Db = -26f },
+        new() { Label = "속삭임 - 긴 것(왼쪽)", Key = "whisper_long",    Pan = -0.72f, Db = -27f },
+        new() { Label = "속삭임 - 부르는 억양", Key = "whisper_call",    Pan = 0.7f,  Db = -25f },
+        new() { Label = "속삭임 - 거꾸로",      Key = "whisper_reverse", Pan = -0.7f, Db = -27f },
+        new() { Label = "환풍구 - 기어가는 소리", Key = "duct_crawl",    Pan = -0.4f, Db = -24f },
+        new() { Label = "환풍구 - 긁힘",        Key = "duct_scrape",     Pan = 0.4f,  Db = -26f },
+        new() { Label = "문 - 노크",            Key = "door_knock_soft", Pan = 0f,    Db = -20f },
+        new() { Label = "문 - 긁힘",            Key = "door_scratch",    Pan = 0.1f,  Db = -24f },
+        new() { Label = "문 - 손잡이",          Key = "door_handle",     Pan = -0.1f, Db = -24f },
+        new() { Label = "가까이 - 들이마심(오른쪽)", Key = "breath_close", Pan = 0.85f, Db = -23f },
+        new() { Label = "가까이 - 옷 스침(왼쪽)",   Key = "cloth_rustle", Pan = -0.85f, Db = -25f },
+        new() { Label = "관리자 - 날숨",        Key = "admin_exhale",    Pan = 0f,    Db = -22f },
+        new() { Label = "관리자 - 숨 멎었다 들이마심", Key = "admin_gasp", Pan = 0f,  Db = -17f },
+        new() { Label = "휴게실 - 웅성거림",    Key = "breakroom_murmur", Pan = 0f,   Db = -27f },
+        new() { Label = "휴게실 - 의자 끌기",   Key = "chair_pull",      Pan = 0f,    Db = -22f },
+        new() { Label = "휴게실 - 컵 내려놓기", Key = "cup_set",         Pan = 0f,    Db = -25f },
         // 아래 둘은 공포음이 아니다. 헷갈리지 않는지 바로 견주려고 같은 목록에 둔다(§13).
         new() { Label = "[게임음] 전화벨",      Key = "call_ring",       Pan = 0f,    Db = -8f, Compare = true },
         new() { Label = "[게임음] 경고",        Key = "alert_beep3",     Pan = 0f,    Db = -8f, Compare = true },
@@ -68,8 +68,8 @@ public partial class AudioProbe : Node
         box.AddThemeConstantOverride("separation", 4);
         layer.AddChild(box);
 
-        Add(box, "─── 공포 · 스토리 사운드 확인 (헤드폰 권장) ───", 26, new Color(0.55f, 0.95f, 1f));
-        Add(box, "숫자 · 알파벳 키를 누르면 그 소리가 납니다.", 18, new Color(0.6f, 0.7f, 0.74f));
+        Add(box, "─── 공포, 스토리 사운드 확인 (헤드폰 권장) ───", 26, new Color(0.55f, 0.95f, 1f));
+        Add(box, "숫자, 알파벳 키를 누르면 그 소리가 납니다.", 18, new Color(0.6f, 0.7f, 0.74f));
         Add(box, "", 14, Colors.White);
 
         for (int i = 0; i < List.Length; i++)
@@ -81,7 +81,7 @@ public partial class AudioProbe : Node
         }
 
         Add(box, "", 14, Colors.White);
-        Add(box, "  [,]  스토리 전환 — 눈 감기 · 날숨 · 생활음 · 눈 뜨기", 19, new Color(0.7f, 0.95f, 0.8f));
+        Add(box, "  [,]  스토리 전환 - 눈 감기, 날숨, 생활음, 눈 뜨기", 19, new Color(0.7f, 0.95f, 0.8f));
         Add(box, "  [.]  BGM 더킹 한 번 (-4dB)", 19, new Color(0.7f, 0.95f, 0.8f));
         Add(box, "  [/]  시설 상시음 침묵 1.2초 (§18)", 19, new Color(0.7f, 0.95f, 0.8f));
         Add(box, "", 14, Colors.White);
@@ -110,7 +110,7 @@ public partial class AudioProbe : Node
             var e = List[idx];
             if (e.Compare) Sfx.Instance?.Play(e.Key, e.Db);
             else Sfx.Instance?.PlayHorror(e.Key, e.Db, e.Pan);
-            _log.Text = $"▶ {e.Label}  ({e.Key} · pan {e.Pan:0.00} · {e.Db:0}dB)";
+            _log.Text = $"▶ {e.Label}  ({e.Key}, pan {e.Pan:0.00}, {e.Db:0}dB)";
             return;
         }
 

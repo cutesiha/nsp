@@ -1,4 +1,4 @@
-# NSP MAIN STORY — DAY1~DAY5
+# NSP MAIN STORY - DAY1~DAY5
 ## REVISED GROUP CONVERSATION VERSION
 ## 대상 브랜치
 `ver3(simple_version)`
@@ -180,7 +180,7 @@ say?: <직원id> | <표정> | <L|R> | <대사>
 중요:
 각 `say?` 대사는 특정 직전 한 줄이 없어져도 최대한 자연스럽게 이어지게 작성합니다.
 
-### 배역(`@`) — 그날 실제로 그 일을 겪은 사람
+### 배역(`@`) - 그날 실제로 그 일을 겪은 사람
 
 `<직원id>` 자리에 직원 이름 대신 **배역**을 적을 수 있습니다. 재생할 때 그날의
 실제 기록을 읽어 사람으로 바뀝니다(`StoryRoleCast`).
@@ -193,7 +193,7 @@ say?: <직원id> | <표정> | <L|R> | <대사>
 직원 id 를 박아 두면 그 방에 없던 사람이 "저도 봤어요"라고 말합니다. 목격담은
 반드시 배역으로 적습니다.
 
-맡을 사람이 없으면 `say?`는 그 줄만 빠지고, `say`(필수)는 비트 전체가 생략됩니다 —
+맡을 사람이 없으면 `say?`는 그 줄만 빠지고, `say`(필수)는 비트 전체가 생략됩니다 -
 본 사람이 아무도 없는 날에는 목격담 비트가 아예 뜨지 않습니다.
 
 ---
@@ -281,7 +281,7 @@ say?: ...
 
 ---
 
-# 10. DAY1 — 재난 직후
+# 10. DAY1 - 재난 직후
 
 ## 10.1 집단 패닉
 
@@ -293,15 +293,16 @@ kind: core
 group: true
 min: 6
 
-say?: rabbit | bad | L | 밖에... 진짜 다 끝난 거예요? 여기 말고 살아 있는 사람은 없는 거예요?
-say?: sheep | bad | R | 제가 있던 쪽은... 아까까지 사람들이 있었는데... 지금은 아무 소리도 안 나요.
-say?: dog | bad | L | 양 씨, 일단 숨부터 쉬어요. 아직 여기 있는 사람들은 살아 있잖아요.
-say?: cat | bad | R | 그런 말 계속해도 달라지는 건 없어요. 숨 돌렸으면 상황부터 정리하죠.
-say?: fox | normal | L | 다 죽는 거 아니냐, 살려 달라... 뭐, 틀린 말은 아니네요~ 그래도 아직 여섯이나 남았잖아요.
-say?: cat | bad | R | 그 가벼운 말투 좀 그만하면 안 돼요?
-say?: fox | smile | L | 제가 같이 울어 드리면 좀 나아지나요~?
-say?: wolf | normal | R | 비상 차폐는 오래 버티지 못합니다. 봉쇄 코어를 복구하지 못하면 그 뒤는 없습니다.
-say?: rabbit | bad | L | 그럼 우리 이제 어떡해요? 총괄 관리자도 죽었다면서요. 누가 우리한테 뭘 하라고 해요?
+say?: rabbit | bad | L | 밖에... 진짜 다 끝난 거예요? 여기 말고 살아 있는 사람은 없는 거예요?!
+say?: sheep | bad | R | 제, 제가 있던 쪽은... 그래도 사람들이 있었는데... 지금은... 으흑..
+say?: dog | bad | L | 양 씨, 괜찮아요? 일단 숨부터 쉬어요. 아직 여기 있는 사람들은 살아 있잖아요.
+say?: sheep | bad | R | 흐흑... 죄, 죄송해요... 그냥, 이러다 모두...
+say?: cat | bad | R | 운다고 상황이 나아지지는 않는데요. 정신 좀 차리세요.
+say?: fox | normal | L | 뭐, 틀린 말은 아니지만~ 무서우면 울 수도 있는 거죠. 울지 말아요~ 뚝~
+say?: cat | bad | R | 기분 나빠. 그 가벼운 말투 좀 그만하면 안 돼요?
+say?: fox | smile | L | 제가 양 씨랑 같이 울어 드리면 좀 나아질까요~?
+say?: wolf | normal | R | 조용. 비상 차폐는 오래 버티지 못합니다. 봉쇄 코어를 복구하지 못하면 그 뒤는 없습니다.
+say?: rabbit | bad | L | 그럼 우리 이제 어떡해요? 총괄 관리자도 죽었다던데...
 ```
 
 ---
@@ -313,36 +314,37 @@ say?: rabbit | bad | L | 그럼 우리 이제 어떡해요? 총괄 관리자도 
 
 ```text
 @choice d1_leadership
-prompt: 직원들이 당신의 대답을 기다리고 있습니다.
-option: 제가 당신들을 관리하여 봉쇄 코어를 복구하겠습니다. | d1_lead_reassure
-option: 우선 살아남는 것부터 생각합시다. 제가 상황을 정리하겠습니다. | d1_lead_protect
-option: 봉쇄 코어 복구가 우선입니다. 지금부터 제 지시에 따라 움직여 주세요. | d1_lead_strict
+option: 저만 믿으십시오. 제가 당신들을 관리하여 봉쇄 코어를 복구하겠습니다. | d1_lead_reassure
+option: 여기서 이러는 것도 시간 낭비입니다. 저만 따라오십시오. | d1_lead_protect
+option: 다 죽고 말겁니다... 이제 우리에게 가망은 없습니다. | d1_lead_strict
 
 @branch d1_lead_reassure
-say?: rabbit | bad | L | ...진짜죠? 그럼 저 믿을게요.
-say?: dog | normal | R | 네. 부탁드릴게요. 저희도 할 수 있는 건 다 할게요.
-say?: wolf | normal | L | 명령을 기다리겠습니다.
-say?: cat | normal | R | 말만 그렇게 끝나지 않았으면 좋겠네요.
-say?: fox | smile | L | 새 관리자님이시네요~ 잘 부탁드려요.
-say?: sheep | bad | R | 저도... 할게요. 시키는 건 어떻게든...
+say?: rabbit | bad | L | 우왓, 누구세요?!
+say?: cat | bad | R | 관제 업무 담당하시던 관리자 분이네요. 살아계셨군요?
+say?: dog | normal | L | 관리자님, 믿고 있었어요! 관리자님만 따를게요.
+say?: wolf | normal | R | 명령을 기다리겠습니다.
+say?: cat | normal | L | 능력은 있으실 거라고 믿겠어요.
+say?: fox | smile | R | 오, 새 관리자님이시네요~ 잘 부탁드려요.
+say?: sheep | bad | L | 저, 저도... 잘 부탁드려요... 시키는 건 어떻게든 할게요...
 @endbranch
 
 @branch d1_lead_protect
-say?: dog | smile | L | ...그 말 들으니까 조금 안심되네요.
-say?: rabbit | bad | R | 살아남을 수 있는 거죠? 진짜로요?
-say?: cat | normal | L | 안심시키는 건 나중에 해요. 일단 계획부터 보여 주세요.
-say?: wolf | normal | R | 생존과 복구는 결국 같은 문제입니다. 따르겠습니다.
-say?: fox | normal | L | 살려만 주신다면야, 저야 뭐든 하죠~
-say?: sheep | bad | R | ...부탁드릴게요.
+say?: dog | smile | L | 아, 관리자님! 관제 업무 담당하시던 분이죠? 살아계셨군요.
+say?: rabbit | bad | R | 하긴, 아무것도 안 하고 있으면 시간 낭비긴 하죠. 뭐라도 하는 게...
+say?: cat | bad | L | 뭔가 계획이 있긴 한 건가요? 말 뿐이라면 실망일테고요.
+say?: wolf | normal | R | 생존과 복구는 결국 같은 문제입니다. 새 관리자님을 따르겠습니다.
+say?: fox | normal | L | 살려만 주신다면야, 저야 뭐든 하죠~ 잘 부탁드릴게요~
+say?: sheep | bad | R | ...자, 잘 부탁드릴게요. 
 @endbranch
 
 @branch d1_lead_strict
-say?: wolf | normal | L | 알겠습니다.
-say?: cat | normal | R | 적어도 우왕좌왕하는 것보단 낫겠네요.
-say?: rabbit | bad | L | 네... 네. 할게요.
-say?: dog | normal | R | 너무 무리하는 사람만 없게 봐 주세요.
-say?: fox | smile | L | 벌써 무서운 상사 느낌인데요~ 뭐, 선택지가 있는 상황도 아니지만.
-say?: sheep | bad | R | 저... 뒤처지지 않게 할게요.
+say?: sheep | bad | L | 뭐, 뭐라고... 그, 그런 무서운 말 하지 마세요..! 으흑...
+say?: fox | smile | R | 아하하! 새로운 관리자님이신가? 벌써부터 그러시면 어떡해요~
+say?: wolf | bad | L | 가망은 있다고 봅니다.
+say?: cat | normal | R | 누가 봐도 능력 없어보이는데요. 저런 관리자라면 따르지 않겠어요.
+say?: rabbit | bad | L | 희망을 가져야죠, 관리자님! 우린 살 수 있을 거예요.
+say?: dog | normal | R | 힘을 합쳐 코어를 복구한다면 가능할 겁니다.
+say?: fox | smile | L | 그렇죠~ 관리자님. 힘내봐요, 우리~
 @endbranch
 ```
 
@@ -361,24 +363,24 @@ kind: core
 group: true
 min: 6
 
-say?: rabbit | normal | L | 그러고 보니까... 우리 서로 이름도 제대로 모르네요. 저부터 할게요. 토끼예요.
-say?: rabbit | bad | L | 원래 이 시설 설비 지원 쪽에서 일했어요. 사고 나고 정신없이 뛰다가 여기까지 왔고요.
-say?: cat | normal | R | 고양이예요. 코어 정비 쪽이었어요.
-say?: cat | normal | R | 사고 직전까지도 코어 근처에 있었습니다. 제가 말할 건 그 정도예요.
-say?: sheep | bad | L | 야, 양이에요... 환경 감시 쪽에서 일했어요.
-say?: sheep | bad | L | 같이 있던 사람들은... 저 말고 여기까지 온 사람은 못 봤어요.
-say?: dog | normal | R | 강아지예요. 시설 지원 쪽에서 일했어요.
-say?: dog | bad | R | 사고 뒤에는 다친 사람들 챙기면서 이동했어요. 여기서도 제가 도울 수 있는 건 도울게요.
+say?: rabbit | normal | L | 그러고 보니까... 우리 서로 이름도 제대로 모르네요. 저부터 할게요! 토끼입니다!
+say?: rabbit | bad | L | 원래 설비 지원 쪽에서 일했는데, 괴물에게 쫓기다 여기까지 오게 됐어요.
+say?: cat | normal | R | 고양이예요. 코어 정비 쪽에서 일했습니다.
+say?: cat | normal | R | 재난 직전까지도 코어 근처에 있었어요. 제가 말할 건 이 정도.
+say?: sheep | bad | L | 어, 그, 제 차롄가요..? 저, 저는 양이에요... 환경 감시 쪽에서 일했어요...
+say?: sheep | bad | L | 같이 있던 사람들은... 흑... 전부...
+say?: fox | smile | R | 네, 네~ 또 우울해지기 전에 제 소개나 할게요. 저는 여우예요~ 기록 업무를 맡고 있었고요.
+say?: fox | normal | R | 저도 뭐... 운이 좋아서 살아남았네요~ 자세한 얘기는 나중에 할게요.
+say?: dog | normal | R | 네, 저는 강아지예요. 시설 지원 쪽에서 일했어요.
+say?: dog | bad | R | 재난 이후에 다친 사람들 챙기면서 이동했어요. 여기서도 제가 도울 수 있는 건 뭐든 도울게요.
 say?: wolf | normal | L | 늑대입니다. 격리구역 경비 담당이었습니다.
-say?: wolf | normal | L | 사고 당시 격리구역이 뚫렸습니다. 이후 살아남은 사람들을 따라 이쪽으로 이동했습니다.
-say?: fox | smile | R | 저는 여우예요~ 기록이랑 지원 업무를 맡고 있었고요.
-say?: fox | normal | R | 저도 뭐... 운이 좋아서 살아남은 거죠. 자세한 얘기는 나중에 해도 되잖아요?
-say?: cat | normal | L | 소개 끝났으면 움직이죠. 가만히 앉아 있다고 코어가 고쳐지진 않으니까.
+say?: wolf | normal | L | 재난 당시 격리구역이 뚫렸습니다. 그렇게 피할 곳을 찾다 이곳에 왔습니다.
+say?: cat | normal | L | 아, 네. 소개 다 끝났으면 움직이죠. 가만히 앉아 있다고 코어가 고쳐지진 않으니까.
 ```
 
 ---
 
-# 11. DAY2 — 첫 실제 근무 이후
+# 11. DAY2 - 첫 실제 근무 이후
 
 ## 11.1 전날 Ghost를 봤을 경우 그룹 반응
 
@@ -393,9 +395,9 @@ min: 2
 say: @witness | bad | L | 어제 그거... 저 혼자 본 거 아니죠? 사람처럼 생겼는데, 사람은 아니었어요.
 say?: @heard1 | bad | R | 저는 소리만 들었어요. 그쪽 방에서 뭔가... 사람 소리 같은 게 났거든요.
 say?: @heard2 | bad | R | 저도 들었어요. 그게 무슨 소리였는지는 아직도 모르겠어요.
-say?: @witness | bad | L | 소리만 들은 게 나아요. 저는 눈앞에 그게 서 있었어요.
-say?: @heard3 | normal | R | 본 사람이 있으니까 이제 없는 척할 수도 없겠네요.
-say?: @heard4 | normal | R | 오늘은 아무도 혼자 두지 말아요. 이상하면 바로 말하고요.
+say?: @witness | bad | L | 소리만 들은 게 나아요. 저는 눈앞에서 그걸 봤어요... 정말 끔찍했어요.
+say?: @heard3 | normal | R | 이제 정말 조심해야겠네요. 누구든 하루 아침에 죽어버릴 수 있어요.
+say?: @heard4 | normal | R | 그래요, 오늘은 아무도 혼자 두지 말아요. 이상하면 바로 말하고요.
 ```
 
 ---
@@ -410,54 +412,54 @@ kind: core
 group: true
 min: 2
 
-say?: cat | bad | L | 어제 복구율 봤죠? 생각보다 진도가 안 나왔어요.
-say?: rabbit | bad | R | 아침부터 꼭 그 얘기 해야 돼요?
-say?: cat | normal | L | 해야죠. 시간이 늘어나는 것도 아닌데.
-say?: dog | normal | R | 그래도 어제보다는 오늘 서로 어떻게 움직이는지 알잖아요. 조금은 나을 거예요.
-say?: sheep | bad | L | 저는... 이름 아는 사람이 다치는 게 더 무서워졌어요.
-say?: fox | smile | R | 하루 만에 벌써 정들었어요~?
-say?: sheep | bad | L | 그런 뜻이 아니라...
+say?: cat | bad | L | 어제 복구율 봤죠? 이거보다 더 열심히 해야 돼요.
+say?: rabbit | bad | R | 으엑, 아침부터 꼭 그 얘기 해야 돼요?
+say?: cat | normal | L | 해야죠. 앞으로 2일 안에 100% 안 채울 거예요?
+say?: dog | normal | R | 그래도 어제보다는 다들 작업에 익숙해졌잖아요. 조금은 나을 거예요, 고양이 씨.
+say?: sheep | bad | L | 그, 근데 저는... 여러분들이 다칠까 봐... 걱정되기 시작했어요...
+say?: fox | smile | R | 하루 만에 벌써 정들었어요, 양 씨~?
+say?: sheep | bad | L | 그, 그런 뜻이 아니라...
 say?: wolf | normal | R | 둘 다 맞습니다. 익숙해진 만큼 잃을 것도 늘었습니다.
-say?: rabbit | bad | L | 그런 말까지 들으니까 더 긴장되잖아요...
+say?: rabbit | bad | L | 아잇, 그런 말까지 들으니까 덩달아 걱정되잖아요!
 ```
 
 ### DAY2 관리자 선택
 
 ```text
 @choice d2_policy
-prompt: 오늘 근무를 앞두고 직원들이 관리자의 방침을 묻습니다.
-option: 이상한 것이 보이면 바로 보고하세요. 제가 CCTV와 기록을 확인하겠습니다. | d2_policy_watch
+option: 앞으로 이상한 것이 보이면 바로 보고하세요. | d2_policy_watch
 option: 위험하다고 느끼면 작업을 멈추고 기다리세요. 사람을 잃는 것보다 낫습니다. | d2_policy_safe
-option: 오늘도 코어 복구가 우선입니다. 각자 맡은 일을 끝까지 유지해 주세요. | d2_policy_work
+option: 사람 목숨보다 코어 복구가 우선입니다. 정신차리고 일 하십시오. | d2_policy_work
 
 @branch d2_policy_watch
 say?: rabbit | normal | L | 네! 이번엔 이상하면 바로 말할게요.
-say?: sheep | normal | R | 저도... 괜히 참지 않을게요.
-say?: cat | normal | L | 기록을 제대로 보고 있다면 그게 제일 낫겠네요.
-say?: fox | smile | R | 그럼 관리자님 눈을 피하는 쪽이 더 어려워지겠네요~
+say?: sheep | normal | R | 저, 저도... 노력할게요...
+say?: cat | normal | L | 보고하기 전에 관리자님이 먼저 알아내시면 참 좋을텐데.
+say?: fox | smile | R | 근데 그럼 관리자님 눈을 피하는 게 더 어려워지겠네요~
 say?: wolf | normal | L | 확인했습니다.
 @endbranch
 
 @branch d2_policy_safe
-say?: dog | smile | L | 그게 좋아요. 무리하다 쓰러지는 것보다 훨씬 나아요.
-say?: cat | normal | R | 그러다 작업이 계속 밀리면 그것도 문제예요.
-say?: rabbit | normal | L | 그래도... 어제보단 마음이 좀 놓이네요.
+say?: dog | smile | L | 맞아요. 무리하다 쓰러지는 것보다 훨씬 낫죠.
+say?: cat | normal | R | 그러다 작업이 계속 밀리면 그것도 문제인데요.
+say?: rabbit | normal | L | 그래도... 어제보단 마음이 좀 놓이네요!
 say?: wolf | normal | R | 판단이 필요한 상황은 제가 보고하겠습니다.
-say?: fox | normal | L | 목숨값이 코어보다 비싸다, 그런 뜻이네요~
+say?: fox | normal | L | 목숨값이 코어보다 비싸다, 그런 뜻이네요~ 낭만적이셔라~
 @endbranch
 
 @branch d2_policy_work
-say?: cat | normal | L | 알겠어요. 그럼 사람 배치만 제때 바꿔 주세요.
-say?: wolf | normal | R | 수행하겠습니다.
-say?: dog | bad | L | ...그래도 상태 안 좋은 사람은 꼭 봐 주세요.
-say?: rabbit | normal | R | 네. 저도 최대한 할게요.
-say?: fox | smile | L | 역시 오늘도 열심히 일하는 날이네요~
+say?: cat | normal | L | 저희는 매일 열심히 하는데요. 하루종일 의자에 엉덩이 붙이고 있는 누구와는 다르게.
+say?: fox | smile | R | 그러게나 말이에요~ 관리자님도 여기서 일하면 그런 말 못하실텐데.
+say?: wolf | normal | L | 그만 하십시오.
+say?: dog | bad | R | ...그래도 상태 안 좋은 사람은 꼭 봐 주세요. 코어 복구가 어찌 목숨보다 우선이 될 수 있나요...
+say?: rabbit | bad | L | 그러니까요. 저도 이번엔 관리자님 말에 동의 못해요!
+say?: sheep | bad | R | 으으.. 부, 분위기가... 
 @endbranch
 ```
 
 ---
 
-# 12. DAY3 — 스트레스와 균열
+# 12. DAY3 - 스트레스와 균열
 
 ## 12.1 DAY3 그룹 대화
 
@@ -469,54 +471,53 @@ kind: core
 group: true
 min: 2
 
-say?: sheep | bad | L | 저... 오늘도 들어가야 하죠? 손이 아직도 조금 떨려요.
-say?: dog | bad | R | 어제부터 계속 그랬잖아요. 너무 심하면 꼭 말해요.
-say?: cat | bad | L | 다들 힘든 건 알아요. 그런데 지금 한 명 빠지면 다른 사람이 그만큼 더 해야 해요.
-say?: rabbit | bad | R | 그걸 꼭 그렇게 말해야 돼요?
-say?: cat | bad | L | 그럼 뭐라고 해요. 괜찮다고만 하면 진짜 괜찮아져요?
+say?: sheep | bad | L | 저... 오, 오늘도 일해야 하죠? 손이 계, 계속 떨리는데... 
+say?: dog | bad | R | 어제부터 계속 그러지 않았어요? 너무 심하면 잠깐이라도 쉬었다 해요.
+say?: cat | bad | L | 저기요. 당신만 힘든가요? 쉬긴 뭘 쉬어요. 마지막 날이니까 일이나 제대로 하세요.
+say?: rabbit | bad | R | 고양이 씨! 그래도 꼭 그렇게 말해야 돼요? 
+say?: cat | bad | L | 그럼 뭐라고 해야 하는데요. 제가 틀린 말 했나요?
 say?: wolf | normal | R | 싸울 힘이 있다면 아껴 두십시오. 근무가 시작되면 필요합니다.
-say?: fox | normal | L | 늑대 씨 말이 제일 무서운데요~ 맞는 말이라 더 그렇고.
-say?: dog | normal | R | 오늘은 서로 상태라도 좀 봐 줘요. 자기 상태는 자기가 제일 늦게 알아차리니까.
-say?: rabbit | normal | L | ...그건 진짜 그래요. 저도 제가 이 정도로 지친 줄 몰랐어요.
+say?: fox | normal | L | 큭큭, 늑대 씨 말이 제일 무서운데요~ 그래도 지금 싸울 빠엔 복구 다 하고 싸우시던지~
+say?: dog | normal | R | ...오늘은 서로 상태라도 좀 봐 줘요. 자기 상태는 자기가 제일 늦게 알아차리니까.
+say?: rabbit | normal | L | 하긴, 그건 그래요. 저도 제가 이 정도로 지친 줄 몰랐어요...
 ```
 
 ### DAY3 관리자 선택
 
 ```text
 @choice d3_priority
-prompt: 지친 직원들이 오늘의 우선순위를 기다립니다.
-option: 상태가 나쁜 직원은 바로 의무실로 보내겠습니다. 무리하지 마세요. | d3_priority_health
-option: 코어 복구를 멈출 수는 없습니다. 가능한 사람부터 최대한 움직여 주세요. | d3_priority_core
-option: 서로 상태를 확인하면서 버팁시다. 위험해지면 제가 바로 재배치하겠습니다. | d3_priority_balance
+option: 상태가 나쁜 직원은 바로 쉬게 하겠습니다. 무리하지 마세요. | d3_priority_health
+option: 코어 복구를 멈출 수는 없습니다. 마지막까지 버텨봅시다. | d3_priority_core
+option: 이렇게 나약하니 파멸의 길로 빠지는 겁니다. 코어 복구나 하세요. | d3_priority_balance
 
 @branch d3_priority_health
-say?: dog | smile | L | 네. 그게 제일 좋을 것 같아요.
-say?: sheep | normal | R | ...그러면 저도 조금은 말할 수 있을 것 같아요.
-say?: cat | normal | L | 대신 의무실까지 망가지게 두진 마세요.
+say?: dog | smile | L | 감사합니다. 그런 말 들으니 도움이 되네요.
+say?: sheep | normal | R | ...그, 그러면 저도 조금은... 무리해 볼게요...
+say?: cat | normal | L | 대신 쉬는 사람 몫까지 일이 밀리게 두진 마세요.
 say?: wolf | normal | R | 합리적입니다.
-say?: fox | smile | L | 오늘은 쓰러지기 전에 누울 수 있겠네요~
+say?: fox | smile | L | 오늘은 쓰러지기 전에 편히 누울 수 있겠네요~
 @endbranch
 
 @branch d3_priority_core
 say?: cat | normal | L | 알겠어요. 적어도 방향은 확실하네요.
 say?: wolf | normal | R | 수행하겠습니다.
-say?: rabbit | bad | L | ...다들 진짜 쓰러지지만 않았으면 좋겠어요.
-say?: dog | bad | R | 제가 옆에 있는 사람들은 최대한 볼게요.
-say?: fox | normal | L | 열심히 살아남으면서 열심히 일해야겠네요~
+say?: rabbit | bad | L | ...다들 진짜 쓰러지지만 않았으면 좋겠어요!
+say?: dog | bad | R | 걱정 마요, 토끼 씨. 제가 옆에 있는 사람들은 최대한 챙길게요.
+say?: fox | normal | L | 열심히 살아남으면서 열심히 일해야겠네요~ 바쁘다 바빠~
 @endbranch
 
 @branch d3_priority_balance
-say?: dog | smile | L | 네. 서로 보는 건 제가 도울게요.
-say?: rabbit | normal | R | 저도 말해 줄게요. 얼굴 이상하면 바로요.
-say?: cat | normal | L | 괜히 호들갑만 안 떨면 됩니다.
-say?: sheep | normal | R | 저... 저도 볼게요.
-say?: wolf | normal | L | 이상 징후가 있으면 즉시 보고하겠습니다.
+say?: dog | bad | L | 꼭 그렇게 말해야 하나요? 이런 때일 수록 격려를 해주시면 좋을텐데...
+say?: rabbit | bad | R | 마지막 날까지 그렇게 얘기하셔야 속이 풀리시나요!
+say?: cat | smile | L | 하, 이젠 대꾸도 하기 싫네요.
+say?: sheep | bad | R | 다, 다들 화내지 말아요... 으으...
+say?: wolf | normal | L | 더 열 오르기 전에 작업이나 수행합시다.
 @endbranch
 ```
 
 ---
 
-# 13. DAY4 — 의심
+# 13. DAY4 - 의심
 
 ## 13.1 관리자 성적에 따른 그룹 반응
 
@@ -616,7 +617,7 @@ say?: rabbit | bad | L | 그런 농담 지금 하지 마요...
 
 ---
 
-# 14. DAY5 — 마지막 근무 전
+# 14. DAY5 - 마지막 근무 전
 
 ```text
 @beat d5_main_group
@@ -684,6 +685,13 @@ say?: sheep | normal | R | 그래도... 같이 나갈 수 있으면 좋겠어요
 
 ## 사망 발생
 
+어제 누가 죽었으면 다른 반응(귀신 목격, 기절, 격리)보다 **먼저** 뽑힌다. 아래 세 비트 중 하나가
+무작위로 나오고, 한 판에서 같은 비트는 다시 나오지 않는다(사망이 이틀 나면 다른 비트가 나온다).
+
+대사 속 `{dead}` 는 어제 생체 신호가 끊긴 직원의 이름(예: `강아지`)으로 바뀐다. 둘이 죽었으면
+두 번째는 `{dead2}`. 죽은 사람이 말하는 줄은 `say?` 라 저절로 빠진다 - 그래서 어느 줄이 빠져도
+대화가 이어지게, 다른 직원을 이름으로 부르는 말은 넣지 않았다.
+
 ```text
 @beat r_death_group
 day: any
@@ -692,13 +700,49 @@ kind: react
 group: true
 min: 2
 
-say?: rabbit | bad | L | 그분이 진짜... 돌아가신 거예요? 아직도 잘 모르겠어요.
-say?: dog | bad | R | ...네. 아무리 생각해도 괜찮지가 않네요.
-say?: cat | bad | L | 한 명 줄었어요. 일은 그대로고요.
-say?: sheep | bad | R | 그런 식으로 말하지 마세요...
-say?: cat | bad | L | 알아요. 저도 이런 말 하고 싶은 게 아니에요.
-say?: wolf | normal | R | 오늘은 어제보다 더 조심해야 합니다.
-say?: fox | normal | L | ...오늘은 농담할 말도 없네요.
+say?: rabbit | bad | L | {dead} 씨 자리… 아직 그대로예요. 컵도, 의자도, 걸어 둔 겉옷도 다 그대로인데 사람만 없어요.
+say?: sheep | bad | R | 저, 저 어제 복도에서… 그 냄새 맡았어요. 녹슨 쇠 같은 냄새요. 아직도 코 안쪽에 붙어 있어요.
+say?: cat | bad | L | 치운 사람은 있대요? …없겠죠. 문만 닫아 두면 없던 일이 되니까.
+say?: dog | bad | R | 마지막까지 혼자였대요. 무슨 말을 했는지, 누굴 불렀는지… 아무도 못 들었대요.
+say?: fox | normal | L | 웃긴 거 알려 줄까요~? 명단에서 이름 하나 지우는 데 3초 걸리더라고요. 딱 3초.
+say?: wolf | normal | R | 시신은 아직 그 방에 있습니다. 수습할 인원이 없습니다.
+say?: rabbit | bad | L | …그럼 오늘 그 방에 배치되는 사람은, 그 옆에서 일해야 하는 거예요?
+say?: wolf | normal | R | 그렇습니다.
+```
+
+```text
+@beat r_death_group_dream
+day: any
+when: death_yesterday
+kind: react
+group: true
+min: 2
+
+say?: cat | bad | L | 어젯밤에 꿈을 꿨어요. {dead} 씨가 문 앞에 서서 계속 노크를 하는데… 소리가 문 안쪽에서 나더라고요.
+say?: rabbit | bad | R | 그런 얘기 하지 마요! 진짜… 진짜 하지 마요…
+say?: sheep | bad | L | 저, 저는 한숨도 못 잤어요. 눈만 감으면 그 방 CCTV 가… 지직거리다가 멈춰요. 매번 같은 장면에서요.
+say?: fox | normal | R | 다들 속으로 순서 매기고 있죠~? 다음은 누굴까, 하고. 괜찮아요. 저도 그래요.
+say?: dog | bad | L | …그런 말 하지 마요. 제발요.
+say?: wolf | normal | R | 생체 신호가 끊기기까지 몇 초 걸리지 않았습니다. 아무도 닿지 못했습니다.
+say?: cat | bad | L | 그래서 오늘도 그 숫자 채우러 내려가는 거죠. 한 명 빼고.
+say?: fox | normal | R | 한 명 빼고가 아니라, 아직은 한 명만 빼고~ 겠죠.
+```
+
+```text
+@beat r_death_group_voice
+day: any
+when: death_yesterday
+kind: react
+group: true
+min: 2
+
+say?: sheep | bad | L | 어, 어제 그 방 앞을 지나는데… 안에서 누가 제 이름을 불렀어요. {dead} 씨 목소리였어요.
+say?: rabbit | bad | R | 거짓말… 그 방엔 이제 아무도 없잖아요. 없어야 하잖아요!
+say?: cat | bad | L | 환청이에요. 여기 오래 있으면 다 그래요. …그렇게 믿어요. 그냥 그렇게 믿어요.
+say?: dog | bad | R | 사물함에 아직 {dead} 씨 근무복이 걸려 있어요. 소매가 젖어 있는데, 아무도 못 치우겠대요.
+say?: fox | normal | L | 치워서 뭐 해요~ 어차피 그 옆에 우리 것도 곧 나란히 걸릴 텐데.
+say?: wolf | normal | R | 그 방 바닥은 아직 닦지 못했습니다. 오늘 배치되는 인원은 발밑을 보지 마십시오.
+say?: rabbit | bad | L | …관리자님은 그때 보고만 계셨던 거죠? 그 화면으로요. 끝까지요.
 ```
 
 ## 기절 발생
@@ -750,7 +794,7 @@ say?: @heard1 | bad | R | 저는 소리만 들었어요. 그 방에서 뭔가 �
 say?: @witness | bad | L | 다시 보고 싶진 않아요. 그런데 눈앞에 있던 건 확실해요.
 say?: @heard2 | normal | R | 본 사람이 있으니까 이제 없는 척은 못 하겠네요.
 say?: @heard3 | bad | R | 오늘 또 나오면 혼자 버티지 말고 바로 말해요.
-say?: @heard4 | normal | R | 관리자님이 계속 봐 주시면 사라진다는 건 알았잖아요. 당황하지 말아요.
+say?: @heard4 | normal | R | 관리자님이 CCTV 로 보고 계시면 그게 어디 있는지는 알 수 있잖아요. 당황하지 말아요.
 ```
 
 ---

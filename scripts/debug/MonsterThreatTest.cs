@@ -48,7 +48,7 @@ public partial class MonsterThreatTest : Node
 
     private void RunAll()
     {
-        GD.Print("\n\n################ 괴물 접근 · 차폐 판정 검증 ################");
+        GD.Print("\n\n################ 괴물 접근, 차폐 판정 검증 ################");
         SectionA();
         SectionB();
         SectionC();
@@ -62,7 +62,7 @@ public partial class MonsterThreatTest : Node
 
     private void SectionA()
     {
-        Head("A", "괴물 3종 · 출현 구역 3곳");
+        Head("A", "괴물 3종, 출현 구역 3곳");
         var ms = MonsterThreatSystem.Monsters;
         var zs = MonsterThreatSystem.Zones;
         Ok(ms.Count == 3, $"괴물 {ms.Count}종");
@@ -89,7 +89,7 @@ public partial class MonsterThreatTest : Node
 
         // 작업실 데이터에 섞여 들어가지 않았는가 — 출현 구역은 RoomDef 가 아니다.
         Ok(zs.All(z => _sim.GetRoomDef(z.ZoneId) == null),
-            "출현 구역은 작업실로 등록되지 않았다 (배치표 · 길찾기에 없다)");
+            "출현 구역은 작업실로 등록되지 않았다 (배치표, 길찾기에 없다)");
 
         // 애니메이션 이름은 FBX 에서 읽은 것 그대로여야 한다 — 없는 이름을 부르면 안 된다.
         Head("A", "애니메이션 매핑이 실제 클립과 맞는가");
@@ -152,7 +152,7 @@ public partial class MonsterThreatTest : Node
         StartShift(3);
         var t = _th.ForceSpawn("absentee", "corridor_north");
         Ok(t != null, "결번자 형태를 북측 복도로 띄웠다");
-        Ok(t.Phase == ThreatPhase.Outer, "출현 구역(외곽)에서 시작한다 — 복도에 바로 생기지 않는다");
+        Ok(t.Phase == ThreatPhase.Outer, "출현 구역(외곽)에서 시작한다 - 복도에 바로 생기지 않는다");
         Ok(t.Progress == 0f, "복도 진행도 0");
 
         // 외곽 구간 — 아직 CCTV 에 없다.
@@ -160,7 +160,7 @@ public partial class MonsterThreatTest : Node
         Ok(t.Phase == ThreatPhase.Outer && !t.InCorridor, "외곽 구간에서는 카메라에 잡히지 않는다");
 
         RunUntil(() => t.Phase == ThreatPhase.Approach, 30f);
-        Ok(t.Phase == ThreatPhase.Approach && t.InCorridor, "접근 복도에 들어섰다 — 여기부터 CCTV");
+        Ok(t.Phase == ThreatPhase.Approach && t.InCorridor, "접근 복도에 들어섰다 - 여기부터 CCTV");
 
         // 가까이 왔을 때 문을 내린다 — 플레이어가 실제로 하는 타이밍이다.
         // (너무 일찍 내리면 유지 상한이 먼저 끝나 문이 저절로 열린다. 그게 이 설계의 값이다.)
@@ -187,7 +187,7 @@ public partial class MonsterThreatTest : Node
         RunUntil(() => t.Phase is ThreatPhase.Retreat or ThreatPhase.Finished, 30f);
         Ok(_log.Contains("retreat"), "일정 시간 뒤 물러난다 (근무 끝까지 긁지 않는다)");
         RunUntil(() => !t.Active, 20f);
-        Ok(!t.Active, "사라졌다 — 관리자는 살아 있다");
+        Ok(!t.Active, "사라졌다 - 관리자는 살아 있다");
         Ok(!_log.Contains("breach"), "침입은 일어나지 않았다");
 
         GD.Print($"      신호 순서: {string.Join(" → ", _log.Distinct())}");
@@ -204,7 +204,7 @@ public partial class MonsterThreatTest : Node
         StartShift(3);
         var t = _th.ForceSpawn("absentee", "corridor_west");
         RunUntil(() => t.Phase == ThreatPhase.Approach, 30f);
-        Ok(t.InCorridor, "서측 복도로 접근 중 — CCTV 로 볼 수 있는 단계를 지났다");
+        Ok(t.InCorridor, "서측 복도로 접근 중 - CCTV 로 볼 수 있는 단계를 지났다");
 
         // 문을 내리지 않고 그대로 둔다.
         RunUntil(() => t.Phase == ThreatPhase.AtDoor, 60f);
@@ -222,14 +222,14 @@ public partial class MonsterThreatTest : Node
         _net.Seal(seg.Id, out _);
         Tick(seg.DriveSeconds + 0.2f);
         Ok(t.Phase == ThreatPhase.Pounding && !_log.Contains("breach"),
-            "**마지막 순간에 문을 내리면 막힌다** — 두드리기로 바뀐다");
+            "**마지막 순간에 문을 내리면 막힌다** - 두드리기로 바뀐다");
 
         // 다시 열면 유예가 처음부터 다시 흐른다(열자마자 즉사 금지).
         _net.Unseal(seg.Id);
         Tick(seg.DriveSeconds + 0.2f);
         Ok(t.Phase == ThreatPhase.AtDoor && !_log.Contains("breach"), "문을 열면 다시 문 앞 판정으로");
         Tick(t.Def.BreachDelaySeconds * 0.5f);
-        Ok(!_log.Contains("breach"), "열자마자 죽지 않는다 — 유예가 다시 흐른다");
+        Ok(!_log.Contains("breach"), "열자마자 죽지 않는다 - 유예가 다시 흐른다");
 
         RunUntil(() => _log.Contains("breach"), 20f);
         Ok(_log.Contains("breach"), "끝내 열어 두면 침입한다");
@@ -312,8 +312,8 @@ public partial class MonsterThreatTest : Node
             // 하루치를 통째로 **막아 가며** 돌린다 — 플레이어가 제때 문을 내리는 판.
             // (막지 않으면 첫 침입에서 판이 끝나므로 하루 일정을 볼 수 없다.)
             DefendWholeShift(DayObjectives.MaxShiftSeconds);
-            GD.Print($"      DAY{day} 등장 {_th.SpawnedToday}회 · 침입 {(_th.Breaching ? "있음" : "없음")}");
-            Ok(!_th.Breaching, $"DAY{day} — 제때 문을 내리면 한 번도 뚫리지 않는다");
+            GD.Print($"      DAY{day} 등장 {_th.SpawnedToday}회, 침입 {(_th.Breaching ? "있음" : "없음")}");
+            Ok(!_th.Breaching, $"DAY{day} - 제때 문을 내리면 한 번도 뚫리지 않는다");
             Ok(_th.SpawnedToday >= 1, $"DAY{day} 에 최소 한 번은 온다");
             Ok(_th.SpawnedToday <= 3, $"DAY{day} 에 과하게 몰리지 않는다");
         }

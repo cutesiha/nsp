@@ -104,7 +104,7 @@ public partial class CctvView : Control
         bool powered = GameState.Instance.GetPowerAllocated(PowerConsumer.CctvWatch) > 0;
         if (!powered)
         {
-            ShowStatusOnly("전력 부족 — CCTV 신호 없음", new Color(0.05f, 0.05f, 0.05f));
+            ShowStatusOnly("전력 부족 - CCTV 신호 없음", new Color(0.05f, 0.05f, 0.05f));
             return;
         }
 

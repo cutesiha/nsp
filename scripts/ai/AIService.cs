@@ -164,14 +164,14 @@ public partial class AIService : Node
             sb.AppendLine($"오늘 근무표에 적어 낸 오늘의 기분: {state.DailyMood}");
         string currentTaskName = FacilitySimulation.Instance.GetActiveTaskForRoom(state.CurrentRoomId)?.DisplayName ?? "없음";
         sb.AppendLine($"현재 위치/업무: {state.CurrentRoomId} / {currentTaskName}");
-        sb.AppendLine("Godot가 확인한 사실(이 목록 밖의 사건·목격·동선을 만들어내지 마세요):");
+        sb.AppendLine("Godot가 확인한 사실(이 목록 밖의 사건/목격/동선을 만들어내지 마세요):");
         foreach (var fact in knownFacts)
             sb.AppendLine(fact);
         sb.AppendLine("이 범위를 벗어난 사실은 알지 못하는 것으로 대답하세요. 절대 게임 시스템이나 데이터 구조를 언급하지 마세요.");
 
         if (employeeId == GameState.Instance.SaboteurEmployeeId)
         {
-            sb.AppendLine("당신은 이 시설의 숨은 파괴공작자입니다. 이 사실을 스스로 밝히거나 암시하지 마세요. 본인에게 불리한 사실은 생략·회피할 수 있지만, 로그 밖의 거짓 사건을 만들지는 마세요.");
+            sb.AppendLine("당신은 이 시설의 숨은 파괴공작자입니다. 이 사실을 스스로 밝히거나 암시하지 마세요. 본인에게 불리한 사실은 생략/회피할 수 있지만, 로그 밖의 거짓 사건을 만들지는 마세요.");
         }
 
         return sb.ToString();

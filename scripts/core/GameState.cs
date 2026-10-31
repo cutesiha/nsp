@@ -175,6 +175,14 @@ public partial class GameState : Node
         return true;
     }
 
+    // 교육 시연 전용 — 용량을 보지 않고 그 채널을 켜거나 끈다. GUIDE-0 가 "③ Barrier" 를 설명하며
+    // 차폐 레버를 직접 올려 보이는 자리(발전실 사고로 2/2 를 다 쓰고 있을 때)에서만 쓴다.
+    // 끝나면 같은 함수로 되돌린다. 플레이어 조작(TryTogglePower)의 규칙은 그대로다.
+    public void ForceConsumerPower(PowerConsumer consumer, bool on)
+    {
+        if (_switchOn.ContainsKey(consumer)) _switchOn[consumer] = on;
+    }
+
     // 용량이 줄어든 뒤에도 여전히 켜진 채널 수가 새 용량을 넘으면 우선순위대로 강제로 끈다.
     private void ShedToCapacity()
     {
@@ -206,11 +214,17 @@ public partial class GameState : Node
     // 사유(reason)가 그대로 넘어가므로 "얼마나 늘었고 무엇 때문에 깎였는가" 를 나눌 수 있다.
     public static System.Action<float, string> CoreLedger;
 
+    // 근무 중 코어 복구율이 **실제로** 깎인 순간(깎인 양 %, 사유). 코어실 사고의 출력 불안정이든
+    // 방해공작이든 원인을 가리지 않는다 — 화면 위 경고(FacilityAlertHud · ShiftHud)가 듣는다.
+    public static event System.Action<float, string> CoreLost;
+
     public void AddCoreProgress(float delta, string reason)
     {
         CoreLedger?.Invoke(delta, reason);
         float before = CoreProgress;
         CoreProgress = Mathf.Clamp(CoreProgress + delta, 0f, 100f);
+        float lost = before - CoreProgress;
+        if (lost > 0.001f && CurrentPhase == GamePhase.Live) CoreLost?.Invoke(lost, reason);
         // 「이게 연습이라고?」 — 가상 시뮬레이션에서 100% 에 닿은 **그 순간**을 잡는다.
         // DAY1 로 넘어가며 진행도는 0% 로 돌아가지만(GoToNextDay) 기록은 이미 남아 있다.
         AchievementManager.Instance?.NoteCoreProgress(before, CoreProgress);
@@ -279,7 +293,7 @@ public partial class GameState : Node
         // (숨은 '가까이 있다' 의 신호다. 어둠과 섞으면 둘 다 뜻을 잃는다 — 지시서 §7-2).
         if (delta < 0) NSP.Ui.AdminFearDirector.Instance?.PowerOutage(6f);
         EventLog.Instance?.LogEvent(LogEventType.PowerCapacityChanged, "", "",
-            delta < 0 ? $"⚠ 전력 {before} → {after} [{-delta} 감소]"
+            delta < 0 ? $"▲ 전력 {before} → {after} [{-delta} 감소]"
                       : $"✓ 전력 {before} → {after} [{delta} 증가]");
         // 전력 손실은 대개 발전실 사고의 결과다 — 가장 최근 사고에 결과 줄로 붙인다.
         if (delta < 0) IncidentTracker.AddConsequence("", $"전력 {before} → {after}");

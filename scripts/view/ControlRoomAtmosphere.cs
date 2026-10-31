@@ -213,6 +213,9 @@ public partial class ControlRoomAtmosphere : Node3D
         // FAIL-02 환기 고장: 정전이 아니어도 환기가 죽어 있으면 vent 를 눌러둔다.
         PollVentFault();
         TickVentStop(d, blackout);
+        // 괴물이 다가온 만큼 겹들을 더 눌러 둔다 — 목표값이 매 프레임 다시 계산되므로
+        // 환풍기 정적과 같은 자리에서, 실제 적용(Apply) 직전에 깎아야 한다.
+        TickThreatDrain(d);
 
         foreach (var l in _all) l.Apply(d);
 
@@ -257,6 +260,13 @@ public partial class ControlRoomAtmosphere : Node3D
         float machine = !live ? BedIdleMachineDb : story ? BedStoryMachineDb : BedLiveMachineDb;
         float fan = !live ? BedIdleFanDb : story ? BedStoryFanDb : BedLiveFanDb;
         if (_ventFaultDown) fan = Mathf.Min(fan, BedVentDownFanDb);
+        // 괴물이 다가오는 동안 바닥 소음도 함께 물러난다(지시서 §5).
+        if (_threatDrain > 0f)
+        {
+            float cut = ThreatDrainBedDb * _threatDrain;
+            machine -= cut;
+            fan -= cut;
+        }
         sfx.SetFacilityBed(machine, fan);
     }
 
@@ -514,6 +524,34 @@ public partial class ControlRoomAtmosphere : Node3D
         _hushDone = false;
         _vent.TgtPitch = 1f;
         PlayOn(_vent.P3?.GetParentNode3D(), "vent_restart", -3f);
+    }
+
+    // ── 괴물이 다가오는 동안 방이 비어 간다 (지시서 §5) ──────────────────
+    //
+    // 복도를 걸어오는 동안 시설 소음이 **서서히 빠진다.** 기계가 멎는 것이 아니라,
+    // 늘 깔려 있던 소리가 뒤로 물러나 발소리와 호흡만 남는 쪽에 가깝다.
+    //
+    // **완전한 무음은 만들지 않는다.** 이 게임에서 소리가 전부 사라지는 구간은
+    // 침입 직후의 3초뿐이어야 한다(AdminDeathDirector.SilenceTheRoom) — 그 전에
+    // 한 번 무음을 써 버리면 정작 그 3초가 "또 조용해졌네" 가 된다.
+    private float _threatDrain;      // 지금 실제로 걸려 있는 양 (0~1)
+    private float _threatDrainTgt;   // 목표
+    private const float ThreatDrainBedDb = 16f;     // 베드(기계 · 송풍)를 이만큼까지 누른다
+    private const float ThreatDrainLayerDb = 10f;   // 환풍 · 드론 · CRT 겹
+
+    // MonsterThreatPresenter 가 매 프레임 넘겨 준다. 0 = 평소, 1 = 문 앞.
+    public void SetThreatDrain(float amount) => _threatDrainTgt = Mathf.Clamp(amount, 0f, 1f);
+
+    // 지금 얼마나 빠져 있는가(검사용).
+    public float ThreatDrain => _threatDrain;
+
+    // 다가올 때는 천천히 빠지고, 물러가면 조금 빠르게 돌아온다. 빠지는 것이 느려야
+    // "언제부터 조용했지" 가 되고, 돌아오는 것이 빨라야 위협이 끝난 것이 전해진다.
+    private void TickThreatDrain(float d)
+    {
+        _threatDrain = Mathf.MoveToward(_threatDrain, _threatDrainTgt,
+            d * (_threatDrainTgt > _threatDrain ? 0.35f : 0.8f));
+        if (_threatDrain > 0f) ApplyHush(ThreatDrainLayerDb * _threatDrain);
     }
 
     // 밖에서 정적만 따로 걸고 싶을 때(내 방 정전 등). 환풍기 정지와 같은 연출을 쓴다.

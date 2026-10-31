@@ -6,14 +6,8 @@ using System.Linq;
 
 namespace NSP.Dialogue;
 
-// 「자료 한 장 → 물어볼 수 있는 것들 → 질문 문장」.
-//
-// 질문 문장은 반드시 그 자료의 값(시각·작업실·상대)을 그대로 인용한다.
-// 문장을 조립할 때 다른 사건의 값을 끌어오지 않는다 — 옛 꼬리질문이 엉뚱한 방 이름을
-// 말하던 원인이 그것이었다.
 public static class InterviewQuestionFactory
 {
-    // 증거 없이도 언제든 물을 수 있는 기본 질문. 인터뷰의 중심이 아니라 도입부다.
     public static List<InterviewQuestion> BasicQuestions(string targetEmployeeId)
     {
         var list = new List<InterviewQuestion>();
@@ -40,12 +34,14 @@ public static class InterviewQuestionFactory
     //   · 이 직원이 **말한** 자료            → 자기 말은 자기에게 되묻는다(§4)
     //   · 기절 기록                          → 쓰러진 사람 외에도. 누구에게 열리는지는
     //                                          아래 분기에서 실제 기록으로 다시 가린다.
+    //   · 이 직원의 **이름이 직접 불린** 자료 → 그 이름의 주인에게 들이밀 수 있다(2026-10-30)
     public static bool MayQuestionWith(string targetEmployeeId, InterviewEvidence ev)
     {
         if (ev == null || string.IsNullOrEmpty(targetEmployeeId)) return false;
         if (string.IsNullOrEmpty(ev.SubjectEmployeeId)) return true;
         if (ev.SubjectEmployeeId == targetEmployeeId) return true;
         if (ev.SpeakerEmployeeId == targetEmployeeId) return true;
+        if (ev.MentionedEmployeeIds.Contains(targetEmployeeId)) return true;
         return IsFaintCard(ev);
     }
 
@@ -218,6 +214,16 @@ public static class InterviewQuestionFactory
                     if (toSpeaker)
                         Add(list, targetEmployeeId, ev, InterviewIntent.AskNotObservedScope,
                             ev.SubjectEmployeeId);
+                    break;
+                }
+
+                // 이름을 대며 한 말(원문 카드). 본 것을 정리한 증언이 아니므로 "봤다고 했다" 로 묻지 않는다 —
+                // 그 말을 그대로 들이밀고 그때 무엇을 했는지 듣는다. 가리키는 방이 없으면(사고와 상관없는 말)
+                // 혼자서는 물을 거리가 없다. 다른 자료와 함께 들이미는 데만 쓴다(EvidenceContradiction).
+                if (ev.NamedMention)
+                {
+                    if (toSubject && !string.IsNullOrEmpty(ev.SubjectRoomId))
+                        Add(list, targetEmployeeId, ev, InterviewIntent.AskAboutTestimony, ev.SpeakerEmployeeId);
                     break;
                 }
 
@@ -394,7 +400,7 @@ public static class InterviewQuestionFactory
 
     // 질문 문장. 시각은 자료에 시각이 있을 때만 말한다.
     // 인용은 한 줄에 들어갈 만큼만 — 긴 답변을 통째로 질문에 실으면 자막이 넘친다.
-    private static string Quote(string line)
+    internal static string Quote(string line)
     {
         string s = (line ?? "").Trim().Replace("\n", " ");
         return s.Length <= 34 ? s : s[..33].TrimEnd() + "…";
@@ -407,6 +413,26 @@ public static class InterviewQuestionFactory
         string to = InterviewEvidenceBoard.RoomName(q.ToRoomId);
         string here = InterviewEvidenceBoard.RoomName(q.SubjectRoomId);
         string who = InterviewEvidenceBoard.Codename(q.OtherEmployeeId);
+
+        // 사망(생체 신호 소실) 기록 — "사고" 가 아니라 **누가 죽었는지**를 부른다.
+        string victim = ev?.IncidentType == LogEventType.Death && !string.IsNullOrEmpty(ev.VictimEmployeeId)
+            ? InterviewEvidenceBoard.Codename(ev.VictimEmployeeId) : "";
+        if (victim.Length > 0)
+        {
+            string death = q.Intent switch
+            {
+                InterviewIntent.AskIncidentKnown =>
+                    $"{at}{(string.IsNullOrEmpty(here) ? "" : here + "에서 ")}{victim} 씨의 생체 신호가 끊긴 걸 알고 있었습니까?",
+                InterviewIntent.AskWhereAtIncident =>
+                    $"{at}{victim} 씨의 신호가 끊겼을 때, 당신은 어디에 있었습니까?",
+                InterviewIntent.AskProveInnocence =>
+                    $"{victim} 씨의 죽음과 무관하다는 근거를 대십시오.",
+                InterviewIntent.AskSuspectOpinion =>
+                    $"{victim} 씨를 그렇게 만든 게 누구라고 생각합니까?",
+                _ => null,
+            };
+            if (death != null) return death;
+        }
 
         return q.Intent switch
         {
@@ -513,8 +539,9 @@ public static class InterviewQuestionFactory
                 $"그것이 사라지거나 이동하는 방향을 보았습니까?",
 
             // ── 3단계 · 발언 추궁 ──
-            InterviewIntent.AskAboutTestimony =>
-                $"{who}은/는 {at}당신이 {here}에 있었다고 합니다. 무엇을 하고 있었습니까?",
+            InterviewIntent.AskAboutTestimony => ev?.NamedMention == true
+                ? $"{who}은/는 \"{Quote(ev.QuotedLine)}\" 라고 했습니다. {at}{here}에서 무엇을 하고 있었습니까?"
+                : $"{who}은/는 {at}당신이 {here}에 있었다고 합니다. 무엇을 하고 있었습니까?",
             InterviewIntent.AskObservationWindow =>
                 $"얼마나 오래 지켜보셨습니까?",
             InterviewIntent.AskNotObservedScope =>

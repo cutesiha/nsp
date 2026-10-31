@@ -154,9 +154,9 @@ public partial class PauseMenu : CanvasLayer
         // 그 자리를 도전과제 기록이 받는다 — 타이틀에서 보던 그 화면 그대로.
         vb.AddChild(Card("도전과제", true, OpenAchievements));
         vb.AddChild(Card("시작화면으로", true,
-            () => ShowConfirm("시작화면으로 돌아가시겠습니까?", GoToTitle)));
+            () => ShowConfirm("시작화면으로 돌아가시겠습니까?\n진행 중인 근무는 저장되지 않습니다.", GoToTitle)));
         vb.AddChild(Card("나가기", true,
-            () => ShowConfirm("정말로 게임을 종료하시겠습니까?", QuitGame)));
+            () => ShowConfirm("정말로 게임을 종료하시겠습니까?\n진행 중인 근무는 저장되지 않습니다.", QuitGame)));
 
         BuildConfirm();
     }

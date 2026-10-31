@@ -47,10 +47,10 @@ public partial class EmployeeHairSwap : Node
         var cat = HairCatalog.Load();
         var store = HairAssignmentStore.Load();
 
-        GD.Print($"################ 직원 헤어 교체 {(apply ? "(적용)" : "(미리보기 — 파일은 그대로)")}");
+        GD.Print($"################ 직원 헤어 교체 {(apply ? "(적용)" : "(미리보기 - 파일은 그대로)")}");
 
         if (!Measure(out Vector3 headCenter, out float headW, out float headTop)) return;
-        GD.Print($"  기존 머리: 지름 {headW:F3}m · HairAnchor 기준 중심 y={headCenter.Y:F3} · 정수리 y={headTop:F3}");
+        GD.Print($"  기존 머리: 지름 {headW:F3}m, HairAnchor 기준 중심 y={headCenter.Y:F3}, 정수리 y={headTop:F3}");
         GD.Print($"  얼굴이 -Z 를 보므로 헤어는 180도 돌려 넣는다\n");
 
         int done = 0;
@@ -60,7 +60,7 @@ public partial class EmployeeHairSwap : Node
             HairEntry e = cat.ById(a.HairId);
             if (e == null)
             {
-                GD.Print($"  !! {id}: 고른 헤어 '{a.HairId}' 가 카탈로그에 없다 — 건너뛴다");
+                GD.Print($"  !! {id}: 고른 헤어 '{a.HairId}' 가 카탈로그에 없다 - 건너뛴다");
                 continue;
             }
 
@@ -218,7 +218,7 @@ public partial class EmployeeHairSwap : Node
         using var w = FileAccess.Open(scenePath, FileAccess.ModeFlags.Write);
         if (w == null) { GD.Print($"  !! {scenePath} 에 쓰지 못했다"); return false; }
         w.StoreString(string.Join("\n", keep));
-        GD.Print($"          → 기존 헤어 {dropped}개 제거 · {e.Id} 하나로 교체");
+        GD.Print($"          → 기존 헤어 {dropped}개 제거, {e.Id} 하나로 교체");
         return true;
     }
 

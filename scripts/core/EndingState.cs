@@ -25,6 +25,7 @@ public static class EndingState
 
     private const string Path = "user://nsp_progress.cfg";
     private const string Section = "ending";
+    private const string UnlockSection = "unlock";
 
     private static bool _loaded;
     private static Kind _last = Kind.None;
@@ -42,8 +43,58 @@ public static class EndingState
     {
         Load();
         _last = kind;
+        // 단기 근무를 끝까지 마쳤다(엔딩 넷 중 무엇이든) — 정규(장기) 근무가 열린다.
+        if (kind != Kind.None && GameModes.Current == GameMode.Competition) _shortCleared = true;
+        if (kind != Kind.None) _seen |= 1 << (int)kind;
+        Save();
+    }
+
+    // ── 정규 근무 해금 ───────────────────────────────────────────────
+    //
+    // 단기 근무를 한 번 끝까지 마치면(엔딩을 보면) 타이틀의 「정규 근무」가 열린다(2026-10-31 사용자 요청).
+    // 엔딩 기록과 같은 파일에 남지만 **새 근무를 시작해도 지우지 않는다**(Clear 는 엔딩만 비운다).
+    // 에디터에서는 엔딩 기록과 똑같이 F5 마다 처음 상태(잠김)로 돌아간다 — 아래 Load 참고.
+    private static bool _shortCleared;
+
+    public static bool ShortShiftCleared
+    {
+        get { Load(); return _shortCleared; }
+    }
+
+    // ── 엔딩 수집 (2026-10-31) ──────────────────────────────────────────
+    //
+    // 네 엔딩은 두 축으로 갈린다 - 코어를 목표까지 복구했는가, 최종 보고서의 지목이 맞았는가.
+    // 그 구조가 플레이어에게 보여야 "다른 엔딩도 있다" 가 전해진다. 타이틀 모니터2 의 엔딩 칸과
+    // 근무 기록 화면이 이 목록을 그대로 읽는다. 본 엔딩은 파일에 남는다(에디터는 F5 마다 비운다).
+    public sealed record Entry(Kind Kind, string Tag, string Name, string Rule);
+
+    public static readonly Entry[] Catalog =
+    {
+        new(Kind.True, "TRUE", "근무 종료", "코어 복구 목표 달성 + 결번 지목 성공"),
+        new(Kind.Loose, "LOOSE", "복구 완료, 대상 미확인", "코어 복구 목표 달성 + 지목 실패"),
+        new(Kind.Late, "LATE", "대상 확인, 복구 실패", "코어 복구 실패 + 결번 지목 성공"),
+        new(Kind.Bad, "BAD", "복구 실패", "코어 복구 실패 + 지목 실패"),
+    };
+
+    private static int _seen;
+
+    public static bool Seen(Kind k)
+    {
+        Load();
+        return k != Kind.None && (_seen & (1 << (int)k)) != 0;
+    }
+
+    public static int SeenCount
+    {
+        get { int n = 0; foreach (var e in Catalog) if (Seen(e.Kind)) n++; return n; }
+    }
+
+    private static void Save()
+    {
         var cfg = new ConfigFile();
-        cfg.SetValue(Section, "last", (int)kind);
+        cfg.SetValue(Section, "last", (int)_last);
+        cfg.SetValue(UnlockSection, "short_cleared", _shortCleared);
+        cfg.SetValue(UnlockSection, "endings_seen", _seen);
         cfg.Save(Path);
     }
 
@@ -53,10 +104,35 @@ public static class EndingState
     {
         if (_loaded) return;
         _loaded = true;
+
+        // **에디터에서 돌릴 때는 지난 판의 엔딩을 들고 오지 않는다.**
+        //
+        // F5 는 "처음부터 해 보는" 버튼이다. 그런데 한 번 배드엔딩을 보고 나면 그 뒤로
+        // 켤 때마다 타이틀이 붉은 CRT · "복구 실패 기록이 존재합니다" 로 떴다 — 매번
+        // 그 판의 뒤끝에서 시작하는 셈이라, 처음 켠 사람이 보는 화면을 확인할 수가 없다.
+        // 도전과제를 F5 마다 비우는 것과 같은 이유다(AchievementManager).
+        //
+        // **내보낸 빌드에는 해당하지 않는다** — 플레이어에게는 시설이 지난 밤을
+        // 기억하는 것이 이 타이틀의 전부다. 지우는 것은 에디터에서 돌릴 때뿐이다.
+        //
+        // 이번 판에서 엔딩을 본 뒤 타이틀로 돌아가는 길은 그대로다 — 아래에서 파일만
+        // 비우고 _loaded 를 세워 두므로, 그 뒤의 Record() 는 평소처럼 기록된다.
+        if (OS.HasFeature("editor"))
+        {
+            _last = Kind.None;
+            PendingWake = Kind.None;
+            if (FileAccess.FileExists(Path)) DirAccess.RemoveAbsolute(Path);
+            return;
+        }
+
         var cfg = new ConfigFile();
         if (cfg.Load(Path) != Error.Ok) return;
         // 예전 저장 파일(True=1 / Bad=2)도 그대로 읽힌다. 모르는 값이면 None 으로 둔다.
         int raw = (int)cfg.GetValue(Section, "last", 0);
         _last = System.Enum.IsDefined(typeof(Kind), raw) ? (Kind)raw : Kind.None;
+        _shortCleared = (bool)cfg.GetValue(UnlockSection, "short_cleared", false);
+        _seen = (int)cfg.GetValue(UnlockSection, "endings_seen", 0);
+        // 예전 저장 파일에는 본 엔딩 목록이 없다 - 마지막 엔딩만이라도 본 것으로 친다.
+        if (_last != Kind.None) _seen |= 1 << (int)_last;
     }
 }

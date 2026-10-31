@@ -75,7 +75,7 @@ public partial class PlaytestAuditTest : Node
     // ── ② 기절하면 배치 화면이 읽는 값에 뜬다 ──────────────────────────
     private void CheckFaintShown()
     {
-        Head("②", "기절하면 배치 화면이 '기절 · 근무 불가' 로 읽는다");
+        Head("②", "기절하면 배치 화면이 '기절, 근무 불가' 로 읽는다");
         Reset(2);
         GameState.Instance.SetPhase(GamePhase.Live);
         var st = _sim.GetEmployeeState("cat");
@@ -129,7 +129,7 @@ public partial class PlaytestAuditTest : Node
     // ── 파트 2 : 관리자 입력이 필요한 이벤트가 하루에 몇 번인가 ─────────
     private void CountManagerInputs()
     {
-        Head("파트2", "관리자 입력이 필요한 이벤트 — 하루당 몇 회인가");
+        Head("파트2", "관리자 입력이 필요한 이벤트 - 하루당 몇 회인가");
         Reset(3);
         GameState.Instance.SetPhase(GamePhase.Live);
 
@@ -166,7 +166,7 @@ public partial class PlaytestAuditTest : Node
         stays = seenStay.Count;
 
         int total = approvals + stays;
-        GD.Print($"   수리 승인 {approvals}회 · 체류 대기 {stays}건 = 하루 {total}회");
+        GD.Print($"   수리 승인 {approvals}회, 체류 대기 {stays}건 = 하루 {total}회");
         Check(total >= 3, $"관리자 입력이 필요한 이벤트가 하루 3회 이상 ({total}회)");
     }
 

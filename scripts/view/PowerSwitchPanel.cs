@@ -73,6 +73,32 @@ public partial class PowerSwitchPanel : Node3D
     private bool _shutdown;
     private bool _built;
 
+    public static PowerSwitchPanel Instance { get; private set; }
+
+    // 교육 시연 — GUIDE-0 가 레버를 직접 넘겨 보인다("➀ 조명" 을 말하며 조명 레버를 내렸다 올린다).
+    //
+    // 플레이어 조작(BeginToggle)과 다르게 손이 나오지 않고 입력 잠금 · 연타 방지 · 용량 검사도
+    // 보지 않는다. 레버 · 딸깍 소리 · LED 는 실제 조작과 똑같이 움직이고, 전원도 실제로 바뀐다
+    // (조명을 내리면 지도에서 직원 위치가 정말로 사라진다 — 그게 설명하려는 것이다).
+    // 외부 차단으로 보지 않게(연기 · 스파크) 화면에 보이는 레버 상태도 같이 맞춘다.
+    public static void DemoSet(PowerConsumer channel, bool on)
+    {
+        var gs = GameState.Instance;
+        if (gs == null) return;
+        if (gs.IsConsumerPowered(channel) == on) { Instance?.AnimateLever(channel, on); return; }
+        gs.ForceConsumerPower(channel, on);
+        var p = Instance;
+        if (p == null || !IsInstanceValid(p)) return;
+        p.AnimateLever(channel, on);
+        Sfx.Instance?.Play("relay_click", -5f);
+        Sfx.Instance?.Play("switch", -9f, on ? 1.05f : 0.9f);
+    }
+
+    public override void _EnterTree()
+    {
+        if (!Engine.IsEditorHint()) Instance = this;
+    }
+
     public override void _Ready()
     {
         if (_built) return;
@@ -128,6 +154,8 @@ public partial class PowerSwitchPanel : Node3D
         // 전력 용량 표시 — 씬에 Label3D "CapacityLabel" 이 있으면 그것을 쓴다.
         // 자리 · 크기 · 색을 에디터에서 잡을 수 있게 노드로 빼 두었다(메인 씬에 있다).
         // 없는 씬(소품 미리보기 등)에서는 예전처럼 코드로 만들어 붙인다.
+        // 자리는 **앞면 맨 윗줄**(윗면 모서리 바로 아래, 모델 y≈0.745 · z≈0.075)이다. 앞면 기울기
+        // 그대로 21° 눕혀 붙인다 — 예전에는 윗면보다 높이 떠 있어 기기 위 허공에 글자가 걸려 보였다.
         _capacityLabel = GetNodeOrNull<Label3D>("CapacityLabel");
         if (_capacityLabel == null)
         {
@@ -135,8 +163,9 @@ public partial class PowerSwitchPanel : Node3D
             {
                 Name = "CapacityLabel",
                 Text = "POWER 3 / 3",
-                Position = new Vector3(centerX, faceY + 0.115f, faceZ - 0.020f),
-                RotationDegrees = new Vector3(-14f, 0f, 0f),
+                Position = new Vector3(centerX, _modelOffset.Y + 0.745f * _modelScale,
+                    _modelOffset.Z + 0.075f * _modelScale),
+                RotationDegrees = new Vector3(-21f, 0f, 0f),
                 PixelSize = 0.00042f, FontSize = 40, OutlineSize = 0,
                 Modulate = new Color(0.55f, 0.85f, 0.65f),
             };
@@ -144,10 +173,26 @@ public partial class PowerSwitchPanel : Node3D
         }
     }
 
+    // ── 교육 화살표가 가리킬 자리(TutorialDirector) ─────────────────────
+    // 그 레버 꼭대기(월드 좌표). 레버가 없으면 null.
+    public Vector3? LeverTopGlobal(PowerConsumer channel) =>
+        _tips.TryGetValue(channel, out var tip) && IsInstanceValid(tip) ? tip.GlobalPosition : null;
+
+    // 「POWER n / m」 글자의 왼쪽 끝 가운데(월드 좌표) — 글자 옆에서 가리킨다.
+    public Vector3? CapacityLabelLeftGlobal()
+    {
+        if (_capacityLabel == null || !IsInstanceValid(_capacityLabel) || !_capacityLabel.IsVisibleInTree()) return null;
+        var box = _capacityLabel.GetAabb();
+        if (box.Size.X <= 0f) return _capacityLabel.GlobalPosition;
+        var leftMid = box.Position + new Vector3(0f, box.Size.Y * 0.5f, box.Size.Z * 0.5f);
+        return _capacityLabel.GlobalTransform * leftMid;
+    }
+
     public override void _ExitTree()
     {
         if (!Engine.IsEditorHint())
             NSP.Facility.RoomEffectStats.PowerEquipmentFailed -= OnPowerEquipmentFailed;
+        if (Instance == this) Instance = null;
     }
 
     private AudioStreamPlayer3D MakePlayer(string key, bool loop, float db)
@@ -581,7 +626,7 @@ public partial class PowerSwitchPanel : Node3D
             string why = "복도망을 찾지 못했습니다";
             ok = net != null && net.LeverToggle(out why);
             if (!ok)
-                NSP.Ui.FacilityAlertHud.Instance?.Notify("⚠ 차폐 — " + why, NSP.Ui.NoticeLevel.Warning);
+                NSP.Ui.FacilityAlertHud.Instance?.Notify("▲ 차폐 - " + why, NSP.Ui.NoticeLevel.Warning);
             else if (net.SealedCount > 0)
                 // 무엇이 닫히는지 한 줄로 알린다 — 레버는 책상 위에 있고 문은 지도에 있다.
                 NSP.Ui.FacilityAlertHud.Instance?.Notify(

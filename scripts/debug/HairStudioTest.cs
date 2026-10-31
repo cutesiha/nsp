@@ -63,7 +63,7 @@ public partial class HairStudioTest : Node
         var male = cat.Hairs("male").ToList();
         var female = cat.Hairs("female").ToList();
         var beard = cat.Entries.Where(e => e.Kind == "beard").ToList();
-        GD.Print($"      남성 {male.Count} · 여성 {female.Count} · 수염 {beard.Count}" +
+        GD.Print($"      남성 {male.Count}, 여성 {female.Count}, 수염 {beard.Count}" +
                  (_pruned ? "  (고른 것만 남기고 정리된 상태)" : "  (팩 전체)"));
 
         if (_pruned)
@@ -99,7 +99,7 @@ public partial class HairStudioTest : Node
 
         var byLen = cat.Entries.Where(e => e.Kind == "hair").GroupBy(e => e.LengthClass)
             .ToDictionary(g => g.Key, g => g.Count());
-        GD.Print($"      길이 분류 — " + string.Join(" · ",
+        GD.Print($"      길이 분류 - " + string.Join(", ",
             byLen.Select(k => $"{HairSourceSplitter.Korean(k.Key)} {k.Value}")));
         Ok(byLen.Count >= (_pruned ? 1 : 2), "길이 분류가 붙어 있다");
 
@@ -107,7 +107,7 @@ public partial class HairStudioTest : Node
         {
             var longest = cat.Hairs("female").OrderByDescending(e => e.AreaRatio)
                 .Where(e => e.LengthClass == "long").Take(5).ToList();
-            Ok(longest.Count == 5, "'긴·풍성' 필터에 걸리는 후보가 있다 (" +
+            Ok(longest.Count == 5, "'긴/풍성' 필터에 걸리는 후보가 있다 (" +
                 string.Join(", ", longest.Select(e => $"{e.Id} {e.AreaRatio:F2}")) + ")");
         }
     }
@@ -185,7 +185,7 @@ public partial class HairStudioTest : Node
 
     private void SectionE(HairCatalog cat)
     {
-        GD.Print("\n#### E. 자동 맞춤 — 114개 전부 머리에 올라가는가");
+        GD.Print("\n#### E. 자동 맞춤 - 114개 전부 머리에 올라가는가");
         foreach (string sex in new[] { "male", "female" })
         {
             HairBaseEntry b = cat.Base(sex);
@@ -219,7 +219,7 @@ public partial class HairStudioTest : Node
             int n = cat.Hairs(sex).Count();
             Ok(tooHigh == 0 && tooLow == 0,
                 $"{sex} {n}개의 정수리가 머리 꼭대기에 2cm 안으로 붙는다 " +
-                $"(뜬 것 {tooHigh} · 파묻힌 것 {tooLow}{(worst.Count > 0 ? " — " + string.Join(", ", worst.Take(5)) : "")})");
+                $"(뜬 것 {tooHigh}, 파묻힌 것 {tooLow}{(worst.Count > 0 ? " - " + string.Join(", ", worst.Take(5)) : "")})");
             Ok(offCenter == 0, $"{sex} 전부 머리 중심 위에 있다 (벗어난 것 {offCenter}개)");
             Ok(clamped <= 2, $"{sex} 배율이 한계까지 밀린 것이 거의 없다 ({clamped}개)");
             root.QueueFree();
@@ -362,7 +362,7 @@ public partial class HairStudioTest : Node
 
     private void SectionH()
     {
-        GD.Print("\n#### H. 기존 자산 · 다음 단계 준비물");
+        GD.Print("\n#### H. 기존 자산, 다음 단계 준비물");
         var expect = new Dictionary<string, string>
         {
             ["rabbit"] = "토끼", ["cat"] = "고양이", ["fox"] = "여우",
@@ -377,11 +377,11 @@ public partial class HairStudioTest : Node
             bool wantFemale = def != null && def.Gender.Contains("여");
             if (body == (wantFemale ? "female" : "male")) bodyOk++;
         }
-        Ok(kept == expect.Count, $"직원 6명의 ID·코드네임이 게임 데이터 그대로다 ({kept}/6)");
+        Ok(kept == expect.Count, $"직원 6명의 ID/코드네임이 게임 데이터 그대로다 ({kept}/6)");
         Ok(bodyOk == expect.Count, $"초기 베이스가 데이터의 성별을 따른다 ({bodyOk}/6)");
         Ok(HairAssignmentStore.Characters.Any(c => c.Id == "admin") &&
            HairAssignmentStore.Characters.Any(c => c.Id == "director"),
-            "관리자·총괄관리자도 목록에 있다");
+            "관리자/총괄관리자도 목록에 있다");
 
         // 관리자 의상은 이번에 입히지 않는다 — 임포트가 되는지만 본다(지시서 §1).
         const string shirt = "res://assets/characters/source/admin_outfit/Shirt OBJ.obj";
@@ -390,7 +390,7 @@ public partial class HairStudioTest : Node
         {
             var m = ResourceLoader.Load<Mesh>(shirt);
             int surf = m?.GetSurfaceCount() ?? 0;
-            Ok(surf > 0, $"셔츠가 메시로 임포트된다 (표면 {surf}개 — 질감은 다음 단계)");
+            Ok(surf > 0, $"셔츠가 메시로 임포트된다 (표면 {surf}개 - 질감은 다음 단계)");
         }
         Ok(HairCatalog.Load().Entries.All(e => !e.MeshPath.Contains("source/")),
             "분리본은 원본 폴더 밖에 따로 쓴다");
@@ -409,13 +409,13 @@ public partial class HairStudioTest : Node
         foreach ((string id, _, _) in HairAssignmentStore.Characters)
         {
             string label = HairAssignmentStore.Label(id);
-            if (!store.HasChoice(id)) { Ok(false, $"{label} — 아직 안 골랐다"); continue; }
+            if (!store.HasChoice(id)) { Ok(false, $"{label} - 아직 안 골랐다"); continue; }
             HairAssignment a = store.Get(id);
             HairEntry e = cat.ById(a.HairId);
             var mesh = ResourceLoader.Exists(a.HairPath) ? ResourceLoader.Load<Mesh>(a.HairPath) : null;
             bool good = e != null && mesh is { } m && m.GetSurfaceCount() > 0;
             if (good) ready++;
-            Ok(good, $"{label} — {a.HairId} ({a.Body}, {a.ColorHex}) 메시가 살아 있다");
+            Ok(good, $"{label} - {a.HairId} ({a.Body}, {a.ColorHex}) 메시가 살아 있다");
         }
         Ok(ready == 8, $"8명 전원이 쓸 수 있는 상태다 ({ready}/8)");
 
@@ -433,7 +433,7 @@ public partial class HairStudioTest : Node
         var ghost = inCat.Where(p => !onDisk.Contains(p)).ToList();
         Ok(orphan.Count == 0, $"카탈로그에 없는 메시가 남아 있지 않다 ({orphan.Count}개)");
         Ok(ghost.Count == 0, $"카탈로그가 없는 파일을 가리키지 않는다 ({ghost.Count}개)");
-        GD.Print($"      디스크 {onDisk.Count}개 · 카탈로그 {cat.Entries.Count}개");
+        GD.Print($"      디스크 {onDisk.Count}개, 카탈로그 {cat.Entries.Count}개");
     }
 
     // ── ─────────────────────────────────────────────────────────────────

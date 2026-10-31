@@ -216,7 +216,7 @@ public partial class PadManualShot : Node
         if (st == null && GameState.Instance.DayTimeSeconds < 35.5f)
             GameState.Instance.AdvanceDayTime(35.5f - GameState.Instance.DayTimeSeconds);
         for (int i = 0; i < 60 && (st ??= FindNeglectTask(sim)) == null; i++) await Seconds(0.5);
-        if (st == null) { GD.PrintErr("방치할 업무가 없다 — 사고를 만들지 못했다"); return; }
+        if (st == null) { GD.PrintErr("방치할 업무가 없다 - 사고를 만들지 못했다"); return; }
         sim.SetSurveillanceTarget(st.RoomId);
         await Seconds(1.2);
         st.Elapsed = st.TimeLimitSeconds + 0.5f;

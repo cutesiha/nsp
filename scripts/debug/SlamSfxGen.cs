@@ -143,6 +143,6 @@ public partial class SlamSfxGen : Node
         GD.Print($"  120Hz 이하 RMS {lowRms:0.000}  (전체의 {lowRms / Math.Max(1e-9, rms) * 100:0}%)");
         GD.Print(lowRms / Math.Max(1e-9, rms) > 0.5
             ? "  → 저음이 소리의 절반 이상이다. 둔탁한 쿠웅."
-            : "  !! 저음이 얇다 — 금속 때리는 소리로 들린다.");
+            : "  !! 저음이 얇다 - 금속 때리는 소리로 들린다.");
     }
 }

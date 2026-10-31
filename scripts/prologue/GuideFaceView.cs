@@ -92,7 +92,7 @@ public partial class GuideFaceView : Control
         DrawRect(bar, Cyan with { A = 0.45f }, false, 1f);
         DrawString(_font, bar.Position + new Vector2(12f, 20f), "GUIDE-0.exe",
             HorizontalAlignment.Left, frame.Size.X - 100f, ViewFont.S(14), Cyan with { A = 0.95f });
-        DrawString(_font, bar.Position + new Vector2(frame.Size.X - 84f, 20f), "—  □  ✕",
+        DrawString(_font, bar.Position + new Vector2(frame.Size.X - 84f, 20f), "-  □  ✕",
             HorizontalAlignment.Left, 80f, ViewFont.S(14), Cyan with { A = 0.55f });
 
         // 얼굴.

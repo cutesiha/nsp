@@ -84,7 +84,12 @@ public static class PlayerKnownEvidence
         // 관찰하지 못했다는 뜻일 뿐이다. 둘을 섞으면 무고한 직원을 범인으로 몰거나
         // 반대로 진범에게 알리바이를 만들어 준다(기획안 §4 · §5).
         public bool NotObserved;
+        // 마지막으로 이 목격을 들은 순번(SightingStamp). 방금 한 답이 이 목격을 말했는지 가릴 때 쓴다.
+        public int Stamp;
     }
+
+    // 목격 진술을 들을 때마다(새로 · 다시) 하나씩 오른다.
+    public static int SightingStamp { get; private set; }
 
     // 시설 로그 화면에 실제로 떴던 이동 한 건.
     public sealed class VisibleMove
@@ -130,11 +135,32 @@ public static class PlayerKnownEvidence
         public float Time;
     }
 
+    // 휴게시간 심문에서 직원이 **다른 직원의 이름을 대며** 한 말 한 줄(원문 그대로).
+    // 목격 증언(SightingStatement)으로 정리되지 않는 답이 많다 — "왜 수상했나", "누구에게 들었나" 같은 것.
+    // 그 질문이 들고 있던 사건을 함께 남겨, 이름의 주인에게 그 사건 기록과 나란히 들이밀 수 있게 한다.
+    public sealed class MentionRecord
+    {
+        public int Day = 1;
+        public int Seq;
+        public string SpeakerId = "", SubjectId = "";
+        public string Line = "";
+        public string IncidentKey = "";
+        public string RoomId = "";
+        public float Time;
+        public bool HasTime;
+        public string SourceKey = "";
+        // 같은 답이 목격 증언(같은 방)으로 이미 카드가 됐다 — 같은 말을 두 장으로 띄우지 않는다.
+        // 기록은 남겨 둔다: 같은 질문을 다시 물었을 때(답은 메모돼 목격이 다시 찍히지 않는다) 되살아나지 않게.
+        public bool Hidden;
+    }
+
     private static readonly List<LocationStatement> _locations = new();
     private static readonly List<SightingStatement> _sightings = new();
     private static readonly List<BehaviorClaim> _behaviors = new();
     private static readonly List<CctvObservation> _cctv = new();
     private static readonly List<OverheardRecord> _overheard = new();
+    private static readonly List<MentionRecord> _mentions = new();
+    private static int _mentionSeq;
 
     // 지금 보고 있는 근무. 지난 DAY 의 자료는 조사 자료에 섞이지 않는다.
     private static int Today => GameState.Instance?.CurrentDay ?? 1;
@@ -170,7 +196,47 @@ public static class PlayerKnownEvidence
     public static IReadOnlyList<OverheardRecord> OverheardWith(string employeeId) =>
         _overheard.Where(x => x.Day == Today && (x.A == employeeId || x.B == employeeId)).ToList();
 
+    // 오늘 엿들은 대화 전부 — 대화에 끼지 않은 제3자의 이름이 나왔는지 볼 때 쓴다.
+    public static IReadOnlyList<OverheardRecord> OverheardToday() =>
+        _overheard.Where(x => x.Day == Today).ToList();
+
     public static int OverheardCount => _overheard.Count(x => x.Day == Today);
+
+    // --- 이름을 댄 말 ----------------------------------------------------
+
+    // sourceKey — 어느 질문의 답인가(InterviewQuestion.Key 등). 같은 질문을 다시 물으면 말투만 바뀐
+    // 같은 진술이 돌아온다 — 카드를 늘리지 않고 방금 들은 말로 바꿔 둔다(카드 Id 는 그대로).
+    // 비워 두면 같은 말일 때만 같은 것으로 본다.
+    public static MentionRecord RecordMention(string speakerId, string subjectId, string line,
+        string incidentKey, string roomId, float time, bool hasTime, string sourceKey = "", bool hidden = false)
+    {
+        line = (line ?? "").Trim();
+        if (string.IsNullOrEmpty(speakerId) || string.IsNullOrEmpty(subjectId) || speakerId == subjectId
+            || string.IsNullOrEmpty(line)) return null;
+        incidentKey ??= "";
+        sourceKey ??= "";
+        var found = _mentions.FirstOrDefault(x => x.Day == Today && x.SpeakerId == speakerId
+            && x.SubjectId == subjectId && x.IncidentKey == incidentKey
+            && (sourceKey.Length > 0 ? x.SourceKey == sourceKey : x.Line == line));
+        if (found != null)
+        {
+            found.Line = line;
+            return found;
+        }
+        var rec = new MentionRecord
+        {
+            Day = Today, Seq = ++_mentionSeq, SpeakerId = speakerId, SubjectId = subjectId, Line = line,
+            IncidentKey = incidentKey, RoomId = roomId ?? "", Time = Mathf.Max(0f, time), HasTime = hasTime,
+            SourceKey = sourceKey, Hidden = hidden,
+        };
+        _mentions.Add(rec);
+        while (_mentions.Count > 300) _mentions.RemoveAt(0);
+        return rec;
+    }
+
+    // 오늘 이 직원의 이름이 나온 말.
+    public static IReadOnlyList<MentionRecord> MentionsOf(string employeeId) =>
+        _mentions.Where(x => x.Day == Today && x.SubjectId == employeeId && !x.Hidden).ToList();
 
     // --- 진술 기록 ------------------------------------------------------
 
@@ -360,6 +426,7 @@ public static class PlayerKnownEvidence
         {
             // 같은 목격을 다시 들었을 때 내용이 더 자세해졌다면 그것만 채워 넣는다.
             if (string.IsNullOrEmpty(found.Detail) && !string.IsNullOrEmpty(detail)) found.Detail = detail;
+            found.Stamp = ++SightingStamp;
             return;
         }
         _sightings.Add(new SightingStatement
@@ -368,8 +435,14 @@ public static class PlayerKnownEvidence
             SpeakerId = speakerId, SubjectId = subjectId, RoomId = roomId ?? "",
             AnchorTime = Mathf.Max(0f, anchorTime), HasTime = anchorTime >= 0f,
             Detail = detail ?? "",
+            Stamp = ++SightingStamp,
         });
     }
+
+    // 이 사람이 그 사람에 대해 stamp 뒤에 한 목격 진술(못 봤다는 말은 빼고).
+    public static IEnumerable<SightingStatement> SightingsSince(string speakerId, string subjectId, int stamp) =>
+        _sightings.Where(x => x.SpeakerId == speakerId && x.SubjectId == subjectId && !x.NotObserved
+                              && x.Stamp > stamp);
 
     // --- 조회 ------------------------------------------------------------
 
@@ -441,5 +514,7 @@ public static class PlayerKnownEvidence
         _behaviors.Clear();
         _cctv.Clear();
         _overheard.Clear();
+        _mentions.Clear();
+        _mentionSeq = 0;
     }
 }

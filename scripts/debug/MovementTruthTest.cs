@@ -35,7 +35,7 @@ public partial class MovementTruthTest : Node
         await RouteTest(sim);
         await RandomShiftTest(sim);
 
-        GD.Print($"\n################ 통과 {_pass} · 실패 {_fail} ################\n");
+        GD.Print($"\n################ 통과 {_pass}, 실패 {_fail} ################\n");
         if (_fail > 0) GD.PushError($"MovementTruthTest: {_fail}건 실패");
         GetTree().Quit(_fail > 0 ? 1 : 0);
     }
@@ -95,7 +95,7 @@ public partial class MovementTruthTest : Node
     // ── ② DAY1~5 무작위 근무를 돌려 "안 간 방" 진술이 한 번이라도 나오는지 ──
     private async System.Threading.Tasks.Task RandomShiftTest(FacilitySimulation sim)
     {
-        GD.Print("\n── ② DAY1~5 반복 — 가지 않은 방이 진술에 나오는가 ──");
+        GD.Print("\n── ② DAY1~5 반복 - 가지 않은 방이 진술에 나오는가 ──");
         var rng = new RandomNumberGenerator();
         rng.Randomize();
         string[] rooms = { "core_room", "power_room", "maintenance_room", "guard_room", "storage_room", "vent_room" };
@@ -150,7 +150,7 @@ public partial class MovementTruthTest : Node
                     checks++;
                     if (realVisits[id].Contains(room)) continue;
                     bad++;
-                    GD.Print($"   ! DAY{day} {id} {label}={room} — 실제로 들른 적 없음 " +
+                    GD.Print($"   ! DAY{day} {id} {label}={room} - 실제로 들른 적 없음 " +
                              $"(실제: {string.Join(", ", realVisits[id])})");
                 }
             }

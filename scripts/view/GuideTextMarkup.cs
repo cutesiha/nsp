@@ -8,7 +8,7 @@ namespace NSP.View;
 //
 //   line: 직원들은 근무 중 /2스트레스/0를 받을 수 있습니다.
 //
-// `/1~/6` 은 그 지점부터 색을 바꾸고, `/0` 은 수동 지정을 끝낸다.
+// `/1~/6` 은 그 지점부터 색을 바꾸고, `/0` 은 수동 지정을 끝낸다. `/n` 은 줄바꿈이다.
 // `/0` 은 '흰색으로 칠하라'가 아니라 **기본색 + 기존 자동 강조(DialogueHighlight)로 복귀**다.
 //
 // 강조 우선순위
@@ -88,6 +88,14 @@ public static class GuideTextMarkup
 
         for (int i = 0; i < authored.Length; i++)
         {
+            // `/n` = 줄바꿈. 색은 바꾸지 않는다(지금 색 그대로 다음 줄로 이어진다).
+            if (IsLineBreakAt(authored, i))
+            {
+                sb.Append('\n');
+                i++;
+                textFrom = i + 1;
+                continue;
+            }
             if (!IsCommandAt(authored, i, textFrom)) { sb.Append(authored[i]); continue; }
 
             var next = ColorOf(authored[i + 1] - '0');
@@ -104,6 +112,9 @@ public static class GuideTextMarkup
     // (원고 한 글자 때문에 대사가 통째로 깨지면 안 된다).
     // 글자인 숫자 바로 뒤의 `/n` 도 명령이 아니다 — "3/4" 같은 표기가 잘려 나가지 않게.
     // (앞 명령의 숫자는 글자가 아니므로 `/1/0` 처럼 명령이 붙어 나와도 둘 다 명령으로 읽힌다.)
+    private static bool IsLineBreakAt(string s, int i) =>
+        s[i] == '/' && i + 1 < s.Length && s[i + 1] == 'n';
+
     private static bool IsCommandAt(string s, int i, int textFrom)
     {
         if (s[i] != '/' || i + 1 >= s.Length) return false;

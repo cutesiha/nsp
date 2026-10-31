@@ -89,7 +89,7 @@ public partial class EmployeeHairShot : Node
         int total = Employees.Length * Views.Length;
         if (_at >= total)
         {
-            GD.Print($"################ 끝 — {_saved.Count}장");
+            GD.Print($"################ 끝 - {_saved.Count}장");
             GetTree().Quit();
             return;
         }

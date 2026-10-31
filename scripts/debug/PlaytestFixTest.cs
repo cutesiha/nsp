@@ -152,7 +152,7 @@ public partial class PlaytestFixTest : Node
 
         // 여기서는 EventLog 에 직접 넣었으므로 목격자 목록을 그대로 쓴다 —
         // 실제 경로(LogSabotage)의 분리는 아래 시뮬레이션에서 확인한다.
-        GD.Print("   (직접 기록) 고양이가 목격자로 등록된 경우 — Q3 지목 가능 여부 확인");
+        GD.Print("   (직접 기록) 고양이가 목격자로 등록된 경우 - Q3 지목 가능 여부 확인");
         string named = Answer("cat", DialogueQuestions.Suspicious);
         GD.Print($"   고양이 : {named}");
 
@@ -176,7 +176,7 @@ public partial class PlaytestFixTest : Node
                     && string.IsNullOrEmpty(e.ActorEmployeeId) && e.WitnessEmployeeIds.Count > 0))
                 noticedOnly++;
         }
-        GD.Print($"   방해공작 {happened}/{runs}회 · 범인을 특정한 근무 {identified}회 · " +
+        GD.Print($"   방해공작 {happened}/{runs}회, 범인을 특정한 근무 {identified}회, " +
                  $"이상만 눈치챈 근무 {noticedOnly}회");
         Check(happened >= runs / 2, "④ (전제) 방해공작은 여전히 발생한다");
         Check(identified <= happened / 2, "④ 범인 특정은 드물게만 일어난다");
@@ -202,7 +202,7 @@ public partial class PlaytestFixTest : Node
         int total = DayObjectives.RequiredTotal;
         int done = DayObjectives.RequiredDone;
         GameState.Instance.RecordShiftObjectives(total - done);
-        GD.Print($"   필수 {done}/{total} · 기록된 미달성 {GameState.Instance.LastShiftMissedRequired}건 · " +
+        GD.Print($"   필수 {done}/{total}, 기록된 미달성 {GameState.Instance.LastShiftMissedRequired}건, " +
                  $"누적 {GameState.Instance.MissedRequiredDays}일");
         Check(GameState.Instance.LastShiftMissedRequired == total - done, "⑤ 미달성 수가 그대로 기록된다");
         Check(GameState.Instance.MissedRequiredDays == 1, "⑤ 미달성 근무가 누적으로 남는다");

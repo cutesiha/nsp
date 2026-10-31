@@ -5,7 +5,8 @@ using NSP.View;
 
 namespace NSP.Ui;
 
-// 도전과제 달성 알림 — 화면 오른쪽 아래에 조용히 올라오는 작은 창.
+// 도전과제 달성 알림 — 화면 왼쪽 아래에 조용히 올라오는 작은 창.
+// (오른쪽 아래는 로그 · 대화 기록 버튼 자리라 그 위에 겹쳐 떴다 — 왼쪽으로 옮겼다.)
 //
 // 게임을 멈추지 않고, 입력도 가로채지 않는다(MouseFilter.Ignore). 여러 개가 한꺼번에
 // 해금되면 줄을 세워 하나씩 보여 준다.
@@ -40,7 +41,7 @@ public partial class AchievementToast : CanvasLayer
     // (FS 만 TextScale 을 곱하고 칸은 안 곱하던 때, 설명 두 줄이 카드 밖으로 흘러나왔다.)
     private static float LayoutScale => ControlRoom3DController.UiScale * ViewFont.TextScale;
 
-    private const float MarginRight = 22f;
+    private const float MarginLeft = 22f;
     private const float MarginBottom = 22f;
     private const float CardWidth = 322f;
     private const float CardHeight = 86f;
@@ -114,11 +115,11 @@ public partial class AchievementToast : CanvasLayer
             Modulate = new Color(1f, 1f, 1f, 0f),
             Visible = false,
         };
-        // 오른쪽 아래 고정 — 해상도가 바뀌어도 여백이 그대로 유지된다.
-        _card.AnchorLeft = _card.AnchorRight = 1f;
+        // 왼쪽 아래 고정 — 해상도가 바뀌어도 여백이 그대로 유지된다.
+        _card.AnchorLeft = _card.AnchorRight = 0f;
         _card.AnchorTop = _card.AnchorBottom = 1f;
-        _card.OffsetLeft = -(CardWidth + MarginRight) * scale;
-        _card.OffsetRight = -MarginRight * scale;
+        _card.OffsetLeft = MarginLeft * scale;
+        _card.OffsetRight = (CardWidth + MarginLeft) * scale;
         _card.OffsetTop = -(CardHeight + MarginBottom) * scale;
         _card.OffsetBottom = -MarginBottom * scale;
         _card.AddThemeStyleboxOverride("panel", new StyleBoxFlat

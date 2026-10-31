@@ -70,6 +70,7 @@ public sealed class GhostHauntSystem
     public void Reset()
     {
         Sfx.Instance?.StopLoop(PresenceLoopKey);
+        Sfx.Instance?.StopLoop(WailLoopKey);
         ActiveRoomId = "";
         // 떠난 뒤에도 종류는 남겨 둔다(Clear 는 지우지 않는다) — 복도로 이어 보낼 때
         // 읽어야 하기 때문이다. 근무가 통째로 바뀌는 여기서만 비운다.
@@ -122,11 +123,18 @@ public sealed class GhostHauntSystem
     {
         // 교육일(DAY0)에는 스스로 나오지 않는다. 튜토리얼이 정해진 시점에 직접 부른다.
         if (!DayFeatures.AutoIncidentsEnabled) return;
+        // 이상 개체는 직원으로 둔갑한 결번 개체가 **불러오는** 것이다. 결번을 격리했거나 결번이
+        // 죽었으면 부를 자가 없다 — 첫 등장 보장까지 포함해 더는 스스로 나오지 않는다.
+        // (힌트가 아니라 설정 그대로다. 교육의 ForceAppear 는 이 길을 거치지 않는다.)
+        if (sim.IsSaboteurNeutralized()) return;
         // 오늘의 운영 규칙이 한도를 정해 두었으면 그것을 쓰고, 없을 때만 전역 기본값을 쓴다.
         int max = OpsProfile.Today?.GhostMaxPerDay ?? -1;
         if (max < 0) max = cfg.GhostMaxPerDay;
         if (AppearedToday >= max) return;
         if (now < _cooldownUntil) return;
+        // 두 번째부터는 봉쇄가 충분히 흔들려 있어야 한다 — 화면의 봉쇄 불안정 게이지 눈금이 그 선이다.
+        float extraNeed = OpsProfile.Today?.GhostExtraNeedsInstability ?? 0f;
+        if (AppearedToday > 0 && extraNeed > 0f && (sim.Containment?.Instability ?? 0f) < extraNeed) return;
         // 보장 구간이 열려 있으면 전역 최소 시각(GhostFirstAppearSeconds)보다 먼저 나올 수 있다.
         if (now < cfg.GhostFirstAppearSeconds && !(AppearedToday == 0 && _forcedFirstAt >= 0f && now >= _forcedFirstAt))
             return;
@@ -196,8 +204,27 @@ public sealed class GhostHauntSystem
         if (fresh.Count > 0) pool = fresh;
         var staffed = pool.Where(r => sim.OnDutyCount(r) > 0).ToList();
         if (staffed.Count > 0) pool = staffed;
-        return pool[_rng.RandiRange(0, pool.Count - 1)];
+
+        // ③ 개체를 봐도 하던 일을 계속하는 직원(여우)이 있는 방은 **잘** 고르지 않는다.
+        //    나와도 화면에 반응이 거의 없어 "뭔가 있다" 가 읽히지 않는다(2026-10-29 사용자 지시).
+        //    아예 막지는 않는다 — 막으면 "여우 방 = 안전" 이라는 공식이 생긴다.
+        var weights = pool.Select(r => sim.OnDutyEmployeeIds(r).Any(KeepsWorkingNearGhost) ? CalmRoomWeight : 1f)
+            .ToList();
+        float roll = _rng.Randf() * weights.Sum();
+        for (int i = 0; i < pool.Count; i++)
+        {
+            roll -= weights[i];
+            if (roll <= 0f) return pool[i];
+        }
+        return pool[^1];
     }
+
+    // 여우가 있는 방이 뽑히는 상대 가중치(다른 방은 1).
+    private const float CalmRoomWeight = 0.15f;
+
+    // 개체 앞에서도 하던 일을 그대로 하는 직원인가 — CCTV 반응 표(GhostReactionProfiles)를 그대로 읽는다.
+    private static bool KeepsWorkingNearGhost(string employeeId) =>
+        NSP.View.GhostReactionProfiles.Get(NSP.View.GhostReactionProfiles.ActionFor(employeeId))?.KeepsWorking == true;
 
     // 튜토리얼(DAY0)이 정해진 방에 직접 부를 때. 일반 등장과 완전히 같은 경로를 쓴다.
     //
@@ -227,11 +254,11 @@ public sealed class GhostHauntSystem
         foreach (string id in sim.OnDutyEmployeeIds(room)) _witnesses.Add(id);
         // 사고가 없어도 목격은 남는다 — 교육 뒤 휴게시간 증언이 비지 않게.
         EventLog.Instance?.LogEvent(LogEventType.AnomalySighting, "", room,
-            $"👁 {sim.RoomDisplayName(room)} — 이상 개체 목격 (설비 피해 없음)",
+            $"○ {sim.RoomDisplayName(room)} - 이상 개체 목격 (설비 피해 없음)",
             witnesses: _witnesses.ToList());
         var cfg = Config.Instance?.Data;
         if (cfg != null) Clear(cfg, now);
-        else { Sfx.Instance?.StopLoop(PresenceLoopKey); ActiveRoomId = ""; }
+        else { Sfx.Instance?.StopLoop(PresenceLoopKey); Sfx.Instance?.StopLoop(WailLoopKey); ActiveRoomId = ""; }
         if (notify) Departed?.Invoke(room);
         return true;
     }
@@ -258,8 +285,46 @@ public sealed class GhostHauntSystem
         // 로그에도 알림에도 남기지 않으므로, 이 소리가 "뭔가 들어와 있다" 를 알리는 유일한 신호다.
         // 찾는 것은 여전히 관리자의 몫이다 — 어느 방인지는 소리로 알 수 없다.
         Sfx.Instance?.Loop(PresenceLoopKey, PresenceLoopDb);
+        // 귀신 울음 — 개체가 작업실에 있는 동안 내내 들린다(크기는 TickAudio 가 맞춘다).
+        // 작게 시작해 금방 차오른다 — 뚝 하고 켜지면 효과음처럼 들린다.
+        Sfx.Instance?.StopLoop(WailLoopKey);
+        Sfx.Instance?.Loop(WailLoopKey, WailAwayDb - WailFadeInDb);
         // 로그에도 알림에도 남기지 않는다 — 알려주는 순간 찾을 이유가 사라진다.
         Appeared?.Invoke(roomId);
+    }
+
+    // ── 귀신 울음 ────────────────────────────────────────────────────
+    //
+    // 예전 기척(희미한 숨소리)만으로는 "뭔가 있다" 가 전해지지 않았다(2026-10-29 사용자 — 헷갈린다).
+    // 개체가 작업실에 머무는 동안 사람 같지만 사람이 아닌 울음이 계속 깔린다(ghost_wail_loop —
+    // scenes/debug/GhostWailSfxGen 이 합성한다). 어느 방인지는 소리로 알 수 없다 — 그 방 CCTV 를
+    // 띄우면 그제서야 가까이에서 들리듯 커진다. 찾는 것은 여전히 관리자의 몫이다.
+    private const string WailLoopKey = "ghost_wail_loop";
+    private const float WailAwayDb = -8f;
+    private const float WailWatchDb = -2f;
+    private const float WailFadeInDb = 14f;
+    private const float WailFadeDbPerSecond = 18f;
+
+    // 시뮬레이션 틱은 근무 중에만 돈다 — 근무가 끝난 뒤에도 울음이 남지 않게 매 프레임 따로 본다
+    // (FacilitySimulation._Process). 근무 중이 아니거나 개체가 없으면 기척 · 울음을 멈춘다.
+    public void TickAudio(float delta, FacilitySimulation sim)
+    {
+        var sfx = Sfx.Instance;
+        if (sfx == null || sim == null) return;
+        bool live = GameState.Instance?.CurrentPhase == GamePhase.Live;
+        if (!Active || !live)
+        {
+            if (sfx.IsLooping(WailLoopKey)) sfx.StopLoop(WailLoopKey);
+            if (sfx.IsLooping(PresenceLoopKey)) sfx.StopLoop(PresenceLoopKey);
+            return;
+        }
+        if (!sfx.IsLooping(WailLoopKey)) sfx.Loop(WailLoopKey, WailAwayDb - WailFadeInDb);
+        bool watching = sim.SurveillanceTargetRoomId == ActiveRoomId
+                        && (GameState.Instance?.IsCctvOperational() ?? false)
+                        && !sim.IsRoomCctvBlocked(ActiveRoomId);
+        float target = watching ? WailWatchDb : WailAwayDb;
+        sfx.SetLoopVolume(WailLoopKey, Mathf.MoveToward(sfx.LoopVolumeDb(WailLoopKey), target,
+            WailFadeDbPerSecond * delta));
     }
 
     private void TickActive(float delta, float now, FacilitySimulation sim, ConfigData cfg)
@@ -359,7 +424,7 @@ public sealed class GhostHauntSystem
             // 설비는 멀쩡하다. 그래도 **본 사람은 봤다** — 이 한 줄이 없으면
             // 다음 날 "분명히 봤다" 는 진술에 맞는 기록이 하나도 없게 된다.
             EventLog.Instance?.LogEvent(LogEventType.AnomalySighting, "", room,
-                $"👁 {sim.RoomDisplayName(room)} — 이상 개체 목격 (설비 피해 없음)",
+                $"○ {sim.RoomDisplayName(room)} - 이상 개체 목격 (설비 피해 없음)",
                 witnesses: _witnesses.ToList());
         }
 
@@ -376,7 +441,7 @@ public sealed class GhostHauntSystem
         string room = ActiveRoomId;
         DispelledToday++;
         EventLog.Instance?.LogEvent(LogEventType.AnomalyDispelled, "", room,
-            $"👁 {sim.RoomDisplayName(room)} — 관측으로 이상 개체 소멸",
+            $"○ {sim.RoomDisplayName(room)} - 관측으로 이상 개체 소멸",
             witnesses: _witnesses.ToList());
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
             $"{sim.RoomDisplayName(room)}의 이상 개체가 소멸했습니다.", NSP.Ui.NoticeLevel.Info);
@@ -427,6 +492,7 @@ public sealed class GhostHauntSystem
     private void Clear(ConfigData cfg, float now)
     {
         Sfx.Instance?.StopLoop(PresenceLoopKey);
+        Sfx.Instance?.StopLoop(WailLoopKey);
         _graceOverride = -1f;
         ActiveRoomId = "";
         AliveSeconds = WatchedSeconds = 0f;

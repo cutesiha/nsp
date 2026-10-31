@@ -26,8 +26,18 @@ public partial class FacilityMinimap : Control
     // 직원 아이콘 반지름. 클릭 판정(EmployeeAt)도 이 값을 따라간다.
     private const float EmpDotRadius = 10f;
 
+    // 지금 지도에 올리는 방. 단기 근무에서 빠진 방(환기실 · 의무실)은 상자도 통로도 그리지 않는다
+    // (GameModes.IsRoomRemoved). 판마다 모드가 정해지므로 모드별로 한 번만 만들어 둔다.
+    private static Dictionary<string, Vector2> Layout =>
+        NSP.Core.GameModes.RemovesRooms
+            ? _shortLayout ??= FullLayout.Where(kv => !NSP.Core.GameModes.IsRoomRemoved(kv.Key))
+                                         .ToDictionary(kv => kv.Key, kv => kv.Value)
+            : FullLayout;
+
+    private static Dictionary<string, Vector2> _shortLayout;
+
     // 방 배치 (미니맵 정규화 좌표). 사용자 스케치의 구조.
-    private static readonly Dictionary<string, Vector2> Layout = new()
+    private static readonly Dictionary<string, Vector2> FullLayout = new()
     {
         ["core_room"] = new(0.50f, 0.13f),
         ["power_room"] = new(0.17f, 0.32f),
@@ -148,25 +158,35 @@ public partial class FacilityMinimap : Control
         }
     }
 
-    // 지금 이 직원 아이콘을 무슨 색으로 그릴 것인가. 기절 상태면 빨강(깜빡이는 동안은 번갈아).
-    private Color? FaintTint(string employeeId, FacilitySimulation sim)
+    // ── 아이콘 색 규칙 ──────────────────────────────────────────────
+    //
+    // **아이콘 속은 언제나 그 직원의 고유색이다.** 지도에서 누가 누구인지 가려 주는
+    // 유일한 단서가 색이기 때문이다.
+    //
+    // 예전에는 위험 구간 · 기절이면 아이콘을 통째로 구간 색(주황 · 빨강)으로 칠해 두었다.
+    // 그러자 주황색 여우 옆에서 하얀 양이 주황으로 바뀌어, 둘 중 누가 여우인지
+    // 헷갈리는 일이 실제로 났다. 상태 색은 이제 **깜빡이는 동안에만** 아이콘을 덮고,
+    // 그 뒤로 이어지는 상태는 아이콘 **바깥 테두리**로만 남긴다.
+
+    // 기절 — 처음 몇 번은 빨강과 고유색을 오간다(그 동안만 속을 칠한다).
+    private Color? FaintBlinkTint(string employeeId, FacilitySimulation sim)
     {
         var st = sim?.GetEmployeeState(employeeId);
         if (st == null || !st.Incapacitated) { _faintBlink.Remove(employeeId); return null; }
-
-        var red = new Color(1f, 0.16f, 0.14f);
-        if (!_faintBlink.TryGetValue(employeeId, out float age)) return red;
-        if (age >= FaintBlinkSeconds) return red;
-        // 깜빡임 — 원래 색과 빨강을 빠르게 오간다.
-        return (int)(age / FaintBlinkSeconds * FaintBlinkCount * 2f) % 2 == 0 ? red : (Color?)null;
+        if (!_faintBlink.TryGetValue(employeeId, out float age) || age >= FaintBlinkSeconds) return null;
+        return (int)(age / FaintBlinkSeconds * FaintBlinkCount * 2f) % 2 == 0 ? FaintRed : (Color?)null;
     }
 
-    // 위험 · 기절 구간의 직원은 고유색 대신 구간 색으로 그린다(정상 · 주의는 그대로).
-    // 기절은 FaintTint 가 따로 맡으므로 여기서는 손대지 않는다.
-    private static Color? StressTint(NSP.Facility.EmployeeState st, FacilitySimulation sim)
+    private static readonly Color FaintRed = new(1f, 0.16f, 0.14f);
+
+    // 깜빡임이 끝난 뒤에도 이어지는 상태 — 테두리 색으로만 알린다(속은 고유색 그대로).
+    //   기절 : 의무실에서 깨어날 때까지 빨간 테두리
+    //   위험 : 구간 색 테두리
+    private static Color? StateRing(NSP.Facility.EmployeeState st, FacilitySimulation sim)
     {
-        if (st == null || sim == null || !NSP.Core.DayFeatures.StressEnabled) return null;
-        if (!st.Alive || st.Incapacitated) return null;
+        if (st == null || sim == null || !st.Alive) return null;
+        if (st.Incapacitated) return FaintRed;
+        if (!NSP.Core.DayFeatures.StressEnabled) return null;
         string band = sim.StressBandName(st);
         return band == "위험" ? FacilitySimulation.StressBandColor(band) : null;
     }
@@ -192,17 +212,17 @@ public partial class FacilityMinimap : Control
         if (!string.IsNullOrEmpty(text)) _popups.Add((e.RoomId, text, 0f));
     }
 
-    // 완료 기록("✓ 코어 수리 완료 · 코어 +1% · 📦 자재 -2")에서 결과 부분만 짧게 뽑는다.
+    // 완료 기록("✓ 코어 수리 완료 · 코어 +1% · 자재 -2")에서 결과 부분만 짧게 뽑는다.
     // 결과가 적혀 있지 않은 업무는 "완료"만 띄운다. (미니맵 글꼴에 없는 그림 문자는 뺀다.)
     private static string PopupText(string desc)
     {
         if (string.IsNullOrEmpty(desc)) return "";
-        var parts = desc.Split(" · ");
+        var parts = desc.Split(", ");
         if (parts.Length < 2) return desc.Contains("수리") ? "수리 완료" : "완료";
         var outp = new List<string>();
         foreach (var raw in parts.Skip(1))
         {
-            string p = raw.Replace("📦", "").Replace("⚡", "").Replace("⚠", "").Trim();
+            string p = raw.Replace("■", "").Replace("▲", "").Trim();
             if (p.StartsWith("코어 +")) p = "코어 복구 +" + p.Substring("코어 +".Length);
             if (p.Length > 0) outp.Add(p);
         }
@@ -253,6 +273,20 @@ public partial class FacilityMinimap : Control
 
     private Rect2 BoxOf(string roomId) =>
         new(CenterOf(roomId) - BoxSize * 0.5f, BoxSize);
+
+    // 작업실 상자 자리(이 지도의 로컬 좌표). 지도에 없는 방이면 빈 사각형 — 교육 화살표가 쓴다.
+    public Rect2 RoomBoxOf(string roomId) =>
+        Layout.ContainsKey(roomId ?? "") ? BoxOf(roomId) : new Rect2();
+
+    // 직원 아이콘(동그라미) 자리(이 지도의 로컬 좌표). 지도에 그려지지 않는 직원이면 빈 사각형 — 교육 화살표가 쓴다.
+    public Rect2 EmployeeIconOf(string employeeId)
+    {
+        var sim = FacilitySimulation.Instance;
+        var st = sim?.GetEmployeeState(employeeId ?? "");
+        if (st == null || !st.Alive || string.IsNullOrEmpty(st.AssignedRoomId)) return new Rect2();
+        Vector2 p = IconPos(sim, employeeId);
+        return new Rect2(p - Vector2.One * EmpDotRadius, Vector2.One * EmpDotRadius * 2f);
+    }
 
     // --- draw ---------------------------------------------------------
 
@@ -337,13 +371,14 @@ public partial class FacilityMinimap : Control
         var net = sim.Corridors;
         Vector2 hub = CenterOf(FacilitySimulation.DeployOriginRoomId);
 
-        foreach (var roomId in Layout.Keys)
+        var layout = Layout;
+        foreach (var roomId in layout.Keys)
         {
-            var def = sim.GetRoomDef(roomId);
-            if (def == null) continue;
-            foreach (var other in def.ConnectedRoomIds)
+            if (sim.GetRoomDef(roomId) == null) continue;
+            // 길찾기와 같은 목록 — 단기 근무의 정비실 ↔ 격리실 직통로도 여기서 그려진다.
+            foreach (var other in sim.LinkedRoomIds(roomId))
             {
-                if (!Layout.ContainsKey(other)) continue;
+                if (!layout.ContainsKey(other)) continue;
                 string key = string.CompareOrdinal(roomId, other) < 0 ? roomId + "|" + other : other + "|" + roomId;
                 if (!seen.Add(key)) continue;
 
@@ -535,6 +570,20 @@ public partial class FacilityMinimap : Control
             DrawLine(a + dir * t, a + dir * (t + dash), col, 1.1f);
     }
 
+    private static readonly Color CorridorBoxSky = new(0.58f, 0.90f, 1f);
+
+    private static Rect2 CorridorBox(Vector2 door) => new(door - new Vector2(13f, 13f), new Vector2(26f, 26f));
+
+    // 그 복도 구간의 하늘색 네모 자리(이 지도의 로컬 좌표). 지도에 없으면 빈 사각형 — 교육 화살표가 쓴다.
+    public Rect2 CorridorBoxOf(string segmentId)
+    {
+        var seg = FacilitySimulation.Instance?.Corridors?.ById(segmentId ?? "");
+        if (seg == null || !Layout.ContainsKey(seg.RoomA) || !Layout.ContainsKey(seg.RoomB)) return new Rect2();
+        Vector2 pa = CenterOf(seg.RoomA), pb = CenterOf(seg.RoomB);
+        var elbow = CorridorElbow.Compute(pa, pb, CenterOf(FacilitySimulation.DeployOriginRoomId));
+        return CorridorBox(DoorPoint(pa, elbow, pb));
+    }
+
     // 차폐문 — 통로 한가운데의 작은 셔터. 상태 글자와 카메라 표시가 함께 붙는다.
     private void DrawBarrierMarker(CorridorSegment seg, Vector2 a, Vector2? elbow, Vector2 b, bool selected)
     {
@@ -567,10 +616,11 @@ public partial class FacilityMinimap : Control
         if (seg.Sealed)
             DrawLine(mid - across * half, mid + across * half, LaneSealed, 3.2f);
 
-        // 고른 구간은 가는 사각 테두리로 표시한다(레버가 무엇을 제어하는지).
-        if (selected)
-            DrawRect(new Rect2(mid - new Vector2(13f, 13f), new Vector2(26f, 26f)),
-                HoverCyan with { A = 0.85f }, false, 1.2f);
+        // 차폐할 수 있는 세 구간은 늘 밝은 하늘색 네모로 테를 두른다 — 작은 CRT 에서 문 마커만으로는
+        // 어디가 복도 구간인지 거의 안 보였다(2026-10-27). 고른 구간(레버가 제어하는 곳)은 더 굵고 진하게.
+        var box = CorridorBox(mid);
+        DrawRect(box, CorridorBoxSky with { A = selected ? 0.24f : 0.12f });
+        DrawRect(box, CorridorBoxSky with { A = selected ? 1f : 0.85f }, false, selected ? 2.6f : 1.8f);
 
         // 카메라가 붙은 구간이라는 작은 점 하나는 늘 찍는다. 글자는 아래 조건에서만.
         if (!string.IsNullOrEmpty(seg.CctvCameraId))
@@ -676,7 +726,7 @@ public partial class FacilityMinimap : Control
                 if (!st.Recurring)
                 {
                     DrawString(_font, new Vector2(box.Position.X, y + 10f),
-                        $"⏱ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
+                        $"△ {Clock(st.Remaining)}", HorizontalAlignment.Center, box.Size.X, ViewFont.S(10),
                         st.Remaining < 8f ? new Color(1f, 0.4f, 0.3f) : new Color(0.9f, 0.8f, 0.4f));
                     y += 13f;
                 }
@@ -697,12 +747,12 @@ public partial class FacilityMinimap : Control
         }
 
         if (TabooRuleSystemAtRisk(roomId))
-            DrawString(_font, box.Position + new Vector2(0f, -4f), "⚠", HorizontalAlignment.Center, box.Size.X, ViewFont.S(14),
+            DrawString(_font, box.Position + new Vector2(0f, -4f), "▲", HorizontalAlignment.Center, box.Size.X, ViewFont.S(14),
                 new Color(1f, 0.75f, 0.2f));
 
         if (def.IsCoreRoom)
             DrawString(_font, new Vector2(box.Position.X, box.Position.Y - 14f),
-                $"CORE {sim.CoreProgressPreview():0.0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
+                $"CORE {Mathf.Min(100f, sim.CoreProgressPreview()):0.0}%", HorizontalAlignment.Center, box.Size.X, ViewFont.S(11),
                 new Color(0.5f, 0.8f, 1f));
 
         // 「출력 100% 불안정」 · 「효율 80%」 같은 운영 수치 줄은 **여기서 그리지 않는다**.
@@ -778,7 +828,7 @@ public partial class FacilityMinimap : Control
         // 밝은 글자를 얹어 양쪽 배경에서 모두 읽히게 한다.
         string text = here >= need && risk.StabilizeNeedSeconds > 0f
             ? $"안정화 {risk.StabilizeDoneSeconds:0.#}/{risk.StabilizeNeedSeconds:0}s"
-            : $"⚠ {risk.WarningRemainingSeconds:0}s · {here}/{need}";
+            : $"▲ {risk.WarningRemainingSeconds:0}s, {here}/{need}";
         var at = new Vector2(bar.Position.X, bar.Position.Y + 12f);
         DrawString(_font, at + new Vector2(1f, 1f), text, HorizontalAlignment.Center,
             bar.Size.X, ViewFont.S(10), new Color(0.08f, 0.05f, 0f, 0.9f));
@@ -795,7 +845,7 @@ public partial class FacilityMinimap : Control
         if (hover != null)
         {
             bool ok = sim.CanAssignToRoom(hover)
-                      && sim.GetEmployeeState(_dragEmp)?.AssignedRoomId != hover;
+                      && !(sim.GetEmployeeState(_dragEmp)?.AssignedRoomId == hover && sim.IsAtOrHeadingTo(_dragEmp, hover));
             DrawRect(BoxOf(hover).Grow(3f),
                 ok ? new Color(0.45f, 1f, 0.8f, 0.95f) : new Color(1f, 0.4f, 0.3f, 0.9f), false, 2.4f);
         }
@@ -890,13 +940,11 @@ public partial class FacilityMinimap : Control
         }
 
         Color c = st.Alive ? def.IconColor : new Color(0.35f, 0.35f, 0.35f);
-        // 쓰러졌다 — 빨간색. 처음 한두 초는 원래 색과 번갈아 깜빡이고,
-        // 그 뒤에는 의무실에서 깨어날 때까지 계속 빨간 상태로 남는다(§4).
-        // 위험 구간 이상이면 아이콘을 구간 색으로 물들인다 — 지도만 봐도 누가 한계인지 보인다(F-2).
-        var stress = StressTint(st, sim);
-        if (stress.HasValue) c = stress.Value;
-        var faint = FaintTint(id, sim);
+        // 쓰러졌다 — 처음 몇 번만 빨강과 고유색을 오간다. 그 뒤는 테두리(StateRing)가 맡는다.
+        var faint = FaintBlinkTint(id, sim);
         if (faint.HasValue) c = faint.Value;
+        // 깜빡임이 끝난 뒤에도 남는 상태(기절 · 위험) — 속은 건드리지 않고 테두리로만.
+        var ring = StateRing(st, sim);
 
         // 스트레스 구간이 방금 올라갔다 — 아이콘이 점멸하고 위에 붉은 ! 가 같이 깜빡인다.
         bool stressBeat = false;
@@ -913,6 +961,9 @@ public partial class FacilityMinimap : Control
             DrawCircle(p, EmpDotRadius + 5f, c with { A = 0.55f }, false, 3f);
         DrawCircle(p, EmpDotRadius, c);
         DrawCircle(p, EmpDotRadius, new Color(0f, 0f, 0f, 0.7f), false, 1.6f);
+        // 이어지는 상태 테두리 — 깜빡이는 동안은 그쪽이 더 크게 그려지므로 생략한다.
+        if (ring.HasValue && !stressBeat)
+            DrawCircle(p, EmpDotRadius + 3f, ring.Value, false, 2.6f);
         if (stressBeat)
             DrawString(_font, p + new Vector2(-14f, -EmpDotRadius - 6f), "!", HorizontalAlignment.Center,
                 28f, ViewFont.S(20), new Color(1f, 0.26f, 0.22f));
@@ -1188,7 +1239,14 @@ public partial class FacilityMinimap : Control
 
         var emp = sim.GetEmployeeState(_dragEmp);
         if (emp == null || !emp.Alive || emp.Isolated) return;
-        if (emp.AssignedRoomId == roomId) return;
+        // 이미 그 방에 있거나 그리로 가는 중일 때만 넘긴다. 배정된 방이라는 것만으로 넘기면,
+        // 전화로 옆 방에 보냈던 직원 · 결번에게 끌려간 직원을 제자리로 돌려보낼 수 없다
+        // (2026-10-31 사용자 제보 "늑대 · 강아지가 자꾸 안 옮겨진다" — 아무 말 없이 무시됐다).
+        if (emp.AssignedRoomId == roomId && sim.IsAtOrHeadingTo(_dragEmp, roomId))
+        {
+            OnEmployeeSelected?.Invoke(_dragEmp);
+            return;
+        }
         // 근무 중 재배치는 근무표 정원(RoomSlotCapacity)에 묶이지 않는다.
         // 사고가 나면 한 방에 셋을 몰아넣어야 할 때가 있고, 그게 이 게임의 조작이다.
         if (!sim.IsRoomActive(roomId))
@@ -1202,7 +1260,7 @@ public partial class FacilityMinimap : Control
         {
             // 거부된 이유를 그 자리에서 말해 준다(봉쇄 · 제한 구역 · 기절).
             string why =
-                emp.Incapacitated ? "기절 — 다른 직원이 와서 옮겨야 합니다"
+                emp.Incapacitated ? "기절 - 다른 직원이 와서 옮겨야 합니다"
                 : sim.GetRoomState(roomId)?.Locked == true ? "봉쇄된 구역입니다"
                 : sim.GetRoomDef(roomId)?.IsRestricted == true ? "제한 구역입니다"
                 : "지금은 보낼 수 없습니다";

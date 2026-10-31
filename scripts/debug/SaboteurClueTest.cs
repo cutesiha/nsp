@@ -59,8 +59,8 @@ public partial class SaboteurClueTest : Node
         var ops = OpsProfile.For(1);
         if (ops == null) { GD.PrintErr("data/ops/day1.tres 실패"); return; }
         float length = DayObjectives.MaxShiftSeconds;
-        GD.Print($"근무 {length:0}초 · 방해공작 활성 {ops.SaboteurStartSeconds:0}초 · " +
-                 $"준비 {ops.SabotagePrepareMinSeconds:0}~{ops.SabotagePrepareMaxSeconds:0}초 · " +
+        GD.Print($"근무 {length:0}초, 방해공작 활성 {ops.SaboteurStartSeconds:0}초, " +
+                 $"준비 {ops.SabotagePrepareMinSeconds:0}~{ops.SabotagePrepareMaxSeconds:0}초, " +
                  $"목표 구간 {ops.SabotageWindowStartSeconds:0}~{ops.SabotageWindowEndSeconds:0}초");
 
         var runs = new List<Run>();
@@ -169,8 +169,9 @@ public partial class SaboteurClueTest : Node
             if (IncidentTracker.ActiveCount > 0) lastDecision = now;
             // 전조(설비 접근·수치 이상)도 "지금 볼 것이 있다"에 해당한다.
             if (_sim.Saboteur.Clues.Count > clues) { clues = _sim.Saboteur.Clues.Count; lastDecision = now; }
-            // 괴물이 떠 있는 동안은 CCTV 에서 눈을 뗄 수 없다 — 빈 시간이 아니다.
-            if (_sim.Ghost.Active) lastDecision = now;
+            // 괴물이 떠 있는 동안은 CCTV 에서 눈을 뗄 수 없다 — 빈 시간이 아니다. 작업실을 떠나 복도로
+            // 걸어오는 동안(같은 개체다)도 마찬가지다 — 복도 CCTV 와 차폐문을 지켜야 한다.
+            if (_sim.Ghost.Active || _sim.Threats?.Current != null) lastDecision = now;
             // 정상 직원의 거짓 단서도 그 순간 화면에서 볼 것이 생긴 것이다.
             if (_sim.Behavior.FalseLeads.Count > leads)
             { leads = _sim.Behavior.FalseLeads.Count; lastDecision = now; run.Decisions++; }
@@ -219,13 +220,13 @@ public partial class SaboteurClueTest : Node
                      $"{r.CoreGain,5:0.0}%  {r.LongestGap,6:0.0}초  {r.Decisions,3}회");
 
         var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
-        GD.Print($"\n평균 — 첫 경고 {Avg(runs, r => r.FirstWarningAt):0.0}초 · " +
-                 $"두 번째 {Avg(runs, r => r.SecondEventAt):0.0}초 · " +
-                 $"준비 {Avg(acted, r => r.PrepareAt):0.0}초 · " +
+        GD.Print($"\n평균 - 첫 경고 {Avg(runs, r => r.FirstWarningAt):0.0}초, " +
+                 $"두 번째 {Avg(runs, r => r.SecondEventAt):0.0}초, " +
+                 $"준비 {Avg(acted, r => r.PrepareAt):0.0}초, " +
                  $"방해공작 {Avg(acted, r => r.SabotageAt):0.0}초 " +
                  $"({acted.Count}/{runs.Count}회 발생)");
-        GD.Print($"평균 코어 {runs.Average(r => r.CoreGain):0.0}% · 최장 무행동 구간 " +
-                 $"{runs.Max(r => r.LongestGap):0.0}초 · 평균 판단 {runs.Average(r => r.Decisions):0.0}회");
+        GD.Print($"평균 코어 {runs.Average(r => r.CoreGain):0.0}%, 최장 무행동 구간 " +
+                 $"{runs.Max(r => r.LongestGap):0.0}초, 평균 판단 {runs.Average(r => r.Decisions):0.0}회");
     }
 
     // --- Test A/B : 자율 이동 금지 ------------------------------------------
@@ -258,13 +259,17 @@ public partial class SaboteurClueTest : Node
 
         Order("cat", "storage_room");
         Advance(4f);
-        GD.Print($"      재배치 후 phase={_sim.Saboteur.Phase} · 취소 {_sim.Saboteur.CancelCount}회");
+        GD.Print($"      재배치 후 phase={_sim.Saboteur.Phase}, 취소 {_sim.Saboteur.CancelCount}회");
         Check(_sim.Saboteur.Phase != SaboteurPhase.Preparing && _sim.Saboteur.CancelCount > 0,
             "C 재배치하면 준비가 취소된다");
 
-        Advance(20f);
+        // 새 자리에서는 준비를 처음부터 다시 채운다 — 자리 잡기(SabotageSettleSeconds)와 최소 준비
+        // (SabotagePrepareMinSeconds)를 다 채우기 전에는 손대지 못한다. 예전에는 20초를 기다렸는데,
+        // DAY1 에도 방해공작이 한 번은 일어나게 된 뒤(막판 강행 포함)로는 그 안에 다시 준비를 마칠 수 있다.
+        // 재배치는 "막는" 수단이 아니라 "다시 처음부터 하게 만드는" 수단이다.
+        Advance(Mathf.Max(0f, ops.SabotageSettleSeconds + ops.SabotagePrepareMinSeconds - 6f));
         Check(!_sim.Saboteur.HasActed && _sim.Saboteur.Phase != SaboteurPhase.Done,
-            "D 대상이 아닌 새 자리에서는 방해공작이 일어나지 않는다");
+            "D 재배치한 새 자리에서는 준비를 처음부터 다시 채운다(곧바로 손대지 못한다)");
     }
 
     // --- Test E~I : 전조 --------------------------------------------------
@@ -272,18 +277,17 @@ public partial class SaboteurClueTest : Node
     private void CheckPrecursors(List<Run> runs)
     {
         var acted = runs.Where(r => r.SabotageAt >= 0f).ToList();
-        GD.Print($"\n[E~I] 방해공작 {acted.Count}회 · 전조 평균 {Avg(acted, r => r.Precursors):0.0}개 · " +
+        GD.Print($"\n[E~I] 방해공작 {acted.Count}회, 전조 평균 {Avg(acted, r => r.Precursors):0.0}개, " +
                  $"단서 경로 평균 {Avg(acted, r => r.CluePaths):0.0}개");
-        // DAY1 의 실제 방해공작은 **드물다**. 하루 한 번 반드시 남는 쪽은 작은 교란(MinorTamper)
-        // 이고, 그건 Day1RhythmTest 가 따로 본다.
+        // DAY1 에도 실제 방해공작이 **한 번은** 일어난다(2026-10-28 — 예전에는 "드물다" 였다).
+        // 단기 근무는 사흘뿐이라 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다. 손댄 고장은
+        // 시간이 지나 드러나고, 혼자 있던 방에서 손댔으면 다른 방에서 터진다(FacilitySimulation).
         //
-        // 이 검사의 관리자 대역은 경고가 뜰 때마다 사람을 빌려 보낸다 — 그 재배치 하나하나가
-        // 결번 개체의 준비를 깨므로(SaboteurPlan.CancelCount), 여기서는 발생률이 설정값보다
-        // 크게 낮게 나온다(손 놓은 판 ~33% vs 여기 ~8%). **그게 의도다** — 배치가 곧 방어다.
-        // 이 숫자가 낮다고 SabotageChancePerDay 를 올리면 손 놓은 판이 그만큼 과해진다.
+        // 이 검사의 관리자 대역은 경고가 뜰 때마다 사람을 빌려 보낸다 — 결번을 옮기면 준비가 깨지므로
+        // (SaboteurPlan.CancelCount) 손 놓은 판보다 조금 낮게 나올 수 있다. 배치는 여전히 방어다.
         float hardRate = acted.Count * 100f / Mathf.Max(1, runs.Count);
-        Check(hardRate is > 0f and <= 60f,
-            $"방해공작이 드물게 일어난다 ({hardRate:0}% · 개입하지 않는 판은 Day1RhythmTest 기준 30% 안팎)");
+        Check(hardRate >= 50f,
+            $"DAY1 에도 방해공작이 일어난다 ({hardRate:0}%, 기준 50% 이상)");
         Check(runs.All(r => r.Tampered), "작은 교란은 모든 근무에서 남는다");
         Check(acted.All(r => r.Precursors >= 1), "E 방해공작 전에 전조가 최소 1개 생긴다");
         Check(acted.All(r => r.PrepareAt >= 0f && r.PrepareAt < r.SabotageAt),
@@ -307,7 +311,7 @@ public partial class SaboteurClueTest : Node
         var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);
         int noise = rows.Count(r => r.Text.Contains("확인했다") || r.Text.Contains("들여다")
                                     || r.Text.Contains("머물렀다"));
-        GD.Print($"      시설 로그 {rows.Count}줄 · 미세 행동 노출 {noise}줄");
+        GD.Print($"      시설 로그 {rows.Count}줄, 미세 행동 노출 {noise}줄");
         Check(noise == 0, "H 전조가 시설 로그를 도배하지 않는다(범인이 노출되지 않는다)");
     }
 
@@ -335,7 +339,7 @@ public partial class SaboteurClueTest : Node
             float avg = sum / n;
             gains.Add(avg);
             best = Mathf.Max(best, avg);
-            GD.Print($"  {label,-18} 코어 {avg:0.0}%  (자재 {GameState.Instance.Materials} · " +
+            GD.Print($"  {label,-18} 코어 {avg:0.0}%  (자재 {GameState.Instance.Materials}, " +
                      $"고장 {IncidentTracker.OpenedCount}건)");
         }
         Check(gains.Count(g => g >= best * 0.7f) >= 2, "유효 전략이 2개 이상이다");
@@ -380,7 +384,13 @@ public partial class SaboteurClueTest : Node
         float sabAvg = Avg(acted, r => r.SabotageAt);
         float worstGap = runs.Max(r => r.LongestGap);
 
-        Check(firstAvg >= 15f && firstAvg <= 32f, $"첫 경고가 18~28초 언저리다 (평균 {firstAvg:0.0}초)");
+        // 첫 경고는 데이터의 첫 예약 경고 시각 언저리다. DAY1 은 2026-10-29 부터 괴물이 근무 맨 앞(8~14초)에
+        // 나오고 경고는 그 뒤(50초~)로 물러났다 — 개체가 아직 복도에 있으면 조금 더 미뤄진다(WarningsAvoidGhost).
+        var firstSched = ops.ScheduledWarnings.Where(s => s != null).OrderBy(s => s.AtSeconds).FirstOrDefault();
+        float due = firstSched?.AtSeconds ?? 20f, jit = firstSched?.JitterSeconds ?? 0f;
+        float late = ops.WarningsAvoidGhost ? 15f : 6f;
+        Check(firstAvg >= due - jit - 6f && firstAvg <= due + jit + late,
+            $"첫 경고가 첫 예약 경고({due:0}±{jit:0}초) 언저리다 (평균 {firstAvg:0.0}초)");
         Check(acted.All(r => r.SabotageAt <= ops.SabotageWindowEndSeconds + 20f),
             "방해공작이 근무 막판까지 밀리지 않는다");
         Check(sabAvg >= 70f && sabAvg <= 102f, $"방해공작 평균 시각이 80~95초 언저리다 ({sabAvg:0.0}초)");

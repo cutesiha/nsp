@@ -45,7 +45,7 @@ public class SpawnedTask
     // 그래서 사람이 다 와 있으면 조금 기다렸다가 그냥 띄운다 — 안전망이다.
     public float CrewPresentSeconds;
     public SpawnedTaskStatus Status = SpawnedTaskStatus.Active;
-    // Completed / Failed 이후 방 카드에 "✓ 완료" · "🚨 실패" 를 잠깐 더 보여주기 위한 잔여 표시 시간.
+    // Completed / Failed 이후 방 카드에 "✓ 완료" · "● 실패" 를 잠깐 더 보여주기 위한 잔여 표시 시간.
     public float ResolveDisplayTimer;
 
     // TaskStart 로그(직원이 실제로 업무 수행 시작)를 1인당 1회만 남기기 위한 집합.

@@ -234,7 +234,7 @@ public partial class GhostReactionShot : Node
         }
         // 실제 업무 차단 — 괴물이 사라진 뒤 각자 몇 초 동안 업무 게이지에 기여하지 않는가.
         float day = GameState.Instance?.DayTimeSeconds ?? 0f;
-        Log("업무 차단(남은 초): " + string.Join(" · ", _ids.Select(id => $"{id}={sim.GetEmployeeState(id).WorkBlockedUntil - day:0.0}")));
+        Log("업무 차단(남은 초): " + string.Join(", ", _ids.Select(id => $"{id}={sim.GetEmployeeState(id).WorkBlockedUntil - day:0.0}")));
         var rseq = new Dictionary<string, List<string>>();
         var rjump = new Dictionary<string, float>();
         var rlast = new Dictionary<string, Vector3>();
@@ -263,7 +263,7 @@ public partial class GhostReactionShot : Node
             if (before[id] != after[id]) Fail($"{id}: 상태 변함 {before[id]} → {after[id]}");
         int relocAfter = CountRelocationLogs();
         if (relocAfter != relocBefore) Fail($"배치/이동 로그가 늘었다 {relocBefore} → {relocAfter}");
-        Log($"소멸 {sim.Ghost.DispelledToday}회 · 사고 {sim.Ghost.StruckToday}회");
+        Log($"소멸 {sim.Ghost.DispelledToday}회, 사고 {sim.Ghost.StruckToday}회");
 
         Finish();
     }
@@ -327,7 +327,7 @@ public partial class GhostReactionShot : Node
             if (!s.Contains("chair_stand")) Fail($"{seated}: 일어나는 동작 없이 떠났다");
             if (jump.GetValueOrDefault(seated) > 0.2f) Fail($"{seated}: 순간이동({jump[seated]:0.00}m)");
         }
-        else Log("(앉은 사람 없음 — 착석 퇴장 검사 생략)");
+        else Log("(앉은 사람 없음 - 착석 퇴장 검사 생략)");
     }
 
     // ── 격리 → 해제 ────────────────────────────────────────────────────
@@ -357,7 +357,7 @@ public partial class GhostReactionShot : Node
             await Frame();
         }
         Log($"격리 {who}: {string.Join(">", seq.GetValueOrDefault(who) ?? new List<string>())}  (최대 한 프레임 이동 {jump.GetValueOrDefault(who):0.00}m)");
-        Log($"  누움 {lyingAt:0.0}s · 밴드 다 채움 {strapsFullAt:0.0}s · 발버둥 시작 {struggleAt:0.0}s");
+        Log($"  누움 {lyingAt:0.0}s, 밴드 다 채움 {strapsFullAt:0.0}s, 발버둥 시작 {struggleAt:0.0}s");
         if (lyingAt < 0 || strapsFullAt < 0 || struggleAt < 0) Fail("격리 순서가 끝까지 진행되지 않았다");
         else if (!(lyingAt < strapsFullAt && strapsFullAt <= struggleAt + 0.05)) Fail("누움 → 밴드 → 발버둥 순서가 아니다");
 
@@ -376,7 +376,7 @@ public partial class GhostReactionShot : Node
             await Frame();
         }
         Log($"해제 {who}: {string.Join(">", seq.GetValueOrDefault(who) ?? new List<string>())}  (최대 한 프레임 이동 {jump.GetValueOrDefault(who):0.00}m)");
-        Log($"  밴드 풀림 {freeAt:0.0}s · 일어나기 시작 {getUpAt:0.0}s");
+        Log($"  밴드 풀림 {freeAt:0.0}s, 일어나기 시작 {getUpAt:0.0}s");
         if (getUpAt < 0 || freeAt < 0 || freeAt > getUpAt + 0.05) Fail("밴드가 풀리기 전에 일어났다(또는 일어나지 않았다)");
         if (jump.GetValueOrDefault(who) > 0.2f) Fail($"{who}: 순간이동({jump[who]:0.00}m)");
     }
@@ -432,7 +432,7 @@ public partial class GhostReactionShot : Node
         return outd;
     }
 
-    private string SpotsText(FacilityCctvWorld world) => string.Join(" · ", SpotIds(world).Select(kv => $"{kv.Key}={kv.Value}"));
+    private string SpotsText(FacilityCctvWorld world) => string.Join(", ", SpotIds(world).Select(kv => $"{kv.Key}={kv.Value}"));
 
     private static bool FacilityCctvWorldHasRoom(string roomId) =>
         roomId is "power_room" or "vent_room" or "maintenance_room" or "medical_room"
@@ -497,7 +497,7 @@ public partial class GhostReactionShot : Node
 
     private string ClipOf(FacilityCctvWorld world, string id) => Animators(world).GetValueOrDefault(id)?.CurrentClip ?? "-";
 
-    private string Clips(FacilityCctvWorld world) => string.Join(" · ", _ids.Select(id => $"{id}={ClipOf(world, id)}"));
+    private string Clips(FacilityCctvWorld world) => string.Join(", ", _ids.Select(id => $"{id}={ClipOf(world, id)}"));
 
     // 고개(Neck) 좌우 각도와 AnimationPlayer 재생 속도 — 여우의 "힐끔"과 "손 멈춤"을 숫자로 본다.
     private string Necks(FacilityCctvWorld world, string only = null) =>
@@ -511,7 +511,7 @@ public partial class GhostReactionShot : Node
             }));
 
     private string PosText(FacilityCctvWorld world) =>
-        string.Join(" · ", Positions(world).Select(kv => $"{kv.Key}({kv.Value.X:0.00},{kv.Value.Z:0.00})"));
+        string.Join(", ", Positions(world).Select(kv => $"{kv.Key}({kv.Value.X:0.00},{kv.Value.Z:0.00})"));
 
     // ── 사진 ──
 

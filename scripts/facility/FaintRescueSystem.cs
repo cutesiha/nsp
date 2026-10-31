@@ -154,7 +154,7 @@ public sealed class FaintRescueSystem
             if (cfg != null)
                 st.Stress = Mathf.Clamp(cfg.StressAfterRecovery, cfg.StressMin, cfg.StressFaintFrom - 1f);
             EventLog.Instance?.LogEvent(LogEventType.Neglect, id, st.CurrentRoomId,
-                $"{Name(id)} 회복 — 근무 종료 후 치료 완료", detail: LogDetail.Recovered);
+                $"{Name(id)} 회복 - 근무 종료 후 치료 완료", detail: LogDetail.Recovered);
             Recovered?.Invoke(id);
         }
     }
@@ -477,7 +477,7 @@ public sealed class FaintRescueSystem
 
         EventLog.Instance?.LogEvent(LogEventType.Neglect, victim.EmployeeId,
             FacilitySimulation.MedicalRoomIdPublic,
-            $"{Name(victim.EmployeeId)} — 의무실 도착, 회복까지 {cfg.StressFaintRecoverySeconds:0}초");
+            $"{Name(victim.EmployeeId)} - 의무실 도착, 회복까지 {cfg.StressFaintRecoverySeconds:0}초");
         RoomEffectStats.Pulse(FacilitySimulation.MedicalRoomIdPublic);
 
         // 운반자는 손을 뗀다. 다만 그 자리에서 **바로 사라지지 않는다** — 허리를 펴고
@@ -524,7 +524,7 @@ public sealed class FaintRescueSystem
         victim.MedicalBedSpotId = "";
         victim.Stress = Mathf.Clamp(cfg.StressAfterRecovery, cfg.StressMin, cfg.StressFaintFrom - 1f);
         EventLog.Instance?.LogEvent(LogEventType.Neglect, victim.EmployeeId, victim.CurrentRoomId,
-            $"{Name(victim.EmployeeId)} 회복 — 스트레스 {victim.Stress:0}, 근무 복귀",
+            $"{Name(victim.EmployeeId)} 회복 - 스트레스 {victim.Stress:0}, 근무 복귀",
             detail: LogDetail.Recovered);
         Recovered?.Invoke(victim.EmployeeId);
         _sim.SendRecoveredHome(victim);

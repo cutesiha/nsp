@@ -230,7 +230,7 @@ public sealed class CorridorNet
         if (SealedCount >= MaxSealed)
         {
             var other = _segments.FirstOrDefault(s => s != seg && s.State is BarrierState.Sealed or BarrierState.Closing);
-            reason = $"차폐 한도({MaxSealed}) — {other?.DisplayName ?? "다른 통로"} 를 먼저 여십시오";
+            reason = $"차폐 한도({MaxSealed}) - {other?.DisplayName ?? "다른 통로"} 를 먼저 여십시오";
             return false;
         }
         return true;

@@ -89,25 +89,25 @@ public partial class AchievementTest : Node
         };
         Ok(hidden.All(id => Achievements.Get(id)?.Hidden == true)
            && all.Where(a => a.Hidden).All(a => hidden.Contains(a.Id)),
-            "숨김 목록이 지시서와 같다 (누군가의 흔적 · 억울한 격리 · 쓸모없는 관리자 · 이게 연습이라고? · 트루 · 배드)");
+            "숨김 목록이 지시서와 같다 (누군가의 흔적, 억울한 격리, 쓸모없는 관리자, 이게 연습이라고?, 트루, 배드)");
 
         Ok(Achievements.Get(Achievements.MazeFailThree)?.Name == "부러진 손가락"
            && Achievements.Get(Achievements.GradeLowest)?.Name == "쓸모없는 관리자",
-            "이름이 지시서 그대로다 (부러진 손가락 · 쓸모없는 관리자)");
+            "이름이 지시서 그대로다 (부러진 손가락, 쓸모없는 관리자)");
     }
 
     // ── B. 저장 / 불러오기 ───────────────────────────────────────────
 
     private void SectionB()
     {
-        Head("B", "영구 저장 · 회차 초기화");
+        Head("B", "영구 저장, 회차 초기화");
         Wipe();
 
         _m.Unlock(Achievements.FirstShift);
         _m.IncrementCounter(Achievements.CounterMazeFail);
         _m.IncrementCounter(Achievements.CounterMazeFail);
         Ok(_m.GetUnlockedCount() == 1 && _m.GetCounter(Achievements.CounterMazeFail) == 2,
-            "해금 1개 · 누적 카운터 2");
+            "해금 1개, 누적 카운터 2");
 
         // 게임을 껐다 다시 켠다.
         _m.ReloadForTest();
@@ -143,7 +143,7 @@ public partial class AchievementTest : Node
 
     private void SectionC()
     {
-        Head("C", "중복 방지 · 팝업 큐");
+        Head("C", "중복 방지, 팝업 큐");
         Wipe();
 
         _toasts.Clear();
@@ -168,7 +168,7 @@ public partial class AchievementTest : Node
 
     private void SectionD()
     {
-        Head("D", "수리 승인 — 미로 실패와 거절을 가른다");
+        Head("D", "수리 승인 - 미로 실패와 거절을 가른다");
         Wipe();
         StartShift(1);
 
@@ -242,35 +242,43 @@ public partial class AchievementTest : Node
 
     private void SectionE()
     {
-        Head("E", "이상 개체 · 기절 · 격리");
+        Head("E", "이상 개체, 기절, 격리");
         Wipe();
         StartShift(1);
 
-        // 이상 개체를 띄우고 **보지 않는다** — 유예 시간이 지나면 사고가 된다.
+        // 관측 소멸은 폐지됐다 — 개체는 보든 말든 떠나며 확률로 사고를 낸다. 그래서 두 과제는
+        // "그 순간 그 방 CCTV 를 보고 있었는가" 로 갈린다(2026-10-31 — 끝까지 지켜봤는데 "끝까지 관측하지
+        // 않아 사고를 내세요" 가 떴다는 제보). 사고는 확률이라 여기서는 개체 신호를 직접 보낸다.
+        //
+        // ① 다른 화면을 보고 있었다 — 사고가 나도, 떠나도 과제는 없다.
+        _sim.SetSurveillanceTarget("guard_room");
+        _sim.ReportCctvFeedLive(true);
+        _m.OnGhostStruck("maintenance_room");
+        _m.OnGhostDispelled("maintenance_room");
+        Ok(!_m.IsUnlocked(Achievements.GhostIgnored), "다른 방을 보는 사이 난 사고 → 보기만 하는 관리자는 뜨지 않는다");
+        Ok(!_m.IsUnlocked(Achievements.GhostDispelled), "다른 방을 보는 사이 떠났다 → 눈 마주쳤다는 뜨지 않는다");
+
+        // ② 그 방을 띄워 두고 있었다 — 사고를 지켜봤다 · 떠나는 것을 봤다.
+        _sim.SetSurveillanceTarget("maintenance_room");
+        _sim.ReportCctvFeedLive(true);
+        _m.OnGhostStruck("maintenance_room");
+        Ok(_m.IsUnlocked(Achievements.GhostIgnored), "그 방 CCTV 로 사고 순간을 봤다 → 보기만 하는 관리자");
+        _m.OnGhostDispelled("maintenance_room");
+        Ok(_m.IsUnlocked(Achievements.GhostDispelled), "그 방 CCTV 로 떠나는 것을 봤다 → 눈 마주쳤다");
+
+        // ③ 실제 시스템으로도 이어져 있다 — 띄운 개체가 떠날 때 Departed 가 매니저까지 온다.
+        Wipe();
+        StartShift(1);
         Ok(_sim.Ghost.ForceAppear("maintenance_room", _sim, 2f), "이상 개체가 정비실에 떴다");
+        _sim.SetSurveillanceTarget("maintenance_room");
+        _sim.ReportCctvFeedLive(true);
         for (int i = 0; i < 300 && _sim.Ghost.Active; i++)
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
         }
-        Ok(_sim.Ghost.StruckToday > 0, "방치해서 사고가 됐다");
-        Ok(_m.IsUnlocked(Achievements.GhostIgnored), "방치 → 시크한 관리자");
-        Ok(!_m.IsUnlocked(Achievements.GhostDispelled), "소멸시키지 않았으니 눈 마주쳤다는 뜨지 않는다");
-
-        // 이번에는 **계속 보고 있는다** — CCTV 로 그 방을 띄워 두면 소멸한다.
-        Wipe();
-        StartShift(1);
-        _sim.Ghost.ForceAppear("guard_room", _sim, 9999f);
-        _sim.SetSurveillanceTarget("guard_room");
-        _sim.ReportCctvFeedLive(true);
-        for (int i = 0; i < 900 && _sim.Ghost.Active; i++)
-        {
-            GameState.Instance.AdvanceDayTime(Step);
-            _sim.Tick(Step);
-        }
-        Ok(_sim.Ghost.DispelledToday > 0, $"끝까지 봐서 소멸시켰다 (소멸 {_sim.Ghost.DispelledToday}건)");
-        Ok(_m.IsUnlocked(Achievements.GhostDispelled), "관측 소멸 → 눈 마주쳤다");
-        Ok(!_m.IsUnlocked(Achievements.GhostIgnored), "이번에는 시크한 관리자가 뜨지 않는다");
+        Ok(!_sim.Ghost.Active, "개체가 작업실을 떠났다");
+        Ok(_m.IsUnlocked(Achievements.GhostDispelled), "지켜보는 사이 떠났다 → 눈 마주쳤다(실제 이벤트 연결)");
 
         // 경고 방치 — 실제 경고가 떠서 고장으로 넘어가는 것을 기다린다.
         // (여기서 보는 것은 FacilityWarningSystem.Neglected 구독이 실제로 이어져 있는가다.)
@@ -365,7 +373,7 @@ public partial class AchievementTest : Node
         Ok(_m.IsUnlocked(Achievements.FirstIsolation), "격리실에 수용되면 격리 조치");
         Ok(_m.IsUnlocked(Achievements.InnocentIsolation), "결백한 직원이었으므로 억울한 격리도 기록됐다");
         Ok(!_toasts.Contains(Achievements.InnocentIsolation) && _m.DeferredCount == 1,
-            "다만 **팝업은 아직 뜨지 않는다** — 결번이 누군지 새어 나가지 않게 보류했다");
+            "다만 **팝업은 아직 뜨지 않는다** - 결번이 누군지 새어 나가지 않게 보류했다");
 
         // 최종 보고서를 제출하면 그때 뜬다.
         GameState.Instance.SubmitFinalReport(innocent, new List<(int, string)>(), null);
@@ -390,7 +398,7 @@ public partial class AchievementTest : Node
 
     private void SectionF()
     {
-        Head("F", "「이게 연습이라고?」 — 가상 시뮬레이션 100%");
+        Head("F", "「이게 연습이라고?」 - 가상 시뮬레이션 100%");
         Wipe();
 
         // DAY0, 근무 중, 99%.
@@ -428,25 +436,26 @@ public partial class AchievementTest : Node
 
     private void SectionG()
     {
-        Head("G", "평가 등급 · 엔딩 · 하루 무사고");
+        Head("G", "평가 등급, 엔딩, 하루 무사고");
 
-        // 등급 — 실제로 받은 등급 하나만. 계산은 DayObjectives.Grade 를 그대로 쓴다.
-        (float core, int score, string grade, string id, string label)[] cases =
+        // 등급 — 실제로 받은 등급 하나만. 계산은 DayObjectives.FinalGrade 를 그대로 쓴다.
+        //   진엔딩만 S~C 로 나뉘고, 나머지 엔딩은 전부 F 다.
+        (EndingState.Kind kind, int missed, int incidents, string grade, string id, string label)[] cases =
         {
-            (100f, 5, "S", Achievements.GradeS, "S → 완벽한 근무!"),
-            (100f, 3, "A", Achievements.GradeA, "A → 이 구역의 에이스"),
-            (100f, 1, "B", "", "B → 해당 업적 없음"),
-            (40f, 0, "D", Achievements.GradeLowest, "D → 쓸모없는 관리자"),
-            (40f, 4, "C", "", "C → 해당 업적 없음"),
+            (EndingState.Kind.True, 0, 0, "S", Achievements.GradeS, "S → 완벽한 근무!"),
+            (EndingState.Kind.True, 1, 0, "A", Achievements.GradeA, "A → 이 구역의 에이스"),
+            (EndingState.Kind.True, 2, 0, "B", "", "B → 해당 업적 없음"),
+            (EndingState.Kind.Loose, 0, 0, "F", Achievements.GradeLowest, "F(지목 실패) → 쓸모없는 관리자"),
+            (EndingState.Kind.Bad, 0, 0, "F", Achievements.GradeLowest, "F(둘 다 실패) → 쓸모없는 관리자"),
         };
         foreach (var c in cases)
         {
             Wipe();
             GameState.Instance.ResetRun(5);
-            GameState.Instance.AddCoreProgress(c.core, "검사");
-            GameState.Instance.AddEvaluation(c.score);
-            Ok(DayObjectives.Grade(c.core, c.score) == c.grade, $"등급 계산 {c.core:0}%/{c.score}점 = {c.grade}");
-            _m.NoteEnding(EndingState.Kind.Loose);
+            for (int d = 0; d < c.missed; d++) GameState.Instance.RecordShiftObjectives(1);
+            GameState.Instance.AddShiftTotals(0, c.incidents);
+            Ok(DayObjectives.FinalGrade(c.kind) == c.grade, $"등급 계산 {c.kind}, 미달성 {c.missed}일 = {c.grade}");
+            _m.NoteEnding(c.kind);
             int got = new[] { Achievements.GradeS, Achievements.GradeA, Achievements.GradeLowest }
                 .Count(x => _m.IsUnlocked(x));
             bool want = !string.IsNullOrEmpty(c.id);
@@ -499,7 +508,7 @@ public partial class AchievementTest : Node
         _m.NoteShiftEnded();
         Ok(!_m.IsUnlocked(Achievements.FirstFaint) && !_m.IsUnlocked(Achievements.MissedCallOnce)
            && !_m.IsUnlocked(Achievements.WarningNeglected) && !_m.IsUnlocked(Achievements.SafeShift),
-            "DAY0 의 강제 연출로는 부주의 · 무심 · 경고 방치 · 오늘은 무사히가 뜨지 않는다");
+            "DAY0 의 강제 연출로는 부주의, 무심, 경고 방치, 오늘은 무사히가 뜨지 않는다");
 
         // 수신 전화 누적.
         Wipe();
@@ -545,7 +554,7 @@ public partial class AchievementTest : Node
         Ok(view.ItemAt(new Vector2(690f, 556f)) == "", "창에 끼워 넣은 상태에서는 [뒤로] 가 없다");
         view.Embedded = false;
         view.Close();
-        Ok(!view.IsOpen && !view.Visible, "ESC · [뒤로] 로 닫히면 화면에서 사라진다");
+        Ok(!view.IsOpen && !view.Visible, "ESC, [뒤로] 로 닫히면 화면에서 사라진다");
         view.QueueFree();
 
         // 팝업 보류 조건.

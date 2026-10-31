@@ -20,7 +20,8 @@ public partial class StoryMonitorView : Control
     public static StoryMonitorView Instance { get; private set; }
 
     // 모니터 테두리 안쪽 영상 영역. 인터뷰 화면(InterviewCCTVView)과 같은 자리를 쓴다.
-    private static readonly Rect2 Frame = new(28, 56, 744, 460);
+    // CCTV 화면(CCTVMonitorView)과 같이 조금 아래로 내려 앉힌다(+18). 대사창 · 스탠딩은 이 틀 안에 있어 같이 내려간다.
+    private static readonly Rect2 Frame = new(28, 74, 744, 460);
 
     private Font _font;
     private TextureRect _roomFeed;
@@ -61,17 +62,17 @@ public partial class StoryMonitorView : Control
         AddChild(_roomFeed);
 
         _title = Lbl("BREAK ROOM", 17, new Color(0.72f, 0.86f, 0.9f));
-        _title.Position = new Vector2(Frame.Position.X + 4f, 24f);
+        _title.Position = new Vector2(Frame.Position.X + 4f, 42f);
         AddChild(_title);
 
         _rec = Lbl("● REC", 16, new Color(0.95f, 0.35f, 0.28f));
         // 자리를 숫자로 박아 두면 폰트에 따라 "BREAK ROOM" 뒤를 밟는다(실제로 그랬다).
         // 제목 글자 폭을 재서 그 뒤에 붙인다.
-        _rec.Position = new Vector2(_title.Position.X + TitleWidth() + 20f, 25f);
+        _rec.Position = new Vector2(_title.Position.X + TitleWidth() + 20f, 43f);
         AddChild(_rec);
 
         _clock = Lbl("--:--", 16, new Color(0.75f, 0.85f, 0.8f));
-        _clock.Position = new Vector2(Frame.End.X - 224f, 25f);
+        _clock.Position = new Vector2(Frame.End.X - 224f, 43f);
         _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);

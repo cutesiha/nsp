@@ -105,7 +105,7 @@ public static class DebugEntryPoint
         // (EndingState 를 BackupEndingState 로 지키는 것과 같은 이유다.)
         NSP.Core.AchievementManager.Sandbox = true;
         var f = typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static);
-        if (f == null) GD.PushError("DebugEntryPoint: ShiftFlowController._skipToDay1Pending 이 없다 — 타이틀을 건너뛸 수 없다.");
+        if (f == null) GD.PushError("DebugEntryPoint: ShiftFlowController._skipToDay1Pending 이 없다 - 타이틀을 건너뛸 수 없다.");
         f?.SetValue(null, true);
         // 그 첫 진입은 무조건 DAY1 로 열린다. 허브는 그 뒤에 원하는 날짜로 다시 들어가므로
         // 첫 진입의 '그 날의 안내'(DAY0 교육 시작 · DAY1 패드 안내 · 해금 안내)는 건너뛴다.

@@ -70,7 +70,7 @@ public partial class EmployeeDetailCard : PanelContainer
         if (NSP.Core.DayFeatures.StressEnabled)
             lines.Add($"스트레스: {state.Stress:0}");
         if (lines.Count == 0)
-            lines.Add($"오늘의 기분: {(string.IsNullOrEmpty(state.DailyMood) ? "—" : state.DailyMood)}");
+            lines.Add($"오늘의 기분: {(string.IsNullOrEmpty(state.DailyMood) ? "-" : state.DailyMood)}");
         _statsLabel.Text = string.Join("\n", lines);
 
         bool actionable = state.Alive && !state.Isolated;

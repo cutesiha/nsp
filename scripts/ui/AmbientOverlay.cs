@@ -17,6 +17,14 @@ public partial class AmbientOverlay : CanvasLayer
     // 모든 씬에서 확실히 보이도록 — 밝은 배경(타이틀/스케줄)에서도 지글거림이 남는 수치.
     private const float BaseNoiseAlpha = 0.12f;
 
+    // 평소 깔리는 지글거림의 배율. 아날로그 필터(AnalogFilter)가 켜져 있으면 0 — 필터가 레퍼런스에 맞춘
+    // 입자를 따로 얹으므로, 여기 노이즈까지 겹치면 검정 · 청회색 면이 지저분해진다.
+    // 공포 연출이 끌어올리는 노이즈(PulseNoise · SetGhostNoise)는 그대로 나온다.
+    public float BaseNoiseScale { get; set; } = 1f;
+    // 가운데 하이라이트를 켤 것인가. 화면 필터(AnalogFilter)가 켜져 있으면 끈다 — 필터의 색 변환(LUT)이
+    // 이 아주 옅은 둥근 빛을 어두운 화면에서 **또렷한 고리**로 바꿔 버렸다(2026-10-31 "검은 화면에 투명한 링").
+    public bool CenterGlowAllowed { get; set; } = true;
+
     private TextureRect _vignetteRect;
     private TextureRect _centerGlow;
     private TextureRect _noiseRect;
@@ -114,6 +122,9 @@ public partial class AmbientOverlay : CanvasLayer
 
     }
 
+    // 지금 화면이 얼마나 흔들리고 있는가(0~약 1). AnalogFilter 가 이 값으로 VHS 트래킹을 끌어올린다.
+    public float Disturbance => Mathf.Max(Mathf.Max(_extraNoise, _holdNoise), _shutdownT * 0.25f);
+
     // 전력 0 → SHUT DOWN 표시 on/off.
     public void SetShutdown(bool on) => _shutdown = on;
 
@@ -133,7 +144,7 @@ public partial class AmbientOverlay : CanvasLayer
 
         _extraNoise = Mathf.Max(0f, _extraNoise - d * 0.9f);
         _noiseRect.Modulate = new Color(1f, 1f, 1f,
-            (BaseNoiseAlpha + Mathf.Max(_extraNoise, _holdNoise)) * _sceneIntensity);
+            (BaseNoiseAlpha * BaseNoiseScale + Mathf.Max(_extraNoise, _holdNoise)) * _sceneIntensity);
         // 머무는 노이즈도 **스스로 빠진다.** 부르는 쪽(CCTVMonitorView)이 매 프레임 다시
         // 세워 주므로 보고 있는 동안에는 줄지 않고, 그 화면이 사라지거나 근무가 끝나
         // 아무도 세워 주지 않으면 알아서 걷힌다 — 붉은 화면이 남는 사고를 막는다.
@@ -141,6 +152,7 @@ public partial class AmbientOverlay : CanvasLayer
         // 모서리 어둡게(비네트)는 3D 제어실에서도 거의 그대로 유지한다 — 화면 가장자리가
         // 확실히 죽어야 가운데 책상에 시선이 모인다.
         _vignetteRect.Modulate = new Color(1f, 1f, 1f, Mathf.Lerp(0.92f, 1f, _sceneIntensity));
+        _centerGlow.Visible = CenterGlowAllowed;
         _centerGlow.Modulate = new Color(1f, 1f, 1f, 0.18f * _sceneIntensity);
 
         // SHUT DOWN 페이드 + 깜빡이는 문구
@@ -160,7 +172,7 @@ public partial class AmbientOverlay : CanvasLayer
     // 화면 반짝(전기 불량). strength 0~1.
     public void Flash(float strength = 0.6f)
     {
-        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        strength = Mathf.Clamp(strength * GameSettings.FlashScale, 0.05f, 1f);
         _flash.Visible = true;
         var t = CreateTween();
         t.TweenProperty(_flash, "color:a", strength, 0.03);
@@ -173,7 +185,7 @@ public partial class AmbientOverlay : CanvasLayer
     // 끝나면 흰색으로 되돌려 둔다 — 다음 Flash() 가 붉게 뜨면 안 된다.
     public void FlashColor(Color color, float strength, float seconds)
     {
-        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        strength = Mathf.Clamp(strength * GameSettings.FlashScale, 0.05f, 1f);
         _flash.Color = color with { A = 0f };
         _flash.Visible = true;
         var t = CreateTween();

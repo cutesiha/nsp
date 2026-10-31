@@ -7,12 +7,12 @@ script = ExtResource("1_room")
 RoomId = "storage_room"
 DisplayName = "저장고"
 Summary = "자재 보관 한도를 올리고 자재 소모를 줄인다."
-BriefLines = PackedStringArray("· 재고 정리 — 보관 한도 +10 (최대 60)", "· 인원이 늘면 코어 복구 자재 소모가 줄어든다")
+BriefLines = PackedStringArray("재고 정리|보관 한도 +10 (최대 60)", "인원 효과|인원이 늘면 코어 복구 자재 소모가 줄어든다")
 ConnectedRoomIds = Array[String](["central_office", "maintenance_room", "core_room"])
 AdjacentRoomIds = Array[String](["core_room", "maintenance_room"])
 MapPosition = Vector2(450, 170)
 ; 띠 시간표에서 이 방을 나타내는 색 — 저장고 황토
-MapColor = Color(0.80, 0.56, 0.30, 1)
+MapColor = Color(0.6, 0.44, 0.32, 1)
 IsCoreRoom = false
 UnlockDay = 1
 ManagedResource = 7

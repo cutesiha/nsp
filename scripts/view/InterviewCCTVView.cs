@@ -14,7 +14,8 @@ namespace NSP.View;
 // 실제 대화는 여기서 굴리지 않는다. 기존대로 책상 위 전화기를 들면 PhoneCallHud 가 뜬다.
 public partial class InterviewCCTVView : Control
 {
-    private static readonly Rect2 Frame = new(28, 56, 744, 460);
+    // CCTV 화면(CCTVMonitorView)과 같이 조금 아래로 내려 앉힌다(+18).
+    private static readonly Rect2 Frame = new(28, 74, 744, 460);
 
     private Font _font;
     private TextureRect _roomFeed;      // 3D 사이드뷰 배경
@@ -102,6 +103,8 @@ public partial class InterviewCCTVView : Control
         };
         _portraitBox.AddChild(_portrait);
         BuildStandingMaterial();
+        // 전용 스탠딩 셰이더가 꺼져 있으면 CRT 원화 보정을 건다(CrtArt).
+        if (_portrait.Material == null) NSP.View.CrtArt.Apply(_portrait);
 
         _stateLabel = Lbl("왼쪽 BREAK ROOM 에서 직원을 선택하세요", 20, new Color(0.8f, 0.85f, 0.8f));
         _stateLabel.Position = new Vector2(Frame.Position.X, Frame.Position.Y + Frame.Size.Y / 2f - 16f);
@@ -142,15 +145,15 @@ public partial class InterviewCCTVView : Control
         AddChild(_statusLabel);
 
         var title = Lbl("INTERVIEW", 17, new Color(0.72f, 0.86f, 0.9f));
-        title.Position = new Vector2(Frame.Position.X + 4f, 24f);
+        title.Position = new Vector2(Frame.Position.X + 4f, 42f);
         AddChild(title);
 
         _recLabel = Lbl("● REC", 16, new Color(0.95f, 0.35f, 0.28f));
-        _recLabel.Position = new Vector2(Frame.Position.X + 132f, 25f);
+        _recLabel.Position = new Vector2(Frame.Position.X + 132f, 43f);
         AddChild(_recLabel);
 
         _clock = Lbl("--:--", 16, new Color(0.75f, 0.85f, 0.8f));
-        _clock.Position = new Vector2(Frame.End.X - 224f, 25f);
+        _clock.Position = new Vector2(Frame.End.X - 224f, 43f);
         _clock.Size = new Vector2(220, 24);
         _clock.HorizontalAlignment = HorizontalAlignment.Right;
         AddChild(_clock);
@@ -209,6 +212,9 @@ public partial class InterviewCCTVView : Control
     // 직원 한 명의 발광 값. 흰 옷처럼 밝은 원화는 EmployeeDef 에서 낮춰 둔다.
     private void ApplyStandingGlow(NSP.Data.EmployeeDef def)
     {
+        // CRT 원화 보정을 쓰는 동안은 직원마다 머티리얼을 고른다(늑대 가면 칸 보정 — CrtArt.MaterialFor).
+        if (_standingMat == null && def != null && NSP.View.CrtArt.MaterialFor(def) is { } art)
+            _portrait.Material = art;
         if (_standingMat == null || def == null) return;
         StopTension();
         _baseGlowAmt = def.StandingGlowAmt;
@@ -340,9 +346,9 @@ public partial class InterviewCCTVView : Control
         ApplyStandingGlow(def);
         _namePlate.Visible = true;
         _nameLabel.Text = def.Codename;
-        _statusLabel.Text = !st.Alive ? "응답 없음 · 기록 종료"
-            : st.Isolated ? "격리됨 · 인터뷰 가능"
-            : "휴게 중 · 전화 연결 대기";
+        _statusLabel.Text = !st.Alive ? "응답 없음, 기록 종료"
+            : st.Isolated ? "격리됨, 인터뷰 가능"
+            : "휴게 중, 전화 연결 대기";
     }
 
     // --- 스탠딩 원화 배치 ------------------------------------------------

@@ -50,6 +50,10 @@ public partial class TitleRoomDirector : Node
     //   True : 아주 약한 아침빛 · 정상 색 · CRT 노이즈 감소 · 같은 곡의 조용한 버전
     //   Loose: True 와 똑같이 밝다. 20초에 한 번 0.2초짜리 노이즈가 튀는 것만 다르다 —
     //          조용한데 가끔 어긋난다.
+    // 처음 켠 타이틀에서 자리 → 왼쪽 단말기로 다가가는 데 걸리는 시간(초).
+    // 0 에 가까울수록 켜자마자 모니터가 화면을 가득 메운다. 방을 보여 주고 싶으면 늘린다.
+    private const float StartZoomSeconds = 1.6f;
+
     public static float EndingScreenNoise => EndingState.Last switch
     {
         EndingState.Kind.Bad => 0.06f,
@@ -75,9 +79,9 @@ public partial class TitleRoomDirector : Node
     // 책상 장비 ↔ 명령 연결. 라벨은 화면 아래 힌트 줄에 뜬다.
     private static readonly (string Id, string Hint)[] PropHints =
     {
-        ("archive", "전화기  —  ARCHIVE  ·  도전과제 기록"),
-        ("config", "관리자 패드  —  SYSTEM CONFIG  ·  환경 설정"),
-        ("quit", "전력 패널  —  SHUT DOWN  ·  시스템 종료"),
+        ("archive", "전화기: ARCHIVE / 도전과제 기록"),
+        ("config", "관리자 패드: SYSTEM CONFIG / 환경 설정"),
+        ("quit", "전력 패널: SHUT DOWN / 시스템 종료"),
     };
 
     private ControlRoom3DController _ctl;
@@ -92,11 +96,12 @@ public partial class TitleRoomDirector : Node
     // Archive   = 도전과제 기록실을 보는 중. 메뉴 입력과 완전히 분리해 두어
     //             기록을 넘기다가 「근무 개시」가 실수로 실행되지 않게 한다.
     // ModeSelect = 근무 유형(대회용 / 기본 / 하드)을 고르는 중. 마찬가지로 분리한다.
-    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, ModeSelect, Done }
+    // Settings  = 환경 설정을 모니터1 화면 안에서 보는 중. 마우스는 그 화면으로 넘긴다.
+    private enum Phase { Off, Standby, PoweringOn, Menu, Busy, Archive, ModeSelect, Settings, Done }
     private Phase _phase = Phase.Off;
 
     // 기록실 · 근무 유형 선택을 보는 동안의 조작 안내.
-    private const string ArchiveHint = "↑ ↓ 이동   휠·막대 끌기   ESC 뒤로";
+    private const string ArchiveHint = "↑ ↓ 이동   휠/막대 끌기   ESC 뒤로";
     private const string ModeHint = "↑ ↓ 이동   ENTER 확정   ESC 취소";
     // 휠 한 칸에 굴러가는 거리(논리 px). 한 줄(78px)보다 조금 작게 — 줄이 툭툭 끊기지 않는다.
     private const float ArchiveWheelStep = 62f;
@@ -131,6 +136,16 @@ public partial class TitleRoomDirector : Node
     public override void _ExitTree()
     {
         if (Instance == this) Instance = null;
+        BootWarning.Closing -= OnBootWarningClosing;
+    }
+
+    // 켤 때 경고가 걷히기 시작했다 — 이제부터 모니터1 의 [PRESS ANY KEY] 가 키를 받는다.
+    private void OnBootWarningClosing()
+    {
+        BootWarning.Closing -= OnBootWarningClosing;
+        if (!IsInstanceValid(this) || !IsRunning || _phase != Phase.Off) return;
+        AchievementManager.Instance?.NoteTitleReached();
+        _phase = Phase.Standby;
     }
 
     // ShiftFlowController 가 부팅 직후 부른다.
@@ -173,19 +188,35 @@ public partial class TitleRoomDirector : Node
         TitleStaffIdView.Instance.PowerOff();
         TitleTerminalView.Instance.ShowStandby();
 
-        // 게임 시작 순간부터 왼쪽 CRT 확대 화면이다(카메라를 즉시 그 자리에 둔다).
-        // 엔딩 뒤에 다시 눈을 뜬 경우만 예외 — 방 전체(붉은 CRT · 비상등 / 아침빛)가 먼저 보여야 한다.
-        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, 0.01f);
+        // 타이틀은 왼쪽 CRT 확대 화면이다 — 다만 **즉시 그 자리에 두지는 않는다.**
+        //
+        // 예전에는 0.01초, 사실상 순간이동이었다. 그러면 게임을 켜자마자 모니터 하나가
+        // 화면을 가득 메운 채로 떠서 여기가 어디인지 알 수 없고, 이어서 프롤로그가
+        // 시작돼도 "이미 확대돼 있던 화면" 이라 들어가는 느낌이 전혀 없다.
+        //
+        // 자리에 앉은 시야에서 **천천히 단말기로 다가간다.** 방(두 CRT · 전화기 · 책상)이
+        // 먼저 한 박자 보이고 나서 글자를 읽을 크기가 된다.
+        // 엔딩 뒤에 다시 눈을 뜬 경우는 그대로 예외다 — 방 전체(붉은 CRT · 비상등 /
+        // 아침빛)를 충분히 보여 줘야 하므로 여기서 당기지 않는다.
+        if (EndingState.Last == EndingState.Kind.None) _ctl.FocusMonitor(1, StartZoomSeconds);
 
         // 대기 화면의 안내는 단말기 자체에 "[ PRESS ANY KEY ]" 로 떠 있다 — 겹쳐 쓰지 않는다.
         _hint.SetLine("");
         _hint.SetSub("");
         _hint.ShowHud();
 
-        _phase = Phase.Standby;
+        // 게임을 막 켰을 때는 광과민성 경고가 먼저 떠 있다(2초 뒤 저절로 걷힌다). 그동안은 키를 받지 않고,
+        // 걷히면 모니터1 의 [PRESS ANY KEY] 에서 기다린다. 엔딩 뒤 · 시작화면으로 돌아온 경우는 경고 없이 바로 대기.
+        if (BootWarning.Active)
+        {
+            _phase = Phase.Off;
+            BootWarning.Closing += OnBootWarningClosing;
+        }
+        else _phase = Phase.Standby;
         // 「업무를 시작합니다」 — 실제 타이틀 화면에 들어선 지점.
         // 개발 도구로 타이틀을 건너뛰고 들어오면 이 줄을 지나가지 않는다.
-        AchievementManager.Instance?.NoteTitleReached();
+        // 경고가 떠 있으면 팝업(층 150)이 경고(층 200) 밑에 깔려 아무도 못 보고 지나간다 — 걷힌 뒤로 미룬다.
+        if (!BootWarning.Active) AchievementManager.Instance?.NoteTitleReached();
         SetProcess(true);
         SetProcessUnhandledInput(true);
     }
@@ -213,6 +244,10 @@ public partial class TitleRoomDirector : Node
         await WaitOn(0.18);
         while (term != null && !term.MenuRevealDone && !_rushPowerOn) await NextFrame();
         if (_rushPowerOn) term?.ShowMenu(false);      // 타이핑을 그 자리에서 끝낸다
+        // 모니터1 확대 화면(처음 켰을 때 · 시작화면으로 돌아왔을 때)에서는 다른 장비가 화면 밖이라 켜지는 것이
+        // 보이지 않는다 — 메뉴가 다 찍히면 **바로 고를 수 있게** 나머지 뜸을 건너뛴다(2026-10-31 사용자 요청).
+        // 장비는 뒤에서 그대로 켜진다. 방 전체가 보이는 엔딩 뒤 타이틀만 예전처럼 하나씩 켜지는 것을 보여 준다.
+        if (EndingState.Last == EndingState.Kind.None) _rushPowerOn = true;
         await WaitOn(0.30);
 
         // 2) **화면을 축소하지 않는다.** 시작 화면은 모니터1 확대 화면 그대로다 —
@@ -228,14 +263,14 @@ public partial class TitleRoomDirector : Node
         TitleStaffIdView.Instance?.PowerOn();
 
         await WaitOn(0.45);
-        Sfx.Instance?.Play("switch", -10f);             // 책상 조명 ON
+        if (!_rushPowerOn) Sfx.Instance?.Play("switch", -10f);   // 책상 조명 ON(건너뛰면 소리가 겹치니 생략)
         var lt = CreateTween();
         lt.SetParallel(true);
         if (_ceiling != null) lt.TweenProperty(_ceiling, "light_energy", _ceilBase * 0.34f, 0.7);
         if (_fill != null) lt.TweenProperty(_fill, "light_energy", _fillBase * 0.45f, 0.7);
 
         await WaitOn(0.40);
-        Sfx.Instance?.Play("relay_click", -12f);        // 관리자 패드 ON
+        if (!_rushPowerOn) Sfx.Instance?.Play("relay_click", -12f);   // 관리자 패드 ON
 
         await WaitOn(0.35);
         _hint.SetSub(MenuHint);
@@ -356,14 +391,77 @@ public partial class TitleRoomDirector : Node
         }
     }
 
+    // 환경 설정 — 근무 개시 · 기록 열람처럼 **모니터1 단말기 화면 안에서** 연다.
+    // 화면 위에 따로 뜨는 창이면 시작 화면에서 혼자 튄다. 모니터 화면을 못 찾을 때만 예전처럼 창으로.
     private void OpenSettings()
     {
         if (_settings == null || !IsInstanceValid(_settings))
         {
-            _settings = new SettingsPanel();
+            var host = _ctl?.TitleTerminalViewport?.GetChildOrNull<Control>(0);
+            _settings = host != null ? new SettingsPanel(host) : new SettingsPanel();
+            _settings.Closed += OnSettingsClosed;
             AddChild(_settings);
         }
         _settings.Open();
+        Sfx.Instance?.Play("window_open", -8f);
+        _ctl?.FocusMonitor(1, 0.5f);   // 기록 열람과 같은 자리 — 글자를 읽을 크기로 당긴다
+        _hint.SetLine("");
+        _hint.SetSub("ESC 뒤로");
+        _phase = Phase.Settings;
+        _settingsPressed = false;
+    }
+
+    private void OnSettingsClosed()
+    {
+        if (_phase != Phase.Settings) return;
+        Sfx.Instance?.Play("relay_click", -8f);
+        // 확대는 풀지 않는다 — 타이틀은 처음부터 끝까지 모니터1 확대 화면이다.
+        TitleTerminalView.Instance?.ShowMenu();
+        _hint.SetSub(MenuHint);
+        _phase = Phase.Menu;
+    }
+
+    // 설정 화면은 모니터1 의 SubViewport 안에 있다 — 화면을 가리킨 마우스를 그 좌표로 넘긴다
+    // (게임 중 모니터 조작과 같은 방식: ControlRoom3DController.Forward).
+    private bool _settingsPressed;
+    private Vector2 _settingsLastPos;
+
+    private void ForwardToSettings(InputEvent e)
+    {
+        var vp = _ctl?.TitleTerminalViewport;
+        if (_camera == null) _camera = GetViewport().GetCamera3D();
+        if (vp == null || _camera == null || e is not InputEventMouse m) return;
+        MonitorScreen3D screen = null;
+        foreach (var s in _ctl.Screens)
+            if (s.TargetViewport == vp) { screen = s; break; }
+        if (screen == null) return;
+
+        Vector3 o = _camera.ProjectRayOrigin(m.Position);
+        Vector3 d = _camera.ProjectRayNormal(m.Position);
+        // 슬라이더를 끄는 중에는 화면 밖으로 나가도 가장자리에 붙여 계속 넘긴다.
+        bool hit = screen.TryProjectRay(o, d, clamp: _settingsPressed, out Vector2 cp);
+        switch (e)
+        {
+            case InputEventMouseButton mb:
+                if (!hit && mb.Pressed) return;
+                if (mb.ButtonIndex == MouseButton.Left) _settingsPressed = mb.Pressed;
+                vp.PushInput(new InputEventMouseButton
+                {
+                    ButtonIndex = mb.ButtonIndex, Pressed = mb.Pressed, DoubleClick = mb.DoubleClick,
+                    Position = cp, GlobalPosition = cp, ButtonMask = mb.ButtonMask,
+                }, true);
+                break;
+            case InputEventMouseMotion mm:
+                if (!hit) return;
+                vp.PushInput(new InputEventMouseMotion
+                {
+                    Position = cp, GlobalPosition = cp,
+                    Relative = cp - _settingsLastPos, ButtonMask = mm.ButtonMask,
+                }, true);
+                break;
+        }
+        _settingsLastPos = cp;
+        GetViewport().SetInputAsHandled();
     }
 
     // 근무 개시 — 예/아니오 확인 대신 **근무 유형을 고른다.** 고르는 행위가 곧 확인이고,
@@ -391,7 +489,7 @@ public partial class TitleRoomDirector : Node
             return;
         }
         GameModes.Select(mode);
-        GD.Print($"[근무 유형: {GameModes.DisplayName(mode)} — {GameModes.MaxDays}일]");
+        GD.Print($"[근무 유형: {GameModes.DisplayName(mode)} - {GameModes.MaxDays}일]");
         Sfx.Instance?.Play("relay_click", -5f);
         _ = StartShiftAsync();
     }
@@ -453,6 +551,11 @@ public partial class TitleRoomDirector : Node
     private void Finish()
     {
         AchievementArchiveView.Instance?.Close();
+        if (_settings != null && IsInstanceValid(_settings) && _settings.IsOpen)
+        {
+            _phase = Phase.Done;   // OnSettingsClosed 가 메뉴로 되돌리지 않게 먼저 닫아 둔다
+            _settings.Close();
+        }
         _phase = Phase.Done;
         IsRunning = false;
         SetProcess(false);
@@ -464,8 +567,27 @@ public partial class TitleRoomDirector : Node
 
     public override void _UnhandledInput(InputEvent e)
     {
-        if (_phase is Phase.Off or Phase.Done or Phase.PoweringOn) return;
-        if (_settings != null && IsInstanceValid(_settings) && _settings.Visible) return;
+        if (_phase is Phase.Off or Phase.Done) return;
+        // 부팅 중 — 누르면 남은 뜸을 건너뛴다(아래 블록). 예전에는 이 첫 줄에서 PoweringOn 까지 같이 걸러,
+        // 그 건너뛰기 블록에 한 번도 닿지 못했다(2026-10-31 "다른 모니터가 켜질 때까지 아무것도 모르고 기다린다").
+        if (_phase == Phase.PoweringOn)
+        {
+            if (e is InputEventMouseMotion pm) { _mouse = pm.Position; _mouseMoved = true; return; }
+            if (!_rushPowerOn
+                && (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+                    || e is InputEventKey { Pressed: true, Echo: false }))
+            {
+                _rushPowerOn = true;
+                GetViewport().SetInputAsHandled();
+            }
+            return;
+        }
+        if (_phase == Phase.Settings)
+        {
+            if (e is InputEventMouseButton or InputEventMouseMotion) ForwardToSettings(e);
+            return;
+        }
+        if (_settings != null && IsInstanceValid(_settings) && _settings.IsOpen) return;
 
         if (e is InputEventMouseMotion mm) { _mouse = mm.Position; _mouseMoved = true; return; }
 
@@ -523,6 +645,13 @@ public partial class TitleRoomDirector : Node
                     GetViewport().SetInputAsHandled();
                     return;
                 case Key.Escape:
+                    if (TitleStaffIdView.Instance is { SourcesOpen: true } staffView)
+                    {
+                        staffView.CloseSources();
+                        Sfx.Instance?.Play("relay_click", -10f);
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
                     if (TitleTerminalView.Instance.CurrentMode == TitleTerminalView.Mode.Report)
                     {
                         TitleTerminalView.Instance.ShowMenu();
@@ -553,18 +682,8 @@ public partial class TitleRoomDirector : Node
             return;
         }
 
-        // 부팅 중에 누르면 **남은 뜸을 건너뛴다.** 메뉴 줄은 이미 화면에 다 떠 있는데
-        // 장비가 켜지는 연출이 끝날 때까지 눌리지 않아서, 고장으로 보이던 자리다.
-        // 그 클릭은 여기서 먹고 메뉴로는 넘기지 않는다 — 한 번 누른 것이 "건너뛰기 +
-        // 메뉴 선택" 둘로 먹히면 누를 생각도 없던 항목이 실행된다.
-        if (_phase == Phase.PoweringOn && !_rushPowerOn
-            && (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
-                || e is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space or Key.Enter or Key.KpEnter }))
-        {
-            _rushPowerOn = true;
-            GetViewport().SetInputAsHandled();
-            return;
-        }
+        // (부팅 중 건너뛰기는 맨 위 PoweringOn 블록이 맡는다 — 그 클릭은 거기서 먹고 메뉴로는 넘기지 않는다.
+        //  한 번 누른 것이 "건너뛰기 + 메뉴 선택" 둘로 먹히면 누를 생각도 없던 항목이 실행된다.)
 
         if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left })
         {
@@ -599,6 +718,30 @@ public partial class TitleRoomDirector : Node
                 return;
             }
             if (_phase != Phase.Menu) return;
+
+            // 오른쪽 CRT 의 「출처」 버튼 · 출처 창의 X.
+            string staffBtn = StaffButtonUnderMouse();
+            if (staffBtn == TitleStaffIdView.SourcesId)
+            {
+                TitleStaffIdView.Instance.OpenSources();
+                Sfx.Instance?.Play("relay_click", -8f);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (staffBtn == TitleStaffIdView.HelpId)
+            {
+                TitleStaffIdView.Instance.OpenHelp();
+                Sfx.Instance?.Play("relay_click", -8f);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (staffBtn == TitleStaffIdView.SourcesCloseId)
+            {
+                TitleStaffIdView.Instance.CloseSources();
+                Sfx.Instance?.Play("relay_click", -10f);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
 
             // 장비를 눌렀으면 그 장비에 걸린 명령, 아니면 단말기에서 가리킨 항목.
             string id = !string.IsNullOrEmpty(_hoverProp) ? _hoverProp : TerminalItemUnderMouse();
@@ -692,6 +835,7 @@ public partial class TitleRoomDirector : Node
         if (!string.IsNullOrEmpty(prop))
         {
             TitleStaffIdView.Instance.SetHover(-1);
+            TitleStaffIdView.Instance.SetButtonHover("");
             return;
         }
 
@@ -701,14 +845,29 @@ public partial class TitleRoomDirector : Node
         {
             if (takeCursor && TitleTerminalView.Instance.HoverId(item)) Sfx.Instance?.Play("tick", -16f);
             TitleStaffIdView.Instance.SetHover(-1);
+            TitleStaffIdView.Instance.SetButtonHover("");
             _hint.SetLine("");
             return;
         }
 
-        // 3) 오른쪽 CRT 의 직원 카드 — 마우스를 올리면 신원 한 줄이 뜬다.
+        // 3) 오른쪽 CRT — 「출처」 버튼(열려 있으면 그 창의 X)이 먼저, 그 다음 직원 카드.
         int card = -1;
+        string btn = "";
         if (TryCanvasPos("02", origin, dir, out Vector2 lp))
-            card = TitleStaffIdView.Instance.IndexAt(lp);
+        {
+            btn = TitleStaffIdView.Instance.ButtonAt(lp);
+            if (btn.Length == 0) card = TitleStaffIdView.Instance.IndexAt(lp);
+        }
+        if (TitleStaffIdView.Instance.SetButtonHover(btn)) Sfx.Instance?.Play("tick", -16f);
+        if (btn.Length > 0)
+        {
+            TitleStaffIdView.Instance.SetHover(-1);
+            _hint.SetLine(btn == TitleStaffIdView.SourcesId ? "외부 리소스 출처를 봅니다."
+                : btn == TitleStaffIdView.HelpId ? "조작 방법과 근무 목표를 봅니다."
+                : btn == TitleStaffIdView.SourcesCloseId ? "창을 닫습니다."
+                : TitleStaffIdView.EndingHint(btn));
+            return;
+        }
         if (TitleStaffIdView.Instance.SetHover(card)) Sfx.Instance?.Play("tick", -20f);
         _hint.SetLine(card >= 0 ? TitleStaffIdView.Instance.HoverLine : "");
     }
@@ -862,6 +1021,15 @@ public partial class TitleRoomDirector : Node
         Vector3 o = _camera.ProjectRayOrigin(_mouse);
         Vector3 d = _camera.ProjectRayNormal(_mouse);
         return TryCanvasPos("01", o, d, out Vector2 p) ? TitleTerminalView.Instance.ItemAt(p) : "";
+    }
+
+    // 오른쪽 CRT(직원 신원 화면)의 「출처」 버튼 · 출처 창 X.
+    private string StaffButtonUnderMouse()
+    {
+        if (_camera == null || TitleStaffIdView.Instance == null) return "";
+        Vector3 o = _camera.ProjectRayOrigin(_mouse);
+        Vector3 d = _camera.ProjectRayNormal(_mouse);
+        return TryCanvasPos("02", o, d, out Vector2 p) ? TitleStaffIdView.Instance.ButtonAt(p) : "";
     }
 
     // 기록실도 같은 왼쪽 CRT 캔버스를 쓴다 — 좌표를 넘겨 무엇을 가리켰는지 물어본다.

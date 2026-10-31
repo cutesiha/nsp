@@ -215,13 +215,13 @@ public static class PerfStats
     {
         var sb = new System.Text.StringBuilder();
         sb.AppendLine($"- 측정 오버헤드 {r.OverheadMs:0.00} ms (구간 전체 합)");
-        sb.AppendLine($"- 엔진 보고: process {r.ProcessMs:0.00} ms · physics {r.PhysicsMs:0.00} ms");
-        sb.AppendLine($"- 메모리: static {r.StaticMemMb:0.0} MB · video {r.VideoMemMb:0.0} MB");
-        sb.AppendLine($"- GC: gen0 {r.GcCollections[0]} · gen1 {r.GcCollections[1]} · gen2 {r.GcCollections[2]}");
-        sb.AppendLine($"- 노드 {r.Nodes} · 오브젝트 {r.Objects} · 고아 노드 {r.Orphans}");
-        sb.AppendLine($"- 렌더: draw call {r.DrawCalls} · 오브젝트 {r.RenderObjects} · 프리미티브 {r.Primitives}");
+        sb.AppendLine($"- 엔진 보고: process {r.ProcessMs:0.00} ms, physics {r.PhysicsMs:0.00} ms");
+        sb.AppendLine($"- 메모리: static {r.StaticMemMb:0.0} MB, video {r.VideoMemMb:0.0} MB");
+        sb.AppendLine($"- GC: gen0 {r.GcCollections[0]}, gen1 {r.GcCollections[1]}, gen2 {r.GcCollections[2]}");
+        sb.AppendLine($"- 노드 {r.Nodes}, 오브젝트 {r.Objects}, 고아 노드 {r.Orphans}");
+        sb.AppendLine($"- 렌더: draw call {r.DrawCalls}, 오브젝트 {r.RenderObjects}, 프리미티브 {r.Primitives}");
         foreach (var (name, ms, hits, worst) in r.Spans)
-            sb.AppendLine($"- `{name}` {ms:0.00} ms / {hits}회 (평균 {ms / hits:0.000} · 최악 {worst:0.00})");
+            sb.AppendLine($"- `{name}` {ms:0.00} ms / {hits}회 (평균 {ms / hits:0.000}, 최악 {worst:0.00})");
         foreach (var (name, ms) in r.Marks)
             sb.AppendLine($"- **{name}** {ms:0.00} ms");
         return sb.ToString();

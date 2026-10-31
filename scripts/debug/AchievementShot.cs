@@ -49,7 +49,7 @@ public partial class AchievementShot : Node
 
         AddChild(GD.Load<PackedScene>("res://scenes/main/MainScene3D_Test.tscn").Instantiate());
 
-        GD.Print("\n\n################ 도전과제 기록실 · 달성 팝업 ################");
+        GD.Print("\n\n################ 도전과제 기록실, 달성 팝업 ################");
 
         // ① 타이틀 대기 화면 → 아무 키.
         for (int i = 0; i < 1200 && TitleTerminalView.Instance?.CurrentMode
@@ -97,7 +97,7 @@ public partial class AchievementShot : Node
         Ok(TitleTerminalView.Instance?.CurrentMode == TitleTerminalView.Mode.Menu, "메뉴 화면이 다시 떴다");
         Shot("04_복귀");
 
-        // ⑥ 달성 팝업 — 오른쪽 아래.
+        // ⑥ 달성 팝업 — 왼쪽 아래.
         m?.Unlock(Achievements.GhostDispelled);
         for (int i = 0; i < 300 && AchievementToast.Instance?.IsShowing != true; i++) await Frame();
         var toast = AchievementToast.Instance;
@@ -107,12 +107,12 @@ public partial class AchievementShot : Node
         GD.Print($"   제자리 높이 {toast?.CardRestTop:0.0}");
         for (int i = 0; i < 9; i++)
         {
-            GD.Print($"   올라옴 {i} — 높이 {toast?.CardTop,7:0.0}");
+            GD.Print($"   올라옴 {i} - 높이 {toast?.CardTop,7:0.0}");
             Shot($"05_올라옴_{i}");
             await Seconds(0.05);
         }
         await Seconds(0.3);
-        Ok(toast?.CardVisible == true, $"팝업이 떴다 — “{toast?.ShownTitle}”");
+        Ok(toast?.CardVisible == true, $"팝업이 떴다 - “{toast?.ShownTitle}”");
         Shot("06_달성팝업_제자리");
 
         // 퇴장 — 위로 살짝 튕긴 뒤 아래로 빠지는지 본다.
@@ -129,7 +129,7 @@ public partial class AchievementShot : Node
             peak = Mathf.Min(peak, top);     // 값이 작을수록 위
             bottom = Mathf.Max(bottom, top);
         }
-        GD.Print($"   퇴장 — 제자리 {toast?.CardRestTop:0.0} · 가장 높이 {peak:0.0} · 가장 아래 {bottom:0.0}");
+        GD.Print($"   퇴장 - 제자리 {toast?.CardRestTop:0.0}, 가장 높이 {peak:0.0}, 가장 아래 {bottom:0.0}");
         Ok(peak < (toast?.CardRestTop ?? 0f) - 2f, $"내려가기 전에 위로 튕긴다 ({peak:0.0})");
         Ok(bottom > (toast?.CardRestTop ?? 0f) + 20f, $"그 뒤 아래로 빠진다 ({bottom:0.0})");
         Shot("07_퇴장후");
@@ -151,7 +151,7 @@ public partial class AchievementShot : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (헤드리스 — {name} 저장 안 됨)"); return; }
+        if (img == null) { GD.Print($"   (헤드리스 - {name} 저장 안 됨)"); return; }
         img.SavePng($"{_dir}/ach_{_shot:00}_{name}.png");
         _shot++;
     }

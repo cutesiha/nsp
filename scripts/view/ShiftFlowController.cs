@@ -134,9 +134,29 @@ public partial class ShiftFlowController : Node
         _stage = Stage.Title;
         // 시작 화면·근무 배치·휴게시간은 같은 곡으로 통일한다.
         // 실시간 근무에 들어갈 때만 페이드아웃되고 ControlRoomAtmosphere의 환경음이 대신한다.
-        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
+        //
+        // 켤 때 한 번 — 광과민성 · 공포 묘사 경고. 개발용 바로 시작(skipBoot)에서는 띄우지 않는다.
+        // 경고가 떠 있는 동안은 소리가 하나도 나지 않는다 — 곡은 경고가 걷힐 때 처음부터 시작한다.
+        if (!skipBoot && BootWarning.WillShow)
+        {
+            BootWarning.Closing += StartTitleMusicAfterWarning;
+            BootWarning.ShowOnce(this);
+        }
+        else
+        {
+            // 경고 없이 지나간 첫 부팅(개발용 바로 시작)도 "켤 때 한 번" 을 쓴 것으로 친다 —
+            // 그러지 않으면 그 판의 엔딩 뒤 타이틀에서 처음으로 경고가 떠 검은 화면처럼 보였다.
+            BootWarning.MarkShown();
+            Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
+        }
 
         if (skipBoot) BootStraightToDay1();
+    }
+
+    private void StartTitleMusicAfterWarning()
+    {
+        BootWarning.Closing -= StartTitleMusicAfterWarning;
+        Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true, restartIfSame: true);
     }
 
     // 개발 전용(_skipToDay1Pending) — 타이틀을 건너뛰고 DAY1 배치로 곧장 들어간다.
@@ -261,6 +281,8 @@ public partial class ShiftFlowController : Node
         var cfg = Config.Instance?.Data;
         if (gs == null || cfg == null || DayFeatures.IsTutorialDay) return;
         if (gs.CurrentDay != cfg.StressUnlockDay) return;
+        // 단기 근무에는 스트레스가 없다 — 열릴 것이 없으니 안내도 하지 않는다.
+        if (!DayFeatures.StressEnabled) return;
         if (!_unlockSaid.Add($"stress|{gs.CurrentDay}")) return;
         _ = PlayGuideLines("unlock_stress");
     }
@@ -343,14 +365,23 @@ public partial class ShiftFlowController : Node
 
         // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
         // 그 값이 남지 않게 모든 런 상태를 비운다.
-        StartNewRun(PlayPrologue ? 0 : 1);
+        // 정규(장기) 근무는 단기 근무를 마친 사람만 연다 — 프롤로그와 DAY0 교육은 이미 본 것이다.
+        // 그래서 **곧장 DAY1 근무배치로 들어간다**(2026-10-31 사용자 요청). DAY 스토리 컷인은 그대로 나온다.
+        bool prologue = PlayPrologue && GameModes.Current != GameMode.Standard;
+        StartNewRun(prologue ? 0 : 1);
         _stressHintShown = false;
         // 시작 화면에 남아 있던 결말의 흔적(붉은 CRT / 아침빛)도 새 근무와 함께 지운다.
         EndingState.Clear();
         EndingState.PendingWake = EndingState.Kind.None;
 
-        if (!PlayPrologue || PrologueDirector.Instance == null)
+        if (!prologue || PrologueDirector.Instance == null)
         {
+            // 프롤로그가 하던 화면 정리(왼쪽 · 오른쪽 CRT 를 근무 화면으로)를 여기서 한다 —
+            // 가상 시뮬 건너뛰기(SkipToDay1)와 같은 도착 상태다.
+            _ctl?.SetLeftScreen(_ctl.FacilityViewport);
+            _ctl?.SetRightScreen(_ctl.CctvViewport);
+            _ctl?.SetScreenBrightness(0.02f);
+            AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
             EnterSchedule();
             return;
         }
@@ -385,31 +416,37 @@ public partial class ShiftFlowController : Node
             return true;
         }
 
-        // ② DAY0 교육.
+        // ② DAY0 가상 시뮬 — 교육을 접고 **DAY1 로 건너간다.**
+        //
+        // Abort 는 GUIDE-0 의 안내만 멈춘다. 그대로 두면 교육용으로 열어 둔 DAY0 배치
+        // 화면에 남아, 건너뛴 사람이 할 일 없는 하루를 그대로 치러야 한다.
         if (NSP.Prologue.TutorialDirector.Instance is { IsRunning: true } tut)
         {
             tut.Abort();
+            SkipToDay1();
             return true;
         }
 
-        // ③ 프롤로그 — 여기만 **도착점이 다르다.**
+        // ③ 프롤로그 — **가상 시뮬로 넘긴다.**
+        //
+        // 예전에는 여기서 DAY1 까지 한 번에 건너뛰었다. 그러면 SKIP 한 번에 가상 시뮬이
+        // 통째로 사라져, 건너뛸 기회조차 없이 안 본 것이 된다. 프롤로그를 정상 종료와
+        // 같은 길(Finished → OnPrologueFinished → DAY0)로 끝내 두면, 이어서 뜨는
+        // 가상 시뮬에서 SKIP 을 한 번 더 눌러 DAY1 로 갈 수 있다.
         if (_stage == Stage.Prologue && NSP.Prologue.PrologueDirector.Instance is { IsRunning: true } pro)
         {
-            if (PrologueDirector.Instance != null)
-                PrologueDirector.Instance.Finished -= OnPrologueFinished;
             pro.Abort();
-            SkipToDay1FromPrologue();
             return true;
         }
         return false;
     }
 
-    // 프롤로그를 건너뛴 자리에서 DAY1 배치로 간다.
+    // 지금 어디에 있든 DAY1 배치로 간다(가상 시뮬 건너뛰기).
     //
     // EnterSchedule 은 Stage.Title 로 들어와야 StartNewRun(1) 을 돌려 **DAY1 새 게임**을
-    // 연다(그냥 두면 프롤로그가 깔아 둔 DAY0 인 채로 교육 배치에 들어간다). 화면 상태도
+    // 연다(그냥 두면 DAY0 인 채로 교육 배치에 들어간다). 화면 상태도
     // BootStraightToDay1 과 똑같이 맞춘다 — 그쪽이 이미 검증된 도착 상태다.
-    private void SkipToDay1FromPrologue()
+    private void SkipToDay1()
     {
         _stage = Stage.Title;
         _stressHintShown = false;
@@ -531,6 +568,8 @@ public partial class ShiftFlowController : Node
         // 패드가 손에 올라오는 동안 말풍선이 따라 올라온다.
         await ToSignal(tree.CreateTimer(0.35), SceneTreeTimer.SignalName.Timeout);
         if (!IsInstanceValid(this) || _stage != Stage.Schedule) return;
+        // 그 사이 패드를 벌써 내려놓았으면 띄우지 않는다 — 말풍선은 패드 위에 붙는 것이다.
+        if (AdminPad3D.Instance?.IsOpen != true) return;
         PadHintBubble.Show("근무 지침은 패드에서 다시 확인할 수 있습니다.", 2f);
     }
 
@@ -619,6 +658,8 @@ public partial class ShiftFlowController : Node
     private void RequestEndShift()
     {
         if (_stage != Stage.Shift) return;
+        // 교육 중에는 GUIDE-0 가 근무 종료를 지시한 뒤에만 끝난다 — 업무 창 · 모니터1 어느 버튼이든.
+        if (NSP.Prologue.TutorialDirector.BlocksEndShift) return;
         _stage = Stage.Ending;
         EndShiftSequence();
     }
@@ -645,6 +686,10 @@ public partial class ShiftFlowController : Node
 
         // 「첫 야근」·「오늘은 무사히」 — 근무가 정상 종료된 이 지점에서 한 번 판정한다.
         AchievementManager.Instance?.NoteShiftEnded();
+
+        // 정전이 끝까지 이어져 아직 기록에 오르지 못한 죽음이 있으면 지금 올린다 —
+        // 그래야 근무 보고 · 휴게시간 조사 자료 · 띠 시간표에 그 사람의 생체 신호 소실이 남는다.
+        FacilitySimulation.Instance?.RevealUndiscoveredDeaths();
 
         // 개발용 — 오늘 결번 개체가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
         FacilitySimulation.Instance?.PrintSaboteurDebug();

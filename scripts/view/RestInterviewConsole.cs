@@ -113,7 +113,10 @@ public partial class RestInterviewConsole : Control
     // 1013 QA 16번 — 띄 안의 방 이름 · 위의 시각 · 왼쪽 직원 이름이 너무 작았다.
     // 글자 크기(BandFontPx)를 올리면 눈금 · 이름 칸 · 줄 높이가 같은 비율로 커지므로,
     // 띄 자체도 그만큼 높여 준다. 늘어난 높이는 아래 카드 목록에서 빌려 온다(목록은 스크롤된다).
-    private const float BandH = 164f;
+    // 2026-10-27 — 사고 선 라벨 줄과 "띠를 더 크게" 요청으로 164 → 180. 늘어난 만큼 아래 카드 목록이
+    // 줄어든다(목록은 스크롤된다 — 상세칸 위선 ListBottom 에서 끝난다).
+    private const float BandH = 180f;
+    private const float ListBottom = 416f;
     private const int BandFontPx = 17;
 
     public override void _ExitTree()
@@ -146,11 +149,11 @@ public partial class RestInterviewConsole : Control
         AddChild(NoteTabs);
 
         // 카드 목록은 그대로 남기고 스크롤 높이만 줄인다(띠가 목록을 대신하지 않는다).
-        _listFrame = FramePanel(new Vector2(16, BandY + BandH + 44), new Vector2(768, 136));
+        _listFrame = FramePanel(new Vector2(16, BandY + BandH + 44), new Vector2(768, ListBottom - (BandY + BandH + 44)));
         AddChild(_listFrame);
         _listScroll = new ScrollContainer
         {
-            Position = new Vector2(24, BandY + BandH + 50), Size = new Vector2(752, 124),
+            Position = new Vector2(24, BandY + BandH + 50), Size = new Vector2(752, ListBottom - (BandY + BandH + 50) - 6),
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
         };
         AddChild(_listScroll);
@@ -196,7 +199,7 @@ public partial class RestInterviewConsole : Control
         // 경비실이 오늘 무엇을 남겼는가. 없으면 왜 없는지까지 적는다 —
         // 자료가 비는 이유가 "경비실을 비웠기 때문"이라는 것을 여기서 알게 한다.
         int n = NSP.Facility.RoomEffectStats.GuardRecordsToday;
-        _guardRecords.Text = n > 0 ? $"경비 기록 {n}건" : "경비 기록 없음 — 오늘 경비실이 비어 있었습니다";
+        _guardRecords.Text = n > 0 ? $"경비 기록 {n}건" : "경비 기록 없음 - 오늘 경비실이 비어 있었습니다";
         _guardRecords.AddThemeColorOverride("font_color", n > 0 ? Dim : new Color(1f, 0.46f, 0.40f));
     }
 
@@ -260,6 +263,17 @@ public partial class RestInterviewConsole : Control
             && e.HasTime && Mathf.Abs(e.AnchorTime - at) < 0.5f);
         if (card != null) EvidencePinPressed?.Invoke(card.Id);
     }
+
+    // 카드 목록에서 그 줄이 보이게 굴린다(띠의 핀 · 사고 세로선을 눌렀을 때 — 그 자료로 바로 간다).
+    public void ScrollListTo(Control row)
+    {
+        if (_listScroll == null || row == null || !IsInstanceValid(row) || !row.IsInsideTree()) return;
+        _listScroll.EnsureControlVisible(row);
+    }
+
+    // 자료 카드 목록 틀(이 콘솔의 로컬 좌표). 교육 화살표가 "여기서 고르십시오" 를 가리킨다.
+    public Rect2 EvidenceListRect =>
+        _listFrame != null ? new Rect2(_listFrame.Position, _listFrame.Size) : new Rect2();
 
     // 캡처/검증 씬 전용 — 버튼을 실제로 누르지 않고 같은 신호만 보낸다.
     public void EmitExpandForTest() => ExpandRequested?.Invoke();

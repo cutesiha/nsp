@@ -46,7 +46,7 @@ public partial class StressVisibilityTest : Node
     // ── 구간 이름과 색은 한 곳에서만 정해진다 ────────────────────────────
     private void TestBands()
     {
-        Head("A", "구간 이름 · 색 — 모든 화면이 같은 값을 읽는다");
+        Head("A", "구간 이름, 색 - 모든 화면이 같은 값을 읽는다");
         Reset(1);
         var st = _sim.GetEmployeeState("cat");
         var cfg = Config.Instance.Data;
@@ -75,7 +75,7 @@ public partial class StressVisibilityTest : Node
 
     private void TestFaintImminent()
     {
-        Head("B", "기절 임박 — 기절 문턱 바로 아래");
+        Head("B", "기절 임박 - 기절 문턱 바로 아래");
         Reset(1);
         var st = _sim.GetEmployeeState("cat");
         var cfg = Config.Instance.Data;
@@ -91,7 +91,7 @@ public partial class StressVisibilityTest : Node
     // ── 구간이 나빠지는 순간에만 한 번 알린다 ────────────────────────────
     private void TestBandAlerts()
     {
-        Head("C", "구간 전환 알림 — 위험 진입 · 기절 임박에 한 번씩");
+        Head("C", "구간 전환 알림 - 위험 진입, 기절 임박에 한 번씩");
         Reset(1);
         GameState.Instance.SetPhase(GamePhase.Live);
         var st = _sim.GetEmployeeState("cat");
@@ -105,7 +105,7 @@ public partial class StressVisibilityTest : Node
         st.Stress = cfg.StressCautionFrom - 0.5f;
         _sim.AddStress("cat", 1f);
         Check(_sim.StressBandName(st) == "주의" && _notices.Count == 0,
-            $"주의 진입에는 알림이 없다 ({_sim.StressBandName(st)} · {_notices.Count}건)");
+            $"주의 진입에는 알림이 없다 ({_sim.StressBandName(st)}, {_notices.Count}건)");
 
         // 주의 → 위험: 경고 한 번, 작업 효율까지 적는다.
         _notices.Clear();
@@ -146,7 +146,7 @@ public partial class StressVisibilityTest : Node
     // 배치 화면이 "배치 불가" 로 그릴 근거 — 기절 · 격리 플래그.
     private void TestBenchedFlags()
     {
-        Head("D", "기절 · 격리 — 배치 화면이 읽는 플래그");
+        Head("D", "기절, 격리 - 배치 화면이 읽는 플래그");
         Reset(1);
         GameState.Instance.SetPhase(GamePhase.Live);
         var st = _sim.GetEmployeeState("cat");

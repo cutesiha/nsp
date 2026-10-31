@@ -35,7 +35,7 @@ public partial class Day0FlowTest : Node
         var open = sim.GetRoomIds()
             .Where(r => sim.GetRoomDef(r)?.IsRestricted == false && sim.IsRoomActive(r))
             .OrderBy(r => r).ToList();
-        GD.Print($"\n[A] DAY0 배치 가능 작업실 : {string.Join(" · ", open)}");
+        GD.Print($"\n[A] DAY0 배치 가능 작업실 : {string.Join(", ", open)}");
         Check("A 코어실이 열려 있다(첫 배치 대상)", open.Contains("core_room"));
         Check("A 정비실은 잠겨 있다(상황이 생긴 뒤에 열린다)", !open.Contains("maintenance_room"));
         Check("A 저장고는 잠겨 있다(상황이 생긴 뒤에 열린다)", !open.Contains("storage_room"));
@@ -52,7 +52,7 @@ public partial class Day0FlowTest : Node
         gs.SetPhase(GamePhase.Live);
         sim.OpenRoomMidShift("maintenance_room");
         var task = sim.GetPrimarySpawnedTask("maintenance_room");
-        GD.Print($"\n[B] 정비실 열기 → 활성 {sim.IsRoomActive("maintenance_room")} · 업무 {task?.TaskId ?? "없음"}");
+        GD.Print($"\n[B] 정비실 열기 → 활성 {sim.IsRoomActive("maintenance_room")}, 업무 {task?.TaskId ?? "없음"}");
         Check("B 정비실이 열렸다", sim.IsRoomActive("maintenance_room"));
         Check("B 자재 생산 업무가 함께 떴다", task?.TaskId == "materials_production");
         Check("B 열린 뒤에는 배치할 수 있다", sim.AssignToRoom("rabbit", "maintenance_room"));
@@ -73,7 +73,7 @@ public partial class Day0FlowTest : Node
         {
             var missing = new[] { "rabbit", "cat", "dog", "fox", "sheep", "wolf" }
                 .Where(id => string.IsNullOrEmpty(DialogueRepository.GetEvent(ev, id)?.Opening)).ToList();
-            GD.Print($"[C] {ev} — 대사 없는 직원 {(missing.Count == 0 ? "없음" : string.Join(", ", missing))}");
+            GD.Print($"[C] {ev} - 대사 없는 직원 {(missing.Count == 0 ? "없음" : string.Join(", ", missing))}");
             Check($"C {ev} 는 직원 여섯 명 모두에게 대사가 있다", missing.Count == 0);
         }
         // 복귀 전화 대사에 이름 · 방이 박혀 있으면 상황이 바뀔 때마다 거짓말이 된다
@@ -120,23 +120,35 @@ public partial class Day0FlowTest : Node
             // 구 캐릭터(owl · crow · jellyfish)가 섞이면 안 된다(문서 §5).
             var strangers = beat.Lines.Select(l => l.SpeakerEmployeeId)
                 .Where(x => !string.IsNullOrEmpty(x) && !roster.Contains(x)).Distinct().ToList();
-            Check($"F {id} 는 현 직원 6인만 말한다{(strangers.Count == 0 ? "" : " — " + string.Join(",", strangers))}",
+            Check($"F {id} 는 현 직원 6인만 말한다{(strangers.Count == 0 ? "" : " - " + string.Join(",", strangers))}",
                 strangers.Count == 0);
             Check($"F {id} 의 모든 줄에 대사 글이 있다", beat.Lines.All(l => l.Text.Length > 0));
-            GD.Print($"[F] {id} — {beat.Lines.Count}줄 · " +
+            GD.Print($"[F] {id} - {beat.Lines.Count}줄, " +
                      string.Join(" → ", beat.Lines.Select(l => l.SpeakerEmployeeId)));
         }
 
-        // ── G : 문서에 적혀 있는데 빠져 있던 안내들 ───────────────────
+        // ── G : 교육 안내 ─────────────────────────────────────────────
         GD.Print("");
-        Check("G §17 큰 설비는 혼자 못 고친다는 안내가 있다",
-            GuideText("tut_relocate").Contains("혼자 수리할 수 없습니다"));
-        Check("G §16 전력 부족 안내가 있다", GuideText("tut_power_short").Contains("전력이 모자라면"));
-        string sab = GuideText("ops_first_sabotage");
-        Check("G §21 첫 방해공작 안내가 있다", sab.Contains("단순 고장이 아닌"));
-        // GUIDE-0 는 범인을 모른다 — 지목하면 그 자리에서 추리가 끝난다.
-        Check("G §21 안내가 범인을 지목하지 않는다", sab.Contains("알려주지 않습니다") && !sab.Contains("범인은"));
-        Check("G §19 첫 환기 정지 안내가 있다", GuideText("ops_vent_down").Contains("환기가 멈췄습니다"));
+        Check("G §17 수리 인원을 작업실로 보내라는 안내가 있다",
+            GuideText("tut_relocate").Contains("{ROOM}"));
+        Check("G §16 전력 감소 안내가 있다", GuideText("tut_power_short").Contains("전력"));
+        // 2026-10-22 — 가상 시뮬레이션이 끝난 뒤에는 GUIDE-0 가 근무에 끼어들지 않는다
+        // (첫 방해공작 · 환기 정지 · 작은 교란 안내를 대본에서 뺐다).
+        Check("G 근무 중 방해공작 안내는 없다", NSP.Prologue.PrologueScript.GetGuide("ops_first_sabotage") == null);
+        Check("G 근무 중 환기 정지 안내는 없다", NSP.Prologue.PrologueScript.GetGuide("ops_vent_down") == null);
+
+        // 전력 총량은 3, 발전실 사고 한 번이면 2 가 된다(가상 시뮬레이션도 같다).
+        int cap = Config.Instance?.Data?.PowerCapacityMax ?? 0;
+        Check($"G 전력 총량은 3 이다({cap})", cap == 3);
+        gs.RepairPowerAccident();
+        Check($"G 근무 시작 전력 {gs.PowerCapacity} / {cap} - 처음부터 다 차 있다", gs.PowerCapacity == cap);
+        Check("G 시작할 때 켜진 것은 조명, CCTV 뿐이다",
+            gs.IsConsumerPowered(PowerConsumer.Lighting) && gs.IsConsumerPowered(PowerConsumer.CctvWatch)
+            && !gs.IsConsumerPowered(PowerConsumer.Barrier));
+        float powerLoss = sim.GetRoomDef("power_room")?.AccidentAmount ?? 0f;
+        gs.TriggerPowerAccident(Mathf.RoundToInt(powerLoss));
+        Check($"G 발전실 사고 한 번이면 전력이 2 가 된다({gs.PowerCapacity})", gs.PowerCapacity == 2);
+        gs.RepairPowerAccident();
 
         // ── H : 블라인드 테스트 기록 ──────────────────────────────────
         GD.Print("");

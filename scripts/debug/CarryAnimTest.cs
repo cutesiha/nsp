@@ -103,7 +103,7 @@ public partial class CarryAnimTest : Node
                 foreach (string arm in new[] { ArmL, ArmR })
                 {
                     if (body?.GetNodeOrNull<Node3D>(arm) is not { } j) continue;
-                    string key = $"{now} · {(arm == ArmL ? "왼팔" : "오른팔")}";
+                    string key = $"{now}, {(arm == ArmL ? "왼팔" : "오른팔")}";
                     float x = j.Rotation.X;
                     swing[key] = swing.TryGetValue(key, out var r)
                         ? (Mathf.Min(r.Min, x), Mathf.Max(r.Max, x)) : (x, x);
@@ -126,11 +126,11 @@ public partial class CarryAnimTest : Node
 
         foreach (var p in players)
             if (changes[p].Count > 0)
-                GD.Print($"   {p.GetParent()?.Name}: 클립 {changes[p].Count}회 전환 — {string.Join(" → ", seen[p])}");
+                GD.Print($"   {p.GetParent()?.Name}: 클립 {changes[p].Count}회 전환 - {string.Join(" → ", seen[p])}");
 
         Check(worst <= MaxChangesPerSecond,
               $"1초 안에 클립이 가장 많이 바뀐 횟수 {worst}회 (허용 {MaxChangesPerSecond}회)"
-              + (worstPlayer != null && worst > MaxChangesPerSecond ? $" — {worstPlayer.GetParent()?.Name}" : ""));
+              + (worstPlayer != null && worst > MaxChangesPerSecond ? $" - {worstPlayer.GetParent()?.Name}" : ""));
 
         // 위팔이 한 클립 안에서 얼마나 움직이는가 — 이게 "팔 휘젓기" 의 실체다.
         var over = new List<string>();
@@ -143,7 +143,7 @@ public partial class CarryAnimTest : Node
         Check(swing.Count > 0, $"상자 클립에서 위팔 각도를 {swing.Count}건 쟀다");
         Check(over.Count == 0, over.Count == 0
             ? $"어떤 상자 클립도 위팔이 {Mathf.RadToDeg(MaxArmSwingRad):0}° 넘게 휘돌지 않는다"
-            : $"팔이 휘도는 클립 {over.Count}건 — {string.Join(" · ", over)}");
+            : $"팔이 휘도는 클립 {over.Count}건 - {string.Join(", ", over)}");
 
         Done();
     }

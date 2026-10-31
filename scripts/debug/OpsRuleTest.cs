@@ -14,8 +14,9 @@ namespace NSP.Debug;
 //   ① 경고 필요 인원 — 코어실·발전실만 2명, 나머지 작업실은 1명.
 //   ② 경고 해제     — 사람이 도착하는 순간이 아니라 짧게 작업해야 풀린다.
 //                     그 작업 시간은 실제 고장 수리 시간보다 반드시 짧다.
-//   ③ 방해공작      — 혼자 있는 방에서는 손대지 않는다(로그만으로 범인이 드러난다).
-//                     DAY1 은 거의 일어나지 않는다.
+//   ③ 방해공작      — 혼자 방을 맡아도 손대지만, 그 고장은 결번이 있던 방에서 터지지 않는다
+//                     (로그만으로 범인이 드러나지 않게). DAY1 에도 한 번은 일어난다.
+//   ⑥ 결번 격리     — 귀신 · 방해공작 · 봉쇄 흔들림이 전부 멈춘다(귀신은 결번이 불러온다).
 public partial class OpsRuleTest : Node
 {
     private const float Step = 1f / 30f;
@@ -36,8 +37,9 @@ public partial class OpsRuleTest : Node
 
         CheckWarningStaffData();
         CheckWarningStabilize();
-        CheckSaboteurNeedsCompany();
-        CheckDay1SabotageIsRare();
+        CheckSaboteurAloneBreaksElsewhere();
+        CheckDay1SabotageHappens();
+        CheckIsolationStopsSummoning();
         CheckRelocationRoutes();
         CheckUnstaffedNeedsStay();
 
@@ -94,18 +96,28 @@ public partial class OpsRuleTest : Node
         }
 
         // 실제로 한 번 굴려 본다. 아무도 배치하지 않고 경고가 뜰 때까지 기다린다.
+        // 이 검사는 경고 장치만 본다 — 빈 방의 무인 방치 사고는 0초에 반드시 나므로(DAY1~3 에도 미루지 않는다)
+        // 그대로 두면 경고가 뜰 방이 먼저 다 고장 난다. 이 검사 동안만 무인 사고 타이머를 붙잡아 둔다.
         StartShift(1);
+        _holdUnstaffed = true;
+        try { RunWarningStabilize(); }
+        finally { _holdUnstaffed = false; }
+    }
+
+    private void RunWarningStabilize()
+    {
         FacilityWarning w = null;
         for (float t = 0f; t < 110f && w == null; t += Step)
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            HoldUnstaffed();
             w = _sim.Warnings.Active.FirstOrDefault();
         }
         if (w == null) { Check(false, "근무 중 경고가 한 번은 뜬다"); return; }
 
         string room = w.RoomId;
-        GD.Print($"   {RoomName(room)} 경고 — {w.RequiredStaff}명 필요 · 안정화 {w.WorkNeeded:0.#}초 · " +
+        GD.Print($"   {RoomName(room)} 경고 - {w.RequiredStaff}명 필요, 안정화 {w.WorkNeeded:0.#}초, " +
                  $"제한 {w.Remaining:0}초");
 
         // 필요한 만큼 사람을 보낸다.
@@ -117,12 +129,14 @@ public partial class OpsRuleTest : Node
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            HoldUnstaffed();
         }
         Check(_sim.OnDutyCount(room) >= w.RequiredStaff, $"{RoomName(room)}에 인원이 도착했다");
 
         // 도착 직후 — 아직 풀리면 안 된다.
         GameState.Instance.AdvanceDayTime(Step);
         _sim.Tick(Step);
+        HoldUnstaffed();
         bool stillOpen = _sim.Warnings.HasActive(room);
         Check(stillOpen, "도착하자마자 경고가 풀리지 않는다");
 
@@ -145,29 +159,49 @@ public partial class OpsRuleTest : Node
         Check(_sim.Warnings.Prevented > preventedBefore, "막아 낸 경고로 집계된다");
     }
 
-    // ── ③ 방해공작은 혼자일 때 하지 않는다 ───────────────────────────
-    private void CheckSaboteurNeedsCompany()
+    // ── ③ 혼자 방을 맡아도 손대지만, 그 방에서는 터지지 않는다 ─────────
+    //
+    // 예전 규칙("혼자면 손대지 않는다")은 결번이 혼자 방을 맡는 흔한 배치에서 방해공작을 0 으로
+    // 만들었다. 이제는 손대고 시간이 지나 **다른 방**에서 고장 난다 — 로그 한 줄로 범인이
+    // 드러나지 않는다는 원래 목적은 그대로다.
+    private void CheckSaboteurAloneBreaksElsewhere()
     {
-        GD.Print("\n---------------- ③ 혼자일 때는 손대지 않는다 ----------------");
+        GD.Print("\n---------------- ③ 혼자 손댄 고장은 다른 방에서 ----------------");
         const int Trials = 6;
 
         // (가) 결번을 코어실에 **혼자** 둔다. 나머지는 다른 방에 흩어 둔다.
-        int aloneSabotage = 0;
-        for (int i = 0; i < Trials; i++) aloneSabotage += RunSabotageTrial(2, withCompany: false);
-        GD.Print($"   혼자 있을 때 — {Trials}회 중 방해공작 {aloneSabotage}건");
-        Check(aloneSabotage == 0, "혼자 있는 방에서는 방해공작이 일어나지 않는다");
+        int alone = 0, aloneHere = 0;
+        for (int i = 0; i < Trials; i++)
+        {
+            var (n, here) = RunSabotageTrial(2, withCompany: false);
+            alone += n; aloneHere += here;
+        }
+        GD.Print($"   혼자 있을 때 - {Trials}회 중 방해공작 {alone}건 (그중 결번이 있던 코어실 {aloneHere}건)");
+        Check(alone > 0, $"결번이 혼자 방을 맡아도 방해공작이 일어난다 ({alone}/{Trials})");
+        Check(aloneHere == 0, "혼자 손댄 고장은 결번이 있던 방에서 터지지 않는다");
 
-        // (나) 같은 방에 한 명을 더 둔다 — 이때는 일어난다.
-        int companySabotage = 0;
-        for (int i = 0; i < Trials; i++) companySabotage += RunSabotageTrial(2, withCompany: true);
-        GD.Print($"   동료가 있을 때 — {Trials}회 중 방해공작 {companySabotage}건");
-        Check(companySabotage > 0, $"동료가 있으면 방해공작이 일어난다 ({companySabotage}/{Trials})");
+        // (나) 같은 방에 한 명을 더 둔다 — 이때도 일어난다(그 방에서 터질 수도 있다).
+        int company = 0;
+        for (int i = 0; i < Trials; i++) company += RunSabotageTrial(2, withCompany: true).Total;
+        GD.Print($"   동료가 있을 때 - {Trials}회 중 방해공작 {company}건");
+        Check(company > 0, $"동료가 있으면 방해공작이 일어난다 ({company}/{Trials})");
     }
 
-    // 결번을 코어실에 두고 한 근무를 끝까지 돌린다. 반환값 = 방해공작 건수.
-    private int RunSabotageTrial(int day, bool withCompany)
+    // 결번을 코어실에 두고 한 근무를 끝까지 돌린다.
+    // 반환값 = (방해공작 건수, 그중 결번이 있던 코어실에서 터진 건수).
+    private (int Total, int InSaboteurRoom) RunSabotageTrial(int day, bool withCompany, bool isolateSaboteur = false)
     {
         StartShift(day);
+        PlaceForTrial(withCompany);
+        if (isolateSaboteur) _sim.IsolateEmployee(GameState.Instance.SaboteurEmployeeId);
+
+        RunSeconds(DayObjectives.MaxShiftSeconds);
+        var sab = EventLog.Instance.GetAllEntries().Where(e => e.EventType == LogEventType.Sabotage).ToList();
+        return (sab.Count, sab.Count(e => e.RoomId == "core_room"));
+    }
+
+    private void PlaceForTrial(bool withCompany)
+    {
         var roster = _sim.GetActiveEmployeeIds().ToList();
         string saboteur = GameState.Instance.SaboteurEmployeeId;
 
@@ -182,27 +216,90 @@ public partial class OpsRuleTest : Node
             if (!companyPlaced) { _sim.AssignToRoom(id, "core_room"); companyPlaced = true; continue; }
             _sim.AssignToRoom(id, elsewhere[k++ % elsewhere.Length]);
         }
-
-        RunSeconds(DayObjectives.MaxShiftSeconds);
-        return EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Sabotage);
     }
 
-    // ── ④ DAY1 은 거의 일어나지 않는다 ───────────────────────────────
-    private void CheckDay1SabotageIsRare()
+    // ── ④ DAY1 에도 한 번은 일어난다 ─────────────────────────────────
+    //
+    // 예전에는 "DAY1 은 거의 없다(45%)" 였다. 단기 근무는 사흘뿐이라 첫날이 비면 결번이 있다는
+    // 것 자체가 전해지지 않는다(2026-10-28 플레이 피드백).
+    private void CheckDay1SabotageHappens()
     {
         GD.Print("\n---------------- ④ DAY1 방해공작 ----------------");
         const int Trials = 10;
-        int total = 0;
-        for (int i = 0; i < Trials; i++) total += RunSabotageTrial(1, withCompany: true);
-        GD.Print($"   DAY1 — {Trials}회 중 방해공작 {total}건 (동료를 붙여 둔 최악의 배치)");
-        Check(total <= Trials / 4,
-            $"DAY1 방해공작은 드물다 ({total}/{Trials}회, 기준 {Trials / 4}회 이하)");
+        int total = 0, days = 0;
+        for (int i = 0; i < Trials; i++)
+        {
+            int n = RunSabotageTrial(1, withCompany: false).Total;
+            total += n;
+            if (n > 0) days++;
+        }
+        GD.Print($"   DAY1 - {Trials}회 중 방해공작이 있었던 근무 {days}회 (총 {total}건, 결번 혼자 배치)");
+        Check(days >= Trials * 8 / 10, $"DAY1 에도 방해공작이 한 번은 일어난다 ({days}/{Trials}회, 기준 8회 이상)");
+        Check(total <= Trials, $"DAY1 은 하루 한 번을 넘지 않는다 (총 {total}건)");
 
-        // 비교 — DAY2 는 같은 배치에서 실제로 일어나야 한다.
+        // 비교 — DAY2 는 같은 배치에서 더 잦다(하루 두 번까지).
         int day2 = 0;
-        for (int i = 0; i < Trials; i++) day2 += RunSabotageTrial(2, withCompany: true);
-        GD.Print($"   DAY2 — {Trials}회 중 방해공작 {day2}건");
+        for (int i = 0; i < Trials; i++) day2 += RunSabotageTrial(2, withCompany: false).Total;
+        GD.Print($"   DAY2 - {Trials}회 중 방해공작 {day2}건");
         Check(day2 > total, $"DAY2 는 DAY1 보다 잦다 (DAY2 {day2} > DAY1 {total})");
+    }
+
+    // ── ⑥ 결번을 격리하면 전부 멈춘다 ───────────────────────────────
+    //
+    // 귀신은 직원으로 둔갑한 결번 개체가 불러오는 것이다. 알맞게 격리하면 귀신도, 방해공작도,
+    // 봉쇄 흔들림도 없어야 한다 — 확률이 줄어드는 것이 아니라 **0** 이다.
+    private void CheckIsolationStopsSummoning()
+    {
+        GD.Print("\n---------------- ⑥ 결번 격리 → 귀신, 방해공작, 봉쇄 멈춤 ----------------");
+        const int Trials = 4;
+
+        // (가) 풀어 둔 DAY3 — 봉쇄가 흔들리고 이상 개체가 나온다.
+        int freeGhosts = 0;
+        float freeInst = 0f;
+        for (int i = 0; i < Trials; i++)
+        {
+            RunSabotageTrial(3, withCompany: false);
+            freeGhosts += _sim.Ghost.AppearedToday;
+            freeInst += _sim.Containment.Instability;
+        }
+        GD.Print($"   풀어 둔 DAY3 - 이상 개체 {freeGhosts}회 / 근무 끝 봉쇄 불안정 평균 {freeInst / Trials:0.0}");
+        Check(freeGhosts >= Trials, $"결번이 풀려 있으면 이상 개체가 날마다 나온다 ({freeGhosts}/{Trials})");
+        Check(freeInst / Trials > 30f, $"결번이 풀려 있으면 봉쇄가 저절로 흔들린다 (평균 {freeInst / Trials:0.0})");
+
+        // (나) 근무 시작에 결번을 격리한 DAY3 — 아무것도 없다.
+        int ghosts = 0, sabotage = 0;
+        float inst = 0f;
+        for (int i = 0; i < Trials; i++)
+        {
+            sabotage += RunSabotageTrial(3, withCompany: false, isolateSaboteur: true).Total;
+            ghosts += _sim.Ghost.AppearedToday;
+            inst = Mathf.Max(inst, _sim.Containment.Instability);
+        }
+        GD.Print($"   격리한 DAY3 - 이상 개체 {ghosts}회 / 방해공작 {sabotage}건 / 봉쇄 불안정 최대 {inst:0.0}");
+        Check(ghosts == 0, "결번을 격리하면 이상 개체가 한 번도 나오지 않는다");
+        Check(sabotage == 0, "결번을 격리하면 방해공작이 일어나지 않는다");
+        Check(inst < 0.01f, "결번을 격리하면 봉쇄가 흔들리지 않는다");
+
+        // (다) 손댄 직후, 고장이 드러나기 전에 격리하면 그 고장도 없던 일이 된다.
+        int caught = 0, leaked = 0;
+        for (int i = 0; i < Trials; i++)
+        {
+            StartShift(3);
+            PlaceForTrial(withCompany: false);
+            bool isolated = false;
+            for (float t = 0f; t < DayObjectives.MaxShiftSeconds; t += Step)
+            {
+                GameState.Instance.AdvanceDayTime(Step);
+                _sim.Tick(Step);
+                if (isolated || _sim.PendingSabotageCount == 0) continue;
+                _sim.IsolateEmployee(GameState.Instance.SaboteurEmployeeId);
+                isolated = true;
+                caught++;
+            }
+            leaked += EventLog.Instance.GetAllEntries().Count(e => e.EventType == LogEventType.Sabotage);
+        }
+        GD.Print($"   손댄 직후 격리 - {caught}/{Trials}회 붙잡음, 그 뒤 드러난 고장 {leaked}건");
+        Check(caught > 0 && leaked == 0, "고장이 드러나기 전에 격리하면 손댄 것도 함께 사라진다");
     }
 
     // ── 도우미 ──────────────────────────────────────────────────────
@@ -224,7 +321,17 @@ public partial class OpsRuleTest : Node
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
+            HoldUnstaffed();
         }
+    }
+
+    private bool _holdUnstaffed;
+
+    private void HoldUnstaffed()
+    {
+        if (!_holdUnstaffed) return;
+        foreach (string r in _sim.GetRoomIds())
+            if (_sim.GetRoomState(r) is { } rs) rs.UnstaffedTimer = 0f;
     }
 
     // ── ⑤ 재배치 경로 ───────────────────────────────────────────────
@@ -262,7 +369,7 @@ public partial class OpsRuleTest : Node
         }
         Check(bad.Count == 0, bad.Count == 0
             ? "어떤 경로도 제한 구역을 지나가지 않는다"
-            : $"제한 구역 경유 {bad.Count}건 — {string.Join(" · ", bad.Take(3))}");
+            : $"제한 구역 경유 {bad.Count}건 - {string.Join(", ", bad.Take(3))}");
 
         // 직원이 쓰는 작업실끼리는 중앙 제어실 없이도 전부 오갈 수 있어야 한다.
         var work = ids.Where(r => _sim.GetRoomDef(r) is { IsRestricted: false }).ToList();
@@ -273,7 +380,7 @@ public partial class OpsRuleTest : Node
                 unreachable.Add($"{RoomName(from)}→{RoomName(to)}");
         Check(unreachable.Count == 0, unreachable.Count == 0
             ? $"작업실 {work.Count}곳이 서로 전부 이어져 있다"
-            : $"길이 끊긴 쌍 {unreachable.Count}건 — {string.Join(" · ", unreachable.Take(3))}");
+            : $"길이 끊긴 쌍 {unreachable.Count}건 - {string.Join(", ", unreachable.Take(3))}");
     }
 
     private string RoomName(string roomId) => _sim.GetRoomDef(roomId)?.DisplayName ?? roomId;

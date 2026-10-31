@@ -37,7 +37,7 @@ public partial class CorridorTest : Node
 
     private void RunAll()
     {
-        GD.Print("\n\n################ 복도 · 차폐 검증 (중앙제어실 3방향) ################");
+        GD.Print("\n\n################ 복도, 차폐 검증 (중앙제어실 3방향) ################");
         SectionA();
         SectionB();
         SectionC();
@@ -60,7 +60,7 @@ public partial class CorridorTest : Node
         GD.Print($"      중앙제어실 이웃: {string.Join(", ", hubNeighbors)}");
         Ok(hubNeighbors.Count == 3, $"직접 연결 {hubNeighbors.Count}곳");
         Ok(hubNeighbors.SequenceEqual(new[] { "core_room", "power_room", "storage_room" }),
-            "코어실 · 발전실 · 저장고 셋뿐이다");
+            "코어실, 발전실, 저장고 셋뿐이다");
 
         foreach (string gone in new[] { "guard_room", "maintenance_room", "isolation_room", "medical_room" })
         {
@@ -76,18 +76,18 @@ public partial class CorridorTest : Node
             GD.Print($"      {s.Side,-6} {s.Id,-16} {s.DisplayName,-12} {s.RoomA} ↔ {s.RoomB}  cam={s.CctvCameraId}");
 
         Ok(doors.Any(s => s is { Side: CorridorSide.North, RoomB: "core_room", CctvCameraId: "CAM-N01" }),
-            "북 — 코어실 방향 · CAM-N01");
+            "북 - 코어실 방향, CAM-N01");
         Ok(doors.Any(s => s is { Side: CorridorSide.West, RoomB: "power_room", CctvCameraId: "CAM-W01" }),
-            "서 — 발전실 방향 · CAM-W01");
+            "서 - 발전실 방향, CAM-W01");
         Ok(doors.Any(s => s is { Side: CorridorSide.East, RoomB: "storage_room", CctvCameraId: "CAM-E01" }),
-            "동 — 저장고 방향 · CAM-E01");
+            "동 - 저장고 방향, CAM-E01");
         Ok(doors.All(s => s.RoomA == Hub), "셋 다 중앙제어실 바로 앞 복도다(작업실 출입문이 아니다)");
         Ok(doors.All(s => s.ThreatLane), "셋 다 괴물 접근 레인으로 등록돼 있다");
 
         var seal = _net.Segments.FirstOrDefault(s => s.PermanentSeal);
         Ok(seal != null, "남측 영구 봉쇄 격벽이 등록돼 있다");
-        Ok(seal is { Side: CorridorSide.South, RoomB: "isolation_room" }, "남 — 격리실 방향의 옛 통로");
-        Ok(seal is { IsBlockable: false, Sealed: true }, "조작 불가 · 항상 봉쇄");
+        Ok(seal is { Side: CorridorSide.South, RoomB: "isolation_room" }, "남 - 격리실 방향의 옛 통로");
+        Ok(seal is { IsBlockable: false, Sealed: true }, "조작 불가, 항상 봉쇄");
         Ok(!_net.IsPassable(Hub, "isolation_room"), "중앙제어실 → 격리실 직통은 통과 불가");
         Ok(_sim.FindPath(Hub, "isolation_room").All(r => r != Hub)
            && !_sim.FindPath(Hub, "isolation_room").Contains("isolation_room0"),
@@ -143,7 +143,7 @@ public partial class CorridorTest : Node
         var seg = _net.ById("corridor_east");
 
         SetBarrierPower(false);
-        Ok(!_net.CanSeal(seg, out string why) && why.Contains("전력"), $"차폐 전력이 없으면 거부 — \"{why}\"");
+        Ok(!_net.CanSeal(seg, out string why) && why.Contains("전력"), $"차폐 전력이 없으면 거부 - \"{why}\"");
         SetBarrierPower(true);
 
         Ok(_net.Seal(seg.Id, out _) && seg.State == BarrierState.Closing, "닫기 지시 → CLOSING");
@@ -155,7 +155,7 @@ public partial class CorridorTest : Node
         Ok(!seg.Passable && !_net.IsPassable(Hub, "storage_room"), "그제서야 길이 끊긴다");
 
         var other = _net.ById("corridor_north");
-        Ok(!_net.CanSeal(other, out string why2) && why2.Contains("한도"), $"동시 차폐 한도 — \"{why2}\"");
+        Ok(!_net.CanSeal(other, out string why2) && why2.Contains("한도"), $"동시 차폐 한도 - \"{why2}\"");
         Ok(other.State == BarrierState.Open, "거부당한 쪽 문은 저절로 움직이지 않는다");
 
         Ok(_net.Select("corridor_west") && _net.SelectedId == "corridor_west", "제어 대상 변경");
@@ -167,7 +167,7 @@ public partial class CorridorTest : Node
         Ok(_net.Unseal(seg.Id) && seg.State == BarrierState.Opening, "열기 지시 → OPENING");
         Tick(1.0f);
         Ok(seg.State == BarrierState.Open && _net.IsPassable(Hub, "storage_room"), "열리면 길이 돌아온다");
-        Ok(!_net.CanSeal(seg, out string why3) && why3.Contains("냉각"), $"재작동 냉각 — \"{why3}\"");
+        Ok(!_net.CanSeal(seg, out string why3) && why3.Contains("냉각"), $"재작동 냉각 - \"{why3}\"");
         Tick(seg.ReengageCooldownSeconds + 0.1f);
         Ok(_net.CanSeal(seg, out _), "냉각이 끝나면 다시 닫을 수 있다");
 
@@ -217,7 +217,7 @@ public partial class CorridorTest : Node
         if (gs.IsConsumerPowered(PowerConsumer.Barrier)) gs.TryTogglePower(PowerConsumer.Barrier);
         foreach (var s in _net.Segments) s.CooldownLeft = 0f;
         gs.TriggerPowerAccident(2);
-        Ok(!_net.LeverToggle(out string lw) && lw.Contains("용량"), $"용량이 없으면 거부 — \"{lw}\"");
+        Ok(!_net.LeverToggle(out string lw) && lw.Contains("용량"), $"용량이 없으면 거부 - \"{lw}\"");
         Ok(!gs.IsConsumerPowered(PowerConsumer.Barrier) && _net.Segments.All(x => !x.Moving),
             "실패하면 슬롯을 반납하고 문도 안 움직인다");
         gs.RepairPowerAccident();
@@ -269,7 +269,7 @@ public partial class CorridorTest : Node
         var seal = _net.Segments.First(s => s.PermanentSeal);
         var gs = GameState.Instance;
 
-        Ok(!_net.Seal(seal.Id, out string r1) && r1.Contains("차폐 불가"), $"닫기 지시 거부 — \"{r1}\"");
+        Ok(!_net.Seal(seal.Id, out string r1) && r1.Contains("차폐 불가"), $"닫기 지시 거부 - \"{r1}\"");
         Ok(!_net.Unseal(seal.Id) && seal.Sealed, "열기 지시도 먹지 않는다");
         Ok(!_net.Toggle(seal.Id, out _) && seal.Sealed, "토글도 먹지 않는다");
 
@@ -329,7 +329,7 @@ public partial class CorridorTest : Node
         _sim.Rescue.NoAnswer(victim);
         float t = RunUntil(() => v.CurrentRoomId == FacilitySimulation.MedicalRoomIdPublic, 240f);
         Ok(v.CurrentRoomId == FacilitySimulation.MedicalRoomIdPublic,
-            $"의무실까지 옮겨졌다 ({t:0.0}초 · 지금 {v.CurrentRoomId})");
+            $"의무실까지 옮겨졌다 ({t:0.0}초, 지금 {v.CurrentRoomId})");
 
         // 격리 — 중앙제어실 직통이 사라졌으므로 의무실을 거쳐 걸어가야 한다.
         string who = ids.First(id => id != victim

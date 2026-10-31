@@ -193,7 +193,7 @@ public partial class RescueCarryShot : Node
     {
         var vp = _ctl.FacilityCctvViewport;
         var img = vp?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   ! {name}/{step} — 화면을 못 읽었다"); return; }
+        if (img == null) { GD.Print($"   ! {name}/{step} - 화면을 못 읽었다"); return; }
         string file = $"{_dir}/{name}_{step}.png";
         img.SavePng(file);
         _shots.Add(file);

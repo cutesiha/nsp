@@ -101,8 +101,8 @@ public partial class ShiftReportView : Control
         // 필수 업무를 못 끝냈으면 머리글부터 다르다 — "끝났다"와 "못 끝냈다"는 다른 결과다.
         int missed = gs.LastShiftMissedRequired;
         sb.AppendLine(missed > 0
-            ? $"[font_size=26][color=#ff6b5a]{DayFeatures.DayLabel(gs.CurrentDay)} — 필수 업무 미달성[/color][/font_size]"
-            : $"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} — SHIFT COMPLETE[/font_size]");
+            ? $"[font_size=26][color=#ff6b5a]{DayFeatures.DayLabel(gs.CurrentDay)} - 필수 업무 미달성[/color][/font_size]"
+            : $"[font_size=26]{DayFeatures.DayLabel(gs.CurrentDay)} - SHIFT COMPLETE[/font_size]");
         sb.AppendLine("");
         sb.AppendLine($"CORE        {Signed(coreDelta)}%   [color=#8899aa](현재 {gs.CoreProgress:0.0}%)[/color]");
         sb.AppendLine($"MATERIAL    {Signed(materialsDelta)}   [color=#8899aa](현재 {gs.Materials})[/color]\n");
@@ -110,7 +110,7 @@ public partial class ShiftReportView : Control
         var warn = FacilitySimulation.Instance?.Warnings;
         if (warn != null && warn.Raised > 0)
             sb.AppendLine($"경고          {warn.Raised}건 " +
-                          $"[color=#88ddaa]막음 {warn.Prevented}[/color] · " +
+                          $"[color=#88ddaa]막음 {warn.Prevented}[/color], " +
                           $"{(warn.Failed > 0 ? $"[color=#ff6a55]놓침 {warn.Failed}[/color]" : "놓침 0")}");
         sb.AppendLine($"사고          {incidents}");
         sb.AppendLine($"금기 위반     {(taboo > 0 ? $"[color=#ff6a55]{taboo}[/color]" : "0")}");

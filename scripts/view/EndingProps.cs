@@ -189,4 +189,105 @@ public partial class EndingProps : Node3D
         if (_figure != null) _figure.Visible = false;
         if (_corridorLight != null) { _corridorLight.Visible = false; _corridorLight.LightEnergy = 0f; }
     }
+
+    // ── BAD : 밖에서 문을 친다 → 아무도 없는데 문이 열린다 ─────────────────────
+    //
+    // 문은 씬에 원래 있는 ControlRoom/Door 를 그대로 움직인다. 손잡이는 문 왼쪽 끝이라
+    // 경첩은 **오른쪽 끝**(x = 2.0)이고, 방 안쪽(+Z)으로 열린다 — 그래야 열린 문짝이
+    // 오른쪽 벽에 붙어 플레이어 시선에서 문간을 가리지 않는다.
+    //
+    // 뒷벽은 막힌 판이라 문을 열면 콘크리트가 보인다. 문 뒤에 **빛을 받지 않는 검은 판**을
+    // 깔아 둔다 — 닫혀 있을 때는 문짝 속에 묻혀 안 보이고, 열리는 만큼만 드러난다.
+    private const float DoorHalfWidth = 0.45f;   // Door_Panel 폭 0.9 의 반
+    private Vector3 _doorRest;
+    private bool _doorReady;
+    private MeshInstance3D _void;
+    private float _bang;        // 쾅 한 번이 남긴 떨림(1 → 0)
+    private float _openDeg;     // 경첩 각도. + 가 방 안쪽
+    private readonly RandomNumberGenerator _rng = new();
+
+    // 돌아보기 전에 불러 둔다 — 문틀이 먼저 서 있어야 붉은 벽 속에서 문이 문으로 읽힌다.
+    public void PrepareDoor()
+    {
+        if (_doorReady || _door == null) return;
+        _doorReady = true;
+        _doorRest = _door.Position;
+        _rng.Randomize();
+        // 손잡이를 문짝에 붙인다 — 두드릴 때 같이 떨고, 열릴 때 같이 돈다.
+        _handle?.Reparent(_door, true);
+        _void = new MeshInstance3D
+        {
+            Name = "EndingDoorVoid",
+            Mesh = new QuadMesh { Size = new Vector2(DoorHalfWidth * 2f, 2.0f) },
+            // 벽 앞면(z = -2.55)보다 5mm 앞, 닫힌 문짝(-2.575 ~ -2.525) 속.
+            Position = new Vector3(DoorWorld.X, 1.0f, -2.545f),
+            MaterialOverride = new StandardMaterial3D
+            {
+                AlbedoColor = Colors.Black,
+                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
+            },
+            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+        };
+        AddChild(_void);
+
+        // 문틀 — 붉은 조명 아래에서는 철문과 콘크리트 벽이 같은 색이 되어 문이 벽에 묻힌다.
+        // 어두운 테두리 셋(양옆 · 위)을 둘러 문간의 윤곽을 세운다.
+        var frameMat = new StandardMaterial3D
+        {
+            AlbedoColor = new Color(0.05f, 0.05f, 0.055f), Metallic = 0.6f, Roughness = 0.5f,
+        };
+        foreach (var (pos, size) in new[]
+                 {
+                     (new Vector3(DoorWorld.X - DoorHalfWidth - 0.035f, 1.02f, -2.52f), new Vector3(0.07f, 2.04f, 0.07f)),
+                     (new Vector3(DoorWorld.X + DoorHalfWidth + 0.04f, 1.02f, -2.52f), new Vector3(0.07f, 2.04f, 0.07f)),
+                     (new Vector3(DoorWorld.X, 2.04f, -2.52f), new Vector3(DoorHalfWidth * 2f + 0.15f, 0.07f, 0.07f)),
+                 })
+        {
+            AddChild(new MeshInstance3D
+            {
+                Name = "EndingDoorFrame",
+                Mesh = new BoxMesh { Size = size },
+                Position = pos,
+                MaterialOverride = frameMat,
+            });
+        }
+    }
+
+    // 밖에서 한 번 쾅. strength 1 이 가장 세다 — 문짝이 방 쪽으로 튀었다 문틀에 되박히며 잘게 떤다.
+    public void BangDoor(float strength)
+    {
+        PrepareDoor();
+        _bang = Mathf.Max(_bang, strength);
+    }
+
+    // 경첩 각도를 seconds 동안 그 값으로. 처음엔 느리고 끝에서 더 느려진다(무게 있는 철문).
+    public async Task SwingDoor(float toDegrees, float seconds, Node timerHost)
+    {
+        PrepareDoor();
+        float from = _openDeg;
+        double t = 0;
+        while (t < seconds)
+        {
+            await timerHost.ToSignal(timerHost.GetTree(), SceneTree.SignalName.ProcessFrame);
+            t += timerHost.GetProcessDeltaTime();
+            float k = Mathf.Clamp((float)(t / seconds), 0f, 1f);
+            float e = k * k * (3f - 2f * k);
+            // 끼이익 — 매끈하게 돌지 않고 아주 조금씩 걸린다.
+            _openDeg = Mathf.Lerp(from, toDegrees, e) + Mathf.Sin(k * 31f) * 0.35f * (1f - k);
+        }
+        _openDeg = toDegrees;
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!_doorReady || _door == null || !IsInstanceValid(_door)) return;
+        _bang = Mathf.Max(0f, _bang - (float)delta * 4.2f);
+        float b = _bang * _bang;
+        float th = Mathf.DegToRad(_openDeg + _rng.RandfRange(-0.5f, 0.5f) * b);
+        // 오른쪽 끝(경첩)을 축으로 돌린다. 축이 제자리에 남도록 문 중심을 옮긴다.
+        _door.Rotation = new Vector3(_rng.RandfRange(-0.25f, 0.25f) * b * 0.017f, th, 0f);
+        _door.Position = _doorRest
+                         + new Vector3(DoorHalfWidth - DoorHalfWidth * Mathf.Cos(th), 0f, DoorHalfWidth * Mathf.Sin(th))
+                         + new Vector3(_rng.RandfRange(-1f, 1f) * 0.006f, _rng.RandfRange(-1f, 1f) * 0.003f, 0.032f) * b;
+    }
 }

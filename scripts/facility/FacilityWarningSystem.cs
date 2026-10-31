@@ -114,7 +114,7 @@ public sealed class FacilityWarningSystem
                 Prevented++;
                 Close(w, now, sim);
                 EventLog.Instance?.LogEvent(LogEventType.TaskComplete, "", w.RoomId,
-                    $"✓ {sim.RoomDisplayName(w.RoomId)} — {w.Title} 안정화 성공");
+                    $"✓ {sim.RoomDisplayName(w.RoomId)} - {w.Title} 안정화 성공");
                 NSP.Ui.FacilityAlertHud.Instance?.Notify("✓ " +
                     NSP.Dialogue.KoreanParticle.Subject(sim.RoomDisplayName(w.RoomId)) + " 안정화되었습니다.",
                     NSP.Ui.NoticeLevel.Info);
@@ -145,8 +145,14 @@ public sealed class FacilityWarningSystem
 
     // --- 정해진 시각의 경고(학습용) -----------------------------------------
 
+    // 지금 이상 개체가 시설에 나와 있는가 — 작업실에 있든, 복도로 걸어오는 중이든, 물러나는 중이든.
+    private static bool GhostInProgress(FacilitySimulation sim) =>
+        sim.Ghost?.Active == true || sim.Threats?.Current != null;
+
     private void TickScheduled(float now, OpsProfileDef profile, FacilitySimulation sim)
     {
+        // 개체가 나와 있거나(또는 이미 다른 경고가 떠 있으면) 미룬다 — 미룬 경고끼리 한꺼번에 몰려 뜨지 않게.
+        bool holdForGhost = profile.WarningsAvoidGhost && (GhostInProgress(sim) || _active.Count > 0);
         foreach (var s in profile.ScheduledWarnings)
         {
             if (s == null || _firedSchedule.Contains(s)) continue;
@@ -159,6 +165,9 @@ public sealed class FacilityWarningSystem
                 _scheduleAt[s] = at = Mathf.Max(1f, at);
             }
             if (now < at) continue;
+            // 개체와 겹치지 않게 미룬다 — 개체가 물러가면 곧바로 뜬다. 너무 오래 끌면(개체가 복도에
+            // 버티는 판) 그냥 띄운다 — 학습용 경고가 근무에서 통째로 빠지면 안 된다.
+            if (holdForGhost && now < at + Mathf.Max(0f, profile.WarningAvoidGhostMaxDelay)) continue;
             _firedSchedule.Add(s);
 
             var ops = OpsProfile.Room(s.RoomId);
@@ -181,6 +190,8 @@ public sealed class FacilityWarningSystem
         if (now > dayLength - profile.WarningCutoffSeconds) return;
         if (_active.Count >= Mathf.Max(1, profile.MaxConcurrentWarnings)) return;
         if (now < _gapUntil) return;
+        // 개체가 나와 있는 동안에는 무작위 경고도 쉰다(WarningsAvoidGhost 인 날만).
+        if (profile.WarningsAvoidGhost && GhostInProgress(sim)) return;
         // 하루 총량 상한 — 아직 안 뜬 '정해진 시각의 경고' 몫을 남겨 두고 무작위 경고를 멈춘다.
         if (profile.MaxWarningsPerDay > 0)
         {
@@ -205,7 +216,10 @@ public sealed class FacilityWarningSystem
             if (now < at) continue;
             _nextCheckAt[ops.RoomId] = now + period;
 
-            float chance = OpsProfile.Curve(ops.WarningChance, sim.OnDutyCount(ops.RoomId), 0f) * facilityMult;
+            int onDuty = sim.OnDutyCount(ops.RoomId);
+            float chance = OpsProfile.Curve(ops.WarningChance, onDuty, 0f) * facilityMult;
+            // 빈 방은 모드 배율을 한 번 더 받는다(단기 근무만 낮다 — GameModes.UnstaffedWarningScale).
+            if (onDuty == 0) chance *= GameModes.UnstaffedWarningScale;
             if (chance <= 0f || _rng.NextDouble() >= chance) continue;
 
             Raise(ops, sim, ops.WarningRequiredStaff, ops.WarningResponseSeconds, scheduled: false);
@@ -243,10 +257,10 @@ public sealed class FacilityWarningSystem
         Raised++;
 
         EventLog.Instance?.LogEvent(LogEventType.TaskSpawned, "", w.RoomId,
-            $"⚠ {sim.RoomDisplayName(w.RoomId)} — {w.Title} · {w.Total:0}초 안에 " +
+            $"▲ {sim.RoomDisplayName(w.RoomId)} - {w.Title}, {w.Total:0}초 안에 " +
             $"{w.RequiredStaff}명 투입 후 {w.WorkNeeded:0}초 작업 필요");
         NSP.Ui.FacilityAlertHud.Instance?.Notify(
-            $"⚠ {sim.RoomDisplayName(w.RoomId)}에서 " +
+            $"▲ {sim.RoomDisplayName(w.RoomId)}에서 " +
             NSP.Dialogue.KoreanParticle.Subject(w.Title) + " 감지되었습니다.", NSP.Ui.NoticeLevel.Warning);
         Sfx.Instance?.Play("alert_beep3", -8f);
         // 경고 단계에서는 직원이 스스로 움직이지 않는다 — 누구를 보낼지는 관리자가 정한다.

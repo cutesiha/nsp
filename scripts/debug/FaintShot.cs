@@ -152,7 +152,7 @@ public partial class FaintShot : Node3D
             await Frame();
         }
         Save(dir, "faint_responder_check.png");
-        GD.Print($"   responder {responderId} — 환자와의 거리 {vNode.Position.DistanceTo(rNode.Position):0.00}m");
+        GD.Print($"   responder {responderId} - 환자와의 거리 {vNode.Position.DistanceTo(rNode.Position):0.00}m");
     }
 
     private async System.Threading.Tasks.Task ShootCarry(string dir, string victimId, string carrierId, string name)
@@ -179,7 +179,7 @@ public partial class FaintShot : Node3D
         var cvr = cNode.GetNodeOrNull<Node3D>("VisualRoot");
         var vvr = vNode.GetNodeOrNull<Node3D>("VisualRoot");
         float gap = cvr != null && vvr != null ? cvr.GlobalPosition.DistanceTo(vvr.GlobalPosition) : -1f;
-        GD.Print($"   {name} ({carrierId}) — 두 몸 사이 {gap:0.00}m");
+        GD.Print($"   {name} ({carrierId}) - 두 몸 사이 {gap:0.00}m");
     }
 
     // ── 캡처 ─────────────────────────────────────────────────────────

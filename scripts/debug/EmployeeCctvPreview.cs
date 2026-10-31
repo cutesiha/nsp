@@ -122,8 +122,8 @@ public partial class EmployeeCctvPreview : Node3D
             else a.Play(prof.IntroClip, prof.IntroBlend);
             a.Seek(0, true);
         }
-        _hint.Text = recover ? "[괴물 반응 — 회복]" : "[괴물 반응 — 각자]  G 다시  H 회복\n"
-            + "양 주저앉음 · 토끼 비명 · 고양이 숨기 · 강아지 숨기 · 늑대 대치 · 여우 계속 일함(고개만)";
+        _hint.Text = recover ? "[괴물 반응 - 회복]" : "[괴물 반응 - 각자]  G 다시  H 회복\n"
+            + "양 주저앉음, 토끼 비명, 고양이 숨기, 강아지 숨기, 늑대 대치, 여우 계속 일함(고개만)";
     }
 
     // ── 딴짓 12종 검수 ──────────────────────────────────────────────
@@ -193,7 +193,7 @@ public partial class EmployeeCctvPreview : Node3D
         _disAnim.SpeedScale = _speed;
         _disAnim.Play(_disSteps[0].Clip, 0.1);
         _disAnim.Seek(0, true);
-        _hint.Text = $"[{def.Code}] {employeeId} · {(_disCaught ? "적발됨" : "적발 안 됨")}   K 적발 전환   Q/E 속도\n"
+        _hint.Text = $"[{def.Code}] {employeeId}, {(_disCaught ? "적발됨" : "적발 안 됨")}   K 적발 전환   Q/E 속도\n"
                      + string.Join(" > ", _disSteps.ConvertAll(x => x.Clip));
     }
 
@@ -420,8 +420,8 @@ public partial class EmployeeCctvPreview : Node3D
         for (int i = 0; i < _buttons.Count; i++)
             _buttons[i].Modulate = i == _clip ? new Color(1f, 0.85f, 0.4f) : Colors.White;
         _hint.Text =
-            $"[{Clips[_clip]}]  속도 {_speed:0.0}x  {(_paused ? "· 일시정지" : "")}\n"
+            $"[{Clips[_clip]}]  속도 {_speed:0.0}x  {(_paused ? "- 일시정지" : "")}\n"
             + "1~8 애니메이션   Q/E 속도   W 1.0x   SPACE 일시정지   R 처음부터   Z/X/C 시점   L 이름표\n"
-            + "왼쪽부터  여우 · 강아지 · 고양이 · 양 · 토끼 · 늑대";
+            + "왼쪽부터  여우, 강아지, 고양이, 양, 토끼, 늑대";
     }
 }

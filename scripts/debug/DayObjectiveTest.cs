@@ -45,7 +45,7 @@ public partial class DayObjectiveTest : Node
         // ── Test B : 경고만 처리하고 코어 미달 ────────────────────────
         RunUntilWarningResolved(120f);
         int prevented = _sim.Warnings.Prevented;
-        GD.Print($"\n[B] 경고 처리 {prevented}회 · 코어 {GameState.Instance.CoreProgress:0.0}%  " +
+        GD.Print($"\n[B] 경고 처리 {prevented}회, 코어 {GameState.Instance.CoreProgress:0.0}%  " +
                  $"→ 필수 {DayObjectives.RequiredDone}/{DayObjectives.RequiredTotal}");
         Check("B 경고 1회 이상 안정화했다", prevented >= 1);
         Check("B 코어가 아직 18% 미만이다", GameState.Instance.CoreProgress < 18f);
@@ -80,7 +80,7 @@ public partial class DayObjectiveTest : Node
         // ── Test F : 필수 미완료 상태로 시간 종료해도 막히지 않는다 ───
         StartShift(1);
         Run(DayObjectives.MaxShiftSeconds + 1f);
-        GD.Print($"\n[F] 무조작 종료 — 코어 {GameState.Instance.CoreProgress:0.0}% · " +
+        GD.Print($"\n[F] 무조작 종료 - 코어 {GameState.Instance.CoreProgress:0.0}%, " +
                  $"필수 {DayObjectives.RequiredDone}/{DayObjectives.RequiredTotal}");
         Check("F 필수를 못 끝냈어도 시간이 끝나면 종료된다", ShouldAutoEnd());
         Check("F 종료 조건은 필수 업무와 무관하다(소프트락 없음)",
@@ -118,16 +118,20 @@ public partial class DayObjectiveTest : Node
             hLines.Count(l => l.Required && l.Done) == DayObjectives.RequiredDone);
         Check("H 업무평가는 0점", DayObjectives.OptionalCompleted() == 0);
 
-        // 평가 등급 표(선택 업무 보상이 등급에만 반영되는지).
-        GD.Print($"\n[평가] 100%/0점 → {DayObjectives.Grade(100f, 0)} · " +
-                 $"100%/1점 → {DayObjectives.Grade(100f, 1)} · " +
-                 $"100%/3점 → {DayObjectives.Grade(100f, 3)} · " +
-                 $"100%/5점 → {DayObjectives.Grade(100f, 5)} · " +
-                 $"92%/4점 → {DayObjectives.Grade(92f, 4)}");
-        Check("평가 등급이 선택 업무 점수에 따라 올라간다",
-            DayObjectives.Grade(100f, 0) == "C" && DayObjectives.Grade(100f, 5) == "S");
-        Check("코어 100% 미만이면 S/A 가 나오지 않는다",
-            DayObjectives.Grade(92f, 5) is "C" or "D");
+        // 평가 등급 표 — Grade(진엔딩, 사망, 업무 미달성 일수, 사고).
+        //   S 완벽 · A 셋 중 하나가 조금 · B 하나가 많이 · C 셋 다 · 진엔딩이 아니면 F.
+        Check("S - 사망 0, 미달성 0, 사고 4", DayObjectives.Grade(true, 0, 0, 4) == "S");
+        Check("A - 미달성 1일", DayObjectives.Grade(true, 0, 1, 0) == "A");
+        Check("A - 사망 1명", DayObjectives.Grade(true, 1, 0, 0) == "A");
+        Check("A - 사고 5건", DayObjectives.Grade(true, 0, 0, 5) == "A");
+        Check("B - 미달성 2일", DayObjectives.Grade(true, 0, 2, 0) == "B");
+        Check("B - 사고 6건", DayObjectives.Grade(true, 0, 0, 6) == "B");
+        Check("C - 사망 1 + 사고 6 + 미달성 1, 셋이 겹칠 때만", DayObjectives.Grade(true, 1, 1, 6) == "C");
+        Check("C 는 셋 중 하나라도 빠지면 아니다", DayObjectives.Grade(true, 1, 0, 6) == "B");
+        Check("진엔딩이 아니면 근무가 완벽해도 F", DayObjectives.Grade(false, 0, 0, 0) == "F");
+        Check("D 는 더 이상 없다",
+            new[] { DayObjectives.Grade(false, 3, 3, 12), DayObjectives.Grade(true, 3, 3, 12) }
+                .All(g => g != "D"));
 
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
     }

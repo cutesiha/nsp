@@ -65,15 +65,15 @@ public static class TutorialTelemetry
 
         double total = (Time.GetTicksMsec() - _runStartMsec) / 1000.0;
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine($"── DAY0 교육 기록 · {Time.GetDatetimeStringFromSystem()} · " +
-                      $"{(completed ? "완료" : "중단")} · 전체 {total:0}초");
+        sb.AppendLine($"── DAY0 교육 기록, {Time.GetDatetimeStringFromSystem()}, " +
+                      $"{(completed ? "완료" : "중단")}, 전체 {total:0}초");
         foreach (var (id, sec) in _steps)
             sb.AppendLine($"   {(sec >= SlowStepSeconds ? "!" : " ")} {id,-22} {sec,6:0.0}초");
         if (_counts.Count > 0)
         {
             var parts = new List<string>();
             foreach (var (k, v) in _counts) parts.Add($"{k} {v}");
-            sb.AppendLine($"     {string.Join(" · ", parts)}");
+            sb.AppendLine($"     {string.Join(", ", parts)}");
         }
 
         string text = sb.ToString();
@@ -102,7 +102,7 @@ public static class TutorialTelemetry
         }
         catch (System.Exception e)
         {
-            GD.PushWarning($"TutorialTelemetry: 기록을 남기지 못했습니다 — {e.Message}");
+            GD.PushWarning($"TutorialTelemetry: 기록을 남기지 못했습니다 - {e.Message}");
         }
     }
 }

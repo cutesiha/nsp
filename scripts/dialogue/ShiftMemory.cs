@@ -172,7 +172,7 @@ public static class ShiftMemory
                         var item = new MemoryItem
                         {
                             Time = e.GameTimeSeconds, RoomId = e.RoomId, Kind = MemoryKind.Worked,
-                            IsRepair = (e.Description ?? "").StartsWith("🔧"),
+                            IsRepair = (e.Description ?? "").StartsWith("▣"),
                             TaskName = TaskNameFrom(e.Description),
                         };
                         item.With.AddRange(e.WitnessEmployeeIds.Where(w => w != id));
@@ -239,7 +239,7 @@ public static class ShiftMemory
     // 로그 원문에서 업무 이름을 집어낸다. 실제 TaskDef 이름과 먼저 대조한다.
     public static string TaskNameFrom(string description)
     {
-        string d = (description ?? "").Replace("⚙", "").Replace("🔧", "").Trim();
+        string d = (description ?? "").Replace("□", "").Replace("▣", "").Trim();
         if (d.Length == 0) return "";
         var sim = FacilitySimulation.Instance;
         if (sim != null)

@@ -46,12 +46,12 @@ public partial class Day1RhythmTest : Node
 
     private void RunAll()
     {
-        GD.Print("\n\n################ DAY1 리듬 — 100회 시뮬레이션 ################");
+        GD.Print("\n\n################ DAY1 리듬 - 100회 시뮬레이션 ################");
         float day = Config.Instance.Data.DayLengthSeconds;
         var ops = OpsProfile.For(1);
-        GD.Print($"   하루 {day:0}초 · 작은 교란 {ops?.TamperAttemptsPerDay}회 보장"
+        GD.Print($"   하루 {day:0}초, 작은 교란 {ops?.TamperAttemptsPerDay}회 보장"
                  + $"({ops?.TamperWindowStartSeconds:0}~{ops?.TamperWindowEndSeconds:0}초, 다른 방 {ops?.TamperCrossRoomChance:0.00})"
-                 + $" · 실제 방해공작 확률 {ops?.SabotageChancePerDay:0.00}");
+                 + $", 실제 방해공작 확률 {ops?.SabotageChancePerDay:0.00}");
 
         var runs = new List<Run>();
         for (int i = 0; i < Runs; i++) runs.Add(Simulate(day));
@@ -170,12 +170,12 @@ public partial class Day1RhythmTest : Node
         GD.Print($"   첫 경고        {Avg(runs, r => r.FirstWarning):0.0}초");
         GD.Print($"   괴물 등장      {Avg(runs, r => r.GhostAt):0.0}초  (등장률 {Rate(runs, r => r.GhostAt >= 0f):0}%)");
         GD.Print($"   작은 교란      {Avg(runs, r => r.TamperAt):0.0}초  (발생률 {Rate(runs, r => r.TamperAt >= 0f):0}%"
-                 + $" · 다른 방에 증상 {Rate(runs.Where(r => r.TamperAt >= 0f).ToList(), r => r.CrossRoom):0}%)");
+                 + $", 다른 방에 증상 {Rate(runs.Where(r => r.TamperAt >= 0f).ToList(), r => r.CrossRoom):0}%)");
         GD.Print($"   실제 방해공작  {Rate(runs, r => r.HardSabotage):0}%  (평균 {Avg(runs, r => r.SabotageAt):0.0}초)");
         GD.Print($"   거짓 단서      {runs.Average(r => r.FalseLeads):0.00}회");
         GD.Print($"   시설 경고      {runs.Average(r => r.Warnings):0.00}회");
-        GD.Print($"   최대 공백      평균 {runs.Average(r => r.MaxGap):0.0}초 · 최악 {runs.Max(r => r.MaxGap):0.0}초"
-                 + $" · 20초 넘는 판 {Rate(runs, r => r.MaxGap > 20f):0}%");
+        GD.Print($"   최대 공백      평균 {runs.Average(r => r.MaxGap):0.0}초, 최악 {runs.Max(r => r.MaxGap):0.0}초"
+                 + $", 20초 넘는 판 {Rate(runs, r => r.MaxGap > 20f):0}%");
     }
 
     private void Verify(List<Run> runs)
@@ -184,12 +184,15 @@ public partial class Day1RhythmTest : Node
         Check(runs.All(r => r.TamperAt >= 0f),
             $"A 작은 교란이 모든 판에서 1회 일어난다 ({Rate(runs, r => r.TamperAt >= 0f):0}%)");
 
+        // DAY1 에도 실제 방해공작이 한 번은 일어난다(2026-10-28 — 예전에는 45% 였다).
+        // 단기 근무는 사흘뿐이라 첫날이 비면 결번이 있다는 것 자체가 전해지지 않는다.
         float hard = Rate(runs, r => r.HardSabotage);
-        Check(hard is >= 15f and <= 55f, $"B 실제 방해공작 발생률이 설정 범위 안이다 ({hard:0}%)");
+        Check(hard >= 80f, $"B DAY1 에도 실제 방해공작이 일어난다 ({hard:0}%, 기준 80% 이상)");
 
-        var noHard = runs.Where(r => !r.HardSabotage).ToList();
-        Check(noHard.Count > 0 && noHard.All(r => r.TamperAt >= 0f),
-            $"C 방해공작이 없던 판({noHard.Count}회)에서도 교란은 남는다");
+        // 작은 교란은 방해공작과 별개로 돈다 — 방해공작이 있던 판에서도 따로 남는다.
+        var withHard = runs.Where(r => r.HardSabotage).ToList();
+        Check(withHard.Count > 0 && withHard.All(r => r.TamperAt >= 0f),
+            $"C 방해공작이 있던 판({withHard.Count}회)에서도 작은 교란은 따로 남는다");
 
         Check(runs.Any(r => r.CrossRoom),
             $"D 증상이 난 방과 손댄 방이 다른 판이 있다 ({Rate(runs, r => r.CrossRoom):0}%)");
@@ -201,7 +204,7 @@ public partial class Day1RhythmTest : Node
         // 대신 "2회 이상인 판이 대부분" 을 본다.
         float twoPlus = Rate(runs, r => r.FalseLeads >= 2);
         Check(twoPlus >= 85f,
-            $"G 정상 직원 거짓 단서가 2회 이상인 판이 대부분이다 ({twoPlus:0}% · 평균 {runs.Average(r => r.FalseLeads):0.00} · 최소 {runs.Min(r => r.FalseLeads)})");
+            $"G 정상 직원 거짓 단서가 2회 이상인 판이 대부분이다 ({twoPlus:0}%, 평균 {runs.Average(r => r.FalseLeads):0.00}, 최소 {runs.Min(r => r.FalseLeads)})");
         Check(runs.Where(r => r.FalseLeads >= 2).All(r => r.FalseLeadActors.Count >= 2),
             "G-2 거짓 단서가 2회 이상인 판에서 같은 직원에게 몰리지 않는다");
 

@@ -164,7 +164,7 @@ public partial class StoryCutinDirector : Node
         string blocked = BlockedReason();
         if (blocked.Length > 0)
         {
-            GD.Print($"StoryCutinDirector: 컷인을 건너뜁니다 — {blocked} (beat={beat.BeatId})");
+            GD.Print($"StoryCutinDirector: 컷인을 건너뜁니다 - {blocked} (beat={beat.BeatId})");
             return false;
         }
 
@@ -265,7 +265,8 @@ public partial class StoryCutinDirector : Node
         foreach (var raw in option.Branch)
         {
             if (!IsPlaying) break;
-            var line = _cast?.Apply(raw) ?? raw;
+            // Apply 가 null 이면 그 줄은 빠진다(맡을 사람 · 이름을 댈 사람이 없다) — 원본으로 되돌려 읽지 않는다.
+            var line = _cast != null ? _cast.Apply(raw) : raw;
             if (Speaks(line)) await PlayLine(line);
         }
     }
@@ -298,9 +299,23 @@ public partial class StoryCutinDirector : Node
         await Until(() => _hud.AdvanceCount != start);
     }
 
-    // 도중에 끊는다(씬 전환 · 개발 허브 복귀 · 예외). 남은 줄은 돌리지 않는다.
+    // 이번 DAY 스토리가 중간에 끊겼는가.
+    //
+    // **한 비트만 끊는 것이 아니다.** 하루의 스토리는 비트 여러 개가 줄줄이 돌고, 그것을
+    // 모는 쪽은 StoryBeatSelector 다. Abort 는 지금 돌고 있는 비트만 멈추므로, 그 사실을
+    // 알리지 않으면 모는 쪽이 **다음 비트를 그대로 이어서 튼다.** 그때는 이미 모니터에서
+    // 나온 뒤(LeaveMonitor)라, 남은 대사와 스탠딩이 모니터가 아니라 **카메라 화면 전체에**
+    // 크게 떠 버린다. SKIP 을 누르면 토끼 대사 한 줄이 화면 가득 뜨던 것이 이것이다.
+    //
+    // 다음 스토리를 시작할 때 ClearSkip 으로 내린다.
+    public bool Skipped { get; private set; }
+
+    public void ClearSkip() => Skipped = false;
+
+    // 도중에 끊는다(SKIP · 씬 전환 · 개발 허브 복귀 · 예외). 남은 줄도, 남은 비트도 돌리지 않는다.
     public void Abort()
     {
+        Skipped = true;
         if (!IsPlaying) return;
         IsPlaying = false;
         if (IsInstanceValid(_hud)) { _hud.HideChoice(); _hud.HideNow(); }

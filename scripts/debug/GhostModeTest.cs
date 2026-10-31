@@ -49,16 +49,16 @@ public partial class GhostModeTest : Node
 
     private void SectionA()
     {
-        Head("A", "관측 소멸은 폐지됐다 — 두 모드가 같다");
+        Head("A", "관측 소멸은 폐지됐다 - 두 모드가 같다");
         GameModes.ForceSelect(GameMode.Standard);
-        Ok(!GameModes.GhostDispelEnabled, "기본 모드 — **관측해도 소멸하지 않는다**");
-        Ok(GameModes.GhostWalksToControlRoom, "기본 모드 — 복도로 걸어 나온다");
-        Ok(GameModes.CorridorThreatsEnabled, "기본 모드 — 복도 위협이 켜져 있다");
+        Ok(!GameModes.GhostDispelEnabled, "기본 모드 - **관측해도 소멸하지 않는다**");
+        Ok(GameModes.GhostWalksToControlRoom, "기본 모드 - 복도로 걸어 나온다");
+        Ok(GameModes.CorridorThreatsEnabled, "기본 모드 - 복도 위협이 켜져 있다");
 
         GameModes.ForceSelect(GameMode.Competition);
-        Ok(!GameModes.GhostDispelEnabled, "대회용 — **관측해도 소멸하지 않는다**");
-        Ok(GameModes.GhostWalksToControlRoom, "대회용 — 중앙제어실로 걸어온다");
-        Ok(GameModes.CorridorThreatsEnabled, "대회용 — 복도 위협이 돈다");
+        Ok(!GameModes.GhostDispelEnabled, "대회용 - **관측해도 소멸하지 않는다**");
+        Ok(GameModes.GhostWalksToControlRoom, "대회용 - 중앙제어실로 걸어온다");
+        Ok(GameModes.CorridorThreatsEnabled, "대회용 - 복도 위협이 돈다");
     }
 
     // ── B. 기본 모드 — 기존 동작 보존 ───────────────────────────────
@@ -167,7 +167,7 @@ public partial class GhostModeTest : Node
         if (t == null) return;
         Ok(t.OriginRoomId == origin, $"어느 방에서 나왔는지 기억한다({t.OriginRoomId})");
         Ok(t.SegmentId == "corridor_west", $"서측 복도로 들어온다({t.SegmentId})");
-        Ok(spawnPhase == ThreatPhase.Outer, "나온 직후에는 복도 밖이다 — 바로 문 앞에 서지 않는다");
+        Ok(spawnPhase == ThreatPhase.Outer, "나온 직후에는 복도 밖이다 - 바로 문 앞에 서지 않는다");
         Ok(!spawnInCorridor, "그 단계에서는 복도 CCTV 에도 잡히지 않는다");
 
         // 실제로 복도에 들어서는지.
@@ -179,7 +179,7 @@ public partial class GhostModeTest : Node
         _sim.Threats.EnteredCorridor += x => { if (x == t) enteredFired = true; };
         for (int i = 0; i < 60 * 30 && t.Phase == ThreatPhase.Outer; i++) _sim.Threats.Tick(Step);
         Ok(t.Phase is ThreatPhase.Approach or ThreatPhase.AtDoor or ThreatPhase.Pounding,
-            $"접근 복도에 들어섰다({t.Phase} · 진행 {t.Progress:0.00})");
+            $"접근 복도에 들어섰다({t.Phase}, 진행 {t.Progress:0.00})");
         Ok(t.InCorridor, "이제부터 복도 CCTV 로 보인다");
         Ok(enteredFired || t.Phase != ThreatPhase.Outer, "복도 진입 신호가 떴다(전조 연출이 걸리는 자리)");
         _sim.Threats.NoBreach = false;
@@ -208,7 +208,7 @@ public partial class GhostModeTest : Node
             if (added.Any(e => e.EventType is LogEventType.AnomalySighting or LogEventType.AnomalyIncident))
                 sighting++;
         }
-        GD.Print($"      {runs}회 중 사고 {struck}회 · 기록 {sighting}회 · 사람 있던 방 {staffed}회");
+        GD.Print($"      {runs}회 중 사고 {struck}회, 기록 {sighting}회, 사람 있던 방 {staffed}회");
         Ok(struck > 0, "사고가 아예 안 나지는 않는다");
         Ok(struck < runs, "**매번 사고가 나지는 않는다**");
         Ok(sighting == runs, "사고가 없어도 목격 기록은 항상 남는다");
@@ -273,7 +273,7 @@ public partial class GhostModeTest : Node
             "tut_barrier_done",
         };
         var missing = blocks.Where(b => NSP.Prologue.PrologueScript.GetGuide(b) == null).ToList();
-        Ok(missing.Count == 0, $"차폐 교육 대사 {blocks.Length}개가 모두 있다{(missing.Count > 0 ? " — 없음: " + string.Join(", ", missing) : "")}");
+        Ok(missing.Count == 0, $"차폐 교육 대사 {blocks.Length}개가 모두 있다{(missing.Count > 0 ? " - 없음: " + string.Join(", ", missing) : "")}");
         // 기본 모드의 관측 교육도 그대로 남아 있어야 한다.
         Ok(NSP.Prologue.PrologueScript.GetGuide("tut_anomaly_watch") != null,
             "기본 모드의 관측 소멸 교육 대사가 남아 있다");

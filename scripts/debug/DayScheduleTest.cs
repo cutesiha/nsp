@@ -49,7 +49,7 @@ public partial class DayScheduleTest : Node
             sig[d] = string.Join(",", warns) + "|" + ops.SabotageWindowStartSeconds + "~" + ops.SabotageWindowEndSeconds
                      + "|" + string.Join(",", timed);
             GD.Print($"   DAY{d}  경고 {string.Join(" → ", warns)}\n" +
-                     $"         방해 기회 {ops.SabotageWindowStartSeconds:0}~{ops.SabotageWindowEndSeconds:0}초 · " +
+                     $"         방해 기회 {ops.SabotageWindowStartSeconds:0}~{ops.SabotageWindowEndSeconds:0}초, " +
                      $"그날 업무 {(timed.Count == 0 ? "없음" : string.Join(", ", timed))}");
         }
         Check(sig.Values.Distinct().Count() == sig.Count, "DAY1~5 의 일정이 모두 다르다");
@@ -144,7 +144,7 @@ public partial class DayScheduleTest : Node
         }
 
         // ── 표 1 : 코어 복구량 ────────────────────────────────────────
-        GD.Print($"\n---------------- 코어 복구량 ({Trials}회 · 평균 [최소~최대]) ----------------");
+        GD.Print($"\n---------------- 코어 복구량 ({Trials}회, 평균 [최소~최대]) ----------------");
         GD.Print("   대역    " + string.Join("", Enumerable.Range(1, 5).Select(d => $"{"DAY" + d,-18}")) + "합계");
         foreach (Band band in System.Enum.GetValues<Band>())
         {
@@ -161,7 +161,7 @@ public partial class DayScheduleTest : Node
 
         // ── 표 2 : 코어 장부 ──────────────────────────────────────────
         GD.Print($"\n---------------- 코어 장부 (평균) ----------------");
-        GD.Print("   대역  날짜   복구+   방해-   불안정-   정전-   기타-   |  자재정지  코어1명이하  이탈(명·초)");
+        GD.Print("   대역  날짜   복구+   방해-   불안정-   정전-   기타-   |  자재정지  코어1명이하  이탈(명/초)");
         foreach (Band band in System.Enum.GetValues<Band>())
         {
             for (int d = 1; d <= 5; d++)
@@ -187,13 +187,13 @@ public partial class DayScheduleTest : Node
         GD.Print($"\n---------------- 종료 조건 ----------------");
         GD.Print($"   ① 탐정 합계 평균 {det.Average():0.0}  (90 ~ 120)                     " +
                  $"{(det.Average() >= 90f && det.Average() <= 120f ? "OK" : "X")}");
-        GD.Print($"   ② 탐정 − 대응 평균 {diff.Average():+0.0;-0.0}  (>= +8) · 양수 {positive}/{Trials} (>= 9)   " +
+        GD.Print($"   ② 탐정 − 대응 평균 {diff.Average():+0.0;-0.0}  (>= +8), 양수 {positive}/{Trials} (>= 9)   " +
                  $"{(diff.Average() >= 8f && positive >= 9 ? "OK" : "X")}");
         bool noNegative = true;
         foreach (Band b in System.Enum.GetValues<Band>())
             for (int d = 1; d <= 5; d++)
                 if (runs[(b, d)].Average(x => x.CoreGain) < 0f) noNegative = false;
-        GD.Print($"   ③ 수동 합계 평균 {man.Average():0.0}  (40 ~ 60) · 마이너스인 날 없음 {(noNegative ? "예" : "아니오")}   " +
+        GD.Print($"   ③ 수동 합계 평균 {man.Average():0.0}  (40 ~ 60), 마이너스인 날 없음 {(noNegative ? "예" : "아니오")}   " +
                  $"{(man.Average() >= 40f && man.Average() <= 60f && noNegative ? "OK" : "X")}");
 
         // ── 검사 ─────────────────────────────────────────────────────

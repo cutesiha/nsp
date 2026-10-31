@@ -36,15 +36,15 @@ public partial class RestSeatingTest : Node
             : new List<string> { "rabbit", "cat", "fox", "sheep", "wolf", "dog" };
 
         GD.Print("################ 휴게실 좌석 배치 검증 ################");
-        GD.Print($"직원 {roster.Count}명 · 자리 {Seats.Length}개 · {Trials}회 뽑기\n");
+        GD.Print($"직원 {roster.Count}명, 자리 {Seats.Length}개, {Trials}회 뽑기\n");
 
         // 자리 사이 가까움 — 옆자리가 가장 크고, 같은 줄 양 끝이 가장 작아야 한다.
         float neighbour = RestSeating.Closeness(Seats[0], Seats[1]);
         float facing = RestSeating.Closeness(Seats[0], Seats[3]);
         float diagonal = RestSeating.Closeness(Seats[0], Seats[4]);
         float ends = RestSeating.Closeness(Seats[0], Seats[2]);
-        GD.Print($"[A] 가까움 — 옆자리 {neighbour:0.00} · 마주봄 {facing:0.00} · " +
-                 $"대각 {diagonal:0.00} · 같은 줄 끝 {ends:0.00}");
+        GD.Print($"[A] 가까움 - 옆자리 {neighbour:0.00}, 마주봄 {facing:0.00}, " +
+                 $"대각 {diagonal:0.00}, 같은 줄 끝 {ends:0.00}");
         Check("A 옆자리가 가장 가깝다", neighbour > facing && neighbour > diagonal && neighbour > ends);
         Check("A 마주 보는 자리가 같은 줄 양 끝보다 가깝다", facing > ends);
 
@@ -87,10 +87,10 @@ public partial class RestSeatingTest : Node
         var bad = pairs.Where(p => p.Score <= -30).ToList();
         double goodAvg = good.Average(p => (double)p.Count);
         double badAvg = bad.Average(p => (double)p.Count);
-        GD.Print($"    사이 좋은 쌍 평균 {goodAvg:0}회 · 사이 나쁜 쌍 평균 {badAvg:0}회");
+        GD.Print($"    사이 좋은 쌍 평균 {goodAvg:0}회, 사이 나쁜 쌍 평균 {badAvg:0}회");
         Check("B 사이 좋은 쌍이 나쁜 쌍보다 훨씬 자주 옆에 앉는다", goodAvg > badAvg * 3);
         Check("B 사이가 아주 나쁜 쌍은 옆자리가 드물다", bad.All(p => p.Count * 100 / Trials <= 15));
-        Check("B 가장 친한 쌍(고양이·강아지)은 절반 넘게 옆에 앉는다",
+        Check("B 가장 친한 쌍(고양이/강아지)은 절반 넘게 옆에 앉는다",
             pairs.First(p => Key(p.A, p.B) == Key("cat", "dog")).Count * 100 / Trials >= 50);
 
         // ── 여우는 사이가 덜 나쁜 쪽에 앉는다 ────────────────────────
@@ -102,8 +102,8 @@ public partial class RestSeatingTest : Node
             GD.Print($"    여우 ↔ {f.Who,-7} 관계 {f.Score,4} → {f.Count,4}회 ({f.Count * 100 / Trials,3}%)");
         int near = foxPairs.Where(f => f.Who is "rabbit" or "sheep" or "dog").Sum(f => f.Count);
         int far = foxPairs.Where(f => f.Who is "cat" or "wolf").Sum(f => f.Count);
-        GD.Print($"    토끼·양·강아지 쪽 {near}회  ·  고양이·늑대 쪽 {far}회");
-        Check("C 여우는 토끼 · 양 · 강아지 쪽에 훨씬 자주 앉는다", near > far * 3);
+        GD.Print($"    토끼/양/강아지 쪽 {near}회, 고양이/늑대 쪽 {far}회");
+        Check("C 여우는 토끼, 양, 강아지 쪽에 훨씬 자주 앉는다", near > far * 3);
 
         // ── 매번 같은 그림이 아니다 ──────────────────────────────────
         GD.Print($"\n[D] 서로 다른 배치 {shapes.Count}가지 / {Trials}회");

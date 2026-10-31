@@ -101,7 +101,7 @@ public static class IncidentBoard
                 WarningTotalSeconds = w.Total,
                 ActionHint = here >= w.RequiredStaff
                     ? $"안정화 작업 중 {w.Work:0.#} / {w.WorkNeeded:0}초"
-                    : $"{w.RequiredStaff}명 필요 · 현재 {here}명 (투입 후 {w.WorkNeeded:0}초 작업)",
+                    : $"{w.RequiredStaff}명 필요, 현재 {here}명 (투입 후 {w.WorkNeeded:0}초 작업)",
                 Severity = AlertSeverity.Critical,
                 RepairWorkers = w.RequiredStaff,
                 StabilizeDoneSeconds = w.Work,
@@ -132,7 +132,7 @@ public static class IncidentBoard
             float clearNeed = Mathf.Max(0f, NSP.Core.Config.Instance?.Data?.UnstaffedClearSeconds ?? 0f);
             bool staying = sim.OnDutyCount(roomId) > 0 && clearNeed > 0f;
             string hint = staying
-                ? $"배치 유지 — {Mathf.CeilToInt(Mathf.Max(0f, clearNeed - room.UnstaffedClearTimer))}초 남음"
+                ? $"배치 유지 - {Mathf.CeilToInt(Mathf.Max(0f, clearNeed - room.UnstaffedClearTimer))}초 남음"
                 : "직원 배치 필요";
 
             list.Add(new IncidentDisplayData
@@ -176,7 +176,7 @@ public static class IncidentBoard
                     CauseText = "점검 미수행",
                     WarningRemainingSeconds = remaining,
                     WarningTotalSeconds = taskDef.TimeLimitSeconds,
-                    ActionHint = $"업무 처리 · 최소 {Mathf.Max(1, taskDef.MinWorkersToProgress)}명",
+                    ActionHint = $"업무 처리, 최소 {Mathf.Max(1, taskDef.MinWorkersToProgress)}명",
                     Severity = remaining <= WarningThreshold ? AlertSeverity.Critical : AlertSeverity.Warning,
                     RepairWorkers = Mathf.Max(1, taskDef.MinWorkersToProgress),
                     ConsequenceLines = { ConsequenceText(taskDef.NeglectConsequenceType, taskDef.NeglectConsequenceAmount) },
@@ -257,7 +257,7 @@ public static class IncidentBoard
         TabooConsequenceType.CctvDisconnect => "CCTV 신호 단절",
         TabooConsequenceType.CctvSystemFault => "CCTV 시스템 정지",
         TabooConsequenceType.MaterialsHalt => "자재 생산 정지",
-        TabooConsequenceType.VentilationFault => "환기 정지 · 스트레스 상승",
+        TabooConsequenceType.VentilationFault => "환기 정지, 스트레스 상승",
         TabooConsequenceType.MedicalContamination => "스트레스 치료 불가",
         TabooConsequenceType.CoreOutputUnstable => "코어 복구 정지",
         TabooConsequenceType.StorageCollapse => $"자재 보유 한도 -{amount:0}",

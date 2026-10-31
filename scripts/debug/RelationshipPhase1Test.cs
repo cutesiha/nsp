@@ -63,7 +63,7 @@ public partial class RelationshipPhase1Test : Node
     {
         Head("A", "관계 시드 로드 (config RelationshipTablePath → RelationshipSystem.Load)");
         string path = Config.Instance.Data.RelationshipTablePath;
-        Check(ResourceLoader.Exists(path), $"config 경로의 테이블이 있다 — {path}");
+        Check(ResourceLoader.Exists(path), $"config 경로의 테이블이 있다 - {path}");
         Check(GD.Load<RelationshipTableDef>(path) != null, "RelationshipTableDef(scripts/data/RelationshipTableDef.cs)로 읽힌다");
 
         Check(RelationshipSystem.Affinity("cat", "fox") == -90 && RelationshipSystem.Affinity("fox", "cat") == -60,
@@ -75,7 +75,7 @@ public partial class RelationshipPhase1Test : Node
         Check(RelationshipSystem.Band("rabbit", "dog") == PairBand.Friendly, "토끼–강아지 = 우호(Friendly)");
         Check(RelationshipSystem.Band("dog", "fox") == PairBand.Neutral, "강아지–여우 = 중립(배치 제약 없음)");
         Check(RelationshipSystem.TypeOf("cat", "dog") == RelationType.Lover && RelationshipSystem.Fears("sheep", "wolf"),
-            "관계 타입 · 플래그(연인, 양→늑대 fear)");
+            "관계 타입, 플래그(연인, 양→늑대 fear)");
 
         // 판 간 초기화 — Phase 3 에서 움직인 값이 새 판에 남지 않는다.
         RelationshipSystem.Apply("cat", "fox", 100, true);
@@ -92,13 +92,13 @@ public partial class RelationshipPhase1Test : Node
                 if (band == PairBand.Refuse) refuse++;
                 if (band == PairBand.Uneasy) uneasy++;
             }
-        Check(pairs == 15 && refuse == 1 && uneasy == 3, $"15쌍 중 거부 {refuse} · 불편 {uneasy} (설계 문서 3.1: 1 · 3)");
+        Check(pairs == 15 && refuse == 1 && uneasy == 3, $"15쌍 중 거부 {refuse}, 불편 {uneasy} (설계 문서 3.1: 1, 3)");
     }
 
     // ── 배치 화면 ────────────────────────────────────────────────────────
     private async System.Threading.Tasks.Task RefuseBlocksStart()
     {
-        Head("B", "동실 거부 — 근무 시작 차단 · 스파크 · 말풍선");
+        Head("B", "동실 거부 - 근무 시작 차단, 스파크, 말풍선");
         await DragFromTo(_map.RosterCardOf("wolf").GetCenter(), _map.CellOf("core_room").GetCenter());
         await Frames(2);
         Check(_map.StartEnabled, "코어실에 늑대 → 근무 시작 활성");
@@ -114,7 +114,7 @@ public partial class RelationshipPhase1Test : Node
         Check(_startPressed == 0, "비활성 상태에서 눌러도 시작하지 않는다");
         Check(ScheduleMapView.RoomBand(_sim, "power_room") == PairBand.Refuse, "발전실 아이콘 = 거부 스파크");
         string text = ScheduleMapView.PairText(_sim, "cat", "fox", PairBand.Refuse);
-        Check(text == "고양이와 여우는 같은 방 근무를 거부합니다", $"안내 문구 — \"{text}\"");
+        Check(text == "고양이와 여우는 같은 방 근무를 거부합니다", $"안내 문구 - \"{text}\"");
 
         var ca = _map.ChipOf("cat"); var cf = _map.ChipOf("fox");
         Check(ca.Size != Vector2.Zero && cf.Size != Vector2.Zero, "두 칩이 방 칸 안에 그려진다(스파크 자리)");
@@ -137,14 +137,14 @@ public partial class RelationshipPhase1Test : Node
 
     private async System.Threading.Tasks.Task UneasyWarns()
     {
-        Head("C", "불편 — 주황 경고, 배치·시작은 허용");
+        Head("C", "불편 - 주황 경고, 배치/시작은 허용");
         await DragFromTo(_map.RosterCardOf("sheep").GetCenter(), _map.CellOf("storage_room").GetCenter());
         await Frames(2);
         Check(ScheduleMapView.RoomBand(_sim, "storage_room") == PairBand.Uneasy, "저장고(여우+양) 아이콘 = 불편 경고");
         Check(_map.StartEnabled, "불편 쌍은 근무 시작을 막지 않는다");
         await Hover(_map.RelationSlotOf("storage_room").GetCenter());
         var tip = _map.TooltipTexts();
-        Check(tip.Any(t => t.StartsWith("여우와 양은 사이가 불편합니다")), "불편 말풍선 — " + string.Join(" / ", tip));
+        Check(tip.Any(t => t.StartsWith("여우와 양은 사이가 불편합니다")), "불편 말풍선 - " + string.Join(" / ", tip));
     }
 
     private async System.Threading.Tasks.Task FriendlyIcons()
@@ -161,7 +161,7 @@ public partial class RelationshipPhase1Test : Node
 
     private async System.Threading.Tasks.Task DragPreview()
     {
-        Head("E", "끌고 있는 동안 — 놓을 방의 관계를 미리 보여 준다");
+        Head("E", "끌고 있는 동안 - 놓을 방의 관계를 미리 보여 준다");
         var from = _map.ChipOf("cat").GetCenter();
         var to = _map.CellOf("storage_room").GetCenter();
         Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = from, GlobalPosition = from });
@@ -174,7 +174,7 @@ public partial class RelationshipPhase1Test : Node
         await Frames(2);
         var tip = _map.TooltipTexts();
         Check(tip.Contains("고양이와 여우는 같은 방 근무를 거부합니다") && tip.Any(t => t.StartsWith("고양이와 양은 사이가 불편합니다")),
-            "고양이를 저장고(여우·양) 위로 끌면 거부 · 불편 미리보기 — " + string.Join(" / ", tip));
+            "고양이를 저장고(여우/양) 위로 끌면 거부, 불편 미리보기 - " + string.Join(" / ", tip));
         Push(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = _map.RosterArea.GetCenter(), GlobalPosition = _map.RosterArea.GetCenter() });
         await Frames(2);
     }
@@ -182,7 +182,7 @@ public partial class RelationshipPhase1Test : Node
     // ── 근무 중 소프트 페널티 ────────────────────────────────────────────
     private void Penalty()
     {
-        Head("F", "불편 동실 소프트 페널티 (RoomStaffing · FacilitySimulation)");
+        Head("F", "불편 동실 소프트 페널티 (RoomStaffing, FacilitySimulation)");
         var cfg = Config.Instance.Data;
         float savedChance = cfg.UneasyArgumentChance, savedCheck = cfg.UneasyArgumentCheckSeconds;
 
@@ -202,13 +202,13 @@ public partial class RelationshipPhase1Test : Node
         cfg.UneasyArgumentChance = 1f; cfg.UneasyArgumentCheckSeconds = 5f;
         Run(12f);
         // 경영 리워크: 스트레스가 DAY1 부터 켜져 있다 — 불편 쌍은 바로 스트레스를 받는다.
-        Check(Stress("fox") > s0, "DAY1 부터 긴장·언쟁 스트레스가 쌓인다");
+        Check(Stress("fox") > s0, "DAY1 부터 긴장/언쟁 스트레스가 쌓인다");
         var args = EventLog.Instance.GetAllEntries().Where(e => e.EventType == LogEventType.Argument).ToList();
         Check(args.Count > 0 && args.All(e => e.RoomId == "guard_room"), $"언쟁이 경비실에서만 로그로 남는다({args.Count}건)");
         var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), 1);
         var row = rows.FirstOrDefault(r => r.SourceEventType == LogEventType.Argument);
         Check(row != null && row.Text.Contains("언쟁") && row.Severity == DisplayLogSeverity.Warning,
-            "시설 로그(L) 표시 — " + (row?.Text ?? "(없음)"));
+            "시설 로그(L) 표시 - " + (row?.Text ?? "(없음)"));
 
         // 스트레스가 켜진 날 — 불편 쌍은 긴장 + 언쟁 스트레스를 받는다.
         // (현재 config 는 StressUnlockDay = 99 로 스트레스를 끈 상태라 이 구간만 잠시 DAY2 해금으로 본다.)
@@ -217,14 +217,14 @@ public partial class RelationshipPhase1Test : Node
         LiveSetup(2, new() { ["fox"] = "guard_room", ["wolf"] = "guard_room", ["rabbit"] = "core_room", ["dog"] = "core_room" });
         WaitArrive("guard_room", 2);
         WaitArrive("core_room", 2);
-        GD.Print($"   DAY{GameState.Instance.CurrentDay} 스트레스 {(DayFeatures.StressEnabled ? "켜짐" : "잠김")} · 경비실 근무 [{string.Join(",", _sim.OnDutyEmployeeIds("guard_room"))}] · 코어실 [{string.Join(",", _sim.OnDutyEmployeeIds("core_room"))}]");
+        GD.Print($"   DAY{GameState.Instance.CurrentDay} 스트레스 {(DayFeatures.StressEnabled ? "켜짐" : "잠김")}, 경비실 근무 [{string.Join(",", _sim.OnDutyEmployeeIds("guard_room"))}], 코어실 [{string.Join(",", _sim.OnDutyEmployeeIds("core_room"))}]");
         float fox0 = Stress("fox"), wolf0 = Stress("wolf"), rab0 = Stress("rabbit"), dog0 = Stress("dog");
         cfg.UneasyArgumentChance = 0f;
         Run(cfg.UneasyStressIntervalSeconds + 1f);
         float foxD = Stress("fox") - fox0, wolfD = Stress("wolf") - wolf0;
         float rabD = Stress("rabbit") - rab0, dogD = Stress("dog") - dog0;
         GD.Print($"   Δ스트레스 여우 {foxD:0.##} 늑대 {wolfD:0.##} | 토끼 {rabD:0.##} 강아지 {dogD:0.##}");
-        Check(foxD > rabD && wolfD > dogD, "불편 쌍(여우·늑대)이 우호 쌍(토끼·강아지)보다 스트레스가 더 오른다");
+        Check(foxD > rabD && wolfD > dogD, "불편 쌍(여우/늑대)이 우호 쌍(토끼/강아지)보다 스트레스가 더 오른다");
 
         float foxBefore = Stress("fox");
         cfg.UneasyArgumentChance = 1f; cfg.UneasyArgumentCheckSeconds = 5f;

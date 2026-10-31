@@ -140,6 +140,9 @@ public partial class EndingOffender : Node3D
         Wrap(_loR, band, 0.077f, new[] { -0.04f, -0.14f, -0.24f });
     }
 
+    // 팔은 로컬 -Y 로 뻗는다. TorusMesh 는 기본이 Y 축을 두르는 고리라 **돌리지 않아야** 팔을 감는다.
+    // 예전에는 X 로 90° 돌려 두어서 고리가 팔을 따라 세로로 줄지어 섰고, 어깨에서부터 사슬이
+    // 달린 것처럼 보였다(2026-10-31 사용자 제보 "사슬이 손목에 걸려야 한다").
     private static void Wrap(Node3D bone, Material mat, float radius, float[] offsets)
     {
         if (bone == null) return;
@@ -152,7 +155,6 @@ public partial class EndingOffender : Node3D
                     InnerRadius = radius * 0.74f, OuterRadius = radius, Rings = 14, RingSegments = 8,
                 },
                 Position = new Vector3(0f, y, 0f),
-                RotationDegrees = new Vector3(90f, 0f, 0f),
                 MaterialOverride = mat,
                 CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
             });
@@ -172,6 +174,24 @@ public partial class EndingOffender : Node3D
             var wrist = lower?.GetNodeOrNull<Node3D>(side == 0 ? "HandL" : "HandR");
             if (wrist == null) { side++; continue; }
             _wrists.Add(wrist);
+
+            // 손목의 쇠고랑 — 굵은 쇠고리가 손목을 두르고, 사슬은 여기서 시작한다.
+            wrist.AddChild(new MeshInstance3D
+            {
+                Name = "Shackle",
+                Mesh = new TorusMesh { InnerRadius = 0.058f, OuterRadius = 0.092f, Rings = 16, RingSegments = 8 },
+                Position = new Vector3(0f, 0.01f, 0f),
+                MaterialOverride = iron,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            });
+            wrist.AddChild(new MeshInstance3D
+            {
+                Name = "ShackleBand",
+                Mesh = new CylinderMesh { TopRadius = 0.07f, BottomRadius = 0.07f, Height = 0.06f, RadialSegments = 12 },
+                Position = new Vector3(0f, 0.01f, 0f),
+                MaterialOverride = iron,
+                CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
+            });
 
             float x = side == 0 ? 1.45f : -1.45f;   // 캐릭터가 180° 돌아 서 있다
             var weight = new Node3D { Name = $"Weight{side}", Position = new Vector3(x, 0f, 0.25f) };
@@ -248,15 +268,21 @@ public partial class EndingOffender : Node3D
     }
 
     // side = +1 이면 캐릭터의 왼팔. 팔은 로컬 -Y 로 뻗어 있으므로 Z 회전이 좌우 벌림이다.
+    //
+    // **부호 주의.** 왼어깨는 로컬 -X 에 있고, 이 뼈대에서 왼팔을 바깥으로 벌리는 쪽은 Z **음수**다
+    // (EmployeeCctvAnimator · CutsceneActor 도 같은 규칙). 예전에는 +로 돌려서 두 팔이 가슴 앞을
+    // 가로질러 X 자로 엇갈려 있었다. 팔꿈치도 X 음수 = 뒤로 꺾이는 쪽이었다 — 앞으로 굽힌다.
     private static void Arm(Node3D shoulder, Node3D upper, Node3D lower, float side, float pull, float shake)
     {
         if (shoulder == null) return;
-        // 기본 68° — 팔이 거의 수평으로 당겨져 있다. 당기면 78° 까지 올라간다.
-        float spread = Mathf.Lerp(68f, 78f, pull);
-        shoulder.RotationDegrees = new Vector3(shake * 0.6f, 0f, side * spread);
-        if (upper != null) upper.RotationDegrees = new Vector3(-12f + pull * 10f, 0f, side * (4f + pull * 6f));
-        // 팔꿈치는 구속재 때문에 거의 펴진 채다 — 당겨도 조금밖에 굽지 않는다.
-        if (lower != null) lower.RotationDegrees = new Vector3(-16f + pull * 12f, 0f, 0f);
+        // 사슬이 바닥의 무게추 쪽(옆 · 약간 아래)으로 팔을 끌어내리고 있다.
+        // 축 늘어지면 60°, 당기면 사슬이 팽팽해지며 72° 까지 들린다.
+        float spread = Mathf.Lerp(60f, 72f, pull);
+        shoulder.RotationDegrees = new Vector3(shake * 0.6f, 0f, -side * spread);
+        // 무게추는 몸보다 조금 앞에 있다 — 팔도 몸통 옆선보다 살짝 앞으로 나온다.
+        if (upper != null) upper.RotationDegrees = new Vector3(10f - pull * 4f, 0f, -side * (3f + pull * 5f));
+        // 힘이 빠지면 팔꿈치가 앞으로 살짝 굽고, 당길 때는 거의 펴진다.
+        if (lower != null) lower.RotationDegrees = new Vector3(18f - pull * 12f, 0f, 0f);
     }
 
     private void UpdateChains()
@@ -371,50 +397,61 @@ public partial class EndingOffender : Node3D
     // 새 모델을 만들지 않는다(§7). 가면을 핏기 없이 눌러 두고 그 위에 **어긋난 눈과 입**을
     // 얹는다 — 눈 높이가 좌우로 어긋나 있고 입이 얼굴 폭을 거의 다 쓴다.
     // 귀여운 몬스터 얼굴도, 화면을 덮는 점프스케어도 만들지 않는다.
+    //
+    // 2026-10-31 사용자 요청으로 바꿨다 — 어긋난 눈 · 입(웃는 얼굴처럼 읽혔다)을 지우고,
+    // **가면 전체가 새까맣게** 꺼진 채 노이즈와 글리치가 계속 낀다. 얼굴이 없는 것이 더 무섭다.
+    // 가면 메시(MaskAnchor 아래 전부: 얼굴판 · 코 · 눈)를 글리치 셰이더로 갈아 끼운다.
     public void RevealFace()
     {
         if (_head == null || _faceOverlay != null) return;
+        var anchor = _head.GetNodeOrNull<Node3D>("MaskAnchor");
+        if (anchor == null) return;
+        _faceOverlay = anchor;
 
-        var ink = new StandardMaterial3D
+        var glitch = new ShaderMaterial { Shader = MaskGlitchShader() };
+        foreach (var mi in FindMeshes(anchor))
         {
-            AlbedoColor = new Color(0.015f, 0.013f, 0.017f),
-            ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            CullMode = BaseMaterial3D.CullModeEnum.Disabled,
-            // 가면의 눈·코 메시와 겹치는 자리다 — 깊이 비교를 끄고 무조건 위에 그린다.
-            NoDepthTest = true,
-            RenderPriority = 8,
-        };
-
-        // 가면 평면(MaskAnchor)에 바로 얹는다 — 머리에 달면 가면 뒤로 묻힌다.
-        var anchor = _head.GetNodeOrNull<Node3D>("MaskAnchor") ?? _head;
-        _faceOverlay = new Node3D { Name = "OffenderFace", Position = new Vector3(0f, 0.008f, -0.055f) };
-        anchor.AddChild(_faceOverlay);
-
-        Quad(_faceOverlay, new Vector2(0.052f, 0.072f), new Vector3(-0.055f, 0.030f, 0f), ink, -7f);
-        Quad(_faceOverlay, new Vector2(0.045f, 0.088f), new Vector3(0.060f, 0.011f, 0f), ink, 10f);
-        Quad(_faceOverlay, new Vector2(0.180f, 0.026f), new Vector3(0.005f, -0.060f, 0f), ink, 3f);
-        Quad(_faceOverlay, new Vector2(0.052f, 0.020f), new Vector3(-0.083f, -0.044f, 0.002f), ink, 40f);
-        Quad(_faceOverlay, new Vector2(0.052f, 0.020f), new Vector3(0.090f, -0.046f, 0.002f), ink, -42f);
-
-        // 가면 자체도 한 단계 핏기가 가신다.
-        foreach (var mi in FindMeshes(_head))
-            mi.MaterialOverlay = new StandardMaterial3D
-            {
-                AlbedoColor = new Color(0.22f, 0.05f, 0.07f, 0.42f),
-                Transparency = BaseMaterial3D.TransparencyEnum.Alpha,
-                ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded,
-            };
+            mi.MaterialOverride = glitch;
+            mi.MaterialOverlay = null;
+        }
+        Sfx.Instance?.Play("radio_static", -16f, 0.7f);
     }
 
-    private static void Quad(Node3D parent, Vector2 size, Vector3 pos, Material mat, float rollDeg) =>
-        parent.AddChild(new MeshInstance3D
+    private static Shader _maskGlitch;
+
+    // 새까만 바탕 위로 가로 노이즈 띠가 깜빡이고, 몇 프레임마다 가면이 띠째 옆으로 찢어지며 튄다.
+    private static Shader MaskGlitchShader()
+    {
+        if (_maskGlitch != null) return _maskGlitch;
+        _maskGlitch = new Shader
         {
-            Mesh = new QuadMesh { Size = size },
-            Position = pos,
-            RotationDegrees = new Vector3(0f, 180f, rollDeg),
-            MaterialOverride = mat,
-            CastShadow = GeometryInstance3D.ShadowCastingSetting.Off,
-        });
+            Code = @"shader_type spatial;
+render_mode unshaded, cull_disabled;
+
+float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+void vertex() {
+    float t = floor(TIME * 14.0);
+    float burst = step(0.70, h(vec2(t, 3.1)));
+    float band = step(0.45, h(vec2(floor(VERTEX.y * 30.0), t)));
+    VERTEX.x += (h(vec2(t, 7.7)) - 0.5) * 0.05 * burst * band;
+    VERTEX.y += (h(vec2(t, 9.3)) - 0.5) * 0.012 * burst;
+}
+
+void fragment() {
+    float t = floor(TIME * 24.0);
+    float row = floor(FRAGCOORD.y / 5.0 + h(vec2(t, 1.0)) * 6.0);
+    float rowOn = step(0.84, h(vec2(row, t)));
+    float grain = h(floor(FRAGCOORD.xy / 2.0) + vec2(t * 3.7, t));
+    vec3 c = vec3(grain * 0.006);
+    c += vec3(grain * 0.07) * rowOn;
+    c += vec3(0.45, 0.02, 0.03) * step(0.993, grain);
+    ALBEDO = c;
+}
+",
+        };
+        return _maskGlitch;
+    }
 
     private static IEnumerable<MeshInstance3D> FindMeshes(Node root)
     {

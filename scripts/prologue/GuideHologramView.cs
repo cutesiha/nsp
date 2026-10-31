@@ -82,6 +82,25 @@ public partial class GuideHologramView : Control
     // GUIDE-0 대사가 한 글자씩 드러날 때마다 전용 보이스를 울리기 위한 진행도.
     private int _spokenChars;
 
+    // ── 대사 줄에 걸린 연출(cue) ────────────────────────────────────────
+    //
+    // 대본의 `cue: 이름` 은 **바로 다음 줄**에 걸린다. 그 줄이 뜨는 순간(또는 `cue: 이름 | 글자`
+    // 라면 그 글자가 찍히는 순간) CueStarted 가, 다음 줄로 넘어가거나 묶음이 닫히면 CueEnded 가
+    // 나간다. 무엇을 할지는 듣는 쪽(TutorialDirector)이 정한다 — 이 화면은 시점만 알린다.
+    public event Action<string> CueStarted;
+    public event Action<string> CueEnded;
+
+    private sealed class LineCue
+    {
+        public string Name = "";
+        public string Key = "";      // 비어 있으면 줄이 뜨는 순간
+        public bool Started;
+    }
+
+    // 다음 줄을 기다리는 cue / 지금 줄에 걸린 cue.
+    private readonly List<LineCue> _pendingCues = new();
+    private readonly List<LineCue> _lineCues = new();
+
     public override void _Ready()
     {
         Instance = this;
@@ -225,6 +244,8 @@ public partial class GuideHologramView : Control
     {
         // 기다리던 쪽을 그냥 버리면 await 가 영영 돌아오지 않는다(교육이 통째로 멈춘다).
         // 화면을 접더라도 약속은 반드시 돌려준다.
+        EndLineCues();
+        _pendingCues.Clear();
         var done = _guideDone;
         _guide = null;
         _guideDone = null;
@@ -282,6 +303,10 @@ public partial class GuideHologramView : Control
             onDone?.Invoke();
             return;
         }
+        // 앞 묶음의 줄에 걸려 있던 연출은 여기서 닫는다(다 찍히면 완료로 끝난 묶음은
+        // 마지막 줄을 지시문으로 남겨 두느라 연출도 같이 살아 있었다).
+        EndLineCues();
+        _pendingCues.Clear();
         ShowHologram();
         ClearChoices();
         _icons.Visible = false;
@@ -401,6 +426,10 @@ public partial class GuideHologramView : Control
                     Sfx.Instance?.Play("noise", -10f);
                     _beat++;
                     continue;
+                case PrologueScript.GuideBeatKind.Cue:
+                    _pendingCues.Add(ParseCue(b.Value));
+                    _beat++;
+                    continue;
                 default:
                     StartLine(Substitute(b.Value));
                     return;
@@ -408,6 +437,9 @@ public partial class GuideHologramView : Control
         }
 
         // 모든 대사 끝 — 마지막 줄은 그대로 남긴다(튜토리얼에서는 그게 지시문이다).
+        // 플레이어가 마지막 줄을 넘겼으니 그 줄에 걸린 연출도 여기서 끝난다.
+        EndLineCues();
+        _pendingCues.Clear();
         _hint.Visible = false;
         _guide = null;
         var done = _guideDone;
@@ -430,6 +462,8 @@ public partial class GuideHologramView : Control
     // 자막 띠도 같은 원고를 받아 같은 색으로 칠한다(LineShown).
     private void StartLine(string text)
     {
+        // 앞 줄에 걸렸던 연출은 다음 줄이 뜨는 이 순간 끝난다.
+        EndLineCues();
         LineShown?.Invoke(text);
         _linePlain = GuideTextMarkup.PlainText(text);
         // 교육일에는 가이드의 말도 대화 기록에 남는다(그 화면을 쓰는 법을 여기서 배운다).
@@ -449,7 +483,61 @@ public partial class GuideHologramView : Control
         // 명령·태그가 빠진 순수 문장 길이로 잰다 — 색을 넣었다고 느려지면 안 된다.
         _lineDuration = PrologueTextStyle.TypeSeconds(_linePlain);
         _hint.Visible = !_compact;
+
+        // 이 줄에 걸린 연출. 글자 조건이 없는 것은 지금 바로 켠다 — 시계(_lineElapsed)를
+        // 0 으로 돌린 **뒤**여야 한다. 듣는 쪽이 HoldTyping 으로 타이핑을 늦출 수 있다.
+        _lineCues.AddRange(_pendingCues);
+        _pendingCues.Clear();
+        TickLineCues();
     }
+
+    // ── cue ───────────────────────────────────────────────────────────
+
+    private static LineCue ParseCue(string value)
+    {
+        string v = value ?? "";
+        int bar = v.IndexOf('|');
+        return bar < 0
+            ? new LineCue { Name = v.Trim() }
+            : new LineCue { Name = v[..bar].Trim(), Key = v[(bar + 1)..].Trim() };
+    }
+
+    // 아직 켜지지 않은 cue 중 조건이 찼는 것을 켠다. 글자 조건은 "지금까지 드러난 글자" 로 본다 —
+    // 클릭으로 한 줄을 한 번에 드러내도 그 순간 켜진다.
+    private void TickLineCues()
+    {
+        if (_lineCues.Count == 0) return;
+        int shown = Mathf.Clamp(Mathf.RoundToInt((_line?.VisibleRatio ?? 1f) * _linePlain.Length), 0, _linePlain.Length);
+        foreach (var c in _lineCues.ToArray())
+        {
+            if (c.Started) continue;
+            if (c.Key.Length > 0 && _linePlain[..shown].IndexOf(c.Key, StringComparison.Ordinal) < 0) continue;
+            c.Started = true;
+            CueStarted?.Invoke(c.Name);
+        }
+    }
+
+    private void EndLineCues()
+    {
+        if (_lineCues.Count == 0) return;
+        var ended = _lineCues.ToArray();
+        _lineCues.Clear();
+        foreach (var c in ended)
+            if (c.Started) CueEnded?.Invoke(c.Name);
+    }
+
+    // 지금 줄의 타이핑을 seconds 만큼 늦춘다(화면을 먼저 옮긴 뒤 글자가 찍히게 할 때).
+    // 그동안 줄은 비어 있고, 클릭하면 평소처럼 한 번에 다 드러난다.
+    public void HoldTyping(double seconds)
+    {
+        if (_guide == null || seconds <= 0) return;
+        _lineElapsed = Math.Min(_lineElapsed, -seconds);
+        _line.VisibleRatio = 0f;
+        GuideMouthAnimator.StopTalking();
+    }
+
+    // GUIDE-0 대사 묶음이 지금 화면에서 진행 중인가(클릭을 기다리거나 찍히는 중).
+    public bool IsGuideActive => _guide != null;
 
     private void SetPortrait(string key)
     {
@@ -500,15 +588,20 @@ public partial class GuideHologramView : Control
         // 대사는 절대 저절로 넘어가지 않는다 — 스페이스/엔터/클릭을 기다린다.
         if (_guide != null && _line.VisibleRatio < 1f)
         {
+            // HoldTyping 으로 늦춰 둔 줄 — 글자가 찍히기 시작하는 순간 입도 움직인다.
+            if (_lineElapsed < 0 && _lineElapsed + delta >= 0) GuideMouthAnimator.StartTalking();
             _lineElapsed += delta;
             _line.VisibleRatio = PrologueTextStyle.Ratio(_linePlain, _lineElapsed);
             SpeakRevealed();
+            TickLineCues();
             if (_line.VisibleRatio >= 1f)
             {
                 GuideMouthAnimator.StopTalking();
                 OnLineTypedOut();
             }
         }
+        // 클릭으로 한 번에 드러난 줄도 글자 조건을 본다.
+        TickLineCues();
 
         // 다른 연출기(엔딩)가 입을 돌리는 동안에는 손대지 않는다 — 이 화면은 떠 있지 않아도
         // _Process 가 계속 돌기 때문에, 그냥 두면 남의 대사 중에 입을 닫아 버린다.
@@ -648,6 +741,9 @@ public partial class GuideHologramView : Control
         Sfx.Instance?.StopVoiceBlip();
         GuideMouthAnimator.StopTalking();
         _hint.Visible = false;
+        // 플레이어가 먼저 해 버렸다 — 이 묶음에 걸린 연출도 같이 닫는다.
+        EndLineCues();
+        _pendingCues.Clear();
         _guide = null;
         _completeWhenTyped = false;
         var done = _guideDone;
@@ -656,17 +752,27 @@ public partial class GuideHologramView : Control
     }
 
     // 마지막 대사의 타이핑이 끝난 순간 — completeWhenTyped 모드면 여기서 바로 완료 처리한다.
-    // 대사는 화면에 그대로 남고, 호출부가 곧바로 선택지를 띄운다.
+    // 대사는 화면에 그대로 남고, 호출부가 곧바로 선택지를 띄운다(교육에서는 그 줄이 지시문으로
+    // 남은 채 플레이어의 행동을 기다린다 — 그 줄에 걸린 연출도 다음 대사가 뜰 때까지 살아 있다).
     private void OnLineTypedOut()
     {
         if (!_completeWhenTyped || _guide == null) return;
-        if (_beat < _guide.Beats.Count - 1) return;   // 아직 남은 대사가 있다
+        if (HasLineAfter(_beat)) return;   // 아직 남은 대사가 있다
         _hint.Visible = false;
         _guide = null;
         _completeWhenTyped = false;
         var done = _guideDone;
         _guideDone = null;
         done?.Invoke();
+    }
+
+    // index 뒤에 대사 줄이 하나라도 남았는가(표정 · 정보판 · cue 같은 지시만 남았으면 끝이다).
+    private bool HasLineAfter(int index)
+    {
+        if (_guide == null) return false;
+        for (int i = index + 1; i < _guide.Beats.Count; i++)
+            if (_guide.Beats[i].Kind == PrologueScript.GuideBeatKind.Line) return true;
+        return false;
     }
 
     // 새로 드러난 글자만큼 GUIDE-0 보이스를 울린다(직원 보이스와 같은 재생 경로, 다른 Voice ID).
@@ -680,7 +786,7 @@ public partial class GuideHologramView : Control
             _spokenChars++;
             // 입은 글자마다 모양을 바꾸지 않는다 — 문장부호에서 잠깐 다물 때만 쓴다.
             GuideMouthAnimator.NoticeCharacter(c);
-            if (!string.IsNullOrEmpty(voice)) Sfx.Instance?.PlayVoiceBlip(voice, c);
+            if (!string.IsNullOrEmpty(voice)) Sfx.Instance?.PlayVoiceBlip(voice, c, Sfx.VoiceChannel.Radio);
         }
     }
 
@@ -831,7 +937,7 @@ public partial class GuideHologramView : Control
             var font = ViewFont.Default;
             DrawString(font, new Vector2(12f, 20f), "GUIDE-0.exe", HorizontalAlignment.Left,
                 Size.X - 100f, ViewFont.S(14), Cyan with { A = 0.95f });
-            DrawString(font, new Vector2(Size.X - 84f, 20f), "—  □  ✕", HorizontalAlignment.Left,
+            DrawString(font, new Vector2(Size.X - 84f, 20f), "-  □  ✕", HorizontalAlignment.Left,
                 80f, ViewFont.S(14), Cyan with { A = 0.55f });
 
             // 홀로그램 스캔라인.

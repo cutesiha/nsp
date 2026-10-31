@@ -34,7 +34,7 @@ TargetRooms = Array[String]([])
 [sub_resource type="Resource" id="obj_rooms"]
 script = ExtResource("2_obj")
 ObjectiveId = "rooms"
-DisplayText = "근무 종료 시 코어실·발전실 정상 가동"
+DisplayText = "근무 종료 시 코어실/발전실 정상 가동"
 Type = 4
 TargetValue = 0.0
 Required = false

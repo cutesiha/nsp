@@ -23,10 +23,10 @@ public static class GameModes
 {
     // ── 잠금 플래그 (여기 한 줄만 바꾼다) ──────────────────────────────
     //
-    // **정규 근무(5일)는 지금 막아 두었다.** 고를 수 있는 것은 단기 근무뿐이다.
-    // 화면에서 칸을 지우지는 않는다 — 잠긴 채로 보여야 "그런 근무가 있다" 가 전해지고,
-    // 나중에 열 때도 이 한 줄만 true 로 되돌리면 된다.
-    public const bool StandardUnlocked = false;
+    // **정규 근무(5일)는 단기 근무를 한 번 끝까지 마쳐야 열린다**(2026-10-31 사용자 요청).
+    // 그 전까지는 잠긴 채로 보인다 — "그런 근무가 있다" 가 전해지도록 칸은 지우지 않는다.
+    // 기록은 EndingState(user://nsp_progress.cfg)에 남는다.
+    public static bool StandardUnlocked => EndingState.ShortShiftCleared;
     // 하드 모드는 규칙 자체가 아직 없다. 해금 로직이 붙을 때까지 항상 false.
     public const bool HardUnlocked = false;
 
@@ -110,10 +110,52 @@ public static class GameModes
     // 초기값은 1.0**, 즉 지금 당장은 아무것도 바뀌지 않는다. 실제 플레이로 과부하가
     // 확인되면 아래 상수 한 줄(1.10~1.25 권장)만 올리면 되고, 기본 5일 모드는
     // 어떤 경우에도 1.0 을 유지한다.
-    public const float CompetitionUnstaffedAccidentScale = 1.0f;
+    // 2026-10-22 — 단기 근무에서 빈 방 사고가 너무 잦다는 플레이 피드백으로 1.6 으로 올렸다
+    // (비워 둔 방이 사고로 번지기까지 60% 더 오래 버틴다).
+    public const float CompetitionUnstaffedAccidentScale = 1.6f;
 
     public static float UnstaffedAccidentScale =>
         Current == GameMode.Competition ? CompetitionUnstaffedAccidentScale : 1f;
+
+    // 아무도 없는 작업실에 무작위 경고(주황)가 뜰 확률에 곱하는 배율. 단기 근무만 낮춘다 —
+    // 정해진 시각에 뜨는 학습용 경고는 건드리지 않는다(FacilityWarningSystem.TickRandom).
+    public const float CompetitionUnstaffedWarningScale = 0.55f;
+
+    public static float UnstaffedWarningScale =>
+        Current == GameMode.Competition ? CompetitionUnstaffedWarningScale : 1f;
+
+    // ── 단기 근무에는 스트레스가 없다(2026-10-27 사용자 지시) ───────────────
+    //
+    // 수치 자체가 없다 — 오르지도, 화면에 뜨지도 않는다. 스트레스가 원인이던 것도 같이 사라진다:
+    // 기절 · 의무실 이송, 환기실을 비웠을 때 · 환기 고장 · 근무 피로 · 사고 · 개체 · 관계 · 패닉으로
+    // 오르던 스트레스, 스트레스 구간에 따른 작업 효율 감소.
+    // 스트레스를 다루던 두 방(환기실 · 의무실)도 시설에서 통째로 빠진다 — 배치 · 지도 · 업무 ·
+    // 사고 · 방해공작 · 관리자 패드 지침 어디에도 나오지 않는다.
+    //
+    // 정규 근무(5일)는 예전 그대로다. 판정은 DayFeatures.StressEnabled / IsRoomActive 두 창구가 이
+    // 값을 보고, 그 창구를 거치지 않는 지도 · 길찾기 · 지침만 IsRoomRemoved 를 직접 본다.
+    public static bool StressSystemEnabled => Current != GameMode.Competition;
+
+    // ── 단기 근무에는 수리 승인 절차가 없다(2026-10-29 사용자 지시) ─────────────
+    //
+    // 사고 수리에 사람이 다 모이면 곧바로 고치기 시작한다. 관리자 패드의 승인 요청 · 미로 퍼즐 ·
+    // 요청 알림이 하나도 뜨지 않는다(RepairApprovalSystem 에 줄을 세우지 않는다 — FacilitySimulation).
+    // 정규 근무(5일)는 예전 그대로 승인 절차를 거친다.
+    public static bool RepairApprovalEnabled => Current != GameMode.Competition;
+
+    public static bool RemovesRooms => Current == GameMode.Competition;
+
+    public static bool IsRoomRemoved(string roomId) =>
+        RemovesRooms && (roomId is "vent_room" or "medical_room");
+
+    // 빠진 방을 거쳐야만 닿던 방을 바로 잇는 통로. 격리실은 원래 의무실을 거쳐 들어갔다
+    // (중앙제어실 → 저장고 → 정비실 → 의무실 → 격리실) — 단기 근무에서는 정비실에서 바로 들어간다.
+    public static System.Collections.Generic.IEnumerable<string> BypassLinksOf(string roomId)
+    {
+        if (Current != GameMode.Competition) yield break;
+        if (roomId == "maintenance_room") yield return "isolation_room";
+        else if (roomId == "isolation_room") yield return "maintenance_room";
+    }
 
     public static string DisplayName(GameMode mode) => mode switch
     {

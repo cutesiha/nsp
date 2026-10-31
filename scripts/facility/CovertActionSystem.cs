@@ -8,7 +8,8 @@ namespace NSP.Facility;
 
 // 결번 개체가 **감시 공백을 실제로 이용하는** 계통.
 //
-// 전력은 2포인트뿐이라 LIGHTING · CCTV · BARRIER 중 하나는 반드시 꺼야 한다.
+// 전력은 3포인트지만 발전실 사고 · 전력 조작으로 2 로 줄면 LIGHTING · CCTV · BARRIER 중
+// 하나는 반드시 꺼야 한다.
 // 관리자가 귀신을 막으려고 차폐에 전력을 돌리는 순간 감시에 구멍이 뚫리고,
 // 결번 개체는 그 구멍을 쓴다.
 //
@@ -210,7 +211,7 @@ public sealed class CovertActionSystem
                 _tamperWork = 0f;
                 _tamperRoomId = "";
                 _caughtCooldown = 12f;
-                Note(sim, $"봉쇄 교란 중단 — CCTV 관측됨 @{sim.RoomDisplayName(room)}");
+                Note(sim, $"봉쇄 교란 중단 - CCTV 관측됨 @{sim.RoomDisplayName(room)}");
                 return;
             }
         }
@@ -401,7 +402,7 @@ public sealed class CovertActionSystem
             if (_blockedSeconds > 6f)
             {
                 CovertMovesBlocked++;
-                Note(sim, "은밀 이동 실패 — 차폐문에 막힘");
+                Note(sim, "은밀 이동 실패 - 차폐문에 막힘");
                 BeginEscape(sim, sab);
             }
             return;
@@ -416,7 +417,7 @@ public sealed class CovertActionSystem
             if (_rng.Randf() < (ops?.CovertAbortOnLightChance ?? 0.5f))
             {
                 AbortedByPlayer++;
-                Note(sim, "은밀 이동 포기 — 조명 복구");
+                Note(sim, "은밀 이동 포기 - 조명 복구");
                 BeginEscape(sim, sab);
                 return;
             }
@@ -563,6 +564,27 @@ public sealed class CovertActionSystem
         sim.EndCovertMove(sab.EmployeeId);
         Phase = CovertPhase.Idle;
         _seekCooldown = 10f;
+    }
+
+    // 결번이 다른 방에 배치됐다(관리자 지시 · 시설 조치) — 그 방이 이제 돌아갈 자리다.
+    //
+    // 예전에는 돌아갈 자리를 근무 시작 때 한 번만 정했다. 관리자가 옮겨도 다음 틱에 범행 준비 중단 ·
+    // 은밀 이동 도착 · 교란 복귀 분기가 BeginEscape 로 **예전 자리로 다시 걸어가게** 해서, 강아지를
+    // 아무리 옮겨도 경비실로 돌아갔다(2026-10-31 사용자 제보). 지금은 하던 일을 그 자리에서 접고,
+    // 방금 내린 이동 지시를 덮어쓰지 않는다(BeginEscape 를 부르지 않는다).
+    public void OnAssigned(FacilitySimulation sim, string employeeId, string roomId)
+    {
+        if (string.IsNullOrEmpty(employeeId) || employeeId != GameState.Instance?.SaboteurEmployeeId) return;
+        HomeRoomId = roomId ?? "";
+        if (Phase == CovertPhase.Idle && !_awayForTamper) return;
+        if (Phase == CovertPhase.Preparing) AbortedByPlayer++;
+        Phase = CovertPhase.Idle;
+        VictimId = TargetRoomId = "";
+        PrepareSeconds = PrepareNeeded = 0f;
+        _purpose = Purpose.None;
+        _awayForTamper = false;
+        _seekCooldown = Mathf.Max(_seekCooldown, 8f);
+        Note(sim, $"재배치 지시 → {sim.RoomDisplayName(roomId)} (하던 일 중단)");
     }
 
     private void Abort(FacilitySimulation sim, string saboteurId, string why)

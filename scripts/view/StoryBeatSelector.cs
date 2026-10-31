@@ -54,7 +54,10 @@ public static class StoryBeatSelector
             && IsPlayable(e, day) && Matches(e.When, day);
 
         // ① 어제 일에 대한 반응 — 맨 앞에 하나만(문서 §16).
+        //    어제 누가 죽었으면 그 반응이 먼저다 — 귀신 목격담이 뽑혀 죽음이 한마디도 없이 지나가면 안 된다.
         var reacts = StoryScript.Entries.Where(e => e.Kind == StoryBeatKind.React && Usable(e)).ToList();
+        var deaths = reacts.Where(e => e.When == "death_yesterday").ToList();
+        if (deaths.Count > 0) reacts = deaths;
         if (reacts.Count > 0) queue.Add(reacts[_rng.Next(reacts.Count)]);
 
         // ② 그 DAY 의 집단 대화 — 문서에 적힌 순서대로 전부. 관리자 선택(@choice)은
@@ -96,6 +99,9 @@ public static class StoryBeatSelector
             var queue = BuildQueue(day);
             if (queue.Count == 0) return;
 
+            // 지난 스토리에서 올라간 SKIP 표시를 내린다 — 안 내리면 오늘 것이 시작하자마자 접힌다.
+            StoryCutinDirector.Instance?.ClearSkip();
+
             // ① 이전 BGM 페이드아웃 → 날숨 → 암전 → 생활음 → 모니터2 → 확대 → 짧은 침묵.
             //    EnterMonitor 는 이 안에서 불린다(화면과 카메라를 따로 켜야 하므로).
             //
@@ -124,11 +130,23 @@ public static class StoryBeatSelector
                 double silence = i == queue.Count - 1 ? ClosingSilenceSeconds : 0.0;
                 if (!await PlayWithTimeout(ctx, dir, entry.Beat, silence)) return;
                 if (!GodotObject.IsInstanceValid(ctx)) return;
+
+                // SKIP 을 눌렀다 — **남은 비트는 틀지 않는다.**
+                //
+                // Abort 로 끝난 비트도 "끝난" 것이라 PlayWithTimeout 은 true 를 준다.
+                // 그것만 보고 계속 돌면 남은 대사가 모니터 밖(카메라 화면 전체)에 뜬다.
+                // 남은 것도 본 것으로 적어 둔다 — 건너뛴 날의 대사가 나중에 되살아나면
+                // 안 읽은 줄이 뒤늦게 튀어나온다.
+                if (dir.Skipped)
+                {
+                    for (int j = i + 1; j < queue.Count; j++) MarkPlayed(queue[j].Id);
+                    return;
+                }
             }
         }
         catch (Exception e)
         {
-            GD.PushWarning($"StoryBeatSelector: 스토리를 건너뜁니다 — {e.Message}");
+            GD.PushWarning($"StoryBeatSelector: 스토리를 건너뜁니다 - {e.Message}");
             StoryCutinDirector.Instance?.Abort();
         }
         finally
@@ -140,7 +158,7 @@ public static class StoryBeatSelector
                 try { await StoryTransition.Exit(ctx); }
                 catch (Exception e)
                 {
-                    GD.PushWarning($"StoryBeatSelector: 종료 연출 실패 — {e.Message}");
+                    GD.PushWarning($"StoryBeatSelector: 종료 연출 실패 - {e.Message}");
                     StoryTransition.Release();
                 }
             }

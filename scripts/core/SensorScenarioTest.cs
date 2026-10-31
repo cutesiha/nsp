@@ -40,7 +40,7 @@ public partial class SensorScenarioTest : Node
     {
         Setup(skip: "vent_room");
         Run(10f);
-        GD.Print("\n[TEST B] 10초 시점 — 아래 위험이 떠 있어야 한다");
+        GD.Print("\n[TEST B] 10초 시점 - 아래 위험이 떠 있어야 한다");
         PrintRows();
         _sim.AssignToRoom("wolf", "vent_room");
         Run(1f);
@@ -154,13 +154,13 @@ public partial class SensorScenarioTest : Node
     private static void PrintRows()
     {
         var rows = IncidentBoard.Build();
-        if (rows.Count == 0) { GD.Print("  (표시할 항목 없음 — 정상)"); return; }
+        if (rows.Count == 0) { GD.Print("  (표시할 항목 없음 - 정상)"); return; }
         foreach (var r in rows)
         {
             string kind = r.IsOperational ? "운영" : r.IsProtocol ? "금기" : r.State.ToString();
             string room = FacilitySimulation.Instance?.GetRoomDef(r.RoomId)?.DisplayName ?? r.RoomId;
             string time = r.WarningRemainingSeconds >= 0f ? $" / {r.WarningRemainingSeconds:00.0}초" : "";
-            GD.Print($"  [{kind,-8}] {room} · {r.Title}{time}");
+            GD.Print($"  [{kind,-8}] {room}, {r.Title}{time}");
             GD.Print($"             원인 {r.CauseText} / 결과 {string.Join(" + ", r.ConsequenceLines)} / 조치 {r.ActionHint}");
         }
     }

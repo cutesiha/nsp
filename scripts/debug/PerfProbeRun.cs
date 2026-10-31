@@ -84,9 +84,29 @@ public partial class PerfProbeRun : Node
 
         await Measure("〇 몸풀기(버리는 측정)");
         _notes.Add($"- 활성 SubViewport: {CountActiveViewports(root)}개 / 전체 {CountViewports(root)}개");
-        _notes.Add($"- 3D 스케일: {scale0:0.00} · CRT 렌더 배율 {ControlRoom3DController.RenderScale:0.00} · 창 {DisplayServer.WindowGetSize()}");
-        _notes.Add($"- 조명(OmniLight3D+SpotLight3D): {CountLights(root)}개 · 그림자 켠 것 {CountShadowLights(root)}개");
+        _notes.Add($"- 3D 스케일: {scale0:0.00}, CRT 렌더 배율 {ControlRoom3DController.RenderScale:0.00}, 창 {DisplayServer.WindowGetSize()}");
+        _notes.Add($"- 조명(OmniLight3D+SpotLight3D): {CountLights(root)}개, 그림자 켠 것 {CountShadowLights(root)}개");
         _notes.Add($"- 보이는 MeshInstance3D: {CountVisibleMeshes(root)}개");
+
+        // ── 창 크기 (인자에 window 를 주면 이것만 재고 끝낸다) ──────────────
+        //
+        // 이 기계는 **픽셀을 채우는 속도**에 막혀 있다. 그러면 가장 큰 지렛대는
+        // 설정이 아니라 창 크기다 — 영상으로 찍을 해상도를 정하는 데 쓴다.
+        //
+        // 긴 측정은 노트북이 달아올라 기준선 자체가 흔들린다(한 번은 45ms → 86ms 까지
+        // 널뛰었다). 그래서 이것만 따로 짧게 돌릴 수 있게 해 두었다.
+        bool onlyWindow = System.Array.IndexOf(args, "window") >= 0;
+        if (onlyWindow)
+        {
+            var win0 = DisplayServer.WindowGetSize();
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1024, 576) })
+                await Probe($"⑯ 창 {win0.X}×{win0.Y} → {size.X}×{size.Y}",
+                    () => DisplayServer.WindowSetSize(size),
+                    () => DisplayServer.WindowSetSize(win0));
+            await Write(outPath);
+            GetTree().Quit();
+            return;
+        }
 
         // ② CCTV 3D 월드(두 번째 렌더 패스).
         if (cctvVp != null)
@@ -114,7 +134,7 @@ public partial class PerfProbeRun : Node
             () => { foreach (var (vp, m) in saved) vp.RenderTargetUpdateMode = m; });
 
         // ④ 그림자를 전부 — **상한 확인용**이다. 이 값을 그대로 쓸 생각은 없다.
-        await Probe($"④ 그림자 전부 OFF (광원 {shadowed.Count}개 · 상한)",
+        await Probe($"④ 그림자 전부 OFF (광원 {shadowed.Count}개, 상한)",
             () => { foreach (var l in shadowed) l.ShadowEnabled = false; },
             () => { foreach (var l in shadowed) l.ShadowEnabled = true; });
 
@@ -155,7 +175,7 @@ public partial class PerfProbeRun : Node
         // 것은 책상 위 기기를 떼어 놓는 스포트라이트뿐이다. 나머지를 끄면 얼마나 도는지,
         // 그러고도 방이 방으로 보이는지를 가른다.
         var offs = new List<Light3D>();
-        await Probe("⑧ 그림자 — 스포트라이트만 남김",
+        await Probe("⑧ 그림자 - 스포트라이트만 남김",
             () =>
             {
                 offs.Clear();
@@ -200,7 +220,66 @@ public partial class PerfProbeRun : Node
         await Probe($"⑪ 품질 {GameSettings.QualityLabel} → 매우 낮음 (설정 그대로)",
             () => GameSettings.GraphicsQuality = GameSettings.Quality.VeryLow,
             () => GameSettings.GraphicsQuality = q0);
-        _notes.Add($"- ⑪ 뒤 되돌린 품질: {GameSettings.QualityLabel} · CRT 렌더 배율 {ControlRoom3DController.RenderScale:0.00}");
+        _notes.Add($"- ⑪ 뒤 되돌린 품질: {GameSettings.QualityLabel}, CRT 렌더 배율 {ControlRoom3DController.RenderScale:0.00}");
+
+        // ── 아날로그 호러 비주얼 세 겹 ─────────────────────────────────
+        //
+        // 셋 다 "화면을 한 번 더 그리는" 종류라, 픽셀을 메우는 속도가 느린 내장 GPU
+        // 에서 가장 먼저 의심해야 하는 것들이다. **어느 겹이 비싼지**를 가른다.
+
+        // ⑫ 전역 VHS 필터 — 화면 전체(창 해상도)를 한 번 더 읽어 다시 그린다.
+        var filter = NSP.Ui.AnalogFilter.Instance;
+        if (filter != null)
+        {
+            bool on0 = filter.Enabled;
+            await Probe("⑫ 전역 아날로그 필터(VHS) OFF",
+                () => filter.Enabled = false, () => filter.Enabled = on0);
+            _notes.Add($"- ⑫ 측정 시작 시 필터는 {(on0 ? "켜짐" : "꺼짐")} 상태였다");
+        }
+        else _notes.Add("- `AnalogFilter.Instance` 가 없어 ⑫를 건너뛰었다");
+
+        // ⑬ 손그림 칠 — 풀스크린 사각형 + 모니터 앞면 잉크 사각형.
+        var paint = AnalogPaint.Instance;
+        if (paint != null)
+        {
+            bool p0 = paint.Visible;
+            await Probe("⑬ 손그림 칠(AnalogPaint) OFF",
+                () => paint.Visible = false, () => paint.Visible = p0);
+        }
+        else _notes.Add("- `AnalogPaint.Instance` 가 없어 ⑬을 건너뛰었다");
+
+        // ⑭ CCTV 영상 셰이더 — 영상 사각형(736×452) 하나에만 걸린다. 표본 최대 4개.
+        var cctv = CCTVMonitorView.Instance;
+        var feedTex = Field<TextureRect>(cctv, "_bgTex");
+        if (feedTex != null)
+        {
+            var m0 = feedTex.Material;
+            await Probe("⑭ CCTV 영상 아날로그 셰이더 OFF",
+                () => feedTex.Material = null, () => feedTex.Material = m0);
+            _notes.Add($"- ⑭ 영상 셰이더: {(m0 == null ? "없음" : "걸려 있음")}, 영상 크기 {feedTex.Size}");
+        }
+        else _notes.Add("- CCTV `_bgTex` 를 찾지 못해 ⑭를 건너뛰었다");
+
+        // ⑮ 세 겹을 한꺼번에 — 아날로그 비주얼 전체가 차지하는 몫.
+        if (filter != null || paint != null || feedTex != null)
+        {
+            bool f0 = filter?.Enabled ?? false;
+            bool pv0 = paint?.Visible ?? false;
+            var fm0 = feedTex?.Material;
+            await Probe("⑮ 아날로그 비주얼 세 겹 전부 OFF (합계)",
+                () =>
+                {
+                    if (filter != null) filter.Enabled = false;
+                    if (paint != null) paint.Visible = false;
+                    if (feedTex != null) feedTex.Material = null;
+                },
+                () =>
+                {
+                    if (filter != null) filter.Enabled = f0;
+                    if (paint != null) paint.Visible = pv0;
+                    if (feedTex != null) feedTex.Material = fm0;
+                });
+        }
 
         _notes.Add("");
         _notes.Add("### 그림자를 켠 광원");
@@ -282,7 +361,7 @@ public partial class PerfProbeRun : Node
     private async System.Threading.Tasks.Task Probe(string label,
         System.Action apply, System.Action revert)
     {
-        await Measure("· 기준 — " + label);
+        await Measure("- 기준 - " + label);
         apply();
         await Measure(label);
         revert();
@@ -296,16 +375,16 @@ public partial class PerfProbeRun : Node
         await Seconds(Sample);
         var r = PerfStats.End();
         _results.Add(r);
-        GD.Print($"   {label} — {r.AvgFps:0.0} FPS ({r.AvgMs:0.0} ms) · draw {r.DrawCalls}");
+        GD.Print($"   {label} - {r.AvgFps:0.0} FPS ({r.AvgMs:0.0} ms), draw {r.DrawCalls}");
     }
 
     private async System.Threading.Tasks.Task Write(string path)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("# NSP 성능 — 무엇이 비싼가 (하나씩 꺼 보기)");
+        sb.AppendLine("# NSP 성능 - 무엇이 비싼가 (하나씩 꺼 보기)");
         sb.AppendLine();
-        sb.AppendLine($"- {RenderingServer.GetVideoAdapterName()} · {OS.GetProcessorName()}");
-        sb.AppendLine($"- 품질 {GameSettings.GraphicsQuality} · V-Sync {DisplayServer.WindowGetVsyncMode()}");
+        sb.AppendLine($"- {RenderingServer.GetVideoAdapterName()}, {OS.GetProcessorName()}");
+        sb.AppendLine($"- 품질 {GameSettings.GraphicsQuality}, V-Sync {DisplayServer.WindowGetVsyncMode()}");
         sb.AppendLine("- 끈 것은 **측정 동안만**이고 바로 되돌린다. 설정을 고치지 않는다.");
         sb.AppendLine();
         // **읽어야 할 표는 이것이다.** 바로 앞 기준과의 차이만이 토글의 값이다.
@@ -316,7 +395,7 @@ public partial class PerfProbeRun : Node
         PerfStats.Result baseline = null;
         foreach (var r in _results)
         {
-            if (r.Label.StartsWith("· 기준") || r.Label.StartsWith("〇")) { baseline = r; continue; }
+            if (r.Label.StartsWith("- 기준") || r.Label.StartsWith("〇")) { baseline = r; continue; }
             if (baseline == null) continue;
             double d = r.AvgMs - baseline.AvgMs;
             sb.AppendLine($"| {r.Label} | {baseline.AvgMs:0.0} | {r.AvgMs:0.0} | **{d:+0.0;-0.0;0.0}** | " +
@@ -324,7 +403,7 @@ public partial class PerfProbeRun : Node
                           $"{r.DrawCalls - baseline.DrawCalls:+0;-0;0} |");
         }
         sb.AppendLine();
-        sb.AppendLine("> 차이가 **음수**면 그만큼 빨라진 것이다. 기준 줄끼리 비교하면 안 된다 —");
+        sb.AppendLine("> 차이가 **음수**면 그만큼 빨라진 것이다. 기준 줄끼리 비교하면 안 된다 -");
         sb.AppendLine("> 이 기계는 측정 내내 성능이 흔들려서 떨어진 두 줄은 서로 비교할 수 없다.");
         sb.AppendLine();
         sb.AppendLine("## 잰 그대로");

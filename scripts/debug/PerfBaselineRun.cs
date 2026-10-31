@@ -84,7 +84,7 @@ public partial class PerfBaselineRun : Node
         var ctl = ControlRoom3DController.Instance;
         if (sim == null || ctl == null)
         {
-            _skipped.Add("근무 이후 전부 — FacilitySimulation / ControlRoom3DController 를 찾지 못했다");
+            _skipped.Add("근무 이후 전부 - FacilitySimulation / ControlRoom3DController 를 찾지 못했다");
             await Write(outPath);
             return;
         }
@@ -95,13 +95,13 @@ public partial class PerfBaselineRun : Node
 
         // ── 3. 평상시(CCTV 켜짐) ─────────────────────────────────────
         sim.SetSurveillanceTarget("power_room");
-        await Measure("근무 중 · CCTV 켜짐(작업실)");
+        await Measure("근무 중, CCTV 켜짐(작업실)");
 
         // ── 4. CCTV 전원 OFF ─────────────────────────────────────────
         bool cctvWasOn = GameState.Instance?.IsConsumerPowered(PowerConsumer.CctvWatch) ?? false;
         if (cctvWasOn) GameState.Instance?.TryTogglePower(PowerConsumer.CctvWatch);
         await Frames(30);
-        await Measure("근무 중 · CCTV 전원 OFF");
+        await Measure("근무 중, CCTV 전원 OFF");
         if (cctvWasOn && !(GameState.Instance?.IsConsumerPowered(PowerConsumer.CctvWatch) ?? false))
             GameState.Instance?.TryTogglePower(PowerConsumer.CctvWatch);
         await Frames(30);
@@ -141,7 +141,7 @@ public partial class PerfBaselineRun : Node
     // 귀신 한 번 — 나타나고 사라지기까지.
     private async System.Threading.Tasks.Task GhostRound(FacilitySimulation sim, string label)
     {
-        if (sim.Ghost == null) { _skipped.Add(label + " — GhostHauntSystem 없음"); return; }
+        if (sim.Ghost == null) { _skipped.Add(label + " - GhostHauntSystem 없음"); return; }
         sim.SetSurveillanceTarget("power_room");
         await Frames(20);
         PerfStats.Begin(label);
@@ -156,7 +156,7 @@ public partial class PerfBaselineRun : Node
     private async System.Threading.Tasks.Task ScareRound(string label)
     {
         var hd = NSP.Ui.HorrorDirector.Instance;
-        if (hd == null) { _skipped.Add(label + " — HorrorDirector 없음"); return; }
+        if (hd == null) { _skipped.Add(label + " - HorrorDirector 없음"); return; }
         await Frames(30);
         PerfStats.Begin(label);
         hd.PlayEntityFaceJumpscare();
@@ -195,7 +195,7 @@ public partial class PerfBaselineRun : Node
     {
         _results.Add(r);
         _details.Add($"### {r.Label}\n\n{PerfStats.Detail(r)}");
-        GD.Print($"   {r.Label} — 평균 {r.AvgFps:0.0} FPS · 1%low {r.LowOnePercentFps:0.0} · 최악 {r.WorstMs:0.0}ms");
+        GD.Print($"   {r.Label} - 평균 {r.AvgFps:0.0} FPS, 1%low {r.LowOnePercentFps:0.0}, 최악 {r.WorstMs:0.0}ms");
     }
 
     private async System.Threading.Tasks.Task Write(string path)
@@ -205,16 +205,16 @@ public partial class PerfBaselineRun : Node
         sb.AppendLine();
         sb.AppendLine($"- 측정 시각: {Time.GetDatetimeStringFromSystem()}");
         sb.AppendLine($"- 품질 설정: **{GameSettings.GraphicsQuality}** (RenderScale {ControlRoom3DController.RenderScale:0.00})");
-        sb.AppendLine($"- 렌더러: {ProjectSettings.GetSetting("rendering/renderer/rendering_method")} · " +
+        sb.AppendLine($"- 렌더러: {ProjectSettings.GetSetting("rendering/renderer/rendering_method")}, " +
                       $"드라이버 {RenderingServer.GetVideoAdapterApiVersion()}");
         sb.AppendLine($"- GPU: {RenderingServer.GetVideoAdapterName()} ({RenderingServer.GetVideoAdapterVendor()})");
-        sb.AppendLine($"- CPU: {OS.GetProcessorName()} · {OS.GetProcessorCount()} 스레드");
+        sb.AppendLine($"- CPU: {OS.GetProcessorName()}, {OS.GetProcessorCount()} 스레드");
         sb.AppendLine($"- V-Sync: {DisplayServer.WindowGetVsyncMode()}");
-        sb.AppendLine($"- 창 크기: {DisplayServer.WindowGetSize()} · 화면 {DisplayServer.ScreenGetSize()}");
-        sb.AppendLine($"- 빌드: {(OS.IsDebugBuild() ? "디버그" : "릴리스")} · 엔진 {Engine.GetVersionInfo()["string"]}");
+        sb.AppendLine($"- 창 크기: {DisplayServer.WindowGetSize()}, 화면 {DisplayServer.ScreenGetSize()}");
+        sb.AppendLine($"- 빌드: {(OS.IsDebugBuild() ? "디버그" : "릴리스")}, 엔진 {Engine.GetVersionInfo()["string"]}");
         sb.AppendLine();
         sb.AppendLine("> 각 상황은 전환 뒤 " + WarmSeconds + "초를 버리고 " + SampleSeconds + "초를 쟀다.");
-        sb.AppendLine("> **GPU 프레임 시간은 Godot 4.7 이 내주지 않는다 — 측정 불가.**");
+        sb.AppendLine("> **GPU 프레임 시간은 Godot 4.7 이 내주지 않는다 - 측정 불가.**");
         sb.AppendLine();
         sb.AppendLine(PerfStats.Header);
         foreach (var r in _results) sb.AppendLine(PerfStats.Row(r));

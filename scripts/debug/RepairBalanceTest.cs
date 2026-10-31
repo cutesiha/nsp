@@ -27,7 +27,7 @@ public partial class RepairBalanceTest : Node
 
     private void RunAll()
     {
-        GD.Print("\n\n################ G-4 시간 · 수리 밸런스 ################");
+        GD.Print("\n\n################ G-4 시간, 수리 밸런스 ################");
         TestDayLength();
         TestRepairShare();
         TestMedicalFault();
@@ -109,7 +109,7 @@ public partial class RepairBalanceTest : Node
     // ── 의무실이 고장 나면 회복이 느려진다 ──────────────────────────────
     private void TestMedicalFault()
     {
-        Head("C", "의무실 고장 — 회복이 느려지고 스트레스 회복이 막힌다");
+        Head("C", "의무실 고장 - 회복이 느려지고 스트레스 회복이 막힌다");
         var cfg = Config.Instance.Data;
         Check(cfg.MedicalFaultRecoveryRate > 1f,
             $"고장 중 회복 배율이 있다 (×{cfg.MedicalFaultRecoveryRate:0.#})");

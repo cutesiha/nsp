@@ -105,19 +105,26 @@ public static class Achievements
         Add(FirstInterview, "취조를 시작하지", "휴게시간에 직원을 심문하세요.", "◇");
 
         // B. 실수 / 시설 관리
-        Add(MazeFailOnce, "하찮은 관리자!", "수리 승인 퍼즐에 실패하세요.", "△");
-        Add(MazeFailThree, "부러진 손가락", "수리 승인 퍼즐에 누적 3회 실패하세요.", "△");
-        Add(RepairRequestIgnored, "모른 척하기도 업무입니다", "수리 승인 요청을 거절하거나 방치하세요.", "△");
-        Add(FirstFaint, "부주의한 관리자", "근무 중 직원을 기절까지 몰아붙이세요.", "△");
+        // 수리 승인 절차 · 스트레스(기절)는 정규 근무에만 있다 - 그 과제들의 조건 끝에 「(정규 근무 전용)」 을 붙여
+        // 단기 근무만 해 본 사람이 "왜 안 뜨지?" 하지 않게 한다(2026-10-31).
+        // 기절은 스트레스가 있는 근무(정규 근무)에만 있다 — 단기 근무에는 스트레스가 없다.
+        // 그 근무를 고를 수 없는 동안은 기절 과제를 목록에서 뺀다(얻을 길이 없는 과제가 남으면
+        // 수집률이 영영 다 차지 않는다). 「오늘은 무사히」도 기절을 말하지 않는다.
+        bool faintPossible = GameModes.IsPlayable(GameMode.Standard);
+        Add(MazeFailOnce, "하찮은 관리자!", "수리 승인 퍼즐에 실패하세요. (정규 근무 전용)", "△");
+        Add(MazeFailThree, "부러진 손가락", "수리 승인 퍼즐에 누적 3회 실패하세요. (정규 근무 전용)", "△");
+        Add(RepairRequestIgnored, "모른 척하기도 업무입니다", "수리 승인 요청을 거절하거나 방치하세요. (정규 근무 전용)", "△");
+        if (faintPossible) Add(FirstFaint, "부주의한 관리자", "근무 중 직원을 기절까지 몰아붙이세요. (정규 근무 전용)", "△");
         Add(WarningNeglected, "경고는 장식인가요?", "사전 경고를 방치해 설비를 고장 내세요.", "△");
         Add(PowerRestored, "다시 켜진 불빛", "발전기 사고로 줄어든 전력을 수리로 복구하세요.", "△");
         Add(FirstFacilityRepair, "고쳐 쓰면 그만", "고장 난 작업실 설비를 수리 완료하세요.", "△");
-        Add(SafeShift, "오늘은 무사히", "사망도 기절도 없이 하루 근무를 마치세요.", "△");
+        Add(SafeShift, "오늘은 무사히",
+            faintPossible ? "사망도 기절도 없이 하루 근무를 마치세요." : "사망자 없이 하루 근무를 마치세요.", "△");
 
         // C. 직원 / 이상현상 / 추리
         Add(MissedCallOnce, "무심한 관리자", "직원의 전화를 받지 않거나 거절하세요.", "○");
         Add(MissedCallThree, "차가운 관리자", "직원의 전화를 누적 3회 놓치세요.", "○");
-        Add(GhostIgnored, "시크한 관리자", "이상 개체를 끝까지 관측하지 않아 사고를 내세요.", "○");
+        Add(GhostIgnored, "보기만 하는 관리자", "이상 개체가 설비를 부수는 순간을 CCTV로 지켜보세요.", "○");
         Add(GhostDispelled, "눈 마주쳤다", "CCTV로 이상 개체가 작업실을 떠나는 것을 확인하세요.", "○");
         Add(SuspiciousCctv, "누군가의 흔적", "CCTV로 직원의 수상한 행동을 직접 포착하세요.", "○", hidden: true);
         Add(FirstEvidence, "증거는 말한다", "조사 자료를 근거로 심문 질문을 하세요.", "○");
@@ -129,7 +136,7 @@ public static class Achievements
         // D. 근무 평가
         Add(GradeS, "완벽한 근무!", "최종 관리자 평가 S등급을 받으세요.", "★");
         Add(GradeA, "이 구역의 에이스", "최종 관리자 평가 A등급을 받으세요.", "★");
-        Add(GradeLowest, "쓸모없는 관리자", "최종 관리자 평가 D등급을 받으세요.", "★", hidden: true);
+        Add(GradeLowest, "쓸모없는 관리자", "최종 관리자 평가 F등급을 받으세요.", "★", hidden: true);
 
         // E. 특수 / 엔딩
         Add(TutorialCore100, "이게 연습이라고?", "가상 시뮬레이션에서 봉쇄 코어를 100% 복구하세요.", "◆", hidden: true);

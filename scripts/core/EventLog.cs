@@ -24,14 +24,15 @@ public partial class EventLog : Node
 
     public void LogEvent(LogEventType type, string actorEmployeeId, string roomId, string description,
         IEnumerable<string> witnesses = null, bool passingThrough = false, LogDetail detail = LogDetail.None,
-        bool covert = false)
+        bool covert = false, float? atTime = null)
     {
         var entry = new LogEntry
         {
             Covert = covert,
             Detail = detail,
             Day = GameState.Instance?.CurrentDay ?? 0,
-            GameTimeSeconds = GameState.Instance?.DayTimeSeconds ?? 0f,
+            // atTime — 나중에 알게 된 일을 실제로 일어난 시각에 적을 때(정전 중 생체 신호 소실).
+            GameTimeSeconds = atTime ?? GameState.Instance?.DayTimeSeconds ?? 0f,
             EventType = type,
             ActorEmployeeId = actorEmployeeId,
             RoomId = roomId,

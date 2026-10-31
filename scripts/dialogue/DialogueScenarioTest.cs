@@ -60,7 +60,7 @@ public partial class DialogueScenarioTest : Node
         _rulePass = _ruleFail = 0;
 
         // 문장 수 — "~" 뒤 공백도 경계다.
-        RuleCheck(DialogueComposer.SentenceCount("코어실에 있었어요~ 관리자님은 그때 어디 계셨어요? 그때는 혼자였어요~") == 3, "문장 수: ~ · ? 경계로 3문장");
+        RuleCheck(DialogueComposer.SentenceCount("코어실에 있었어요~ 관리자님은 그때 어디 계셨어요? 그때는 혼자였어요~") == 3, "문장 수: ~, ? 경계로 3문장");
         RuleCheck(DialogueComposer.SentenceCount("혼자였습니다.") == 1, "문장 수: 한 문장");
 
         // 닫힌 틀 — 두 문장 이상 · 되묻기로 끝남 · 덧붙임 어미로 끝남.
@@ -96,7 +96,7 @@ public partial class DialogueScenarioTest : Node
             if (i < 3) GD.Print($"   예: {a}  ({tr})");
         }
         RuleCheck(closedRuns > 0, $"여우 간접 목격 틀 중 닫힌 틀이 뽑혔다 ({closedRuns}/12)");
-        RuleCheck(closedRuns == okRuns, $"닫힌 틀 뒤에는 기억 · 되묻기 · 덧붙임이 붙지 않는다 ({okRuns}/{closedRuns})");
+        RuleCheck(closedRuns == okRuns, $"닫힌 틀 뒤에는 기억, 되묻기, 덧붙임이 붙지 않는다 ({okRuns}/{closedRuns})");
 
         // 문장 수 상한 — 여우(2) 에게 기억 두 줄을 주어도 두 문장을 넘지 않는다(핵심이 한 문장일 때).
         var g = new ReplyFrame { EmployeeId = "wolf", CustomSlot = "Companion.alone", MaxSentences = 2 };
@@ -110,7 +110,7 @@ public partial class DialogueScenarioTest : Node
             string a = DialogueComposer.Compose(g);
             if (DialogueComposer.SentenceCount(a) > 2) { over++; GD.Print($"   초과: {a}  ({DialogueComposer.LastTrace})"); }
         }
-        RuleCheck(over == 0, $"늑대(상한 2) — 기억 두 줄 · 덧붙임을 줘도 두 문장을 넘지 않는다 (초과 {over}/12)");
+        RuleCheck(over == 0, $"늑대(상한 2) - 기억 두 줄, 덧붙임을 줘도 두 문장을 넘지 않는다 (초과 {over}/12)");
 
         GD.Print($"\n################ 결과: {_rulePass} PASS / {_ruleFail} FAIL ################");
     }
@@ -289,7 +289,7 @@ public partial class DialogueScenarioTest : Node
                 DialogueRepository.EventAccidentNearby, room);
             if (line == null) { GD.Print($"  [{caller}/{room}] 생성 불가 → 폴백"); continue; }
             GD.Print($"  [{caller}/{room}] {line.Opening}");
-            foreach (var c in line.Choices) GD.Print($"      · {c.Text} → {c.Reply}");
+            foreach (var c in line.Choices) GD.Print($", {c.Text} → {c.Reply}");
         }
     }
 
@@ -306,22 +306,22 @@ public partial class DialogueScenarioTest : Node
 
         // F1 : 일반 늑대 / 인접 작업실에서 소리만 들음
         SetupBasic();
-        Turn("wolf", DialogueQuestions.Anomaly, "F1 일반 늑대 · Q1(간접 목격)");
+        Turn("wolf", DialogueQuestions.Anomaly, "F1 일반 늑대, Q1(간접 목격)");
 
         // F2 : 일반 늑대 / Q2 — 플레이어 증거 없음 → 추궁 후보가 나오면 안 된다
         SetupBasic();
-        Turn("wolf", DialogueQuestions.Where, "F2 일반 늑대 · Q2(증거 없음)");
+        Turn("wolf", DialogueQuestions.Where, "F2 일반 늑대, Q2(증거 없음)");
 
         // F3 : 방해자 늑대 / 실제 저장고, 주장 환기실 — 증거 없음
         SetupSaboteur();
-        Turn("wolf", DialogueQuestions.Where, "F3 방해자 늑대 · Q2(증거 없음)");
+        Turn("wolf", DialogueQuestions.Where, "F3 방해자 늑대, Q2(증거 없음)");
 
         // F4 : 같은 상황 + 양에게서 목격 증언을 먼저 확보
         SetupSaboteur();
         Log(LogEventType.Sabotage, "wolf", Storage, 7f, new[] { "sheep" });
         GD.Print("\n--- 먼저 양을 인터뷰해 목격 증언을 확보한다 ---");
-        Turn("sheep", DialogueQuestions.Suspicious, "F4-1 양 · Q3");
-        Turn("wolf", DialogueQuestions.Where, "F4-2 방해자 늑대 · Q2(목격 증언 확보 후)");
+        Turn("sheep", DialogueQuestions.Suspicious, "F4-1 양, Q3");
+        Turn("wolf", DialogueQuestions.Where, "F4-2 방해자 늑대, Q2(목격 증언 확보 후)");
 
         // F5 : 고양이가 여우의 행동을 목격 → Q3 세부 추궁
         Reset();
@@ -332,11 +332,11 @@ public partial class DialogueScenarioTest : Node
         });
         Log(LogEventType.Sabotage, "fox", Core, 6f, new[] { "cat" });
         Incident(LogEventType.TaskFailed, Power, 8.5f);
-        Turn("cat", DialogueQuestions.Suspicious, "F5 고양이 · Q3(실제 목격)");
+        Turn("cat", DialogueQuestions.Suspicious, "F5 고양이, Q3(실제 목격)");
 
         // F6 : 답할 것이 없으면 꼬리질문 0개
         SetupBasic();
-        Turn("dog", DialogueQuestions.Suspicious, "F6 강아지 · Q3(목격 없음)");
+        Turn("dog", DialogueQuestions.Suspicious, "F6 강아지, Q3(목격 없음)");
 
         // F7 : 6명이 같은 꼬리질문에 어떻게 다르게 답하는가
         SetupBasic();
@@ -356,7 +356,7 @@ public partial class DialogueScenarioTest : Node
         // F8 : Q5 추궁 — 지시 없는 이동이 화면 로그에 떠 있을 때
         SetupSaboteur();
         GD.Print("\n--- 늑대의 이동이 시설 로그 화면에 떴다고 가정 ---");
-        Turn("wolf", DialogueQuestions.Accuse, "F8 방해자 늑대 · Q5");
+        Turn("wolf", DialogueQuestions.Accuse, "F8 방해자 늑대, Q5");
     }
 
     private void SetupBasic()
@@ -402,7 +402,7 @@ public partial class DialogueScenarioTest : Node
             return;
         }
         foreach (var f in turn.FollowUps)
-            GD.Print($"  [꼬리질문] {f.Text}   ({f.Intent}{(f.IsChallenge ? " · 추궁" : "")})");
+            GD.Print($"  [꼬리질문] {f.Text}   ({f.Intent}{(f.IsChallenge ? ", 추궁" : "")})");
         var pick = turn.FollowUps[0];
         GD.Print($"  → 선택: {pick.Text}");
         GD.Print($"  A: {LocalDialogueGenerator.FollowUpAnswer(employeeId, pick)}");

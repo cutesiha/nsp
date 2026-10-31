@@ -68,7 +68,7 @@ say?: cat    | normal | R | 그러게요.
         _sim.ResetRun();
 
         var beats = StoryScript.ParseText(Script);
-        GD.Print("################ 집단 대화 · 선택지 검증 ################");
+        GD.Print("################ 집단 대화, 선택지 검증 ################");
         GD.Print($"\n[A] 비트 {beats.Count}개");
         Check("A 비트 두 개를 읽었다", beats.Count == 2);
         if (beats.Count < 2) { Done(); return; }
@@ -78,7 +78,7 @@ say?: cat    | normal | R | 그러게요.
         Check("A group: true 가 읽혔다", group.Beat.Group);
         Check("A min: 6 이 읽혔다", group.Beat.MinParticipants == 6);
         var lines = group.Beat.Lines;
-        GD.Print($"[A] 본 대화 {lines.Count}줄 · 차례 {group.Beat.Steps.Count}걸음");
+        GD.Print($"[A] 본 대화 {lines.Count}줄, 차례 {group.Beat.Steps.Count}걸음");
         Check("A 본 대화가 다섯 줄이다", lines.Count == 5);
         Check("A say? 줄만 Optional 로 표시된다",
             lines.Count(l => l.Optional) == 2
@@ -87,7 +87,7 @@ say?: cat    | normal | R | 그러게요.
             group.Beat.Steps.Count(st => st.IsChoice) == 1 && group.Beat.Steps[4].IsChoice);
 
         var choice = group.Beat.Steps[4].Choice;
-        GD.Print($"[A] 선택 '{choice.ChoiceId}' — 선택지 {choice.Options.Count}개");
+        GD.Print($"[A] 선택 '{choice.ChoiceId}' - 선택지 {choice.Options.Count}개");
         Check("A @choice 의 id 가 읽혔다", choice.ChoiceId == "t_lead");
         Check("A prompt 가 읽혔다", choice.Prompt.Contains("뭐라고 답하시겠습니까"));
         Check("A 선택지가 셋이다", choice.Options.Count == 3);
@@ -112,7 +112,7 @@ say?: cat    | normal | R | 그러게요.
             bool playable = StoryBeatSelector.IsPlayable(group);
             bool sheepSpeaks = StoryCutinDirector.Speaks(lines.First(l => l.SpeakerEmployeeId == "sheep"));
             bool catSpeaks = StoryCutinDirector.Speaks(lines.First(l => l.SpeakerEmployeeId == "cat"));
-            GD.Print($"    양 {label} — min6 비트 재생 {playable} · 양 줄 {sheepSpeaks} · 고양이 줄 {catSpeaks}");
+            GD.Print($"    양 {label} - min6 비트 재생 {playable}, 양 줄 {sheepSpeaks}, 고양이 줄 {catSpeaks}");
             Check($"B 양 {label} 시 그 say? 줄이 빠진다", !sheepSpeaks);
             Check($"B 양 {label} 이어도 다른 줄은 그대로다", catSpeaks);
             Check($"B 양 {label} 이면 min 6 을 못 채워 비트가 생략된다", !playable);

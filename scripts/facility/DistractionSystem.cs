@@ -50,7 +50,8 @@ public sealed class DistractionEvent
     public bool Aborted;               // 더 높은 상태(기절·격리·괴물 등)에 끊겼다
     public string AbortReason = "";    // 무엇에 끊겼는가(검수·QA 용)
     public int Serial;                 // 표현 계층이 "같은 사건인가" 를 가리는 번호
-    public float SeenSeconds;          // 지금 연속으로 보이고 있는 시간(목격 판정용)
+    public float SeenSeconds;          // 지금 연속으로 보이고 있는 시간(목격 · 적발 반응 판정용)
+    public float ReactAfter;           // 이만큼 연속으로 보여 준 뒤에 CCTV 를 알아채고 놀란다
 
     public bool Running => Phase is not (DistractionPhase.None or DistractionPhase.Done);
     public DistractionDef Def => DistractionCatalog.Get(Kind);
@@ -87,8 +88,10 @@ public sealed class PersonalCallEvent
 //  · 한 직원은 하루 두 번까지, 같은 딴짓은 하루 한 번까지
 //  · 어제 걸린 사람은 오늘 덜 뽑힌다(특정 직원만 매일 걸리는 현상 방지)
 //  · 목격은 **실제 피드 표시 조건**이 충족된 동안에만 쌓인다(NoteSeen 을 부르는 쪽이 판정한다)
-//  · 하루 목격 5건이 되면 더 만들지 않는다. 목격이 모자라면 기회 간격을 좁히고,
-//    지금 보고 있는 방을 조금 더 자주 고른다 — 보지 않은 것을 봤다고 기록하지는 않는다
+//  · 하루 목격 5건이 되면 더 만들지 않는다. 목격이 모자라면 기회 간격을 좁힌다 —
+//    보지 않은 것을 봤다고 기록하지는 않는다
+//  · **지금 보고 있는 방에서는 시작하지 않는다**(2026-10-29). 안 보는 사이에 벌어지고, 관리자가 그 방을
+//    띄우면 3~4초 뒤 놀라서 일로 돌아간다. 자리 잡는 도중에 채널이 맞춰지면 시작하지 않고 되돌아간다
 public sealed class DistractionSystem
 {
     // 하루에 "중복 없는 실제 목격" 을 이만큼까지만 만든다(지시서 §2).
@@ -107,6 +110,12 @@ public sealed class DistractionSystem
 
     // 관측이 성립하기까지 연속으로 보여야 하는 시간(초). 채널을 휙 넘기는 것은 관측이 아니다.
     private const float ObserveSeconds = 0.55f;
+    // 목격은 위 시간이면 기록되지만, **놀라는 것은** 딴짓하는 모습을 이만큼 연속으로 보여 준 뒤다.
+    // 예전에는 목격과 동시에 놀라서, 채널을 돌리자마자 1~2초 만에 일하는 자세로 돌아가
+    // 무엇을 하고 있었는지 읽을 틈이 없었다(2026-10-28 요청 — 4~5초는 보여야 눈치챈다).
+    // 2026-10-29 — "그 CCTV 를 딱 보고 나서 3~4초 뒤에 놀라서 다시 작업" 으로 당겼다.
+    private const float ReactMinSeconds = 3f;
+    private const float ReactMaxSeconds = 4f;
     // 이만큼 끊기면 "보던 것을 멈췄다" 로 본다(한두 프레임의 공백은 무시).
     private const float SeenGraceSeconds = 0.3f;
 
@@ -138,6 +147,9 @@ public sealed class DistractionSystem
     // 스스로 기회를 만드는 발생기를 잠시 멈춘다. **검사 씬 전용**이다 —
     // 정해진 딴짓 하나만 일으켜 조건을 확인할 때 다른 딴짓이 끼어들지 않게 한다.
     public bool AutoSpawn = true;
+    // 보고 있는 방에서도 자리 잡기를 끝까지 하게 둔다. **사진 검사 전용**이다 — 진입 동작을 찍으려면
+    // 그 방을 띄워 둔 채 일으켜야 한다. 게임에서는 켜지 않는다.
+    public bool AllowStartWhileWatched;
 
     public DistractionSystem()
     {
@@ -235,10 +247,16 @@ public sealed class DistractionSystem
             switch (e.Phase)
             {
                 case DistractionPhase.Entering:
+                    // 딴짓은 **관리자가 보고 있지 않을 때만** 시작한다. 자리를 잡는 사이에 그 방 채널이
+                    // 맞춰지면 카메라를 의식하고 하던 일로 돌아간다 — 보는 앞에서 딴짓을 시작하지 않는다.
+                    if (!AllowStartWhileWatched && IsRoomWatched(sim, e.RoomId)) { AbandonUnseen(e, now); break; }
                     if (e.PhaseElapsed >= def.EnterSeconds) Advance(e, DistractionPhase.Distracted);
                     break;
                 case DistractionPhase.Distracted:
-                    if (e.PhaseElapsed >= e.DistractLimit) Advance(e, DistractionPhase.Recovering);
+                    // 관리자가 지금 보고 있으면 정해 둔 시간이 지나도 그만두지 않는다 —
+                    // 조용히 일로 돌아가 버리면 "봤는데 놀라지 않았다" 가 된다. 곧(최대 5초) 놀란다.
+                    if (e.PhaseElapsed >= e.DistractLimit && !BeingWatched(id, e))
+                        Advance(e, DistractionPhase.Recovering);
                     break;
                 case DistractionPhase.Noticed:
                     if (e.PhaseElapsed >= def.NoticeSeconds) Advance(e, DistractionPhase.Recovering);
@@ -259,6 +277,33 @@ public sealed class DistractionSystem
         e.Phase = phase;
         e.PhaseElapsed = 0f;
     }
+
+    // 시작하려던 딴짓을 접는다(아직 아무도 못 봤다). 걸어가던 사람은 원래 작업 자리로 되돌아간다 —
+    // 정리 동작(Recovering)은 자리를 잡은 뒤의 것이라 건너뛴다. 짝 통화면 상대도 같이 접는다.
+    private void AbandonUnseen(DistractionEvent e, float now)
+    {
+        if (e.Phase != DistractionPhase.Entering) return;
+        e.Aborted = true;
+        e.AbortReason = "관측 중";
+        Advance(e, DistractionPhase.Returning);
+        var call = CallById(e.LinkedPhoneCallEventId);
+        if (call == null) return;
+        if (call.Active) { call.EndedAt = now; call.EndReason = "watched"; }
+        string other = call.Other(e.EmployeeId);
+        if (_active.TryGetValue(other, out var pe) && pe.LinkedPhoneCallEventId == call.EventId)
+        {
+            if (pe.Phase == DistractionPhase.Entering) { pe.Aborted = true; pe.AbortReason = "관측 중"; Advance(pe, DistractionPhase.Returning); }
+            else if (pe.Phase == DistractionPhase.Distracted) Advance(pe, DistractionPhase.Recovering);
+        }
+    }
+
+    // 지금 관리자가 그 방 채널을 띄워 두고 있는가(신호가 살아 있어 화면에 그 방이 나오는가).
+    // 채널을 훑으며 한 프레임 스친 것까지 "봤다" 로 치면 딴짓이 시작도 못 하고 다 접힌다 — 잠깐은 머물러야 한다.
+    private const float WatchNoticeSeconds = 0.4f;
+
+    private bool IsRoomWatched(FacilitySimulation sim, string roomId) =>
+        !string.IsNullOrEmpty(roomId) && SelectedRoom(sim) == roomId
+        && _watchRoom == roomId && _watchSeconds >= WatchNoticeSeconds;
 
     private void End(DistractionEvent e, float now, string reason)
     {
@@ -285,18 +330,26 @@ public sealed class DistractionSystem
         if (!_active.TryGetValue(employeeId, out var e)) return;
         if (e.Phase != DistractionPhase.Distracted) return;   // 자리 잡는 중·정리하는 중은 아니다
         _seenGrace[employeeId] = SeenGraceSeconds;
-        if (e.HasBeenObserved) return;
         e.SeenSeconds += delta;
-        if (e.SeenSeconds < ObserveSeconds) return;
 
-        e.HasBeenObserved = true;
-        e.ObservedAt = GameState.Instance?.DayTimeSeconds ?? 0f;
-        WitnessedToday++;
-        // 적발 — 즉시 개인별 반응으로 넘어간다.
-        Advance(e, DistractionPhase.Noticed);
-        // 통화를 목격한 것만으로는 "상대가 누구" 를 알 수 없다 — 교차 질문은 직원이
-        // 전화로 직접 말한 뒤에야(MarkAdmitted) 열린다.
+        if (!e.HasBeenObserved && e.SeenSeconds >= ObserveSeconds)
+        {
+            e.HasBeenObserved = true;
+            e.ObservedAt = GameState.Instance?.DayTimeSeconds ?? 0f;
+            WitnessedToday++;
+            // 통화를 목격한 것만으로는 "상대가 누구" 를 알 수 없다 — 교차 질문은 직원이
+            // 전화로 직접 말한 뒤에야(MarkAdmitted) 열린다.
+        }
+
+        // 적발 — 딴짓을 충분히 보여 준 뒤에 개인별 반응(놀람)으로 넘어간다.
+        // 중간에 채널을 돌리면 연속 시간이 끊기고, 다시 보면 처음부터 센다.
+        if (e.HasBeenObserved && e.SeenSeconds >= e.ReactAfter)
+            Advance(e, DistractionPhase.Noticed);
     }
+
+    // 관리자가 지금 이 딴짓을 화면으로 보고 있는가(한두 프레임의 공백은 본 것으로 친다).
+    private bool BeingWatched(string employeeId, DistractionEvent e) =>
+        e.SeenSeconds > 0f && _seenGrace.ContainsKey(employeeId);
 
     // 표현 계층이 적발 반응을 실제로 재생했다.
     public void NoteReacted(string employeeId)
@@ -459,11 +512,12 @@ public sealed class DistractionSystem
 
     private void TrySpawn(float now, FacilitySimulation sim, bool hurry, bool late)
     {
-        // 지금 관리자가 실제로 보고 있는 방 — 그쪽에서 일어나면 자연스럽게 걸린다.
-        // (채널을 바꿨다는 이유만으로 새로 만들지는 않는다. 기회가 돌아온 이 순간에만 본다.)
+        // 지금 관리자가 보고 있는 방(채널이 맞춰진 방 포함)에서는 **시작하지 않는다**(2026-10-29 사용자 지시).
+        // 딴짓은 안 보는 사이에 벌어지고 있어야 한다 — 관리자가 그 방을 띄우는 순간 들키고,
+        // 3~4초 뒤 놀라서 일로 돌아간다. 예전에는 보고 있는 방을 오히려 더 자주 골라서(최대 ×9)
+        // 화면 앞에서 대놓고 딴짓을 시작했다.
         string watched = WatchedRoom(sim);
         string selected = SelectedRoom(sim);
-        float watchBias = late ? 9f : hurry ? 6f : 2.4f;
 
         var pool = new List<(DistractionDef Def, string Room, float Weight)>();
         foreach (string id in sim.GetEmployeeIds())
@@ -471,7 +525,7 @@ public sealed class DistractionSystem
             if (!Eligible(sim, id, out var st, out string room)) continue;
             foreach (var def in DistractionCatalog.For(id))
             {
-                float w = Weigh(sim, st, def, room, watched, selected, watchBias, hurry);
+                float w = Weigh(sim, st, def, room, watched, selected, hurry);
                 if (w > 0f) pool.Add((def, room, w));
             }
         }
@@ -547,7 +601,7 @@ public sealed class DistractionSystem
     }
 
     private float Weigh(FacilitySimulation sim, EmployeeState st, DistractionDef def, string room,
-                        string watched, string selected, float watchBias, bool hurry)
+                        string watched, string selected, bool hurry)
     {
         string id = st.EmployeeId;
         if (CountToday(id) >= MaxEventsPerEmployeePerDay) return 0f;
@@ -556,20 +610,40 @@ public sealed class DistractionSystem
         if (def.NeedsGoodMood && !DistractionMood.IsGood(st.DailyMood)) return 0f;
         if (!string.IsNullOrEmpty(def.PairedWith) && PartnerFor(sim, def) == null) return 0f;
 
+        // 보는 앞에서는 시작하지 않는다 — 지금 띄워 둔 방(막 채널을 맞춘 방 포함)은 후보에서 뺀다.
+        if (!string.IsNullOrEmpty(watched) && room == watched) return 0f;
+        if (!string.IsNullOrEmpty(selected) && room == selected) return 0f;
+        // 짝 통화는 상대 방도 마찬가지다.
+        if (!string.IsNullOrEmpty(def.PairedWith))
+        {
+            string proom = sim.GetEmployeeState(def.PairedWith)?.CurrentRoomId ?? "";
+            if (proom.Length > 0 && (proom == watched || proom == selected)) return 0f;
+        }
+
         float w = Fairness(id);
         // 짝 통화는 상대까지 함께 걸리는 사건이다 — 상대 쪽 사정도 같이 본다.
         // (이것이 없으면 "어제 걸린 사람" 보정이 짝에게는 통하지 않아 같은 직원이 매일 걸린다.)
         if (!string.IsNullOrEmpty(def.PairedWith)) w *= Fairness(def.PairedWith);
-        // 지금 보고 있는 방에서 일어나면 자연스럽게 걸린다. 막 채널을 맞춘 방도 조금 좋게 본다
-        // (자리를 잡는 데 걸리는 몇 초 사이에 관리자가 그 방을 보고 있을 가능성이 높다).
-        if (!string.IsNullOrEmpty(watched) && room == watched) w *= watchBias;
-        else if (!string.IsNullOrEmpty(selected) && room == selected) w *= watchBias * 0.6f;
-        else if (sim.IsRoomCctvBlocked(room)) w *= 0.3f;              // 봐도 안 보이는 방
+        // 봐도 안 보이는 방(신호 차단)은 덜 고른다 — 목격이 모자랄 때는 더 덜. 채널을 돌리면 바로
+        // 보이는 방에서 벌어져야 들킬 수 있다.
+        if (sim.IsRoomCctvBlocked(room)) w *= hurry ? 0.12f : 0.3f;
         // 목격이 모자랄 때는 **자리를 옮기지 않는** 딴짓을 조금 더 자주 고른다 —
         // 걸어가는 시간이 없어 더 빨리 화면에 드러난다. 보지 않은 것을 봤다고 하지는 않는다.
         if (hurry && def.Place == DistractionPlace.AtSpot) w *= 1.6f;
+        w *= KindBoost(def.Kind);
         return w;
     }
+
+    // 눈에 띄고 재미있는데 잘 안 나오던 딴짓을 더 자주 고른다(2026-10-28 요청 —
+    // 열 번 넘게 해도 여우가 바닥에 눕는 것도, 고양이 ↔ 강아지 통화도 한 번을 못 봤다).
+    //   · 여우 눕기 : 빈 바닥이 필요해 고를 수 있는 방이 적고, 서두를 때는 제자리 딴짓(×1.6)에 밀렸다
+    //   · 개인 통화 : 두 사람이 동시에 조건을 맞춰야 하고, 짝 보정(Fairness 두 번)으로 더 깎였다
+    private static float KindBoost(DistractionKind kind) => kind switch
+    {
+        DistractionKind.FoxFloorVideo => 6f,
+        DistractionKind.CatCall or DistractionKind.DogCall => 4.5f,
+        _ => 1f,
+    };
 
     // 같은 사람이 매일 걸리지 않게 하는 보정 — 어제 걸렸거나 오늘 이미 한 번 했으면 덜 뽑는다.
     private float Fairness(string id)
@@ -638,6 +712,7 @@ public sealed class DistractionSystem
             StartedAt = now,
             Phase = DistractionPhase.Entering,
             DistractLimit = _rng.RandfRange(def.DistractMinSeconds, def.DistractMaxSeconds),
+            ReactAfter = _rng.RandfRange(ReactMinSeconds, ReactMaxSeconds),
             Serial = ++_serial,
         };
         _events.Add(e);

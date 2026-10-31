@@ -58,7 +58,7 @@ public partial class InterviewConcealTest : Node
         var ctx2 = DialogueContextBuilder.Build("rabbit", DialogueConversationKind.Interview,
             DialogueQuestions.Suspicious, "", null);
         var c2 = ConcealmentMotive.For(ctx2);
-        Ok(c2.Kind == ConcealKind.OwnMistake, $"본인이 낸 사고가 있으면 실수 은폐 동기 ({c2.Kind} · {c2.Why})");
+        Ok(c2.Kind == ConcealKind.OwnMistake, $"본인이 낸 사고가 있으면 실수 은폐 동기 ({c2.Kind}, {c2.Why})");
     }
 
     // ── B. 관계만으로 감싸지 않는다 ─────────────────────────────────────
@@ -99,7 +99,7 @@ public partial class InterviewConcealTest : Node
         {
             Day = 1, GameTimeSeconds = 300f, EventType = LogEventType.Neglect,
             ActorEmployeeId = "dog", RoomId = Power,
-            Description = "강아지 — 설비 쪽에 평소보다 오래 머물렀다",
+            Description = "강아지 - 설비 쪽에 평소보다 오래 머물렀다",
             WitnessEmployeeIds = new List<string> { "cat" },
         });
 
@@ -109,11 +109,11 @@ public partial class InterviewConcealTest : Node
 
         var c = ConcealmentMotive.For(ctx);
         Ok(c.Kind == ConcealKind.ProtectOther && c.AboutEmployeeId == "dog",
-            $"그제서야 감싸는 은폐가 성립한다 ({c.Kind} · {c.Why})");
+            $"그제서야 감싸는 은폐가 성립한다 ({c.Kind}, {c.Why})");
 
         // ① "수상한 사람을 봤나" — 평가를 묻는 질문에는 먼저 이름을 꺼내지 않는다.
         var plan = DialogueResponsePlanner.Plan(ctx);
-        GD.Print($"      수상한 사람? → Core={plan.Core} · 보류한 사람={plan.WithheldEmployeeId}");
+        GD.Print($"      수상한 사람? → Core={plan.Core}, 보류한 사람={plan.WithheldEmployeeId}");
         Ok(plan.Core == CoreKind.NoSighting, $"'수상한 사람' 질문에는 이름을 먼저 대지 않는다 ({plan.Core})");
         Ok(plan.WithheldEmployeeId == "dog", "다만 **사실은 지워지지 않고** 보류로 표시된다");
 
@@ -136,7 +136,7 @@ public partial class InterviewConcealTest : Node
         string whoThere = InterviewReplyPlanner.Answer(
             InterviewQuestionFactory.Make("cat", ev, InterviewIntent.AskWhoWasPresent));
         GD.Print($"      함께 있던 직원? → {whoThere}");
-        Ok(whoThere.Contains("강아지"), "**재석 질문에는 강아지를 말한다** — 사실이 되찾아진다");
+        Ok(whoThere.Contains("강아지"), "**재석 질문에는 강아지를 말한다** - 사실이 되찾아진다");
 
         // 사이가 나쁜 상대였다면 처음부터 숨기지 않는다.
         Ok(!ConcealmentMotive.ShieldsFrom("fox", "dog") || true, "(참고) 여우는 강아지를 감싸지 않는다");
@@ -179,17 +179,17 @@ public partial class InterviewConcealTest : Node
 
     private void SectionE()
     {
-        GD.Print("\n#### E. 대화·진술만 따로 모인다 (조사 노트 분류)");
+        GD.Print("\n#### E. 대화/진술만 따로 모인다 (조사 노트 분류)");
         Reset();
 
         Ok(InterviewSession.IsSpokenRecord(new InterviewEvidence { Kind = EvidenceKind.Call }),
-            "통화는 대화·진술이다");
+            "통화는 대화/진술이다");
         Ok(InterviewSession.IsSpokenRecord(new InterviewEvidence { Kind = EvidenceKind.Testimony }),
-            "증언은 대화·진술이다");
+            "증언은 대화/진술이다");
         Ok(InterviewSession.IsSpokenRecord(new InterviewEvidence { Kind = EvidenceKind.OwnStatement }),
-            "본인 진술은 대화·진술이다");
+            "본인 진술은 대화/진술이다");
         Ok(InterviewSession.IsSpokenRecord(new InterviewEvidence { Kind = EvidenceKind.Overheard }),
-            "엿들은 말은 대화·진술이다");
+            "엿들은 말은 대화/진술이다");
         Ok(!InterviewSession.IsSpokenRecord(new InterviewEvidence { Kind = EvidenceKind.Cctv }),
             "CCTV 는 사람의 말이 아니다");
         Ok(!InterviewSession.IsSpokenRecord(new InterviewEvidence { Kind = EvidenceKind.Incident }),

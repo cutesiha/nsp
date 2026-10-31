@@ -78,7 +78,7 @@ public static class EmployeeTraits
             ObservationalAwareness = 2,
             SocialMovement = 0,
             StatementPrecision = 3,
-            Note = "위험 앞에서 물러서지 않는다 · 필요한 것만 보고한다 · 시각과 위치를 정확히 말한다",
+            Note = "위험 앞에서 물러서지 않는다, 필요한 것만 보고한다, 시각과 위치를 정확히 말한다",
         },
 
         // 예민·효율. 불필요한 이동을 싫어하지만 설비 이상은 누구보다 빨리 알아챈다.
@@ -92,7 +92,7 @@ public static class EmployeeTraits
             ObservationalAwareness = 3,
             SocialMovement = 0,
             StatementPrecision = 2,
-            Note = "이동을 아낀다 · 설비 이상 감지가 빠르다 · 필요한 말만 한다",
+            Note = "이동을 아낀다, 설비 이상 감지가 빠르다, 필요한 말만 한다",
         },
 
         // 극도로 소심·예민. 위험에서 가장 먼저 움츠러들지만, 작은 소리와 변화는 누구보다 빨리 알아챈다.
@@ -107,7 +107,7 @@ public static class EmployeeTraits
             ObservationalAwareness = 3,
             SocialMovement = 0,
             StatementPrecision = 2,
-            Note = "위험을 가장 먼저 피한다 · 작은 이상을 먼저 알아챈다 · 모르는 건 모른다고 한다",
+            Note = "위험을 가장 먼저 피한다, 작은 이상을 먼저 알아챈다, 모르는 건 모른다고 한다",
         },
 
         // 활발·즉흥. 이상한 일이 있으면 직접 보러 간다 — 그래서 자주 현장 근처에 있다.
@@ -121,7 +121,7 @@ public static class EmployeeTraits
             ObservationalAwareness = 1,
             SocialMovement = 2,
             StatementPrecision = 0,
-            Note = "사건 현장으로 직접 간다 · 이동 기록이 가장 많다",
+            Note = "사건 현장으로 직접 간다, 이동 기록이 가장 많다",
         },
 
         // 온순·다정·협조. 같은 방 동료의 상태를 먼저 챙기고, 사람에 대한 기억이 자연스럽게 남는다.
@@ -135,7 +135,7 @@ public static class EmployeeTraits
             ObservationalAwareness = 2,
             SocialMovement = 3,
             StatementPrecision = 2,
-            Note = "동료 상태를 먼저 살핀다 · 다른 직원을 몰아가지 않는다 · 판단은 관리자에게 맡긴다",
+            Note = "동료 상태를 먼저 살핀다, 다른 직원을 몰아가지 않는다, 판단은 관리자에게 맡긴다",
         },
 
         // 능글·사교적. 용건 없이 다른 직원 쪽으로 가는 일이 잦다.
@@ -149,7 +149,7 @@ public static class EmployeeTraits
             ObservationalAwareness = 2,
             SocialMovement = 3,
             StatementPrecision = 1,
-            Note = "여러 방을 오간다 — 사건 근처에 있었던 적이 많아 보인다",
+            Note = "여러 방을 오간다 - 사건 근처에 있었던 적이 많아 보인다",
         },
     };
 }

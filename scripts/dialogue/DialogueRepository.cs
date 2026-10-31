@@ -113,7 +113,7 @@ public static class DialogueRepository
         }
         catch (Exception e)
         {
-            GD.PushWarning($"DialogueRepository: 파싱 실패, 폴백 대사를 사용합니다 — {e.Message}");
+            GD.PushWarning($"DialogueRepository: 파싱 실패, 폴백 대사를 사용합니다 - {e.Message}");
         }
     }
 

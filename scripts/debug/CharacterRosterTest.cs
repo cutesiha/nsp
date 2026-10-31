@@ -66,11 +66,11 @@ public partial class CharacterRosterTest : Node
             var def = _sim.GetEmployeeDef(id);
             Check(def != null && !string.IsNullOrEmpty(def.Codename) && def.StandingImage != null
                   && def.FacePortrait != null,
-                $"{id} 데이터·스탠딩·얼굴 로드 ({def?.Codename})");
+                $"{id} 데이터/스탠딩/얼굴 로드 ({def?.Codename})");
         }
         // 대사 뱅크(data/dialogue/lines)가 6명 모두의 문장을 갖고 있고, 조사 표기 오류가 없다.
         foreach (string p in DialogueLineBank.Problems.Take(5)) GD.Print("   뱅크: " + p);
-        Check(DialogueLineBank.Problems.Count == 0, $"대사 뱅크 조사·형식 오류 없음 ({DialogueLineBank.Problems.Count}건)");
+        Check(DialogueLineBank.Problems.Count == 0, $"대사 뱅크 조사/형식 오류 없음 ({DialogueLineBank.Problems.Count}건)");
         Check(Final.All(id => DialogueLineBank.Keys.Any(k => k == $"{id}|selfloc")
                               && DialogueLineBank.Keys.Any(k => k == $"{id}|mem.with")),
             "6명 모두 자기 대사 파일(핵심 + 근무 기억)이 있다");
@@ -89,7 +89,7 @@ public partial class CharacterRosterTest : Node
             GD.Print($"   {id,-6} 축=[{v.VoiceAxis}] 시작={v.LeadWith} 확신={v.Confidence} " +
                      $"타인언급={v.MentionOthersChance} 행동제안={v.OfferActionChance} 흉내어긋남={v.ImpostorTells}");
             Check(!string.IsNullOrEmpty(v.VoiceAxis) && v.ImpostorTells != ImpostorTell.None,
-                $"{id} V2 캐릭터 축·결번 개체 어긋남 데이터가 있다");
+                $"{id} V2 캐릭터 축/결번 개체 어긋남 데이터가 있다");
         }
     }
 
@@ -107,13 +107,13 @@ public partial class CharacterRosterTest : Node
         var shown = Final.Select(id => _sim.GetEmployeeDef(id).Codename)
             .Concat(Final.Select(LocalDialogueGenerator.InterviewGreeting))
             .Concat(Final.Select(LocalDialogueGenerator.GeneralGreeting)).ToList();
-        Check(!shown.Any(HasRetiredName), "코드네임·인사말에 옛 이름이 없다");
+        Check(!shown.Any(HasRetiredName), "코드네임/인사말에 옛 이름이 없다");
     }
 
     // ── C : 새 세 명 모두 배치 가능 ─────────────────────────────────────
     private void TestC_Assign()
     {
-        Head("C", "양·늑대·강아지 작업실 배치");
+        Head("C", "양/늑대/강아지 작업실 배치");
         NewGame(1);
         var rooms = new[] { Power, Maintenance, Storage };
         for (int i = 0; i < NewThree.Length; i++)
@@ -127,7 +127,7 @@ public partial class CharacterRosterTest : Node
     // ── D : CCTV / 시설 로그 표시 ──────────────────────────────────────
     private void TestD_LogAndCctv()
     {
-        Head("D", "시설 로그 · CCTV 표시");
+        Head("D", "시설 로그, CCTV 표시");
         NewGame(1);
         Deploy();
         foreach (string id in NewThree) Move(id, _sim.GetEmployeeState(id).CurrentRoomId, Core, At(20));
@@ -150,13 +150,13 @@ public partial class CharacterRosterTest : Node
         PlayerKnownEvidence.RecordCctvObservation(Core, At(21), NewThree);
         foreach (string id in NewThree)
             Check(PlayerKnownEvidence.CctvSightingsOf(id).Count > 0 && _sim.GetEmployeeDef(id).IconColor.A > 0,
-                $"{id} CCTV 관측 기록 · 고유색");
+                $"{id} CCTV 관측 기록, 고유색");
     }
 
     // ── E : 휴게시간 인터뷰 ─────────────────────────────────────────────
     private void TestE_Interview()
     {
-        Head("E", "양·늑대·강아지 휴게시간 인터뷰");
+        Head("E", "양/늑대/강아지 휴게시간 인터뷰");
         NewGame(1);
         Deploy();
         Log(LogEventType.TaskFailed, "", Power, At(15));
@@ -183,7 +183,7 @@ public partial class CharacterRosterTest : Node
     // ── F : PlayerKnownEvidence 의 id 로 쓰인다 ──────────────────────────
     private void TestF_Evidence()
     {
-        Head("F", "PlayerKnownEvidence · 증언 자료");
+        Head("F", "PlayerKnownEvidence, 증언 자료");
         NewGame(1);
         Deploy();
         PlayerKnownEvidence.RecordSighting("sheep", "wolf", Maintenance, At(18));
@@ -250,7 +250,7 @@ public partial class CharacterRosterTest : Node
     // ── H : 직원은 스스로 방을 옮기지 않는다 ───────────────────────────
     private void TestH_NoAutonomousMove()
     {
-        Head("H", "근무 60초 동안 자율 이동 없음(결번 = 양·늑대·강아지 순서)");
+        Head("H", "근무 60초 동안 자율 이동 없음(결번 = 양/늑대/강아지 순서)");
         foreach (string sab in NewThree)
         {
             NewGame(1);
@@ -284,7 +284,7 @@ public partial class CharacterRosterTest : Node
     // ── DAY0 : 교육 인원은 그대로 ─────────────────────────────────────
     private void TestDay0()
     {
-        Head("DAY0", "교육 인원(토끼·고양이·여우) 유지");
+        Head("DAY0", "교육 인원(토끼/고양이/여우) 유지");
         NewGame(0);
         var day0 = _sim.GetActiveEmployeeIds().OrderBy(x => x).ToList();
         GD.Print($"   DAY0 인원: {string.Join(", ", day0)}");

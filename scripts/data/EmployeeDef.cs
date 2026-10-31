@@ -56,8 +56,16 @@ public partial class EmployeeDef : Resource
     // glow_center 는 원화 UV 기준(0=위, 1=아래). y 를 줄이면 빛이 위로, 늘리면 아래로 간다.
     [Export(PropertyHint.Range, "0,3,0.05")] public float StandingGlowAmt = 0.9f;
     [Export] public Vector2 StandingGlowCenter = new(0.5f, 0.46f);
+    // 스탠딩 원화의 가면 칸만 덜 어둡게(crt_art.gdshader 의 mask_*). 0 이면 끔, 1 이면 톤 곡선만 거친 원래 회색.
+    // 회색 가면이 검게 뭉개지는 직원(늑대)만 켠다. 다른 부분과 화면 효과 자체는 그대로다.
+    [Export(PropertyHint.Range, "0,1,0.05")] public float StandingMaskLift = 0f;
+    // 가면 칸 — 원화 UV(x0, y0, x1, y1).
+    [Export] public Vector4 StandingMaskRect = Vector4.Zero;
     // 휴게 CCTV 스탠딩을 위로 올리는 양(px). 키 작은 직원의 얼굴이 화면 가운데 쪽에 오게.
     [Export] public float InterviewPortraitLift = 0f;
+    // 모니터2 스토리 컷인에서 이 직원만 더 올리는 양(스탠딩 자리 높이 비율 — 0.03 이면 3%).
+    // 여자 직원(토끼 · 고양이 · 양)만 아주 살짝 올린다(2026-10-27 요청).
+    [Export] public float StoryPortraitLift = 0f;
 
     // ── 관리자 패드 · 직원 탭(인사 기록) ─────────────────────────────────
     // 코드네임 뒤 신원은 비밀이다 — 성별은 "(추정)" 톤으로 적는다.

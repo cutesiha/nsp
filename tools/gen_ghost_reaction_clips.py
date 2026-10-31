@@ -443,6 +443,16 @@ def fmt(v):
     return "0" if s in ("-0", "") else s
 
 
+def _unwrap(a, prev):
+    """라디안 각 a 를 2π 만큼 옮겨 prev 에 가장 가깝게(prev 가 없으면 (-π, π] 로)."""
+    ref = 0.0 if prev is None else prev
+    while a - ref > math.pi:
+        a -= 2 * math.pi
+    while a - ref <= -math.pi:
+        a += 2 * math.pi
+    return a
+
+
 def emit(clip):
     keys = sorted(clip.keys, key=lambda k: k[0])
     if clip.loop:
@@ -456,10 +466,16 @@ def emit(clip):
         lines.append("loop_mode = 1")
     for i, joint in enumerate(ORDER):
         vals = []
+        prev = None
         for _, p in keys:
             x, y, z = p[joint]
             if joint != "VR":
                 x, y, z = (math.radians(a) for a in (x, y, z))
+                # 손 위치 역산(reach)은 각도를 360° 근처 값으로 내놓기도 한다(예: 330° = -30°).
+                # 값 트랙은 성분별 선형 보간이라 그대로 두면 팔이 한 바퀴 돈다 —
+                # 첫 키는 (-180°, 180°] 로 접고, 다음 키는 직전 키에 가장 가까운 쪽으로 편다.
+                x, y, z = (_unwrap(a, None if prev is None else prev[k]) for k, a in enumerate((x, y, z)))
+                prev = (x, y, z)
             vals.append(f"Vector3({fmt(x)}, {fmt(y)}, {fmt(z)})")
         lines += [
             f'tracks/{i}/type = "value"',

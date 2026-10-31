@@ -43,7 +43,7 @@ public partial class BarrierBlockShot : Node
         // 복도의 바깥 방향(중앙제어실 → 작업실). 이 부호의 반대쪽이 '문을 넘은' 쪽이다.
         float outward = Mathf.Sign(vis.ApproachZ(1f) - vis.DoorZ);
         GD.Print($"################ 차폐문 막힘 검사 ################");
-        GD.Print($"문 평면 DoorZ = {vis.DoorZ:0.00} · 바깥 방향 = {outward:+0;-0}");
+        GD.Print($"문 평면 DoorZ = {vis.DoorZ:0.00}, 바깥 방향 = {outward:+0;-0}");
 
         foreach (var def in MonsterThreatSystem.Monsters)
         {
@@ -70,7 +70,7 @@ public partial class BarrierBlockShot : Node
                 bool ok = margin >= 0f;
                 if (ok) _pass++; else _fail++;
                 GD.Print($"   {(ok ? "PASS" : "FAIL")}  {def.MonsterId,-9} {phase,-9} " +
-                         $"가장 앞선 지점 {nose:0.00} · 문까지 {margin:+0.00;-0.00} m");
+                         $"가장 앞선 지점 {nose:0.00}, 문까지 {margin:+0.00;-0.00} m");
             }
             actor.Hide();
             actor.Root.QueueFree();

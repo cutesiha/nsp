@@ -26,8 +26,9 @@ public partial class CoreProgressHud : Control
 
         // 확정값이 아니라 "지금 차오르는 중"까지 포함해 보여준다 — 숫자가 계속 움직여야
         // 코어실에 사람을 더 넣은 효과가 즉시 눈에 보인다.
-        float shown = NSP.Facility.FacilitySimulation.Instance?.CoreProgressPreview()
-                      ?? GameState.Instance.CoreProgress;
+        // 100 을 넘겨 보여 주지 않는다 — 다 찬 뒤에 남은 게이지 몫이 얹혀 100.x 가 떴었다.
+        float shown = Mathf.Min(100f, NSP.Facility.FacilitySimulation.Instance?.CoreProgressPreview()
+                                      ?? GameState.Instance.CoreProgress);
         float progress = Mathf.Clamp(shown / 100f, 0f, 1f);
         float fillWidth = Size.X * progress;
         _fill.Size = new Vector2(fillWidth, _background.Size.Y);
@@ -50,16 +51,16 @@ public partial class CoreProgressHud : Control
 
         string core = NSP.Facility.FacilitySimulation.CoreRoomIdPublic;
 
-        if (sim.HasRepairPending(core)) return "· 복구 중단 — 코어실 사고";
-        if (sim.IsRoomBlockedByMaterials(core)) return "· 복구 중단 — 자재 부족";
+        if (sim.HasRepairPending(core)) return "/ 복구 중단: 코어실 사고";
+        if (sim.IsRoomBlockedByMaterials(core)) return "/ 복구 중단: 자재 부족";
 
         int here = sim.OnDutyCount(core);
-        if (here <= 0) return "· 복구 중단 — 코어실 인력 없음";
+        if (here <= 0) return "/ 복구 중단: 코어실 인력 없음";
 
         float mult = NSP.Core.RecoveryProfile.CoreStaffMultiplier(here);
-        if (mult <= 0f) return "· 복구 중단";
-        if (mult < 1f) return $"· 복구 느림 ×{mult:0.00}";
-        if (mult > 1.05f) return $"· 복구 가속 ×{mult:0.00}";
-        return "· 복구 중";
+        if (mult <= 0f) return "/ 복구 중단";
+        if (mult < 1f) return $"/ 복구 느림 ×{mult:0.00}";
+        if (mult > 1.05f) return $"/ 복구 가속 ×{mult:0.00}";
+        return "/ 복구 중";
     }
 }

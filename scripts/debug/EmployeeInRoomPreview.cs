@@ -91,7 +91,7 @@ public partial class EmployeeInRoomPreview : Node3D
     {
         string ph = _placeholder == null ? "없음" : (_placeholder.Visible ? "켬" : "끔");
         _hint.Text = $"1 CCTV 시점   2 인터뷰 시점   3 기존 플레이스홀더({ph})   SPACE idle   R 기본 자세\n"
-                   + $"천장 높이 3.25m · 방 6×6m · M 1.95m / F 1.68m";
+                   + $"천장 높이 3.25m, 방 6×6m, M 1.95m / F 1.68m";
     }
 
     private static void Aim(Camera3D cam, Vector3 pos, Vector3 look)

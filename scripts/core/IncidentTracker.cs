@@ -20,7 +20,13 @@ public static class IncidentTracker
 
     public static IReadOnlyList<IncidentDisplayData> Active => _active;
     public static IReadOnlyList<IncidentDisplayData> Recent => _recent;
-    public static int ActiveCount => _active.Count;
+    // 실제 사고만 센다. 원인 불명 이상(Anomaly)은 수리할 대상이 없는 알림이라 "사고 중" 이 아니다 —
+    // 이걸 같이 세면 DAY1~3 의 동시 사고 제한(CanStartNewIncident)이 근무 끝까지 막혀 버린다.
+    public static int ActiveCount => _active.Count(x => !x.IsAnomaly);
+
+    // 원인 불명 이상이 경고 단말기에 머무는 시간(초). 이 뒤에는 저절로 내려간다 —
+    // 고칠 업무가 없으므로 Resolve 가 불리지 않는다(예전에는 근무 끝까지 코어실이 빨갛게 남았다).
+    private const float AnomalyHoldSeconds = 15f;
 
     // 마지막으로 사고가 하나 끝난(또는 시작된) 시각 — DAY1 동시 사고 제한에 쓴다.
     public static float LastIncidentAt { get; private set; } = -999f;
@@ -36,7 +42,22 @@ public static class IncidentTracker
         string actionHint, int repairWorkers)
     {
         var found = _active.FirstOrDefault(x => x.RoomId == roomId);
-        if (found != null) return found;
+        if (found is { IsAnomaly: false }) return found;
+        // 같은 방에 원인 불명 이상만 떠 있었다 — 그 자리를 진짜 사고로 바꾼다(결과 줄은 이어 받는다).
+        if (found != null)
+        {
+            found.IsAnomaly = false;
+            found.Title = string.IsNullOrEmpty(title) ? "시설 고장" : title;
+            found.State = IncidentState.Active;
+            found.CauseText = cause;
+            found.ActionHint = string.IsNullOrEmpty(actionHint) ? "설비 수리 필요" : actionHint;
+            found.Severity = AlertSeverity.Critical;
+            found.StartedAt = Now;
+            found.RepairWorkers = System.Math.Max(1, repairWorkers);
+            LastIncidentAt = Now;
+            OpenedCount++;
+            return found;
+        }
 
         var data = new IncidentDisplayData
         {
@@ -57,12 +78,16 @@ public static class IncidentTracker
     }
 
     // 원인을 알 수 없는 이상(방해공작 등). 범인 정보는 절대 넘기지 않는다.
+    //
+    // 고장이 아니라 **알림**이다 — 주의(Caution) 단계로만 뜨고(지도에서 방을 빨갛게 칠하지 않는다)
+    // AnomalyHoldSeconds 뒤에 저절로 내려간다. 그 방에 진짜 사고가 나면 Open 이 이 자리를 넘겨받는다.
     public static void Anomaly(string roomId, string title, string consequence)
     {
         var found = _active.FirstOrDefault(x => x.RoomId == roomId);
         if (found != null)
         {
             AddLine(found, consequence);
+            if (found.IsAnomaly) found.StartedAt = Now;   // 같은 이상이 또 났다 — 머무는 시간을 다시 센다
             return;
         }
         var data = new IncidentDisplayData
@@ -70,11 +95,12 @@ public static class IncidentTracker
             IncidentId = $"inc{++_serial}",
             RoomId = roomId ?? "",
             Title = string.IsNullOrEmpty(title) ? "비정상 동작 감지" : title,
-            State = IncidentState.Active,
+            State = IncidentState.Caution,
             CauseText = "판별 불가",
             ActionHint = "현장 확인 필요",
             Severity = AlertSeverity.Warning,
             StartedAt = Now,
+            IsAnomaly = true,
         };
         AddLine(data, consequence);
         _active.Add(data);
@@ -85,8 +111,9 @@ public static class IncidentTracker
     {
         if (string.IsNullOrWhiteSpace(line)) return;
         // 그 방의 사고가 우선. 없으면 가장 최근에 열린 사고에 붙인다(전력 손실 같은 전역 결과).
-        var target = _active.FirstOrDefault(x => x.RoomId == roomId)
-                     ?? _active.OrderByDescending(x => x.StartedAt).FirstOrDefault();
+        var target = _active.FirstOrDefault(x => x.RoomId == roomId && !x.IsAnomaly)
+                     ?? _active.FirstOrDefault(x => x.RoomId == roomId)
+                     ?? _active.Where(x => !x.IsAnomaly).OrderByDescending(x => x.StartedAt).FirstOrDefault();
         if (target == null) return;
         AddLine(target, line);
     }
@@ -94,6 +121,8 @@ public static class IncidentTracker
     // 해당 방의 사고가 해결됐다.
     public static void Resolve(string roomId)
     {
+        // 고쳤으면 그 방에 걸려 있던 원인 불명 알림도 같이 내린다.
+        _active.RemoveAll(x => x.RoomId == roomId && x.IsAnomaly);
         var found = _active.FirstOrDefault(x => x.RoomId == roomId);
         if (found == null) return;
         _active.Remove(found);
@@ -106,7 +135,14 @@ public static class IncidentTracker
         ResolvedCount++;
     }
 
-    public static bool HasActive(string roomId) => _active.Any(x => x.RoomId == roomId);
+    public static bool HasActive(string roomId) => _active.Any(x => x.RoomId == roomId && !x.IsAnomaly);
+
+    // 머무는 시간이 지난 원인 불명 알림을 내린다. FacilitySimulation.Tick 이 매 틱 부른다.
+    public static void Prune()
+    {
+        float now = Now;
+        _active.RemoveAll(x => x.IsAnomaly && now - x.StartedAt >= AnomalyHoldSeconds);
+    }
 
     public static void Reset()
     {

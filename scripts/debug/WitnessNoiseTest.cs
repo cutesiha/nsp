@@ -91,7 +91,7 @@ public partial class WitnessNoiseTest : Node
         }
         GD.Print($"   {trials}회 중 고양이가 목격한 횟수 = {seen}");
         Check(seen > 0, "가끔은 본다");
-        Check(seen < trials, "늘 보지는 않는다 — 방해공작 한 번에 확정 증언이 반드시 생기지 않는다");
+        Check(seen < trials, "늘 보지는 않는다 - 방해공작 한 번에 확정 증언이 반드시 생기지 않는다");
     }
 
     // ── ③ 결번 개체도 남의 실제 이동을 보고할 수 있다 ───────────────────────

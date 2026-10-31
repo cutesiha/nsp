@@ -37,6 +37,8 @@ public sealed class MonsterThreat
     public float OuterSeconds;
     // 복도 입구(0) → 차폐문 앞(1). 카메라에 보이는 거리가 이 값이다.
     public float Progress;
+    // 복도를 걸어오는 시간에 곱하는 배율(1 = 데이터 그대로). 교육이 늦춰서 "다가오는 것" 이 화면에 보이게 한다.
+    public float ApproachScale = 1f;
     // 지금 멈춰 서 있는가(숨 고르기). 표현이 이 값을 읽어 걷기/서기를 가른다.
     public bool Paused;
     public float PauseTimer;
@@ -440,7 +442,7 @@ public sealed class MonsterThreatSystem
             if (t.PauseTimer <= 0f) t.Paused = false;
             return;
         }
-        float per = Mathf.Max(0.5f, t.Def.ApproachSeconds);
+        float per = Mathf.Max(0.5f, t.Def.ApproachSeconds * Mathf.Max(0.1f, t.ApproachScale));
         t.Progress = Mathf.Min(1f, t.Progress + delta / per);
 
         if (t.Def.PauseEverySeconds <= 0f || t.Progress >= 0.96f) return;

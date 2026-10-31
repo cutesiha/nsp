@@ -78,7 +78,7 @@ public partial class EntityProbe : Node
         // 사전 준비가 끝났는지 — 끝나 있어야 이 연출이 모델을 새로 읽지 않는다.
         // nowarm 으로 돌리면 준비를 끄고 같은 길을 밟는다 — 대조군.
         bool warm = MonsterWarmup.Done;
-        GD.Print(warm ? "   사전 준비 **켬**" : "   사전 준비 **끔**(nowarm · 대조군)");
+        GD.Print(warm ? "   사전 준비 **켬**" : "   사전 준비 **끔**(nowarm, 대조군)");
 
         // 연출기가 쥔 배우를 직접 들여다본다 — 그림만으로는 판정할 수 없다.
         // 이 연출은 붉은 섬광과 노이즈를 **모델 위에** 덮으므로, 화면이 붉다는 것은
@@ -97,7 +97,7 @@ public partial class EntityProbe : Node
             {
                 if (s.ProcessMode == ProcessModeEnum.Disabled) asleep++; else awake++;
             }
-        GD.Print($"   준비된 모델 {asleep + awake}개 — 자는 중 {asleep} · 깨어 있음 {awake}");
+        GD.Print($"   준비된 모델 {asleep + awake}개 - 자는 중 {asleep}, 깨어 있음 {awake}");
         if (warm) Ok(asleep > 0, "쓰지 않는 모델은 재워 두었다");
         Ok(!actor.Root.Visible, "연출 전에는 꺼져 있다");
 
@@ -116,7 +116,7 @@ public partial class EntityProbe : Node
             Ok(anim.ProcessMode != ProcessModeEnum.Disabled, "쓰는 모델은 깨어 있다");
             Ok(anim.IsPlaying(), "클립이 돌고 있다");
         }
-        else GD.Print("   (이 개체는 클립이 없다 — 코드가 몸을 흔든다)");
+        else GD.Print("   (이 개체는 클립이 없다 - 코드가 몸을 흔든다)");
 
         double t0 = anim?.CurrentAnimationPosition ?? 0d;
         await Frame();
@@ -130,7 +130,7 @@ public partial class EntityProbe : Node
         // **사전 준비를 켠 쪽과 끈 쪽(nowarm)이 같은 자세로 뜨는가** 다 — 같아야
         // 성능 작업이 연출을 바꾸지 않았다고 말할 수 있다. 두 번 돌려 비교한다.
         float seekAt = MonsterCast.ScareClipAt(actor.Def);
-        GD.Print($"   개체 {actor.MonsterId} · 클립 위치 {t0:0.000}s → {t1:0.000}s  (Seek 지점 {seekAt:0.000}s)");
+        GD.Print($"   개체 {actor.MonsterId}, 클립 위치 {t0:0.000}s → {t1:0.000}s  (Seek 지점 {seekAt:0.000}s)");
         Ok(Mathf.Abs((float)t0 - seekAt) < 0.05f, "의도한 자세(Seek 지점)에서 떴다");
 
         await Seconds(0.5);
@@ -144,7 +144,7 @@ public partial class EntityProbe : Node
     private void Shot(string name)
     {
         var img = GetViewport()?.GetTexture()?.GetImage();
-        if (img == null) { GD.Print($"   (그림 없음 — {name})"); return; }
+        if (img == null) { GD.Print($"   (그림 없음 - {name})"); return; }
         img.SavePng($"{_dir}/face_{_shot:00}_{name}.png");
         _shot++;
     }

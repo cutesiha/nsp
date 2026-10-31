@@ -46,15 +46,15 @@ public partial class MainStoryTest : Node
     private void ParsedScript()
     {
         var all = StoryScript.Entries;
-        GD.Print($"\n[A] 비트 {all.Count}개 — " +
-                 $"core {all.Count(e => e.Kind == StoryBeatKind.Core)} · " +
-                 $"react {all.Count(e => e.Kind == StoryBeatKind.React)} · " +
+        GD.Print($"\n[A] 비트 {all.Count}개 - " +
+                 $"core {all.Count(e => e.Kind == StoryBeatKind.Core)}, " +
+                 $"react {all.Count(e => e.Kind == StoryBeatKind.React)}, " +
                  $"pool {all.Count(e => e.Kind == StoryBeatKind.Pool)}");
         foreach (var e in all)
             GD.Print($"    {e.Id,-22} day {(e.Day == 0 ? "any" : e.Day.ToString()),-3} {e.Kind,-5} " +
-                     $"{(e.Beat.Group ? "group" : "pair"),-5} min {e.Beat.MinParticipants} · " +
+                     $"{(e.Beat.Group ? "group" : "pair"),-5} min {e.Beat.MinParticipants}, " +
                      $"{e.Beat.Lines.Count}줄" +
-                     (e.Beat.Steps.Any(st => st.IsChoice) ? " · 선택 있음" : ""));
+                     (e.Beat.Steps.Any(st => st.IsChoice) ? ", 선택 있음" : ""));
 
         Check("A 비트를 읽었다", all.Count >= 10);
         Check("A 산문 속 형식 예시가 비트로 섞이지 않았다",
@@ -64,7 +64,7 @@ public partial class MainStoryTest : Node
         Check("A pool 비트가 남아 있지 않다", all.All(e => e.Kind != StoryBeatKind.Pool));
         Check("A DAY1 은 min 6 이다",
             all.Where(e => e.Day == 1).All(e => e.Beat.MinParticipants == 6));
-        Check("A DAY2~5 · 반응 비트는 min 2 다",
+        Check("A DAY2~5, 반응 비트는 min 2 다",
             all.Where(e => e.Day != 1).All(e => e.Beat.MinParticipants == 2));
         // 배역(@witness 등)으로 적은 줄은 say(필수)로 둘 수 있다 — 맡을 사람이 없으면
         // 비트 자체가 성립하지 않는다("본 사람" 없이 목격담을 시작할 수는 없다).
@@ -89,13 +89,13 @@ public partial class MainStoryTest : Node
 
         var opening = q.FirstOrDefault(e => e.Id == "d1_after_disaster");
         string text = opening == null ? "" : string.Join(" ", AllLines(opening.Beat).Select(l => l.Text));
-        Check("B 상실 · 공포가 먼저 나온다",
+        Check("B 상실, 공포가 먼저 나온다",
             text.Contains("살아 있는 사람은 없는") || text.Contains("아무 소리도 안 나요"));
         // §24-3 — "재난 이후 새로 배정받았다" 는 말이 없어야 한다.
         var all = StoryScript.Entries.SelectMany(e => AllLines(e.Beat)).Select(l => l.Text).ToList();
         var banned = new[] { "배정", "새로 왔", "전출", "발령" };
         var hit = banned.Where(b => all.Any(t => t.Contains(b))).ToList();
-        Check($"B 누구도 '새로 배정받았다'고 말하지 않는다{(hit.Count == 0 ? "" : " — " + string.Join(",", hit))}",
+        Check($"B 누구도 '새로 배정받았다'고 말하지 않는다{(hit.Count == 0 ? "" : " - " + string.Join(",", hit))}",
             hit.Count == 0);
 
         var intro = StoryScript.Entries.FirstOrDefault(e => e.Id == "d1_introductions");
@@ -113,7 +113,7 @@ public partial class MainStoryTest : Node
             .SelectMany(e => e.Beat.Steps.Where(st => st.IsChoice).Select(st => (Owner: e, st.Choice)))
             .ToList();
         foreach (var (owner, c) in choices)
-            GD.Print($"[C] {c.ChoiceId,-22} (day {owner.Day}) 선택지 {c.Options.Count}개 · " +
+            GD.Print($"[C] {c.ChoiceId,-22} (day {owner.Day}) 선택지 {c.Options.Count}개, " +
                      $"분기 {string.Join("/", c.Options.Select(o => o.Branch.Count))}줄");
 
         Check("C 선택지가 다섯 개(DAY1~5) 있다", choices.Count >= 5);
@@ -151,7 +151,7 @@ public partial class MainStoryTest : Node
             int who = lines.Select(l => l.SpeakerEmployeeId).Distinct().Count();
             // 2인 대화를 이어 붙인 모양이면 "같은 두 사람이 네 줄 내리" 가 보인다.
             int longestPair = LongestTwoPersonRun(lines);
-            GD.Print($"[D] {e.Id,-22} 화자 {who}명 · 같은 두 사람만 이어진 최대 {longestPair}줄");
+            GD.Print($"[D] {e.Id,-22} 화자 {who}명, 같은 두 사람만 이어진 최대 {longestPair}줄");
             Check($"D {e.Id} 에 네 명 이상이 참여한다", who >= 4);
             Check($"D {e.Id} 가 2인 대화를 이어 붙인 모양이 아니다", longestPair <= 5);
         }
@@ -197,7 +197,7 @@ public partial class MainStoryTest : Node
             var lines = AllLines(main.Beat).Where(StoryCutinDirector.Speaks).ToList();
             bool sheepGone = lines.All(l => l.SpeakerEmployeeId != "sheep");
             bool othersStay = lines.Count(l => l.SpeakerEmployeeId == "cat") > 0;
-            GD.Print($"[E] 양 {label} — 남은 줄 {lines.Count} · 양 줄 {(sheepGone ? "없음" : "남음")}");
+            GD.Print($"[E] 양 {label} - 남은 줄 {lines.Count}, 양 줄 {(sheepGone ? "없음" : "남음")}");
             Check($"E 양 {label} 시 그 줄만 빠진다", sheepGone);
             Check($"E 양 {label} 이어도 나머지 대화는 이어진다", othersStay && lines.Count >= 5);
             Check($"E 양 {label} 이어도 비트는 재생된다(min 2)", StoryBeatSelector.IsPlayable(main));
@@ -223,7 +223,7 @@ public partial class MainStoryTest : Node
         ResetWorld();
         var log = EventLog.Instance;
         log.LogEvent(NSP.Data.LogEventType.AnomalyDispelled, "", "power_room",
-            "👁 발전실 — 관측으로 이상 개체 소멸", witnesses: new[] { "cat" });   // 고양이만 그 방에 있었다
+            "○ 발전실 - 관측으로 이상 개체 소멸", witnesses: new[] { "cat" });   // 고양이만 그 방에 있었다
         SetDay(2);
 
         var cast = StoryRoleCast.ForDay(2);
@@ -247,7 +247,7 @@ public partial class MainStoryTest : Node
         // 본 사람이 아무도 없으면(기록에 목격자가 없으면) 목격담은 뜨지 않는다.
         ResetWorld();
         EventLog.Instance.LogEvent(NSP.Data.LogEventType.AnomalyDispelled, "", "power_room",
-            "👁 발전실 — 관측으로 이상 개체 소멸");
+            "○ 발전실 - 관측으로 이상 개체 소멸");
         SetDay(2);
         Check("H 본 사람이 없으면 목격담 비트가 생략된다", !StoryBeatSelector.IsPlayable(beat, 2));
         ResetWorld();
@@ -266,7 +266,7 @@ public partial class MainStoryTest : Node
         // 배역(@witness · @heard1 …)은 재생할 때 실제 직원으로 바뀐다 — 명부에 없는 것이 맞다.
         var strangers = all.SelectMany(e => AllLines(e.Beat)).Select(l => l.SpeakerEmployeeId)
             .Where(id => !roster.Contains(id) && !StoryRoleCast.IsRole(id)).Distinct().ToList();
-        Check($"F 현 직원 6인만 말한다{(strangers.Count == 0 ? "" : " — " + string.Join(",", strangers))}",
+        Check($"F 현 직원 6인만 말한다{(strangers.Count == 0 ? "" : " - " + string.Join(",", strangers))}",
             strangers.Count == 0);
         Check("F 모든 비트가 근무를 멈춘다", all.All(e => e.Beat.PauseGameplay));
         Check("F 모든 비트가 엿들은 대화를 멈춘다", all.All(e => e.Beat.SuppressAmbientDialogue));

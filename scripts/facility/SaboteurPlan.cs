@@ -64,7 +64,7 @@ public sealed class SaboteurPlan
     {
         Phase = SaboteurPhase.Idle;
         SaboteurId = WatchedRoomId = ActedRoomId = "";
-        SettledSeconds = PrepareSeconds = PrepareNeeded = 0f;
+        SettledSeconds = PrepareSeconds = PrepareNeeded = ReadyWaitSeconds = 0f;
         PreparingStartedAt = ActedAtSeconds = -1f;
         CancelCount = 0;
         ActionCount = 0;
@@ -77,6 +77,7 @@ public sealed class SaboteurPlan
         Conditions.Clear();
         Clues.Clear();
         _firedPrecursors.Clear();
+        _blocked.Clear();
     }
 
     // --- 진행 ------------------------------------------------------------
@@ -97,7 +98,7 @@ public sealed class SaboteurPlan
         {
             if (Phase == SaboteurPhase.Preparing) CancelCount++;
             WatchedRoomId = room;
-            SettledSeconds = PrepareSeconds = 0f;
+            SettledSeconds = PrepareSeconds = ReadyWaitSeconds = 0f;
             PreparingStartedAt = -1f;
             Phase = SaboteurPhase.Idle;
             _firedPrecursors.Clear();
@@ -107,7 +108,7 @@ public sealed class SaboteurPlan
         // 자리를 뜨는 것은 관리자의 개입이고, 그 개입이 방해공작을 막는 유일한 수단이다.
         if (saboteur.IsMoving || !ops.SabotageTargetRooms.Contains(room) || !sim.IsRoomActive(room))
         {
-            SettledSeconds = PrepareSeconds = 0f;
+            SettledSeconds = PrepareSeconds = ReadyWaitSeconds = 0f;
             if (Phase != SaboteurPhase.Idle)
             {
                 if (Phase == SaboteurPhase.Preparing) CancelCount++;
@@ -157,7 +158,36 @@ public sealed class SaboteurPlan
         if (Phase != SaboteurPhase.Preparing) return;
 
         PrepareSeconds += delta;
+        if (PrepareSeconds >= PrepareNeeded) ReadyWaitSeconds += delta;
         TickPrecursors(sim, saboteur, room, now);
+    }
+
+    // ── 단기 근무의 인내심 ────────────────────────────────────────────────
+    //
+    // 준비를 다 마친 뒤에도 "지금 CCTV 가 이 방을 보고 있다" · "방에 나 혼자다" 면 손대지 않고
+    // 기다린다. 그런데 단기 근무에서는 결번(강아지)이 정해져 있어 관리자가 그 방을 계속
+    // 띄워 두기 쉽고, 혼자 배치되는 날도 많아 **사흘 내내 방해공작이 한 번도 없었다**
+    // (2026-10-28 플레이 기록: 준비 43/11초 · 50/7초 · 65/7초 — 다 차 놓고 한 번도 못 했다).
+    //
+    // 그래서 단기 근무에서는 준비를 마치고 이만큼 기다렸으면 **그날 첫 번째 방해공작만큼은**
+    // 감시 · 동석 조건을 무시하고 저지른다. 보고 있었다면 그 장면이 곧 단서가 된다.
+    // 두 번째부터는 예전 규칙 그대로다. 정규 근무(5일)는 바뀌지 않는다.
+    private const float ImpatientAfterSeconds = 12f;
+
+    // 준비를 마친 채 기다린 시간.
+    public float ReadyWaitSeconds { get; private set; }
+
+    public bool Impatient =>
+        GameModes.FixedSaboteur && ActionCount == 0 && Phase == SaboteurPhase.Preparing
+        && ReadyWaitSeconds >= ImpatientAfterSeconds;
+
+    // 준비를 마쳤는데 무엇 때문에 미뤘는가(디버그 요약 전용 — 다음에 "왜 안 했나" 를 로그로 본다).
+    private readonly Dictionary<string, int> _blocked = new();
+
+    public void NoteBlocked(string reason)
+    {
+        if (Phase != SaboteurPhase.Preparing || PrepareSeconds < PrepareNeeded) return;
+        _blocked[reason] = _blocked.GetValueOrDefault(reason) + 1;
     }
 
     // --- 작은 교란(MinorTamper) ------------------------------------------
@@ -282,7 +312,11 @@ public sealed class SaboteurPlan
         // 혼자 있는 방에서는 손대지 않는다. 그 방에 자기밖에 없는데 설비가 망가지면
         // 시설 로그 한 줄만으로 범인이 확정된다 — 심문도 CCTV 도 볼 이유가 사라진다.
         // 준비는 그대로 쌓아 두고, 누가 들어올 때까지 기다린다.
-        if (ops.SabotageNeedsCompany && sim.OnDutyCount(saboteur.CurrentRoomId) <= 1) return false;
+        if (ops.SabotageNeedsCompany && sim.OnDutyCount(saboteur.CurrentRoomId) <= 1 && !Impatient)
+        {
+            NoteBlocked("혼자 있는 방");
+            return false;
+        }
 
         float now = GameState.Instance?.DayTimeSeconds ?? 0f;
         // 목표 구간이 끝나 가면 준비가 조금 덜 됐어도 실행한다 — 그날의 핵심 사건이
@@ -312,7 +346,7 @@ public sealed class SaboteurPlan
     {
         Phase = SaboteurPhase.Idle;
         WatchedRoomId = "";
-        SettledSeconds = PrepareSeconds = PrepareNeeded = 0f;
+        SettledSeconds = PrepareSeconds = PrepareNeeded = ReadyWaitSeconds = 0f;
         PreparingStartedAt = -1f;
         _windowOffset = GD.Randf() * 6f;
         _firedPrecursors.Clear();
@@ -353,7 +387,10 @@ public sealed class SaboteurPlan
         sb.AppendLine(HasActed
             ? $"Sabotage: {Clock(ActedAtSeconds)} {ActedRoomId}  (준비 시작 {Clock(PreparingStartedAt)})"
             : $"Sabotage: 없음 (phase={Phase}, 준비 {PrepareSeconds:0}/{PrepareNeeded:0}초)");
-        sb.AppendLine($"재배치로 취소된 횟수: {CancelCount}");
+        sb.AppendLine($"재배치로 취소된 횟수: {CancelCount}   오늘 방해공작: {ActionCount}회");
+        if (_blocked.Count > 0)
+            sb.AppendLine("준비를 마치고 미룬 이유: "
+                          + string.Join(", ", _blocked.Select(kv => $"{kv.Key} {kv.Value}회")));
         sb.AppendLine("Preconditions:");
         foreach (string c in Conditions) sb.AppendLine($"  ✓ {c}");
         sb.AppendLine("Generated Clues:");

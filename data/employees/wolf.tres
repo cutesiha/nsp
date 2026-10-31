@@ -38,6 +38,9 @@ StandingImage = ExtResource("2_img")
 FacePortrait = ExtResource("3_face")
 IdPhoto = ExtResource("4_idphoto")
 SchedulePortrait = ExtResource("5_schedule")
+; 회색 가면이 검게 뭉개져 눈이 안 보였다. 가면 칸에서만 원화 색의 두 번째 곱을 60% 되돌린다(crt_art.gdshader mask_*).
+StandingMaskLift = 0.6
+StandingMaskRect = Vector4(0.33, 0.06, 0.66, 0.27)
 
 Gender = "남성(추정)"
 ShortProfileLine = "과묵하고 침착하다. 위험한 일은 먼저 맡으려는 책임감이 있다."

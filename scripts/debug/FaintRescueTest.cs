@@ -260,12 +260,12 @@ public partial class FaintRescueTest : Node
     private void CheckCarryStyles()
     {
         GD.Print("\n---------------- 캐릭터별 운반 자세 ----------------");
-        Check(FaintRescueSystem.StyleOf("wolf") == CarryStyle.Piggyback, "늑대 — 업기");
-        Check(FaintRescueSystem.StyleOf("cat") == CarryStyle.Piggyback, "고양이 — 업기");
-        Check(FaintRescueSystem.StyleOf("sheep") == CarryStyle.Shoulder, "양 — 어깨 부축");
-        Check(FaintRescueSystem.StyleOf("rabbit") == CarryStyle.Shoulder, "토끼 — 어깨 부축");
-        Check(FaintRescueSystem.StyleOf("dog") == CarryStyle.Bridal, "강아지 — 공주님 안기");
-        Check(FaintRescueSystem.StyleOf("fox") == CarryStyle.Bridal, "여우 — 공주님 안기");
+        Check(FaintRescueSystem.StyleOf("wolf") == CarryStyle.Piggyback, "늑대 - 업기");
+        Check(FaintRescueSystem.StyleOf("cat") == CarryStyle.Piggyback, "고양이 - 업기");
+        Check(FaintRescueSystem.StyleOf("sheep") == CarryStyle.Shoulder, "양 - 어깨 부축");
+        Check(FaintRescueSystem.StyleOf("rabbit") == CarryStyle.Shoulder, "토끼 - 어깨 부축");
+        Check(FaintRescueSystem.StyleOf("dog") == CarryStyle.Bridal, "강아지 - 공주님 안기");
+        Check(FaintRescueSystem.StyleOf("fox") == CarryStyle.Bridal, "여우 - 공주님 안기");
 
         // 속도: 늑대·강아지·여우 > 고양이 > 토끼 > 양
         float wolf = FaintRescueSystem.CarrySpeedScale("wolf");
@@ -275,7 +275,7 @@ public partial class FaintRescueTest : Node
         Check(wolf > cat && cat > rabbit && rabbit > sheep,
             $"운반 속도 순서 (늑대 {wolf:0.00} > 고양이 {cat:0.00} > 토끼 {rabbit:0.00} > 양 {sheep:0.00})");
         Check(FaintRescueSystem.RunsBack("sheep") && FaintRescueSystem.RunsBack("rabbit"),
-            "양·토끼는 뛰어서 복귀한다");
+            "양/토끼는 뛰어서 복귀한다");
         Check(!FaintRescueSystem.RunsBack("wolf") && !FaintRescueSystem.RunsBack("fox"),
             "나머지는 걸어서 복귀한다");
     }

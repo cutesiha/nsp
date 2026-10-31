@@ -58,7 +58,7 @@ public partial class RescueCarryTest : Node
         var argv = OS.GetCmdlineUserArgs();
         if (argv.Length > 1) { CarrierId = argv[0]; VictimId = argv[1]; }
         var style = FaintRescueSystem.StyleOf(CarrierId);
-        GD.Print($"################ 사람 이송 연출 검사 — {CarrierId}({style}) 가 {VictimId} 를 옮긴다 ################");
+        GD.Print($"################ 사람 이송 연출 검사 - {CarrierId}({style}) 가 {VictimId} 를 옮긴다 ################");
 
         typeof(ShiftFlowController).GetField("_skipToDay1Pending", BindingFlags.NonPublic | BindingFlags.Static)
             ?.SetValue(null, true);
@@ -223,31 +223,31 @@ public partial class RescueCarryTest : Node
         var boxUsed = carrierClips.Where(x => BoxClips.Contains(x)).ToList();
 
         Check(!clipByPhase.GetValueOrDefault(FaintPhase.TransportPickup, new()).Any(x => x.StartsWith("pickup_box")),
-            $"1. 들어 올릴 때 pickup_box 를 쓰지 않는다 — {Join(clipByPhase.GetValueOrDefault(FaintPhase.TransportPickup, new()))}");
+            $"1. 들어 올릴 때 pickup_box 를 쓰지 않는다 - {Join(clipByPhase.GetValueOrDefault(FaintPhase.TransportPickup, new()))}");
 
         Check(boxUsed.Count == 0,
             boxUsed.Count == 0 ? "2. 운반 내내 박스 클립이 한 번도 안 쓰였다"
-                               : $"2. 박스 클립이 쓰였다 — {Join(boxUsed)}");
+                               : $"2. 박스 클립이 쓰였다 - {Join(boxUsed)}");
 
         Check(walkClipWhileMoving,
-            $"3. 이동 중 사람 운반 걷기 클립이 실제로 재생됐다 — {Join(clipByPhase.GetValueOrDefault(FaintPhase.Transporting, new()))}");
+            $"3. 이동 중 사람 운반 걷기 클립이 실제로 재생됐다 - {Join(clipByPhase.GetValueOrDefault(FaintPhase.Transporting, new()))}");
 
         float legSwing = Mathf.RadToDeg(legMax - legMin), shinSwing = Mathf.RadToDeg(shinMax - shinMin);
         Check(legSwing >= MinLegSwingDeg && shinSwing >= MinLegSwingDeg,
-            $"4. 이동 중 다리가 실제로 움직인다 (허벅지 {legSwing:0.0}° · 정강이 {shinSwing:0.0}°)");
+            $"4. 이동 중 다리가 실제로 움직인다 (허벅지 {legSwing:0.0}°, 정강이 {shinSwing:0.0}°)");
 
         Check(maxPair > 0f && maxPair <= MaxPairDistance,
-            $"5. 운반 내내 두 몸통이 붙어 있다 (가슴 사이 최대 {maxPair:0.00}m @ {maxPairPhase} · 방전환 +{maxPairAfterSwitch:0.00}s / 허용 {MaxPairDistance:0.00}m)");
+            $"5. 운반 내내 두 몸통이 붙어 있다 (가슴 사이 최대 {maxPair:0.00}m @ {maxPairPhase}, 방전환 +{maxPairAfterSwitch:0.00}s / 허용 {MaxPairDistance:0.00}m)");
 
         int roomIdx = phasesSeen.IndexOf(FaintPhase.BedApproach);
         int recIdx = phasesSeen.IndexOf(FaintPhase.Recovering);
         Check(roomIdx >= 0 && recIdx > roomIdx,
-            $"6. 의무실에 들어온 즉시 회복으로 넘어가지 않는다 — {Join(phasesSeen.Select(p => p.ToString()))}");
+            $"6. 의무실에 들어온 즉시 회복으로 넘어가지 않는다 - {Join(phasesSeen.Select(p => p.ToString()))}");
 
         Check(phasesSeen.Contains(FaintPhase.BedApproach), "7. 침대 접근(BedApproach) 단계가 실제로 지나간다");
 
         Check(handoffTravel > 0.25f && maxJump <= MaxFrameJump,
-            $"8. 인계 동안 환자가 연속해서 옮겨진다 (이동 {handoffTravel:0.00}m · 최대 한 프레임 {maxJump:0.00}m)");
+            $"8. 인계 동안 환자가 연속해서 옮겨진다 (이동 {handoffTravel:0.00}m, 최대 한 프레임 {maxJump:0.00}m)");
 
         Check(!detachedEarly, "9. 침대에 닿기 전에 손을 놓지 않는다");
 
@@ -275,7 +275,7 @@ public partial class RescueCarryTest : Node
         Done();
     }
 
-    private static string Join(IEnumerable<string> xs) => string.Join(" · ", xs);
+    private static string Join(IEnumerable<string> xs) => string.Join(", ", xs);
 
     private void Check(bool ok, string label)
     {

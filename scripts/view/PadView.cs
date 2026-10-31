@@ -243,7 +243,7 @@ public partial class PadView : Control
         var gs = GameState.Instance;
         int day = gs?.CurrentDay ?? 1;
         string when = gs?.CurrentPhase == GamePhase.Rest ? "휴게시간" : DialogueClock.Text(gs?.DayTimeSeconds ?? 0f);
-        if (_statusTime != null) _statusTime.Text = $"DAY {day} · {when}";
+        if (_statusTime != null) _statusTime.Text = $"DAY {day} / {when}";
         _statusIcons?.QueueRedraw();
         RefreshBanner();
         RefreshLock();
@@ -376,8 +376,8 @@ public partial class PadView : Control
         _home.AddChild(_homeHint);
     }
 
-    private const string HeldHint = "앱 안에서 우클릭 = 뒤로     ·     홈에서 우클릭 · Tab = 패드 내려놓기";
-    private const string StowedHint = "앱을 누르거나 Tab — 패드 들기";
+    private const string HeldHint = "앱 안에서 우클릭 = 뒤로   /   홈에서 우클릭, Tab = 패드 내려놓기";
+    private const string StowedHint = "앱을 누르거나 Tab: 패드 들기";
     private readonly Dictionary<Tab, Button> _appButtons = new();
     private Label _homeHint;
 
@@ -398,8 +398,8 @@ public partial class PadView : Control
         var a = CurrentAlert();
         _banner.Visible = a != null && Current == Tab.Home;
         if (a == null) return;
-        string when = string.IsNullOrEmpty(a.Countdown) ? "" : $"   ·   {a.Countdown}";
-        _bannerText.Text = $"⚠  {a.SubLabel}  ·  {a.Headline}{when}";
+        string when = string.IsNullOrEmpty(a.Countdown) ? "" : $", {a.Countdown}";
+        _bannerText.Text = $"▲  {a.SubLabel}, {a.Headline}{when}";
         // 거치대 위에서는 크게 점멸한다(관리자가 패드를 집어 들 이유). 든 동안은 급한 예고만 은은하게.
         float a01 = IsStowed ? (Mathf.PosMod(_blink, 1f) < 0.62f ? 1f : 0.3f)
                   : a.Severity == AlertSeverity.Critical ? 0.75f + 0.25f * Mathf.Sin(_blink * 8f) : 1f;
@@ -896,8 +896,8 @@ public partial class PadView : Control
     {
         EvidenceKind.Incident => $"{InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)} {IncidentWord(ev)}",
         EvidenceKind.Movement => $"{Codename(ev.SubjectEmployeeId)} → {InterviewEvidenceBoard.RoomName(ev.ToRoomId)}",
-        EvidenceKind.Overheard => $"{Codename(ev.SubjectEmployeeId)} · {string.Join(" · ", ev.RelatedEmployeeIds.Select(Codename))}의 대화",
-        EvidenceKind.Cctv => $"CCTV · {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}",
+        EvidenceKind.Overheard => $"{Codename(ev.SubjectEmployeeId)}, {string.Join(", ", ev.RelatedEmployeeIds.Select(Codename))}의 대화",
+        EvidenceKind.Cctv => $"CCTV / {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}",
         EvidenceKind.Testimony => $"{Codename(ev.SpeakerEmployeeId)}의 증언",
         EvidenceKind.OwnStatement => $"{Codename(ev.SubjectEmployeeId)}의 진술",
         _ => $"{Codename(ev.SubjectEmployeeId)}의 기분",
@@ -989,7 +989,7 @@ public partial class PadView : Control
 
         string osd = ev.Kind switch
         {
-            EvidenceKind.Cctv => $"CAM · {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}",
+            EvidenceKind.Cctv => $"CAM / {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}",
             EvidenceKind.Movement when !string.IsNullOrEmpty(ev.FromRoomId)
                 => $"{InterviewEvidenceBoard.RoomName(ev.FromRoomId)} → {InterviewEvidenceBoard.RoomName(ev.ToRoomId)}",
             EvidenceKind.Movement => $"→ {InterviewEvidenceBoard.RoomName(ev.ToRoomId)}",
@@ -1086,8 +1086,8 @@ public partial class PadView : Control
         top.AddChild(side);
         col.AddChild(top);
 
-        side.AddChild(IconRow("◷", "시각 · 장소", Cyan));
-        string room = string.IsNullOrEmpty(ev.SubjectRoomId) ? "" : $" · {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}";
+        side.AddChild(IconRow("◷", "시각 / 장소", Cyan));
+        string room = string.IsNullOrEmpty(ev.SubjectRoomId) ? "" : $", {InterviewEvidenceBoard.RoomName(ev.SubjectRoomId)}";
         side.AddChild(Wrap(Lbl($"{WhenText(entry)}{room}", FsBody, Ink)));
         side.AddChild(new Control { CustomMinimumSize = new Vector2(0, 6) });
         side.AddChild(IconRow("▤", "사건", Cyan));
@@ -1100,14 +1100,14 @@ public partial class PadView : Control
         chips.AddThemeConstantOverride("v_separation", 4);
         var staff = RelatedStaff(entry);
         foreach (string id in staff) chips.AddChild(StaffChip(id));
-        if (staff.Count == 0) chips.AddChild(Lbl("—", FsBody, Dim));
+        if (staff.Count == 0) chips.AddChild(Lbl("-", FsBody, Dim));
         col.AddChild(chips);
 
         col.AddChild(Separator());
         col.AddChild(IconRow("❝", "관련 진술", Cyan));
         var talks = RelatedStatements(entry);
         if (talks.Count == 0)
-            col.AddChild(Wrap(Lbl("진술 없음 — 휴게시간에 물어볼 수 있습니다.", FsBody, Dim)));
+            col.AddChild(Wrap(Lbl("진술 없음 - 휴게시간에 물어볼 수 있습니다.", FsBody, Dim)));
         foreach (var (who, lines) in talks)
         {
             string key = who;
@@ -1256,6 +1256,11 @@ public partial class PadView : Control
         return card;
     }
 
+    // 직원 얼굴 아이콘 · 스탠딩 일러가 그려지는 칸. 전역 아날로그 필터(LUT · 입자)가 이 칸에서는
+    // 훨씬 약하게 걸린다 — 낮은 품질에서 일러가 청록 덩어리로 뭉개져 누가 누군지 안 보였다
+    // (2026-10-28 요청: 아이콘 · 일러만). 칸의 화면 위치는 AdminPad3D.ArtScreenRects 가 잰다.
+    public const string ArtGroup = "pad_employee_art";
+
     // 초상을 머리 크기(EmployeeDef.PortraitHeadSpan)가 칸 높이에 꼭 맞게 키우고, PortraitFocus 를 칸 가운데에 둔다.
     // 초상 배경이 투명이라 좌우 여백은 카드 바탕색과 이어진다. 위아래는 빈 띠가 생기지 않게 막는다.
     public static TextureRect FacePortrait(EmployeeDef def, Vector2 box)
@@ -1265,6 +1270,7 @@ public partial class PadView : Control
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.Scale,
             MouseFilter = MouseFilterEnum.Ignore,
         };
+        rect.AddToGroup(ArtGroup);
         var src = def?.FacePortrait ?? def?.StandingImage;
         if (src == null) return rect;
         Vector2 img = src.GetSize();
@@ -1295,7 +1301,7 @@ public partial class PadView : Control
     {
         var def = FacilitySimulation.Instance?.GetEmployeeDef(id);
         var color = Readable(def?.IconColor ?? Cyan);
-        _appTitle.Text = $"직원 · {def?.Codename ?? id}";
+        _appTitle.Text = $"직원: {def?.Codename ?? id}";
         float bodyH = Layout.Y - Top;
 
         // 전신 스탠딩 — 잘리지 않게 세로 맞춤. 글자가 커진 만큼 그림 쪽 여백을 줄여 글 칸을 넓혔다.
@@ -1305,6 +1311,7 @@ public partial class PadView : Control
             Texture = def?.StandingImage ?? def?.FacePortrait, Position = new Vector2(10, 8), Size = new Vector2(324, bodyH - 16),
             MouseFilter = MouseFilterEnum.Ignore,
         };
+        art.AddToGroup(ArtGroup);
         _appBody.AddChild(art);
 
         var scroll = new ScrollContainer
@@ -1329,7 +1336,7 @@ public partial class PadView : Control
 
         col.AddChild(Separator());
         col.AddChild(IconRow("❝", "자기소개", Cyan));
-        col.AddChild(Wrap(Lbl(string.IsNullOrEmpty(def?.SelfIntroLine) ? "—" : $"“{def.SelfIntroLine}”", FsBody, color)));
+        col.AddChild(Wrap(Lbl(string.IsNullOrEmpty(def?.SelfIntroLine) ? "-" : $"“{def.SelfIntroLine}”", FsBody, color)));
 
         var (good, bad) = Relations(id);
         col.AddChild(Separator());
@@ -1340,8 +1347,8 @@ public partial class PadView : Control
 
         col.AddChild(Separator());
         col.AddChild(IconRow("◆", "TMI", Cyan));
-        col.AddChild(Wrap(Lbl($"좋아하는 음식 · {Or(def?.FavoriteFood)}", FsBody, Ink)));
-        col.AddChild(Wrap(Lbl($"싫어하는 음식 · {Or(def?.DislikedFood)}", FsBody, Ink)));
+        col.AddChild(Wrap(Lbl($"좋아하는 음식: {Or(def?.FavoriteFood)}", FsBody, Ink)));
+        col.AddChild(Wrap(Lbl($"싫어하는 음식: {Or(def?.DislikedFood)}", FsBody, Ink)));
 
         col.AddChild(new Control { CustomMinimumSize = new Vector2(0, 4) });
         int clues = ClueBoard.CountFor(id);
@@ -1377,7 +1384,7 @@ public partial class PadView : Control
     {
         var row = new HFlowContainer();
         row.AddThemeConstantOverride("h_separation", 6);
-        if (ids.Count == 0) row.AddChild(Lbl("—", FsBody, Dim));
+        if (ids.Count == 0) row.AddChild(Lbl("-", FsBody, Dim));
         foreach (string id in ids) row.AddChild(StaffChip(id));
         return row;
     }
@@ -1440,9 +1447,9 @@ public partial class PadView : Control
         _lockTime.Text = gs?.CurrentPhase == GamePhase.Rest ? "휴게시간" : DialogueClock.Text(gs?.DayTimeSeconds ?? 0f);
         var a = CurrentAlert();
         bool on = a != null && Mathf.PosMod(_blink, 1f) < 0.62f;
-        _lockAlert.Text = a != null ? "⚠" : "";
+        _lockAlert.Text = a != null ? "▲" : "";
         _lockAlert.Visible = on;
-        _lockAlertSub.Text = a == null ? "" : $"{a.SubLabel} · {a.Headline}  {a.Countdown}";
+        _lockAlertSub.Text = a == null ? "" : $"{a.SubLabel}, {a.Headline}  {a.Countdown}";
         _lockClues.Text = ClueBoard.UnseenCount > 0 ? $"새 단서 {ClueBoard.UnseenCount}건" : "";
     }
 
@@ -1590,12 +1597,12 @@ public partial class PadView : Control
     private static string WhenText(ClueBoard.Entry entry)
     {
         string t = entry.Evidence.TimeText;
-        return string.IsNullOrEmpty(t) ? $"DAY {entry.Day} · 근무 전" : $"DAY {entry.Day} · {t}";
+        return string.IsNullOrEmpty(t) ? $"DAY {entry.Day} / 근무 전" : $"DAY {entry.Day} / {t}";
     }
 
     private static string Codename(string id) => InterviewEvidenceBoard.Codename(id);
 
-    private static string Or(string s) => string.IsNullOrEmpty(s) ? "—" : s;
+    private static string Or(string s) => string.IsNullOrEmpty(s) ? "-" : s;
 
     private static string Short(string s, int max) =>
         string.IsNullOrEmpty(s) || s.Length <= max ? s ?? "" : s[..max] + "…";
