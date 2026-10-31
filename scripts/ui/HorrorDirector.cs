@@ -290,10 +290,11 @@ public partial class HorrorDirector : Node
     private async void PlayDeathFeedback(string employeeId)
     {
         int serial = ++_deathFeedbackSerial;
-        Sfx.Instance?.PlayScream(employeeId, -1.5f);
+        // 실제 비명(남 · 여) + 화면 떨림 + 천장 붉은 점멸. 음원이 없으면 그 안에서 예전 합성 비명으로 대신한다.
+        NSP.View.DeathScreamFx.Play(employeeId);
 
         var fadeIn = CreateTween();
-        fadeIn.TweenProperty(_deathRed, "color:a", 0.42f, 0.16)
+        fadeIn.TweenProperty(_deathRed, "color:a", 0.42f * GameSettings.FlashScale, 0.16)
             .SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
         await Wait(0.68);
         if (serial != _deathFeedbackSerial || !IsInstanceValid(_deathRed)) return;
@@ -416,7 +417,7 @@ public partial class HorrorDirector : Node
             var shake = CreateTween();
             for (int i = 0; i < 8; i++)
                 shake.TweenProperty(_uiLayer, "offset",
-                    new Vector2(rng.RandfRange(-9f, 9f), rng.RandfRange(-7f, 7f)), 0.04);
+                    new Vector2(rng.RandfRange(-9f, 9f), rng.RandfRange(-7f, 7f)) * GameSettings.FlashScale, 0.04);
             shake.TweenProperty(_uiLayer, "offset", Vector2.Zero, 0.05);
 
             var punch = CreateTween();
@@ -429,7 +430,7 @@ public partial class HorrorDirector : Node
         n.TweenProperty(_noise, "modulate:a", 0.0f, 0.4);
 
         var b = CreateTween();
-        b.TweenProperty(_black, "color:a", 0.32f, 0.04);
+        b.TweenProperty(_black, "color:a", 0.32f * GameSettings.FlashScale, 0.04);
         b.TweenProperty(_black, "color:a", 0.0f, 0.4);
     }
 

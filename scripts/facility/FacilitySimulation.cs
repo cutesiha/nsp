@@ -840,6 +840,8 @@ public partial class FacilitySimulation : Node
             return false;
 
         emp.AssignedRoomId = roomId;
+        // 결번이면 돌아갈 자리가 바뀐다 — 하던 은밀 행동은 접고, 방금 내린 지시를 덮어쓰지 않는다.
+        _covert.OnAssigned(this, employeeId, roomId);
         TabooRuleSystem.Instance?.NotifyEmployeeMoved(employeeId, roomId);
         // 이미 그 방에 서 있으면 이동이 없어 ArriveAtRoom 이 불리지 않는다 — 점유자로 직접 넣는다.
         AddOccupant(emp.CurrentRoomId, employeeId);
@@ -930,6 +932,17 @@ public partial class FacilitySimulation : Node
         if (!MoveEmployeeTo(employeeId, roomId)) return false;
         emp.CovertMove = true;
         return true;
+    }
+
+    // 그 직원이 지금 그 방에 서 있거나, 그 방을 **최종 목적지로** 걷는 중인가.
+    // 배정된 방(AssignedRoomId)만 보면 안 된다 — 전화 지시 · 결번의 은밀 이동으로 배정은 그대로인 채
+    // 다른 방에 가 있는 직원이 있다. 그런 직원을 배정된 방으로 다시 보내는 지시는 받아야 한다.
+    public bool IsAtOrHeadingTo(string employeeId, string roomId)
+    {
+        if (string.IsNullOrEmpty(roomId) || !_employeeStates.TryGetValue(employeeId, out var e)) return false;
+        if (!e.IsMoving) return e.CurrentRoomId == roomId;
+        string dest = e.PathQueue.Count > 0 ? e.PathQueue[^1] : e.TargetRoomId;
+        return dest == roomId;
     }
 
     // 은밀 이동이 끝났다(도착했거나 포기했다).
@@ -1969,6 +1982,7 @@ public partial class FacilitySimulation : Node
 
         victim.Alive = false;
         victim.DiscoveredDead = !blackout;
+        victim.DiedAt = GameState.Instance.DayTimeSeconds;
         RemoveOccupant(roomId, victimId);
         _killsToday++;
         GameState.Instance.RegisterKill();
@@ -1978,7 +1992,7 @@ public partial class FacilitySimulation : Node
 
         var def = _employeeDefs.GetValueOrDefault(victimId);
         EventLog.Instance?.LogEvent(LogEventType.Death, victimId, roomId,
-            $"▲ {def?.Codename ?? victimId} 활동 중단 확인. 발견 당시 목격자 없음.");
+            $"▲ {RoomName(roomId)} — {def?.Codename ?? victimId} 생체 신호 소실. 발견 당시 목격자 없음.");
         SpreadPanic(victimId, roomId);
     }
 
@@ -1989,24 +2003,32 @@ public partial class FacilitySimulation : Node
     private void TickPowerRestoreReveal()
     {
         bool poweredNow = GameState.Instance.IsCctvOperational();
-        if (poweredNow && !_cctvWasOperational)
-        {
-            foreach (var emp in _employeeStates.Values)
-            {
-                if (emp.Alive || emp.DiscoveredDead) continue;
-                emp.DiscoveredDead = true;
-
-                var def = _employeeDefs.GetValueOrDefault(emp.EmployeeId);
-                var roomDef = _roomDefs.GetValueOrDefault(emp.CurrentRoomId);
-                EventLog.Instance?.LogEvent(LogEventType.Death, emp.EmployeeId, emp.CurrentRoomId,
-                    $"▲ LIFE SIGNAL LOST — {def?.Codename ?? emp.EmployeeId} 신호 소실. " +
-                    $"{roomDef?.DisplayName ?? emp.CurrentRoomId}에서 발견, 목격자 없음.");
-                // 정전 중에 벌어진 죽음도 **발견된 이 순간**부터 퍼진다.
-                // 아무도 몰랐던 동안에는 아무도 무너지지 않는다.
-                SpreadPanic(emp.EmployeeId, emp.CurrentRoomId);
-            }
-        }
+        if (poweredNow && !_cctvWasOperational) RevealUndiscoveredDeaths();
         _cctvWasOperational = poweredNow;
+    }
+
+    // 정전 중에 끊긴 생체 신호를 기록으로 올린다 — 전력이 돌아온 순간, 그리고 **근무가 끝날 때**.
+    //
+    // 예전에는 전력 복구 때만 발견했다. 정전이 근무 끝까지 이어지면 그 죽음은 로그 · 조사 자료 ·
+    // 띠 시간표 어디에도 남지 않았다(2026-10-31 사용자 제보 "살인사건이 조사 자료에 없다").
+    // 기록 시각은 **신호가 실제로 끊긴 시각**이다 — 생체 신호 계통은 CCTV 와 따로 돌아 그 순간
+    // "직원 한 명의 생체 신호가 소실되었습니다" 경보가 이미 떴다. 누구였는지만 늦게 안다.
+    public void RevealUndiscoveredDeaths()
+    {
+        foreach (var emp in _employeeStates.Values)
+        {
+            if (emp.Alive || emp.DiscoveredDead) continue;
+            emp.DiscoveredDead = true;
+
+            var def = _employeeDefs.GetValueOrDefault(emp.EmployeeId);
+            var roomDef = _roomDefs.GetValueOrDefault(emp.CurrentRoomId);
+            EventLog.Instance?.LogEvent(LogEventType.Death, emp.EmployeeId, emp.CurrentRoomId,
+                $"▲ {roomDef?.DisplayName ?? emp.CurrentRoomId} — {def?.Codename ?? emp.EmployeeId} 생체 신호 소실. " +
+                "정전 중 발생, 목격자 없음.", atTime: emp.DiedAt >= 0f ? emp.DiedAt : null);
+            // 정전 중에 벌어진 죽음도 **발견된 이 순간**부터 퍼진다.
+            // 아무도 몰랐던 동안에는 아무도 무너지지 않는다.
+            SpreadPanic(emp.EmployeeId, emp.CurrentRoomId);
+        }
     }
 
     // 환기실 상태에 따른 전 직원 스트레스.

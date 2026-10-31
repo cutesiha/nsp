@@ -10,6 +10,11 @@ public static class ViewFont
     private static Font _default;
     public static Font Default => _default ??= GD.Load<Font>("res://assets/fonts/BookkMyungjo_Bold.ttf") ?? ThemeDB.FallbackFont;
 
+    // 하루가 시작될 때 뜨는 「DAY N」 표제(ShiftCardView) 전용 — KIMM 볼드.
+    private static Font _dayTitle;
+    public static Font DayTitle => _dayTitle ??=
+        (ResourceLoader.Exists("res://assets/fonts/KIMM_bold.ttf") ? GD.Load<Font>("res://assets/fonts/KIMM_bold.ttf") : null) ?? Default;
+
     // ── 표정 기호(☺︎ ☹︎) ──────────────────────────────────────────────
     //
     // 대본의 ☺︎ · ☹︎ 는 글자로 그려져야 한다. 그런데 프로젝트 글꼴 넷 다 이 글자가 없어서,

@@ -522,6 +522,8 @@ public partial class TitleTerminalView : Control
             var nameCol = open ? (on ? Ink : Dim) : Dim with { A = 0.55f };
             DrawString(_font, new Vector2(r.Position.X + 26f, r.Position.Y + 38f), label,
                 HorizontalAlignment.Left, r.Size.X - 150f, ViewFont.S(25), nameCol);
+            // 잠긴 정규 근무에는 여는 조건을 적는다 — 단기 근무를 한 번 끝까지 마치면 열린다.
+            if (!open && mode == GameMode.Standard) sub = "단기 근무를 마치면 열립니다";
             DrawString(_font, new Vector2(r.Position.X + 28f, r.Position.Y + 64f), sub,
                 HorizontalAlignment.Left, r.Size.X - 60f, ViewFont.S(12),
                 open ? Dim : Dim with { A = 0.45f });

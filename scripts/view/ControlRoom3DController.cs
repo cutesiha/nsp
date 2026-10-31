@@ -103,6 +103,12 @@ public partial class ControlRoom3DController : Node3D
         var frame = new Control { Size = logicalSize, MouseFilter = Control.MouseFilterEnum.Ignore };
         float k = SurfaceScale(superSample, minRenderScale);
         frame.Scale = new Vector2(k, k);
+        // 뷰포트 크기도 **같은 배율로** 맞춘다. 만든 쪽(MakeViewport)은 minRenderScale 을 모르고 기본 배율로
+        // 잡아 두어서, 그래픽 품질이 낮으면(매우 낮음 0.58) 안의 프레임(0.85 하한)이 뷰포트보다 커졌다 —
+        // 처음 붙을 때만 그림이 1.5배쯤 확대돼 잘렸다. 스토리 화면은 DAY1 스토리가 처음 쓰므로
+        // "DAY1 스토리 때만 모니터2 가 확대된다"(2026-10-31 사용자 제보). 한 번 놓았다 다시 잡으면
+        // Reclaim 이 제 크기로 돌려 DAY2 · 3 은 멀쩡했다.
+        vp.Size = ViewportSize(logicalSize, superSample, minRenderScale);
         vp.AddChild(frame);
         frame.AddChild(view);
         _surfaces.Add(new ScaledSurface(vp, frame, logicalSize, superSample, minRenderScale));
@@ -459,6 +465,9 @@ public partial class ControlRoom3DController : Node3D
         var s = SurfaceOf(vp);
         if (s == null) return;
         vp.Size = ViewportSize(s.Logical, s.SuperSample, s.MinRenderScale);
+        // 놓아 둔 사이 품질이 바뀌었으면 프레임 배율도 낡았다(ResizeViewports 는 놓은 화면을 건너뛴다).
+        float k = SurfaceScale(s.SuperSample, s.MinRenderScale);
+        if (IsInstanceValid(s.Frame)) s.Frame.Scale = new Vector2(k, k);
     }
 
     private void ReleaseIdleViewports(double delta)
@@ -1066,5 +1075,8 @@ public partial class ControlRoom3DController : Node3D
         UpdateActiveViewports();
     }
     public void SetScreenDistortion(float v) { _distortion = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("h_distortion", v); }
+    public float ScreenDistortion => _distortion;
+    public float ScreenNoise => _noise;
+    public SeatedCameraRig Rig => _rig;
     public void SetScreenNoise(float v) { _noise = v; foreach (var s in _screens) s.ScreenMaterial?.SetShaderParameter("noise_strength", v); }
 }

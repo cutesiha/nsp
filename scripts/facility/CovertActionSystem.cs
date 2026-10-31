@@ -566,6 +566,27 @@ public sealed class CovertActionSystem
         _seekCooldown = 10f;
     }
 
+    // 결번이 다른 방에 배치됐다(관리자 지시 · 시설 조치) — 그 방이 이제 돌아갈 자리다.
+    //
+    // 예전에는 돌아갈 자리를 근무 시작 때 한 번만 정했다. 관리자가 옮겨도 다음 틱에 범행 준비 중단 ·
+    // 은밀 이동 도착 · 교란 복귀 분기가 BeginEscape 로 **예전 자리로 다시 걸어가게** 해서, 강아지를
+    // 아무리 옮겨도 경비실로 돌아갔다(2026-10-31 사용자 제보). 지금은 하던 일을 그 자리에서 접고,
+    // 방금 내린 이동 지시를 덮어쓰지 않는다(BeginEscape 를 부르지 않는다).
+    public void OnAssigned(FacilitySimulation sim, string employeeId, string roomId)
+    {
+        if (string.IsNullOrEmpty(employeeId) || employeeId != GameState.Instance?.SaboteurEmployeeId) return;
+        HomeRoomId = roomId ?? "";
+        if (Phase == CovertPhase.Idle && !_awayForTamper) return;
+        if (Phase == CovertPhase.Preparing) AbortedByPlayer++;
+        Phase = CovertPhase.Idle;
+        VictimId = TargetRoomId = "";
+        PrepareSeconds = PrepareNeeded = 0f;
+        _purpose = Purpose.None;
+        _awayForTamper = false;
+        _seekCooldown = Mathf.Max(_seekCooldown, 8f);
+        Note(sim, $"재배치 지시 → {sim.RoomDisplayName(roomId)} (하던 일 중단)");
+    }
+
     private void Abort(FacilitySimulation sim, string saboteurId, string why)
     {
         if (!string.IsNullOrEmpty(saboteurId)) sim.EndCovertMove(saboteurId);

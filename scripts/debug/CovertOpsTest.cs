@@ -40,6 +40,7 @@ public partial class CovertOpsTest : Node
         GhostCausality();
         ModeIntegrity();
         BalanceSweep();
+        PlayerReassign();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
         GetTree().Quit(_fail > 0 ? 1 : 0);
     }
@@ -506,6 +507,40 @@ public partial class CovertOpsTest : Node
         var c = new ContainmentSystem();
         if (instability > 0f) c.Disturb(instability, "dog", "core_room");
         return c.AppearChanceMultiplier;
+    }
+
+    // ── 재배치 지시가 먹는가 (2026-10-31 "늑대 · 강아지가 자꾸 안 옮겨진다") ─────────────
+    private void PlayerReassign()
+    {
+        GD.Print("\n── 재배치 지시 ──────────────────────────────────────");
+        StartPlaced(2, "dog", new[]
+        {
+            ("dog", "guard_room"), ("wolf", "core_room"), ("fox", "power_room"),
+            ("cat", "maintenance_room"), ("rabbit", "storage_room"), ("sheep", "storage_room"),
+        });
+        SetPower(true, true, false);
+
+        // ① 전화로 옆 방에 보낸 늑대 — 배정은 코어실인 채 발전실에 서 있다.
+        _sim.MoveEmployeeTo("wolf", "power_room");
+        for (int i = 0; i < 200 && _sim.GetEmployeeState("wolf").IsMoving; i++) Advance(Step);
+        var wolf = _sim.GetEmployeeState("wolf");
+        Check(wolf.CurrentRoomId == "power_room" && wolf.AssignedRoomId == "core_room",
+            $"늑대는 배정(코어실)과 다른 방(발전실)에 서 있다 ({wolf.CurrentRoomId} / {wolf.AssignedRoomId})");
+        Check(!_sim.IsAtOrHeadingTo("wolf", "core_room"),
+            "미니맵은 이 늑대를 코어실로 보내는 지시를 '이미 거기 있다' 로 넘기지 않는다");
+        Check(_sim.AssignToRoom("wolf", "core_room"), "늑대를 코어실로 다시 보낸다");
+        for (int i = 0; i < 200 && wolf.IsMoving; i++) Advance(Step);
+        Check(wolf.CurrentRoomId == "core_room", $"늑대가 코어실에 도착했다 ({wolf.CurrentRoomId})");
+        Check(_sim.IsAtOrHeadingTo("wolf", "core_room"), "이제는 코어실에 있다 — 같은 지시는 넘긴다");
+
+        // ② 결번(강아지) — 옮긴 방이 돌아갈 자리가 된다. 예전 자리(경비실)로 걸어 돌아가지 않는다.
+        Check(_sim.AssignToRoom("dog", "maintenance_room"), "강아지를 정비실로 보낸다");
+        Check(_sim.Covert.HomeRoomId == "maintenance_room",
+            $"결번이 돌아갈 자리가 정비실로 바뀌었다 ({_sim.Covert.HomeRoomId})");
+        Advance(25f);
+        var dog = _sim.GetEmployeeState("dog");
+        Check(dog.AssignedRoomId == "maintenance_room" && dog.CurrentRoomId != "guard_room",
+            $"25초 뒤에도 강아지는 경비실로 돌아가 있지 않다 ({dog.CurrentRoomId} / 배정 {dog.AssignedRoomId})");
     }
 
     // ── 도구 ─────────────────────────────────────────────────────────────

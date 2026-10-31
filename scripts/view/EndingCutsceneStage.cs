@@ -96,6 +96,7 @@ public partial class EndingCutsceneStage : Node
         glowEnv.SetGlowLevel(4, 1f);
         glowEnv.SetGlowLevel(5, 0.6f);
         _world.AddChild(env);
+        _stageEnv = glowEnv;
 
         _cam = new Camera3D { Fov = 55f, Near = 0.05f, Far = 200f };
         _world.AddChild(_cam);
@@ -126,10 +127,58 @@ public partial class EndingCutsceneStage : Node
         if (_setRestraint != null) _setRestraint.Visible = set == Set.Restraint;
         if (_setCore != null) _setCore.Visible = set == Set.CoreHall;
         if (_setCorridor != null) _setCorridor.Visible = set == Set.Corridor;
+        ApplyRestraintLook(set == Set.Restraint);
         // 아무것도 안 띄울 때는 렌더를 멈춘다 — 엔딩 내내 3D 패스를 하나 더 돌릴 이유가 없다.
         if (_vp != null)
             _vp.RenderTargetUpdateMode = set == Set.None
                 ? SubViewport.UpdateMode.Disabled : SubViewport.UpdateMode.Always;
+    }
+
+    // ── 처분실 화면 ─────────────────────────────────────────────────────
+    //
+    // 처분실만 따로 또렷하게 · 새빨갛게 찍는다(2026-10-31 사용자 요청 "격리실 조명이 너무 안 빨갛고,
+    // 전체적으로 뿌옇고 퀄리티가 낮다"). 다른 장면(코어실 · 복도 · 프롤로그)은 예전 값 그대로 둔다.
+    //
+    //   · 뿌연 막 — 글로우 블룸(0.12)이 화면 전체를 한 겹 밝혔다 → 0. 발광체(조명 갓)만 번진다.
+    //   · 흐릿함  — 1280×720 의 80% 로 그려 1920×1080 에 늘렸다 → 1600×900 을 그대로 그리고 FXAA.
+    //   · 탁한 빨강 — 중립색 환경광(0.35)이 온 방을 회색으로 채우고, Filmic 이 밝은 빨강의 채도를 눌렀다
+    //               → 환경광은 거의 끄고 핏빛으로, 톤맵은 채도를 지키는 쪽(Linear + 약한 노출)으로.
+    //   · 맨 벽   — SSAO 로 구석 · 바닥 접촉면에 그늘을 넣는다.
+    private Godot.Environment _stageEnv;
+    private static readonly Vector2I RestraintViewportSize = new(1600, 900);
+
+    private bool _restraintLook;
+
+    // 처분실에 들어갈 때 켜고, 나올 때 **한 번만** 원래 값으로 되돌린다 — 다른 장면이 손댄 환경
+    // (SurfaceAtmosphere 의 하늘빛 등)을 장면을 바꿀 때마다 덮어쓰지 않게.
+    private void ApplyRestraintLook(bool on)
+    {
+        if (on == _restraintLook) return;
+        _restraintLook = on;
+        if (_vp != null)
+        {
+            _vp.Size = on ? RestraintViewportSize : ViewportSize;
+            _vp.Scaling3DScale = on ? 1f : 0.8f;
+            _vp.ScreenSpaceAA = on ? Viewport.ScreenSpaceAAEnum.Fxaa : Viewport.ScreenSpaceAAEnum.Disabled;
+            _vp.UseDebanding = on;
+            _vp.PositionalShadowAtlasSize = on ? 2048 : 1024;
+        }
+        var e = _stageEnv;
+        if (e == null) return;
+        e.AmbientLightColor = on ? new Color(0.30f, 0.02f, 0.02f) : new Color(0.10f, 0.10f, 0.12f);
+        e.AmbientLightEnergy = on ? 0.10f : 0.35f;
+        e.TonemapMode = on ? Godot.Environment.ToneMapper.Linear : Godot.Environment.ToneMapper.Filmic;
+        e.TonemapExposure = on ? 0.95f : 1f;
+        e.GlowBloom = on ? 0f : 0.12f;
+        e.GlowIntensity = on ? 0.8f : 0.5f;
+        e.GlowHdrThreshold = on ? 1.2f : 1f;
+        e.SsaoEnabled = on;
+        if (on)
+        {
+            e.SsaoRadius = 0.8f;
+            e.SsaoIntensity = 2.6f;
+            e.SsaoPower = 1.6f;
+        }
     }
 
     // ── 카메라 ───────────────────────────────────────────────────────────
@@ -249,8 +298,9 @@ public partial class EndingCutsceneStage : Node
         _setRestraint = new Node3D { Name = "SetRestraint" };
         _world.AddChild(_setRestraint);
 
-        var concrete = Mat(new Color(0.16f, 0.15f, 0.15f), 0.95f);
-        var wall = Mat(new Color(0.11f, 0.105f, 0.11f), 0.95f);
+        // 맨 단색이던 재질에 얼룩 · 패인 자국을 깐다(EndingCutsceneStage.Blood.cs).
+        var concrete = GrimeMat(new Color(0.30f, 0.28f, 0.27f), 11, 0.55f, 7f);
+        var wall = GrimeMat(new Color(0.24f, 0.22f, 0.22f), 23, 0.42f, 5f);
         var steel = Mat(new Color(0.26f, 0.27f, 0.29f), 0.35f, 0.85f);
 
         Box(_setRestraint, new Vector3(9f, 0.2f, 11f), new Vector3(0f, -0.1f, 0f), concrete, "Floor");
@@ -259,28 +309,65 @@ public partial class EndingCutsceneStage : Node
         Box(_setRestraint, new Vector3(0.2f, 4.2f, 11f), new Vector3(4.4f, 2.1f, 0f), wall, "WallR");
         Box(_setRestraint, new Vector3(9f, 0.2f, 11f), new Vector3(0f, 4.2f, 0f), wall, "Ceiling");
 
-        // 붉은 조명 둘 — 중앙만 떨어뜨린다.
+        // 붉은 조명 — **새빨갛고 세게**(2026-10-31 사용자 요청). 예전 빛은 초록 · 파랑이 섞인 연어색
+        // (1, 0.22, 0.16)에 세기 2.3 이라, 흰 몸이 분홍으로 보였다. 지금은 거의 순수한 빨강에 네 배 가까이.
         _setRestraint.AddChild(new SpotLight3D
         {
             Name = "KeyRed",
             Position = new Vector3(0f, 3.7f, 0.4f),
             RotationDegrees = new Vector3(-90f, 0f, 0f),
-            LightColor = new Color(1f, 0.22f, 0.16f),
-            LightEnergy = 2.3f,
-            SpotRange = 9f,
-            SpotAngle = 32f,
-            SpotAngleAttenuation = 1.4f,
+            LightColor = new Color(1f, 0.035f, 0.018f),
+            LightEnergy = 9.5f,
+            SpotRange = 10f,
+            SpotAngle = 38f,
+            SpotAngleAttenuation = 0.9f,
             ShadowEnabled = true,
+            ShadowBlur = 0.6f,
         });
         _setRestraint.AddChild(new OmniLight3D
         {
             Name = "RimRed",
             Position = new Vector3(0f, 1.3f, -2.2f),
-            LightColor = new Color(0.95f, 0.16f, 0.12f),
-            LightEnergy = 0.7f,
-            OmniRange = 5.5f,
+            LightColor = new Color(1f, 0.03f, 0.015f),
+            LightEnergy = 3.2f,
+            OmniRange = 7f,
             ShadowEnabled = false,
         });
+        // 벽을 스치는 붉은 빛 — 벽의 핏자국이 어둠에 묻히지 않게.
+        foreach (float side in new[] { -1f, 1f })
+            _setRestraint.AddChild(new OmniLight3D
+            {
+                Name = side < 0 ? "WashL" : "WashR",
+                Position = new Vector3(side * 3.1f, 2.6f, -1.4f),
+                LightColor = new Color(0.95f, 0.025f, 0.015f),
+                LightEnergy = 1.6f,
+                OmniRange = 4.6f,
+                ShadowEnabled = false,
+            });
+
+        // 조명 갓 — 빛이 어디서 오는지 보이게. 붉게 달아오른 원판이 글로우로 번진다.
+        Cyl(_setRestraint, 0.34f, 0.22f, new Vector3(0f, 4.02f, 0.4f), Mat(new Color(0.06f, 0.06f, 0.065f), 0.5f, 0.7f), "LampHousing");
+        var lens = new MeshInstance3D
+        {
+            Name = "LampLens",
+            Mesh = SharedCyl(0.27f, 0.025f, 24),
+            Position = new Vector3(0f, 3.90f, 0.4f),
+            MaterialOverride = Glow(new Color(1f, 0.05f, 0.02f), 7f),
+        };
+        _setRestraint.AddChild(lens);
+
+        // 핏자국 — 결번자 발밑의 웅덩이, 끌려간 자국, 사방에 튄 자국, 벽에 흘러내린 자국.
+        FloorBlood(_setRestraint, new Vector3(0f, 0f, 0.15f), new Vector2(2.7f, 2.5f), 0f, BloodKind.Pool, 1);
+        FloorBlood(_setRestraint, new Vector3(1.35f, 0f, -0.9f), new Vector2(1.7f, 1.7f), 35f, BloodKind.Splat, 2);
+        FloorBlood(_setRestraint, new Vector3(-1.7f, 0f, 0.9f), new Vector2(1.4f, 1.4f), -20f, BloodKind.Splat, 3);
+        FloorBlood(_setRestraint, new Vector3(-0.55f, 0f, -1.9f), new Vector2(0.9f, 2.4f), 14f, BloodKind.Splat, 4);
+        FloorBlood(_setRestraint, new Vector3(0.6f, 0f, 2.45f), new Vector2(1.0f, 1.0f), 70f, BloodKind.Splat, 5);
+        FloorBlood(_setRestraint, new Vector3(-2.8f, 0f, -2.4f), new Vector2(1.3f, 1.3f), 110f, BloodKind.Pool, 6);
+        WallBlood(_setRestraint, new Vector3(-1.3f, 1.7f, -3.3f), Vector3.Back, new Vector2(2.2f, 2.6f), BloodKind.Drip, 7);
+        WallBlood(_setRestraint, new Vector3(2.1f, 2.3f, -3.3f), Vector3.Back, new Vector2(1.5f, 1.5f), BloodKind.Splat, 8);
+        WallBlood(_setRestraint, new Vector3(-4.3f, 1.5f, -0.7f), Vector3.Right, new Vector2(2.3f, 2.6f), BloodKind.Drip, 9);
+        WallBlood(_setRestraint, new Vector3(4.3f, 2.0f, 0.9f), Vector3.Left, new Vector2(1.7f, 1.7f), BloodKind.Splat, 10);
+        WallBlood(_setRestraint, new Vector3(4.3f, 1.2f, -2.0f), Vector3.Left, new Vector2(1.6f, 2.2f), BloodKind.Drip, 11);
 
         // 철창 — 카메라가 **그 사이로** 빠져나간다. 그래서 x = 0 에 틈을 둔다(§8).
         var bars = new Node3D { Name = "Bars", Position = new Vector3(0f, 0f, 3.2f) };

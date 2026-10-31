@@ -685,6 +685,13 @@ say?: sheep | normal | R | 그래도... 같이 나갈 수 있으면 좋겠어요
 
 ## 사망 발생
 
+어제 누가 죽었으면 다른 반응(귀신 목격 · 기절 · 격리)보다 **먼저** 뽑힌다. 아래 세 비트 중 하나가
+무작위로 나오고, 한 판에서 같은 비트는 다시 나오지 않는다(사망이 이틀 나면 다른 비트가 나온다).
+
+대사 속 `{dead}` 는 어제 생체 신호가 끊긴 직원의 이름(예: `강아지`)으로 바뀐다. 둘이 죽었으면
+두 번째는 `{dead2}`. 죽은 사람이 말하는 줄은 `say?` 라 저절로 빠진다 — 그래서 어느 줄이 빠져도
+대화가 이어지게, 다른 직원을 이름으로 부르는 말은 넣지 않았다.
+
 ```text
 @beat r_death_group
 day: any
@@ -693,13 +700,49 @@ kind: react
 group: true
 min: 2
 
-say?: rabbit | bad | L | 그분이 진짜... 돌아가신 거예요? 아직도 잘 모르겠어요.
-say?: dog | bad | R | ...네. 아무리 생각해도 괜찮지가 않네요.
-say?: cat | bad | L | 한 명 줄었어요. 일은 그대로고요.
-say?: sheep | bad | R | 그런 식으로 말하지 마세요...
-say?: cat | bad | L | 알아요. 저도 이런 말 하고 싶은 게 아니에요.
-say?: wolf | normal | R | 오늘은 어제보다 더 조심해야 합니다.
-say?: fox | normal | L | ...오늘은 농담할 말도 없네요.
+say?: rabbit | bad | L | {dead} 씨 자리… 아직 그대로예요. 컵도, 의자도, 걸어 둔 겉옷도 다 그대로인데 사람만 없어요.
+say?: sheep | bad | R | 저, 저 어제 복도에서… 그 냄새 맡았어요. 녹슨 쇠 같은 냄새요. 아직도 코 안쪽에 붙어 있어요.
+say?: cat | bad | L | 치운 사람은 있대요? …없겠죠. 문만 닫아 두면 없던 일이 되니까.
+say?: dog | bad | R | 마지막까지 혼자였대요. 무슨 말을 했는지, 누굴 불렀는지… 아무도 못 들었대요.
+say?: fox | normal | L | 웃긴 거 알려 줄까요~? 명단에서 이름 하나 지우는 데 3초 걸리더라고요. 딱 3초.
+say?: wolf | normal | R | 시신은 아직 그 방에 있습니다. 수습할 인원이 없습니다.
+say?: rabbit | bad | L | …그럼 오늘 그 방에 배치되는 사람은, 그 옆에서 일해야 하는 거예요?
+say?: wolf | normal | R | 그렇습니다.
+```
+
+```text
+@beat r_death_group_dream
+day: any
+when: death_yesterday
+kind: react
+group: true
+min: 2
+
+say?: cat | bad | L | 어젯밤에 꿈을 꿨어요. {dead} 씨가 문 앞에 서서 계속 노크를 하는데… 소리가 문 안쪽에서 나더라고요.
+say?: rabbit | bad | R | 그런 얘기 하지 마요! 진짜… 진짜 하지 마요…
+say?: sheep | bad | L | 저, 저는 한숨도 못 잤어요. 눈만 감으면 그 방 CCTV 가… 지직거리다가 멈춰요. 매번 같은 장면에서요.
+say?: fox | normal | R | 다들 속으로 순서 매기고 있죠~? 다음은 누굴까, 하고. 괜찮아요. 저도 그래요.
+say?: dog | bad | L | …그런 말 하지 마요. 제발요.
+say?: wolf | normal | R | 생체 신호가 끊기기까지 몇 초 걸리지 않았습니다. 아무도 닿지 못했습니다.
+say?: cat | bad | L | 그래서 오늘도 그 숫자 채우러 내려가는 거죠. 한 명 빼고.
+say?: fox | normal | R | 한 명 빼고가 아니라, 아직은 한 명만 빼고~ 겠죠.
+```
+
+```text
+@beat r_death_group_voice
+day: any
+when: death_yesterday
+kind: react
+group: true
+min: 2
+
+say?: sheep | bad | L | 어, 어제 그 방 앞을 지나는데… 안에서 누가 제 이름을 불렀어요. {dead} 씨 목소리였어요.
+say?: rabbit | bad | R | 거짓말… 그 방엔 이제 아무도 없잖아요. 없어야 하잖아요!
+say?: cat | bad | L | 환청이에요. 여기 오래 있으면 다 그래요. …그렇게 믿어요. 그냥 그렇게 믿어요.
+say?: dog | bad | R | 사물함에 아직 {dead} 씨 근무복이 걸려 있어요. 소매가 젖어 있는데, 아무도 못 치우겠대요.
+say?: fox | normal | L | 치워서 뭐 해요~ 어차피 그 옆에 우리 것도 곧 나란히 걸릴 텐데.
+say?: wolf | normal | R | 그 방 바닥은 아직 닦지 못했습니다. 오늘 배치되는 인원은 발밑을 보지 마십시오.
+say?: rabbit | bad | L | …관리자님은 그때 보고만 계셨던 거죠? 그 화면으로요. 끝까지요.
 ```
 
 ## 기절 발생
@@ -751,7 +794,7 @@ say?: @heard1 | bad | R | 저는 소리만 들었어요. 그 방에서 뭔가 �
 say?: @witness | bad | L | 다시 보고 싶진 않아요. 그런데 눈앞에 있던 건 확실해요.
 say?: @heard2 | normal | R | 본 사람이 있으니까 이제 없는 척은 못 하겠네요.
 say?: @heard3 | bad | R | 오늘 또 나오면 혼자 버티지 말고 바로 말해요.
-say?: @heard4 | normal | R | 관리자님이 계속 봐 주시면 사라진다는 건 알았잖아요. 당황하지 말아요.
+say?: @heard4 | normal | R | 관리자님이 CCTV 로 보고 계시면 그게 어디 있는지는 알 수 있잖아요. 당황하지 말아요.
 ```
 
 ---

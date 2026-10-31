@@ -265,7 +265,8 @@ public partial class StoryCutinDirector : Node
         foreach (var raw in option.Branch)
         {
             if (!IsPlaying) break;
-            var line = _cast?.Apply(raw) ?? raw;
+            // Apply 가 null 이면 그 줄은 빠진다(맡을 사람 · 이름을 댈 사람이 없다) — 원본으로 되돌려 읽지 않는다.
+            var line = _cast != null ? _cast.Apply(raw) : raw;
             if (Speaks(line)) await PlayLine(line);
         }
     }

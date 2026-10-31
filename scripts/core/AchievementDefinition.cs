@@ -122,7 +122,7 @@ public static class Achievements
         // C. 직원 / 이상현상 / 추리
         Add(MissedCallOnce, "무심한 관리자", "직원의 전화를 받지 않거나 거절하세요.", "○");
         Add(MissedCallThree, "차가운 관리자", "직원의 전화를 누적 3회 놓치세요.", "○");
-        Add(GhostIgnored, "시크한 관리자", "이상 개체를 끝까지 관측하지 않아 사고를 내세요.", "○");
+        Add(GhostIgnored, "보기만 하는 관리자", "이상 개체가 설비를 부수는 순간을 CCTV로 지켜보세요.", "○");
         Add(GhostDispelled, "눈 마주쳤다", "CCTV로 이상 개체가 작업실을 떠나는 것을 확인하세요.", "○");
         Add(SuspiciousCctv, "누군가의 흔적", "CCTV로 직원의 수상한 행동을 직접 포착하세요.", "○", hidden: true);
         Add(FirstEvidence, "증거는 말한다", "조사 자료를 근거로 심문 질문을 하세요.", "○");

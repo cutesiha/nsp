@@ -23,10 +23,10 @@ public static class GameModes
 {
     // ── 잠금 플래그 (여기 한 줄만 바꾼다) ──────────────────────────────
     //
-    // **정규 근무(5일)는 지금 막아 두었다.** 고를 수 있는 것은 단기 근무뿐이다.
-    // 화면에서 칸을 지우지는 않는다 — 잠긴 채로 보여야 "그런 근무가 있다" 가 전해지고,
-    // 나중에 열 때도 이 한 줄만 true 로 되돌리면 된다.
-    public const bool StandardUnlocked = false;
+    // **정규 근무(5일)는 단기 근무를 한 번 끝까지 마쳐야 열린다**(2026-10-31 사용자 요청).
+    // 그 전까지는 잠긴 채로 보인다 — "그런 근무가 있다" 가 전해지도록 칸은 지우지 않는다.
+    // 기록은 EndingState(user://nsp_progress.cfg)에 남는다.
+    public static bool StandardUnlocked => EndingState.ShortShiftCleared;
     // 하드 모드는 규칙 자체가 아직 없다. 해금 로직이 붙을 때까지 항상 false.
     public const bool HardUnlocked = false;
 

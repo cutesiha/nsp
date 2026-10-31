@@ -104,6 +104,8 @@ public partial class TitleStaffIdView : Control
         _poweredOn = false;
         _hover = -1;
         _scanning = false;
+        SourcesOpen = false;
+        _btnHover = "";
         foreach (var c in _cards) { c.Revealed = false; c.Verified = false; }
         QueueRedraw();
     }
@@ -112,6 +114,8 @@ public partial class TitleStaffIdView : Control
     public void RunScan(Action onDone)
     {
         if (!_poweredOn || _cards.Count == 0) { onDone?.Invoke(); return; }
+        SourcesOpen = false;
+        _btnHover = "";
         _scanning = true;
         _scanY = 130f;
         _scanDone = onDone;
@@ -121,8 +125,56 @@ public partial class TitleStaffIdView : Control
 
     // --- 마우스 반응 ---------------------------------------------------------
 
+    // ── 외부 리소스 출처 (2026-10-31 사용자 요청) ─────────────────────────────
+    //
+    // 카드 아래 오른쪽 빈자리에 「출처」 버튼. 누르면 이 화면 위에 출처 창이 덮이고, 오른쪽 위 X 로 닫는다.
+    // 내용은 GameCredits 한 곳에서 읽는다(엔딩 크레딧과 같은 목록 — 여기서만 주소까지 적는다).
+    public const string SourcesId = "sources";
+    public const string SourcesCloseId = "sources_close";
+
+    private static readonly Rect2 SourcesButton = new(Canvas.X - 196f, 548f, 148f, 30f);
+    private static readonly Rect2 SourcesPanel = new(28f, 26f, Canvas.X - 56f, Canvas.Y - 52f);
+    private static readonly Rect2 SourcesClose = new(Canvas.X - 28f - 50f, 34f, 40f, 40f);
+
+    public bool SourcesOpen { get; private set; }
+    private string _btnHover = "";
+
+    // 이 캔버스 좌표에 있는 버튼("sources" · "sources_close" · 없으면 "").
+    public string ButtonAt(Vector2 p)
+    {
+        if (!_poweredOn || _scanning) return "";
+        if (SourcesOpen) return SourcesClose.Grow(4f).HasPoint(p) ? SourcesCloseId : "";
+        return SourcesButton.HasPoint(p) ? SourcesId : "";
+    }
+
+    // 커서가 올라간 버튼. 바뀌었으면 true(효과음용).
+    public bool SetButtonHover(string id)
+    {
+        id ??= "";
+        if (_btnHover == id) return false;
+        _btnHover = id;
+        QueueRedraw();
+        return id.Length > 0;
+    }
+
+    public void OpenSources()
+    {
+        if (!_poweredOn) return;
+        SourcesOpen = true;
+        _hover = -1;
+        QueueRedraw();
+    }
+
+    public void CloseSources()
+    {
+        SourcesOpen = false;
+        _btnHover = "";
+        QueueRedraw();
+    }
+
     public int IndexAt(Vector2 p)
     {
+        if (SourcesOpen) return -1;   // 출처 창이 덮고 있는 동안 카드는 가려져 있다
         for (int i = 0; i < _cards.Count; i++)
             if (CardRect(i).HasPoint(p)) return i;
         return -1;
@@ -254,6 +306,8 @@ public partial class TitleStaffIdView : Control
         }
 
         DrawFooter();
+        if (!_scanning) DrawSourcesButton();
+        if (SourcesOpen) DrawSourcesPanel();
         Scanlines();
 
         // 신원 오류가 뜨는 순간에는 화면 전체가 한 번 찢어진다.
@@ -302,6 +356,64 @@ public partial class TitleStaffIdView : Control
         DrawRect(new Rect2(48f, 506f, Canvas.X - 96f, 1f), Mint with { A = 0.18f });
         DrawString(_font, new Vector2(48f, 538f), line, HorizontalAlignment.Left,
             Canvas.X - 96f, ViewFont.S(16), col);
+    }
+
+    // 「출처」 버튼 — 단말기 선택지와 같은 네모 칸. 가리키면 칸이 차고 테두리가 밝아진다.
+    private void DrawSourcesButton()
+    {
+        bool on = _btnHover == SourcesId;
+        var r = SourcesButton;
+        if (on) DrawRect(r, Mint with { A = 0.16f });
+        DrawRect(r, Mint with { A = on ? 0.9f : 0.38f }, false, on ? 1.8f : 1.1f);
+        DrawString(_font, new Vector2(r.Position.X, r.Position.Y + 21f), (on ? "> " : "") + "출처 · CREDITS",
+            HorizontalAlignment.Center, r.Size.X, ViewFont.S(14), on ? Ink : Dim);
+    }
+
+    private void DrawSourcesPanel()
+    {
+        var p = SourcesPanel;
+        DrawRect(p, new Color(0.012f, 0.022f, 0.024f));
+        DrawRect(p, Mint with { A = 0.55f }, false, 1.6f);
+
+        float x = p.Position.X + 26f, y = p.Position.Y + 44f, w = p.Size.X - 52f;
+        DrawString(_font, new Vector2(x, y), "외부 리소스 출처", HorizontalAlignment.Left, w - 60f, ViewFont.S(20), Mint);
+        DrawString(_font, new Vector2(x, y + 22f), "EXTERNAL RESOURCES", HorizontalAlignment.Left, w, ViewFont.S(11), Dim);
+        DrawRect(new Rect2(x, y + 32f, w, 1f), Mint with { A = 0.25f });
+
+        // X — 가리키면 밝아진다.
+        bool xOn = _btnHover == SourcesCloseId;
+        var c = SourcesClose;
+        if (xOn) DrawRect(c, Err with { A = 0.18f });
+        DrawRect(c, (xOn ? Err : Dim) with { A = xOn ? 0.95f : 0.6f }, false, xOn ? 1.8f : 1.2f);
+        var a = c.Position + new Vector2(12f, 12f);
+        var b = c.End - new Vector2(12f, 12f);
+        DrawLine(a, b, xOn ? Err : Ink, 2f);
+        DrawLine(new Vector2(b.X, a.Y), new Vector2(a.X, b.Y), xOn ? Err : Ink, 2f);
+
+        y += 62f;
+        string cat = "";
+        foreach (var s in GameCredits.Sources)
+        {
+            if (s.Category != cat)
+            {
+                cat = s.Category;
+                DrawString(_font, new Vector2(x, y), cat, HorizontalAlignment.Left, w, ViewFont.S(12), Mint with { A = 0.8f });
+                y += 18f;
+            }
+            DrawString(_font, new Vector2(x + 10f, y), $"{s.Use}  —  {s.Work} · {s.Author}",
+                HorizontalAlignment.Left, w - 10f, ViewFont.S(13), Ink);
+            y += 17f;
+            DrawString(_font, new Vector2(x + 22f, y), s.Url, HorizontalAlignment.Left, w - 22f, ViewFont.S(10), Dim);
+            y += 23f;
+        }
+        y += 4f;
+        DrawString(_font, new Vector2(x, y), "폰트", HorizontalAlignment.Left, w, ViewFont.S(12), Mint with { A = 0.8f });
+        y += 18f;
+        DrawString(_font, new Vector2(x + 10f, y), string.Join("  ·  ", GameCredits.Fonts),
+            HorizontalAlignment.Left, w - 10f, ViewFont.S(13), Ink);
+        y += 26f;
+        DrawString(_font, new Vector2(x, y), $"{GameCredits.Engine}   ·   제작 {GameCredits.Maker}",
+            HorizontalAlignment.Left, w, ViewFont.S(11), Dim);
     }
 
     private void Scanlines()

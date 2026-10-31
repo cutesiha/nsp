@@ -97,6 +97,8 @@ public sealed class InterviewEvidence
     // 사고 자료일 때만.
     public string IncidentKey = "";
     public LogEventType IncidentType;
+    // 사망(생체 신호 소실) 기록일 때 — 신호가 끊긴 직원. 질문 · 추궁 문장이 이 이름을 부른다.
+    public string VictimEmployeeId = "";
 
     // 이동이 관리자의 지시였는가(시설 로그 화면에 그렇게 떴는가).
     public bool PlayerOrdered;
@@ -151,6 +153,7 @@ public sealed class InterviewEvidence
     public string Tag => Kind switch
     {
         EvidenceKind.Movement => "기록",
+        EvidenceKind.Incident when IncidentType == LogEventType.Death => "사망",
         EvidenceKind.Incident => "사고",
         EvidenceKind.Cctv => "CCTV",
         EvidenceKind.Testimony => "증언",

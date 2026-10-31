@@ -72,14 +72,20 @@ public partial class ShiftCardView : CanvasLayer
         dim.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _root.AddChild(dim);
 
-        var box = new VBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
-        box.SetAnchorsPreset(Control.LayoutPreset.Center);
+        // 화면 전체를 덮는 세로 상자에 가운데 정렬 — 줄 수 · 글자 크기와 상관없이 **정확히 화면 한가운데**에 선다.
+        // (예전에는 왼쪽 위 모서리를 가운데에서 (-300, -120) 에 박아 두어, 상자 높이만큼 아래로 처졌다.)
+        var box = new VBoxContainer
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Alignment = BoxContainer.AlignmentMode.Center,
+        };
+        box.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         box.AddThemeConstantOverride("separation", 14);
-        box.Position = new Vector2(-300f, -120f);
-        box.CustomMinimumSize = new Vector2(600f, 0f);
         _root.AddChild(box);
 
-        _day = Line(box, 74, Cyan);
+        // 「DAY N」 만 KIMM 볼드로 크게 — 2026-10-31 사용자 요청(74 → 112).
+        _day = Line(box, 112, Cyan);
+        _day.AddThemeFontOverride("font", ViewFont.DayTitle);
         box.AddChild(new Control { CustomMinimumSize = new Vector2(0f, 10f) });
         _core = Line(box, 34, Ink);
         _goal = Line(box, 34, Ink);

@@ -137,6 +137,8 @@ public partial class ShiftFlowController : Node
         Sfx.Instance?.CrossfadeMusic("rest_time", 1.5f, loop: true);
 
         if (skipBoot) BootStraightToDay1();
+        // 켤 때 한 번 — 광과민성 · 공포 묘사 경고. 개발용 바로 시작(skipBoot)에서는 띄우지 않는다.
+        else BootWarning.ShowOnce(this);
     }
 
     // 개발 전용(_skipToDay1Pending) — 타이틀을 건너뛰고 DAY1 배치로 곧장 들어간다.
@@ -345,14 +347,23 @@ public partial class ShiftFlowController : Node
 
         // 타이틀에서 시작하는 것은 새 게임이다. 이전 테스트에서 SetSaboteur를 썼더라도
         // 그 값이 남지 않게 모든 런 상태를 비운다.
-        StartNewRun(PlayPrologue ? 0 : 1);
+        // 정규(장기) 근무는 단기 근무를 마친 사람만 연다 — 프롤로그와 DAY0 교육은 이미 본 것이다.
+        // 그래서 **곧장 DAY1 근무배치로 들어간다**(2026-10-31 사용자 요청). DAY 스토리 컷인은 그대로 나온다.
+        bool prologue = PlayPrologue && GameModes.Current != GameMode.Standard;
+        StartNewRun(prologue ? 0 : 1);
         _stressHintShown = false;
         // 시작 화면에 남아 있던 결말의 흔적(붉은 CRT / 아침빛)도 새 근무와 함께 지운다.
         EndingState.Clear();
         EndingState.PendingWake = EndingState.Kind.None;
 
-        if (!PlayPrologue || PrologueDirector.Instance == null)
+        if (!prologue || PrologueDirector.Instance == null)
         {
+            // 프롤로그가 하던 화면 정리(왼쪽 · 오른쪽 CRT 를 근무 화면으로)를 여기서 한다 —
+            // 가상 시뮬 건너뛰기(SkipToDay1)와 같은 도착 상태다.
+            _ctl?.SetLeftScreen(_ctl.FacilityViewport);
+            _ctl?.SetRightScreen(_ctl.CctvViewport);
+            _ctl?.SetScreenBrightness(0.02f);
+            AmbientOverlay.Instance?.SetSceneIntensity(0.15f);
             EnterSchedule();
             return;
         }
@@ -657,6 +668,10 @@ public partial class ShiftFlowController : Node
 
         // 「첫 야근」·「오늘은 무사히」 — 근무가 정상 종료된 이 지점에서 한 번 판정한다.
         AchievementManager.Instance?.NoteShiftEnded();
+
+        // 정전이 끝까지 이어져 아직 기록에 오르지 못한 죽음이 있으면 지금 올린다 —
+        // 그래야 근무 보고 · 휴게시간 조사 자료 · 띠 시간표에 그 사람의 생체 신호 소실이 남는다.
+        FacilitySimulation.Instance?.RevealUndiscoveredDeaths();
 
         // 개발용 — 오늘 결번 개체가 어떤 조건으로 움직였고 어떤 단서가 남았는지.
         FacilitySimulation.Instance?.PrintSaboteurDebug();

@@ -52,7 +52,89 @@ public static class InterviewScenarioTest
         TestNamedTestimonyWithIncident();
         // 6차 — 휴게시간 심문의 **어떤 질문**이든, 답에서 이름이 나오면 그 사람에게 사고 기록과 함께 들이민다.
         TestAnyQuestionNamingCarriesOver();
+        // 7차 — 살인(생체 신호 소실)도 조사 자료 · 띠 시간표 · 심문에 오른다.
+        TestDeathInvestigation();
         GD.Print($"\n################ 결과: {_pass} PASS / {_fail} FAIL ################");
+    }
+
+    // ── 7차 : 늑대의 생체 신호가 발전실에서 끊겼다 — 그 기록으로 심문할 수 있다 ──
+    //
+    // 2026-10-31 사용자 지시: 살인사건이 일어나면 "누구 생체 신호 소실" 이 조사 자료와 로그 띠(막대 그래프)에
+    // 떠야 하고, 그것으로 심문할 수 있어야 한다.
+    private static void TestDeathInvestigation()
+    {
+        Head("7차", "늑대 생체 신호 소실 — 조사 자료 · 띠 시간표 · 심문");
+        Reset();
+        PlayerKnownEvidence.ResetAll();
+        DialogueHistory.Instance?.ClearAll();
+        Deploy(new() { ["cat"] = Core, ["dog"] = Storage, ["wolf"] = Power,
+                       ["rabbit"] = Storage, ["sheep"] = Guard, ["fox"] = Maintenance });
+        GameState.Instance.SetSaboteur("dog");
+        Move("dog", Storage, Power, At(50));
+        EventLog.Instance.Log(new LogEntry
+        {
+            Day = GameState.Instance?.CurrentDay ?? 1, GameTimeSeconds = At(55),
+            EventType = LogEventType.Death, ActorEmployeeId = "wolf", RoomId = Power,
+            Description = $"▲ {InterviewEvidenceBoard.RoomName(Power)} — {InterviewEvidenceBoard.Codename("wolf")} 생체 신호 소실. 발견 당시 목격자 없음.",
+        });
+        Move("dog", Power, Storage, At(62));
+
+        // ① 조사 자료 — 누구의 노트에서든 "늑대 생체 신호 소실" 카드가 뜬다.
+        var cat = new InterviewSession("cat");
+        var death = cat.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident && e.IncidentType == LogEventType.Death);
+        if (!Check(death != null, "고양이 노트에 사망 기록이 뜬다")) return;
+        GD.Print($"   카드: [{death.Header}] {InterviewEvidenceDisplay.Body(death)} ({death.TimeText}) 방={death.SubjectRoomId}");
+        Check(InterviewEvidenceDisplay.Body(death).Contains("생체 신호 소실")
+              && InterviewEvidenceDisplay.Body(death).Contains(InterviewEvidenceBoard.Codename("wolf")),
+            "카드에 누구의 생체 신호가 끊겼는지 적혀 있다");
+        Check(death.SubjectRoomId == Power, "카드는 그 일이 난 방(발전실)을 가리킨다");
+        Check(death.Header == "생체 신호 소실" && death.VictimEmployeeId == "wolf" && death.Tag == "사망",
+            $"카드 머리는 생체 신호 소실 · 대상은 늑대다 ({death.Header} · {death.VictimEmployeeId} · {death.Tag})");
+
+        // ② 띠 시간표 — 세로선이 서고, 늑대의 띠는 그 시각에서 끝난다.
+        int day = GameState.Instance?.CurrentDay ?? 1;
+        var rows = FacilityLogFormatter.Build(EventLog.Instance.GetAllEntries(), day);
+        var lines = NSP.View.StaffTimelineView.IncidentRowIndices(rows);
+        Check(lines.Any(i => rows[i].SourceEventType == LogEventType.Death), "사망 줄이 띠의 세로선이 된다");
+        var bands = NSP.View.StaffTimelineView.BuildSegments(new[] { "wolf", "dog" }, rows, Config.Instance.Data.DayLengthSeconds);
+        var wolf = bands.GetValueOrDefault("wolf");
+        Check(wolf != null && wolf.Count > 0 && Mathf.Abs(wolf[^1].End - At(55)) < 0.5f,
+            $"늑대의 띠는 신호가 끊긴 시각에서 끝난다 (끝 {(wolf?.Count > 0 ? wolf[^1].End : -1f):0.0} / {At(55):0.0})");
+
+        // ③ 심문 — 사망 기록 한 장으로 나오는 질문이 있고, 답이 비지 않는다.
+        cat.Toggle(death.Id);
+        var qs = cat.QuestionsForSelection();
+        Check(qs.Count > 0, $"사망 기록으로 고양이에게 물을 질문이 있다 ({qs.Count}개)");
+        Check(qs.Any(q => q.Text.Contains(InterviewEvidenceBoard.Codename("wolf") + " 씨")),
+            "질문이 사고가 아니라 늑대의 죽음을 부른다");
+        int answered = 0;
+        foreach (var q in qs.Take(8))
+        {
+            var turn = cat.Ask(q);
+            GD.Print($"   고양이 Q({q.Intent}): {turn.QuestionText}\n            A: {turn.Answer}");
+            if (!string.IsNullOrWhiteSpace(turn.Answer) && turn.Answer.Trim() != "…") answered++;
+        }
+        Check(answered > 0, $"고양이가 사망 기록 질문에 답한다 ({answered}개)");
+
+        // ④ 강아지 — 그 시각 발전실에 들어간 이동 기록 + 사망 기록 → 추궁이 성립한다.
+        var dog = new InterviewSession("dog");
+        var dogDeath = dog.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Incident && e.IncidentType == LogEventType.Death);
+        var dogMove = dog.Board.FirstOrDefault(e => e.Kind == EvidenceKind.Movement && e.ToRoomId == Power);
+        if (!Check(dogDeath != null && dogMove != null, "강아지 노트에 사망 기록과 발전실 이동 기록이 있다")) return;
+        dog.Toggle(dogDeath.Id);
+        foreach (var q in dog.QuestionsForSelection().Take(4))
+        {
+            var turn = dog.Ask(q);
+            GD.Print($"   강아지 Q({q.Intent}): {turn.QuestionText}\n            A: {turn.Answer}");
+        }
+        dog.ClearSelection();
+        dog.Toggle(dogDeath.Id);
+        dog.Toggle(dogMove.Id);
+        var r = dog.CheckContradiction();
+        GD.Print($"   추궁: {r.Kind} — {r.QuestionText}");
+        Check(r.Kind != ConfrontKind.None, "사망 기록 + 그 시각 발전실 이동 기록으로 강아지를 추궁할 수 있다");
+        Check(r.QuestionText.Contains(InterviewEvidenceBoard.Codename("wolf")) && r.QuestionText.Contains("생체 신호"),
+            "추궁 문장이 늑대의 생체 신호가 끊긴 순간을 짚는다");
     }
 
     // ── 6차 : 사고 기록을 들고 고양이에게 무엇을 묻든 — 강아지 이름이 나온 답은 강아지에게 쓸 수 있다 ──

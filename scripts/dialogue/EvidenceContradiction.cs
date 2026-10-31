@@ -375,6 +375,10 @@ public static class EvidenceContradiction
     {
         string when = DialogueClock.Spoken(incident.AnchorTime);
         string room = InterviewEvidenceBoard.RoomName(incident.SubjectRoomId);
+        if (incident.IncidentType == NSP.Data.LogEventType.Death && !string.IsNullOrEmpty(incident.VictimEmployeeId))
+            return KoreanParticle.Resolve(
+                $"{when}경 {room}에서 {InterviewEvidenceBoard.Codename(incident.VictimEmployeeId)} 씨의 생체 신호가 끊겼을 때, " +
+                "당신은 그 방에 있었습니다. 무엇을 하고 있었습니까?");
         return KoreanParticle.Resolve(
             $"{when}경 {room}에서 사고가 났을 때 그 방에 계셨습니다. 무엇을 하고 있었습니까?");
     }

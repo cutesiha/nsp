@@ -139,8 +139,8 @@ public partial class EndingDirector
         _stage = new EndingCutsceneStage();
         AddChild(_stage);
         _stage.Attach(_layer);
-        // 엔딩 컷씬도 깨끗한 실시간 화면이 아니라 낡은 시설 기록물로 보이게 한다.
-        _stage.EnableFilm(ArchiveFilm.Look.Cinema);
+        // 예전에는 여기서 낡은 기록물 필름(ArchiveFilm.Cinema)을 덮었다. 검은색을 들어 올리고 색을 빼서
+        // 화면이 뿌옇고 누렇게 떴다 — 지금은 타이틀 · 프롤로그와 같은 화면 필터(AnalogFilter)만 받는다.
         _stage.ShowSet(EndingCutsceneStage.Set.Restraint);
         _stage.Offender?.Spawn(GameState.Instance?.FinalAccusedId ?? "");
         _stage.Offender?.Slump();

@@ -845,7 +845,7 @@ public partial class FacilityMinimap : Control
         if (hover != null)
         {
             bool ok = sim.CanAssignToRoom(hover)
-                      && sim.GetEmployeeState(_dragEmp)?.AssignedRoomId != hover;
+                      && !(sim.GetEmployeeState(_dragEmp)?.AssignedRoomId == hover && sim.IsAtOrHeadingTo(_dragEmp, hover));
             DrawRect(BoxOf(hover).Grow(3f),
                 ok ? new Color(0.45f, 1f, 0.8f, 0.95f) : new Color(1f, 0.4f, 0.3f, 0.9f), false, 2.4f);
         }
@@ -1239,7 +1239,14 @@ public partial class FacilityMinimap : Control
 
         var emp = sim.GetEmployeeState(_dragEmp);
         if (emp == null || !emp.Alive || emp.Isolated) return;
-        if (emp.AssignedRoomId == roomId) return;
+        // 이미 그 방에 있거나 그리로 가는 중일 때만 넘긴다. 배정된 방이라는 것만으로 넘기면,
+        // 전화로 옆 방에 보냈던 직원 · 결번에게 끌려간 직원을 제자리로 돌려보낼 수 없다
+        // (2026-10-31 사용자 제보 "늑대 · 강아지가 자꾸 안 옮겨진다" — 아무 말 없이 무시됐다).
+        if (emp.AssignedRoomId == roomId && sim.IsAtOrHeadingTo(_dragEmp, roomId))
+        {
+            OnEmployeeSelected?.Invoke(_dragEmp);
+            return;
+        }
         // 근무 중 재배치는 근무표 정원(RoomSlotCapacity)에 묶이지 않는다.
         // 사고가 나면 한 방에 셋을 몰아넣어야 할 때가 있고, 그게 이 게임의 조작이다.
         if (!sim.IsRoomActive(roomId))

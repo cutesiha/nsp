@@ -42,6 +42,7 @@ public partial class EndingDirector : Node
     private Color _m1C, _m2C, _fillC, _ceilC, _roomFillC;
 
     private CanvasLayer _layer;
+    private CanvasLayer _topLayer;
     private ColorRect _red;
     private ColorRect _white;
     private ColorRect _black;
@@ -76,8 +77,15 @@ public partial class EndingDirector : Node
         // 엔딩 동안 GUIDE-0 의 입은 이 연출기가 직접 돌린다(홀로그램 화면은 떠 있지 않다).
         GuideMouthAnimator.ExternallyDriven = true;
         _rng.Randomize();
-        _layer = new CanvasLayer { Layer = 130 };   // 통화창(114) · 경보(122) 위
+        // **화면 필터(AnalogFilter 119) 아래**에 둔다 — 타이틀 · 프롤로그와 같은 파란 아날로그 화면이
+        // 엔딩의 컷씬 · 암전 · 섬광 · 배너에도 그대로 씌워진다(2026-10-31 사용자 요청).
+        // 예전에는 130 이라 필터 위에 그려져, 엔딩만 필터가 하나도 안 먹은 맨 화면이었다.
+        // 프롤로그 무대(Prologue3DDirector)와 같은 118 — 통화창(114) 위, 필터 아래.
+        _layer = new CanvasLayer { Layer = 118 };
         AddChild(_layer);
+        // 마지막 근무 기록 화면만은 필터 위(130)에 둔다 — 읽고 눌러야 하는 화면이다.
+        _topLayer = new CanvasLayer { Layer = 130 };
+        AddChild(_topLayer);
 
         _red = FullRect(new Color(0.85f, 0.05f, 0.03f, 0f));
         _white = FullRect(new Color(1f, 1f, 1f, 0f));
@@ -183,6 +191,11 @@ public partial class EndingDirector : Node
             case EndingState.Kind.Late: await LateEnd(); break;
             default: await BadEnd(); break;
         }
+
+        // 네 엔딩 모두 — 연출이 끝나면 크레딧이 아래에서 위로 올라간다. 그 다음이 근무 기록.
+        var credits = new CreditsRoll();
+        _layer.AddChild(credits);
+        await credits.PlayAsync();
 
         await ShowRecord(_kind);
     }
@@ -375,7 +388,7 @@ public partial class EndingDirector : Node
             GetTree().ChangeSceneToFile("res://scenes/main/MainScene3D_Test.tscn");
             tcs.TrySetResult();
         };
-        _layer.AddChild(rec);
+        _topLayer.AddChild(rec);
         return tcs.Task;
     }
 

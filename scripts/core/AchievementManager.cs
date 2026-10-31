@@ -467,11 +467,27 @@ public partial class AchievementManager : Node
         if (RealShift) Unlock(Achievements.WarningNeglected);
     }
 
-    internal void OnGhostDispelled() => Unlock(Achievements.GhostDispelled);
-
-    internal void OnGhostStruck()
+    // 이상 개체가 작업실을 떠났다 — 그 방 CCTV 를 띄워 두고 있었을 때만 "확인했다" 로 친다.
+    internal void OnGhostDispelled(string roomId)
     {
-        if (RealShift) Unlock(Achievements.GhostIgnored);
+        if (WatchingRoom(roomId)) Unlock(Achievements.GhostDispelled);
+    }
+
+    // 이상 개체가 그 방 설비를 부쉈다 — **그 순간을 CCTV 로 보고 있었을 때만** 「보기만 하는 관리자」.
+    //
+    // 예전에는 "끝까지 관측하지 않아 사고를 내세요" 였다. 관측 소멸이 폐지된 뒤로 개체는 보든 말든
+    // 떠나며 확률로 사고를 내므로, 끝까지 지켜본 사람에게도 이 과제가 떴다(2026-10-31 사용자 제보).
+    // 지금은 사고를 막지 못하고 지켜보기만 한 것을 센다 — 보지 않았으면 뜨지 않는다.
+    internal void OnGhostStruck(string roomId)
+    {
+        if (RealShift && WatchingRoom(roomId)) Unlock(Achievements.GhostIgnored);
+    }
+
+    private static bool WatchingRoom(string roomId)
+    {
+        var sim = NSP.Facility.FacilitySimulation.Instance;
+        return sim != null && !string.IsNullOrEmpty(roomId)
+            && sim.IsRoomUnderActiveCctv(roomId) && !sim.IsRoomCctvBlocked(roomId);
     }
 
     // FacilitySimulation 안쪽 시스템들의 이벤트를 받아 넘기는 얇은 중계 노드.
@@ -538,7 +554,7 @@ public partial class AchievementManager : Node
         private void OnKilled(string id) => _m.OnDeath();
         private void OnWarningFailed(string roomId, string title) => _m.OnWarningFailed();
         private void OnIsolated(string id) => _m.NoteIsolationAccepted(id);
-        private void OnDispelled(string roomId) => _m.OnGhostDispelled();
-        private void OnStruck(string roomId) => _m.OnGhostStruck();
+        private void OnDispelled(string roomId) => _m.OnGhostDispelled(roomId);
+        private void OnStruck(string roomId) => _m.OnGhostStruck(roomId);
     }
 }

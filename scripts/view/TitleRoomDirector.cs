@@ -609,6 +609,13 @@ public partial class TitleRoomDirector : Node
                     GetViewport().SetInputAsHandled();
                     return;
                 case Key.Escape:
+                    if (TitleStaffIdView.Instance is { SourcesOpen: true } staffView)
+                    {
+                        staffView.CloseSources();
+                        Sfx.Instance?.Play("relay_click", -10f);
+                        GetViewport().SetInputAsHandled();
+                        return;
+                    }
                     if (TitleTerminalView.Instance.CurrentMode == TitleTerminalView.Mode.Report)
                     {
                         TitleTerminalView.Instance.ShowMenu();
@@ -685,6 +692,23 @@ public partial class TitleRoomDirector : Node
                 return;
             }
             if (_phase != Phase.Menu) return;
+
+            // 오른쪽 CRT 의 「출처」 버튼 · 출처 창의 X.
+            string staffBtn = StaffButtonUnderMouse();
+            if (staffBtn == TitleStaffIdView.SourcesId)
+            {
+                TitleStaffIdView.Instance.OpenSources();
+                Sfx.Instance?.Play("relay_click", -8f);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
+            if (staffBtn == TitleStaffIdView.SourcesCloseId)
+            {
+                TitleStaffIdView.Instance.CloseSources();
+                Sfx.Instance?.Play("relay_click", -10f);
+                GetViewport().SetInputAsHandled();
+                return;
+            }
 
             // 장비를 눌렀으면 그 장비에 걸린 명령, 아니면 단말기에서 가리킨 항목.
             string id = !string.IsNullOrEmpty(_hoverProp) ? _hoverProp : TerminalItemUnderMouse();
@@ -778,6 +802,7 @@ public partial class TitleRoomDirector : Node
         if (!string.IsNullOrEmpty(prop))
         {
             TitleStaffIdView.Instance.SetHover(-1);
+            TitleStaffIdView.Instance.SetButtonHover("");
             return;
         }
 
@@ -787,14 +812,26 @@ public partial class TitleRoomDirector : Node
         {
             if (takeCursor && TitleTerminalView.Instance.HoverId(item)) Sfx.Instance?.Play("tick", -16f);
             TitleStaffIdView.Instance.SetHover(-1);
+            TitleStaffIdView.Instance.SetButtonHover("");
             _hint.SetLine("");
             return;
         }
 
-        // 3) 오른쪽 CRT 의 직원 카드 — 마우스를 올리면 신원 한 줄이 뜬다.
+        // 3) 오른쪽 CRT — 「출처」 버튼(열려 있으면 그 창의 X)이 먼저, 그 다음 직원 카드.
         int card = -1;
+        string btn = "";
         if (TryCanvasPos("02", origin, dir, out Vector2 lp))
-            card = TitleStaffIdView.Instance.IndexAt(lp);
+        {
+            btn = TitleStaffIdView.Instance.ButtonAt(lp);
+            if (btn.Length == 0) card = TitleStaffIdView.Instance.IndexAt(lp);
+        }
+        if (TitleStaffIdView.Instance.SetButtonHover(btn)) Sfx.Instance?.Play("tick", -16f);
+        if (btn.Length > 0)
+        {
+            TitleStaffIdView.Instance.SetHover(-1);
+            _hint.SetLine(btn == TitleStaffIdView.SourcesId ? "외부 리소스 출처를 봅니다." : "출처 창을 닫습니다.");
+            return;
+        }
         if (TitleStaffIdView.Instance.SetHover(card)) Sfx.Instance?.Play("tick", -20f);
         _hint.SetLine(card >= 0 ? TitleStaffIdView.Instance.HoverLine : "");
     }
@@ -948,6 +985,15 @@ public partial class TitleRoomDirector : Node
         Vector3 o = _camera.ProjectRayOrigin(_mouse);
         Vector3 d = _camera.ProjectRayNormal(_mouse);
         return TryCanvasPos("01", o, d, out Vector2 p) ? TitleTerminalView.Instance.ItemAt(p) : "";
+    }
+
+    // 오른쪽 CRT(직원 신원 화면)의 「출처」 버튼 · 출처 창 X.
+    private string StaffButtonUnderMouse()
+    {
+        if (_camera == null || TitleStaffIdView.Instance == null) return "";
+        Vector3 o = _camera.ProjectRayOrigin(_mouse);
+        Vector3 d = _camera.ProjectRayNormal(_mouse);
+        return TryCanvasPos("02", o, d, out Vector2 p) ? TitleStaffIdView.Instance.ButtonAt(p) : "";
     }
 
     // 기록실도 같은 왼쪽 CRT 캔버스를 쓴다 — 좌표를 넘겨 무엇을 가리켰는지 물어본다.

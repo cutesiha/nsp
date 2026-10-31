@@ -75,6 +75,14 @@ public partial class StaffTimelineView : Control
             }
             list.Add(new Segment { Start = t, End = last, RoomId = r.ToRoomId ?? "" });
         }
+
+        // 생체 신호가 끊긴 직원의 띠는 그 시각에서 끝난다 — 그 뒤로는 어디에도 없다.
+        foreach (var (id, at) in DeathTimes(rows))
+        {
+            if (!result.TryGetValue(id, out var list)) continue;
+            list.RemoveAll(g => g.Start >= at);
+            if (list.Count > 0 && list[^1].End > at) list[^1].End = at;
+        }
         return result;
     }
 
@@ -89,8 +97,8 @@ public partial class StaffTimelineView : Control
 
     // ── 사고 줄 고르기 (headless 검사 대상) ────────────────────────────
     //
-    // 세로선이 되는 줄은 **작업실 사고와 방해공작** 뿐이다. 경고(Warning) · 안정화(Recovery) 는
-    // 물론, 같은 붉은 줄이라도 금기 · 정전 · 용량 감소 · 사망 · 기절 같은 줄은 띠에 뜨지 않는다 —
+    // 세로선이 되는 줄은 **작업실 사고 · 방해공작 · 생체 신호 소실(사망)** 뿐이다. 경고(Warning) · 안정화(Recovery) 는
+    // 물론, 같은 붉은 줄이라도 금기 · 정전 · 용량 감소 · 기절 같은 줄은 띠에 뜨지 않는다 —
     // 선마다 "○○실 사고 / ○○실 방해공작" 라벨이 붙으므로, 선이 많아지면 정작 봐야 할 순간이 묻힌다.
     // (발전실 사고는 사고 줄과 정전 · 용량 감소 줄이 같이 찍힌다 — 선은 사고 줄 하나만 선다.)
     public static List<int> IncidentRowIndices(IReadOnlyList<DisplayLogEntry> rows)
@@ -102,10 +110,25 @@ public partial class StaffTimelineView : Control
         return found;
     }
 
+    // 직원의 생체 신호 소실(사망)도 세로선이 된다(2026-10-31 사용자 요청) — 누가 언제 끊겼는지가
+    // 띠에서 바로 보여야 그 시각 그 방에 누가 있었는지를 따질 수 있다.
     private static bool IsIncidentRow(DisplayLogEntry r) =>
         r != null && (r.Severity == DisplayLogSeverity.Sabotage
+                      || r.SourceEventType == LogEventType.Death
                       || (r.Severity == DisplayLogSeverity.Critical
                           && r.SourceEventType is LogEventType.TaskFailed or LogEventType.AnomalyIncident));
+
+    // 화면에 뜬 사망 줄 → (직원, 시각). 같은 직원이 두 번 나오면 먼저 뜬 줄.
+    public static Dictionary<string, float> DeathTimes(IEnumerable<DisplayLogEntry> rows)
+    {
+        var dead = new Dictionary<string, float>();
+        if (rows == null) return dead;
+        foreach (var r in rows)
+            if (r != null && r.SourceEventType == LogEventType.Death && !string.IsNullOrEmpty(r.RelatedEmployeeId)
+                && !dead.ContainsKey(r.RelatedEmployeeId))
+                dead[r.RelatedEmployeeId] = r.Timestamp;
+        return dead;
+    }
 
     // ── 입력 ───────────────────────────────────────────────────────────
     private readonly List<string> _employees = new();
@@ -113,6 +136,7 @@ public partial class StaffTimelineView : Control
     private readonly List<InterviewEvidence> _pins = new();
     private Dictionary<string, List<Segment>> _segments = new();
     private readonly List<int> _incidents = new();
+    private Dictionary<string, float> _deaths = new();
 
     // 지금 골라 둔 자료 카드(최대 두 장). 같은 핀을 밝게 그려 목록과 띠가 같은 것을 가리키게 한다.
     private readonly HashSet<string> _selected = new();
@@ -149,6 +173,7 @@ public partial class StaffTimelineView : Control
 
         _dayLength = Mathf.Max(1f, Config.Instance?.Data?.DayLengthSeconds ?? 120f);
         _segments = BuildSegments(_employees, _rows, _dayLength);
+        _deaths = DeathTimes(_rows);
         _incidents.Clear();
         _incidents.AddRange(IncidentRowIndices(_rows));
         _incidentTexts.Clear();
@@ -345,6 +370,20 @@ public partial class StaffTimelineView : Control
                 DrawString(_font, new Vector2(x0 + 4f, y + h * 0.5f + rfs * 0.38f), RoomName(seg.RoomId),
                     HorizontalAlignment.Left, x1 - x0 - 8f, rfs, ink);
             }
+
+            // 신호가 끊긴 뒤는 검붉게 비운다 — "여기서부터 이 사람은 없다".
+            if (_deaths.TryGetValue(id, out float diedAt))
+            {
+                float dx = XOf(diedAt), end = TrackX + TrackW;
+                if (end - dx >= 1f)
+                {
+                    DrawRect(new Rect2(dx, y, end - dx, h), new Color(0.22f, 0.02f, 0.05f, 0.92f));
+                    int dfs = Mathf.RoundToInt(9f * K);
+                    if (end - dx >= 70f * K && h >= 11f * K)
+                        DrawString(_font, new Vector2(dx + 4f, y + h * 0.5f + dfs * 0.38f), "✕ 생체 신호 소실",
+                            HorizontalAlignment.Left, end - dx - 8f, dfs, new Color(1f, 0.55f, 0.58f, 0.95f));
+                }
+            }
         }
     }
 
@@ -515,7 +554,8 @@ public partial class StaffTimelineView : Control
     }
 
     private static Color IncidentColor(DisplayLogEntry r) =>
-        r.Severity == DisplayLogSeverity.Sabotage ? new Color(0.92f, 0.26f, 0.26f)
+        r.SourceEventType == LogEventType.Death ? new Color(0.88f, 0.16f, 0.46f)
+        : r.Severity == DisplayLogSeverity.Sabotage ? new Color(0.92f, 0.26f, 0.26f)
                                                   : new Color(0.95f, 0.62f, 0.20f);
 
     private static Color PinColor(EvidenceKind k) => k switch
@@ -537,6 +577,9 @@ public partial class StaffTimelineView : Control
     // 선 위 라벨 — "정비실 사고" / "발전실 방해공작". 방을 모르면 종류만 쓴다.
     private static string IncidentTitle(DisplayLogEntry r)
     {
+        // 사망은 방이 아니라 사람이 먼저다 — "고양이 생체 신호 소실".
+        if (r.SourceEventType == LogEventType.Death)
+            return Codename(r.RelatedEmployeeId) + " 생체 신호 소실";
         string kind = r.Severity == DisplayLogSeverity.Sabotage ? "방해공작" : "사고";
         string room = IncidentRoom(r);
         return string.IsNullOrEmpty(room) ? kind : RoomName(room) + " " + kind;

@@ -25,6 +25,7 @@ public static class EndingState
 
     private const string Path = "user://nsp_progress.cfg";
     private const string Section = "ending";
+    private const string UnlockSection = "unlock";
 
     private static bool _loaded;
     private static Kind _last = Kind.None;
@@ -42,8 +43,28 @@ public static class EndingState
     {
         Load();
         _last = kind;
+        // 단기 근무를 끝까지 마쳤다(엔딩 넷 중 무엇이든) — 정규(장기) 근무가 열린다.
+        if (kind != Kind.None && GameModes.Current == GameMode.Competition) _shortCleared = true;
+        Save();
+    }
+
+    // ── 정규 근무 해금 ───────────────────────────────────────────────
+    //
+    // 단기 근무를 한 번 끝까지 마치면(엔딩을 보면) 타이틀의 「정규 근무」가 열린다(2026-10-31 사용자 요청).
+    // 엔딩 기록과 같은 파일에 남지만 **새 근무를 시작해도 지우지 않는다**(Clear 는 엔딩만 비운다).
+    // 에디터에서는 엔딩 기록과 똑같이 F5 마다 처음 상태(잠김)로 돌아간다 — 아래 Load 참고.
+    private static bool _shortCleared;
+
+    public static bool ShortShiftCleared
+    {
+        get { Load(); return _shortCleared; }
+    }
+
+    private static void Save()
+    {
         var cfg = new ConfigFile();
-        cfg.SetValue(Section, "last", (int)kind);
+        cfg.SetValue(Section, "last", (int)_last);
+        cfg.SetValue(UnlockSection, "short_cleared", _shortCleared);
         cfg.Save(Path);
     }
 
@@ -79,5 +100,6 @@ public static class EndingState
         // 예전 저장 파일(True=1 / Bad=2)도 그대로 읽힌다. 모르는 값이면 None 으로 둔다.
         int raw = (int)cfg.GetValue(Section, "last", 0);
         _last = System.Enum.IsDefined(typeof(Kind), raw) ? (Kind)raw : Kind.None;
+        _shortCleared = (bool)cfg.GetValue(UnlockSection, "short_cleared", false);
     }
 }

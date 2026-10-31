@@ -54,7 +54,10 @@ public static class StoryBeatSelector
             && IsPlayable(e, day) && Matches(e.When, day);
 
         // ① 어제 일에 대한 반응 — 맨 앞에 하나만(문서 §16).
+        //    어제 누가 죽었으면 그 반응이 먼저다 — 귀신 목격담이 뽑혀 죽음이 한마디도 없이 지나가면 안 된다.
         var reacts = StoryScript.Entries.Where(e => e.Kind == StoryBeatKind.React && Usable(e)).ToList();
+        var deaths = reacts.Where(e => e.When == "death_yesterday").ToList();
+        if (deaths.Count > 0) reacts = deaths;
         if (reacts.Count > 0) queue.Add(reacts[_rng.Next(reacts.Count)]);
 
         // ② 그 DAY 의 집단 대화 — 문서에 적힌 순서대로 전부. 관리자 선택(@choice)은

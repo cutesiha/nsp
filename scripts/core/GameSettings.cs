@@ -95,6 +95,7 @@ public static class GameSettings
 
     private static float _master = 0.85f, _bgm = 0.8f, _sfx = 0.9f;
     private static bool _fullscreen;
+    private static bool _reduceFlashing;
     private static Quality _quality = Quality.High;
     private static bool _loaded;
 
@@ -102,6 +103,10 @@ public static class GameSettings
     public static float BgmVolume { get => _bgm; set { _bgm = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static float SfxVolume { get => _sfx; set { _sfx = Mathf.Clamp(value, 0f, 1f); ApplyAudio(); } }
     public static bool Fullscreen { get => _fullscreen; set { _fullscreen = value; ApplyFullscreen(); } }
+    // 깜빡임 · 흔들림 줄이기(광과민성 배려). 켜면 붉은 점멸은 느린 맥박으로, 화면 섬광 · 카메라 흔들림은 약하게 바뀐다.
+    public static bool ReduceFlashing { get => _reduceFlashing; set => _reduceFlashing = value; }
+    // 섬광 · 흔들림에 곱하는 배율 — 줄이기를 켜면 0.3.
+    public static float FlashScale => _reduceFlashing ? 0.3f : 1f;
     public static Quality GraphicsQuality { get => _quality; set { _quality = value; ApplyQuality(); } }
     public static string QualityLabel => QualityLevels[(int)_quality].Label;
 
@@ -611,6 +616,7 @@ public static class GameSettings
             _bgm = (float)cfg.GetValue("audio", "bgm", _bgm);
             _sfx = (float)cfg.GetValue("audio", "sfx", _sfx);
             _fullscreen = (bool)cfg.GetValue("video", "fullscreen", _fullscreen);
+            _reduceFlashing = (bool)cfg.GetValue("video", "reduce_flashing", _reduceFlashing);
             _quality = (Quality)Mathf.Clamp((int)cfg.GetValue("video", "quality", (int)_quality), 0, QualityLevels.Length - 1);
             for (int i = 0; i < Keys.Length; i++)
                 Keys[i] = (Key)(int)cfg.GetValue("keys", ((ZoomTarget)i).ToString(), (int)DefaultKeys[i]);
@@ -629,6 +635,7 @@ public static class GameSettings
         cfg.SetValue("audio", "bgm", _bgm);
         cfg.SetValue("audio", "sfx", _sfx);
         cfg.SetValue("video", "fullscreen", _fullscreen);
+        cfg.SetValue("video", "reduce_flashing", _reduceFlashing);
         cfg.SetValue("video", "quality", (int)_quality);
         for (int i = 0; i < Keys.Length; i++)
             cfg.SetValue("keys", ((ZoomTarget)i).ToString(), (int)Keys[i]);

@@ -414,6 +414,26 @@ public static class InterviewQuestionFactory
         string here = InterviewEvidenceBoard.RoomName(q.SubjectRoomId);
         string who = InterviewEvidenceBoard.Codename(q.OtherEmployeeId);
 
+        // 사망(생체 신호 소실) 기록 — "사고" 가 아니라 **누가 죽었는지**를 부른다.
+        string victim = ev?.IncidentType == LogEventType.Death && !string.IsNullOrEmpty(ev.VictimEmployeeId)
+            ? InterviewEvidenceBoard.Codename(ev.VictimEmployeeId) : "";
+        if (victim.Length > 0)
+        {
+            string death = q.Intent switch
+            {
+                InterviewIntent.AskIncidentKnown =>
+                    $"{at}{(string.IsNullOrEmpty(here) ? "" : here + "에서 ")}{victim} 씨의 생체 신호가 끊긴 걸 알고 있었습니까?",
+                InterviewIntent.AskWhereAtIncident =>
+                    $"{at}{victim} 씨의 신호가 끊겼을 때, 당신은 어디에 있었습니까?",
+                InterviewIntent.AskProveInnocence =>
+                    $"{victim} 씨의 죽음과 무관하다는 근거를 대십시오.",
+                InterviewIntent.AskSuspectOpinion =>
+                    $"{victim} 씨를 그렇게 만든 게 누구라고 생각합니까?",
+                _ => null,
+            };
+            if (death != null) return death;
+        }
+
         return q.Intent switch
         {
             InterviewIntent.AskMoveReason =>

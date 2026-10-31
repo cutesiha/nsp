@@ -57,7 +57,8 @@ public partial class AnalogFilter : CanvasLayer
 
     public override void _Input(InputEvent e)
     {
-        if (_rect == null) return;
+        // F8 은 개발용이다 — 내보낸 빌드에서는 듣지 않는다(플레이 · 심사 중 실수로 눌러 화면이 바뀌지 않게).
+        if (_rect == null || !OS.HasFeature("editor")) return;
         if (e is InputEventKey { Pressed: true, Echo: false } k && k.Keycode == ToggleKey)
             Enabled = !Enabled;
     }

@@ -246,31 +246,39 @@ public partial class AchievementTest : Node
         Wipe();
         StartShift(1);
 
-        // 이상 개체를 띄우고 **보지 않는다** — 유예 시간이 지나면 사고가 된다.
+        // 관측 소멸은 폐지됐다 — 개체는 보든 말든 떠나며 확률로 사고를 낸다. 그래서 두 과제는
+        // "그 순간 그 방 CCTV 를 보고 있었는가" 로 갈린다(2026-10-31 — 끝까지 지켜봤는데 "끝까지 관측하지
+        // 않아 사고를 내세요" 가 떴다는 제보). 사고는 확률이라 여기서는 개체 신호를 직접 보낸다.
+        //
+        // ① 다른 화면을 보고 있었다 — 사고가 나도, 떠나도 과제는 없다.
+        _sim.SetSurveillanceTarget("guard_room");
+        _sim.ReportCctvFeedLive(true);
+        _m.OnGhostStruck("maintenance_room");
+        _m.OnGhostDispelled("maintenance_room");
+        Ok(!_m.IsUnlocked(Achievements.GhostIgnored), "다른 방을 보는 사이 난 사고 → 보기만 하는 관리자는 뜨지 않는다");
+        Ok(!_m.IsUnlocked(Achievements.GhostDispelled), "다른 방을 보는 사이 떠났다 → 눈 마주쳤다는 뜨지 않는다");
+
+        // ② 그 방을 띄워 두고 있었다 — 사고를 지켜봤다 · 떠나는 것을 봤다.
+        _sim.SetSurveillanceTarget("maintenance_room");
+        _sim.ReportCctvFeedLive(true);
+        _m.OnGhostStruck("maintenance_room");
+        Ok(_m.IsUnlocked(Achievements.GhostIgnored), "그 방 CCTV 로 사고 순간을 봤다 → 보기만 하는 관리자");
+        _m.OnGhostDispelled("maintenance_room");
+        Ok(_m.IsUnlocked(Achievements.GhostDispelled), "그 방 CCTV 로 떠나는 것을 봤다 → 눈 마주쳤다");
+
+        // ③ 실제 시스템으로도 이어져 있다 — 띄운 개체가 떠날 때 Departed 가 매니저까지 온다.
+        Wipe();
+        StartShift(1);
         Ok(_sim.Ghost.ForceAppear("maintenance_room", _sim, 2f), "이상 개체가 정비실에 떴다");
+        _sim.SetSurveillanceTarget("maintenance_room");
+        _sim.ReportCctvFeedLive(true);
         for (int i = 0; i < 300 && _sim.Ghost.Active; i++)
         {
             GameState.Instance.AdvanceDayTime(Step);
             _sim.Tick(Step);
         }
-        Ok(_sim.Ghost.StruckToday > 0, "방치해서 사고가 됐다");
-        Ok(_m.IsUnlocked(Achievements.GhostIgnored), "방치 → 시크한 관리자");
-        Ok(!_m.IsUnlocked(Achievements.GhostDispelled), "소멸시키지 않았으니 눈 마주쳤다는 뜨지 않는다");
-
-        // 이번에는 **계속 보고 있는다** — CCTV 로 그 방을 띄워 두면 소멸한다.
-        Wipe();
-        StartShift(1);
-        _sim.Ghost.ForceAppear("guard_room", _sim, 9999f);
-        _sim.SetSurveillanceTarget("guard_room");
-        _sim.ReportCctvFeedLive(true);
-        for (int i = 0; i < 900 && _sim.Ghost.Active; i++)
-        {
-            GameState.Instance.AdvanceDayTime(Step);
-            _sim.Tick(Step);
-        }
-        Ok(_sim.Ghost.DispelledToday > 0, $"끝까지 봐서 소멸시켰다 (소멸 {_sim.Ghost.DispelledToday}건)");
-        Ok(_m.IsUnlocked(Achievements.GhostDispelled), "관측 소멸 → 눈 마주쳤다");
-        Ok(!_m.IsUnlocked(Achievements.GhostIgnored), "이번에는 시크한 관리자가 뜨지 않는다");
+        Ok(!_sim.Ghost.Active, "개체가 작업실을 떠났다");
+        Ok(_m.IsUnlocked(Achievements.GhostDispelled), "지켜보는 사이 떠났다 → 눈 마주쳤다(실제 이벤트 연결)");
 
         // 경고 방치 — 실제 경고가 떠서 고장으로 넘어가는 것을 기다린다.
         // (여기서 보는 것은 FacilityWarningSystem.Neglected 구독이 실제로 이어져 있는가다.)

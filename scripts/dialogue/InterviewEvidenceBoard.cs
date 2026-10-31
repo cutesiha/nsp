@@ -279,7 +279,9 @@ public static class InterviewEvidenceBoard
         {
             Id = IncidentIdOf(key),
             Kind = EvidenceKind.Incident,
-            Header = "사고 기록",
+            // 사망은 "생체 신호 소실" 로 — 누구의 신호가 끊겼는지는 본문과 VictimEmployeeId 가 말한다.
+            Header = r.SourceEventType == LogEventType.Death ? "생체 신호 소실" : "사고 기록",
+            VictimEmployeeId = r.SourceEventType == LogEventType.Death ? r.RelatedEmployeeId ?? "" : "",
             TimeText = DialogueClock.Text(r.Timestamp),
             Body = r.Text,
             SubjectEmployeeId = "",          // 누구의 것도 아니다 — 모두에게 물을 수 있다

@@ -168,7 +168,7 @@ public partial class AmbientOverlay : CanvasLayer
     // 화면 반짝(전기 불량). strength 0~1.
     public void Flash(float strength = 0.6f)
     {
-        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        strength = Mathf.Clamp(strength * GameSettings.FlashScale, 0.05f, 1f);
         _flash.Visible = true;
         var t = CreateTween();
         t.TweenProperty(_flash, "color:a", strength, 0.03);
@@ -181,7 +181,7 @@ public partial class AmbientOverlay : CanvasLayer
     // 끝나면 흰색으로 되돌려 둔다 — 다음 Flash() 가 붉게 뜨면 안 된다.
     public void FlashColor(Color color, float strength, float seconds)
     {
-        strength = Mathf.Clamp(strength, 0.05f, 1f);
+        strength = Mathf.Clamp(strength * GameSettings.FlashScale, 0.05f, 1f);
         _flash.Color = color with { A = 0f };
         _flash.Visible = true;
         var t = CreateTween();

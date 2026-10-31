@@ -94,6 +94,15 @@ public partial class SeatedCameraRig : Node3D
             pos += new Vector3(0f, FearBreathMeters * (_zoomed ? FearBreathZoomScale : 1f) * breath, 0f);
 
         rot += _focusDegrees * _focusWeight + _shakeOffset + PhoneTiltDegrees * _phoneTiltWeight + _collapseRotDeg;
+        if (Tremor > 0.001f)
+        {
+            // 울림 — 두 고주파가 엇갈려 떨리는 진동 + 매 프레임 조금씩 다른 튐. 비명이 클수록 세다.
+            _tremorT += (float)delta;
+            float tx = Mathf.Sin(_tremorT * 71f) * 0.6f + Mathf.Sin(_tremorT * 113f + 1.7f) * 0.4f;
+            float ty = Mathf.Sin(_tremorT * 89f + 0.6f) * 0.6f + Mathf.Sin(_tremorT * 131f) * 0.4f;
+            rot += new Vector3(tx + (float)GD.RandRange(-0.35, 0.35), ty + (float)GD.RandRange(-0.35, 0.35), tx * 0.3f) * Tremor;
+            pos += new Vector3(ty, tx, 0f) * Tremor * 0.0025f;
+        }
         Position = pos + _collapsePos + PadLeanMeters * _padWeight;
         RotationDegrees = rot;
 
@@ -252,8 +261,15 @@ public partial class SeatedCameraRig : Node3D
 
     // --- 공포 충격 ------------------------------------------------------
 
+    // 지속되는 떨림의 세기(도). 0 이면 없다. 직원 사망 비명(DeathScreamFx)처럼 소리가 울리는 동안 계속
+    // 떨려야 하는 연출이 매 프레임 값을 넣는다 — Shake 는 한 번 튀고 잦아드는 충격이라 맞지 않는다.
+    public float Tremor { get; set; }
+    private float _tremorT;
+
     public void Shake(float strengthDegrees = 2.4f, float seconds = 0.5f)
     {
+        // 설정의 "깜빡임 · 흔들림 줄이기" 를 켜면 약하게만 흔든다.
+        strengthDegrees *= NSP.Core.GameSettings.FlashScale;
         _shakeTween?.Kill();
         _shakeTween = CreateTween();
         var rng = new RandomNumberGenerator();

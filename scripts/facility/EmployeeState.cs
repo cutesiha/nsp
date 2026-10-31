@@ -73,6 +73,8 @@ public class EmployeeState
     // 정전(CCTV 미가동) 중 사망은 즉시 발견되지 않는다 — 전력이 복구되는 순간에야 발견된다.
     // 평소(정전 아닐 때) 사망은 바로 발견되므로 기본값은 true.
     public bool DiscoveredDead = true;
+    // 생체 신호가 끊긴 근무 시각(초). 살아 있으면 -1.
+    public float DiedAt = -1f;
     // 격리 — 명령을 받은 순간 true 가 된다(업무·방해공작에서 즉시 빠진다).
     // "실제로 침대에 묶였는가" 는 아래 Isolation 단계가 따로 들고 있다.
     public bool Isolated = false;

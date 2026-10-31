@@ -78,6 +78,8 @@ public partial class PosterCamera : Camera3D
 
     public override void _UnhandledInput(InputEvent e)
     {
+        // 포스터 촬영(F8 프리뷰 · F9 저장)은 개발용 — 내보낸 빌드에서는 듣지 않는다.
+        if (!OS.HasFeature("editor")) return;
         if (e is not InputEventKey { Pressed: true, Echo: false } k) return;
         if (k.Keycode == PreviewKey) { SetPreview(!_preview); GetViewport().SetInputAsHandled(); }
         else if (k.Keycode == CaptureKey) { _ = CaptureAsync(); GetViewport().SetInputAsHandled(); }

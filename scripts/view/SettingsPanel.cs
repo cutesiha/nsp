@@ -160,6 +160,7 @@ public partial class SettingsPanel : CanvasLayer
         vb.AddChild(Section("화 면"));
         vb.AddChild(FullscreenRow(240f, 140f));
         vb.AddChild(QualityRow(240f, 140f));
+        vb.AddChild(FlashRow(240f, 140f));
 
         vb.AddChild(Rule());
 
@@ -253,6 +254,7 @@ public partial class SettingsPanel : CanvasLayer
         left.AddChild(Section("화 면"));
         left.AddChild(FullscreenRow(150f, 150f));
         left.AddChild(QualityRow(150f, 150f));
+        left.AddChild(FlashRow(150f, 150f));
 
         // ── 오른쪽 단 : 조작키 ──
         var right = new VBoxContainer { Position = new Vector2(424f, bodyTop), Size = new Vector2(318f, 420f) };
@@ -299,6 +301,23 @@ public partial class SettingsPanel : CanvasLayer
             GameSettings.Save();
         };
         row.AddChild(fsBtn);
+        return row;
+    }
+
+    // 깜빡임 · 흔들림 줄이기(광과민성 배려). 켜면 붉은 점멸이 느린 맥박으로, 섬광 · 흔들림이 약하게 바뀐다.
+    private Control FlashRow(float labelW, float btnW)
+    {
+        var row = Row();
+        row.AddChild(Lbl("깜빡임 줄이기", Embedded ? 18 : 21, Ink, _body, labelW));
+        var btn = DocButton(GameSettings.ReduceFlashing ? "켜짐" : "꺼짐", btnW);
+        btn.TooltipText = "번쩍임 · 점멸 · 화면 흔들림을 약하게 합니다(광과민성 발작 예방).";
+        btn.Pressed += () =>
+        {
+            GameSettings.ReduceFlashing = !GameSettings.ReduceFlashing;
+            btn.Text = GameSettings.ReduceFlashing ? "켜짐" : "꺼짐";
+            GameSettings.Save();
+        };
+        row.AddChild(btn);
         return row;
     }
 
